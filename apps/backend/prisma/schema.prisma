@@ -1,0 +1,792 @@
+// ====================================================================
+// BuildFlow — Prisma Schema (all 24 models)
+// Multi-tenant ready: company_id on every tenant-scoped model.
+// ====================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------------
+// Enums                                                              
+// ------------------------------------------------------------------
+
+enum Role {
+  OWNER
+  PM
+  SUPERVISOR
+  ACCOUNTANT
+}
+
+enum ProjectType {
+  HEAVY
+  LARGE
+  MID
+  MINI
+}
+
+enum ProjectStatus {
+  PLANNING
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  DELAYED
+  ON_HOLD
+}
+
+enum DependencyType {
+  FS
+  SS
+  FF
+  SF
+}
+
+enum ResourceType {
+  LABOUR
+  MATERIAL
+  EQUIPMENT
+  SUBCONTRACTOR
+}
+
+enum CostType {
+  MATERIAL
+  LABOUR
+  EQUIPMENT
+  SUBCONTRACTOR
+  MISC
+}
+
+enum EstimateStatus {
+  DRAFT
+  REVIEWED
+  APPROVED
+  REJECTED
+  SUPERSEDED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+}
+
+enum BillStatus {
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+}
+
+enum BillCategory {
+  MATERIAL
+  LABOUR
+  EQUIPMENT
+  SUBCONTRACTOR
+  OTHER
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+}
+
+enum TaskConstraintType {
+  ASAP
+  ALAP
+  MUST_START_ON
+  MUST_FINISH_ON
+  START_NO_EARLIER_THAN
+  START_NO_LATER_THAN
+}
+
+// ------------------------------------------------------------------
+// 1. Company                                                         
+// ------------------------------------------------------------------
+
+model Company {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  gstin     String  @unique
+  pan       String
+  address   String?
+  logoUrl   String?  @map("logo_url")
+  state     String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  users               User[]
+  projects            Project[]
+  resources           Resource[]
+  rateAnalyses        RateAnalysis[]
+  materialPriceHistory MaterialPriceHistory[]
+  invoices            Invoice[]
+  bills               Bill[]
+  journalEntries      JournalEntry[]
+  chatMessages        ChatMessage[]
+  auditLogs           AuditLog[]
+  estimates           Estimate[]
+
+  @@map("companies")
+}
+
+// ------------------------------------------------------------------
+// 2. User                                                            
+// ------------------------------------------------------------------
+
+model User {
+id           String   @id @default(uuid()) @db.Uuid
+  companyId    String   @map("company_id") @db.Uuid
+  name         String
+  email        String   @unique
+  phone        String?
+  passwordHash String   @map("password_hash")
+  role         Role     @default(PM)
+  isActive     Boolean  @default(true) @map("is_active")
+  notificationPrefs Json? @map("notification_prefs")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  company              Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  projectsCreated      Project[]     @relation("ProjectCreatedBy")
+  tasksAssigned        Task[]        @relation("TaskAssignedTo")
+  dailyReports         DailyReport[] @relation("DailyReportReportedBy")
+  attendances          Attendance[]  @relation("UserAttendance")
+  estimatesCreated     Estimate[]    @relation("EstimateCreatedBy")
+  estimatesApproved    Estimate[]    @relation("EstimateApprovedBy")
+  billsApproved        Bill[]        @relation("BillApprovedBy")
+  journalEntries       JournalEntry[] @relation("JournalEntryCreatedBy")
+  priceHistoryRecorded MaterialPriceHistory[] @relation("PriceHistoryRecordedBy")
+  chatMessages         ChatMessage[]
+  notifications        Notification[]
+  auditLogs            AuditLog[]
+
+  @@index([companyId])
+  @@map("users")
+}
+
+// ------------------------------------------------------------------
+// 3. Project                                                         
+// ------------------------------------------------------------------
+
+model Project {
+  id              String   @id @default(uuid()) @db.Uuid
+  companyId       String   @map("company_id") @db.Uuid
+  name            String
+  code            String
+  type            ProjectType
+  status          ProjectStatus @default(PLANNING)
+  clientName      String   @map("client_name")
+  clientContact   String?  @map("client_contact")
+  locationLat     Float?   @map("location_lat")
+  locationLng     Float?   @map("location_lng")
+  locationAddress String?  @map("location_address")
+  startDate       DateTime? @map("start_date") @db.Date
+  endDate         DateTime? @map("end_date") @db.Date
+  budget          Decimal  @default(0) @db.Decimal(14, 2)
+  isDeleted       Boolean  @default(false) @map("is_deleted")
+  createdBy       String   @map("created_by") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  company        Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdByUser  User       @relation("ProjectCreatedBy", fields: [createdBy], references: [id])
+  wbsItems       WBSItem[]
+  tasks          Task[]
+  boqItems       BOQItem[]
+  estimates      Estimate[]
+  dailyReports   DailyReport[]
+  attendances    Attendance[]
+  invoices       Invoice[]
+  bills          Bill[]
+  journalEntries JournalEntry[]
+  chatMessages   ChatMessage[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("projects")
+}
+
+// ------------------------------------------------------------------
+// 4. WBSItem (self-relation)                                         
+// ------------------------------------------------------------------
+
+model WBSItem {
+  id         String   @id @default(uuid()) @db.Uuid
+  projectId  String   @map("project_id") @db.Uuid
+  parentId   String?  @map("parent_id") @db.Uuid
+  code       String
+  name       String
+  level      Int      @default(1)
+  orderIndex Int      @default(0) @map("order_index")
+
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent    WBSItem?  @relation("WBSChildren", fields: [parentId], references: [id], onDelete: SetNull)
+  children  WBSItem[] @relation("WBSChildren")
+  tasks     Task[]
+  boqItems  BOQItem[]
+
+  @@index([projectId])
+  @@index([parentId])
+  @@map("wbs_items")
+}
+
+// ------------------------------------------------------------------
+// 5. Task                                                            
+// ------------------------------------------------------------------
+
+model Task {
+  id             String   @id @default(uuid()) @db.Uuid
+  projectId      String   @map("project_id") @db.Uuid
+  wbsId          String?  @map("wbs_id") @db.Uuid
+  name           String
+  description    String?
+  startDate      DateTime? @map("start_date") @db.Date
+  endDate        DateTime? @map("end_date") @db.Date
+  durationDays   Int      @default(1) @map("duration_days")
+  progressPct    Int      @default(0) @map("progress_pct")
+  status         TaskStatus @default(NOT_STARTED)
+  assignedTo     String?  @map("assigned_to") @db.Uuid
+  constraintType TaskConstraintType? @map("constraint_type")
+  isMilestone    Boolean  @default(false) @map("is_milestone")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  project      Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  wbs          WBSItem?          @relation(fields: [wbsId], references: [id], onDelete: SetNull)
+  assignee     User?             @relation("TaskAssignedTo", fields: [assignedTo], references: [id])
+  resources    TaskResource[]
+  predecessors TaskPredecessor[] @relation("TaskSuccessors")
+  successors   TaskPredecessor[] @relation("TaskPredecessors")
+
+  @@index([projectId])
+  @@index([wbsId])
+  @@index([status])
+  @@map("tasks")
+}
+
+// ------------------------------------------------------------------
+// 6. TaskPredecessor                                                 
+// ------------------------------------------------------------------
+
+model TaskPredecessor {
+  id             String         @id @default(uuid()) @db.Uuid
+  taskId         String         @map("task_id") @db.Uuid
+  predecessorId  String         @map("predecessor_id") @db.Uuid
+  type           DependencyType @default(FS)
+  lagDays        Int            @default(0) @map("lag_days")
+
+  task        Task @relation("TaskSuccessors", fields: [taskId], references: [id], onDelete: Cascade)
+  predecessor Task @relation("TaskPredecessors", fields: [predecessorId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, predecessorId])
+  @@map("task_predecessors")
+}
+
+// ------------------------------------------------------------------
+// 7. Resource                                                        
+// ------------------------------------------------------------------
+
+model Resource {
+  id               String   @id @default(uuid()) @db.Uuid
+  companyId        String   @map("company_id") @db.Uuid
+  name             String
+  type             ResourceType
+  unit             String
+  rate             Decimal  @default(0) @db.Decimal(12, 2)
+  gstRate          Decimal  @default(0) @map("gst_rate") @db.Decimal(5, 2)
+  hsnSacCode       String?  @map("hsn_sac_code")
+  brandOrSpec      String?  @map("brand_or_spec")
+  category         String?
+  lastRateUpdatedAt DateTime? @map("last_rate_updated_at")
+  isActive         Boolean  @default(true) @map("is_active")
+  isDeleted        Boolean  @default(false) @map("is_deleted")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  company            Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  taskResources      TaskResource[]
+  estimateItems      EstimateItem[]
+  rateAnalysisComponents RateAnalysisComponent[]
+  priceHistory       MaterialPriceHistory[]
+  materialUsages     MaterialUsage[]
+
+  @@unique([companyId, name, type])
+  @@index([companyId])
+  @@index([type])
+  @@map("resources")
+}
+
+// ------------------------------------------------------------------
+// 8. TaskResource                                                    
+// ------------------------------------------------------------------
+
+model TaskResource {
+  id         String  @id @default(uuid()) @db.Uuid
+  taskId     String  @map("task_id") @db.Uuid
+  resourceId String  @map("resource_id") @db.Uuid
+  quantity   Decimal @db.Decimal(12, 3)
+  unit       String
+  rate       Decimal @db.Decimal(12, 2)
+  totalCost  Decimal @default(0) @map("total_cost") @db.Decimal(14, 2)
+
+  task     Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  resource Resource @relation(fields: [resourceId], references: [id])
+
+  @@unique([taskId, resourceId])
+  @@map("task_resources")
+}
+
+// ------------------------------------------------------------------
+// 9. BOQItem                                                         
+// ------------------------------------------------------------------
+
+model BOQItem {
+  id            String  @id @default(uuid()) @db.Uuid
+  projectId     String  @map("project_id") @db.Uuid
+  wbsId         String? @map("wbs_id") @db.Uuid
+  itemCode      String  @map("item_code")
+  description   String
+  unit          String
+  quantity      Decimal @db.Decimal(12, 3)
+  rate          Decimal @db.Decimal(12, 2)
+  amount        Decimal @default(0) @db.Decimal(14, 2)
+  category      String?
+  estimateItemId String? @map("estimate_item_id") @db.Uuid @unique
+  isSuperseded  Boolean @default(false) @map("is_superseded")
+
+  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  wbs          WBSItem?     @relation(fields: [wbsId], references: [id], onDelete: SetNull)
+  estimateItem EstimateItem? @relation(fields: [estimateItemId], references: [id])
+  invoiceLines InvoiceLineItem[]
+
+  @@index([projectId])
+  @@index([category])
+  @@map("boq_items")
+}
+
+// ------------------------------------------------------------------
+// 10. Estimate                                                       
+// ------------------------------------------------------------------
+
+model Estimate {
+  id                     String         @id @default(uuid()) @db.Uuid
+  projectId              String         @map("project_id") @db.Uuid
+  companyId              String         @map("company_id") @db.Uuid
+  name                   String
+  version                Int            @default(1)
+  status                 EstimateStatus @default(DRAFT)
+  totalMaterialCost      Decimal        @default(0) @map("total_material_cost") @db.Decimal(14, 2)
+  totalLabourCost        Decimal        @default(0) @map("total_labour_cost") @db.Decimal(14, 2)
+  totalEquipmentCost     Decimal        @default(0) @map("total_equipment_cost") @db.Decimal(14, 2)
+  totalSubcontractorCost Decimal        @default(0) @map("total_subcontractor_cost") @db.Decimal(14, 2)
+  totalMiscCost          Decimal        @default(0) @map("total_misc_cost") @db.Decimal(14, 2)
+  subtotal               Decimal        @default(0) @db.Decimal(14, 2)
+  overheadPct            Decimal        @default(0) @map("overhead_pct") @db.Decimal(5, 2)
+  overheadAmount         Decimal        @default(0) @map("overhead_amount") @db.Decimal(14, 2)
+  contingencyPct         Decimal        @default(0) @map("contingency_pct") @db.Decimal(5, 2)
+  contingencyAmount      Decimal        @default(0) @map("contingency_amount") @db.Decimal(14, 2)
+  profitMarginPct        Decimal        @default(0) @map("profit_margin_pct") @db.Decimal(5, 2)
+  profitMarginAmount     Decimal        @default(0) @map("profit_margin_amount") @db.Decimal(14, 2)
+  gstAmount              Decimal        @default(0) @map("gst_amount") @db.Decimal(14, 2)
+  grandTotal             Decimal        @default(0) @map("grand_total") @db.Decimal(14, 2)
+  notes                  String?
+  rejectionReason        String?        @map("rejection_reason")
+  approvedBy             String?        @map("approved_by") @db.Uuid
+  approvedAt             DateTime?      @map("approved_at")
+  createdBy              String         @map("created_by") @db.Uuid
+  createdAt              DateTime       @default(now()) @map("created_at")
+  updatedAt              DateTime       @updatedAt @map("updated_at")
+
+  project     Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  company     Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  approvedByUser User?         @relation("EstimateApprovedBy", fields: [approvedBy], references: [id])
+  createdByUser  User          @relation("EstimateCreatedBy", fields: [createdBy], references: [id])
+  sections    EstimateSection[]
+  items       EstimateItem[]
+
+  @@index([projectId])
+  @@index([companyId])
+  @@index([status])
+  @@map("estimates")
+}
+
+// ------------------------------------------------------------------
+// 11. EstimateSection                                                
+// ------------------------------------------------------------------
+
+model EstimateSection {
+  id          String   @id @default(uuid()) @db.Uuid
+  estimateId  String   @map("estimate_id") @db.Uuid
+  name        String
+  orderIndex  Int      @default(0) @map("order_index")
+  description String?
+
+  estimate Estimate      @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  items    EstimateItem[]
+
+  @@index([estimateId])
+  @@map("estimate_sections")
+}
+
+// ------------------------------------------------------------------
+// 12. EstimateItem                                                   
+// ------------------------------------------------------------------
+
+model EstimateItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  estimateId  String   @map("estimate_id") @db.Uuid
+  sectionId   String   @map("section_id") @db.Uuid
+  wbsItemId   String?  @map("wbs_item_id") @db.Uuid
+  itemCode    String?  @map("item_code")
+  description String
+  unit        String
+  quantity    Decimal  @db.Decimal(12, 3)
+  resourceId  String?  @map("resource_id") @db.Uuid
+  rate        Decimal  @db.Decimal(12, 2)
+  amount      Decimal  @default(0) @db.Decimal(14, 2)
+  type        CostType @default(MISC)
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  estimate  Estimate   @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  section   EstimateSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  resource  Resource?  @relation(fields: [resourceId], references: [id])
+  boqItem   BOQItem?
+
+  @@index([estimateId])
+  @@index([sectionId])
+  @@index([type])
+  @@map("estimate_items")
+}
+
+// ------------------------------------------------------------------
+// 13. RateAnalysis                                                   
+// ------------------------------------------------------------------
+
+model RateAnalysis {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  name        String
+  unit        String
+  description String?
+  totalRate   Decimal  @default(0) @map("total_rate") @db.Decimal(12, 2)
+  stale       Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  company    Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  components RateAnalysisComponent[]
+
+  @@index([companyId])
+  @@map("rate_analyses")
+}
+
+// ------------------------------------------------------------------
+// 14. RateAnalysisComponent                                          
+// ------------------------------------------------------------------
+
+model RateAnalysisComponent {
+  id              String   @id @default(uuid()) @db.Uuid
+  rateAnalysisId  String   @map("rate_analysis_id") @db.Uuid
+  resourceId      String?  @map("resource_id") @db.Uuid
+  miscName        String?  @map("misc_name")
+  quantityPerUnit Decimal  @map("quantity_per_unit") @db.Decimal(12, 4)
+  unit            String
+  rate            Decimal  @db.Decimal(12, 2)
+  amount          Decimal  @default(0) @db.Decimal(12, 2)
+  type            CostType @default(MISC)
+
+  rateAnalysis RateAnalysis @relation(fields: [rateAnalysisId], references: [id], onDelete: Cascade)
+  resource     Resource?    @relation(fields: [resourceId], references: [id])
+
+  @@index([rateAnalysisId])
+  @@map("rate_analysis_components")
+}
+
+// ------------------------------------------------------------------
+// 15. MaterialPriceHistory                                           
+// ------------------------------------------------------------------
+
+model MaterialPriceHistory {
+  id            String   @id @default(uuid()) @db.Uuid
+  resourceId    String   @map("resource_id") @db.Uuid
+  companyId     String   @map("company_id") @db.Uuid
+  rate          Decimal  @db.Decimal(12, 2)
+  effectiveDate DateTime @map("effective_date") @db.Date
+  notes         String?
+  recordedBy    String   @map("recorded_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  recordedByUser User @relation("PriceHistoryRecordedBy", fields: [recordedBy], references: [id])
+
+  @@index([resourceId])
+  @@index([companyId])
+  @@map("material_price_history")
+}
+
+// ------------------------------------------------------------------
+// 16. DailyReport                                                    
+// ------------------------------------------------------------------
+
+model DailyReport {
+  id           String   @id @default(uuid()) @db.Uuid
+  projectId    String   @map("project_id") @db.Uuid
+  reportedBy   String   @map("reported_by") @db.Uuid
+  reportDate   DateTime @map("report_date") @db.Date
+  weather      String?
+  workDone     String?  @map("work_done")
+  issues       String?
+  photos       String[] @default([])
+  workersCount Int      @default(0) @map("workers_count")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  project       Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reportedByUser User          @relation("DailyReportReportedBy", fields: [reportedBy], references: [id])
+  materialUsages MaterialUsage[]
+
+  @@unique([projectId, reportDate])
+  @@index([projectId])
+  @@map("daily_reports")
+}
+
+// ------------------------------------------------------------------
+// 17. MaterialUsage                                                  
+// ------------------------------------------------------------------
+
+model MaterialUsage {
+  id           String  @id @default(uuid()) @db.Uuid
+  dailyReportId String @map("daily_report_id") @db.Uuid
+  resourceId   String  @map("resource_id") @db.Uuid
+  quantityUsed Decimal @map("quantity_used") @db.Decimal(12, 3)
+  notes        String?
+
+  dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
+  resource    Resource    @relation(fields: [resourceId], references: [id])
+
+  @@index([dailyReportId])
+  @@map("material_usages")
+}
+
+// ------------------------------------------------------------------
+// 16b. Attendance (geo-fence check-in/out)
+// ------------------------------------------------------------------
+
+model Attendance {
+  id              String    @id @default(uuid()) @db.Uuid
+  projectId       String    @map("project_id") @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  checkInAt       DateTime  @map("check_in_at")
+  checkOutAt      DateTime? @map("check_out_at")
+  checkInLat      Float     @map("check_in_lat")
+  checkInLng      Float     @map("check_in_lng")
+  distanceFromSite Float    @default(0) @map("distance_from_site") // metres
+  withinFence     Boolean   @default(false) @map("within_fence")
+  notes           String?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation("UserAttendance", fields: [userId], references: [id])
+
+  @@index([projectId])
+  @@index([userId])
+  @@index([checkInAt])
+  @@map("attendances")
+}
+
+// ------------------------------------------------------------------
+// 18. Invoice                                                        
+// ------------------------------------------------------------------
+
+model Invoice {
+  id            String        @id @default(uuid()) @db.Uuid
+  projectId     String        @map("project_id") @db.Uuid
+  companyId     String        @map("company_id") @db.Uuid
+  invoiceNumber String        @unique @map("invoice_number")
+  clientName    String        @map("client_name")
+  clientGstin   String?       @map("client_gstin")
+  invoiceDate   DateTime      @map("invoice_date") @db.Date
+  dueDate       DateTime      @map("due_date") @db.Date
+  status        InvoiceStatus @default(DRAFT)
+  subtotal      Decimal       @default(0) @db.Decimal(14, 2)
+  gstRate       Decimal       @default(0) @map("gst_rate") @db.Decimal(5, 2)
+  gstAmount     Decimal       @default(0) @map("gst_amount") @db.Decimal(14, 2)
+  cgstAmount    Decimal       @default(0) @map("cgst_amount") @db.Decimal(14, 2)
+  sgstAmount    Decimal       @default(0) @map("sgst_amount") @db.Decimal(14, 2)
+  igstAmount    Decimal       @default(0) @map("igst_amount") @db.Decimal(14, 2)
+  tdsRate       Decimal       @default(0) @map("tds_rate") @db.Decimal(5, 2)
+  tdsAmount     Decimal       @default(0) @map("tds_amount") @db.Decimal(14, 2)
+  total         Decimal       @default(0) @db.Decimal(14, 2)
+  paidAmount    Decimal       @default(0) @map("paid_amount") @db.Decimal(14, 2)
+  notes         String?
+
+  project   Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lineItems InvoiceLineItem[]
+
+  @@index([projectId])
+  @@index([companyId])
+  @@index([status])
+  @@map("invoices")
+}
+
+// ------------------------------------------------------------------
+// 19. InvoiceLineItem                                                
+// ------------------------------------------------------------------
+
+model InvoiceLineItem {
+  id         String  @id @default(uuid()) @db.Uuid
+  invoiceId  String  @map("invoice_id") @db.Uuid
+  boqItemId  String? @map("boq_item_id") @db.Uuid
+  description String
+  quantity   Decimal @db.Decimal(12, 3)
+  unit       String
+  rate       Decimal @db.Decimal(12, 2)
+  amount     Decimal @default(0) @db.Decimal(14, 2)
+  gstRate    Decimal @default(0) @map("gst_rate") @db.Decimal(5, 2)
+  hsnSacCode String? @map("hsn_sac_code")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  boqItem BOQItem? @relation(fields: [boqItemId], references: [id])
+
+  @@index([invoiceId])
+  @@map("invoice_line_items")
+}
+
+// ------------------------------------------------------------------
+// 20. Bill                                                           
+// ------------------------------------------------------------------
+
+model Bill {
+  id          String      @id @default(uuid()) @db.Uuid
+  projectId   String      @map("project_id") @db.Uuid
+  companyId   String      @map("company_id") @db.Uuid
+  billNumber  String      @map("bill_number")
+  vendorName  String      @map("vendor_name")
+  vendorGstin String?     @map("vendor_gstin")
+  billDate    DateTime    @map("bill_date") @db.Date
+  dueDate     DateTime?   @map("due_date") @db.Date
+  status      BillStatus  @default(PENDING)
+  subtotal    Decimal     @default(0) @db.Decimal(14, 2)
+  gstAmount   Decimal     @default(0) @map("gst_amount") @db.Decimal(14, 2)
+  tdsRate     Decimal     @default(0) @map("tds_rate") @db.Decimal(5, 2)
+  tdsAmount   Decimal     @default(0) @map("tds_amount") @db.Decimal(14, 2)
+  total       Decimal     @default(0) @db.Decimal(14, 2)
+  category    BillCategory @default(OTHER)
+  attachmentUrl String?   @map("attachment_url")
+  approvedBy  String?     @map("approved_by") @db.Uuid
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  approvedByUser User? @relation("BillApprovedBy", fields: [approvedBy], references: [id])
+
+  @@unique([companyId, billNumber])
+  @@index([projectId])
+  @@index([status])
+  @@map("bills")
+}
+
+// ------------------------------------------------------------------
+// 21. JournalEntry                                                   
+// ------------------------------------------------------------------
+
+model JournalEntry {
+  id           String   @id @default(uuid()) @db.Uuid
+  companyId    String   @map("company_id") @db.Uuid
+  projectId    String?  @map("project_id") @db.Uuid
+  entryDate    DateTime @map("entry_date") @db.Date
+  description  String?
+  reference    String?
+  debitAccount String   @map("debit_account")
+  creditAccount String  @map("credit_account")
+  amount       Decimal  @db.Decimal(14, 2)
+  createdBy    String   @map("created_by") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  project       Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdByUser User     @relation("JournalEntryCreatedBy", fields: [createdBy], references: [id])
+
+  @@index([companyId])
+  @@index([projectId])
+  @@map("journal_entries")
+}
+
+// ------------------------------------------------------------------
+// 22. ChatMessage                                                    
+// ------------------------------------------------------------------
+
+model ChatMessage {
+  id          String      @id @default(uuid()) @db.Uuid
+  companyId   String      @map("company_id") @db.Uuid
+  senderId    String      @map("sender_id") @db.Uuid
+  projectId   String?     @map("project_id") @db.Uuid
+  message     String
+  messageType MessageType @default(TEXT) @map("message_type")
+  fileUrl     String?     @map("file_url")
+  isBot       Boolean     @default(false) @map("is_bot")
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  company Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sender  User     @relation(fields: [senderId], references: [id])
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([projectId])
+  @@map("chat_messages")
+}
+
+// ------------------------------------------------------------------
+// 23. Notification                                                   
+// ------------------------------------------------------------------
+
+model Notification {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  title       String
+  body        String
+  type        String
+  referenceId String?  @map("reference_id")
+  isRead      Boolean  @default(false) @map("is_read")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+// ------------------------------------------------------------------
+// 24. AuditLog                                                       
+// ------------------------------------------------------------------
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @map("company_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  oldValue   Json?
+  newValue   Json?    @map("new_value")
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([companyId])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}

@@ -1,0 +1,99 @@
+/**
+ * BuildFlow — Invoice controller (thin handlers).
+ */
+import type { Request, Response } from 'express';
+import * as invoiceService from '../services/invoice.service';
+import { ok, created } from '../utils/response';
+import { recordAudit } from '../utils/audit';
+import { ApiError } from '../utils/errors';
+
+export async function list(req: Request, res: Response) {
+  const companyId = req.user!.companyId;
+  const projectId = req.query.projectId as string | undefined;
+  const status = req.query.status as string | undefined;
+  const data = await invoiceService.listInvoices(companyId, projectId, status);
+  return ok(res, data);
+}
+
+export async function get(req: Request, res: Response) {
+  const data = await invoiceService.getInvoice(req.user!.companyId, req.params.id);
+  return ok(res, data);
+}
+
+export async function create(req: Request, res: Response) {
+  const { companyId, id: userId } = req.user!;
+  const data = await invoiceService.createInvoice(companyId, userId, req.body);
+  await recordAudit({
+    companyId,
+    userId,
+    action: 'CREATE',
+    entityType: 'Invoice',
+    entityId: data.id,
+    newValue: { invoiceNumber: data.invoiceNumber, total: data.total },
+    ipAddress: req.ip,
+  });
+  return created(res, data);
+}
+
+export async function update(req: Request, res: Response) {
+  const { companyId, id: userId } = req.user!;
+  const data = await invoiceService.updateInvoice(companyId, req.params.id, req.body);
+  await recordAudit({
+    companyId,
+    userId,
+    action: 'UPDATE',
+    entityType: 'Invoice',
+    entityId: data.id,
+    newValue: { invoiceNumber: data.invoiceNumber, total: data.total },
+    ipAddress: req.ip,
+  });
+  return ok(res, data);
+}
+
+export async function send(req: Request, res: Response) {
+  const { companyId, id: userId } = req.user!;
+  const data = await invoiceService.sendInvoice(companyId, req.params.id);
+  await recordAudit({
+    companyId,
+    userId,
+    action: 'SEND',
+    entityType: 'Invoice',
+    entityId: data.id,
+    newValue: { status: data.status },
+    ipAddress: req.ip,
+  });
+  return ok(res, data);
+}
+
+export async function recordPayment(req: Request, res: Response) {
+  const { companyId, id: userId } = req.user!;
+  const data = await invoiceService.recordPayment(companyId, userId, req.params.id, req.body);
+  await recordAudit({
+    companyId,
+    userId,
+    action: 'CUSTOM',
+    entityType: 'Invoice',
+    entityId: data.id,
+    newValue: { status: data.status, paidAmount: data.paidAmount },
+    ipAddress: req.ip,
+  });
+  return ok(res, data);
+}
+
+export async function remove(req: Request, res: Response) {
+  const { companyId, id: userId } = req.user!;
+  // Only ACCOUNTANT, PM, OWNER can delete drafts
+  if (req.user!.role === 'SUPERVISOR') {
+    throw ApiError.forbidden('Supervisors cannot delete invoices');
+  }
+  const data = await invoiceService.deleteInvoice(companyId, req.params.id);
+  await recordAudit({
+    companyId,
+    userId,
+    action: 'DELETE',
+    entityType: 'Invoice',
+    entityId: data.id,
+    ipAddress: req.ip,
+  });
+  return ok(res, { id: data.id });
+}

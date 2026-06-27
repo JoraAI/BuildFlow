@@ -1,0 +1,61 @@
+{
+  "name": "buildflow",
+  "version": "2.0.0",
+  "private": true,
+  "description": "BuildFlow — Civil Engineering Project Planning & Accounting Platform",
+  "packageManager": "pnpm@10.24.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,prisma}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,prisma}\"",
+    "typecheck": "turbo run typecheck",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:migrate": "pnpm --filter @buildflow/backend db:migrate",
+    "db:seed": "pnpm --filter @buildflow/backend db:seed",
+    "db:studio": "pnpm --filter @buildflow/backend db:studio",
+    "clean": "turbo run clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.2",
+    "turbo": "^2.0.3",
+    "typescript": "^5.4.5"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "esbuild"
+    ],
+    "overrides": {
+      "metro-cache": "0.80.12",
+      "metro-memory-cache": "0.80.12",
+      "metro": "0.80.12",
+      "metro-config": "0.80.12",
+      "metro-core": "0.80.12",
+      "metro-resolver": "0.80.12",
+      "metro-runtime": "0.80.12",
+      "metro-source-map": "0.80.12",
+      "metro-transform-plugins": "0.80.12",
+      "metro-transform-worker": "0.80.12",
+      "metro-minify-terser": "0.80.12",
+      "metro-minify-uglify": "0.80.12",
+      "metro-file-map": "0.80.12",
+      "metro-symbolicate": "0.80.12",
+      "metro-cache-key": "0.80.12",
+      "metro-babel-transformer": "0.80.12",
+      "metro-hermes-compiler": "0.80.12",
+      "metro-diff": "0.80.12",
+      "react-native-reanimated": "~3.10.1",
+      "react-native-css-interop": "~0.1.0",
+      "nativewind": "~4.1.22"
+    }
+  }
+}
