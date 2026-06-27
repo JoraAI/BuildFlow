@@ -1,0 +1,83 @@
+# =============================================================================
+# BuildFlow monorepo — gitignore
+# =============================================================================
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+out/
+*.tsbuildinfo
+.turbo/
+
+# Expo / React Native (apps/mobile)
+.expo/
+.expo-shared/
+web-build/
+apps/mobile/dist/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+apps/mobile/expo-env.d.ts
+
+# Backend compiled output
+apps/backend/dist/
+
+# Shared package build (compiled on install/build)
+packages/shared/dist/
+
+# Environment & secrets (keep .env.example tracked)
+.env
+.env.local
+.env.*.local
+!.env.example
+apps/backend/.env
+apps/mobile/.env
+
+# Test & coverage
+coverage/
+.nyc_output/
+*.lcov
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editors / IDEs
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# Docker local data
+docker-data/
+
+# Prisma backups
+apps/backend/prisma/migrations/**/*.bak
+
+# NativeWind / Metro cache
+**/.cache/
+
+# Misc
+*.pem
+.vercel
+.netlify
