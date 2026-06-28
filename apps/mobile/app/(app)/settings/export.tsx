@@ -1,13 +1,13 @@
 /**
- * BuildFlow — Data Export screen.
+ * BuildFlow - Data Export screen.
  */
 import React from 'react';
 import { View, Text, Alert } from 'react-native';
 import { Card, Button, LoadingSkeleton } from '@/components/ui';
 import { SettingsPageLayout } from '@/components/layout/SettingsPageLayout';
+import { ResponsiveGrid } from '@/components/layout/ResponsiveGrid';
 import { useViewport } from '@/hooks/useViewport';
 import { useExportData, useExportZip } from '@/services/settings.queries';
-import * as Sharing from 'expo-sharing';
 
 export default function DataExportScreen() {
   const { isDesktop } = useViewport();
@@ -17,20 +17,14 @@ export default function DataExportScreen() {
 
   const onExportZip = () => {
     exportZip.mutate(undefined, {
-      onSuccess: async (path: string) => {
-        try {
-          if (await Sharing.isAvailableAsync()) {
-            await Sharing.shareAsync(path, {
-              mimeType: 'application/zip',
-              dialogTitle: 'BuildFlow Data Export',
-            });
-          } else {
-            Alert.alert('Exported', `ZIP saved to: ${path}`);
-          }
-        } catch (e) {
-          Alert.alert('Error', (e as Error).message);
-        }
-      },
+      onSuccess: (filename) => Alert.alert('Exported', `${filename} downloaded.`),
+      onError: (e: Error) => Alert.alert('Error', e.message),
+    });
+  };
+
+  const onExportJson = () => {
+    exportJson.mutate(undefined, {
+      onSuccess: (filename) => Alert.alert('Exported', `${filename} downloaded.`),
       onError: (e: Error) => Alert.alert('Error', e.message),
     });
   };
@@ -46,8 +40,8 @@ export default function DataExportScreen() {
         </View>
       )}
 
-      <View className={isDesktop ? 'flex-row gap-4 mb-4' : ''}>
-        <Card className={`mb-4 ${isDesktop ? 'flex-1 mb-0' : ''}`}>
+      <ResponsiveGrid gap={16} columns={isDesktop ? 2 : 1}>
+        <Card className="h-full">
           <View className="flex-row items-center mb-2">
             <Text className="text-base font-bold text-text flex-1">Full ZIP Archive</Text>
             <View className="bg-accent/20 px-2 py-0.5 rounded-full">
@@ -66,25 +60,20 @@ export default function DataExportScreen() {
           />
         </Card>
 
-        <Card className={isDesktop ? 'flex-1 mb-0' : 'mb-4'}>
+        <Card className="h-full">
           <Text className="text-base font-bold text-text mb-2">JSON Snapshot</Text>
           <Text className="text-sm text-text-muted mb-4">
             Single-file JSON dump of all company data. Useful for scripting; harder to browse than ZIP.
           </Text>
           <Button
             label={exportJson.isPending ? 'Preparing JSON...' : 'Download JSON Snapshot'}
-            onPress={() =>
-              exportJson.mutate(undefined, {
-                onError: (e: Error) => Alert.alert('Error', e.message),
-                onSuccess: () => Alert.alert('Exported', 'JSON snapshot ready (see downloads).'),
-              })
-            }
+            onPress={onExportJson}
             disabled={isBusy}
             variant="secondary"
             fullWidth
           />
         </Card>
-      </View>
+      </ResponsiveGrid>
 
       <Card>
         <Text className="text-sm font-bold text-text mb-2">What&apos;s included</Text>

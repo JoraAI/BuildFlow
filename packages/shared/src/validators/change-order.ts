@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const changeOrderLineSchema = z.object({
   boqItemId: z.string().uuid().optional(),
+  resourceId: z.string().uuid().optional(),
   description: z.string().min(1).max(500),
   unit: z.string().min(1).max(20),
   qtyDelta: z.coerce.number(),
@@ -14,6 +15,8 @@ export const createChangeOrderSchema = z.object({
   title: z.string().min(1).max(200),
   reason: z.string().max(2000).optional(),
   scheduleImpactDays: z.coerce.number().int().default(0),
+  linkedTaskId: z.string().uuid().optional(),
+  linkedWorkOrderId: z.string().uuid().optional(),
   lines: z.array(changeOrderLineSchema).min(1),
 });
 export type CreateChangeOrderInput = z.infer<typeof createChangeOrderSchema>;

@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Change order routes.
+ * BuildFlow - Change order routes.
  *
  * Mounted at /api/projects/:id/change-orders
  */

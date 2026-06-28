@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Rate Analysis controller (thin).
+ * BuildFlow - Rate Analysis controller (thin).
  */
 import { Request, Response } from 'express';
 import * as svc from '../services/rate-analysis.service';

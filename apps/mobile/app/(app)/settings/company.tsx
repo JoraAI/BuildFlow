@@ -1,14 +1,15 @@
 /**
- * BuildFlow — Company Profile settings screen.
+ * BuildFlow - Company Profile settings screen.
  */
 import React, { useState, useEffect } from 'react';
-import { View, KeyboardAvoidingView, Platform, Alert, Text } from 'react-native';
+import { View, KeyboardAvoidingView, Platform, Text } from 'react-native';
 import { Card, Input, Button, LoadingSkeleton, CompanyLogo } from '@/components/ui';
 import { SettingsPageLayout } from '@/components/layout/SettingsPageLayout';
 import { useViewport } from '@/hooks/useViewport';
 import { goBackToSettings } from '@/utils/navigation';
 import { useCompany, useUpdateCompany } from '@/services/settings.queries';
 import { useAuthStore } from '@/stores/auth.store';
+import { alertAsync } from '@/utils/confirm';
 
 export default function CompanyProfileScreen() {
   const { isDesktop } = useViewport();
@@ -24,6 +25,7 @@ export default function CompanyProfileScreen() {
     state: '',
     logoUrl: '',
   });
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     if (company) {
@@ -39,6 +41,7 @@ export default function CompanyProfileScreen() {
   }, [company]);
 
   const onSave = () => {
+    setFormError(null);
     update.mutate(
       {
         ...form,
@@ -47,10 +50,13 @@ export default function CompanyProfileScreen() {
       {
         onSuccess: async () => {
           await refreshUser();
-          Alert.alert('Saved', 'Company profile updated.');
+          await alertAsync('Saved', 'Company profile updated.');
           goBackToSettings();
         },
-        onError: (e: Error) => Alert.alert('Error', e.message),
+        onError: async (e: Error) => {
+          setFormError(e.message);
+          await alertAsync('Error', e.message);
+        },
       },
     );
   };
@@ -122,11 +128,18 @@ export default function CompanyProfileScreen() {
         </View>
       </Card>
 
+      {formError ? (
+        <View className="mb-3 px-3 py-2 rounded-lg bg-danger/10 border border-danger/30">
+          <Text className="text-sm text-danger">{formError}</Text>
+        </View>
+      ) : null}
+
       <View className={isDesktop ? 'max-w-xs' : ''}>
         <Button
           label={update.isPending ? 'Saving...' : 'Save Changes'}
           onPress={onSave}
           disabled={update.isPending}
+          loading={update.isPending}
           fullWidth
         />
       </View>

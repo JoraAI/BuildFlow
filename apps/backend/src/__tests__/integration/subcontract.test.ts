@@ -1,5 +1,5 @@
 /**
- * Subcontract integration tests — measurement approval and bill linkage path.
+ * Subcontract integration tests - measurement approval and bill linkage path.
  */
 import { loginAs, authGet, authPost, getSeedProjectId } from './test-helpers';
 

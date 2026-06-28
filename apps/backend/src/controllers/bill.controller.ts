@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Bill controller (thin handlers).
+ * BuildFlow - Bill controller (thin handlers).
  */
 import type { Request, Response } from 'express';
 import * as billService from '../services/bill.service';
@@ -7,10 +7,15 @@ import { ok, created } from '../utils/response';
 import { recordAudit } from '../utils/audit';
 import { ApiError } from '../utils/errors';
 
+/** Project-scoped routes use :id; company-wide list may use ?projectId= */
+function resolveProjectId(req: Request): string | undefined {
+  return (req.params.id as string | undefined) ?? (req.query.projectId as string | undefined);
+}
+
 export async function list(req: Request, res: Response) {
   const data = await billService.listBills(
     req.user!.companyId,
-    req.query.projectId as string | undefined,
+    resolveProjectId(req),
     req.query.status as string | undefined,
   );
   return ok(res, data);
@@ -23,7 +28,8 @@ export async function get(req: Request, res: Response) {
 
 export async function create(req: Request, res: Response) {
   const { companyId, id: userId } = req.user!;
-  const data = await billService.createBill(companyId, userId, req.body);
+  const projectId = (req.body.projectId as string | undefined) ?? (req.params.id as string | undefined);
+  const data = await billService.createBill(companyId, userId, { ...req.body, projectId });
   await recordAudit({
     companyId,
     userId,
@@ -114,9 +120,6 @@ export async function remove(req: Request, res: Response) {
 }
 
 export async function summary(req: Request, res: Response) {
-  const data = await billService.getBillSummary(
-    req.user!.companyId,
-    req.query.projectId as string | undefined,
-  );
+  const data = await billService.getBillSummary(req.user!.companyId, resolveProjectId(req));
   return ok(res, data);
 }

@@ -2,7 +2,7 @@
   "name": "@buildflow/backend",
   "version": "2.0.0",
   "private": true,
-  "description": "BuildFlow backend — Express + Prisma + PostgreSQL",
+  "description": "BuildFlow backend - Express + Prisma + PostgreSQL",
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",

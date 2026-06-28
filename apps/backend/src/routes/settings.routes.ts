@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Settings routes.
+ * BuildFlow - Settings routes.
  *
  * Company profile, Users & Roles, Audit Log, Data Export.
  * All routes require authentication. Company mutations + Users require OWNER.
@@ -36,6 +36,7 @@ import {
   listTicketInbox,
   updateTicket,
 } from '../controllers/settings.controller';
+import * as rateRegionController from '../controllers/rate-region.controller';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { auditLog } from '../middleware/audit';
@@ -56,6 +57,10 @@ import {
   llmIntegrationSchema,
   s3IntegrationSchema,
   saasCheckoutSchema,
+  createRateRegionSchema,
+  updateRateRegionSchema,
+  rateRegionParamsSchema,
+  bulkUpsertRegionalRatesSchema,
 } from '@buildflow/shared';
 
 const router = Router();
@@ -214,5 +219,43 @@ router.post(
 // Data Export
 router.get('/export', authenticateToken, requireRole('OWNER'), exportData);
 router.get('/export/zip', authenticateToken, requireRole('OWNER'), exportDataZip);
+
+// Rate regions (regional material rate books)
+router.get('/rate-regions', authenticateToken, requireRole('OWNER', 'PM'), rateRegionController.listRateRegions);
+router.post(
+  '/rate-regions',
+  authenticateToken,
+  requireRole('OWNER'),
+  validate({ body: createRateRegionSchema }),
+  rateRegionController.createRateRegion,
+);
+router.put(
+  '/rate-regions/:regionId',
+  authenticateToken,
+  requireRole('OWNER'),
+  validate({ params: rateRegionParamsSchema, body: updateRateRegionSchema }),
+  rateRegionController.updateRateRegion,
+);
+router.delete(
+  '/rate-regions/:regionId',
+  authenticateToken,
+  requireRole('OWNER'),
+  validate({ params: rateRegionParamsSchema }),
+  rateRegionController.deleteRateRegion,
+);
+router.get(
+  '/rate-regions/:regionId/rates',
+  authenticateToken,
+  requireRole('OWNER', 'PM'),
+  validate({ params: rateRegionParamsSchema }),
+  rateRegionController.listRegionalRates,
+);
+router.put(
+  '/rate-regions/:regionId/rates',
+  authenticateToken,
+  requireRole('OWNER'),
+  validate({ params: rateRegionParamsSchema, body: bulkUpsertRegionalRatesSchema }),
+  rateRegionController.upsertRegionalRates,
+);
 
 export default router;

@@ -1,8 +1,9 @@
 /**
- * BuildFlow — Project & WBS Zod validators.
+ * BuildFlow - Project & WBS Zod validators.
  */
 import { z } from 'zod';
 import { ProjectType, ProjectStatus } from '../enums';
+import { dateSchema } from './common';
 
 export const projectTypeSchema = z.nativeEnum(ProjectType);
 export const projectStatusSchema = z.nativeEnum(ProjectStatus);
@@ -17,9 +18,10 @@ export const createProjectSchema = z.object({
   locationLat: z.number().min(-90).max(90).optional(),
   locationLng: z.number().min(-180).max(180).optional(),
   locationAddress: z.string().max(500).optional(),
-  startDate: z.string().datetime().optional(),
-  endDate: z.string().datetime().optional(),
+  startDate: dateSchema.optional(),
+  endDate: dateSchema.optional(),
   budget: z.number().min(0).optional(),
+  rateRegionId: z.string().uuid().nullable().optional(),
 });
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
@@ -33,6 +35,14 @@ export const projectQuerySchema = z.object({
   status: projectStatusSchema.optional(),
   type: projectTypeSchema.optional(),
   search: z.string().optional(),
+  excludeTemporary: z
+    .union([z.literal('true'), z.literal('false'), z.boolean()])
+    .optional()
+    .transform((v) => {
+      if (v === undefined) return true;
+      if (typeof v === 'boolean') return v;
+      return v !== 'false';
+    }),
 });
 
 export type ProjectQueryInput = z.infer<typeof projectQuerySchema>;

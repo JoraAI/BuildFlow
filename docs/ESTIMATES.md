@@ -10,7 +10,7 @@ See also: [Business Guide](./BUSINESS_GUIDE.md) for roles, onboarding, and overa
 
 ## What an estimate is
 
-An **estimate** is a **project cost plan** — a structured breakdown of what a construction job will cost before and during execution. Each estimate belongs to **one project** and **one company**.
+An **estimate** is a **project cost plan** - a structured breakdown of what a construction job will cost before and during execution. Each estimate belongs to **one project** and **one company**.
 
 ```mermaid
 flowchart TB
@@ -23,7 +23,7 @@ flowchart TB
 
 | Layer | Meaning | Example |
 |-------|---------|---------|
-| **Estimate** | Named version with status, margins, totals | "Rev 2 — Office Renovation" v3 |
+| **Estimate** | Named version with status, margins, totals | "Rev 2 - Office Renovation" v3 |
 | **Section** | Group of related work | Substructure, Finishing, MEP |
 | **Line item** | One measurable cost line | "RCC M25 in footings", 32 cum @ ₹7,800 |
 
@@ -48,7 +48,7 @@ Items can optionally link to a **Resource** from **Settings → Material Prices*
 | **Settings → Rate Analysis Library** | Owner, PM | Reusable composite rate templates |
 | **Settings → Material Prices** | Users with access | Resource rates used on line items |
 
-**Important:** Estimates always live **inside a project**. The Estimation hub does not store standalone estimates — it helps you manage rate libraries and navigate to projects.
+**Important:** Estimates always live **inside a project**. The Estimation hub does not store standalone estimates - it helps you manage rate libraries and navigate to projects.
 
 ---
 
@@ -63,22 +63,22 @@ flowchart LR
   S3 --> Submit[Submit for review]
 ```
 
-### Step 1 — Setup
+### Step 1 - Setup
 
 - Estimate **name** and **notes**
 - **Overhead %**, **Contingency %**, **Profit margin %** (typical defaults: 8%, 5%, 10%)
 - Saves a **DRAFT** estimate with the next **version number** for that project (v1, v2, v3…)
 
-### Step 2 — Build sections and items
+### Step 2 - Build sections and items
 
 You can:
 
 1. **Add sections manually** (e.g. Civil, Electrical, MEP)
-2. **Load a pre-made template** — e.g. "Residential G+2" or "Office Renovation" — then change quantities, rates, add or remove lines
+2. **Load a pre-made template** - e.g. "Residential G+2" or "Office Renovation" - then change quantities, rates, add or remove lines
 3. **Add line items** to each section (quantity, rate, unit, cost type)
 4. Optionally link lines to **Material Prices** or **Rate Analysis** for consistent rates and GST
 
-### Step 3 — Review
+### Step 3 - Review
 
 - Review the **cost breakdown** (material, labour, equipment, etc.) and **grand total**
 - Submit for owner review when ready
@@ -100,7 +100,7 @@ BuildFlow recalculates totals whenever you open an estimate, so you always see c
 | GST | Applied per linked resource GST rate (weighted) |
 | **Grand total** | before GST + GST |
 
-The detail screen also shows **cost mix** — what percentage of the total is material, labour, equipment, and so on.
+The detail screen also shows **cost mix** - what percentage of the total is material, labour, equipment, and so on.
 
 When an estimate is **submitted** or **approved**, these totals are saved on the record for reporting and BOQ conversion.
 
@@ -132,7 +132,7 @@ stateDiagram-v2
 ### Rules to remember
 
 - Only **DRAFT** estimates can be **deleted**
-- Only **DRAFT** or **REJECTED** estimates can be **edited** — for other statuses, use **Duplicate** to create a new version
+- Only **DRAFT** or **REJECTED** estimates can be **edited** - for other statuses, use **Duplicate** to create a new version
 - Submit requires **at least one line item**
 - **Only the Owner** can approve or reject
 - When a new estimate is approved, any **previous APPROVED** version on the same project becomes **SUPERSEDED**
@@ -142,8 +142,8 @@ stateDiagram-v2
 ## Versions and comparison
 
 - Every new estimate on a project gets an automatic **version number** (1, 2, 3…)
-- **Duplicate** copies all sections and items into a new **DRAFT** with the next version — use this for revisions without touching locked approved copies
-- **Compare** two versions side by side — section subtotals and grand total difference with percentage change (from the project Estimate tab or Estimation → Compare)
+- **Duplicate** copies all sections and items into a new **DRAFT** with the next version - use this for revisions without touching locked approved copies
+- **Compare** two versions side by side - section subtotals and grand total difference with percentage change (from the project Estimate tab or Estimation → Compare)
 
 Use comparison when scope, rates, or quantities change between tender revisions.
 
@@ -171,7 +171,7 @@ After conversion, the team tracks execution on the project **BOQ tab**. The appr
 | **Who maintains** | BuildFlow product | Your PM / estimator |
 | **Best for** | Fast first draft on common project types | Standard items reused across many estimates |
 
-**Material Prices** (Settings) holds individual resources (cement, steel, labour day-rates) with GST — line items can reference these for live pricing.
+**Material Prices** (Settings) holds individual resources (cement, steel, labour day-rates) with GST - line items can reference these for live pricing.
 
 ---
 
@@ -214,11 +214,11 @@ After conversion, the team tracks execution on the project **BOQ tab**. The appr
 
 | Situation | What to do |
 |-----------|--------------|
-| Can't edit estimate | Check status — only DRAFT or REJECTED are editable; duplicate if APPROVED |
+| Can't edit estimate | Check status - only DRAFT or REJECTED are editable; duplicate if APPROVED |
 | Can't convert to BOQ | Estimate must be **APPROVED**; only **Owner** can convert |
 | Can't submit | Add at least one line item |
 | Grand total looks wrong | Check overhead/contingency/profit % on setup; verify line qty × rate |
-| Old approved version disappeared from "active" | It may be **SUPERSEDED** — still visible in version list, read-only |
+| Old approved version disappeared from "active" | It may be **SUPERSEDED** - still visible in version list, read-only |
 
 ---
 

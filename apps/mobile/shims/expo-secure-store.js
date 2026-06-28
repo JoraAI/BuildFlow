@@ -1,4 +1,4 @@
-// Web shim for expo-secure-store — backed by localStorage (not secure, browser only)
+// Web shim for expo-secure-store - backed by localStorage (not secure, browser only)
 const PREFIX = 'buildflow_secure_';
 
 function key(k) {

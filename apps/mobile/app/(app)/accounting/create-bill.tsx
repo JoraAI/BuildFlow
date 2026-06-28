@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Create Bill
+ * BuildFlow - Create Bill
  * Route: /accounting/create-bill?projectId=<id>
  */
 import React, { useState, useMemo } from 'react';
@@ -8,18 +8,18 @@ import {
   Text,
   ScrollView,
   Pressable,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Card, Button, Input } from '@/components/ui';
+import { Card, Button, Input, DateField } from '@/components/ui';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { ActionBar } from '@/components/layout/ActionBar';
 import { useViewport } from '@/hooks/useViewport';
 import { dismissTo, DISMISS } from '@/utils/navigation';
+import { alertAsync } from '@/utils/confirm';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { useCreateBill } from '@/services/accounting.queries';
 import { useProjects, type ProjectListItem } from '@/services/project.queries';
@@ -45,6 +45,7 @@ export default function CreateBillScreen() {
   const [gstAmount, setGstAmount] = useState('0');
   const [tdsEnabled, setTdsEnabled] = useState(false);
   const [category, setCategory] = useState<Category>('MATERIAL');
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Live TDS + total preview
   const preview = useMemo(() => {
@@ -57,20 +58,21 @@ export default function CreateBillScreen() {
   }, [subtotal, gstAmount, tdsEnabled]);
 
   const onSave = () => {
+    setFormError(null);
     if (!projectId) {
-      Alert.alert('Select project', 'Please choose a project for this bill.');
+      setFormError('Please choose a project for this bill.');
       return;
     }
     if (!billNumber.trim()) {
-      Alert.alert('Bill number required', 'Please enter the vendor bill number.');
+      setFormError('Please enter the vendor bill number.');
       return;
     }
     if (!vendorName.trim()) {
-      Alert.alert('Vendor name required', 'Please enter the vendor name.');
+      setFormError('Please enter the vendor name.');
       return;
     }
     if (preview.sub <= 0) {
-      Alert.alert('Invalid amount', 'Bill subtotal must be greater than zero.');
+      setFormError('Bill subtotal must be greater than zero.');
       return;
     }
 
@@ -89,16 +91,14 @@ export default function CreateBillScreen() {
         category,
       },
       {
-        onSuccess: (bill) => {
-          Alert.alert(
-            'Success',
-            `Bill ${bill.billNumber} created (status: ${bill.status}).`,
-            [{ text: 'OK', onPress: () => dismissTo(DISMISS.accounting) }],
-          );
+        onSuccess: async (bill) => {
+          await alertAsync('Success', `Bill ${bill.billNumber} created (status: ${bill.status}).`);
+          dismissTo(DISMISS.accounting);
         },
-        onError: (e: unknown) => {
+        onError: async (e: unknown) => {
           const message = e instanceof Error ? e.message : 'Failed to create bill';
-          Alert.alert('Error', message);
+          setFormError(message);
+          await alertAsync('Error', message);
         },
       },
     );
@@ -170,19 +170,14 @@ export default function CreateBillScreen() {
           />
           <View className="flex-row gap-2">
             <View className="flex-1">
-              <Input
-                label="Bill Date"
-                value={billDate}
-                onChangeText={setBillDate}
-                placeholder="YYYY-MM-DD"
-              />
+              <DateField label="Bill Date" value={billDate} onChange={setBillDate} />
             </View>
             <View className="flex-1">
-              <Input
+              <DateField
                 label="Due Date (optional)"
                 value={dueDate}
-                onChangeText={setDueDate}
-                placeholder="YYYY-MM-DD"
+                onChange={setDueDate}
+                minimumDate={billDate}
               />
             </View>
           </View>
@@ -245,11 +240,18 @@ export default function CreateBillScreen() {
     </>
   );
 
+  const formErrorBanner = formError ? (
+    <View className="mb-2 px-3 py-2 rounded-lg bg-danger/10 border border-danger/30">
+      <Text className="text-sm text-danger">{formError}</Text>
+    </View>
+  ) : null;
+
   const saveBar = (
     <Button
-      label={createBill.isPending ? 'Saving...' : 'Save Bill'}
+      label="Save Bill"
       variant="primary"
       onPress={onSave}
+      loading={createBill.isPending}
       disabled={createBill.isPending}
     />
   );
@@ -270,13 +272,17 @@ export default function CreateBillScreen() {
               </ScrollView>
               <View className="flex-1 max-w-sm">{summaryCard}</View>
             </View>
-            <ActionBar>{saveBar}</ActionBar>
+            <ActionBar>
+              {formErrorBanner}
+              {saveBar}
+            </ActionBar>
           </ScreenContainer>
         ) : (
           <>
             <FormScreenHeader title="New Bill" onCancel={() => dismissTo(DISMISS.accounting)} />
             <ScrollView contentContainerClassName="px-4 pb-32 pt-2 gap-4">{formFields}</ScrollView>
             <View className="absolute bottom-0 left-0 right-0 bg-card border-t border-border p-4">
+              {formErrorBanner}
               {saveBar}
             </View>
           </>

@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Bill routes.
+ * BuildFlow - Bill routes.
  *
  * Mounted at /api/bills (detail-level) and within project router for project-scoped.
  */

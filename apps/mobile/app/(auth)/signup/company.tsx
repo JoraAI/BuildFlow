@@ -8,19 +8,10 @@ import { Button, Input, Card } from '@/components/ui';
 import { AuthScreenShell } from '@/components/auth/AuthScreenShell';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
+import { FreeTrialBadge } from '@/components/marketing/FreeTrialBadge';
 import { TRIAL_HERO_BENEFITS } from '@/constants/auth';
 import { ApiError } from '@/lib/api-client';
 import { fetchAuthConfig } from '@/services/auth.queries';
-
-function TrialBadge() {
-  return (
-    <View className="mb-5 px-3 py-2 rounded-lg bg-accent/15 border border-accent/30 self-start">
-      <Text className="text-sm font-semibold text-primary">
-        14-day free trial · No credit card required
-      </Text>
-    </View>
-  );
-}
 
 export default function SignupCompanyScreen() {
   const router = useRouter();
@@ -118,7 +109,7 @@ export default function SignupCompanyScreen() {
 
   if (allowed === null) {
     return (
-      <AuthScreenShell backHref="/signup" formTitle="Register company">
+      <AuthScreenShell backHref="/" formTitle="Register company">
         <Text className="text-muted">Loading…</Text>
       </AuthScreenShell>
     );
@@ -126,7 +117,7 @@ export default function SignupCompanyScreen() {
 
   if (!allowed) {
     return (
-      <AuthScreenShell heroHeadline="Contact us to get started" backHref="/signup" formTitle="Registration unavailable">
+      <AuthScreenShell heroHeadline="Contact us to get started" backHref="/" formTitle="Registration unavailable">
         <Text className="text-sm text-muted mb-6 leading-relaxed">
           Public company registration is currently disabled. Please contact our sales team to
           set up your BuildFlow account, or join an existing company with an invite link.
@@ -139,22 +130,15 @@ export default function SignupCompanyScreen() {
   return (
     <AuthScreenShell
       heroHeadline="Start your free trial"
-      heroSubline="14 days of full access — no credit card required."
+      heroSubline="14 days of full access - no credit card required."
       heroBenefits={TRIAL_HERO_BENEFITS}
-      backHref="/signup"
+      backHref="/"
       formWidth="wide"
       formTitle="Register company"
       formSubtitle="Create your company and owner account"
       footer={isDesktop ? submitFooter : undefined}
     >
-      {!isDesktop && <TrialBadge />}
-      {!isDesktop && (
-        <>
-          <Text className="text-2xl font-bold text-text mb-1">Register company</Text>
-          <Text className="text-sm text-muted mb-4">Create your company and owner account</Text>
-        </>
-      )}
-      {isDesktop && <TrialBadge />}
+      <FreeTrialBadge className="mb-5" />
 
       <Card className="mb-4">
         <Text className="text-sm font-bold text-text mb-3">Company</Text>

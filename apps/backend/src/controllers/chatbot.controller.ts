@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Chatbot controller.
+ * BuildFlow - Chatbot controller.
  */
 import type { Request, Response } from 'express';
 import { handleChatMessage, listHistory } from '../services/chatbot.service';

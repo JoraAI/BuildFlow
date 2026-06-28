@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, Modal, Alert, TextInput, ScrollView, Pressable } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, Alert, Pressable, ScrollView } from 'react-native';
+import { alertAsync } from '@/utils/confirm';
+import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
+import { ResponsiveGrid } from '@/components/layout/ResponsiveGrid';
 import {
   Card,
   Badge,
@@ -17,8 +20,14 @@ import {
   useSubmitChangeOrder,
   useApproveChangeOrder,
   useRejectChangeOrder,
+  useWorkOrders,
   type ChangeOrder,
+  type ChangeOrderLine,
+  type WorkOrder,
 } from '@/services/expansion.queries';
+import { useBoq, type BoqItem } from '@/services/boq.queries';
+import { useTasks, type TaskRow } from '@/services/project.queries';
+import { useResources, type Resource } from '@/services/estimate.queries';
 
 const STATUS_COLOR: Record<string, 'neutral' | 'warning' | 'success' | 'danger'> = {
   DRAFT: 'neutral',
@@ -33,6 +42,8 @@ interface DraftLine {
   unit: string;
   qtyDelta: string;
   rate: string;
+  boqItemId?: string;
+  resourceId?: string;
 }
 
 function emptyLine(): DraftLine {
@@ -45,13 +56,130 @@ function emptyLine(): DraftLine {
   };
 }
 
+function lineAmount(qtyDelta: string, rate: string): number {
+  return Math.round((parseFloat(qtyDelta) || 0) * (parseFloat(rate) || 0) * 100) / 100;
+}
+
+function formatLineSummary(line: ChangeOrderLine): string {
+  const qty = parseFloat(line.qtyDelta) || 0;
+  const rate = parseFloat(line.rate) || 0;
+  const amount = parseFloat(line.amount) || qty * rate;
+  return `• ${line.description} — ${qty} ${line.unit} @ ${formatINR(rate)} = ${formatINR(amount)}`;
+}
+
+function VariationCard({
+  co,
+  canManage,
+  canApprove,
+  isDesktop,
+  submitPending,
+  approvePending,
+  rejectPending,
+  onSubmit,
+  onApprove,
+  onReject,
+}: {
+  co: ChangeOrder;
+  canManage: boolean;
+  canApprove: boolean;
+  isDesktop: boolean;
+  submitPending: boolean;
+  approvePending: boolean;
+  rejectPending: boolean;
+  onSubmit: () => void;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  const orderLines = co.lines ?? [];
+
+  return (
+    <Card>
+      <View className="flex-row justify-between items-start mb-2">
+        <View className="flex-1 min-w-0 mr-2">
+          <Text className="text-sm font-semibold text-text" numberOfLines={2}>
+            {co.number} - {co.title}
+          </Text>
+          <Text className="text-xs text-muted">{formatDate(co.createdAt)}</Text>
+        </View>
+        <View className="shrink-0">
+          <Badge color={STATUS_COLOR[co.status] ?? 'neutral'} label={co.status} />
+        </View>
+      </View>
+      {co.reason ? (
+        <Text className="text-xs text-muted mb-2" numberOfLines={2}>
+          {co.reason}
+        </Text>
+      ) : null}
+      {orderLines.map((line) => (
+        <Text key={line.id} className="text-xs text-text mb-0.5" numberOfLines={2}>
+          {formatLineSummary(line)}
+        </Text>
+      ))}
+      <View className="flex-row justify-between items-center pt-2 mt-2 border-t border-border">
+        <Text className="flex-1 text-xs text-muted mr-2">
+          {orderLines.length} lines • {co.scheduleImpactDays}d schedule
+        </Text>
+        <Text className="shrink-0 text-sm font-bold text-primary">
+          {formatINR(co.costImpact)}
+        </Text>
+      </View>
+      {canManage && (co.status === 'DRAFT' || co.status === 'REJECTED') && (
+        <View className="mt-2">
+          <Button
+            label="Submit for approval"
+            size="sm"
+            variant="secondary"
+            fullWidth={!isDesktop}
+            loading={submitPending}
+            onPress={onSubmit}
+          />
+        </View>
+      )}
+      {canApprove && co.status === 'SUBMITTED' && (
+        <View className={`mt-2 ${isDesktop ? 'flex-row gap-2' : 'gap-2'}`}>
+          <View className={isDesktop ? 'flex-1' : undefined}>
+            <Button
+              label="Approve"
+              size="sm"
+              fullWidth={!isDesktop}
+              loading={approvePending}
+              onPress={onApprove}
+            />
+          </View>
+          <View className={isDesktop ? 'flex-1' : undefined}>
+            <Button
+              label="Reject"
+              size="sm"
+              variant="secondary"
+              fullWidth={!isDesktop}
+              loading={rejectPending}
+              onPress={onReject}
+            />
+          </View>
+        </View>
+      )}
+    </Card>
+  );
+}
+
 export function VariationsTab({ projectId }: { projectId: string }) {
   const { isDesktop } = useViewport();
   const user = useAuthStore((s) => s.user);
   const canManage = user?.role === 'OWNER' || user?.role === 'PM';
   const canApprove = user?.role === 'OWNER';
 
-  const { data, isLoading, refetch } = useChangeOrders(projectId);
+  const { data, isLoading } = useChangeOrders(projectId);
+  const { data: boq } = useBoq(projectId);
+  const { data: tasks } = useTasks(projectId);
+  const { data: workOrders } = useWorkOrders(projectId);
+  const { data: resourcesRaw } = useResources();
+  const materialResources: Resource[] = (resourcesRaw?.data ?? []).filter(
+    (r: Resource) => r.type === 'MATERIAL',
+  );
+  const boqItems = boq?.items ?? [];
+  const taskList = tasks ?? [];
+  const woList = workOrders ?? [];
+
   const createCo = useCreateChangeOrder(projectId);
   const submitCo = useSubmitChangeOrder(projectId);
   const approveCo = useApproveChangeOrder(projectId);
@@ -62,24 +190,33 @@ export function VariationsTab({ projectId }: { projectId: string }) {
   const [title, setTitle] = useState('');
   const [reason, setReason] = useState('');
   const [scheduleDays, setScheduleDays] = useState('0');
+  const [linkedTaskId, setLinkedTaskId] = useState('');
+  const [linkedWorkOrderId, setLinkedWorkOrderId] = useState('');
   const [lines, setLines] = useState<DraftLine[]>([emptyLine()]);
+
+  const draftTotal = useMemo(
+    () => lines.reduce((sum, l) => sum + lineAmount(l.qtyDelta, l.rate), 0),
+    [lines],
+  );
 
   const resetForm = () => {
     setNumber('');
     setTitle('');
     setReason('');
     setScheduleDays('0');
+    setLinkedTaskId('');
+    setLinkedWorkOrderId('');
     setLines([emptyLine()]);
   };
 
   const onCreate = () => {
     if (!number.trim() || !title.trim()) {
-      Alert.alert('Required', 'Variation number and title are required.');
+      void alertAsync('Required', 'Variation number and title are required.');
       return;
     }
     const validLines = lines.filter((l) => l.description.trim());
     if (validLines.length === 0) {
-      Alert.alert('Add lines', 'Add at least one line item.');
+      void alertAsync('Add lines', 'Add at least one line item.');
       return;
     }
     createCo.mutate(
@@ -88,11 +225,15 @@ export function VariationsTab({ projectId }: { projectId: string }) {
         title: title.trim(),
         reason: reason.trim() || undefined,
         scheduleImpactDays: parseInt(scheduleDays, 10) || 0,
+        linkedTaskId: linkedTaskId || undefined,
+        linkedWorkOrderId: linkedWorkOrderId || undefined,
         lines: validLines.map((l) => ({
           description: l.description.trim(),
           unit: l.unit.trim() || 'Nos',
           qtyDelta: parseFloat(l.qtyDelta) || 0,
           rate: parseFloat(l.rate) || 0,
+          boqItemId: l.boqItemId || undefined,
+          resourceId: l.resourceId || undefined,
         })),
       },
       {
@@ -100,7 +241,7 @@ export function VariationsTab({ projectId }: { projectId: string }) {
           setModalOpen(false);
           resetForm();
         },
-        onError: (e: Error) => Alert.alert('Error', e.message),
+        onError: (e: Error) => void alertAsync('Error', e.message),
       },
     );
   };
@@ -113,14 +254,14 @@ export function VariationsTab({ projectId }: { projectId: string }) {
         if (!reasonText?.trim()) return;
         rejectCo.mutate(
           { changeOrderId: co.id, reason: reasonText.trim() },
-          { onError: (e: Error) => Alert.alert('Error', e.message) },
+          { onError: (e: Error) => void alertAsync('Error', e.message) },
         );
       },
     );
     if (!Alert.prompt) {
       rejectCo.mutate(
         { changeOrderId: co.id, reason: 'Rejected' },
-        { onError: (e: Error) => Alert.alert('Error', e.message) },
+        { onError: (e: Error) => void alertAsync('Error', e.message) },
       );
     }
   };
@@ -129,12 +270,38 @@ export function VariationsTab({ projectId }: { projectId: string }) {
 
   const orders = data ?? [];
 
+  const renderCard = (co: ChangeOrder) => (
+    <VariationCard
+      key={co.id}
+      co={co}
+      canManage={canManage}
+      canApprove={canApprove}
+      isDesktop={isDesktop}
+      submitPending={submitCo.isPending}
+      approvePending={approveCo.isPending}
+      rejectPending={rejectCo.isPending}
+      onSubmit={() =>
+        submitCo.mutate(co.id, {
+          onError: (e: Error) => void alertAsync('Error', e.message),
+        })
+      }
+      onApprove={() =>
+        approveCo.mutate(co.id, {
+          onError: (e: Error) => void alertAsync('Error', e.message),
+        })
+      }
+      onReject={() => onReject(co)}
+    />
+  );
+
   return (
     <View className="gap-3">
       <View className="flex-row justify-between items-center">
-        <Text className="text-sm font-bold text-text">{orders.length} Variations</Text>
-        {canManage && (
-          <Button label="New Variation" size="sm" onPress={() => setModalOpen(true)} />
+        <Text className="text-sm font-bold text-text shrink">{orders.length} Variations</Text>
+        {canManage && orders.length > 0 && (
+          <View className="shrink-0 ml-2">
+            <Button label="New Variation" size="sm" onPress={() => setModalOpen(true)} />
+          </View>
         )}
       </View>
 
@@ -148,160 +315,243 @@ export function VariationsTab({ projectId }: { projectId: string }) {
             ) : undefined
           }
         />
+      ) : isDesktop ? (
+        <ResponsiveGrid columns={2} gap={12}>
+          {orders.map(renderCard)}
+        </ResponsiveGrid>
       ) : (
-        orders.map((co: ChangeOrder) => (
-          <Card key={co.id}>
-            <View className="flex-row justify-between items-start mb-2">
-              <View className="flex-1 mr-2">
-                <Text className="text-sm font-semibold text-text">
-                  {co.number} — {co.title}
-                </Text>
-                <Text className="text-xs text-muted">{formatDate(co.createdAt)}</Text>
-              </View>
-              <Badge color={STATUS_COLOR[co.status] ?? 'neutral'} label={co.status} />
-            </View>
-            {co.reason ? (
-              <Text className="text-xs text-muted mb-2" numberOfLines={2}>
-                {co.reason}
-              </Text>
-            ) : null}
-            <View className="flex-row justify-between items-center pt-2 border-t border-border">
-              <Text className="text-xs text-muted">
-                {co.lines.length} lines • {co.scheduleImpactDays}d schedule
-              </Text>
-              <Text className="text-sm font-bold text-primary">
-                {formatINR(parseFloat(co.costImpact))}
-              </Text>
-            </View>
-            {canManage && (co.status === 'DRAFT' || co.status === 'REJECTED') && (
-              <View className="mt-2">
-                <Button
-                  label="Submit for approval"
-                  size="sm"
-                  variant="secondary"
-                  loading={submitCo.isPending}
-                  onPress={() =>
-                    submitCo.mutate(co.id, {
-                      onError: (e: Error) => Alert.alert('Error', e.message),
-                    })
-                  }
-                />
-              </View>
-            )}
-            {canApprove && co.status === 'SUBMITTED' && (
-              <View className={`mt-2 ${isDesktop ? 'flex-row gap-2' : 'gap-2'}`}>
-                <View className={isDesktop ? 'flex-1' : undefined}>
-                  <Button
-                    label="Approve"
-                    size="sm"
-                    loading={approveCo.isPending}
-                    onPress={() =>
-                      approveCo.mutate(co.id, {
-                        onError: (e: Error) => Alert.alert('Error', e.message),
-                      })
-                    }
-                  />
-                </View>
-                <View className={isDesktop ? 'flex-1' : undefined}>
-                  <Button
-                    label="Reject"
-                    size="sm"
-                    variant="secondary"
-                    loading={rejectCo.isPending}
-                    onPress={() => onReject(co)}
-                  />
-                </View>
-              </View>
-            )}
-          </Card>
-        ))
+        orders.map(renderCard)
       )}
 
-      <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
-        <View className="flex-1 justify-end bg-black/40">
-          <View className="bg-card rounded-t-2xl max-h-[90%]">
-            <ScrollView contentContainerClassName="p-4 gap-3">
-              <Text className="text-lg font-bold text-text">New Variation</Text>
-              <Input label="Number" value={number} onChangeText={setNumber} placeholder="CO-001" />
-              <Input label="Title" value={title} onChangeText={setTitle} placeholder="Additional foundation work" />
-              <Input
-                label="Reason"
-                value={reason}
-                onChangeText={setReason}
-                placeholder="Client request"
-                multiline
-              />
-              <Input
-                label="Schedule impact (days)"
-                value={scheduleDays}
-                onChangeText={setScheduleDays}
-                keyboardType="numeric"
-              />
-              <Text className="text-sm font-bold text-text">Line items</Text>
-              {lines.map((line, idx) => (
-                <View key={line.id} className="border border-border rounded-lg p-2 gap-2">
-                  <Text className="text-xs text-muted">Line {idx + 1}</Text>
-                  <TextInput
-                    className="border border-border rounded-lg p-2 text-sm text-text"
-                    placeholder="Description"
-                    value={line.description}
-                    onChangeText={(v) =>
-                      setLines((prev) =>
-                        prev.map((l) => (l.id === line.id ? { ...l, description: v } : l)),
-                      )
-                    }
-                  />
-                  <View className="flex-row gap-2">
-                    <TextInput
-                      className="flex-1 border border-border rounded-lg p-2 text-sm text-text"
-                      placeholder="Qty Δ"
-                      value={line.qtyDelta}
-                      onChangeText={(v) =>
-                        setLines((prev) =>
-                          prev.map((l) => (l.id === line.id ? { ...l, qtyDelta: v } : l)),
-                        )
-                      }
-                      keyboardType="numeric"
-                    />
-                    <TextInput
-                      className="w-16 border border-border rounded-lg p-2 text-sm text-text"
-                      placeholder="Unit"
-                      value={line.unit}
-                      onChangeText={(v) =>
-                        setLines((prev) =>
-                          prev.map((l) => (l.id === line.id ? { ...l, unit: v } : l)),
-                        )
-                      }
-                    />
-                    <TextInput
-                      className="flex-1 border border-border rounded-lg p-2 text-sm text-text"
-                      placeholder="Rate"
-                      value={line.rate}
-                      onChangeText={(v) =>
-                        setLines((prev) =>
-                          prev.map((l) => (l.id === line.id ? { ...l, rate: v } : l)),
-                        )
-                      }
-                      keyboardType="numeric"
-                    />
-                  </View>
-                </View>
-              ))}
-              <Pressable onPress={() => setLines((prev) => [...prev, emptyLine()])}>
-                <Text className="text-primary text-sm font-semibold">+ Add line</Text>
+      <AdaptiveSheet
+        visible={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="New Variation"
+        size="lg"
+        footer={
+          <View className="flex-row gap-2">
+            <View className="flex-1">
+              <Button label="Cancel" variant="secondary" onPress={() => setModalOpen(false)} />
+            </View>
+            <View className="flex-1">
+              <Button label="Create" loading={createCo.isPending} onPress={onCreate} />
+            </View>
+          </View>
+        }
+      >
+        <Input label="Number" value={number} onChangeText={setNumber} placeholder="CO-001" fullWidth />
+        <Input label="Title" value={title} onChangeText={setTitle} placeholder="Additional foundation work" fullWidth />
+        <Input
+          label="Reason"
+          value={reason}
+          onChangeText={setReason}
+          placeholder="Client request"
+          multiline
+          fullWidth
+        />
+        <Input
+          label="Schedule impact (days)"
+          value={scheduleDays}
+          onChangeText={setScheduleDays}
+          keyboardType="numeric"
+          fullWidth
+        />
+        {taskList.length > 0 ? (
+          <View className="gap-1">
+            <Text className="text-sm font-semibold text-text">Linked task (schedule)</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-2">
+              <Pressable
+                onPress={() => setLinkedTaskId('')}
+                className={`px-3 py-1.5 rounded-full border ${!linkedTaskId ? 'bg-primary border-primary' : 'border-border'}`}
+              >
+                <Text className={`text-xs ${!linkedTaskId ? 'text-white' : 'text-muted'}`}>None</Text>
               </Pressable>
-              <View className="flex-row gap-2 pb-4">
-                <View className="flex-1">
-                  <Button label="Cancel" variant="secondary" onPress={() => setModalOpen(false)} />
-                </View>
-                <View className="flex-1">
-                  <Button label="Create" loading={createCo.isPending} onPress={onCreate} />
-                </View>
-              </View>
+              {taskList.map((t: TaskRow) => (
+                <Pressable
+                  key={t.id}
+                  onPress={() => setLinkedTaskId(t.id)}
+                  className={`px-3 py-1.5 rounded-full border ${linkedTaskId === t.id ? 'bg-primary border-primary' : 'border-border'}`}
+                >
+                  <Text className={`text-xs ${linkedTaskId === t.id ? 'text-white' : 'text-muted'}`} numberOfLines={1}>
+                    {t.name}
+                  </Text>
+                </Pressable>
+              ))}
             </ScrollView>
           </View>
+        ) : null}
+        {woList.length > 0 ? (
+          <View className="gap-1">
+            <Text className="text-sm font-semibold text-text">Linked subcontract WO</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-2">
+              <Pressable
+                onPress={() => setLinkedWorkOrderId('')}
+                className={`px-3 py-1.5 rounded-full border ${!linkedWorkOrderId ? 'bg-primary border-primary' : 'border-border'}`}
+              >
+                <Text className={`text-xs ${!linkedWorkOrderId ? 'text-white' : 'text-muted'}`}>None</Text>
+              </Pressable>
+              {woList.map((wo: WorkOrder) => (
+                <Pressable
+                  key={wo.id}
+                  onPress={() => setLinkedWorkOrderId(wo.id)}
+                  className={`px-3 py-1.5 rounded-full border ${linkedWorkOrderId === wo.id ? 'bg-primary border-primary' : 'border-border'}`}
+                >
+                  <Text className={`text-xs ${linkedWorkOrderId === wo.id ? 'text-white' : 'text-muted'}`}>
+                    {wo.woNumber}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
+        <Text className="text-sm font-bold text-text -mb-2">Line items</Text>
+        {lines.map((line, idx) => (
+          <View key={line.id} className="border border-border rounded-lg p-3 gap-2">
+            <Text className="text-xs text-muted">Line {idx + 1}</Text>
+            <Input
+              label="Description"
+              value={line.description}
+              onChangeText={(v) =>
+                setLines((prev) =>
+                  prev.map((l) => (l.id === line.id ? { ...l, description: v } : l)),
+                )
+              }
+              placeholder="Work description"
+              fullWidth
+            />
+            {boqItems.length > 0 ? (
+              <View className="gap-1">
+                <Text className="text-xs text-muted">Link to BOQ line (optional)</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-1">
+                  <Pressable
+                    onPress={() =>
+                      setLines((prev) =>
+                        prev.map((l) => (l.id === line.id ? { ...l, boqItemId: undefined } : l)),
+                      )
+                    }
+                    className={`px-2 py-1 rounded border ${!line.boqItemId ? 'bg-accent border-accent' : 'border-border'}`}
+                  >
+                    <Text className={`text-[10px] ${!line.boqItemId ? 'text-white' : 'text-muted'}`}>New</Text>
+                  </Pressable>
+                  {boqItems.map((b: BoqItem) => (
+                    <Pressable
+                      key={b.id}
+                      onPress={() =>
+                        setLines((prev) =>
+                          prev.map((l) =>
+                            l.id === line.id
+                              ? {
+                                  ...l,
+                                  boqItemId: b.id,
+                                  description: l.description || b.description,
+                                  unit: b.unit,
+                                  rate: String(parseFloat(b.rate) || 0),
+                                }
+                              : l,
+                          ),
+                        )
+                      }
+                      className={`px-2 py-1 rounded border max-w-[140px] ${line.boqItemId === b.id ? 'bg-accent border-accent' : 'border-border'}`}
+                    >
+                      <Text
+                        className={`text-[10px] ${line.boqItemId === b.id ? 'text-white' : 'text-muted'}`}
+                        numberOfLines={1}
+                      >
+                        {b.itemCode}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
+            {materialResources.length > 0 ? (
+              <View className="gap-1">
+                <Text className="text-xs text-muted">Material (for auto-indent on approve)</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-1">
+                  <Pressable
+                    onPress={() =>
+                      setLines((prev) =>
+                        prev.map((l) => (l.id === line.id ? { ...l, resourceId: undefined } : l)),
+                      )
+                    }
+                    className={`px-2 py-1 rounded border ${!line.resourceId ? 'bg-accent border-accent' : 'border-border'}`}
+                  >
+                    <Text className={`text-[10px] ${!line.resourceId ? 'text-white' : 'text-muted'}`}>None</Text>
+                  </Pressable>
+                  {materialResources.map((r) => (
+                    <Pressable
+                      key={r.id}
+                      onPress={() =>
+                        setLines((prev) =>
+                          prev.map((l) => (l.id === line.id ? { ...l, resourceId: r.id } : l)),
+                        )
+                      }
+                      className={`px-2 py-1 rounded border ${line.resourceId === r.id ? 'bg-accent border-accent' : 'border-border'}`}
+                    >
+                      <Text
+                        className={`text-[10px] ${line.resourceId === r.id ? 'text-white' : 'text-muted'}`}
+                        numberOfLines={1}
+                      >
+                        {r.name}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
+            <View className="flex-row gap-2">
+              <View className="flex-1">
+                <Input
+                  label="Qty Δ"
+                  value={line.qtyDelta}
+                  onChangeText={(v) =>
+                    setLines((prev) =>
+                      prev.map((l) => (l.id === line.id ? { ...l, qtyDelta: v } : l)),
+                    )
+                  }
+                  keyboardType="decimal-pad"
+                  fullWidth
+                />
+              </View>
+              <View className="w-20">
+                <Input
+                  label="Unit"
+                  value={line.unit}
+                  onChangeText={(v) =>
+                    setLines((prev) =>
+                      prev.map((l) => (l.id === line.id ? { ...l, unit: v } : l)),
+                    )
+                  }
+                  fullWidth
+                />
+              </View>
+              <View className="flex-1">
+                <Input
+                  label="Rate (₹)"
+                  value={line.rate}
+                  onChangeText={(v) =>
+                    setLines((prev) =>
+                      prev.map((l) => (l.id === line.id ? { ...l, rate: v } : l)),
+                    )
+                  }
+                  keyboardType="decimal-pad"
+                  fullWidth
+                />
+              </View>
+            </View>
+            <Text className="text-xs text-muted text-right">
+              Line total: {formatINR(lineAmount(line.qtyDelta, line.rate))}
+            </Text>
+          </View>
+        ))}
+        <Pressable onPress={() => setLines((prev) => [...prev, emptyLine()])}>
+          <Text className="text-primary text-sm font-semibold">+ Add line</Text>
+        </Pressable>
+        <View className="rounded-lg bg-primary/10 p-3 flex-row justify-between items-center">
+          <Text className="text-sm font-semibold text-text">Estimated cost impact</Text>
+          <Text className="text-base font-bold text-primary">{formatINR(draftTotal)}</Text>
         </View>
-      </Modal>
+      </AdaptiveSheet>
     </View>
   );
 }

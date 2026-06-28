@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Chatbot routes.
+ * BuildFlow - Chatbot routes.
  */
 import { Router } from 'express';
 import * as ctrl from '../controllers/chatbot.controller';

@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Site Check-in screen with Google Maps integration.
+ * BuildFlow - Site Check-in screen with Google Maps integration.
  *
  * - Shows project site pin on map
  * - Geo-fence validation (500m radius)

@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Invoice routes.
+ * BuildFlow - Invoice routes.
  *
  * Mounted at /api/invoices (detail-level) and within project router for project-scoped.
  */

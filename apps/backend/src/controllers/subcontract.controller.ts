@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Subcontract controller (thin handlers).
+ * BuildFlow - Subcontract controller (thin handlers).
  */
 import type { Request, Response } from 'express';
 import * as subcontractService from '../services/subcontract.service';

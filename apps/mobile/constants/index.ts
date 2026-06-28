@@ -1,5 +1,5 @@
 /**
- * BuildFlow Mobile — App constants
+ * BuildFlow Mobile - App constants
  */
 import { Role } from '@buildflow/shared';
 
@@ -14,8 +14,8 @@ export const SECURE_STORE_KEYS = {
 
 /** Maps each role to the tabs it may see. */
 export const ROLE_TABS: Record<Role, readonly string[]> = {
-  OWNER: ['dashboard', 'projects', 'estimation', 'planning', 'reports', 'accounting', 'settings'],
-  PM: ['dashboard', 'projects', 'estimation', 'planning', 'reports', 'accounting'],
+  OWNER: ['dashboard', 'projects', 'proposals', 'planning', 'reports', 'accounting', 'settings'],
+  PM: ['dashboard', 'projects', 'proposals', 'planning', 'reports', 'accounting'],
   SUPERVISOR: ['dashboard', 'projects', 'reports'],
   ACCOUNTANT: ['dashboard', 'accounting', 'reports'],
 } as const;

@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Invoice service (GST-compliant invoicing).
+ * BuildFlow - Invoice service (GST-compliant invoicing).
  */
 import { Decimal } from '@prisma/client/runtime/library';
 import { prisma } from '../lib/prisma';

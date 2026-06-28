@@ -1,12 +1,11 @@
 /**
- * BuildFlow — React Query hooks for Resources, Rate Analysis & Estimates.
+ * BuildFlow - React Query hooks for Resources, Rate Analysis & Estimates.
  */
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiFetch, apiDownload, apiFetchList } from '@/lib/api-client';
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { apiFetch, apiDownload, apiFetchList, type ApiListMeta } from '@/lib/api-client';
+import type { CreateResourceInput, UpdateResourceInput } from '@buildflow/shared';
 import * as Sharing from 'expo-sharing';
-import { Alert, Platform } from 'react-native';
-import { API_BASE_URL, SECURE_STORE_KEYS } from '@/constants';
-import * as SecureStore from 'expo-secure-store';
+import { Alert } from 'react-native';
 
 // ---------------------------------------------------------------------------
 // Types (mirror backend shapes)
@@ -21,6 +20,7 @@ export interface Resource {
   gstRate: string;
   hsnSacCode: string | null;
   category: string | null;
+  imageUrl: string | null;
   lastRateUpdatedAt: string | null;
   isActive: boolean;
 }
@@ -31,6 +31,7 @@ export interface PriceHistoryPoint {
   effectiveDate: string;
   notes: string | null;
   recordedBy: string;
+  isScheduled?: boolean;
 }
 
 export interface RateAnalysisComponent {
@@ -146,9 +147,102 @@ export interface EstimateComparison {
   grandTotalPctChange: number;
 }
 
+/** Backend compare payload (snake_case-ish field names). */
+interface CompareEstimatesApiResponse {
+  estimateA: { id: string; name: string; version: number; grandTotal: number };
+  estimateB: { id: string; name: string; version: number; grandTotal: number };
+  sections: Array<{
+    section: string;
+    versionA: number;
+    versionB: number;
+    diff: number;
+    changePct: number;
+  }>;
+  grandDiff: number;
+  grandChangePct: number;
+  summary?: string;
+}
+
+function mapCompareResponse(raw: CompareEstimatesApiResponse): EstimateComparison {
+  return {
+    estimateA: {
+      name: raw.estimateA.name,
+      version: raw.estimateA.version,
+      grandTotal: raw.estimateA.grandTotal,
+    },
+    estimateB: {
+      name: raw.estimateB.name,
+      version: raw.estimateB.version,
+      grandTotal: raw.estimateB.grandTotal,
+    },
+    sectionDiff: (raw.sections ?? []).map((s) => ({
+      name: s.section,
+      amountA: s.versionA,
+      amountB: s.versionB,
+      diff: s.diff,
+      pctChange: s.changePct,
+    })),
+    grandTotalDiff: raw.grandDiff,
+    grandTotalPctChange: raw.grandChangePct,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Resources
 // ---------------------------------------------------------------------------
+
+export interface MaterialsListResult {
+  data: Resource[];
+  meta: ApiListMeta;
+}
+
+export const materialKeys = {
+  all: ['materials'] as const,
+  list: (params: { search?: string; page?: number; limit?: number }) =>
+    ['materials', params] as const,
+};
+
+function buildMaterialsPath(params: { search?: string; page?: number; limit?: number }) {
+  const page = params.page ?? 1;
+  const limit = params.limit ?? 200;
+  const qs = new URLSearchParams({
+    type: 'MATERIAL',
+    page: String(page),
+    limit: String(limit),
+  });
+  const search = params.search?.trim();
+  if (search) qs.set('search', search);
+  return `/resources?${qs}`;
+}
+
+function patchMaterialsCaches(qc: QueryClient, patch: (prev: MaterialsListResult) => MaterialsListResult) {
+  qc.setQueriesData<MaterialsListResult>({ queryKey: materialKeys.all }, (prev: MaterialsListResult | undefined) =>
+    prev ? patch(prev) : prev,
+  );
+}
+
+export function useMaterials(opts?: {
+  search?: string;
+  page?: number;
+  limit?: number;
+  enabled?: boolean;
+}) {
+  const page = opts?.page ?? 1;
+  const limit = opts?.limit ?? 200;
+  const search = opts?.search?.trim() ?? '';
+
+  return useQuery({
+    queryKey: materialKeys.list({ search, page, limit }),
+    queryFn: async () => {
+      const { data, meta } = await apiFetchList<Resource>(
+        buildMaterialsPath({ search, page, limit }),
+      );
+      return { data, meta };
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: opts?.enabled !== false,
+  });
+}
 
 export function useResources() {
   return useQuery({
@@ -157,14 +251,86 @@ export function useResources() {
       const { data } = await apiFetchList<Resource>('/resources?limit=200');
       return { data };
     },
-    staleTime: 60 * 60 * 1000,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useUploadMaterialImage() {
+  return useMutation({
+    mutationFn: async (input: { uri: string; filename: string; contentType: string }) => {
+      const { uploadUrl, imageUrl } = await apiFetch<{ uploadUrl: string; imageUrl: string }>(
+        '/resources/image/upload-url',
+        {
+          method: 'POST',
+          body: JSON.stringify({ filename: input.filename, contentType: input.contentType }),
+        },
+      );
+      const blob = await fetch(input.uri).then((r) => r.blob());
+      await fetch(uploadUrl, {
+        method: 'PUT',
+        body: blob,
+        headers: { 'Content-Type': input.contentType },
+      });
+      return imageUrl;
+    },
+  });
+}
+
+export function useCreateResource() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateResourceInput) =>
+      apiFetch<Resource>('/resources', { method: 'POST', body: JSON.stringify(input) }),
+    onSuccess: (created) => {
+      if (created.type === 'MATERIAL') {
+        patchMaterialsCaches(qc, (prev) => ({
+          data: [created, ...prev.data.filter((r) => r.id !== created.id)],
+          meta: { ...prev.meta, total: prev.meta.total + 1 },
+        }));
+      }
+      qc.invalidateQueries({ queryKey: materialKeys.all });
+      qc.invalidateQueries({ queryKey: ['resources'] });
+    },
+  });
+}
+
+export function useUpdateResource(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdateResourceInput) =>
+      apiFetch<Resource>(`/resources/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
+    onSuccess: (updated) => {
+      patchMaterialsCaches(qc, (prev) => ({
+        ...prev,
+        data: prev.data.map((r) => (r.id === updated.id ? updated : r)),
+      }));
+      qc.invalidateQueries({ queryKey: materialKeys.all });
+      qc.invalidateQueries({ queryKey: ['resources'] });
+      qc.invalidateQueries({ queryKey: ['resources', id, 'price-history'] });
+    },
+  });
+}
+
+export function useDeleteResource() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<{ success: boolean }>(`/resources/${id}`, { method: 'DELETE' }),
+    onSuccess: (_data, id) => {
+      patchMaterialsCaches(qc, (prev) => ({
+        data: prev.data.filter((r) => r.id !== id),
+        meta: { ...prev.meta, total: Math.max(0, prev.meta.total - 1) },
+      }));
+      qc.invalidateQueries({ queryKey: materialKeys.all });
+      qc.invalidateQueries({ queryKey: ['resources'] });
+    },
   });
 }
 
 export function usePriceHistory(resourceId: string) {
   return useQuery({
     queryKey: ['resources', resourceId, 'price-history'] as const,
-    queryFn: () => apiFetch<{ data: PriceHistoryPoint[] }>(`/resources/${resourceId}/price-history`),
+    queryFn: () => apiFetch<PriceHistoryPoint[]>(`/resources/${resourceId}/price-history`),
     enabled: !!resourceId,
   });
 }
@@ -176,7 +342,7 @@ export function usePriceHistory(resourceId: string) {
 export function useAddPriceHistory(resourceId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { rate: number; effectiveDate?: string; notes?: string }) =>
+    mutationFn: (body: { rate: number; effectiveDate: string; notes?: string }) =>
       apiFetch<{ success: boolean }>(`/resources/${resourceId}/price-history`, {
         method: 'POST',
         body: JSON.stringify(body),
@@ -282,8 +448,22 @@ export function useEstimateMutations(estimateId: string) {
       mutationFn: (itemId: string) => apiFetch<{ success: boolean }>(`/estimate-items/${itemId}`, { method: 'DELETE' }),
       onSuccess: invalidate,
     }),
-    submit: useMutation({ mutationFn: () => apiFetch<Estimate>(`/estimates/${estimateId}/submit`, { method: 'POST' }), onSuccess: invalidate }),
-    approve: useMutation({ mutationFn: () => apiFetch<Estimate>(`/estimates/${estimateId}/approve`, { method: 'POST' }), onSuccess: invalidate }),
+    submit: useMutation({
+      mutationFn: () => apiFetch<Estimate>(`/estimates/${estimateId}/submit`, { method: 'POST' }),
+      onSuccess: (data) => {
+        invalidate();
+        qc.invalidateQueries({ queryKey: ['proposals'] });
+        qc.invalidateQueries({ queryKey: ['projects', data.projectId, 'estimates'] });
+      },
+    }),
+    approve: useMutation({
+      mutationFn: () => apiFetch<Estimate>(`/estimates/${estimateId}/approve`, { method: 'POST' }),
+      onSuccess: (data) => {
+        invalidate();
+        qc.invalidateQueries({ queryKey: ['proposals'] });
+        qc.invalidateQueries({ queryKey: ['projects', data.projectId, 'estimates'] });
+      },
+    }),
     reject: useMutation({
       mutationFn: (reason: string) => apiFetch<Estimate>(`/estimates/${estimateId}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
       onSuccess: invalidate,
@@ -361,15 +541,11 @@ export function useDuplicateRateAnalysis() {
 export function useCompareEstimates(idA: string, idB: string) {
   return useQuery({
     queryKey: ['estimates', 'compare', idA, idB] as const,
-    queryFn: () =>
-      apiFetch<{
-        estimateA: { name: string; version: number; grandTotal: number };
-        estimateB: { name: string; version: number; grandTotal: number };
-        sectionDiff: Array<{ name: string; amountA: number; amountB: number; diff: number; pctChange: number }>;
-        grandTotalDiff: number;
-        grandTotalPctChange: number;
-      }>(`/estimates/${idA}/compare/${idB}`),
-    enabled: !!idA && !!idB,
+    queryFn: async () => {
+      const raw = await apiFetch<CompareEstimatesApiResponse>(`/estimates/${idA}/compare/${idB}`);
+      return mapCompareResponse(raw);
+    },
+    enabled: !!idA && !!idB && idA !== idB,
   });
 }
 
@@ -388,33 +564,13 @@ export function useExportEstimate(estimateId: string) {
       const path = `/estimates/${estimateId}/export/${format}`;
       const filename = `estimate-${estimateId}.${ext}`;
 
-      // On web, fetch the blob and trigger a browser download (since window.open
-      // cannot set Authorization headers for JWT-protected endpoints).
-      if (Platform.OS === 'web') {
-        const accessToken = await SecureStore.getItemAsync(SECURE_STORE_KEYS.ACCESS_TOKEN);
-        const res = await fetch(`${API_BASE_URL}${path}`, {
-          headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-        });
-        if (!res.ok) throw new Error(`Export failed (${res.status})`);
-        const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = window.document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        window.document.body.appendChild(a);
-        a.click();
-        window.document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-        return;
-      }
-
       const fileUri = await apiDownload(path, filename, mime);
-      if (await Sharing.isAvailableAsync()) {
+      if (fileUri && (await Sharing.isAvailableAsync())) {
         await Sharing.shareAsync(fileUri, {
           mimeType: mime,
           dialogTitle: `Estimate ${format.toUpperCase()}`,
         });
-      } else {
+      } else if (fileUri) {
         Alert.alert('Exported', `File saved to ${fileUri}`);
       }
     },

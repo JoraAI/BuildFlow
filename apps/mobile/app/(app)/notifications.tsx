@@ -1,5 +1,5 @@
 /**
- * Notification center — grouped by Today / Yesterday / Earlier.
+ * Notification center - grouped by Today / Yesterday / Earlier.
  */
 import React, { useMemo } from 'react';
 import {
@@ -53,9 +53,10 @@ function deepLink(n: AppNotification): string | null {
     case 'ESTIMATE_APPROVED':
     case 'ESTIMATE_REJECTED':
     case 'ESTIMATE':
-      return ref ? `/(app)/estimation/${ref}` : '/(app)/estimation';
+      return ref ? `/(app)/estimation/${ref}` : '/(app)/proposals';
     case 'BUDGET':
     case 'MATERIAL_PRICE':
+    case 'MATERIAL_RATE_VARIANCE':
       return '/(app)/dashboard';
     case 'TRIAL_ENDING':
     case 'TRIAL_EXPIRED':

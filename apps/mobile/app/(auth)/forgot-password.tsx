@@ -1,5 +1,5 @@
 /**
- * Forgot password — Phase 1 stub (shows confirmation message).
+ * Forgot password - Phase 1 stub (shows confirmation message).
  */
 import React, { useState } from 'react';
 import { View, Text } from 'react-native';

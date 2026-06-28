@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Domain Enums (shared between frontend & backend)
+ * BuildFlow - Domain Enums (shared between frontend & backend)
  *
  * These mirror the Prisma enums in apps/backend/prisma/schema.prisma.
  * Keep them in sync. String values are SCREAMING_SNAKE_CASE and stored as-is in DB.
@@ -79,6 +79,17 @@ export const EstimateStatus = {
   SUPERSEDED: 'SUPERSEDED',
 } as const;
 export type EstimateStatus = (typeof EstimateStatus)[keyof typeof EstimateStatus];
+
+export const ProposalStatus = {
+  DRAFT: 'DRAFT',
+  IN_REVIEW: 'IN_REVIEW',
+  APPROVED: 'APPROVED',
+  SENT: 'SENT',
+  WON: 'WON',
+  LOST: 'LOST',
+  ARCHIVED: 'ARCHIVED',
+} as const;
+export type ProposalStatus = (typeof ProposalStatus)[keyof typeof ProposalStatus];
 
 export const InvoiceStatus = {
   DRAFT: 'DRAFT',

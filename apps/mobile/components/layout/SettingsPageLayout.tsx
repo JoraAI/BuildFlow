@@ -9,7 +9,7 @@ import { goBackToSettings } from '@/utils/navigation';
 
 /**
  * Shared layout for Settings index and nested settings pages.
- * Desktop: centered content, PageHeader (no back — use top bar breadcrumbs).
+ * Desktop: centered content, PageHeader (no back - use top bar breadcrumbs).
  * Mobile: FormScreenHeader with reliable back via dismissTo (not router.back).
  */
 export function SettingsPageLayout({

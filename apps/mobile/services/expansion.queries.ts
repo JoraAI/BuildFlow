@@ -1,5 +1,5 @@
 /**
- * BuildFlow — React Query hooks for platform expansion features:
+ * BuildFlow - React Query hooks for platform expansion features:
  * change orders, procurement, subcontract, portal, report schedules.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -48,6 +48,7 @@ export interface ChangeOrderLine {
   rate: string;
   amount: string;
   boqItemId?: string | null;
+  resourceId?: string | null;
 }
 
 export interface ChangeOrder {
@@ -58,9 +59,13 @@ export interface ChangeOrder {
   status: ApprovalStatus;
   costImpact: string;
   scheduleImpactDays: number;
+  linkedTaskId?: string | null;
+  linkedWorkOrderId?: string | null;
   createdAt: string;
   lines: ChangeOrderLine[];
   createdByUser?: { id: string; name: string };
+  linkedTask?: { id: string; name: string };
+  linkedWorkOrder?: { id: string; woNumber: string };
 }
 
 export interface RequisitionLine {
@@ -68,6 +73,9 @@ export interface RequisitionLine {
   resourceId: string;
   quantity: string;
   unit: string;
+  boqItemId?: string | null;
+  expectedRate?: string | null;
+  rateSource?: string | null;
   resource?: { id: string; name: string };
 }
 
@@ -76,6 +84,8 @@ export interface Requisition {
   reqNumber: string;
   status: ApprovalStatus;
   notes: string | null;
+  sourceType?: string | null;
+  sourceRef?: string | null;
   createdAt: string;
   lines: RequisitionLine[];
   purchaseOrders?: { id: string; poNumber: string; status: string }[];
@@ -452,7 +462,7 @@ export function useCreatePortalAccess(projectId: string) {
   });
 }
 
-/** Public portal fetch — no auth header. */
+/** Public portal fetch - no auth header. */
 export async function fetchPortalData(token: string): Promise<PortalData> {
   const res = await fetch(`${API_BASE_URL}/portal/${token}`);
   const body = await res.json().catch(() => ({ success: false }));

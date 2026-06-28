@@ -1,5 +1,5 @@
 /**
- * BuildFlow Platform — admin dashboard.
+ * BuildFlow Platform - admin dashboard.
  */
 import React from 'react';
 import { View, Text, ScrollView, SafeAreaView, Pressable } from 'react-native';
@@ -31,7 +31,7 @@ export default function PlatformDashboardScreen() {
         <View className="flex-row flex-wrap gap-4">
           <Card className="flex-1 min-w-[200px]">
             <Text className="text-sm text-muted">Companies</Text>
-            <Text className="text-3xl font-bold text-text">{companies?.length ?? '—'}</Text>
+            <Text className="text-3xl font-bold text-text">{companies?.length ?? '-'}</Text>
           </Card>
           <Card className="flex-1 min-w-[200px]">
             <Text className="text-sm text-muted">Open platform tickets</Text>

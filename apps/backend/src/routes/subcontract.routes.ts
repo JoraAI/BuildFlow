@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Subcontract routes.
+ * BuildFlow - Subcontract routes.
  *
  * Project-scoped: /api/projects/:id/subcontract/*
  * Company-scoped:  /api/subcontractors

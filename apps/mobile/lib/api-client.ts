@@ -1,7 +1,14 @@
+import { Platform } from 'react-native';
 import { API_BASE_URL, SECURE_STORE_KEYS } from '@/constants';
 import * as SecureStore from 'expo-secure-store';
 import * as FileSystem from 'expo-file-system';
 import { useAuthStore } from '@/stores/auth.store';
+
+export type DownloadMimeType =
+  | 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  | 'application/pdf'
+  | 'application/zip'
+  | 'application/json';
 
 export class ApiError extends Error {
   code: string;
@@ -97,7 +104,7 @@ export interface ApiListMeta {
   totalPages: number;
 }
 
-/** Paginated list fetch — returns data + meta (apiFetch strips meta). */
+/** Paginated list fetch - returns data + meta (apiFetch strips meta). */
 export async function apiFetchList<T>(
   path: string,
   init: RequestInit = {},
@@ -131,30 +138,124 @@ export async function apiFetchList<T>(
   return { data: body.data, meta: body.meta };
 }
 
+async function fetchWithAuthRetry(path: string, init: RequestInit = {}): Promise<Response> {
+  const accessToken = await SecureStore.getItemAsync(SECURE_STORE_KEYS.ACCESS_TOKEN);
+  const headers: Record<string, string> = {
+    ...(init.headers as Record<string, string>),
+  };
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+  } catch {
+    throw new ApiError(
+      'NETWORK_ERROR',
+      'Unable to connect. Check your internet connection.',
+      0,
+    );
+  }
+
+  if (res.status === 401 && !path.includes('/auth/')) {
+    if (!isRefreshing) {
+      isRefreshing = true;
+      try {
+        const newToken = await refreshAccessToken();
+        isRefreshing = false;
+        processQueue(newToken);
+        if (newToken) {
+          headers.Authorization = `Bearer ${newToken}`;
+          return fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+        }
+        await useAuthStore.getState().logout();
+        throw new ApiError('SESSION_EXPIRED', 'Session expired. Please login again.', 401);
+      } catch {
+        isRefreshing = false;
+        await useAuthStore.getState().logout();
+        throw new ApiError('SESSION_EXPIRED', 'Session expired. Please login again.', 401);
+      }
+    } else {
+      return new Promise<Response>((resolve, reject) => {
+        failedQueue.push((token) => {
+          if (!token) {
+            reject(new ApiError('SESSION_EXPIRED', 'Session expired', 401));
+            return;
+          }
+          fetchWithAuthRetry(path, {
+            ...init,
+            headers: { ...headers, Authorization: `Bearer ${token}` },
+          })
+            .then(resolve)
+            .catch(reject);
+        });
+      });
+    }
+  }
+
+  return res;
+}
+
+async function parseDownloadError(res: Response): Promise<never> {
+  const contentType = res.headers.get('content-type') ?? '';
+  if (contentType.includes('application/json')) {
+    const body = await res.json().catch(() => null);
+    const message =
+      body?.error?.message ?? body?.message ?? `Download failed (${res.status})`;
+    throw new ApiError(body?.error?.code ?? 'DOWNLOAD_FAILED', message, res.status);
+  }
+  throw new ApiError('DOWNLOAD_FAILED', `Download failed (${res.status})`, res.status);
+}
+
+function triggerBrowserDownload(blob: Blob, filename: string): void {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(url);
+}
+
 /**
- * Download a binary file (Excel/PDF) from the API and save+share it.
- * Returns the local file URI.
+ * Save a blob as a download (web) or to the app documents directory (native).
+ * Returns the local file URI on native, or null on web after triggering the browser download.
+ */
+export async function saveDownloadBlob(blob: Blob, filename: string): Promise<string | null> {
+  if (Platform.OS === 'web') {
+    triggerBrowserDownload(blob, filename);
+    return null;
+  }
+  const base64 = await blobToBase64(blob);
+  const fileUri = `${FileSystem.documentDirectory}${filename}`;
+  await FileSystem.writeAsStringAsync(fileUri, base64, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  return fileUri;
+}
+
+/** Download a JSON object as a `.json` file. */
+export async function downloadJsonObject(data: unknown, filename: string): Promise<string | null> {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  return saveDownloadBlob(blob, filename);
+}
+
+/**
+ * Download a binary file from the API and save it locally or trigger a browser download.
+ * Returns the local file URI on native, or null on web.
  */
 export async function apiDownload(
   path: string,
   filename: string,
-  mimeType:
-    | 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    | 'application/pdf'
-    | 'application/zip',
-): Promise<string> {
-  const accessToken = await SecureStore.getItemAsync(SECURE_STORE_KEYS.ACCESS_TOKEN);
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-  });
+  _mimeType: DownloadMimeType,
+): Promise<string | null> {
+  const res = await fetchWithAuthRetry(path);
   if (!res.ok) {
-    throw new ApiError('DOWNLOAD_FAILED', `Download failed (${res.status})`, res.status);
+    await parseDownloadError(res);
   }
   const blob = await res.blob();
-  const base64 = await blobToBase64(blob);
-  const fileUri = `${FileSystem.documentDirectory}${filename}`;
-  await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
-  return fileUri;
+  return saveDownloadBlob(blob, filename);
 }
 
 function blobToBase64(blob: Blob): Promise<string> {

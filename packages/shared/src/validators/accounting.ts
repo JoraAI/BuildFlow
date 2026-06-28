@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Shared Zod validators for Accounting (invoices, bills, journal).
+ * BuildFlow - Shared Zod validators for Accounting (invoices, bills, journal).
  */
 import { z } from 'zod';
 

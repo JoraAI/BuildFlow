@@ -1,5 +1,5 @@
 /**
- * BuildFlow — User invite service (team onboarding).
+ * BuildFlow - User invite service (team onboarding).
  */
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';

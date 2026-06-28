@@ -1,5 +1,5 @@
 /**
- * BuildFlow — PDF report routes.
+ * BuildFlow - PDF report routes.
  * All 12 report types are exposed as PDF downloads.
  */
 import { Router } from 'express';
@@ -32,10 +32,10 @@ router.get('/projects/:id/estimate-vs-actual', ctrl.getEstimateVsActualPdf);
 // 7. P&L
 router.get('/projects/:id/profit-loss', ctrl.getProfitLossPdf);
 
-// 8. GST Summary (OWNER/ACCOUNTANT only — financial compliance)
+// 8. GST Summary (OWNER/ACCOUNTANT only - financial compliance)
 router.get('/gst-summary', requireRole('OWNER', 'ACCOUNTANT'), ctrl.getGstSummaryPdf);
 
-// 9. TDS Report (OWNER/ACCOUNTANT only — financial compliance)
+// 9. TDS Report (OWNER/ACCOUNTANT only - financial compliance)
 router.get('/tds', requireRole('OWNER', 'ACCOUNTANT'), ctrl.getTdsPdf);
 
 // 10. Resource Utilization
@@ -52,5 +52,8 @@ router.get('/projects/:id/measurement-book', ctrl.getMeasurementBookPdf);
 
 // 14. Abstract Sheet
 router.get('/projects/:id/abstract-sheet', ctrl.getAbstractSheetPdf);
+
+// 15. Project Material Rate Sheet
+router.get('/projects/:id/material-rates', ctrl.getProjectMaterialRatesPdf);
 
 export default router;

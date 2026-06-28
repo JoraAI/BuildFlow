@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Company Data ZIP Export service.
+ * BuildFlow - Company Data ZIP Export service.
  *
  * Gathers all company-scoped data and streams a multi-file ZIP archive.
  * Each entity type is written as a separate JSON file; a CSV summary and

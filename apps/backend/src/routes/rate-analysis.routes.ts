@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Rate Analysis routes.
+ * BuildFlow - Rate Analysis routes.
  *
  * GET    /api/rate-analysis
  * POST   /api/rate-analysis

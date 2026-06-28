@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Rate Analysis service.
+ * BuildFlow - Rate Analysis service.
  *
  * Cost-per-unit templates reusable across estimates.
  * Auto-recomputes total when components change.

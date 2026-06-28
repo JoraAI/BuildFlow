@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Audit log helper.
+ * BuildFlow - Audit log helper.
  *
  * Used by the `auditLog` middleware to record mutations (create/update/delete).
  * Stored in the AuditLog table with company_id scoping and Prisma JSON values.
@@ -34,7 +34,7 @@ export async function recordAudit(entry: AuditEntry): Promise<void> {
       },
     });
   } catch (err) {
-    // Never let audit logging crash a request — log and continue.
+    // Never let audit logging crash a request - log and continue.
     logger.error('Audit log write failed', { error: String(err), entry });
   }
 }

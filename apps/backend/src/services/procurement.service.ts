@@ -1,11 +1,14 @@
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
 import { assertProjectAccess } from '../middleware/project-access.middleware';
+import { getProject } from './project.service';
 import type {
   CreateRequisitionInput,
   CreatePurchaseOrderInput,
   CreateGrnInput,
 } from '@buildflow/shared';
+import { resolveRequisitionLineRate } from './material-rate.service';
+import { alertOnPurchaseOrderRateVariance } from './material-rate-alert.service';
 
 function round2(n: number) {
   return Math.round(n * 100) / 100;
@@ -51,6 +54,25 @@ export async function createRequisition(
 ) {
   await assertProjectAccess(companyId, userId, role as never, projectId, ['OWNER', 'PM', 'SUPERVISOR']);
 
+  const lineCreates = await Promise.all(
+    input.lines.map(async (line) => {
+      const { expectedRate, rateSource } = await resolveRequisitionLineRate(companyId, projectId, {
+        resourceId: line.resourceId,
+        boqItemId: line.boqItemId,
+        expectedRate: line.expectedRate,
+        rateSource: line.rateSource,
+      });
+      return {
+        resourceId: line.resourceId,
+        quantity: line.quantity,
+        unit: line.unit,
+        boqItemId: line.boqItemId ?? null,
+        expectedRate,
+        rateSource,
+      };
+    }),
+  );
+
   return prisma.materialRequisition.create({
     data: {
       projectId,
@@ -58,9 +80,11 @@ export async function createRequisition(
       reqNumber: input.reqNumber,
       notes: input.notes,
       requestedBy: userId,
-      lines: { create: input.lines },
+      lines: { create: lineCreates },
     },
-    include: { lines: true },
+    include: {
+      lines: { include: { resource: { select: { id: true, name: true } } } },
+    },
   });
 }
 
@@ -133,7 +157,7 @@ export async function createPO(
   }));
   const totalAmount = round2(lines.reduce((s, l) => s + l.amount, 0));
 
-  return prisma.purchaseOrder.create({
+  const po = await prisma.purchaseOrder.create({
     data: {
       projectId,
       companyId,
@@ -145,6 +169,16 @@ export async function createPO(
     },
     include: { lines: { include: { resource: { select: { id: true, name: true } } } } },
   });
+
+  await alertOnPurchaseOrderRateVariance(
+    companyId,
+    projectId,
+    po.id,
+    po.poNumber,
+    input.lines.map((l) => ({ resourceId: l.resourceId, rate: l.rate })),
+  );
+
+  return po;
 }
 
 export async function createGRN(
@@ -214,6 +248,100 @@ export async function createGRN(
 
     return grn;
   });
+}
+
+type StockTx = Pick<
+  typeof prisma,
+  'stockLocation' | 'stockBalance' | 'stockMovement'
+>;
+
+export async function issueStockForDailyReport(
+  companyId: string,
+  projectId: string,
+  dailyReportId: string,
+  lines: Array<{ resourceId: string; quantityUsed: number }>,
+  tx: StockTx = prisma,
+) {
+  const location = await getOrCreateProjectStockLocation(companyId, projectId, tx);
+
+  for (const line of lines) {
+    const balance = await tx.stockBalance.findUnique({
+      where: {
+        locationId_resourceId: { locationId: location.id, resourceId: line.resourceId },
+      },
+    });
+    if (!balance || Number(balance.quantity) < line.quantityUsed) {
+      continue;
+    }
+    await tx.stockBalance.update({
+      where: { id: balance.id },
+      data: { quantity: { decrement: line.quantityUsed } },
+    });
+    await tx.stockMovement.create({
+      data: {
+        locationId: location.id,
+        resourceId: line.resourceId,
+        quantity: line.quantityUsed,
+        type: 'OUT',
+        referenceType: 'DAILY_REPORT',
+        referenceId: dailyReportId,
+      },
+    });
+  }
+}
+
+export async function getResourceUtilization(companyId: string, projectId: string) {
+  await getProject(companyId, projectId);
+
+  const [taskResources, materialUsages] = await Promise.all([
+    prisma.taskResource.findMany({
+      where: { task: { projectId } },
+      include: { resource: { select: { id: true, name: true, unit: true, type: true } } },
+    }),
+    prisma.materialUsage.findMany({
+      where: { dailyReport: { projectId } },
+      include: { resource: { select: { id: true, name: true, unit: true, type: true } } },
+    }),
+  ]);
+
+  const map = new Map<
+    string,
+    { resourceId: string; name: string; unit: string; type: string; planned: number; used: number }
+  >();
+
+  for (const tr of taskResources) {
+    const key = tr.resourceId;
+    const e = map.get(key) ?? {
+      resourceId: tr.resourceId,
+      name: tr.resource.name,
+      unit: tr.resource.unit ?? '',
+      type: tr.resource.type,
+      planned: 0,
+      used: 0,
+    };
+    e.planned += Number(tr.quantity);
+    map.set(key, e);
+  }
+
+  for (const mu of materialUsages) {
+    const key = mu.resourceId;
+    const e = map.get(key) ?? {
+      resourceId: mu.resourceId,
+      name: mu.resource.name,
+      unit: mu.resource.unit ?? '',
+      type: mu.resource.type,
+      planned: 0,
+      used: 0,
+    };
+    e.used += Number(mu.quantityUsed);
+    map.set(key, e);
+  }
+
+  return Array.from(map.values()).map((r) => ({
+    ...r,
+    variance: r.used - r.planned,
+    usedPct: r.planned > 0 ? Math.round((r.used / r.planned) * 100) : r.used > 0 ? 100 : 0,
+  }));
 }
 
 export async function listStock(

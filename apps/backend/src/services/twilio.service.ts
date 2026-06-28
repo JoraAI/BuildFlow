@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Twilio service (WhatsApp Business + SMS).
+ * BuildFlow - Twilio service (WhatsApp Business + SMS).
  *
  * Credentials resolve per company via integration.service with platform fallback.
  */

@@ -1,5 +1,5 @@
 /**
- * Public client portal — no authentication required.
+ * Public client portal - no authentication required.
  * Route: /portal/:token
  */
 import React from 'react';

@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Analytics routes (OWNER only).
+ * BuildFlow - Analytics routes (OWNER only).
  */
 import { Router } from 'express';
 import { getDashboard } from '../controllers/analytics.controller';

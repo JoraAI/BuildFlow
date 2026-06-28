@@ -6,7 +6,7 @@ interface ActionBarProps {
   children: React.ReactNode;
 }
 
-/** Sticky footer for screen actions — horizontal toolbar on desktop, stacked on mobile. */
+/** Sticky footer for screen actions - horizontal toolbar on desktop, stacked on mobile. */
 export function ActionBar({ children }: ActionBarProps) {
   const { isDesktop } = useViewport();
 

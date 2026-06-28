@@ -1,5 +1,5 @@
 /**
- * Change order integration tests — approval updates BOQ + budget.
+ * Change order integration tests - approval updates BOQ + budget.
  */
 import { loginAs, authGet, authPost, getSeedProjectId } from './test-helpers';
 

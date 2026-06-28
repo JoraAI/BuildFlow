@@ -1,5 +1,5 @@
 /**
- * BuildFlow — AsyncLocalStorage for multi-tenant request context.
+ * BuildFlow - AsyncLocalStorage for multi-tenant request context.
  *
  * The `companyContext` middleware sets { companyId, userId } per request.
  * Prisma middleware (lib/prisma.ts) reads `companyId` to auto-scope queries.

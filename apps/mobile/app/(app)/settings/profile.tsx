@@ -1,14 +1,15 @@
 /**
- * BuildFlow — My Profile (self-service name + phone).
+ * BuildFlow - My Profile (self-service name + phone).
  */
 import React, { useState, useEffect } from 'react';
-import { View, Text, Alert } from 'react-native';
+import { View, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, Input, Button, LoadingSkeleton, Badge } from '@/components/ui';
 import { Avatar, CompanyLogo } from '@/components/ui/Avatar';
 import { SettingsPageLayout } from '@/components/layout/SettingsPageLayout';
 import { useMyProfile, useUpdateMyProfile } from '@/services/settings.queries';
 import { useAuthStore } from '@/stores/auth.store';
+import { alertAsync } from '@/utils/confirm';
 
 export default function MyProfileScreen() {
   const router = useRouter();
@@ -17,6 +18,7 @@ export default function MyProfileScreen() {
   const update = useUpdateMyProfile();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     if (data) {
@@ -26,14 +28,18 @@ export default function MyProfileScreen() {
   }, [data]);
 
   const onSave = () => {
+    setFormError(null);
     update.mutate(
       { name: name.trim(), phone: phone.trim() || null },
       {
         onSuccess: async () => {
           await refreshUser();
-          Alert.alert('Saved', 'Profile updated.');
+          await alertAsync('Saved', 'Profile updated.');
         },
-        onError: (e: Error) => Alert.alert('Error', e.message),
+        onError: async (e: Error) => {
+          setFormError(e.message);
+          await alertAsync('Error', e.message);
+        },
       },
     );
   };
@@ -68,10 +74,16 @@ export default function MyProfileScreen() {
           <Badge label={data.role} color="primary" />
         </View>
       </Card>
+      {formError ? (
+        <View className="mb-3 px-3 py-2 rounded-lg bg-danger/10 border border-danger/30">
+          <Text className="text-sm text-danger">{formError}</Text>
+        </View>
+      ) : null}
       <Button
         label={update.isPending ? 'Saving...' : 'Save changes'}
         onPress={onSave}
         disabled={update.isPending}
+        loading={update.isPending}
         fullWidth
       />
       <Button

@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Express app composition (no listen()).
+ * BuildFlow - Express app composition (no listen()).
  *
  * Separated from server.ts so supertest can import the app without binding a port.
  */
@@ -35,6 +35,7 @@ import { changeOrderRouter } from './routes/change-order.routes';
 import { procurementRouter } from './routes/procurement.routes';
 import { subcontractProjectRouter, subcontractorRouter } from './routes/subcontract.routes';
 import { portalPublicRouter, portalProjectRouter } from './routes/portal.routes';
+import { proposalRouter } from './routes/proposal.routes';
 
 const app = express();
 
@@ -103,6 +104,7 @@ app.use('/api/projects', subcontractProjectRouter); // /:id/subcontract/*
 app.use('/api/subcontractors', subcontractorRouter);
 app.use('/api/projects', portalProjectRouter); // /:id/portal-access
 app.use('/api/portal', portalPublicRouter); // public /:token
+app.use('/api/proposals', proposalRouter);
 
 // --- 404 + error handler (last) ---
 app.use(notFoundHandler);

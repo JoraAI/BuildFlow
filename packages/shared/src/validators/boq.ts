@@ -1,5 +1,5 @@
 /**
- * BuildFlow — BOQ Zod validators.
+ * BuildFlow - BOQ Zod validators.
  */
 import { z } from 'zod';
 
@@ -34,3 +34,10 @@ export const boqImportRowSchema = z.object({
 
 export const boqImportSchema = z.array(boqImportRowSchema).min(1, 'At least one row required');
 export type BoqImportInput = z.infer<typeof boqImportSchema>;
+
+export const recordBoqMeasurementSchema = z.object({
+  quantity: z.number().positive('Quantity must be greater than 0'),
+  notes: z.string().max(500).optional(),
+  measuredAt: z.string().datetime().optional(),
+});
+export type RecordBoqMeasurementInput = z.infer<typeof recordBoqMeasurementSchema>;

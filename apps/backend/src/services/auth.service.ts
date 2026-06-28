@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Auth service (business logic).
+ * BuildFlow - Auth service (business logic).
  *
  * register, login, refresh, logout, me.
  * Issues access + refresh tokens; blacklist refresh on logout.
@@ -217,7 +217,7 @@ export async function logout(refreshToken: string | undefined): Promise<void> {
     const ttl = getTokenTtlSeconds(refreshToken) || 7 * 24 * 60 * 60;
     await blacklistToken(decoded.tid, ttl);
   } catch {
-    // Invalid token — nothing to blacklist.
+    // Invalid token - nothing to blacklist.
   }
 }
 

@@ -1,5 +1,5 @@
 /**
- * BuildFlow — NumberInput
+ * BuildFlow - NumberInput
  *
  * Currency-aware numeric input. Prefixes "Rs" for INR formatting and
  * comma-separates thousands on display while emitting a raw number.

@@ -15,7 +15,7 @@ interface ScreenContainerProps {
 }
 
 /**
- * Responsive page wrapper — centers and constrains content on desktop web.
+ * Responsive page wrapper - centers and constrains content on desktop web.
  */
 export function ScreenContainer({
   children,

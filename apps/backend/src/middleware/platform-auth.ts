@@ -1,5 +1,5 @@
 /**
- * Platform admin auth middleware — separate from tenant JWT.
+ * Platform admin auth middleware - separate from tenant JWT.
  */
 import { NextFunction, Request, Response } from 'express';
 import { verifyPlatformAccessToken } from '../utils/jwt';

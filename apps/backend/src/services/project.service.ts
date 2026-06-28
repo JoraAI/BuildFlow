@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Project service (business logic).
+ * BuildFlow - Project service (business logic).
  *
  * CRUD + WBS + summary stats. All queries are auto-scoped by company_id via
  * the ALS Prisma middleware; we still pass companyId explicitly for clarity.
@@ -17,6 +17,7 @@ import type {
   CreateWbsItemInput,
   UpdateWbsItemInput,
 } from '@buildflow/shared';
+import { assertRateRegionForProject } from './project-material-rate.service';
 
 // Project summary is recomputed-heavy; cache for 2 min per spec.
 const SUMMARY_TTL = 2 * 60;
@@ -38,11 +39,14 @@ function canDelete(role: Role): boolean {
 /* ------------------------------------------------------------------ */
 
 export async function listProjects(companyId: string, userId: string, role: Role, query: ProjectQueryInput) {
-  const { page, limit, status, type, search } = query;
+  const { page, limit, status, type, search, excludeTemporary } = query;
   const where: Prisma.ProjectWhereInput = {
     companyId,
     isDeleted: false,
   };
+  if (excludeTemporary) {
+    where.isTemporary = false;
+  }
   if (role !== Role.OWNER) {
     const memberIds = await prisma.projectMember.findMany({
       where: { userId, project: { companyId, isDeleted: false } },
@@ -94,6 +98,10 @@ export async function createProject(
   });
   if (existing) throw ApiError.conflict('Project code already exists in this company');
 
+  if (input.rateRegionId) {
+    await assertRateRegionForProject(companyId, input.rateRegionId);
+  }
+
   const project = await prisma.project.create({
     data: {
       companyId,
@@ -109,6 +117,7 @@ export async function createProject(
       startDate: toDateOrNull(input.startDate),
       endDate: toDateOrNull(input.endDate),
       budget: input.budget ?? 0,
+      rateRegionId: input.rateRegionId ?? null,
       createdBy: userId,
     },
   });
@@ -145,6 +154,10 @@ export async function updateProject(
 ) {
   const existing = await getProject(companyId, id);
 
+  if (input.rateRegionId !== undefined && input.rateRegionId !== null) {
+    await assertRateRegionForProject(companyId, input.rateRegionId);
+  }
+
   const updated = await prisma.project.update({
     where: { id },
     data: {
@@ -160,6 +173,7 @@ export async function updateProject(
       ...(input.startDate !== undefined && { startDate: toDateOrNull(input.startDate) }),
       ...(input.endDate !== undefined && { endDate: toDateOrNull(input.endDate) }),
       ...(input.budget !== undefined && { budget: input.budget }),
+      ...(input.rateRegionId !== undefined && { rateRegionId: input.rateRegionId }),
     },
   });
 

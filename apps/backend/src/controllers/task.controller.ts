@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Task controller (thin request handlers).
+ * BuildFlow - Task controller (thin request handlers).
  */
 import { NextFunction, Request, Response } from 'express';
 import * as taskService from '../services/task.service';

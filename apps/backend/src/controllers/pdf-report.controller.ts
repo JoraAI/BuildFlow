@@ -1,5 +1,5 @@
 /**
- * BuildFlow — PDF report controller (12 report types).
+ * BuildFlow - PDF report controller (12 report types).
  */
 import { Request, Response } from 'express';
 import * as svc from '../services/pdf-report.service';
@@ -106,5 +106,12 @@ export async function getMeasurementBookPdf(req: Request, res: Response) {
 export async function getAbstractSheetPdf(req: Request, res: Response) {
   const { id } = req.params;
   const result = await svc.reportAbstractSheet(req.user!.companyId, id);
+  return sendPdf(res, result);
+}
+
+// 15. Project Material Rate Sheet
+export async function getProjectMaterialRatesPdf(req: Request, res: Response) {
+  const { id } = req.params;
+  const result = await svc.reportProjectMaterialRates(req.user!.companyId, id);
   return sendPdf(res, result);
 }

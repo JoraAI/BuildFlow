@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Owner analytics dashboard service.
+ * BuildFlow - Owner analytics dashboard service.
  *
  * Aggregates cross-project KPIs for the company owner:
  *   - Project map pins (lat/lng + status color)
@@ -90,7 +90,7 @@ async function loadOwnerDashboard(companyId: string): Promise<AnalyticsDashboard
     materials,
   ] = await Promise.all([
     prisma.project.findMany({
-      where: { companyId, isDeleted: false },
+      where: { companyId, isDeleted: false, isTemporary: false },
       include: {
         tasks: { select: { progressPct: true } },
         estimates: { where: { status: 'APPROVED' }, select: { grandTotal: true }, take: 1 },

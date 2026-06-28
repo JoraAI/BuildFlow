@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Critical Path Method (CPM) service.
+ * BuildFlow - Critical Path Method (CPM) service.
  *
  * Forward pass: Early Start (ES) + Early Finish (EF).
  * Backward pass: Late Start (LS) + Late Finish (LF).
@@ -59,7 +59,7 @@ function topoSort(tasks: CpmTask[], deps: CpmDependency[]): string[] {
       if (nd === 0) queue.push(succ);
     }
   }
-  // Detect cycle — if not all nodes sorted, append remaining (breaks cycle gracefully)
+  // Detect cycle - if not all nodes sorted, append remaining (breaks cycle gracefully)
   if (sorted.length < tasks.length) {
     for (const t of tasks) if (!sorted.includes(t.id)) sorted.push(t.id);
   }

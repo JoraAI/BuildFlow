@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, FlatList, RefreshControl, Pressable } from 'react-native';
+import { View, Text, RefreshControl, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,6 +7,7 @@ import { Card, Badge, ProgressBar, EmptyState, LoadingSkeleton, Button } from '@
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { PageHeader, StatChip } from '@/components/layout/PageHeader';
 import { MobileScreenHeader } from '@/components/layout/ScreenHeader';
+import { ResponsiveGridList } from '@/components/layout/ResponsiveGrid';
 import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 import { useViewport } from '@/hooks/useViewport';
 import { useProjects, type ProjectListItem } from '@/services/project.queries';
@@ -38,7 +39,7 @@ const TYPE_COLOR: Record<string, 'danger' | 'warning' | 'primary' | 'neutral'> =
 
 export default function ProjectsScreen() {
   const router = useRouter();
-  const { isDesktop, isWideDesktop } = useViewport();
+  const { isDesktop } = useViewport();
   const [filter, setFilter] = useState<Filter>('ALL');
   const { data: projects, isLoading, isFetching, refetch } = useProjects();
 
@@ -69,8 +70,8 @@ export default function ProjectsScreen() {
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={isDesktop ? [] : ['top']}>
-      <ScreenContainer scrollable={isDesktop}>
+    <SafeAreaView className="flex-1 bg-surface" edges={[]}>
+      <ScreenContainer scrollable={false}>
         {isDesktop ? (
           <PageHeader
             title="Projects"
@@ -112,27 +113,17 @@ export default function ProjectsScreen() {
 
         <View className={isDesktop ? 'mb-5' : 'px-4 pb-2'}>{filterChips}</View>
 
-        <FlatList
+        <ResponsiveGridList<ProjectListItem>
           data={filtered}
           keyExtractor={(item) => item.id}
-          scrollEnabled={!isDesktop}
           refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
-          contentContainerClassName={
-            isDesktop ? 'pb-8' : `px-4 pt-2`
-          }
+          contentContainerClassName={isDesktop ? 'pb-8' : 'px-4 pt-2'}
           contentContainerStyle={!isDesktop ? { paddingBottom: mobileListBottomPadding() } : undefined}
-          numColumns={isWideDesktop ? 3 : isDesktop ? 2 : 1}
-          key={isWideDesktop ? 'grid-3' : isDesktop ? 'grid-2' : 'list'}
-          columnWrapperClassName={isDesktop ? 'gap-4' : undefined}
-          ItemSeparatorComponent={() => <View className={isDesktop ? 'h-4' : 'h-3'} />}
           ListEmptyComponent={
             isLoading ? (
-              <View className="gap-3 flex-row flex-wrap">
+              <View className="gap-3">
                 {[1, 2, 3].map((i) => (
-                  <LoadingSkeleton
-                    key={i}
-                    className={`h-40 rounded-xl ${isDesktop ? 'flex-1 min-w-[30%]' : ''}`}
-                  />
+                  <LoadingSkeleton key={i} className="h-40 rounded-xl" />
                 ))}
               </View>
             ) : (
@@ -143,9 +134,7 @@ export default function ProjectsScreen() {
             )
           }
           renderItem={({ item }) => (
-            <View className={isDesktop ? 'flex-1' : undefined}>
-              <ProjectCard item={item} onPress={() => router.push(`/projects/${item.id}`)} />
-            </View>
+            <ProjectCard item={item} onPress={() => router.push(`/projects/${item.id}`)} />
           )}
         />
       </ScreenContainer>

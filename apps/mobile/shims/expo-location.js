@@ -1,4 +1,4 @@
-// Web shim for expo-location — no-op for browser builds
+// Web shim for expo-location - no-op for browser builds
 export const requestForegroundPermissionsAsync = async () => ({ status: 'denied' });
 export const getCurrentPositionAsync = async () => ({
   coords: { latitude: 0, longitude: 0, accuracy: 0 },

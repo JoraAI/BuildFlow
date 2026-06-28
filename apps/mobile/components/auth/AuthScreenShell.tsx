@@ -1,13 +1,14 @@
 /**
- * Auth layout wrapper — split desktop / stacked mobile.
+ * Auth layout wrapper - split desktop / stacked mobile.
  */
 import React from 'react';
-import { View, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useViewport } from '@/hooks/useViewport';
 import { AuthHeroPanel } from '@/components/auth/AuthHeroPanel';
-import { AuthBackBar } from '@/components/auth/AuthBackBar';
 import { AuthFormHeader } from '@/components/auth/AuthFormHeader';
+import { NavBackButton } from '@/components/layout/NavBackButton';
+import { navigateAuthBack } from '@/utils/navigation';
 import type { Ionicons } from '@expo/vector-icons';
 
 type HeroBenefit = { icon: keyof typeof Ionicons.glyphMap; label: string };
@@ -60,9 +61,6 @@ export function AuthScreenShell({
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator
           >
-            {!formTitle && formSubtitle ? (
-              <View className="mb-4">{/* title rendered in children */}</View>
-            ) : null}
             {children}
           </ScrollView>
           {footer ? (
@@ -73,14 +71,31 @@ export function AuthScreenShell({
     );
   }
 
+  const mobileHeader = backHref ? (
+    <View className="px-6 pt-2 pb-4 border-b border-border bg-surface">
+      <NavBackButton
+        onPress={() => navigateAuthBack(backHref)}
+        label="Back"
+        variant="ghost"
+        size="sm"
+      />
+      {formTitle ? <Text className="text-2xl font-bold text-text mt-3">{formTitle}</Text> : null}
+      {formSubtitle ? <Text className="text-sm text-muted mt-1">{formSubtitle}</Text> : null}
+    </View>
+  ) : null;
+
   return (
-    <SafeAreaView className="flex-1 bg-surface">
-      {backHref ? <AuthBackBar backHref={backHref} /> : null}
+    <SafeAreaView className="flex-1 bg-surface" edges={['bottom']}>
+      {mobileHeader}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1"
       >
-        <ScrollView contentContainerClassName="px-6 py-8" keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerClassName="px-6 py-6"
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator
+        >
           {children}
         </ScrollView>
         {footer ? <View className="px-6 py-4 border-t border-border bg-surface">{footer}</View> : null}

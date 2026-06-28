@@ -1,9 +1,19 @@
 /**
- * Procurement integration tests — indent → PO → GRN → stock.
+ * Procurement integration tests - indent → PO → GRN → stock.
  */
 import { loginAs, authGet, authPost, getSeedProjectId } from './test-helpers';
 
 const OWNER = 'owner@reddyconst.com';
+
+async function getCementResourceId(token: string): Promise<string> {
+  const res = await authGet(token, '/api/resources?type=MATERIAL&search=OPC');
+  if (res.status !== 200) throw new Error('Failed to list resources');
+  const resource = (res.body.data as Array<{ id: string; name: string }>).find((r) =>
+    r.name.includes('OPC'),
+  );
+  if (!resource) throw new Error('OPC Cement resource not found');
+  return resource.id;
+}
 
 describe('Procurement (integration)', () => {
   let token: string;
@@ -20,6 +30,17 @@ describe('Procurement (integration)', () => {
     expect((res.body.data as Array<{ reqNumber: string }>).some((r) => r.reqNumber === 'IND-001')).toBe(true);
   });
 
+  it('auto-indent IND-AUTO-EST-001 has expected rate snapshot', async () => {
+    const res = await authGet(token, `/api/projects/${projectId}/procurement/requisitions`);
+    expect(res.status).toBe(200);
+    const auto = (res.body.data as Array<{ reqNumber: string; lines: Array<{ expectedRate: number; rateSource: string }> }>).find(
+      (r) => r.reqNumber === 'IND-AUTO-EST-001',
+    );
+    expect(auto).toBeTruthy();
+    expect(Number(auto!.lines[0]?.expectedRate)).toBe(435);
+    expect(auto!.lines[0]?.rateSource).toBe('PROJECT');
+  });
+
   it('shows stock balance after GRN', async () => {
     const res = await authGet(token, `/api/projects/${projectId}/procurement/stock`);
     expect(res.status).toBe(200);
@@ -30,6 +51,20 @@ describe('Procurement (integration)', () => {
     const cement = balances.find((b) => b.resource?.name?.includes('Cement'));
     expect(cement).toBeTruthy();
     expect(Number(cement!.quantity)).toBeGreaterThanOrEqual(500);
+  });
+
+  it('creates requisition with resolved expected rate', async () => {
+    const cementId = await getCementResourceId(token);
+
+    const reqNum = `IND-RATE-${Date.now()}`;
+    const reqRes = await authPost(token, `/api/projects/${projectId}/procurement/requisitions`, {
+      reqNumber: reqNum,
+      lines: [{ resourceId: cementId, quantity: 5, unit: 'bag' }],
+    });
+    expect(reqRes.status).toBe(201);
+    const line = reqRes.body.data.lines[0] as { expectedRate: number | string; rateSource: string };
+    expect(Number(line.expectedRate)).toBe(435);
+    expect(line.rateSource).toBe('PROJECT');
   });
 
   it('creates requisition → PO → GRN and increases stock', async () => {

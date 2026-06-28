@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Password hashing (bcryptjs).
+ * BuildFlow - Password hashing (bcryptjs).
  */
 import bcrypt from 'bcryptjs';
 import { env } from '../config/env';

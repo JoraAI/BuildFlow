@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Daily Reports service.
+ * BuildFlow - Daily Reports service.
  *
  * CRUD + calendar summary + material usage + S3 pre-signed photo uploads.
  */
@@ -7,6 +7,9 @@ import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
 import { recordAudit } from '../utils/audit';
 import { getProject } from './project.service';
+import { updateTaskProgress } from './task.service';
+import { issueStockForDailyReport } from './procurement.service';
+import { recordBoqMeasurement } from './boq.service';
 import {
   buildS3Key,
   getPresignedUploadUrl,
@@ -51,7 +54,7 @@ export async function listReports(
 }
 
 /* ------------------------------------------------------------------ */
-/* Calendar view — which dates have reports                            */
+/* Calendar view - which dates have reports                            */
 /* ------------------------------------------------------------------ */
 
 export async function getReportCalendar(
@@ -124,33 +127,102 @@ export async function createReport(
     throw ApiError.conflict('A daily report already exists for this date');
   }
 
-  const { materialUsages, ...reportFields } = input;
+  const { materialUsages, taskUpdates, deductStock, ...reportFields } = input;
 
-  const report = await prisma.dailyReport.create({
-    data: {
-      projectId,
-      reportedBy: userId,
-      reportDate,
-      weather: reportFields.weather,
-      workDone: reportFields.workDone,
-      issues: reportFields.issues,
-      photos: [],
-      workersCount: reportFields.workersCount ?? 0,
-      materialUsages: materialUsages?.length
-        ? {
-            create: materialUsages.map((m) => ({
-              resourceId: m.resourceId,
-              quantityUsed: m.quantityUsed,
-              notes: m.notes,
-            })),
-          }
-        : undefined,
-    },
-    include: {
-      reportedByUser: { select: { id: true, name: true } },
-      materialUsages: { include: { resource: { select: { id: true, name: true, unit: true } } } },
-    },
+  let report = await prisma.$transaction(async (tx) => {
+    const created = await tx.dailyReport.create({
+      data: {
+        projectId,
+        reportedBy: userId,
+        reportDate,
+        weather: reportFields.weather,
+        workDone: reportFields.workDone,
+        issues: reportFields.issues,
+        photos: [],
+        workersCount: reportFields.workersCount ?? 0,
+        materialUsages: materialUsages?.length
+          ? {
+              create: materialUsages.map((m) => ({
+                resourceId: m.resourceId,
+                quantityUsed: m.quantityUsed,
+                notes: m.notes,
+                taskId: m.taskId ?? null,
+                boqItemId: m.boqItemId ?? null,
+              })),
+            }
+          : undefined,
+        taskUpdates: taskUpdates?.length
+          ? {
+              create: taskUpdates.map((t) => ({
+                taskId: t.taskId,
+                progressPct: t.progressPct,
+              })),
+            }
+          : undefined,
+      },
+      include: {
+        reportedByUser: { select: { id: true, name: true } },
+        materialUsages: {
+          include: { resource: { select: { id: true, name: true, unit: true } } },
+        },
+        taskUpdates: { include: { task: { select: { id: true, name: true } } } },
+      },
+    });
+
+    if (deductStock && materialUsages?.length) {
+      await issueStockForDailyReport(
+        companyId,
+        projectId,
+        created.id,
+        materialUsages.map((m) => ({ resourceId: m.resourceId, quantityUsed: m.quantityUsed })),
+        tx,
+      );
+    }
+
+    return created;
   });
+
+  if (taskUpdates?.length) {
+    for (const tu of taskUpdates) {
+      await updateTaskProgress(companyId, userId, tu.taskId, tu.progressPct, ipAddress);
+    }
+  }
+
+  if (materialUsages?.length && report.materialUsages?.length) {
+    for (let i = 0; i < materialUsages.length; i++) {
+      const input = materialUsages[i]!;
+      const usageRow = report.materialUsages[i];
+      if (input.postToBoqMeasurement && input.boqItemId && usageRow) {
+        await recordBoqMeasurement(
+          companyId,
+          userId,
+          input.boqItemId,
+          {
+            quantity: input.quantityUsed,
+            notes: `From daily report ${report.reportDate.toISOString().slice(0, 10)}`,
+          },
+          ipAddress,
+        );
+        await prisma.materialUsage.update({
+          where: { id: usageRow.id },
+          data: { boqMeasurementPosted: true },
+        });
+      }
+    }
+    const refreshed = await prisma.dailyReport.findFirst({
+      where: { id: report.id },
+      include: {
+        reportedByUser: { select: { id: true, name: true } },
+        materialUsages: {
+          include: { resource: { select: { id: true, name: true, unit: true } } },
+        },
+        taskUpdates: { include: { task: { select: { id: true, name: true } } } },
+      },
+    });
+    if (refreshed) {
+      report = refreshed;
+    }
+  }
 
   await recordAudit({
     companyId,
@@ -214,6 +286,8 @@ export async function updateReport(
           resourceId: m.resourceId,
           quantityUsed: m.quantityUsed,
           notes: m.notes,
+          taskId: m.taskId ?? null,
+          boqItemId: m.boqItemId ?? null,
         })),
       });
     }
@@ -234,7 +308,7 @@ export async function updateReport(
 }
 
 /* ------------------------------------------------------------------ */
-/* Photo upload — pre-signed URL flow                                  */
+/* Photo upload - pre-signed URL flow                                  */
 /* ------------------------------------------------------------------ */
 
 export async function createPhotoUploadUrl(
@@ -328,8 +402,43 @@ export async function resolvePhotoUrls(companyId: string, photos: string[]): Pro
   return urls;
 }
 
+export async function postMaterialUsageToBoq(
+  companyId: string,
+  userId: string,
+  usageId: string,
+  ipAddress?: string,
+) {
+  const usage = await prisma.materialUsage.findFirst({
+    where: { id: usageId, dailyReport: { project: { companyId } } },
+    include: { dailyReport: { select: { reportDate: true } } },
+  });
+  if (!usage) throw ApiError.notFound('Material usage not found');
+  if (!usage.boqItemId) throw ApiError.badRequest('Link this material usage to a BOQ line first');
+  if (usage.boqMeasurementPosted) {
+    throw ApiError.badRequest('Already posted to measurement book');
+  }
+
+  await recordBoqMeasurement(
+    companyId,
+    userId,
+    usage.boqItemId,
+    {
+      quantity: Number(usage.quantityUsed),
+      notes: `From daily report ${usage.dailyReport.reportDate.toISOString().slice(0, 10)}`,
+    },
+    ipAddress,
+  );
+
+  await prisma.materialUsage.update({
+    where: { id: usageId },
+    data: { boqMeasurementPosted: true },
+  });
+
+  return { usageId, boqItemId: usage.boqItemId, posted: true };
+}
+
 /* ------------------------------------------------------------------ */
-/* Serializer — normalise Decimals + ISO dates                         */
+/* Serializer - normalise Decimals + ISO dates                         */
 /* ------------------------------------------------------------------ */
 
 function serializeReport<T extends { reportDate: Date }>(r: T): Omit<T, 'reportDate'> & { reportDate: string } {

@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Auth middleware: authenticateToken + requireRole.
+ * BuildFlow - Auth middleware: authenticateToken + requireRole.
  *
  * authenticateToken:
  *   - Reads Bearer token from Authorization header

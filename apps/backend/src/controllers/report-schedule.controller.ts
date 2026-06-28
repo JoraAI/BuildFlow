@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Report schedule controller (OWNER only).
+ * BuildFlow - Report schedule controller (OWNER only).
  */
 import { Request, Response } from 'express';
 import * as svc from '../services/report-schedule.service';

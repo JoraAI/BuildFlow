@@ -16,7 +16,7 @@ const DEFAULT_BENEFITS: {
 ];
 
 export function AuthHeroPanel({
-  headline = 'Plan, estimate, and account — all in one platform.',
+  headline = 'Plan, estimate, and account - all in one platform.',
   subline = 'Built for contractors who need Tally-grade accounting with modern project management.',
   benefits = DEFAULT_BENEFITS,
 }: {

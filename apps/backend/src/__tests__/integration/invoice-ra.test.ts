@@ -1,5 +1,5 @@
 /**
- * RA invoice integration tests — cumulative math and retention.
+ * RA invoice integration tests - cumulative math and retention.
  */
 import { loginAs, authGet, authPost, getSeedProjectId } from './test-helpers';
 
@@ -23,6 +23,26 @@ describe('RA invoices (integration)', () => {
     expect(ra).toBeTruthy();
     expect(ra!.invoiceType).toBe('RUNNING_ACCOUNT');
     expect(Number(ra!.retentionPct)).toBe(5);
+  });
+
+  it('returns only invoices for the requested project', async () => {
+    const projectsRes = await authGet(token, '/api/projects');
+    expect(projectsRes.status).toBe(200);
+    const projects = projectsRes.body.data as Array<{ id: string; code: string }>;
+    const otherProject = projects.find((p) => p.id !== projectId);
+    expect(otherProject).toBeTruthy();
+
+    const nh65Res = await authGet(token, `/api/projects/${projectId}/invoices`);
+    const otherRes = await authGet(token, `/api/projects/${otherProject!.id}/invoices`);
+    expect(nh65Res.status).toBe(200);
+    expect(otherRes.status).toBe(200);
+
+    const nh65Numbers = (nh65Res.body.data as Array<{ invoiceNumber: string }>).map((i) => i.invoiceNumber);
+    const otherNumbers = (otherRes.body.data as Array<{ invoiceNumber: string }>).map((i) => i.invoiceNumber);
+
+    expect(nh65Numbers.length).toBeGreaterThan(0);
+    expect(otherNumbers).toEqual([]);
+    expect(nh65Numbers).toContain('RA-2025-001');
   });
 
   it('creates RA bill #2 with previous certified from bill #1', async () => {

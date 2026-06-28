@@ -1,5 +1,5 @@
 /**
- * Pre-made estimate templates — users can load, edit quantities/rates, add or remove items.
+ * Pre-made estimate templates - users can load, edit quantities/rates, add or remove items.
  */
 export type EstimateItemType = 'MATERIAL' | 'LABOUR' | 'EQUIPMENT' | 'SUBCONTRACTOR' | 'MISC';
 
@@ -28,7 +28,7 @@ export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [
   {
     id: 'residential-g2',
     name: 'Residential Building (G+2)',
-    description: 'Typical RCC framed structure — substructure, superstructure, finishes & MEP',
+    description: 'Typical RCC framed structure - substructure, superstructure, finishes & MEP',
     sections: [
       {
         name: 'Substructure',
@@ -72,7 +72,7 @@ export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [
   {
     id: 'office-renovation',
     name: 'Office Renovation',
-    description: 'Fit-out for commercial office — demolition, partitions, ceiling, flooring, MEP',
+    description: 'Fit-out for commercial office - demolition, partitions, ceiling, flooring, MEP',
     sections: [
       {
         name: 'Demolition & Prep',
@@ -93,7 +93,7 @@ export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [
         name: 'Flooring & Paint',
         items: [
           { itemCode: 'O-020', description: 'Carpet tiles (commercial grade)', unit: 'sqm', quantity: 950, rate: 680, type: 'MATERIAL' },
-          { itemCode: 'O-021', description: 'Emulsion paint — walls & ceiling', unit: 'sqm', quantity: 2800, rate: 65, type: 'MATERIAL' },
+          { itemCode: 'O-021', description: 'Emulsion paint - walls & ceiling', unit: 'sqm', quantity: 2800, rate: 65, type: 'MATERIAL' },
         ],
       },
       {
@@ -109,7 +109,7 @@ export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [
   {
     id: 'road-work',
     name: 'Road & Drainage',
-    description: 'Flexible pavement with side drains — earthwork, GSB, WMM, bitumen, drains',
+    description: 'Flexible pavement with side drains - earthwork, GSB, WMM, bitumen, drains',
     sections: [
       {
         name: 'Earthwork & Sub-grade',

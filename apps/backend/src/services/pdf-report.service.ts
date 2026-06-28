@@ -1,7 +1,7 @@
 /**
- * BuildFlow — PDF Report Engine (12 report types).
+ * BuildFlow - PDF Report Engine (12 report types).
  *
- * Uses PDFKit (no browser/Puppeteer dependency — lighter, faster).
+ * Uses PDFKit (no browser/Puppeteer dependency - lighter, faster).
  * Each report type:
  *   1. Project Progress Report (KPIs + task list)
  *   2. Daily Report PDF (log + photo refs)
@@ -28,7 +28,10 @@ import {
   getGstReport,
   getTdsReport,
 } from './financial-report.service';
+import { RATE_VARIANCE_ALERT_PCT } from '@buildflow/shared';
 import { getEstimateWithSummary } from './estimate.service';
+import { listMaterialRateVariance } from './material-rate-variance.service';
+import { getProject } from './project.service';
 
 function num(d: Decimal | number | null | undefined): number {
   if (d === null || d === undefined) return 0;
@@ -157,7 +160,7 @@ function summaryLine(doc: PDFKit.PDFDocument, label: string, value: string, bold
 }
 
 function fmtDate(d: Date | null | undefined): string {
-  return d ? d.toISOString().slice(0, 10) : '—';
+  return d ? d.toISOString().slice(0, 10) : '-';
 }
 
 // ===========================================================================
@@ -252,7 +255,7 @@ export async function reportDailyReport(companyId: string, reportId: string): Pr
   doc.moveDown(1);
 
   doc.font('Helvetica-Bold').fontSize(11).fillColor(NAVY).text('Work Done', MARGIN, doc.y);
-  doc.font('Helvetica').fontSize(9).fillColor('#0F172A').text(report.workDone || '—', MARGIN, doc.y + 4, { width: CONTENT_W });
+  doc.font('Helvetica').fontSize(9).fillColor('#0F172A').text(report.workDone || '-', MARGIN, doc.y + 4, { width: CONTENT_W });
   doc.moveDown(1);
 
   if (report.issues) {
@@ -816,6 +819,82 @@ export async function reportMaterialPriceHistory(companyId: string): Promise<Pdf
 
   drawFooter(doc);
   return { buffer: await endBuffer(doc), filename: 'material-price-history.pdf' };
+}
+
+// ===========================================================================
+// 15. PROJECT MATERIAL RATE SHEET
+// ===========================================================================
+const PLANNED_SOURCE_LABEL: Record<string, string> = {
+  PROJECT: 'Project',
+  BOQ: 'BOQ',
+  ESTIMATE: 'Estimate',
+  REGION: 'Regional',
+  CATALOG: 'Catalog',
+};
+
+export async function reportProjectMaterialRates(
+  companyId: string,
+  projectId: string,
+): Promise<PdfResult> {
+  const [company, project, rows] = await Promise.all([
+    prisma.company.findFirstOrThrow({ where: { id: companyId }, select: { name: true, gstin: true } }),
+    getProject(companyId, projectId),
+    listMaterialRateVariance(companyId, projectId),
+  ]);
+
+  const doc = newDoc();
+  drawHeader(doc, 'Project Material Rate Sheet', company ?? undefined);
+  doc.fontSize(9).fillColor(MUTED).font('Helvetica');
+  doc.text(`Project: ${project.name} (${project.code})`);
+  if (project.locationAddress) doc.text(`Site: ${project.locationAddress}`);
+  doc.moveDown(1);
+
+  if (rows.length === 0) {
+    doc.fontSize(10).fillColor(NAVY).text('No material rate data for this project yet.');
+  } else {
+    const alertCount = rows.filter((r) => r.overThreshold).length;
+    summaryLine(
+      doc,
+      'Materials tracked',
+      String(rows.length),
+    );
+    summaryLine(
+      doc,
+      `Over plan (>${RATE_VARIANCE_ALERT_PCT}% vs planned)`,
+      String(alertCount),
+      alertCount > 0,
+    );
+    doc.moveDown(0.5);
+
+    const widths = [110, 55, 55, 55, 55, 45, 40];
+    let y = tableHeaders(
+      doc,
+      ['Material', 'Planned', 'Source', 'Catalog', 'Last PO', 'Var %', 'Alert'],
+      widths,
+      doc.y,
+    );
+    rows.forEach((r, i) => {
+      y = tableRow(
+        doc,
+        [
+          `${r.name} (${r.unit})`,
+          inr(r.plannedRate),
+          PLANNED_SOURCE_LABEL[r.plannedSource] ?? r.plannedSource,
+          inr(r.catalogRate),
+          r.lastPoRate != null ? inr(r.lastPoRate) : '—',
+          r.variancePct != null ? `${r.variancePct > 0 ? '+' : ''}${r.variancePct}%` : '—',
+          r.overThreshold ? 'YES' : '—',
+        ],
+        widths,
+        y,
+        i % 2 === 1,
+        r.overThreshold ? RED : r.variancePct != null && r.variancePct <= 0 ? GREEN : undefined,
+      );
+    });
+  }
+
+  drawFooter(doc);
+  return { buffer: await endBuffer(doc), filename: `material-rates-${project.code}.pdf` };
 }
 
 // ===========================================================================

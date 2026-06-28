@@ -1,5 +1,5 @@
 /**
- * BuildFlow — PercentageInput
+ * BuildFlow - PercentageInput
  *
  * Numeric input constrained to 0–100 with a "%" suffix.
  */

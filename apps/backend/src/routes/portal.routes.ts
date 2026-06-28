@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Client portal routes.
+ * BuildFlow - Client portal routes.
  *
  * Public:        GET /api/portal/:token
  * Authenticated: POST /api/projects/:id/portal-access

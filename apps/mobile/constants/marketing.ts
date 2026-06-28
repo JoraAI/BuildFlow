@@ -30,7 +30,7 @@ export const MARKETING_FEATURES: {
   {
     icon: 'cash-outline',
     title: 'Integrated Accounting',
-    description: 'Invoices, bills, GST, and TDS — construction finance in one place.',
+    description: 'Invoices, bills, GST, and TDS - construction finance in one place.',
   },
   {
     icon: 'chatbubble-ellipses-outline',
@@ -54,7 +54,7 @@ export const MARKETING_TESTIMONIALS = [
   },
   {
     quote:
-      'GST invoicing and vendor bills in one system — our accountant finally stopped chasing spreadsheets.',
+      'GST invoicing and vendor bills in one system - our accountant finally stopped chasing spreadsheets.',
     name: 'Arun Mehta',
     role: 'Finance Head, Mehta Builders',
   },
@@ -114,7 +114,7 @@ export const MARKETING_PRICING = [
 export const HERO_STATS = [
   { value: '500+', label: 'Projects managed' },
   { value: 'GST', label: 'Ready invoicing' },
-  { value: '14-day', label: 'Free trial' },
+  { value: '14 days', label: 'Free trial' },
 ];
 
 export const TRUST_PILLS = ['GST invoicing', 'TDS on bills', 'Daily reports', 'BOQ & Estimation'];
@@ -145,7 +145,7 @@ export const PRICING_FAQ = [
   },
   {
     q: 'Do you offer annual billing?',
-    a: 'Yes. Starter is ₹49,999/year and Professional is ₹1,39,999/year (2 months free vs monthly). Enterprise pricing is custom — contact sales. All prices are before 18% GST.',
+    a: 'Yes. Starter is ₹49,999/year and Professional is ₹1,39,999/year (2 months free vs monthly). Enterprise pricing is custom - contact sales. All prices are before 18% GST.',
   },
   {
     q: 'Is GST included in the listed price?',
@@ -164,23 +164,23 @@ export const PRICING_COMPARISON: {
   { feature: 'Projects', starter: 'Up to 3', professional: 'Unlimited', enterprise: 'Unlimited' },
   { feature: 'Team members', starter: '5', professional: '25', enterprise: 'Unlimited' },
   { feature: 'Estimation & BOQ', starter: 'Yes', professional: 'Yes', enterprise: 'Yes' },
-  { feature: 'CPM Planning', starter: '—', professional: 'Yes', enterprise: 'Yes' },
+  { feature: 'CPM Planning', starter: '-', professional: 'Yes', enterprise: 'Yes' },
   { feature: 'Accounting & GST', starter: 'Basic', professional: 'Full', enterprise: 'Full' },
   {
     feature: 'Procurement & subcontracts',
-    starter: '—',
+    starter: '-',
     professional: 'Yes',
     enterprise: 'Yes',
   },
-  { feature: 'Client portal', starter: '—', professional: 'Yes', enterprise: 'Yes' },
+  { feature: 'Client portal', starter: '-', professional: 'Yes', enterprise: 'Yes' },
   {
     feature: 'BuildFlow Assistant',
-    starter: '—',
+    starter: '-',
     professional: '500 queries/mo',
     enterprise: 'Unlimited (fair use)',
   },
-  { feature: 'Dedicated support', starter: '—', professional: '—', enterprise: 'Yes' },
-  { feature: 'Custom integrations', starter: '—', professional: '—', enterprise: 'Yes' },
+  { feature: 'Dedicated support', starter: '-', professional: '-', enterprise: 'Yes' },
+  { feature: 'Custom integrations', starter: '-', professional: '-', enterprise: 'Yes' },
 ];
 
 export const MARKETING_FAQ = [
@@ -198,7 +198,7 @@ export const MARKETING_FAQ = [
   },
   {
     q: 'Can I use BuildFlow on mobile and desktop?',
-    a: 'BuildFlow works on iOS, Android, and web — one account across all devices.',
+    a: 'BuildFlow works on iOS, Android, and web - one account across all devices.',
   },
   {
     q: 'How do I add my team?',

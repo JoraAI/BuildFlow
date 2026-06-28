@@ -10,7 +10,7 @@ const VALUES = [
   {
     icon: 'shield-checkmark-outline' as const,
     title: 'Built for India',
-    text: 'GST, TDS, and Indian numbering — not bolted on as an afterthought.',
+    text: 'GST, TDS, and Indian numbering - not bolted on as an afterthought.',
   },
   {
     icon: 'phone-portrait-outline' as const,
@@ -34,7 +34,7 @@ export default function AboutPage() {
         subtitle="Construction ERP built for Indian contractors who need modern project management without sacrificing Tally-grade financial control."
       >
         <Text className="text-muted text-base leading-relaxed mb-10">
-          We help firms move from spreadsheets and disconnected tools to a unified workflow — from
+          We help firms move from spreadsheets and disconnected tools to a unified workflow - from
           first estimate to final invoice.
         </Text>
 
@@ -59,7 +59,7 @@ export default function AboutPage() {
         <Card className="mt-8 bg-primary/5 border-primary/20">
           <Text className="text-base font-bold text-text mb-2">Our mission</Text>
           <Text className="text-sm text-muted leading-relaxed">
-            To give every construction company — from mini contractors to heavy civil firms — the
+            To give every construction company - from mini contractors to heavy civil firms - the
             same quality of software that large enterprises use, at a price and UX that works on
             site and in the office.
           </Text>

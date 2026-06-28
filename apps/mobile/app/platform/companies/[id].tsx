@@ -1,10 +1,11 @@
 /**
- * BuildFlow Platform — company detail & admin actions.
+ * BuildFlow Platform - company detail & admin actions.
  */
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, SafeAreaView, Alert } from 'react-native';
+import { View, Text, ScrollView, SafeAreaView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Card, Input, Button, LoadingSkeleton } from '@/components/ui';
+import { alertAsync } from '@/utils/confirm';
 import {
   usePlatformCompany,
   usePlatformUpdateCompany,
@@ -22,6 +23,7 @@ export default function PlatformCompanyDetailScreen() {
   const [name, setName] = useState('');
   const [status, setStatus] = useState('ACTIVE');
   const [plan, setPlan] = useState('PROFESSIONAL');
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     if (data && typeof data === 'object' && 'name' in data) {
@@ -61,6 +63,11 @@ export default function PlatformCompanyDetailScreen() {
         </Text>
       </View>
       <ScrollView contentContainerClassName="p-6 gap-4 max-w-3xl w-full self-center">
+        {formError ? (
+          <View className="px-3 py-2 rounded-lg bg-danger/10 border border-danger/30">
+            <Text className="text-sm text-danger">{formError}</Text>
+          </View>
+        ) : null}
         <Card>
           <Text className="font-bold text-text mb-3">Company</Text>
           <Input label="Name" value={name} onChangeText={setName} />
@@ -68,15 +75,24 @@ export default function PlatformCompanyDetailScreen() {
           <Button
             label="Save company"
             size="sm"
-            onPress={() =>
+            loading={updateCompany.isPending}
+            disabled={!companyId || updateCompany.isPending}
+            onPress={() => {
+              if (!companyId) return;
+              setFormError(null);
               updateCompany.mutate(
                 { name },
                 {
-                  onSuccess: () => Alert.alert('Saved'),
-                  onError: (e: Error) => Alert.alert('Error', e.message),
+                  onSuccess: async () => {
+                    await alertAsync('Saved', 'Company updated.');
+                  },
+                  onError: async (e: Error) => {
+                    setFormError(e.message);
+                    await alertAsync('Error', e.message);
+                  },
                 },
-              )
-            }
+              );
+            }}
           />
         </Card>
 
@@ -86,28 +102,52 @@ export default function PlatformCompanyDetailScreen() {
           <View className="h-2" />
           <Input label="Status (TRIAL/ACTIVE/EXPIRED/...)" value={status} onChangeText={setStatus} />
           <Text className="text-xs text-muted mt-2">
-            Trial ends: {company.trialEndsAt ? new Date(company.trialEndsAt).toLocaleDateString() : '—'}
+            Trial ends: {company.trialEndsAt ? new Date(company.trialEndsAt).toLocaleDateString() : '-'}
           </Text>
           <Button
             label="Update subscription"
             size="sm"
-            onPress={() =>
+            loading={updateSub.isPending}
+            disabled={!companyId || updateSub.isPending}
+            onPress={() => {
+              if (!companyId) return;
+              setFormError(null);
               updateSub.mutate(
                 { subscriptionPlan: plan, subscriptionStatus: status },
-                { onSuccess: () => Alert.alert('Updated'), onError: (e) => Alert.alert('Error', e.message) },
-              )
-            }
+                {
+                  onSuccess: async () => {
+                    await alertAsync('Updated', 'Subscription updated.');
+                  },
+                  onError: async (e: Error) => {
+                    setFormError(e.message);
+                    await alertAsync('Error', e.message);
+                  },
+                },
+              );
+            }}
           />
           <Button
             label="Extend trial +14 days"
             variant="secondary"
             size="sm"
+            loading={updateSub.isPending}
+            disabled={!companyId || updateSub.isPending}
             onPress={() => {
+              if (!companyId) return;
               const base = company.trialEndsAt ? new Date(company.trialEndsAt) : new Date();
               base.setDate(base.getDate() + 14);
+              setFormError(null);
               updateSub.mutate(
                 { subscriptionStatus: 'TRIAL', trialEndsAt: base.toISOString() },
-                { onSuccess: () => Alert.alert('Trial extended') },
+                {
+                  onSuccess: async () => {
+                    await alertAsync('Trial extended', 'Trial extended by 14 days.');
+                  },
+                  onError: async (e: Error) => {
+                    setFormError(e.message);
+                    await alertAsync('Error', e.message);
+                  },
+                },
               );
             }}
           />

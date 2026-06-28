@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Daily Report routes.
+ * BuildFlow - Daily Report routes.
  *
  * Project-scoped endpoints mounted at /api/projects/:id/reports
  * Report-level endpoints mounted at /api/reports/:id
@@ -14,6 +14,7 @@ import {
   updateDailyReportSchema,
   projectIdReportDateParamsSchema,
   dailyReportIdParamsSchema,
+  materialUsageIdParamsSchema,
   reportListQuerySchema,
   photoUploadSchema,
   confirmPhotoUploadSchema,
@@ -80,3 +81,8 @@ reportDetailRouter.post(
   reportController.confirmPhotoUpload,
 );
 reportDetailRouter.get('/:id/photos/urls', reportController.resolvePhotos);
+reportDetailRouter.post(
+  '/material-usages/:usageId/post-boq-measurement',
+  validate({ params: materialUsageIdParamsSchema }),
+  reportController.postMaterialUsageToBoq,
+);

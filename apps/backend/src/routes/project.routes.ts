@@ -1,10 +1,11 @@
 /**
- * BuildFlow — Project routes.
+ * BuildFlow - Project routes.
  *
  * All routes require authentication + company scoping (via middleware).
  */
 import { Router } from 'express';
 import * as projectController from '../controllers/project.controller';
+import * as projectMaterialRateController from '../controllers/project-material-rate.controller';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import {
@@ -16,6 +17,9 @@ import {
   updateWbsItemSchema,
   wbsItemParamsSchema,
   setProjectMembersSchema,
+  projectResourceRateParamsSchema,
+  resolveMaterialRateQuerySchema,
+  bulkUpsertProjectMaterialRatesSchema,
 } from '@buildflow/shared';
 import { Role } from '@buildflow/shared';
 
@@ -73,4 +77,46 @@ projectRouter.delete(
   '/:id/wbs/:itemId',
   validate({ params: wbsItemParamsSchema }),
   projectController.deleteWbsItem,
+);
+
+projectRouter.get(
+  '/:id/resources/utilization',
+  validate({ params: projectIdParamsSchema }),
+  projectController.getResourceUtilization,
+);
+
+projectRouter.get(
+  '/:id/resources/:resourceId/rate',
+  validate({ params: projectResourceRateParamsSchema, query: resolveMaterialRateQuerySchema }),
+  projectController.getMaterialRate,
+);
+
+projectRouter.get(
+  '/:id/material-rate-variance',
+  validate({ params: projectIdParamsSchema }),
+  projectController.getMaterialRateVariance,
+);
+
+projectRouter.get(
+  '/:id/material-rates',
+  validate({ params: projectIdParamsSchema }),
+  projectMaterialRateController.listProjectMaterialRates,
+);
+projectRouter.put(
+  '/:id/material-rates',
+  requireRole(Role.OWNER, Role.PM),
+  validate({ params: projectIdParamsSchema, body: bulkUpsertProjectMaterialRatesSchema }),
+  projectMaterialRateController.upsertProjectMaterialRates,
+);
+projectRouter.post(
+  '/:id/material-rates/copy-from-region',
+  requireRole(Role.OWNER, Role.PM),
+  validate({ params: projectIdParamsSchema }),
+  projectMaterialRateController.copyProjectRatesFromRegion,
+);
+projectRouter.post(
+  '/:id/material-rates/copy-from-estimate',
+  requireRole(Role.OWNER, Role.PM),
+  validate({ params: projectIdParamsSchema }),
+  projectMaterialRateController.copyProjectRatesFromEstimate,
 );

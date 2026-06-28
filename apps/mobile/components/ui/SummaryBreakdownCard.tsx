@@ -1,5 +1,5 @@
 /**
- * BuildFlow — SummaryBreakdownCard
+ * BuildFlow - SummaryBreakdownCard
  *
  * Renders a labeled row: label | amount (Rs, grouped) | % of total,
  * with a color-coded progress bar. Used in estimate summaries, rate analysis

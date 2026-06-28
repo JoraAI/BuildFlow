@@ -1,5 +1,5 @@
 /**
- * (app) layout — role-aware navigation with sidebar (web) + bottom tab bar (mobile).
+ * (app) layout - role-aware navigation with sidebar (web) + bottom tab bar (mobile).
  */
 import React, { useEffect, useRef } from 'react';
 import { Redirect, Tabs, usePathname, useRouter } from 'expo-router';
@@ -9,6 +9,7 @@ import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { AppSidebar } from '@/components/navigation/AppSidebar';
 import { AppTabBar } from '@/components/navigation/AppTabBar';
 import { AppTopBar } from '@/components/layout/AppTopBar';
+import { AppDesktopFooter } from '@/components/layout/AppDesktopFooter';
 import { AppMobileHeader } from '@/components/layout/AppMobileHeader';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
@@ -20,7 +21,6 @@ import {
   HIDDEN_TAB_SCREENS,
   OVERLAY_ONLY_TABS,
   getAllowedTabs,
-  isPrimaryAppTabRoute,
   type TabName,
 } from '@/constants/navigation';
 
@@ -34,7 +34,8 @@ export default function AppLayout() {
   const pathname = usePathname();
   const router = useRouter();
   const prevPathRef = useRef(pathname);
-  const showMobileHeader = !isDesktop && isPrimaryAppTabRoute(pathname);
+  /** Global mobile chrome (logo, company, alerts) on every app screen — not just tab roots. */
+  const showMobileHeader = !isDesktop;
 
   // Close assistant when navigating; /chat in history must not reopen the overlay.
   useEffect(() => {
@@ -67,16 +68,19 @@ export default function AppLayout() {
   const allowedSet = new Set<string>(allowedTabs);
 
   return (
-    <View className="flex-1 bg-surface">
+    <View className="flex-1 bg-surface min-h-0">
       <OfflineBanner />
-      <View className="flex-1 flex-row">
+      <View className="flex-1 flex-row min-h-0">
         {isDesktop && <AppSidebar allowedTabs={allowedTabs} />}
 
-        <View className="flex-1 flex-col min-w-0 relative">
+        <View className="flex-1 flex-col min-w-0 min-h-0 relative overflow-hidden">
           {isDesktop && <AppTopBar />}
           {showMobileHeader && <AppMobileHeader />}
 
-          <View className="flex-1">
+          <View
+            className="flex-1 min-h-0"
+            style={{ position: 'relative', overflow: 'hidden', zIndex: 0 }}
+          >
             <Tabs
               key={user.role}
               screenOptions={{
@@ -115,6 +119,7 @@ export default function AppLayout() {
               ))}
             </Tabs>
           </View>
+          {isDesktop && <AppDesktopFooter />}
           <AssistantFab />
           <AssistantOverlay />
         </View>

@@ -1,5 +1,5 @@
 /**
- * BuildFlow — GST Calculation Service.
+ * BuildFlow - GST Calculation Service.
  *
  * Implements Indian GST logic:
  *  - Intra-state: split into CGST + SGST (gstRate / 2 each)

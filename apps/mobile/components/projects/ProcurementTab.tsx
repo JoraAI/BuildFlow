@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, Modal, Alert, ScrollView, Pressable } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, Pressable } from 'react-native';
+import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
 import {
   Card,
   Badge,
@@ -23,13 +24,40 @@ import {
   type StockLocation,
   type StockBalance,
 } from '@/services/expansion.queries';
-import { useResources, type Resource } from '@/services/estimate.queries';
+import { MaterialPicker } from '@/components/materials/MaterialPicker';
+import { useMaterials, type Resource } from '@/services/estimate.queries';
+import { useBoq, type BoqItem } from '@/services/boq.queries';
+import { useMaterialRate } from '@/services/project.queries';
+import { alertAsync } from '@/utils/confirm';
+import type { MaterialRateSource } from '@buildflow/shared';
+
+function sourceBadge(req: Requisition): string | null {
+  if (!req.sourceType) return null;
+  const labels: Record<string, string> = {
+    ESTIMATE_CONVERT: 'From estimate',
+    VARIATION: 'From variation',
+    BOQ_UPDATE: 'From BOQ',
+    MANUAL: 'Manual',
+  };
+  const label = labels[req.sourceType] ?? req.sourceType;
+  return req.sourceRef ? `${label}: ${req.sourceRef}` : label;
+}
 
 const STATUS_COLOR: Record<string, 'neutral' | 'warning' | 'success' | 'danger'> = {
   DRAFT: 'neutral',
   SUBMITTED: 'warning',
   APPROVED: 'success',
   REJECTED: 'danger',
+};
+
+const RATE_SOURCE_LABEL: Record<string, string> = {
+  PROJECT: 'Project override',
+  BOQ: 'BOQ',
+  ESTIMATE: 'Estimate',
+  REGION: 'Regional',
+  LAST_PO: 'Last PO',
+  CATALOG: 'Catalog',
+  MANUAL: 'Manual',
 };
 
 const STEPS = [
@@ -46,8 +74,10 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
 
   const reqQ = useRequisitions(projectId);
   const stockQ = useStock(projectId);
-  const { data: resourcesRaw } = useResources();
-  const resources: Resource[] = resourcesRaw?.data ?? [];
+  const { data: boq } = useBoq(projectId);
+  const { data: materialsData } = useMaterials({ limit: 200 });
+  const materials: Resource[] = materialsData?.data ?? [];
+  const boqItems = boq?.items ?? [];
 
   const createReq = useCreateRequisition(projectId);
   const submitReq = useSubmitRequisition(projectId);
@@ -62,11 +92,26 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
   const [reqNumber, setReqNumber] = useState('');
   const [reqNotes, setReqNotes] = useState('');
   const [selectedResource, setSelectedResource] = useState('');
+  const [selectedBoqItemId, setSelectedBoqItemId] = useState('');
   const [reqQty, setReqQty] = useState('1');
+  const [reqExpectedRate, setReqExpectedRate] = useState('');
+  const [reqRateSource, setReqRateSource] = useState<string | undefined>();
 
   const [poNumber, setPoNumber] = useState('');
   const [vendorName, setVendorName] = useState('');
-  const [poRate, setPoRate] = useState('0');
+  const [poLineRates, setPoLineRates] = useState<Record<string, string>>({});
+
+  const indentRateQ = useMaterialRate(projectId, selectedResource, {
+    boqItemId: selectedBoqItemId || undefined,
+    enabled: reqModal && !!selectedResource,
+  });
+
+  useEffect(() => {
+    if (indentRateQ.data) {
+      setReqExpectedRate(String(indentRateQ.data.rate));
+      setReqRateSource(indentRateQ.data.source);
+    }
+  }, [indentRateQ.data?.rate, indentRateQ.data?.source, selectedResource, selectedBoqItemId]);
 
   const [grnNumber, setGrnNumber] = useState('');
   const [grnQty, setGrnQty] = useState('1');
@@ -84,9 +129,9 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
     : 0;
 
   const onCreateReq = () => {
-    const res = resources.find((r) => r.id === selectedResource);
+    const res = materials.find((r: Resource) => r.id === selectedResource);
     if (!reqNumber.trim() || !res) {
-      Alert.alert('Required', 'Enter requisition number and select a material.');
+      void alertAsync('Required', 'Enter requisition number and select a material.');
       return;
     }
     createReq.mutate(
@@ -98,6 +143,9 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
             resourceId: res.id,
             quantity: parseFloat(reqQty) || 1,
             unit: res.unit,
+            boqItemId: selectedBoqItemId || undefined,
+            expectedRate: parseFloat(reqExpectedRate) || undefined,
+            rateSource: reqRateSource as MaterialRateSource | undefined,
           },
         ],
       },
@@ -106,50 +154,55 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
           setReqModal(false);
           setReqNumber('');
           setReqNotes('');
+          setSelectedBoqItemId('');
+          setReqExpectedRate('');
+          setReqRateSource(undefined);
         },
-        onError: (e: Error) => Alert.alert('Error', e.message),
+        onError: (e: Error) => void alertAsync('Error', e.message),
       },
     );
   };
 
   const onCreatePO = () => {
-    if (!poModal || !poNumber.trim() || !vendorName.trim() || !selectedResource) {
-      Alert.alert('Required', 'Fill PO number, vendor, and material.');
+    if (!poModal || !poNumber.trim() || !vendorName.trim() || poModal.lines.length === 0) {
+      void alertAsync('Required', 'Fill PO number, vendor, and requisition lines.');
       return;
     }
-    const res = resources.find((r) => r.id === selectedResource);
-    if (!res) return;
+    const lines = poModal.lines.map((l: Requisition['lines'][number]) => {
+      const res = materials.find((r: Resource) => r.id === l.resourceId);
+      const rateStr = poLineRates[l.id] ?? l.expectedRate ?? '0';
+      return {
+        resourceId: l.resourceId,
+        quantity: parseFloat(l.quantity) || 1,
+        unit: l.unit || res?.unit || 'unit',
+        rate: parseFloat(rateStr) || 0,
+      };
+    });
     createPO.mutate(
       {
         poNumber: poNumber.trim(),
         vendorName: vendorName.trim(),
         requisitionId: poModal.id,
-        lines: [
-          {
-            resourceId: res.id,
-            quantity: parseFloat(reqQty) || 1,
-            unit: res.unit,
-            rate: parseFloat(poRate) || 0,
-          },
-        ],
+        lines,
       },
       {
         onSuccess: () => {
           setPoModal(null);
           setPoNumber('');
           setVendorName('');
+          setPoLineRates({});
         },
-        onError: (e: Error) => Alert.alert('Error', e.message),
+        onError: (e: Error) => void alertAsync('Error', e.message),
       },
     );
   };
 
   const onCreateGRN = () => {
     if (!grnModal || !grnNumber.trim() || !selectedResource) {
-      Alert.alert('Required', 'Fill GRN number and material.');
+      void alertAsync('Required', 'Fill GRN number and material.');
       return;
     }
-    const res = resources.find((r) => r.id === selectedResource);
+    const res = materials.find((r: Resource) => r.id === selectedResource);
     if (!res) return;
     createGRN.mutate(
       {
@@ -169,7 +222,7 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
           setGrnModal(null);
           setGrnNumber('');
         },
-        onError: (e: Error) => Alert.alert('Error', e.message),
+        onError: (e: Error) => void alertAsync('Error', e.message),
       },
     );
   };
@@ -225,14 +278,30 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
               <Text className="text-sm font-semibold text-text">{req.reqNumber}</Text>
               <Badge color={STATUS_COLOR[req.status] ?? 'neutral'} label={req.status} />
             </View>
+            {sourceBadge(req) ? (
+              <Text className="text-[10px] text-primary font-semibold mb-1">{sourceBadge(req)}</Text>
+            ) : null}
             <Text className="text-xs text-muted mb-2">
               {req.lines.length} items • {formatDate(req.createdAt)}
             </Text>
-            {req.lines.map((l: Requisition['lines'][number]) => (
-              <Text key={l.id} className="text-xs text-text">
-                • {l.resource?.name ?? 'Material'} — {parseFloat(l.quantity)} {l.unit}
-              </Text>
-            ))}
+            {req.lines.map((l: Requisition['lines'][number]) => {
+              const qty = parseFloat(l.quantity);
+              const rate = l.expectedRate ? parseFloat(l.expectedRate) : null;
+              const lineTotal = rate != null ? qty * rate : null;
+              return (
+                <View key={l.id} className="mb-1">
+                  <Text className="text-xs text-text">
+                    • {l.resource?.name ?? 'Material'} — {qty} {l.unit}
+                    {lineTotal != null ? ` · est. Rs ${lineTotal.toFixed(0)}` : ''}
+                  </Text>
+                  {l.rateSource ? (
+                    <Text className="text-[10px] text-primary ml-2">
+                      Rate Rs {rate ?? '—'} ({RATE_SOURCE_LABEL[l.rateSource] ?? l.rateSource})
+                    </Text>
+                  ) : null}
+                </View>
+              );
+            })}
             {req.purchaseOrders?.map((po: NonNullable<Requisition['purchaseOrders']>[number]) => (
               <View key={po.id} className="mt-2 pt-2 border-t border-border">
                 <Text className="text-xs text-muted">
@@ -258,7 +327,7 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
                   variant="secondary"
                   onPress={() =>
                     submitReq.mutate(req.id, {
-                      onError: (e: Error) => Alert.alert('Error', e.message),
+                      onError: (e: Error) => void alertAsync('Error', e.message),
                     })
                   }
                 />
@@ -269,7 +338,7 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
                   size="sm"
                   onPress={() =>
                     approveReq.mutate(req.id, {
-                      onError: (e: Error) => Alert.alert('Error', e.message),
+                      onError: (e: Error) => void alertAsync('Error', e.message),
                     })
                   }
                 />
@@ -279,6 +348,11 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
                   label="Create PO"
                   size="sm"
                   onPress={() => {
+                    const rates: Record<string, string> = {};
+                    req.lines.forEach((line: Requisition['lines'][number]) => {
+                      rates[line.id] = line.expectedRate ? String(parseFloat(line.expectedRate)) : '0';
+                    });
+                    setPoLineRates(rates);
                     const firstLine = req.lines[0];
                     if (firstLine) {
                       setSelectedResource(firstLine.resourceId);
@@ -326,60 +400,102 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
         </Card>
       )}
 
-      {/* Create requisition modal */}
-      <Modal visible={reqModal} transparent animationType="slide" onRequestClose={() => setReqModal(false)}>
-        <View className="flex-1 justify-end bg-black/40">
-          <ScrollView className="bg-card rounded-t-2xl max-h-[80%]" contentContainerClassName="p-4 gap-3">
-            <Text className="text-lg font-bold text-text">New Indent</Text>
-            <Input label="Req Number" value={reqNumber} onChangeText={setReqNumber} placeholder="IND-001" />
-            <Input label="Notes" value={reqNotes} onChangeText={setReqNotes} multiline />
-            <Text className="text-sm font-semibold text-text">Material</Text>
-            {resources
-              .filter((r) => r.type === 'MATERIAL')
-              .slice(0, 20)
-              .map((r) => (
-                <Pressable
-                  key={r.id}
-                  onPress={() => setSelectedResource(r.id)}
-                  className={`p-2 rounded-lg border ${
-                    selectedResource === r.id ? 'border-primary bg-primary/5' : 'border-border'
-                  }`}
-                >
-                  <Text className="text-sm text-text">{r.name}</Text>
-                </Pressable>
-              ))}
-            <Input label="Quantity" value={reqQty} onChangeText={setReqQty} keyboardType="numeric" />
-            <Button label="Create" loading={createReq.isPending} onPress={onCreateReq} />
-          </ScrollView>
-        </View>
-      </Modal>
+      <AdaptiveSheet
+        visible={reqModal}
+        onClose={() => setReqModal(false)}
+        title="New Indent"
+        size="md"
+        footer={<Button label="Create" loading={createReq.isPending} onPress={onCreateReq} />}
+      >
+        <Input label="Req Number" value={reqNumber} onChangeText={setReqNumber} placeholder="IND-001" />
+        <Input label="Notes" value={reqNotes} onChangeText={setReqNotes} multiline />
+        <Text className="text-sm font-semibold text-text">Material</Text>
+        <MaterialPicker
+          selectedId={selectedResource}
+          onSelect={(r) => setSelectedResource(r.id)}
+          maxHeight={200}
+        />
+        {boqItems.length > 0 ? (
+          <>
+            <Text className="text-sm font-semibold text-text mt-2">Link to BOQ (optional)</Text>
+            {boqItems.slice(0, 15).map((b: BoqItem) => (
+              <Pressable
+                key={b.id}
+                onPress={() => setSelectedBoqItemId(selectedBoqItemId === b.id ? '' : b.id)}
+                className={`p-2 rounded-lg border ${
+                  selectedBoqItemId === b.id ? 'border-primary bg-primary/5' : 'border-border'
+                }`}
+              >
+                <Text className="text-xs text-text" numberOfLines={1}>
+                  {b.itemCode} — {b.description}
+                </Text>
+              </Pressable>
+            ))}
+          </>
+        ) : null}
+        <Input label="Quantity" value={reqQty} onChangeText={setReqQty} keyboardType="numeric" />
+        {indentRateQ.data ? (
+          <Text className="text-xs text-primary font-semibold">
+            Suggested: Rs {indentRateQ.data.rate} ({RATE_SOURCE_LABEL[indentRateQ.data.source] ?? indentRateQ.data.source})
+          </Text>
+        ) : null}
+        <Input
+          label="Expected rate (₹)"
+          value={reqExpectedRate}
+          onChangeText={(v) => {
+            setReqExpectedRate(v);
+            setReqRateSource('MANUAL');
+          }}
+          keyboardType="numeric"
+        />
+        {reqExpectedRate && reqQty ? (
+          <Text className="text-xs text-muted">
+            Line est. total: Rs {((parseFloat(reqQty) || 0) * (parseFloat(reqExpectedRate) || 0)).toFixed(0)}
+          </Text>
+        ) : null}
+      </AdaptiveSheet>
 
-      {/* Create PO modal */}
-      <Modal visible={!!poModal} transparent animationType="slide" onRequestClose={() => setPoModal(null)}>
-        <View className="flex-1 justify-end bg-black/40">
-          <ScrollView className="bg-card rounded-t-2xl max-h-[80%]" contentContainerClassName="p-4 gap-3">
-            <Text className="text-lg font-bold text-text">Create Purchase Order</Text>
-            <Input label="PO Number" value={poNumber} onChangeText={setPoNumber} placeholder="PO-001" />
-            <Input label="Vendor" value={vendorName} onChangeText={setVendorName} placeholder="Supplier name" />
-            <Input label="Rate (₹)" value={poRate} onChangeText={setPoRate} keyboardType="numeric" />
-            <Button label="Create PO" loading={createPO.isPending} onPress={onCreatePO} />
-          </ScrollView>
-        </View>
-      </Modal>
-
-      {/* Create GRN modal */}
-      <Modal visible={!!grnModal} transparent animationType="slide" onRequestClose={() => setGrnModal(null)}>
-        <View className="flex-1 justify-end bg-black/40">
-          <ScrollView className="bg-card rounded-t-2xl max-h-[80%]" contentContainerClassName="p-4 gap-3">
-            <Text className="text-lg font-bold text-text">
-              Record GRN {grnModal ? `for ${grnModal.poNumber}` : ''}
+      <AdaptiveSheet
+        visible={!!poModal}
+        onClose={() => {
+          setPoModal(null);
+          setPoLineRates({});
+        }}
+        title="Create Purchase Order"
+        size="md"
+        footer={<Button label="Create PO" loading={createPO.isPending} onPress={onCreatePO} />}
+      >
+        <Input label="PO Number" value={poNumber} onChangeText={setPoNumber} placeholder="PO-001" />
+        <Input label="Vendor" value={vendorName} onChangeText={setVendorName} placeholder="Supplier name" />
+        {poModal?.lines.map((l: Requisition['lines'][number]) => (
+          <View key={l.id} className="py-2 border-b border-border/60">
+            <Text className="text-sm font-medium text-text">{l.resource?.name ?? 'Material'}</Text>
+            <Text className="text-xs text-muted mb-1">
+              Qty {parseFloat(l.quantity)} {l.unit}
+              {l.rateSource
+                ? ` · indent rate from ${RATE_SOURCE_LABEL[l.rateSource] ?? l.rateSource}`
+                : ''}
             </Text>
-            <Input label="GRN Number" value={grnNumber} onChangeText={setGrnNumber} placeholder="GRN-001" />
-            <Input label="Quantity received" value={grnQty} onChangeText={setGrnQty} keyboardType="numeric" />
-            <Button label="Record GRN" loading={createGRN.isPending} onPress={onCreateGRN} />
-          </ScrollView>
-        </View>
-      </Modal>
+            <Input
+              label="PO rate (₹)"
+              value={poLineRates[l.id] ?? ''}
+              onChangeText={(v) => setPoLineRates((prev) => ({ ...prev, [l.id]: v }))}
+              keyboardType="numeric"
+            />
+          </View>
+        ))}
+      </AdaptiveSheet>
+
+      <AdaptiveSheet
+        visible={!!grnModal}
+        onClose={() => setGrnModal(null)}
+        title={grnModal ? `Record GRN for ${grnModal.poNumber}` : 'Record GRN'}
+        size="md"
+        footer={<Button label="Record GRN" loading={createGRN.isPending} onPress={onCreateGRN} />}
+      >
+        <Input label="GRN Number" value={grnNumber} onChangeText={setGrnNumber} placeholder="GRN-001" />
+        <Input label="Quantity received" value={grnQty} onChangeText={setGrnQty} keyboardType="numeric" />
+      </AdaptiveSheet>
     </View>
   );
 }

@@ -1,5 +1,5 @@
 /**
- * BuildFlow Assistant — chat UI (messages, chips, composer).
+ * BuildFlow Assistant - chat UI (messages, chips, composer).
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {

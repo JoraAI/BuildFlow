@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Chatbot service (BuildFlow Assistant).
+ * BuildFlow - Chatbot service (BuildFlow Assistant).
  *
  * POST /api/chatbot/message
  *   - Persists the user's message
@@ -10,7 +10,7 @@
  *   - Persists the bot reply and returns it
  *
  * If LLM creds are absent, returns a deterministic canned answer built from the same
- * context — so the assistant is always usable in local dev.
+ * context - so the assistant is always usable in local dev.
  */
 import { prisma } from '../lib/prisma';
 import { logger } from '../config/logger';
@@ -105,7 +105,7 @@ async function callLLM(companyId: string, messages: LlmMessage[]): Promise<strin
   }
 }
 
-/** Deterministic fallback when no LLM is configured — still context-aware. */
+/** Deterministic fallback when no LLM is configured - still context-aware. */
 function cannedReply(message: string, context: string): string {
   const q = message.toLowerCase();
   if (q.includes('status') || q.includes('project')) {

@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Platform admin routes (cross-tenant).
+ * BuildFlow - Platform admin routes (cross-tenant).
  */
 import { Router } from 'express';
 import { validate } from '../middleware/validate';

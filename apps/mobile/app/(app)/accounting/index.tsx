@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Accounting Hub (Invoices | Bills | Dashboard)
+ * BuildFlow - Accounting Hub (Invoices | Bills | Dashboard)
  */
 import React, { useState, useEffect } from 'react';
 import {
@@ -18,6 +18,7 @@ import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { PageHeader, StatChip } from '@/components/layout/PageHeader';
 import { ProjectInvoicesList, ProjectBillsList } from '@/components/accounting/InvoiceBillLists';
 import { mobileListBottomPadding } from '@/components/layout/fab-layout';
+import { ResponsiveGrid } from '@/components/layout/ResponsiveGrid';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { useViewport } from '@/hooks/useViewport';
 import { useAuthStore } from '@/stores/auth.store';
@@ -33,8 +34,15 @@ export default function AccountingScreen() {
   const { isDesktop } = useViewport();
   const isOwner = user?.role === 'OWNER';
   const [tab, setTab] = useState<Tab>('INVOICES');
+  const [mobileProjectId, setMobileProjectId] = useState<string | null>(null);
   const { data: projects } = useProjects();
   const { data: dashboard } = useCompanyDashboard();
+
+  useEffect(() => {
+    if (!mobileProjectId && projects && projects.length > 0) {
+      setMobileProjectId(projects[0].id);
+    }
+  }, [projects, mobileProjectId]);
 
   const tabs = [
     { label: 'Invoices', value: 'INVOICES' as Tab },
@@ -111,15 +119,29 @@ export default function AccountingScreen() {
       <OfflineBanner />
       <MobileScreenHeader title="Accounting" subtitle="Invoices, bills, GST & TDS" />
       {tabChips}
-      {tab === 'INVOICES' && <MobileProjectsTab mode="invoices" />}
-      {tab === 'BILLS' && <MobileProjectsTab mode="bills" />}
+      {tab === 'INVOICES' && (
+        <MobileAccountingPane
+          mode="invoices"
+          selectedId={mobileProjectId}
+          onSelectProject={setMobileProjectId}
+        />
+      )}
+      {tab === 'BILLS' && (
+        <MobileAccountingPane
+          mode="bills"
+          selectedId={mobileProjectId}
+          onSelectProject={setMobileProjectId}
+        />
+      )}
       {tab === 'DASHBOARD' && <DashboardTab />}
       {(tab === 'INVOICES' || tab === 'BILLS') && (
         <FAB
           label={tab === 'INVOICES' ? 'Invoice' : 'Bill'}
-          onPress={() =>
-            router.push(`/accounting/${tab === 'INVOICES' ? 'create-invoice' : 'create-bill'}`)
-          }
+          onPress={() => {
+            const base =
+              tab === 'INVOICES' ? '/accounting/create-invoice' : '/accounting/create-bill';
+            router.push(mobileProjectId ? `${base}?projectId=${mobileProjectId}` : base);
+          }}
         />
       )}
     </SafeAreaView>
@@ -197,9 +219,9 @@ function DesktopSplitPane({
               />
             </View>
             {mode === 'invoices' ? (
-              <ProjectInvoicesList projectId={selectedId} embedded />
+              <ProjectInvoicesList key={selectedId} projectId={selectedId} embedded />
             ) : (
-              <ProjectBillsList projectId={selectedId} embedded />
+              <ProjectBillsList key={selectedId} projectId={selectedId} embedded />
             )}
           </>
         ) : (
@@ -215,9 +237,25 @@ function DesktopSplitPane({
   );
 }
 
-function MobileProjectsTab({ mode }: { mode: 'invoices' | 'bills' }) {
+function MobileAccountingPane({
+  mode,
+  selectedId,
+  onSelectProject,
+}: {
+  mode: 'invoices' | 'bills';
+  selectedId: string | null;
+  onSelectProject: (id: string) => void;
+}) {
   const router = useRouter();
   const { data: projects, isLoading } = useProjects();
+
+  useEffect(() => {
+    if (selectedId && projects && !projects.some((p: ProjectListItem) => p.id === selectedId)) {
+      onSelectProject(projects[0]?.id ?? '');
+    }
+  }, [projects, selectedId, onSelectProject]);
+
+  const selected = projects?.find((p: ProjectListItem) => p.id === selectedId);
 
   if (isLoading) {
     return (
@@ -233,51 +271,82 @@ function MobileProjectsTab({ mode }: { mode: 'invoices' | 'bills' }) {
     return (
       <EmptyState
         title="No projects"
-        description="Create a project first to manage invoices."
+        description="Create a project first to manage invoices and bills."
       />
     );
   }
 
+  const createPath = selectedId
+    ? `/accounting/${mode === 'invoices' ? 'create-invoice' : 'create-bill'}?projectId=${selectedId}`
+    : `/accounting/${mode === 'invoices' ? 'create-invoice' : 'create-bill'}`;
+
   return (
-    <ScrollView
-      className="px-4 pt-2"
-      contentContainerClassName="gap-3"
-      contentContainerStyle={{ paddingBottom: mobileListBottomPadding(true) }}
-    >
-      <Text className="text-sm font-semibold text-muted mb-1">Select Project</Text>
-      {projects.map((p: ProjectListItem) => (
-        <Pressable
-          key={p.id}
-          onPress={() =>
-            router.push(
-              mode === 'invoices'
-                ? `/accounting/project/${p.id}`
-                : `/accounting/project/${p.id}?tab=bills`,
-            )
-          }
-        >
-          <Card>
-            <View className="flex-row justify-between items-center">
-              <View className="flex-1 mr-2">
-                <Text className="text-base font-semibold text-text" numberOfLines={1}>
+    <View className="flex-1">
+      <View className="px-4 pt-2 pb-1">
+        <Text className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">
+          Project
+        </Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-grow-0">
+          <View className="flex-row gap-2 pb-1">
+            {projects.map((p: ProjectListItem) => (
+              <Pressable
+                key={p.id}
+                onPress={() => onSelectProject(p.id)}
+                className={`px-3 py-2 rounded-xl border max-w-[220px] ${
+                  selectedId === p.id ? 'bg-primary/10 border-primary' : 'bg-card border-border'
+                }`}
+              >
+                <Text
+                  className={`text-sm font-semibold ${selectedId === p.id ? 'text-primary' : 'text-text'}`}
+                  numberOfLines={1}
+                >
                   {p.name}
                 </Text>
-                <Text className="text-xs text-muted">{p.clientName}</Text>
-              </View>
-              <Badge
-                color={mode === 'invoices' ? 'primary' : 'warning'}
-                label={mode === 'invoices' ? 'View Invoices' : 'View Bills'}
-              />
+                <Text className="text-xs text-muted mt-0.5" numberOfLines={1}>
+                  {p.clientName}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </ScrollView>
+      </View>
+
+      {selectedId && selected ? (
+        <View className="flex-1 px-4">
+          <View className="flex-row items-center justify-between py-2 mb-1">
+            <View className="flex-1 mr-2">
+              <Text className="text-base font-bold text-text" numberOfLines={1}>
+                {selected.name}
+              </Text>
+              <Text className="text-xs text-muted">{selected.clientName}</Text>
             </View>
-          </Card>
-        </Pressable>
-      ))}
-    </ScrollView>
+            <Pressable
+              onPress={() => router.push(createPath as never)}
+              className="px-3 py-1.5 rounded-lg bg-primary/10 active:opacity-80"
+            >
+              <Text className="text-xs font-semibold text-primary">
+                {mode === 'invoices' ? '+ Invoice' : '+ Bill'}
+              </Text>
+            </Pressable>
+          </View>
+          {mode === 'invoices' ? (
+            <ProjectInvoicesList key={selectedId} projectId={selectedId} embedded />
+          ) : (
+            <ProjectBillsList key={selectedId} projectId={selectedId} embedded />
+          )}
+        </View>
+      ) : (
+        <EmptyState
+          title="Select a project"
+          description={`Choose a project above to view ${mode}.`}
+        />
+      )}
+    </View>
   );
 }
 
 function DashboardTab() {
-  const { isDesktop, isWideDesktop } = useViewport();
+  const { isDesktop } = useViewport();
   const { data, isLoading, isFetching, refetch } = useCompanyDashboard();
 
   if (isLoading) {
@@ -307,7 +376,7 @@ function DashboardTab() {
       scrollEnabled={!isDesktop}
       refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
     >
-      <View className={`flex-row flex-wrap gap-3 ${isDesktop ? '' : ''}`}>
+      <ResponsiveGrid gap={12} columns={isDesktop ? undefined : 2}>
         <KpiCard label="Total Invoiced" value={formatINRCompact(data.totalInvoiced)} desktop={isDesktop} />
         <KpiCard label="Collected" value={formatINRCompact(data.totalCollected)} color="success" desktop={isDesktop} />
         <KpiCard
@@ -324,15 +393,15 @@ function DashboardTab() {
           color="danger"
           desktop={isDesktop}
         />
-      </View>
+      </ResponsiveGrid>
 
       <Text className="text-sm font-bold text-text mt-2">Project Summary</Text>
       {data.projectSummaries.length === 0 ? (
         <Text className="text-sm text-muted">No project financials yet.</Text>
       ) : (
-        <View className={`gap-3 ${isWideDesktop ? 'flex-row flex-wrap' : isDesktop ? 'flex-row flex-wrap' : ''}`}>
+        <ResponsiveGrid gap={12}>
           {data.projectSummaries.map((p: CompanyDashboard['projectSummaries'][number]) => (
-            <Card key={p.id} className={isDesktop ? 'flex-1 min-w-[320px]' : undefined}>
+            <Card key={p.id} className="h-full">
               <View className="flex-row justify-between items-start mb-2">
                 <View className="flex-1 mr-2">
                   <Text className="text-base font-semibold text-text" numberOfLines={1}>
@@ -363,7 +432,7 @@ function DashboardTab() {
               </View>
             </Card>
           ))}
-        </View>
+        </ResponsiveGrid>
       )}
     </ScrollView>
   );
@@ -387,11 +456,7 @@ function KpiCard({
     danger: 'text-danger',
   };
   return (
-    <View
-      className={`bg-card border border-border rounded-xl p-4 ${
-        desktop ? 'flex-1 min-w-[180px]' : 'flex-1 min-w-[45%]'
-      }`}
-    >
+    <View className="bg-card border border-border rounded-xl p-4 h-full">
       <Text className="text-xs text-muted mb-1">{label}</Text>
       <Text className={`text-xl font-bold ${colorMap[color]}`}>{value}</Text>
     </View>

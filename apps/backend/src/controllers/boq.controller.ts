@@ -1,5 +1,5 @@
 /**
- * BuildFlow — BOQ controller (thin request handlers).
+ * BuildFlow - BOQ controller (thin request handlers).
  */
 import { NextFunction, Request, Response } from 'express';
 import * as boqService from '../services/boq.service';
@@ -69,6 +69,31 @@ export async function convertEstimateToBoq(req: Request, res: Response, next: Ne
       req.params.id,
       ipOf(req),
     );
+    ok(res, result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function recordMeasurement(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { companyId, id: userId } = req.user!;
+    const result = await boqService.recordBoqMeasurement(
+      companyId,
+      userId,
+      req.params.id,
+      req.body,
+      ipOf(req),
+    );
+    created(res, result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getBoqVsActual(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await boqService.getBoqVsActualLines(req.user!.companyId, req.params.id);
     ok(res, result);
   } catch (err) {
     next(err);

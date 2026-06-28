@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Jest setup.
+ * BuildFlow - Jest setup.
  * Loads test env so env.ts validates cleanly.
  */
 import dotenv from 'dotenv';

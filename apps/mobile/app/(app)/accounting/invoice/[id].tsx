@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Invoice Detail
+ * BuildFlow - Invoice Detail
  * Route: /accounting/invoice/[id]
  */
 import React, { useState } from 'react';
@@ -8,7 +8,6 @@ import {
   Text,
   ScrollView,
   Pressable,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -20,6 +19,7 @@ import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { useViewport } from '@/hooks/useViewport';
 import { dismissTo, DISMISS } from '@/utils/navigation';
+import { alertAsync, confirmAsync } from '@/utils/confirm';
 import {
   useInvoice,
   useSendInvoice,
@@ -44,6 +44,7 @@ export default function InvoiceDetailScreen() {
   const recordPayment = useRecordPayment();
   const [showPayment, setShowPayment] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
 
   if (isLoading) {
     return (
@@ -68,30 +69,36 @@ export default function InvoiceDetailScreen() {
   const balanceDue = invoice.total - invoice.paidAmount;
   const isFullyPaid = invoice.paidAmount >= invoice.total;
 
-  const onSend = () => {
-    Alert.alert(
+  const onSend = async () => {
+    const ok = await confirmAsync(
       'Send Invoice',
       `Mark invoice ${invoice.invoiceNumber} as sent?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Send', onPress: () => sendInvoice.mutate(invoice.id) },
-      ],
     );
+    if (!ok) return;
+    sendInvoice.mutate(invoice.id, {
+      onError: async (e: Error) => alertAsync('Error', e.message),
+    });
   };
 
   const onRecordPayment = () => {
+    setFormError(null);
     const amount = parseFloat(paymentAmount);
     if (isNaN(amount) || amount <= 0) {
-      Alert.alert('Invalid amount', 'Please enter a valid payment amount.');
+      setFormError('Please enter a valid payment amount.');
       return;
     }
     recordPayment.mutate(
       { id: invoice.id, amount },
       {
-        onSuccess: () => {
+        onSuccess: async () => {
           setShowPayment(false);
           setPaymentAmount('');
-          Alert.alert('Success', 'Payment recorded successfully.');
+          setFormError(null);
+          await alertAsync('Success', 'Payment recorded successfully.');
+        },
+        onError: async (e: Error) => {
+          setFormError(e.message);
+          await alertAsync('Error', e.message);
         },
       },
     );
@@ -145,19 +152,26 @@ export default function InvoiceDetailScreen() {
       {showPayment && (
         <Card>
           <Text className="text-sm font-bold text-text mb-2">Record Payment</Text>
+          {formError ? (
+            <View className="mb-2 px-3 py-2 rounded-lg bg-danger/10 border border-danger/30">
+              <Text className="text-sm text-danger">{formError}</Text>
+            </View>
+          ) : null}
           <Input
             label="Amount (Rs)"
             value={paymentAmount}
             onChangeText={setPaymentAmount}
             keyboardType="numeric"
             placeholder={balanceDue.toString()}
+            error={formError ?? undefined}
           />
           <View className="flex-row gap-2 mt-2">
             <View className="flex-1">
               <Button
-                label={recordPayment.isPending ? 'Saving...' : 'Confirm'}
+                label="Confirm"
                 variant="primary"
                 onPress={onRecordPayment}
+                loading={recordPayment.isPending}
                 disabled={recordPayment.isPending}
               />
             </View>

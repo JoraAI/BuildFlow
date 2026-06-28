@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Redis cache wrapper with graceful degradation.
+ * BuildFlow - Redis cache wrapper with graceful degradation.
  *
  * If Redis is unavailable or errors, all operations fail open (reads return
  * null, writes/invalidations are swallowed) so the API keeps serving.

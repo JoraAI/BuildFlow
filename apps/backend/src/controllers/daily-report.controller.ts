@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Daily Report controller (thin request handlers).
+ * BuildFlow - Daily Report controller (thin request handlers).
  */
 import { NextFunction, Request, Response } from 'express';
 import * as reportService from '../services/daily-report.service';
@@ -112,6 +112,21 @@ export async function resolvePhotos(req: Request, res: Response, next: NextFunct
     const report = await reportService.getReport(req.user!.companyId, req.params.id);
     const urls = await reportService.resolvePhotoUrls(req.user!.companyId, report.photos ?? []);
     ok(res, { urls });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function postMaterialUsageToBoq(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { companyId, id: userId } = req.user!;
+    const result = await reportService.postMaterialUsageToBoq(
+      companyId,
+      userId,
+      req.params.usageId,
+      ipOf(req),
+    );
+    ok(res, result);
   } catch (err) {
     next(err);
   }

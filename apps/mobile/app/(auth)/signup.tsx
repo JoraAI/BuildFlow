@@ -1,5 +1,5 @@
 /**
- * Sign up hub — start trial or join with invite.
+ * Sign up hub - start trial or join with invite.
  */
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
@@ -7,6 +7,9 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthScreenShell } from '@/components/auth/AuthScreenShell';
 import { Card } from '@/components/ui';
+import { FreeTrialBadge } from '@/components/marketing/FreeTrialBadge';
+import { StartFreeTrialButton } from '@/components/marketing/StartFreeTrialButton';
+import { TRIAL_BENEFITS } from '@/constants/marketing';
 
 export default function SignupHubScreen() {
   const router = useRouter();
@@ -16,18 +19,46 @@ export default function SignupHubScreen() {
       heroHeadline="Get started with BuildFlow"
       heroSubline="Register your company or join your team with an invite."
       backHref="/"
+      formTitle="Sign up"
+      formSubtitle="Choose how you want to join BuildFlow"
     >
-      <Text className="text-2xl font-bold text-text mb-1">Sign up</Text>
-      <Text className="text-sm text-muted mb-6">Choose how you want to join BuildFlow</Text>
-
-      <SignupOption
-        icon="business-outline"
-        title="Start free trial"
-        description="Register your construction company and create the owner account."
-        onPress={() => router.push('/signup/company')}
-      />
-
-      <View className="h-4" />
+      <Card className="border-2 border-accent overflow-hidden p-0 mb-4">
+        <View className="flex-row items-center justify-between px-4 py-2.5 bg-accent/10 border-b border-accent/20">
+          <View className="flex-row items-center gap-2">
+            <Ionicons name="star" size={14} color="#B45309" />
+            <Text className="text-xs font-bold text-primary uppercase tracking-wide">
+              Recommended for new companies
+            </Text>
+          </View>
+          <FreeTrialBadge compact />
+        </View>
+        <View className="p-4">
+          <View className="flex-row items-start gap-3 mb-4">
+            <View className="w-12 h-12 rounded-xl bg-primary items-center justify-center">
+              <Ionicons name="business" size={24} color="#F59E0B" />
+            </View>
+            <View className="flex-1 min-w-0">
+              <Text className="text-lg font-bold text-text mb-1">Start your free trial</Text>
+              <Text className="text-sm text-muted leading-relaxed">
+                Register your construction company and create the owner account in minutes.
+              </Text>
+            </View>
+          </View>
+          {TRIAL_BENEFITS.map((benefit) => (
+            <View key={benefit} className="flex-row items-center gap-2 mb-1.5 ml-1">
+              <Ionicons name="checkmark-circle" size={15} color="#10B981" />
+              <Text className="text-sm text-text flex-1">{benefit}</Text>
+            </View>
+          ))}
+          <View className="mt-5">
+            <StartFreeTrialButton
+              fullWidth
+              size="md"
+              onPress={() => router.push('/signup/company')}
+            />
+          </View>
+        </View>
+      </Card>
 
       <SignupOption
         icon="mail-outline"

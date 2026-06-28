@@ -1,7 +1,7 @@
 /**
- * BuildFlow — SaaS subscription billing (BuildFlow charges companies for plans).
+ * BuildFlow - SaaS subscription billing (BuildFlow charges companies for plans).
  *
- * Uses platform SAAS_* env credentials — separate from tenant invoice payment integrations.
+ * Uses platform SAAS_* env credentials - separate from tenant invoice payment integrations.
  */
 import crypto from 'crypto';
 import Razorpay from 'razorpay';
@@ -95,7 +95,7 @@ export async function createSaasCheckout(
   const link = await rzp.paymentLink.create({
     amount: amountInr * 100,
     currency: 'INR',
-    description: `BuildFlow ${plan} subscription — ${company.name}`,
+    description: `BuildFlow ${plan} subscription - ${company.name}`,
     reference_id: referenceId,
     customer: { name: company.name },
     notify: { sms: false, email: false },

@@ -1,4 +1,4 @@
-// Web shim for expo-file-system — downloads via browser Blob/blobs instead of native FS
+// Web shim for expo-file-system - downloads via browser Blob/blobs instead of native FS
 export const documentDirectory = '/web-fs/';
 export const cacheDirectory = '/web-fs/cache/';
 export const bundleDirectory = '/web-fs/bundle/';

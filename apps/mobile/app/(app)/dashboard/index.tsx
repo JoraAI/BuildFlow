@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Owner Analytics Dashboard.
+ * BuildFlow - Owner Analytics Dashboard.
  *
  * Widgets:
  *   - KPI row (projects, revenue, outstanding, avg progress)
@@ -30,6 +30,7 @@ import { Card, LoadingSkeleton, EmptyState, Button } from '@/components/ui';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { PageHeader, StatChip } from '@/components/layout/PageHeader';
 import { MobileScreenHeader } from '@/components/layout/ScreenHeader';
+import { ResponsiveGrid } from '@/components/layout/ResponsiveGrid';
 import { useViewport } from '@/hooks/useViewport';
 import { formatINRCompact, formatINR } from '@/utils/format';
 
@@ -54,7 +55,7 @@ export default function DashboardScreen() {
               <ActionRow label="Reports Hub" onPress={() => router.push('/reports-hub')} />
             )}
             {user.role === 'PM' && (
-              <ActionRow label="Estimation" onPress={() => router.push('/estimation')} />
+              <ActionRow label="Proposals" onPress={() => router.push('/proposals')} />
             )}
           </View>
         </Card>
@@ -138,18 +139,18 @@ export default function DashboardScreen() {
       ) : (
         <>
           <MobileScreenHeader title="Owner Dashboard" subtitle={dateLabel} />
-          <View className="flex-row flex-wrap gap-2 mt-2">
+          <ResponsiveGrid gap={8} columns={2}>
             <KpiCard label="Active Projects" value={String(kpis.activeProjects)} sub={`${kpis.totalProjects} total`} color="#1E3A5F" />
             <KpiCard label="Revenue (Paid)" value={formatINRCompact(kpis.totalRevenue)} color="#10B981" />
             <KpiCard label="Outstanding" value={formatINRCompact(kpis.totalOutstanding)} color="#F97316" />
             <KpiCard label="Avg Progress" value={`${kpis.avgProgress}%`} color="#F59E0B" />
-          </View>
+          </ResponsiveGrid>
         </>
       )}
 
-      <View className={isDesktop ? 'flex-row flex-wrap gap-4' : ''}>
+      <ResponsiveGrid gap={16} className="mt-4">
         {/* CASH FLOW FORECAST */}
-        <Card className={`mt-4 ${isDesktop ? 'flex-1 min-w-[48%]' : ''}`}>
+        <Card>
           <View className="flex-row justify-between items-center mb-1">
             <Text className="text-base font-bold text-text">Cash Flow Forecast (90d)</Text>
             <Pressable
@@ -176,7 +177,7 @@ export default function DashboardScreen() {
         </Card>
 
         {/* PROJECT PROGRESS */}
-        <Card className={`mt-4 ${isDesktop ? 'flex-1 min-w-[48%]' : ''}`}>
+        <Card>
         <Text className="text-base font-bold text-text">Project Progress</Text>
         <View className="mt-3 gap-2.5">
           {projectProgress.slice(0, 6).map((p: ProjectProgressRow) => (
@@ -193,7 +194,7 @@ export default function DashboardScreen() {
       </Card>
 
         {/* BUDGET BURN */}
-        <Card className={`mt-4 ${isDesktop ? 'flex-1 min-w-[48%]' : ''}`}>
+        <Card>
         <Text className="text-base font-bold text-text">Budget Burn</Text>
         <View className="mt-3 gap-2.5">
           {budgetBurn.slice(0, 6).map((b: BudgetBurnRow) => {
@@ -216,7 +217,7 @@ export default function DashboardScreen() {
       </Card>
 
         {/* ESTIMATION ACCURACY */}
-        <Card className={`mt-4 ${isDesktop ? 'flex-1 min-w-[48%]' : ''}`}>
+        <Card>
         <Text className="text-base font-bold text-text">Estimation Accuracy</Text>
         <View className="mt-3 gap-2.5">
           {estimationAccuracy.map((e: EstimationAccuracyRow, idx: number) => (
@@ -242,7 +243,7 @@ export default function DashboardScreen() {
       </Card>
 
         {/* TEAM PRODUCTIVITY */}
-        <Card className={`mt-4 ${isDesktop ? 'flex-1 min-w-[48%]' : ''}`}>
+        <Card>
         <Text className="text-base font-bold text-text">Team Productivity (30d)</Text>
         <View className="mt-3 gap-2.5">
           {teamProductivity.slice(0, 6).map((t: TeamProductivityRow) => (
@@ -262,7 +263,7 @@ export default function DashboardScreen() {
       </Card>
 
         {/* MATERIAL TRENDS */}
-        <Card className={`mt-4 ${isDesktop ? 'flex-1 min-w-[48%]' : ''}`}>
+        <Card>
         <Text className="text-base font-bold text-text">Material Price Trends (6mo)</Text>
         <View className="mt-3 gap-3">
           {materialTrends.map((m: MaterialTrend) => {
@@ -290,7 +291,7 @@ export default function DashboardScreen() {
           )}
         </View>
       </Card>
-      </View>
+      </ResponsiveGrid>
     </>
   );
 
@@ -347,7 +348,7 @@ function KpiCard({
   color: string;
 }) {
   return (
-    <View className="flex-1 min-w-[47%] bg-card rounded-xl border border-border p-3" style={{ borderTopColor: color, borderTopWidth: 3 }}>
+    <View className="bg-card rounded-xl border border-border p-3 h-full" style={{ borderTopColor: color, borderTopWidth: 3 }}>
       <Text className="text-xs text-muted font-semibold uppercase">{label}</Text>
       <Text className="text-xl font-extrabold text-text mt-1">{value}</Text>
       {sub ? <Text className="text-xs text-muted mt-0.5">{sub}</Text> : null}

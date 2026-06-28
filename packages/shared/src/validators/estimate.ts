@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Rate Analysis & Estimate Zod validators.
+ * BuildFlow - Rate Analysis & Estimate Zod validators.
  */
 import { z } from 'zod';
 import { CostType } from '../enums';

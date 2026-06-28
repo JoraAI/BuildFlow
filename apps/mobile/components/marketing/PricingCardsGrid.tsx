@@ -3,10 +3,11 @@ import { View, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, Button } from '@/components/ui';
+import { StartFreeTrialCardButton } from '@/components/marketing/StartFreeTrialButton';
 import { useViewport } from '@/hooks/useViewport';
 import { MARKETING_PRICING, GST_PRICING_NOTE } from '@/constants/marketing';
 
-/** Equal-width pricing tier cards — same layout on mobile (stack) and desktop (row). */
+/** Equal-width pricing tier cards - same layout on mobile (stack) and desktop (row). */
 export function PricingCardsGrid() {
   const router = useRouter();
   const { isMarketingDesktop } = useViewport();
@@ -45,17 +46,20 @@ export function PricingCardsGrid() {
               </View>
             ))}
             <View className="mt-4">
-              <Button
-                label={p.name === 'Enterprise' ? 'Contact Sales' : 'Start Free Trial'}
-                variant={p.highlighted ? 'primary' : 'secondary'}
-                size="sm"
-                fullWidth
-                onPress={() =>
-                  p.name === 'Enterprise'
-                    ? router.push('/signup')
-                    : router.push('/signup/company')
-                }
-              />
+              {p.name === 'Enterprise' ? (
+                <Button
+                  label="Contact sales"
+                  variant="secondary"
+                  size="sm"
+                  fullWidth
+                  onPress={() => router.push('/signup')}
+                />
+              ) : (
+                <StartFreeTrialCardButton
+                  highlighted={p.highlighted}
+                  onPress={() => router.push('/signup/company')}
+                />
+              )}
             </View>
           </Card>
         </View>

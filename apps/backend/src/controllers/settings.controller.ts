@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Settings controller.
+ * BuildFlow - Settings controller.
  */
 import { Request, Response } from 'express';
 import { ok, okList } from '../utils/response';

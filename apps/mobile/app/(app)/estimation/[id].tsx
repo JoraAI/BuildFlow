@@ -1,9 +1,9 @@
 /**
- * BuildFlow — Estimate Detail / Approval screen.
+ * BuildFlow - Estimate Detail / Approval screen.
  * Read-only summary + role-based actions (approve/reject/convert/duplicate).
  */
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, Alert, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card, Badge, LoadingSkeleton, EmptyState } from '@/components/ui';
@@ -15,6 +15,7 @@ import { useViewport } from '@/hooks/useViewport';
 import { confirmAsync, alertAsync } from '@/utils/confirm';
 import { SummaryBreakdownCard } from '@/components/ui';
 import { useEstimate, useEstimateMutations, useExportEstimate, type EstimateSection, type EstimateItem } from '@/services/estimate.queries';
+import { useProject } from '@/services/project.queries';
 import { useAuthStore } from '@/stores/auth.store';
 import { formatINR, formatDate } from '@/utils/format';
 
@@ -27,15 +28,18 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function EstimateDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, fromProposal } = useLocalSearchParams<{ id: string; fromProposal?: string }>();
+  const proposalId = Array.isArray(fromProposal) ? fromProposal[0] : fromProposal;
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const { data: estimate, isLoading } = useEstimate(id);
+  const projectQ = useProject(estimate?.projectId ?? '');
   const mut = useEstimateMutations(id);
   const exportMut = useExportEstimate(id);
   const { isDesktop } = useViewport();
   const [showReject, setShowReject] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [rejectError, setRejectError] = useState<string | null>(null);
 
   if (isLoading) {
     return (
@@ -62,7 +66,16 @@ export default function EstimateDetailScreen() {
   const isOwner = user?.role === 'OWNER';
   const canEdit = (user?.role === 'OWNER' || user?.role === 'PM') && estimate.status === 'DRAFT';
   const canApprove = isOwner && estimate.status === 'REVIEWED';
-  const canConvert = isOwner && estimate.status === 'APPROVED';
+  const isTemporaryProject = projectQ.data?.isTemporary === true;
+  const canConvert = isOwner && estimate.status === 'APPROVED' && !isTemporaryProject;
+
+  function handleBack() {
+    if (proposalId) {
+      dismissTo(DISMISS.proposalDetail(proposalId));
+      return;
+    }
+    dismissTo(DISMISS.estimateTab(estimate.projectId));
+  }
 
   const breakdownRows = [
     { label: 'Materials', amount: s.materialCost, pct: s.materialPct, color: '#1E3A5F' },
@@ -75,20 +88,36 @@ export default function EstimateDetailScreen() {
   async function handleApprove() {
     try {
       await mut.approve.mutateAsync();
-      Alert.alert('Approved', 'Estimate is now approved. You can convert it to BOQ.');
+      if (proposalId && isTemporaryProject) {
+        await alertAsync(
+          'Approved',
+          'Choose whether to promote this proposal to a project, keep it in the pipeline, or delete it.',
+        );
+        dismissTo(DISMISS.proposalDetail(proposalId));
+        return;
+      }
+      const msg = isTemporaryProject
+        ? 'Estimate approved. Open the proposal to promote, keep, or delete.'
+        : 'Estimate is now approved. You can convert it to BOQ.';
+      await alertAsync('Approved', msg);
     } catch (e) {
-      Alert.alert('Approve failed', e instanceof Error ? e.message : '');
+      await alertAsync('Approve failed', e instanceof Error ? e.message : '');
     }
   }
 
   async function handleReject() {
-    if (!rejectReason.trim()) return Alert.alert('Enter rejection reason');
+    if (!rejectReason.trim()) {
+      setRejectError('Enter rejection reason');
+      await alertAsync('Required', 'Enter rejection reason');
+      return;
+    }
+    setRejectError(null);
     try {
       await mut.reject.mutateAsync(rejectReason.trim());
       setShowReject(false);
-      Alert.alert('Rejected', 'PM has been notified.');
+      await alertAsync('Rejected', 'PM has been notified.');
     } catch (e) {
-      Alert.alert('Reject failed', e instanceof Error ? e.message : '');
+      await alertAsync('Reject failed', e instanceof Error ? e.message : '');
     }
   }
 
@@ -116,7 +145,7 @@ export default function EstimateDetailScreen() {
         title={estimate.name}
         subtitle={`Version ${estimate.version}.0 · ${estimate.status}`}
         cancelLabel="Back"
-        onCancel={() => dismissTo(DISMISS.estimateTab(estimate.projectId))}
+        onCancel={handleBack}
       />
       <OfflineBanner />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
@@ -133,7 +162,7 @@ export default function EstimateDetailScreen() {
             <View className="flex-row justify-between border-t border-border pt-2 mt-1">
               <View>
                 <Text className="text-xs text-text-muted">Prepared by</Text>
-                <Text className="text-sm font-medium text-text">{estimate.createdByUser?.name ?? '—'}</Text>
+                <Text className="text-sm font-medium text-text">{estimate.createdByUser?.name ?? '-'}</Text>
               </View>
               <View>
                 <Text className="text-xs text-text-muted">Date</Text>
@@ -242,12 +271,18 @@ export default function EstimateDetailScreen() {
               <Text className="text-sm font-semibold text-text mb-1">Rejection Reason</Text>
               <TextInput
                 value={rejectReason}
-                onChangeText={setRejectReason}
+                onChangeText={(v) => {
+                  setRejectReason(v);
+                  if (rejectError) setRejectError(null);
+                }}
                 placeholder="Explain why this estimate is rejected..."
                 placeholderTextColor="#94A3B8"
                 multiline
                 className="border border-border rounded-lg px-3 py-2.5 text-text min-h-[80px] mb-2"
               />
+              {rejectError ? (
+                <Text className="text-sm text-danger mb-2">{rejectError}</Text>
+              ) : null}
               <View className="flex-row gap-2">
                 <Button label="Confirm Reject" variant="danger" onPress={handleReject} loading={mut.reject.isPending} />
                 <Button label="Cancel" variant="ghost" onPress={() => setShowReject(false)} />
@@ -259,7 +294,18 @@ export default function EstimateDetailScreen() {
         {/* Action footer */}
         <ActionBar>
           {canEdit && (
-            <Button label="Edit Estimate" variant="secondary" size="sm" onPress={() => router.push(`/(app)/estimation/create?projectId=${estimate.projectId}&estimateId=${id}`)} />
+            <Button
+              label="Edit Estimate"
+              variant="secondary"
+              size="sm"
+              onPress={() =>
+                router.push(
+                  `/(app)/estimation/create?projectId=${estimate.projectId}&estimateId=${id}${
+                    proposalId ? `&fromProposal=${proposalId}` : ''
+                  }`,
+                )
+              }
+            />
           )}
           {canApprove && (
             <>

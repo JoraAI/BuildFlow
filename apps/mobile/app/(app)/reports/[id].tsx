@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Daily Report detail screen with photo gallery.
+ * BuildFlow - Daily Report detail screen with photo gallery.
  */
 import React, { useState } from 'react';
 import {
@@ -62,7 +62,7 @@ export default function ReportDetailScreen() {
               <View className="flex-row items-center justify-between mb-2">
                 <Text className="text-lg font-bold text-text">{formatDate(report.reportDate)}</Text>
                 <Badge
-                  label={report.siteStatus ?? '—'}
+                  label={report.siteStatus ?? '-'}
                   color={
                     report.siteStatus === 'ON_SCHEDULE'
                       ? 'success'

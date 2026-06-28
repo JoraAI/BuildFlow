@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, Alert, ScrollView } from 'react-native';
+import { View, Text, Pressable, ScrollView } from 'react-native';
 import { Card, Button, LoadingSkeleton, EmptyState, Badge } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
 import { useAuthStore } from '@/stores/auth.store';
 import { useProjectMembers, useSetProjectMembers, type ProjectMemberRow } from '@/services/project.queries';
 import { useUsers, type UserRow } from '@/services/settings.queries';
+import { alertAsync } from '@/utils/confirm';
 import type { Role } from '@buildflow/shared';
 
 const ASSIGNABLE_ROLES: Role[] = ['PM', 'SUPERVISOR', 'ACCOUNTANT'];
@@ -25,6 +26,7 @@ export function ProjectMembersSection({ projectId }: { projectId: string }) {
 
   const [draft, setDraft] = useState<MemberDraft[]>([]);
   const [dirty, setDirty] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     if (members) {
@@ -59,14 +61,18 @@ export function ProjectMembersSection({ projectId }: { projectId: string }) {
   };
 
   const onSave = () => {
+    setFormError(null);
     setMembers.mutate(
       { members: draft },
       {
-        onSuccess: () => {
+        onSuccess: async () => {
           setDirty(false);
-          Alert.alert('Saved', 'Project members updated.');
+          await alertAsync('Saved', 'Project members updated.');
         },
-        onError: (e: Error) => Alert.alert('Error', e.message),
+        onError: async (e: Error) => {
+          setFormError(e.message);
+          await alertAsync('Error', e.message);
+        },
       },
     );
   };
@@ -136,11 +142,18 @@ export function ProjectMembersSection({ projectId }: { projectId: string }) {
         </View>
       )}
 
+      {formError ? (
+        <View className="mb-3 px-3 py-2 rounded-lg bg-danger/10 border border-danger/30">
+          <Text className="text-sm text-danger">{formError}</Text>
+        </View>
+      ) : null}
+
       {canEdit && dirty && (
         <View className={`mt-4 ${isDesktop ? 'flex-row justify-end' : ''}`}>
           <Button
-            label={setMembers.isPending ? 'Saving...' : 'Save members'}
+            label="Save members"
             onPress={onSave}
+            loading={setMembers.isPending}
             disabled={setMembers.isPending}
             fullWidth={!isDesktop}
           />

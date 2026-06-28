@@ -5,7 +5,7 @@ export function formatINR(amount: number | string | undefined | null): string {
   return '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 }
 
-/** Compact format: ₹1.2Cr, ₹45L, ₹12K — useful for dashboards. */
+/** Compact format: ₹1.2Cr, ₹45L, ₹12K - useful for dashboards. */
 export function formatINRCompact(amount: number | string | undefined | null): string {
   const n = typeof amount === 'string' ? parseFloat(amount) : amount ?? 0;
   if (isNaN(n)) return '₹0';
@@ -16,14 +16,14 @@ export function formatINRCompact(amount: number | string | undefined | null): st
 }
 
 export function formatDate(date: string | Date | undefined | null): string {
-  if (!date) return '—';
+  if (!date) return '-';
   const d = typeof date === 'string' ? new Date(date) : date;
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 /** Format an ISO date/time as HH:MM AM/PM (e.g. "09:30 AM"). */
 export function formatTime(date: string | Date | undefined | null): string {
-  if (!date) return '—';
+  if (!date) return '-';
   const d = typeof date === 'string' ? new Date(date) : date;
   return d.toLocaleTimeString('en-IN', {
     hour: '2-digit',

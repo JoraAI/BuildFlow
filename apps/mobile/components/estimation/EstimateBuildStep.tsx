@@ -1,5 +1,5 @@
 /**
- * Step 2 of estimate wizard — sections, template loader, editable line items.
+ * Step 2 of estimate wizard - sections, template loader, editable line items.
  */
 import React, { useState } from 'react';
 import {
@@ -77,7 +77,7 @@ export function EstimateBuildStep({
         }
       }
       setShowTemplates(false);
-      await alertAsync('Template loaded', `${template.name} — adjust quantities and rates as needed.`);
+      await alertAsync('Template loaded', `${template.name} - adjust quantities and rates as needed.`);
     } catch (e) {
       await alertAsync('Template failed', e instanceof Error ? e.message : 'Unknown error');
     } finally {
@@ -105,7 +105,7 @@ export function EstimateBuildStep({
             <View className="flex-1 mr-2">
               <Text className="text-sm font-bold text-text">Start from a template</Text>
               <Text className="text-xs text-muted mt-0.5">
-                Pre-made BOQ items — edit quantities, rates, add or remove lines
+                Pre-made BOQ items - edit quantities, rates, add or remove lines
               </Text>
             </View>
             <Button

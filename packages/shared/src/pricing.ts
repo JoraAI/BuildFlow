@@ -1,5 +1,5 @@
 /**
- * BuildFlow — SaaS plan pricing (INR, pre-GST).
+ * BuildFlow - SaaS plan pricing (INR, pre-GST).
  * Single source of truth for checkout and marketing display.
  */
 export const PLAN_PRICES_INR = {
@@ -8,7 +8,7 @@ export const PLAN_PRICES_INR = {
   ENTERPRISE: 39999,
 } as const;
 
-/** Annual billing — 2 months free vs paying monthly × 12. */
+/** Annual billing - 2 months free vs paying monthly × 12. */
 export const PLAN_ANNUAL_INR = {
   STARTER: 49999,
   PROFESSIONAL: 139999,

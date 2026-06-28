@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Platform admin service (cross-tenant ops).
+ * BuildFlow - Platform admin service (cross-tenant ops).
  */
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';

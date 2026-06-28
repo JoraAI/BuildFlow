@@ -7,6 +7,7 @@ export const FAB_GAP = 12;
 export const FAB_EDGE = 16;
 
 export const APP_TOP_BAR_HEIGHT = 64;
+export const APP_DESKTOP_FOOTER_HEIGHT = 40;
 export const DESKTOP_PANEL_WIDTH = 400;
 export const DESKTOP_PANEL_EDGE = 24;
 export const DESKTOP_PANEL_TOP_GAP = 12;
@@ -20,7 +21,7 @@ export function assistantFabBottom(safeBottom: number, isDesktop: boolean): numb
 /** Bottom offset for a screen-level action FAB. */
 export function screenFabBottom(safeBottom: number, isDesktop: boolean): number {
   if (isDesktop) return DESKTOP_PANEL_EDGE;
-  // Mobile: screen FAB sits on the opposite corner from Assistant — same row, no stacking.
+  // Mobile: screen FAB sits on the opposite corner from Assistant - same row, no stacking.
   return assistantFabBottom(safeBottom, false);
 }
 
@@ -32,7 +33,10 @@ export function fabLeft(): number {
   return FAB_EDGE;
 }
 
-/** Right-docked desktop assistant panel — frees bottom-center for ActionBars. */
+/** Extra scroll padding on desktop so content clears the app footer + assistant FAB. */
+export function desktopContentBottomPadding(): number {
+  return APP_DESKTOP_FOOTER_HEIGHT + DESKTOP_PANEL_EDGE + ASSISTANT_FAB_HEIGHT / 2;
+}
 export function desktopAssistantPanelStyle(): ViewStyle {
   return {
     position: 'absolute',

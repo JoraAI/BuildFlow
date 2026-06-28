@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Procurement routes.
+ * BuildFlow - Procurement routes.
  *
  * Mounted at /api/projects/:id/procurement/*
  */

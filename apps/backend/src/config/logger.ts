@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Winston logger
+ * BuildFlow - Winston logger
  */
 import winston from 'winston';
 import { env } from './env';

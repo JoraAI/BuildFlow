@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Prisma client singleton with multi-tenant scoping middleware.
+ * BuildFlow - Prisma client singleton with multi-tenant scoping middleware.
  *
  * The company_id scoping uses AsyncLocalStorage. The `companyContext` middleware
  * (see middleware/company.ts) sets the store per request; this extension auto-
@@ -15,6 +15,7 @@ const TENANT_SCOPED_MODELS = new Set([
   'Resource',
   'RateAnalysis',
   'MaterialPriceHistory',
+  'RateRegion',
   'Invoice',
   'Bill',
   'JournalEntry',

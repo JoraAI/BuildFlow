@@ -1,7 +1,7 @@
 # BuildFlow
 
 **Civil Engineering Project Planning & Accounting Platform**
-*India's construction industry — built for the field, designed for the boardroom.*
+*India's construction industry - built for the field, designed for the boardroom.*
 
 Product by **Jora AI** (jora.co.in) · Hyderabad, India
 
@@ -12,7 +12,7 @@ Product by **Jora AI** (jora.co.in) · Hyderabad, India
 - **Monorepo:** Turborepo + pnpm workspaces
 - **Mobile:** React Native (Expo SDK 52) · NativeWind 4 · Expo Router · Zustand · React Query
 - **Backend:** Node.js 20 · Express · TypeScript · Prisma · PostgreSQL 15 · Redis
-- **Shared:** `packages/shared` — Zod schemas, types, enums, constants
+- **Shared:** `packages/shared` - Zod schemas, types, enums, constants
 
 ## Structure
 
@@ -39,7 +39,7 @@ pnpm db:up
 
 # 3. Configure env
 cp .env.example .env
-# Edit .env — generate JWT secrets:
+# Edit .env - generate JWT secrets:
 #   openssl rand -hex 32   (run twice: access + refresh)
 
 # 4. Run database migrations + seed
@@ -87,13 +87,13 @@ pnpm dev
 
 ## Implementation Status
 
-- Phase 1 — Foundation & Auth ✅ Complete
-- Phase 2 — Project Management (WBS, Tasks, Gantt, BOQ) ✅ Complete
-- Phase 2.5 — Cost Estimation (Rate Analysis, Estimates, Export) ✅ Complete
-- Phase 3 — Daily Operations & Site Management ✅ Complete
-- Phase 4 — Accounting & Finance (GST, TDS, Tally Export) ✅ Complete
-- Phase 5 — Notifications, Chatbot & Integrations ✅ Complete
-- Phase 6 — Reports, Analytics & Polish 🔄 In Progress
+- Phase 1 - Foundation & Auth ✅ Complete
+- Phase 2 - Project Management (WBS, Tasks, Gantt, BOQ) ✅ Complete
+- Phase 2.5 - Cost Estimation (Rate Analysis, Estimates, Export) ✅ Complete
+- Phase 3 - Daily Operations & Site Management ✅ Complete
+- Phase 4 - Accounting & Finance (GST, TDS, Tally Export) ✅ Complete
+- Phase 5 - Notifications, Chatbot & Integrations ✅ Complete
+- Phase 6 - Reports, Analytics & Polish 🔄 In Progress
 
 ## Running the App
 

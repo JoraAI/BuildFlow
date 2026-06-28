@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Task & Scheduling Zod validators.
+ * BuildFlow - Task & Scheduling Zod validators.
  */
 import { z } from 'zod';
 import { TaskStatus, TaskConstraintType, DependencyType } from '../enums';

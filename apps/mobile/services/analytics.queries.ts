@@ -1,5 +1,5 @@
 /**
- * BuildFlow — React Query hooks for the Owner Analytics Dashboard.
+ * BuildFlow - React Query hooks for the Owner Analytics Dashboard.
  */
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';

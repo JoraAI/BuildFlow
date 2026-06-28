@@ -1,14 +1,15 @@
 /**
- * BuildFlow — Submit support request.
+ * BuildFlow - Submit support request.
  */
 import React, { useState } from 'react';
-import { View, Text, Alert, ScrollView, Pressable } from 'react-native';
+import { View, Text, ScrollView, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Card, Input, Button } from '@/components/ui';
 import { SettingsPageLayout } from '@/components/layout/SettingsPageLayout';
 import { useCreateTicket } from '@/services/settings.queries';
 import { useAuthStore } from '@/stores/auth.store';
 import { goBackToSettings } from '@/utils/navigation';
+import { alertAsync } from '@/utils/confirm';
 
 const CATEGORIES = [
   { id: 'PROFILE_CHANGE', label: 'Profile / role change' },
@@ -20,23 +21,37 @@ const CATEGORIES = [
   { id: 'OTHER', label: 'Other' },
 ] as const;
 
+type CategoryId = (typeof CATEGORIES)[number]['id'];
+
+function paramString(value: string | string[] | undefined): string | undefined {
+  if (value == null) return undefined;
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function normalizeCategory(value: string | undefined): CategoryId {
+  const match = CATEGORIES.find((c) => c.id === value);
+  return match?.id ?? 'PROFILE_CHANGE';
+}
+
 export default function CreateTicketScreen() {
   const router = useRouter();
   const { category: catParam, subject: subjectParam, scope: scopeParam } = useLocalSearchParams<{
-    category?: string;
-    subject?: string;
-    scope?: string;
+    category?: string | string[];
+    subject?: string | string[];
+    scope?: string | string[];
   }>();
   const user = useAuthStore((s) => s.user);
   const create = useCreateTicket();
-  const [category, setCategory] = useState<string>(catParam ?? 'PROFILE_CHANGE');
-  const [subject, setSubject] = useState(subjectParam ?? '');
+  const [category, setCategory] = useState<CategoryId>(normalizeCategory(paramString(catParam)));
+  const [subject, setSubject] = useState(paramString(subjectParam) ?? '');
   const [description, setDescription] = useState('');
   const [requestedRole, setRequestedRole] = useState('PM');
+  const [formError, setFormError] = useState<string | null>(null);
   const isOwner = user?.role === 'OWNER';
 
+  const scopeHint = paramString(scopeParam);
   const ticketScope =
-    scopeParam === 'platform' || scopeParam === 'PLATFORM'
+    scopeHint === 'platform' || scopeHint === 'PLATFORM'
       ? 'PLATFORM'
       : category === 'BILLING' && isOwner
         ? 'PLATFORM'
@@ -45,10 +60,24 @@ export default function CreateTicketScreen() {
           : 'COMPANY';
 
   const onSubmit = () => {
-    if (!subject.trim() || description.trim().length < 10) {
-      Alert.alert('Missing details', 'Subject and description (min 10 chars) are required.');
+    setFormError(null);
+
+    const trimmedSubject = subject.trim();
+    const trimmedDescription = description.trim();
+
+    if (!trimmedSubject) {
+      setFormError('Subject is required.');
       return;
     }
+    if (trimmedSubject.length < 3) {
+      setFormError('Subject must be at least 3 characters.');
+      return;
+    }
+    if (trimmedDescription.length < 10) {
+      setFormError('Description must be at least 10 characters.');
+      return;
+    }
+
     const payload =
       category === 'PROFILE_CHANGE'
         ? { requestedRole, requesterEmail: user?.email }
@@ -57,24 +86,33 @@ export default function CreateTicketScreen() {
     create.mutate(
       {
         category,
-        subject: subject.trim(),
-        description: description.trim(),
+        subject: trimmedSubject,
+        description: trimmedDescription,
         payload,
         scope: ticketScope,
       },
       {
-        onSuccess: () => {
-          Alert.alert('Submitted', 'Your request was sent.', [
-            { text: 'OK', onPress: () => router.replace('/(app)/settings/tickets' as never) },
-          ]);
+        onSuccess: async () => {
+          await alertAsync('Submitted', 'Your request was sent.');
+          router.replace('/(app)/settings/tickets' as never);
         },
-        onError: (e: Error) => Alert.alert('Error', e.message),
+        onError: async (e: Error) => {
+          setFormError(e.message);
+          await alertAsync('Error', e.message);
+        },
       },
     );
   };
 
   return (
-    <SettingsPageLayout title="Submit a request" subtitle="Sent to your company owner for review">
+    <SettingsPageLayout
+      title="Submit a request"
+      subtitle={
+        ticketScope === 'PLATFORM'
+          ? 'Sent to BuildFlow support for review'
+          : 'Sent to your company owner for review'
+      }
+    >
       <Card className="mb-4">
         <Text className="text-sm font-semibold text-text mb-2">Category</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
@@ -93,28 +131,38 @@ export default function CreateTicketScreen() {
           </View>
         </ScrollView>
         <Input label="Subject" value={subject} onChangeText={setSubject} />
-        <View className="h-4" />
         <Input
           label="Description"
           value={description}
           onChangeText={setDescription}
           multiline
           placeholder="Describe what you need changed and why..."
+          helper="Minimum 10 characters"
+          error={formError && description.trim().length < 10 ? formError : undefined}
         />
         {category === 'PROFILE_CHANGE' && (
-          <>
-            <View className="h-4" />
-            <Input
-              label="Requested role (optional)"
-              value={requestedRole}
-              onChangeText={setRequestedRole}
-              placeholder="PM, SUPERVISOR, ACCOUNTANT"
-            />
-          </>
+          <Input
+            label="Requested role (optional)"
+            value={requestedRole}
+            onChangeText={setRequestedRole}
+            placeholder="PM, SUPERVISOR, ACCOUNTANT"
+          />
         )}
       </Card>
-      <Button label={create.isPending ? 'Submitting...' : 'Submit request'} onPress={onSubmit} fullWidth />
-      <Button label="Cancel" variant="ghost" onPress={goBackToSettings} fullWidth />
+      {formError ? (
+        <View className="mb-3 px-3 py-2 rounded-lg bg-danger/10 border border-danger/30">
+          <Text className="text-sm text-danger">{formError}</Text>
+        </View>
+      ) : null}
+      <Button
+        label="Submit request"
+        onPress={onSubmit}
+        fullWidth
+        loading={create.isPending}
+        disabled={create.isPending}
+      />
+      <View className="h-2" />
+      <Button label="Cancel" variant="ghost" onPress={goBackToSettings} fullWidth disabled={create.isPending} />
     </SettingsPageLayout>
   );
 }

@@ -1,8 +1,10 @@
 /**
- * BuildFlow — React Query hooks for Settings (Company, Users, Audit, Export).
+ * BuildFlow - React Query hooks for Settings (Company, Users, Audit, Export).
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiFetch, apiFetchList, apiDownload } from '@/lib/api-client';
+import { Alert, Platform } from 'react-native';
+import * as Sharing from 'expo-sharing';
+import { apiFetch, apiFetchList, apiDownload, downloadJsonObject } from '@/lib/api-client';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -236,9 +238,32 @@ export function useAuditLog(page = 1, limit = 50) {
 // ---------------------------------------------------------------------------
 // Data Export
 // ---------------------------------------------------------------------------
+async function shareDownloadedFile(
+  fileUri: string | null,
+  mimeType: string,
+  dialogTitle: string,
+): Promise<void> {
+  if (!fileUri) {
+    if (Platform.OS === 'web') return;
+    throw new Error('Export file was not saved');
+  }
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(fileUri, { mimeType, dialogTitle });
+    return;
+  }
+  Alert.alert('Exported', `File saved to ${fileUri}`);
+}
+
 export function useExportData() {
   return useMutation({
-    mutationFn: () => apiFetch('/settings/export'),
+    mutationFn: async () => {
+      const data = await apiFetch<unknown>('/settings/export');
+      const stamp = new Date().toISOString().slice(0, 10);
+      const filename = `buildflow-export-${stamp}.json`;
+      const fileUri = await downloadJsonObject(data, filename);
+      await shareDownloadedFile(fileUri, 'application/json', 'BuildFlow JSON Export');
+      return filename;
+    },
   });
 }
 
@@ -246,11 +271,14 @@ export function useExportZip() {
   return useMutation({
     mutationFn: async () => {
       const stamp = new Date().toISOString().slice(0, 10);
-      return apiDownload(
+      const filename = `buildflow-export-${stamp}.zip`;
+      const fileUri = await apiDownload(
         '/settings/export/zip',
-        `buildflow-export-${stamp}.zip`,
+        filename,
         'application/zip',
       );
+      await shareDownloadedFile(fileUri, 'application/zip', 'BuildFlow Data Export');
+      return filename;
     },
   });
 }

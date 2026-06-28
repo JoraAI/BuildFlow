@@ -1,5 +1,5 @@
 /**
- * BuildFlow Platform — company search.
+ * BuildFlow Platform - company search.
  */
 import React, { useState } from 'react';
 import { View, Text, ScrollView, SafeAreaView, Pressable } from 'react-native';

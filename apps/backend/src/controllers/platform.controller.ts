@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Platform admin controller.
+ * BuildFlow - Platform admin controller.
  */
 import { Request, Response } from 'express';
 import { ok } from '../utils/response';

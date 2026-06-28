@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Notification controller (user notification center).
+ * BuildFlow - Notification controller (user notification center).
  */
 import type { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';

@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Financial reports controller.
+ * BuildFlow - Financial reports controller.
  */
 import { Request, Response } from 'express';
 import * as svc from '../services/financial-report.service';

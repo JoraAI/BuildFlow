@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Geo utilities (Haversine distance + geo-fence check).
+ * BuildFlow - Geo utilities (Haversine distance + geo-fence check).
  */
 
 const EARTH_RADIUS_METRES = 6_371_000;

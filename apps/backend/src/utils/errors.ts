@@ -1,5 +1,5 @@
 /**
- * BuildFlow — ApiError class + standard error codes.
+ * BuildFlow - ApiError class + standard error codes.
  */
 export type ErrorCode =
   | 'BAD_REQUEST'

@@ -1,5 +1,5 @@
 /**
- * BuildFlow — React Query hooks for invoices, bills, and financial reports.
+ * BuildFlow - React Query hooks for invoices, bills, and financial reports.
  */
 import {
   useMutation,

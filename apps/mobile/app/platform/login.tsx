@@ -1,5 +1,5 @@
 /**
- * BuildFlow Platform — admin login.
+ * BuildFlow Platform - admin login.
  */
 import React, { useState } from 'react';
 import { View, Text, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';

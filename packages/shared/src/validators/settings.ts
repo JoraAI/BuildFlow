@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Settings validators (shared between frontend & backend).
+ * BuildFlow - Settings validators (shared between frontend & backend).
  */
 import { z } from 'zod';
 

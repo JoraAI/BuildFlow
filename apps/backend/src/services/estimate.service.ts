@@ -1,7 +1,7 @@
 /**
- * BuildFlow — Estimate service (core cost estimation engine).
+ * BuildFlow - Estimate service (core cost estimation engine).
  *
- * Summary computation is ALWAYS recomputed on GET — never cached stale.
+ * Summary computation is ALWAYS recomputed on GET - never cached stale.
  * Workflow: DRAFT -> REVIEWED -> APPROVED/REJECTED -> SUPERSEDED
  * Only APPROVED estimates can convert to BOQ.
  * APPROVED estimates are immutable.
@@ -11,6 +11,7 @@ import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
 import { recordAudit } from '../utils/audit';
 import { getProject } from './project.service';
+import * as proposalService from './proposal.service';
 import type {
   CreateEstimateInput,
   UpdateEstimateMetaInput,
@@ -630,6 +631,8 @@ export async function submitForReview(
     ipAddress,
   });
 
+  await proposalService.syncProposalFromEstimate(companyId, estimate.projectId, updated.status);
+
   return updated;
 }
 
@@ -684,6 +687,8 @@ export async function approveEstimate(
     ipAddress,
   });
 
+  await proposalService.syncProposalFromEstimate(companyId, estimate.projectId, updated.status);
+
   return updated;
 }
 
@@ -724,6 +729,8 @@ export async function rejectEstimate(
     newValue: { status: updated.status, reason: input.reason },
     ipAddress,
   });
+
+  await proposalService.syncProposalFromEstimate(companyId, estimate.projectId, updated.status);
 
   return updated;
 }
@@ -873,7 +880,7 @@ async function getEstimateForEditing(companyId: string, estimateId: string) {
   const editable: EstimateStatus[] = [EstimateStatus.DRAFT, EstimateStatus.REJECTED];
   if (!editable.includes(estimate.status)) {
     throw ApiError.conflict(
-      `Estimate is ${estimate.status} — only DRAFT or REJECTED estimates are editable. Duplicate to revise.`,
+      `Estimate is ${estimate.status} - only DRAFT or REJECTED estimates are editable. Duplicate to revise.`,
     );
   }
   return estimate;

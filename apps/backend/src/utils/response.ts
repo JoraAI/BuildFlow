@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Response helpers matching the standard API envelope.
+ * BuildFlow - Response helpers matching the standard API envelope.
  *
  *   Success (single): { success: true, data: {...} }
  *   Success (list):   { success: true, data: [...], meta: {...} }

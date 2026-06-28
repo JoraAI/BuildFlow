@@ -1,5 +1,5 @@
 /**
- * BuildFlow — JWT helpers (access + refresh tokens).
+ * BuildFlow - JWT helpers (access + refresh tokens).
  *
  * Payload always includes { sub, companyId, role, tid } where `tid` is a unique
  * token id (jti) used for blacklisting on logout.
@@ -55,7 +55,7 @@ export function verifyPlatformAccessToken(token: string): DecodedToken {
   return decoded;
 }
 
-/** Decode expiry (seconds) from a jwt without verifying — for blacklist TTL. */
+/** Decode expiry (seconds) from a jwt without verifying - for blacklist TTL. */
 export function getTokenTtlSeconds(token: string): number {
   const decoded = jwt.decode(token) as JwtPayload | null;
   if (!decoded?.exp) return 0;

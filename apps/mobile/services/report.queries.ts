@@ -1,5 +1,5 @@
 /**
- * BuildFlow — React Query hooks for Daily Reports & Attendance.
+ * BuildFlow - React Query hooks for Daily Reports & Attendance.
  */
 import {
   useMutation,
@@ -172,6 +172,10 @@ export function useCreateReport(projectId: string) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['reports'] });
+      qc.invalidateQueries({ queryKey: ['projects', projectId, 'gantt'] });
+      qc.invalidateQueries({ queryKey: ['projects', projectId, 'tasks'] });
+      qc.invalidateQueries({ queryKey: ['projects', projectId, 'summary'] });
+      qc.invalidateQueries({ queryKey: ['projects', projectId, 'resources', 'utilization'] });
       qc.invalidateQueries({
         queryKey: reportKeys.calendar(projectId, new Date().toISOString().slice(0, 7)),
       });
@@ -199,30 +203,37 @@ export function useUpdateReport(reportId: string) {
  * 2. PUT the blob directly to S3
  * 3. Confirm upload with the returned key
  */
-export function useUploadReportPhoto(reportId: string) {
+export function useUploadReportPhoto() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (opts: { uri: string; filename: string; contentType: string }) => {
-      // 1. Presign
+    mutationFn: async (opts: {
+      reportId: string;
+      uri: string;
+      filename: string;
+      contentType: string;
+    }) => {
+      const blob = await (await fetch(opts.uri)).blob();
+
       const { key, uploadUrl } = await apiFetch<{ key: string; uploadUrl: string }>(
-        `/reports/${reportId}/photos`,
+        `/reports/${opts.reportId}/photos`,
         {
           method: 'POST',
-          body: JSON.stringify({ filename: opts.filename, contentType: opts.contentType }),
+          body: JSON.stringify({
+            filename: opts.filename,
+            contentType: opts.contentType,
+            size: blob.size,
+          }),
         },
       );
 
-      // 2. Upload to S3
-      const blob = await (await fetch(opts.uri)).blob();
       await fetch(uploadUrl, {
         method: 'PUT',
         body: blob,
         headers: { 'Content-Type': opts.contentType },
       });
 
-      // 3. Confirm
       return apiFetch<{ photos: string[] }>(
-        `/reports/${reportId}/photos/confirm`,
+        `/reports/${opts.reportId}/photos/confirm`,
         { method: 'POST', body: JSON.stringify({ s3Keys: [key] }) },
       );
     },

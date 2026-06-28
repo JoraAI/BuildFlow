@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Create Invoice
+ * BuildFlow - Create Invoice
  * Route: /accounting/create-invoice?projectId=<id>
  *
  * Source toggle: Manual entry (BOQ/Estimate sourcing is a future enhancement;
@@ -11,19 +11,19 @@ import {
   Text,
   ScrollView,
   Pressable,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Card, Button, Input } from '@/components/ui';
+import { Card, Button, Input, DateField } from '@/components/ui';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { ActionBar } from '@/components/layout/ActionBar';
 import { useViewport } from '@/hooks/useViewport';
 import { dismissTo, DISMISS } from '@/utils/navigation';
+import { alertAsync } from '@/utils/confirm';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { useCreateInvoice, type InvoiceType } from '@/services/accounting.queries';
 import { useProjects, type ProjectListItem } from '@/services/project.queries';
@@ -58,6 +58,10 @@ function makeEmptyLine(): DraftLineItem {
 }
 
 function boqToLine(item: BoqItem): DraftLineItem {
+  const billable = item.billableQty ?? 0;
+  const billed = item.billedCumulativeQty ?? 0;
+  const previousQty = String(billed);
+  const currentQty = billable > 0 ? String(billable) : '0';
   return {
     id: Math.random().toString(36).slice(2),
     boqItemId: item.id,
@@ -66,9 +70,9 @@ function boqToLine(item: BoqItem): DraftLineItem {
     unit: item.unit,
     rate: item.rate,
     gstRate: '18',
-    previousQty: '0',
-    currentQty: '0',
-    cumulativeQty: item.quantity,
+    previousQty,
+    currentQty,
+    cumulativeQty: String(billed + (billable > 0 ? billable : 0)),
   };
 }
 
@@ -95,6 +99,7 @@ export default function CreateInvoiceScreen() {
   const [retentionPct, setRetentionPct] = useState('0');
   const [milestoneLabel, setMilestoneLabel] = useState('');
   const [lines, setLines] = useState<DraftLineItem[]>([makeEmptyLine()]);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const { data: boq } = useBoq(projectId);
 
@@ -127,11 +132,13 @@ export default function CreateInvoiceScreen() {
     return { subtotal, gst, gstAmount, cgst, sgst, igst, tdsRate, tdsAmount, retentionAmount, total };
   }, [lines, gstRate, clientState, tdsEnabled, invoiceType, retentionPct]);
 
-  const loadBoqLines = () => {
+  const loadBoqLines = async () => {
     if (!boq?.items.length) {
-      Alert.alert('No BOQ', 'This project has no BOQ items. Add BOQ first or use manual entry.');
+      setFormError('This project has no BOQ items. Add BOQ first or use manual entry.');
+      await alertAsync('No BOQ', 'This project has no BOQ items. Add BOQ first or use manual entry.');
       return;
     }
+    setFormError(null);
     setLines(boq.items.map(boqToLine));
   };
 
@@ -144,16 +151,17 @@ export default function CreateInvoiceScreen() {
     setLines((prev) => (prev.length === 1 ? prev : prev.filter((l) => l.id !== id)));
 
   const onSave = (send: boolean) => {
+    setFormError(null);
     if (!projectId) {
-      Alert.alert('Select project', 'Please choose a project for this invoice.');
+      setFormError('Please choose a project for this invoice.');
       return;
     }
     if (!invoiceNumber.trim()) {
-      Alert.alert('Invoice number required', 'Please enter an invoice number.');
+      setFormError('Please enter an invoice number.');
       return;
     }
     if (!effectiveClientName.trim()) {
-      Alert.alert('Client name required', 'Please enter the client name.');
+      setFormError('Please enter the client name.');
       return;
     }
     const validLines = lines.filter((l) => {
@@ -164,7 +172,7 @@ export default function CreateInvoiceScreen() {
       return parseFloat(l.quantity) > 0;
     });
     if (validLines.length === 0) {
-      Alert.alert('Add line items', 'Please add at least one line item with a description.');
+      setFormError('Please add at least one line item with a description.');
       return;
     }
 
@@ -209,16 +217,17 @@ export default function CreateInvoiceScreen() {
         }),
       },
       {
-        onSuccess: (invoice) => {
-          Alert.alert(
+        onSuccess: async (invoice) => {
+          await alertAsync(
             'Success',
             `Invoice ${invoice.invoiceNumber} created as ${invoice.status}.`,
-            [{ text: 'OK', onPress: () => dismissTo(DISMISS.accounting) }],
           );
+          dismissTo(DISMISS.accounting);
         },
-        onError: (e: unknown) => {
+        onError: async (e: unknown) => {
           const message = e instanceof Error ? e.message : 'Failed to create invoice';
-          Alert.alert('Error', message);
+          setFormError(message);
+          await alertAsync('Error', message);
         },
       },
     );
@@ -353,20 +362,10 @@ export default function CreateInvoiceScreen() {
             </View>
             <View className="flex-row gap-2">
               <View className="flex-1">
-                <Input
-                  label="Invoice Date"
-                  value={invoiceDate}
-                  onChangeText={setInvoiceDate}
-                  placeholder="YYYY-MM-DD"
-                />
+                <DateField label="Invoice Date" value={invoiceDate} onChange={setInvoiceDate} />
               </View>
               <View className="flex-1">
-                <Input
-                  label="Due Date"
-                  value={dueDate}
-                  onChangeText={setDueDate}
-                  placeholder="YYYY-MM-DD"
-                />
+                <DateField label="Due Date" value={dueDate} onChange={setDueDate} minimumDate={invoiceDate} />
               </View>
             </View>
           </View>
@@ -518,11 +517,18 @@ export default function CreateInvoiceScreen() {
     </>
   );
 
+  const formErrorBanner = formError ? (
+    <View className="mb-2 px-3 py-2 rounded-lg bg-danger/10 border border-danger/30">
+      <Text className="text-sm text-danger">{formError}</Text>
+    </View>
+  ) : null;
+
   const saveBar = (
     <Button
-      label={createInvoice.isPending ? 'Saving...' : 'Save Draft'}
+      label="Save Draft"
       variant="secondary"
       onPress={() => onSave(false)}
+      loading={createInvoice.isPending}
       disabled={createInvoice.isPending}
     />
   );
@@ -543,13 +549,17 @@ export default function CreateInvoiceScreen() {
               </ScrollView>
               <View className="flex-1 max-w-sm">{summaryCard}</View>
             </View>
-            <ActionBar>{saveBar}</ActionBar>
+            <ActionBar>
+              {formErrorBanner}
+              {saveBar}
+            </ActionBar>
           </ScreenContainer>
         ) : (
           <>
             <FormScreenHeader title="New Invoice" onCancel={() => dismissTo(DISMISS.accounting)} />
             <ScrollView contentContainerClassName="px-4 pb-32 pt-2 gap-4">{formFields}</ScrollView>
             <View className="absolute bottom-0 left-0 right-0 bg-card border-t border-border p-4">
+              {formErrorBanner}
               {saveBar}
             </View>
           </>

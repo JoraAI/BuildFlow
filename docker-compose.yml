@@ -1,7 +1,7 @@
 version: "3.9"
 
 # ====================================================================
-# BuildFlow — Local Development Infrastructure
+# BuildFlow - Local Development Infrastructure
 # Usage: pnpm db:up   (or: docker compose up -d)
 # ====================================================================
 

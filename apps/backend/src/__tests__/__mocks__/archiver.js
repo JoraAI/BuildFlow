@@ -10,7 +10,7 @@
  *   - `new ZipArchive(options)` → instance
  *   - instance.on(), .pipe(), .append(), .finalize()
  *
- * Production code is unaffected — this mock is loaded via Jest
+ * Production code is unaffected - this mock is loaded via Jest
  * moduleNameMapper only in the test environment.
  */
 'use strict';

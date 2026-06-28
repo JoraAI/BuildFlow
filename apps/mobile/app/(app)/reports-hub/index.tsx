@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Reports Hub
+ * BuildFlow - Reports Hub
  * Financial reports, PDF downloads, and scheduled report management.
  */
 import React, { useState } from 'react';
@@ -8,8 +8,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card, Button, LoadingSkeleton, EmptyState, Input, Badge } from '@/components/ui';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
+import { ResponsiveGrid } from '@/components/layout/ResponsiveGrid';
 import { useViewport } from '@/hooks/useViewport';
 import { dismissTo, DISMISS } from '@/utils/navigation';
+import { alertAsync } from '@/utils/confirm';
 import { useAuthStore } from '@/stores/auth.store';
 import { useProjects, type ProjectListItem } from '@/services/project.queries';
 import {
@@ -43,11 +45,12 @@ export default function ReportsHubScreen() {
 
   const [cronExpr, setCronExpr] = useState('0 9 * * 1');
   const [recipient, setRecipient] = useState(user?.email ?? '');
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
 
   const downloadPdf = async (path: string, filename: string) => {
     try {
       const uri = await apiDownload(path, filename, 'application/pdf');
-      if (await Sharing.isAvailableAsync()) {
+      if (uri && (await Sharing.isAvailableAsync())) {
         await Sharing.shareAsync(uri);
       } else {
         Alert.alert('Saved', 'Report downloaded.');
@@ -59,9 +62,11 @@ export default function ReportsHubScreen() {
 
   const onCreateSchedule = () => {
     if (!recipient.trim()) {
-      Alert.alert('Email required', 'Enter at least one recipient email.');
+      setScheduleError('Enter at least one recipient email.');
+      void alertAsync('Email required', 'Enter at least one recipient email.');
       return;
     }
+    setScheduleError(null);
     createSchedule.mutate(
       {
         reportType: 'GST_SUMMARY',
@@ -69,8 +74,13 @@ export default function ReportsHubScreen() {
         recipients: [recipient.trim()],
       },
       {
-        onSuccess: () => Alert.alert('Scheduled', 'Report schedule created.'),
-        onError: (e: Error) => Alert.alert('Error', e.message),
+        onSuccess: async () => {
+          await alertAsync('Scheduled', 'Report schedule created.');
+        },
+        onError: async (e: Error) => {
+          setScheduleError(e.message);
+          await alertAsync('Error', e.message);
+        },
       },
     );
   };
@@ -81,7 +91,7 @@ export default function ReportsHubScreen() {
       {canFinancials && (
         <Card>
           <Text className="text-base font-bold text-text mb-3">Company Financial Reports</Text>
-          <View className={`gap-2 ${isDesktop ? 'flex-row flex-wrap' : ''}`}>
+          <ResponsiveGrid gap={8} columns={isDesktop ? 2 : 1}>
             <ReportLink
               label="GST Summary"
               sub={gstQ.data ? `${formatINR(gstQ.data.totalTax)} total tax` : 'Loading…'}
@@ -92,7 +102,7 @@ export default function ReportsHubScreen() {
               sub={tdsQ.data ? `${formatINR(tdsQ.data.totalTdsDeducted)} deducted` : 'Loading…'}
               onPress={() => downloadPdf('/reports/pdf/tds', 'tds-report.pdf')}
             />
-          </View>
+          </ResponsiveGrid>
           {(gstQ.isLoading || tdsQ.isLoading) && <LoadingSkeleton className="h-8 mt-2" />}
         </Card>
       )}
@@ -142,9 +152,19 @@ export default function ReportsHubScreen() {
                 )
               }
             />
+            <ReportLink
+              label="Material Rate Sheet (PDF)"
+              sub="Planned vs last PO by material"
+              onPress={() =>
+                downloadPdf(
+                  `/reports/pdf/projects/${selectedProject}/material-rates`,
+                  'material-rates.pdf',
+                )
+              }
+            />
             {plQ.data && typeof plQ.data === 'object' && plQ.data !== null && (
               <Text className="text-xs text-muted mt-1">
-                P&L data loaded — use PDF for full report.
+                P&L data loaded - use PDF for full report.
               </Text>
             )}
           </View>
@@ -174,10 +194,16 @@ export default function ReportsHubScreen() {
           )}
           <Input label="Cron expression" value={cronExpr} onChangeText={setCronExpr} placeholder="0 9 * * 1" />
           <Input label="Recipient email" value={recipient} onChangeText={setRecipient} keyboardType="email-address" />
+          {scheduleError ? (
+            <View className="mb-3 px-3 py-2 rounded-lg bg-danger/10 border border-danger/30">
+              <Text className="text-sm text-danger">{scheduleError}</Text>
+            </View>
+          ) : null}
           <Button
             label="Schedule GST report"
             variant="secondary"
             loading={createSchedule.isPending}
+            disabled={createSchedule.isPending}
             onPress={onCreateSchedule}
           />
         </Card>
@@ -216,7 +242,7 @@ function ReportLink({
   return (
     <Pressable
       onPress={onPress}
-      className="flex-1 min-w-[200px] p-3 rounded-lg border border-border active:bg-surface"
+      className="p-3 rounded-lg border border-border active:bg-surface h-full"
     >
       <Text className="text-sm font-semibold text-primary">{label}</Text>
       <Text className="text-xs text-muted mt-0.5">{sub}</Text>

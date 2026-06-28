@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Auth Zod validators
+ * BuildFlow - Auth Zod validators
  */
 import { z } from 'zod';
 import { gstinSchema, panSchema } from './common';
@@ -16,7 +16,7 @@ export const passwordSchema = z
 export const emailSchema = z.string().trim().toLowerCase().email('Invalid email').max(254);
 
 /* ------------------------------------------------------------------ */
-/* POST /api/auth/register — company + owner creation (setup only)     */
+/* POST /api/auth/register - company + owner creation (setup only)     */
 /* ------------------------------------------------------------------ */
 
 export const registerCompanySchema = z.object({

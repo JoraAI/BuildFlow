@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Financial reports routes.
+ * BuildFlow - Financial reports routes.
  *
  *   GET /api/projects/:id/financials/pl
  *   GET /api/projects/:id/financials/cashflow

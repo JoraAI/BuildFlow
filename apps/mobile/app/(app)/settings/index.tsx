@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Settings hub.
+ * BuildFlow - Settings hub.
  */
 import React from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
@@ -10,6 +10,7 @@ import { useMyProfile } from '@/services/settings.queries';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { MobileScreenHeader } from '@/components/layout/ScreenHeader';
+import { ResponsiveGrid } from '@/components/layout/ResponsiveGrid';
 import { useViewport } from '@/hooks/useViewport';
 import { useAuthStore } from '@/stores/auth.store';
 
@@ -93,7 +94,7 @@ export default function SettingsScreen() {
 
   const sections = (
     <>
-      <SettingsSection title="Account" className={isDesktop ? 'flex-1 min-w-[300px]' : ''}>
+      <SettingsSection title="Account">
         <SettingRow
           label="My Profile"
           description="Name, phone & personal details"
@@ -106,7 +107,7 @@ export default function SettingsScreen() {
         />
       </SettingsSection>
 
-      <SettingsSection title="Company" className={isDesktop ? 'flex-1 min-w-[300px]' : ''}>
+      <SettingsSection title="Company">
         <SettingRow
           label="Company Profile"
           description="Name, GSTIN, PAN, address"
@@ -131,6 +132,13 @@ export default function SettingsScreen() {
           description="Resource library pricing"
           onPress={() => router.push('/(app)/settings/material-prices')}
         />
+        {isOwner && (
+          <SettingRow
+            label="Rate Regions"
+            description="Regional material rate books"
+            onPress={() => router.push('/(app)/settings/rate-regions')}
+          />
+        )}
         <SettingRow
           label="Rate Analysis Library"
           description="BOQ rate templates"
@@ -139,7 +147,7 @@ export default function SettingsScreen() {
       </SettingsSection>
 
       {isOwner && (
-        <SettingsSection title="Integrations" className={isDesktop ? 'flex-1 min-w-[300px]' : ''}>
+        <SettingsSection title="Integrations">
           <SettingRow
             label="Manage Integrations"
             description="Razorpay, Twilio, Tally, Maps"
@@ -148,7 +156,7 @@ export default function SettingsScreen() {
         </SettingsSection>
       )}
 
-      <SettingsSection title="General" className={isDesktop ? 'flex-1 min-w-[300px]' : ''}>
+      <SettingsSection title="General">
         <SettingRow
           label="Notifications"
           description="Alerts and activity"
@@ -177,12 +185,12 @@ export default function SettingsScreen() {
       <SafeAreaView className="flex-1 bg-surface" edges={[]}>
         <ScreenContainer scrollable constrained>
           <PageHeader title="Settings" subtitle="Company, users & preferences" />
-          <View className="flex-row gap-4 mb-4">{profileCard}</View>
-          <View className="flex-row flex-wrap gap-4">{sections}</View>
+          <View className="mb-4">{profileCard}</View>
+          <ResponsiveGrid gap={16}>{sections}</ResponsiveGrid>
           <View className="max-w-md mt-4">
             <Button label="Sign Out" variant="danger" onPress={logout} fullWidth />
           </View>
-          <Text className="text-xs text-muted mt-6">BuildFlow v2.0.0 — by Jora AI</Text>
+          <Text className="text-xs text-muted mt-6">BuildFlow v2.0.0 - by Jora AI</Text>
         </ScreenContainer>
       </SafeAreaView>
     );
@@ -195,7 +203,7 @@ export default function SettingsScreen() {
         {profileCard}
         {sections}
         <Button label="Sign Out" variant="danger" onPress={logout} fullWidth />
-        <Text className="text-center text-xs text-muted mt-6">BuildFlow v2.0.0 — by Jora AI</Text>
+        <Text className="text-center text-xs text-muted mt-6">BuildFlow v2.0.0 - by Jora AI</Text>
       </ScrollView>
     </SafeAreaView>
   );

@@ -1,13 +1,14 @@
 /**
- * BuildFlow — Integrations settings (company-scoped credentials, OWNER only).
+ * BuildFlow - Integrations settings (company-scoped credentials, OWNER only).
  */
 import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, Alert } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, Badge, Button, Input, LoadingSkeleton } from '@/components/ui';
 import { SettingsPageLayout } from '@/components/layout/SettingsPageLayout';
-import { useViewport } from '@/hooks/useViewport';
+import { ResponsiveGrid } from '@/components/layout/ResponsiveGrid';
 import { API_BASE_URL } from '@/constants';
+import { alertAsync } from '@/utils/confirm';
 import {
   useIntegrations,
   useUpdateIntegration,
@@ -94,11 +95,13 @@ function SaveRow({
       size="sm"
       onPress={() =>
         update.mutate(fields, {
-          onSuccess: () => {
-            Alert.alert('Saved', 'Integration settings updated.');
+          onSuccess: async () => {
+            await alertAsync('Saved', 'Integration settings updated.');
             onSaved();
           },
-          onError: (e: Error) => Alert.alert('Error', e.message),
+          onError: async (e: Error) => {
+            await alertAsync('Error', e.message);
+          },
         })
       }
       disabled={update.isPending}
@@ -108,7 +111,6 @@ function SaveRow({
 
 export default function IntegrationsScreen() {
   const router = useRouter();
-  const { isDesktop } = useViewport();
   const { data, isLoading, refetch } = useIntegrations();
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -177,8 +179,7 @@ export default function IntegrationsScreen() {
     );
   }
 
-  const grid = isDesktop ? 'flex-row flex-wrap gap-4' : '';
-  const half = isDesktop ? 'flex-1 min-w-[340px]' : 'mb-3';
+  const half = 'h-full';
 
   return (
     <SettingsPageLayout
@@ -188,14 +189,14 @@ export default function IntegrationsScreen() {
     >
       <Card className="mb-4 bg-primary/5 border-primary/20">
         <Text className="text-sm text-text leading-relaxed">
-          These integrations belong to <Text className="font-semibold">your construction company</Text> — not
+          These integrations belong to <Text className="font-semibold">your construction company</Text> - not
           BuildFlow. When you enter keys here, invoice payments and client WhatsApp messages use your accounts.
           BuildFlow platform services (hosting, default assistant) use separate infrastructure unless you override
           with BYOK below.
         </Text>
       </Card>
 
-      <View className={grid}>
+      <ResponsiveGrid gap={16}>
         <IntegrationPanel
           title="WhatsApp & SMS (Twilio)"
           description="Invoice links, payment reminders, and alerts to your clients"
@@ -213,7 +214,7 @@ export default function IntegrationsScreen() {
 
         <IntegrationPanel
           title="Razorpay (India)"
-          description="Payment links for your invoices — client pays your company"
+          description="Payment links for your invoices - client pays your company"
           status={data.razorpay}
           webhookUrl={data.razorpay.webhookUrl}
           expanded={expanded === 'razorpay'}
@@ -272,7 +273,7 @@ export default function IntegrationsScreen() {
 
         <IntegrationPanel
           title="AI Assistant (BYOK)"
-          description="Bring your own LLM for BuildFlow Assistant — optional override"
+          description="Bring your own LLM for BuildFlow Assistant - optional override"
           status={data.llm}
           expanded={expanded === 'llm'}
           onToggle={() => toggle('llm')}
@@ -298,7 +299,7 @@ export default function IntegrationsScreen() {
           <Input label="Secret Access Key" value={s3.secretAccessKey} onChangeText={(v) => setS3((f) => ({ ...f, secretAccessKey: v }))} secureTextEntry placeholder="Leave blank to keep existing" />
           <SaveRow slug="s3" fields={s3} onSaved={() => refetch()} />
         </IntegrationPanel>
-      </View>
+      </ResponsiveGrid>
 
       <Card className="mt-4">
         <Text className="text-sm font-bold text-text mb-2">Need help?</Text>

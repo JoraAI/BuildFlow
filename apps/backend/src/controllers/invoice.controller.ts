@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Invoice controller (thin handlers).
+ * BuildFlow - Invoice controller (thin handlers).
  */
 import type { Request, Response } from 'express';
 import * as invoiceService from '../services/invoice.service';
@@ -7,9 +7,14 @@ import { ok, created } from '../utils/response';
 import { recordAudit } from '../utils/audit';
 import { ApiError } from '../utils/errors';
 
+/** Project-scoped routes use :id; company-wide list may use ?projectId= */
+function resolveProjectId(req: Request): string | undefined {
+  return (req.params.id as string | undefined) ?? (req.query.projectId as string | undefined);
+}
+
 export async function list(req: Request, res: Response) {
   const companyId = req.user!.companyId;
-  const projectId = req.query.projectId as string | undefined;
+  const projectId = resolveProjectId(req);
   const status = req.query.status as string | undefined;
   const data = await invoiceService.listInvoices(companyId, projectId, status);
   return ok(res, data);
@@ -22,7 +27,8 @@ export async function get(req: Request, res: Response) {
 
 export async function create(req: Request, res: Response) {
   const { companyId, id: userId } = req.user!;
-  const data = await invoiceService.createInvoice(companyId, userId, req.body);
+  const projectId = (req.body.projectId as string | undefined) ?? (req.params.id as string | undefined);
+  const data = await invoiceService.createInvoice(companyId, userId, { ...req.body, projectId });
   await recordAudit({
     companyId,
     userId,

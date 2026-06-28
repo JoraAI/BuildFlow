@@ -1,5 +1,5 @@
 /**
- * BuildFlow Mobile — App store (Zustand)
+ * BuildFlow Mobile - App store (Zustand)
  *
  * Holds global app state: active project, network status.
  */

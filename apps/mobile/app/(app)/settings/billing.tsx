@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Billing & subscription (OWNER only).
+ * BuildFlow - Billing & subscription (OWNER only).
  */
 import React from 'react';
 import { View, Text, ActivityIndicator, Alert, Linking, Platform } from 'react-native';
@@ -24,7 +24,7 @@ const STATUS_COLOR: Record<string, 'success' | 'warning' | 'danger' | 'primary' 
 };
 
 function formatDate(iso: string | null): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   return new Date(iso).toLocaleDateString('en-IN', {
     day: 'numeric',
     month: 'short',
@@ -97,7 +97,7 @@ export default function BillingScreen() {
           {data.status === 'TRIAL' && data.daysRemaining !== null ? (
             <>
               <Text className="text-sm text-muted leading-relaxed">
-                Free trial — no credit card required at signup. Upgrade when ready.
+                Free trial - no credit card required at signup. Upgrade when ready.
               </Text>
               <Text className="text-2xl font-bold text-primary mt-3">
                 {data.daysRemaining} day{data.daysRemaining === 1 ? '' : 's'} left

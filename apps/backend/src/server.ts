@@ -1,5 +1,5 @@
 /**
- * BuildFlow — HTTP server entry point.
+ * BuildFlow - HTTP server entry point.
  */
 import { app } from './app';
 import { env } from './config/env';

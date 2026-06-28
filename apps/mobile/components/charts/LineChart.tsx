@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Lightweight SVG LineChart.
+ * BuildFlow - Lightweight SVG LineChart.
  * Avoids heavy chart deps; works with react-native-svg.
  */
 import React from 'react';

@@ -1,9 +1,9 @@
 /**
- * BuildFlow — Project React Query hooks.
+ * BuildFlow - Project React Query hooks.
  */
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api-client';
-import type { CreateProjectInput, UpdateProjectInput, ProjectStats, Role } from '@buildflow/shared';
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { apiFetch, apiFetchList } from '@/lib/api-client';
+import type { CreateProjectInput, UpdateProjectInput, ProjectStats, Role, CreateTaskInput, UpdateTaskInput, ResolvedMaterialRate, MaterialRateVarianceRow } from '@buildflow/shared';
 
 export interface ProjectListItem {
   id: string;
@@ -15,6 +15,7 @@ export interface ProjectListItem {
   startDate: string | null;
   endDate: string | null;
   budget: string;
+  isTemporary?: boolean;
   createdAt: string;
   _count?: { tasks: number };
 }
@@ -26,6 +27,7 @@ export interface ProjectDetail extends ProjectListItem {
   locationLat: number | null;
   locationLng: number | null;
   locationAddress: string | null;
+  rateRegionId?: string | null;
   summary?: ProjectSummary;
 }
 
@@ -43,13 +45,39 @@ const KEYS = {
   members: (id: string) => ['projects', id, 'members'] as const,
   wbs: (id: string) => ['projects', id, 'wbs'] as const,
   gantt: (id: string) => ['projects', id, 'gantt'] as const,
+  tasks: (id: string) => ['projects', id, 'tasks'] as const,
+  materialRate: (projectId: string, resourceId: string, boqItemId?: string) =>
+    ['projects', projectId, 'resources', resourceId, 'rate', boqItemId ?? ''] as const,
+  materialRateVariance: (projectId: string) => ['projects', projectId, 'material-rate-variance'] as const,
 };
+
+function invalidateScheduleQueries(qc: QueryClient, projectId: string) {
+  qc.invalidateQueries({ queryKey: KEYS.gantt(projectId) });
+  qc.invalidateQueries({ queryKey: KEYS.tasks(projectId) });
+  qc.invalidateQueries({ queryKey: KEYS.summary(projectId) });
+  qc.invalidateQueries({ queryKey: KEYS.list });
+}
 
 export function useProjects() {
   return useQuery({
     queryKey: KEYS.list,
     queryFn: () => apiFetch<ProjectListItem[]>('/projects'),
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useProjectSearch(search: string, enabled = true) {
+  const trimmed = search.trim();
+  return useQuery({
+    queryKey: [...KEYS.list, 'search', trimmed] as const,
+    queryFn: async () => {
+      const { data } = await apiFetchList<ProjectListItem>(
+        `/projects?search=${encodeURIComponent(trimmed)}&limit=8&page=1`,
+      );
+      return data;
+    },
+    enabled: enabled && trimmed.length > 0,
+    staleTime: 30_000,
   });
 }
 
@@ -162,5 +190,104 @@ export function useGantt(projectId: string) {
     queryFn: () => apiFetch<GanttData>(`/projects/${projectId}/gantt`),
     enabled: !!projectId,
     staleTime: 2 * 60 * 1000,
+  });
+}
+
+/* ---------------- Tasks ---------------- */
+
+export interface TaskRow {
+  id: string;
+  name: string;
+  description: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  durationDays: number;
+  progressPct: number;
+  status: string;
+  assignedTo: string | null;
+  wbsId: string | null;
+  isMilestone: boolean;
+  assignee: { id: string; name: string } | null;
+  predecessors: Array<{ predecessor: { id: string; name: string } }>;
+}
+
+export function useTasks(projectId: string) {
+  return useQuery({
+    queryKey: KEYS.tasks(projectId),
+    queryFn: () => apiFetch<TaskRow[]>(`/projects/${projectId}/tasks`),
+    enabled: !!projectId,
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
+export function useCreateTask(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateTaskInput) =>
+      apiFetch<TaskRow>(`/projects/${projectId}/tasks`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => invalidateScheduleQueries(qc, projectId),
+  });
+}
+
+export function useUpdateTask(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId, input }: { taskId: string; input: UpdateTaskInput }) =>
+      apiFetch<TaskRow>(`/tasks/${taskId}`, {
+        method: 'PUT',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => invalidateScheduleQueries(qc, projectId),
+  });
+}
+
+export function useUpdateTaskProgress(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId, progressPct }: { taskId: string; progressPct: number }) =>
+      apiFetch<TaskRow>(`/tasks/${taskId}/progress`, {
+        method: 'PUT',
+        body: JSON.stringify({ progressPct }),
+      }),
+    onSuccess: () => invalidateScheduleQueries(qc, projectId),
+  });
+}
+
+export function useDeleteTask(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (taskId: string) =>
+      apiFetch<{ success: boolean }>(`/tasks/${taskId}`, { method: 'DELETE' }),
+    onSuccess: () => invalidateScheduleQueries(qc, projectId),
+  });
+}
+
+export function useMaterialRate(
+  projectId: string,
+  resourceId: string,
+  opts?: { boqItemId?: string; enabled?: boolean },
+) {
+  const boqItemId = opts?.boqItemId;
+  const enabled = (opts?.enabled ?? true) && !!projectId && !!resourceId;
+  return useQuery({
+    queryKey: KEYS.materialRate(projectId, resourceId, boqItemId),
+    queryFn: () => {
+      const qs = boqItemId ? `?boqItemId=${encodeURIComponent(boqItemId)}` : '';
+      return apiFetch<ResolvedMaterialRate>(`/projects/${projectId}/resources/${resourceId}/rate${qs}`);
+    },
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+export function useMaterialRateVariance(projectId: string) {
+  return useQuery({
+    queryKey: KEYS.materialRateVariance(projectId),
+    queryFn: () => apiFetch<MaterialRateVarianceRow[]>(`/projects/${projectId}/material-rate-variance`),
+    enabled: !!projectId,
+    staleTime: 60_000,
   });
 }

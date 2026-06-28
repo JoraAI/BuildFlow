@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Offline mutation queue persisted in AsyncStorage.
+ * BuildFlow - Offline mutation queue persisted in AsyncStorage.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { CreateDailyReportInput } from '@buildflow/shared';

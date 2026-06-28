@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Tally Prime XML export service.
+ * BuildFlow - Tally Prime XML export service.
  *
  * Exports invoices as Sales vouchers and bills as Purchase vouchers in
  * Tally Prime-compatible import XML format.

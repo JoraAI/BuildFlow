@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Reports screen (Phase 3)
+ * BuildFlow - Reports screen (Phase 3)
  * Shows a project picker, monthly calendar of reports, and list of recent reports.
  */
 import React, { useState, useMemo } from 'react';
@@ -202,7 +202,7 @@ function ReportRow({ item, onPress }: { item: ReportListItem; onPress: () => voi
             {formatDate(item.reportDate)}
           </Text>
           <Badge
-            label={item.siteStatus ?? '—'}
+            label={item.siteStatus ?? '-'}
             color={
               item.siteStatus === 'ON_SCHEDULE'
                 ? 'success'

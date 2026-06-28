@@ -1,5 +1,5 @@
 /**
- * Public marketing layout — no auth required.
+ * Public marketing layout - no auth required.
  */
 import { Redirect, Stack } from 'expo-router';
 import { useAuthStore } from '@/stores/auth.store';

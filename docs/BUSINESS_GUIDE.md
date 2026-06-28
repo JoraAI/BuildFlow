@@ -1,8 +1,8 @@
-# BuildFlow — Business Guide
+# BuildFlow - Business Guide
 
 **For company owners, directors, and non-technical decision-makers**
 
-BuildFlow is a construction management platform for Indian civil engineering and contracting firms. It connects **estimation, planning, site operations, and accounting** in one place — usable on **mobile, tablet, and desktop web**.
+BuildFlow is a construction management platform for Indian civil engineering and contracting firms. It connects **estimation, planning, site operations, and accounting** in one place - usable on **mobile, tablet, and desktop web**.
 
 Product by **Jora AI** · [jora.co.in](https://jora.co.in)
 
@@ -13,7 +13,7 @@ Product by **Jora AI** · [jora.co.in](https://jora.co.in)
 | Area | What you get |
 |------|----------------|
 | **Projects** | Create and track construction projects with budget, status, and team visibility |
-| **Estimation & BOQ** | Build cost estimates, use rate templates, compare versions, convert to BOQ — see [Estimates guide](./ESTIMATES.md) |
+| **Estimation & BOQ** | Build cost estimates, use rate templates, compare versions, convert to BOQ - see [Estimates guide](./ESTIMATES.md) |
 | **Planning** | Schedule tasks, dependencies, and monitor progress vs plan |
 | **Daily site reports** | Supervisors log work done, materials, photos, and check-ins from site |
 | **Accounting** | Invoices to clients, bills from vendors, GST, TDS, payment tracking |
@@ -51,12 +51,12 @@ flowchart LR
 
 ### Step-by-step
 
-1. **Visit the BuildFlow website** — landing page, pricing, and about sections explain the product.
-2. **Start a trial** — the company owner registers with company details (name, GSTIN, state, etc.). **No credit card is required** at signup.
-3. **14-day free trial** — full access to core features during the trial period.
-4. **Invite your team** — Owner goes to **Settings → Users & Roles** and sends email invites. Each invitee chooses their role (PM, Supervisor, or Accountant).
-5. **Team members join** — they open the invite link, set a password, and land in the app.
-6. **Before trial ends** — Owner reviews **Settings → Billing & plan** to upgrade or contact support.
+1. **Visit the BuildFlow website** - landing page, pricing, and about sections explain the product.
+2. **Start a trial** - the company owner registers with company details (name, GSTIN, state, etc.). **No credit card is required** at signup.
+3. **14-day free trial** - full access to core features during the trial period.
+4. **Invite your team** - Owner goes to **Settings → Users & Roles** and sends email invites. Each invitee chooses their role (PM, Supervisor, or Accountant).
+5. **Team members join** - they open the invite link, set a password, and land in the app.
+6. **Before trial ends** - Owner reviews **Settings → Billing & plan** to upgrade or contact support.
 
 ---
 
@@ -80,8 +80,8 @@ flowchart TB
 | Prepare estimate | PM | **Estimation** (company-wide or inside a project) |
 | Use templates | PM | Pre-made estimate items; adjust quantities and rates |
 | Convert to BOQ | Owner (after approval) | From approved estimate on project **Estimate** tab |
-| Schedule work | PM | **Planning** — tasks, dependencies, progress |
-| Site updates | Supervisor | **Reports** — daily report, check-in, photos |
+| Schedule work | PM | **Planning** - tasks, dependencies, progress |
+| Site updates | Supervisor | **Reports** - daily report, check-in, photos |
 | Raise invoice to client | PM or Accountant | **Accounting → Invoices** |
 | Record vendor bill | Accountant | **Accounting → Bills** |
 | Review finances | Owner / Accountant | **Accounting**, **Reports**, **Dashboard** |
@@ -90,15 +90,15 @@ flowchart TB
 
 Estimates are **project cost plans**: sections and line items rolled up with overhead, contingency, profit, and GST. They go through **draft → review → approval** before the Owner converts them to BOQ.
 
-**Full guide:** [How BuildFlow Estimates Work](./ESTIMATES.md) — templates, totals, approval rules, versioning, and BOQ conversion.
+**Full guide:** [How BuildFlow Estimates Work](./ESTIMATES.md) - templates, totals, approval rules, versioning, and BOQ conversion.
 
 **Short version:**
 
 1. Open a **project** → **Estimate tab** (or **Estimation** menu for rate libraries).
-2. **Create estimate** — 3 steps: setup (name, margins), build (sections + lines or template), review.
+2. **Create estimate** - 3 steps: setup (name, margins), build (sections + lines or template), review.
 3. **PM submits** for review; **Owner approves** or rejects with a reason.
 4. **Compare versions** when you have multiple drafts or revisions.
-5. When **approved**, **Owner converts to BOQ** — project budget updates; team executes on the BOQ tab.
+5. When **approved**, **Owner converts to BOQ** - project budget updates; team executes on the BOQ tab.
 
 Only **DRAFT** or **REJECTED** estimates can be edited; duplicate an approved estimate to create the next version.
 
@@ -111,10 +111,10 @@ Only **DRAFT** or **REJECTED** estimates can be edited; duplicate an approved es
 
 ### 4. Accounting workflow (India-focused)
 
-1. **Invoices (money in)** — create from a project, apply GST, send to client. Optional **payment link** if Razorpay is configured (see Integrations).
-2. **Bills (money out)** — record vendor bills, GST, TDS where applicable.
-3. **Tally export** — export project invoices and bills as Tally-compatible XML (ledger names can be mapped in Integrations).
-4. **Journal entries** — created automatically for key payment events when integrations are active.
+1. **Invoices (money in)** - create from a project, apply GST, send to client. Optional **payment link** if Razorpay is configured (see Integrations).
+2. **Bills (money out)** - record vendor bills, GST, TDS where applicable.
+3. **Tally export** - export project invoices and bills as Tally-compatible XML (ledger names can be mapped in Integrations).
+4. **Journal entries** - created automatically for key payment events when integrations are active.
 
 ### 5. Variations (change orders)
 
@@ -157,13 +157,13 @@ Generate **client portal links** (progress, invoices, pay). Assign **project mem
 
 ---
 
-## Integrations — explained for business heads
+## Integrations - explained for business heads
 
 Integrations fall into **two buckets**. This matters for contracts, GST, and who pays whom.
 
 ### Your company’s integrations (you configure)
 
-These use **your firm’s accounts** — for talking to **your clients and vendors**, not for paying BuildFlow.
+These use **your firm’s accounts** - for talking to **your clients and vendors**, not for paying BuildFlow.
 
 | Integration | Business use |
 |-------------|----------------|
@@ -208,8 +208,8 @@ Anyone can raise a request; the Owner resolves company-level items.
 | Data correction | Fix wrong figures or records |
 | Other | General questions |
 
-- **Company scope** — handled by your Owner (or forwarded internally).
-- **Platform scope** — escalated to **BuildFlow support** (billing, integration help from BuildFlow team).
+- **Company scope** - handled by your Owner (or forwarded internally).
+- **Platform scope** - escalated to **BuildFlow support** (billing, integration help from BuildFlow team).
 
 ---
 
@@ -218,7 +218,7 @@ Anyone can raise a request; the Owner resolves company-level items.
 | Plan | Monthly (pre-GST) | Annual (pre-GST) | Best for |
 |------|-------------------|------------------|----------|
 | **Starter** | ₹4,999 / month | ₹49,999 / year | Small contractors, up to 3 projects, 5 team members |
-| **Professional** | ₹13,999 / month | ₹1,39,999 / year | Growing firms — full GST/RA, CPM, procurement, portal, Assistant (500 queries/mo) |
+| **Professional** | ₹13,999 / month | ₹1,39,999 / year | Growing firms - full GST/RA, CPM, procurement, portal, Assistant (500 queries/mo) |
 | **Enterprise** | Custom (from ₹39,999 / month) | Contact sales | Large firms, dedicated support, custom integrations, unlimited Assistant (fair use) |
 
 - **18% GST** is added on top of listed prices (Indian billing).
@@ -282,7 +282,7 @@ When using the sample/demo environment:
 
 ---
 
-## Quick reference — “Who do I ask?”
+## Quick reference - “Who do I ask?”
 
 | Question | Ask |
 |----------|-----|

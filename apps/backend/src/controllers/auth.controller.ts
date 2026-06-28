@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Auth controller (thin request handlers).
+ * BuildFlow - Auth controller (thin request handlers).
  */
 import { NextFunction, Request, Response } from 'express';
 import * as authService from '../services/auth.service';

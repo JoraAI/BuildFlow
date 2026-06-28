@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Per-company integration credentials & settings.
+ * BuildFlow - Per-company integration credentials & settings.
  *
  * Company-specific: Twilio/WhatsApp, Razorpay, Stripe, Tally ledger map, Google Maps.
  * Platform .env values are used as fallback when a company has not configured its own.

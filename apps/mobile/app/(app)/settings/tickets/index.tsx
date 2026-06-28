@@ -1,8 +1,8 @@
 /**
- * BuildFlow — Support tickets (my requests + owner inbox).
+ * BuildFlow - Support tickets (my requests + owner inbox).
  */
 import React, { useState } from 'react';
-import { View, Text, Alert } from 'react-native';
+import { View, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, Badge, Button, LoadingSkeleton, EmptyState } from '@/components/ui';
 import { SettingsPageLayout } from '@/components/layout/SettingsPageLayout';
@@ -13,6 +13,7 @@ import {
   type SupportTicketRow,
 } from '@/services/settings.queries';
 import { useAuthStore } from '@/stores/auth.store';
+import { alertAsync } from '@/utils/confirm';
 
 const STATUS_COLOR: Record<string, 'success' | 'warning' | 'danger' | 'primary' | 'neutral'> = {
   OPEN: 'primary',
@@ -83,7 +84,7 @@ export default function TicketsScreen() {
                 : 'Escalated to BuildFlow support',
         },
       },
-      { onError: (e: Error) => Alert.alert('Error', e.message) },
+      { onError: async (e: Error) => alertAsync('Error', e.message) },
     );
   };
 

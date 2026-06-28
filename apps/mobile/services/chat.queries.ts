@@ -1,5 +1,5 @@
 /**
- * BuildFlow — React Query hooks for chat (BuildFlow Assistant) + notifications.
+ * BuildFlow - React Query hooks for chat (BuildFlow Assistant) + notifications.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';

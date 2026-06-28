@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Support ticket service (company + platform scope).
+ * BuildFlow - Support ticket service (company + platform scope).
  */
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';

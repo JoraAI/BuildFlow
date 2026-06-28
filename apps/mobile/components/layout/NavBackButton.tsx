@@ -2,25 +2,28 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-type NavButtonVariant = 'default' | 'inverse' | 'subtle';
+type NavButtonVariant = 'default' | 'inverse' | 'subtle' | 'ghost';
 type NavButtonIcon = 'back' | 'close';
 
 const VARIANT_CLASS: Record<NavButtonVariant, string> = {
   default: 'bg-card border-border',
   inverse: 'bg-white/20 border-white/35',
   subtle: 'bg-primary/10 border-primary/25',
+  ghost: '',
 };
 
 const LABEL_CLASS: Record<NavButtonVariant, string> = {
   default: 'text-primary',
   inverse: 'text-white',
   subtle: 'text-primary',
+  ghost: 'text-primary',
 };
 
 const ICON_COLOR: Record<NavButtonVariant, string> = {
   default: '#1E3A5F',
   inverse: '#FFFFFF',
   subtle: '#1E3A5F',
+  ghost: '#1E3A5F',
 };
 
 export function NavBackButton({
@@ -39,19 +42,30 @@ export function NavBackButton({
   accessibilityLabel?: string;
 }) {
   const iconName = icon === 'close' ? 'close' : 'chevron-back';
-  const iconSize = size === 'sm' ? 16 : 18;
-  const padding = size === 'sm' ? 'px-3 py-1.5' : 'px-3.5 py-2';
+  const iconSize = size === 'sm' ? 18 : 20;
+  const isGhost = variant === 'ghost';
+  const padding = isGhost
+    ? 'py-1 pr-2 -ml-1'
+    : size === 'sm'
+      ? 'px-3 py-1.5'
+      : 'px-3.5 py-2';
+  const shellClass = isGhost
+    ? 'rounded-lg active:opacity-70'
+    : 'rounded-xl border active:opacity-80';
 
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
-      hitSlop={6}
-      className={`flex-row items-center rounded-xl border ${padding} ${VARIANT_CLASS[variant]} active:opacity-80`}
+      hitSlop={8}
+      className={`self-start flex-row items-center ${shellClass} ${padding} ${VARIANT_CLASS[variant]}`}
     >
       <Ionicons name={iconName} size={iconSize} color={ICON_COLOR[variant]} />
-      <Text className={`font-semibold ml-1 ${size === 'sm' ? 'text-sm' : 'text-base'} ${LABEL_CLASS[variant]}`}>
+      <Text
+        selectable={false}
+        className={`font-semibold ml-0.5 ${size === 'sm' ? 'text-sm' : 'text-base'} ${LABEL_CLASS[variant]}`}
+      >
         {label}
       </Text>
     </Pressable>

@@ -1,11 +1,11 @@
 /**
- * BuildFlow — Audit Log screen.
+ * BuildFlow - Audit Log screen.
  */
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Card, Badge, Button, LoadingSkeleton, EmptyState } from '@/components/ui';
 import { SettingsPageLayout } from '@/components/layout/SettingsPageLayout';
-import { useViewport } from '@/hooks/useViewport';
+import { ResponsiveGrid } from '@/components/layout/ResponsiveGrid';
 import { useAuditLog, type AuditLogRow } from '@/services/settings.queries';
 
 const ACTION_COLOR: Record<string, 'success' | 'warning' | 'danger' | 'primary' | 'accent' | 'neutral'> = {
@@ -29,7 +29,6 @@ function formatDate(iso: string): string {
 }
 
 export default function AuditLogScreen() {
-  const { isDesktop } = useViewport();
   const [page, setPage] = useState(1);
   const limit = 50;
   const { data, isLoading, isError, refetch, isFetching } = useAuditLog(page, limit);
@@ -55,12 +54,9 @@ export default function AuditLogScreen() {
     <EmptyState title="No activity yet" description="Mutations will appear here." />
   ) : (
     <>
-      <View className={isDesktop ? 'flex-row flex-wrap gap-3' : ''}>
+      <ResponsiveGrid gap={12}>
         {rows.map((r: AuditLogRow) => (
-          <Card
-            key={r.id}
-            className={`mb-0 ${isDesktop ? 'w-[48%] min-w-[320px] flex-1' : 'mb-2'}`}
-          >
+          <Card key={r.id} className="h-full mb-0">
             <TouchableOpacity
               onPress={() => setExpanded(expanded === r.id ? null : r.id)}
               className="flex-row items-center justify-between"
@@ -105,7 +101,7 @@ export default function AuditLogScreen() {
             )}
           </Card>
         ))}
-      </View>
+      </ResponsiveGrid>
 
       {totalPages > 1 && (
         <View className="flex-row justify-between items-center mt-6 pt-4 border-t border-border">

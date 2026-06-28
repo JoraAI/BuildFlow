@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Express request augmentation.
+ * BuildFlow - Express request augmentation.
  *
  * After `authenticateToken` runs, `req.user` is populated with the JWT payload.
  */

@@ -1,5 +1,5 @@
 /**
- * Root entry redirect — Expo Router has no implicit `/` route when all
+ * Root entry redirect - Expo Router has no implicit `/` route when all
  * screens live inside route groups. This lightweight redirect sends the
  * user to `/dashboard` when authenticated, or `/login` otherwise.
  */

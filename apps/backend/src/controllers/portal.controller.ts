@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Client portal controller (thin handlers).
+ * BuildFlow - Client portal controller (thin handlers).
  */
 import type { Request, Response } from 'express';
 import * as portalService from '../services/portal.service';

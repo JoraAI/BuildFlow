@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Project Accounting (Invoices + Bills for one project)
+ * BuildFlow - Project Accounting (Invoices + Bills for one project)
  * Route: /accounting/project/[id]?tab=invoices|bills
  */
 import React, { useState } from 'react';
@@ -62,9 +62,9 @@ export default function ProjectAccountingScreen() {
           {tabChips}
           <View className="border border-border rounded-2xl overflow-hidden bg-card min-h-[480px]">
             {tab === 'invoices' ? (
-              <ProjectInvoicesList projectId={projectId} embedded />
+              <ProjectInvoicesList key={`${projectId}-invoices`} projectId={projectId} embedded />
             ) : (
-              <ProjectBillsList projectId={projectId} embedded />
+              <ProjectBillsList key={`${projectId}-bills`} projectId={projectId} embedded />
             )}
           </View>
         </ScreenContainer>

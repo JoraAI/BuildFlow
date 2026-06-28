@@ -1,5 +1,5 @@
 // ====================================================================
-// BuildFlow — Prisma Schema (all 24 models)
+// BuildFlow - Prisma Schema (all 24 models)
 // Multi-tenant ready: company_id on every tenant-scoped model.
 // ====================================================================
 
@@ -74,6 +74,16 @@ enum EstimateStatus {
   APPROVED
   REJECTED
   SUPERSEDED
+}
+
+enum ProposalStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  SENT
+  WON
+  LOST
+  ARCHIVED
 }
 
 enum InvoiceStatus {
@@ -232,6 +242,8 @@ model Company {
   subcontractors      Subcontractor[]
   stockLocations      StockLocation[]
   reportSchedules     ReportSchedule[]
+  proposals           Proposal[]
+  rateRegions         RateRegion[]
 
   @@map("companies")
 }
@@ -271,6 +283,8 @@ id           String   @id @default(uuid()) @db.Uuid
   changeOrdersCreated  ChangeOrder[] @relation("ChangeOrderCreatedBy")
   changeOrdersApproved ChangeOrder[] @relation("ChangeOrderApprovedBy")
   portalAccessCreated  ClientPortalAccess[] @relation("PortalAccessCreatedBy")
+  proposalsCreated     Proposal[] @relation("ProposalCreatedBy")
+  boqMeasurementsRecorded BoqMeasurement[] @relation("BoqMeasurementRecordedBy")
 
   @@index([companyId])
   @@map("users")
@@ -317,11 +331,18 @@ model Project {
   startDate       DateTime? @map("start_date") @db.Date
   endDate         DateTime? @map("end_date") @db.Date
   budget          Decimal  @default(0) @db.Decimal(14, 2)
+  isTemporary     Boolean  @default(false) @map("is_temporary")
+  rateRegionId    String?  @map("rate_region_id") @db.Uuid
+  proposalId      String?  @unique @map("proposal_id") @db.Uuid
   isDeleted       Boolean  @default(false) @map("is_deleted")
   createdBy       String   @map("created_by") @db.Uuid
   createdAt       DateTime @default(now()) @map("created_at")
 
   company        Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  rateRegion     RateRegion? @relation(fields: [rateRegionId], references: [id], onDelete: SetNull)
+  proposal       Proposal?  @relation("ProjectProposal", fields: [proposalId], references: [id], onDelete: SetNull)
+  proposalAsTemp Proposal?  @relation("ProposalTempProject")
+  proposalAsPromoted Proposal? @relation("ProposalPromotedProject")
   createdByUser  User       @relation("ProjectCreatedBy", fields: [createdBy], references: [id])
   wbsItems       WBSItem[]
   tasks          Task[]
@@ -341,10 +362,46 @@ model Project {
   stockLocations       StockLocation[]
   subcontractWorkOrders SubcontractWorkOrder[]
   portalAccess         ClientPortalAccess[]
+  boqMeasurements      BoqMeasurement[]
+  projectMaterialRates ProjectMaterialRate[]
 
   @@unique([companyId, code])
   @@index([companyId])
+  @@index([isTemporary])
+  @@index([rateRegionId])
   @@map("projects")
+}
+
+// ------------------------------------------------------------------
+// 3b. Proposal (pre-project quoting)                                  
+// ------------------------------------------------------------------
+
+model Proposal {
+  id                 String         @id @default(uuid()) @db.Uuid
+  companyId          String         @map("company_id") @db.Uuid
+  title              String
+  clientName         String         @map("client_name")
+  clientContact      String?        @map("client_contact")
+  projectType        ProjectType    @map("project_type")
+  status             ProposalStatus @default(DRAFT)
+  temporaryProjectId String         @unique @map("temporary_project_id") @db.Uuid
+  promotedProjectId  String?        @unique @map("promoted_project_id") @db.Uuid
+  validUntil         DateTime?      @map("valid_until") @db.Date
+  notes              String?
+  rejectionReason    String?        @map("rejection_reason")
+  createdBy          String         @map("created_by") @db.Uuid
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+
+  company          Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  temporaryProject Project @relation("ProposalTempProject", fields: [temporaryProjectId], references: [id], onDelete: Cascade)
+  promotedProject  Project? @relation("ProposalPromotedProject", fields: [promotedProjectId], references: [id], onDelete: SetNull)
+  createdByUser    User    @relation("ProposalCreatedBy", fields: [createdBy], references: [id])
+  linkedProject    Project? @relation("ProjectProposal")
+
+  @@index([companyId])
+  @@index([status])
+  @@map("proposals")
 }
 
 // ------------------------------------------------------------------
@@ -397,6 +454,9 @@ model Task {
   resources    TaskResource[]
   predecessors TaskPredecessor[] @relation("TaskSuccessors")
   successors   TaskPredecessor[] @relation("TaskPredecessors")
+  materialUsages MaterialUsage[]
+  dailyReportTaskUpdates DailyReportTaskUpdate[]
+  linkedChangeOrders ChangeOrder[]
 
   @@index([projectId])
   @@index([wbsId])
@@ -437,6 +497,7 @@ model Resource {
   hsnSacCode       String?  @map("hsn_sac_code")
   brandOrSpec      String?  @map("brand_or_spec")
   category         String?
+  imageUrl         String?  @map("image_url")
   lastRateUpdatedAt DateTime? @map("last_rate_updated_at")
   isActive         Boolean  @default(true) @map("is_active")
   isDeleted        Boolean  @default(false) @map("is_deleted")
@@ -453,6 +514,9 @@ model Resource {
   goodsReceiptLines  GoodsReceiptLine[]
   stockBalances      StockBalance[]
   stockMovements     StockMovement[]
+  changeOrderLines   ChangeOrderLine[]
+  regionalMaterialRates RegionalMaterialRate[]
+  projectMaterialRates ProjectMaterialRate[]
 
   @@unique([companyId, name, type])
   @@index([companyId])
@@ -497,11 +561,14 @@ model BOQItem {
   category      String?
   estimateItemId String? @map("estimate_item_id") @db.Uuid @unique
   isSuperseded  Boolean @default(false) @map("is_superseded")
+  executedQty   Decimal @default(0) @map("executed_qty") @db.Decimal(12, 3)
 
-  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  wbs          WBSItem?     @relation(fields: [wbsId], references: [id], onDelete: SetNull)
-  estimateItem EstimateItem? @relation(fields: [estimateItemId], references: [id])
-  invoiceLines InvoiceLineItem[]
+  project       Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  wbs           WBSItem?          @relation(fields: [wbsId], references: [id], onDelete: SetNull)
+  estimateItem  EstimateItem?     @relation(fields: [estimateItemId], references: [id])
+  invoiceLines  InvoiceLineItem[]
+  measurements  BoqMeasurement[]
+  materialUsages MaterialUsage[]
 
   @@index([projectId])
   @@index([category])
@@ -671,6 +738,67 @@ model MaterialPriceHistory {
 }
 
 // ------------------------------------------------------------------
+// 15b. RateRegion & RegionalMaterialRate                             
+// ------------------------------------------------------------------
+
+model RateRegion {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  name      String
+  state     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company  Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  rates    RegionalMaterialRate[]
+  projects Project[]
+
+  @@index([companyId])
+  @@map("rate_regions")
+}
+
+model RegionalMaterialRate {
+  id            String   @id @default(uuid()) @db.Uuid
+  regionId      String   @map("region_id") @db.Uuid
+  resourceId    String   @map("resource_id") @db.Uuid
+  rate          Decimal  @db.Decimal(12, 2)
+  unit          String
+  effectiveDate DateTime @map("effective_date") @db.Date
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  region   RateRegion @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  resource Resource   @relation(fields: [resourceId], references: [id])
+
+  @@unique([regionId, resourceId, effectiveDate])
+  @@index([regionId])
+  @@index([resourceId])
+  @@map("regional_material_rates")
+}
+
+// ------------------------------------------------------------------
+// 15c. ProjectMaterialRate                                           
+// ------------------------------------------------------------------
+
+model ProjectMaterialRate {
+  id         String   @id @default(uuid()) @db.Uuid
+  projectId  String   @map("project_id") @db.Uuid
+  resourceId String   @map("resource_id") @db.Uuid
+  rate       Decimal  @db.Decimal(12, 2)
+  unit       String
+  notes      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  project  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  resource Resource @relation(fields: [resourceId], references: [id])
+
+  @@unique([projectId, resourceId])
+  @@index([projectId])
+  @@map("project_material_rates")
+}
+
+// ------------------------------------------------------------------
 // 16. DailyReport                                                    
 // ------------------------------------------------------------------
 
@@ -689,6 +817,7 @@ model DailyReport {
   project       Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   reportedByUser User          @relation("DailyReportReportedBy", fields: [reportedBy], references: [id])
   materialUsages MaterialUsage[]
+  taskUpdates    DailyReportTaskUpdate[]
 
   @@unique([projectId, reportDate])
   @@index([projectId])
@@ -705,12 +834,48 @@ model MaterialUsage {
   resourceId   String  @map("resource_id") @db.Uuid
   quantityUsed Decimal @map("quantity_used") @db.Decimal(12, 3)
   notes        String?
+  taskId       String? @map("task_id") @db.Uuid
+  boqItemId    String? @map("boq_item_id") @db.Uuid
+  boqMeasurementPosted Boolean @default(false) @map("boq_measurement_posted")
 
   dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
   resource    Resource    @relation(fields: [resourceId], references: [id])
+  task        Task?       @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  boqItem     BOQItem?    @relation(fields: [boqItemId], references: [id], onDelete: SetNull)
 
   @@index([dailyReportId])
   @@map("material_usages")
+}
+
+model DailyReportTaskUpdate {
+  id            String @id @default(uuid()) @db.Uuid
+  dailyReportId String @map("daily_report_id") @db.Uuid
+  taskId        String @map("task_id") @db.Uuid
+  progressPct   Int    @map("progress_pct")
+
+  dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
+  task        Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([dailyReportId])
+  @@map("daily_report_task_updates")
+}
+
+model BoqMeasurement {
+  id         String   @id @default(uuid()) @db.Uuid
+  boqItemId  String   @map("boq_item_id") @db.Uuid
+  projectId  String   @map("project_id") @db.Uuid
+  quantity   Decimal  @db.Decimal(12, 3)
+  measuredAt DateTime @default(now()) @map("measured_at")
+  recordedBy String   @map("recorded_by") @db.Uuid
+  notes      String?
+
+  boqItem  BOQItem @relation(fields: [boqItemId], references: [id], onDelete: Cascade)
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  recorder User    @relation("BoqMeasurementRecordedBy", fields: [recordedBy], references: [id])
+
+  @@index([boqItemId])
+  @@index([projectId])
+  @@map("boq_measurements")
 }
 
 // ------------------------------------------------------------------
@@ -1024,6 +1189,8 @@ model ChangeOrder {
   status             ApprovalStatus @default(DRAFT)
   costImpact         Decimal        @default(0) @map("cost_impact") @db.Decimal(14, 2)
   scheduleImpactDays Int            @default(0) @map("schedule_impact_days")
+  linkedTaskId       String?        @map("linked_task_id") @db.Uuid
+  linkedWorkOrderId  String?        @map("linked_work_order_id") @db.Uuid
   estimateId         String?        @map("estimate_id") @db.Uuid
   createdBy          String         @map("created_by") @db.Uuid
   approvedBy         String?        @map("approved_by") @db.Uuid
@@ -1032,11 +1199,13 @@ model ChangeOrder {
   createdAt          DateTime       @default(now()) @map("created_at")
   updatedAt          DateTime       @updatedAt @map("updated_at")
 
-  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  company   Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  createdByUser  User         @relation("ChangeOrderCreatedBy", fields: [createdBy], references: [id])
-  approvedByUser User?        @relation("ChangeOrderApprovedBy", fields: [approvedBy], references: [id])
-  lines     ChangeOrderLine[]
+  project          Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  company          Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdByUser    User                   @relation("ChangeOrderCreatedBy", fields: [createdBy], references: [id])
+  approvedByUser   User?                  @relation("ChangeOrderApprovedBy", fields: [approvedBy], references: [id])
+  linkedTask       Task?                  @relation(fields: [linkedTaskId], references: [id], onDelete: SetNull)
+  linkedWorkOrder  SubcontractWorkOrder?  @relation(fields: [linkedWorkOrderId], references: [id], onDelete: SetNull)
+  lines            ChangeOrderLine[]
 
   @@unique([projectId, number])
   @@index([companyId, status])
@@ -1047,6 +1216,7 @@ model ChangeOrderLine {
   id            String  @id @default(uuid()) @db.Uuid
   changeOrderId String  @map("change_order_id") @db.Uuid
   boqItemId     String? @map("boq_item_id") @db.Uuid
+  resourceId    String? @map("resource_id") @db.Uuid
   description   String
   unit          String
   qtyDelta      Decimal @map("qty_delta") @db.Decimal(12, 3)
@@ -1054,6 +1224,7 @@ model ChangeOrderLine {
   amount        Decimal @default(0) @db.Decimal(14, 2)
 
   changeOrder ChangeOrder @relation(fields: [changeOrderId], references: [id], onDelete: Cascade)
+  resource    Resource?   @relation(fields: [resourceId], references: [id], onDelete: SetNull)
 
   @@index([changeOrderId])
   @@map("change_order_lines")
@@ -1070,6 +1241,8 @@ model MaterialRequisition {
   reqNumber   String         @map("req_number")
   status      ApprovalStatus @default(DRAFT)
   notes       String?
+  sourceType  String?        @map("source_type")
+  sourceRef   String?        @map("source_ref")
   requestedBy String         @map("requested_by") @db.Uuid
   approvedBy  String?        @map("approved_by") @db.Uuid
   createdAt   DateTime       @default(now()) @map("created_at")
@@ -1091,6 +1264,8 @@ model MaterialRequisitionLine {
   boqItemId     String? @map("boq_item_id") @db.Uuid
   quantity      Decimal @db.Decimal(12, 3)
   unit          String
+  expectedRate  Decimal? @map("expected_rate") @db.Decimal(12, 2)
+  rateSource    String?  @map("rate_source")
 
   requisition MaterialRequisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
   resource    Resource            @relation(fields: [resourceId], references: [id])
@@ -1253,6 +1428,7 @@ model SubcontractWorkOrder {
   subcontractor Subcontractor           @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
   measurements  SubcontractMeasurement[]
   bills         Bill[]
+  linkedChangeOrders ChangeOrder[]
 
   @@unique([projectId, woNumber])
   @@map("subcontract_work_orders")

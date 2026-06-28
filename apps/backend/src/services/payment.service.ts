@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Razorpay payment service (tenant invoice collection).
+ * BuildFlow - Razorpay payment service (tenant invoice collection).
  *
  * Credentials resolve per company via integration.service with platform fallback.
  */
@@ -71,7 +71,7 @@ export async function createPaymentLink(
           {
             channel: 'WHATSAPP',
             to: invoice.project.clientContact,
-            message: `Dear ${invoice.clientName}, your invoice ${invoice.invoiceNumber} for Rs ${num(invoice.total).toLocaleString('en-IN')} is ready. Pay here: ${link.short_url} — ${invoice.company.name}`,
+            message: `Dear ${invoice.clientName}, your invoice ${invoice.invoiceNumber} for Rs ${num(invoice.total).toLocaleString('en-IN')} is ready. Pay here: ${link.short_url} - ${invoice.company.name}`,
           },
         ],
       });

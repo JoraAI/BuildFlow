@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Settings service.
+ * BuildFlow - Settings service.
  *
  * Company profile, Users & Roles management, and Audit Log queries.
  * All queries are company-scoped via the ALS middleware.

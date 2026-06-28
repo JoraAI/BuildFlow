@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Common Zod validators & helpers
+ * BuildFlow - Common Zod validators & helpers
  */
 import { z } from 'zod';
 

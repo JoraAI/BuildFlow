@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Estimate routes.
+ * BuildFlow - Estimate routes.
  *
  * Project-scoped:
  *   GET    /api/projects/:projectId/estimates

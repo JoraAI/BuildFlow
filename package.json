@@ -2,7 +2,7 @@
   "name": "buildflow",
   "version": "2.0.0",
   "private": true,
-  "description": "BuildFlow — Civil Engineering Project Planning & Accounting Platform",
+  "description": "BuildFlow - Civil Engineering Project Planning & Accounting Platform",
   "packageManager": "pnpm@10.24.0",
   "engines": {
     "node": ">=20.0.0"

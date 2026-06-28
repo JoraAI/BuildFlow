@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Payment controller (Razorpay invoice + SaaS billing webhooks).
+ * BuildFlow - Payment controller (Razorpay invoice + SaaS billing webhooks).
  */
 import type { Request, Response } from 'express';
 import {
@@ -79,6 +79,6 @@ export async function saasStripeWebhook(req: Request, res: Response) {
 }
 
 export async function companyStripeWebhook(_req: Request, res: Response) {
-  // Stripe invoice webhooks for tenant — placeholder for future Stripe invoice flow
+  // Stripe invoice webhooks for tenant - placeholder for future Stripe invoice flow
   return res.status(200).json({ success: true, data: { handled: false } });
 }

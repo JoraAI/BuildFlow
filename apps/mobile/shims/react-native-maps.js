@@ -1,4 +1,4 @@
-// Web shim for react-native-maps — no-op for browser builds
+// Web shim for react-native-maps - no-op for browser builds
 import React from 'react';
 import { View, Text } from 'react-native';
 

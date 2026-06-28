@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth.store';
 import { useProject } from '@/services/project.queries';
 import { getBreadcrumbs, getProjectIdFromPath } from '@/constants/navigation';
 import { CompanyLogo } from '@/components/ui/Avatar';
+import { ProjectSearchField } from '@/components/layout/ProjectSearchField';
 
 export function AppTopBar() {
   const router = useRouter();
@@ -24,7 +25,10 @@ export function AppTopBar() {
   });
 
   return (
-    <View className="h-16 bg-card border-b border-border px-6 flex-row items-center justify-between shrink-0">
+    <View
+      className="h-16 bg-card border-b border-border px-6 flex-row items-center justify-between shrink-0"
+      style={{ zIndex: 100, elevation: 8, overflow: 'visible' }}
+    >
       <View className="flex-row items-center gap-4 flex-1 mr-4 min-w-0">
         <Pressable
           onPress={() => router.push('/dashboard' as never)}
@@ -73,10 +77,7 @@ export function AppTopBar() {
       </View>
 
       <View className="flex-row items-center gap-3 shrink-0">
-        <View className="flex-row items-center bg-surface rounded-lg px-3 py-2 border border-border min-w-[200px]">
-          <Ionicons name="search-outline" size={16} color="#94A3B8" />
-          <Text className="text-sm text-muted ml-2">Search projects…</Text>
-        </View>
+        <ProjectSearchField />
 
         <Text className="text-xs text-muted">{today}</Text>
 

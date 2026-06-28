@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Attendance controller (thin request handlers).
+ * BuildFlow - Attendance controller (thin request handlers).
  */
 import { NextFunction, Request, Response } from 'express';
 import * as attendanceService from '../services/attendance.service';

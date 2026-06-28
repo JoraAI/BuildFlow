@@ -1,12 +1,12 @@
 /**
- * BuildFlow — Database seed.
+ * BuildFlow - Database seed.
  *
  * Creates the sample company "Reddy Constructions Pvt Ltd" + 4 users (one per role),
  * realistic resources, 5 rate analyses, and 3 projects.
  *
  * Idempotent-ish: uses upsert on unique fields. Re-running updates in place.
  */
-import { PrismaClient, Role, ProjectType, ProjectStatus, ResourceType, InvoiceStatus, CostType } from '@prisma/client';
+import { PrismaClient, Role, ProjectType, ProjectStatus, ResourceType, InvoiceStatus, CostType, EstimateStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -18,7 +18,7 @@ const COMPANY_LOGO =
 
 async function main(): Promise<void> {
   // ----------------------------------------------------------------
-  // Reset — truncate all tables for a clean, idempotent seed run
+  // Reset - truncate all tables for a clean, idempotent seed run
   // ----------------------------------------------------------------
   const tables = await prisma.$queryRaw<{ tablename: string }[]>`
     SELECT tablename FROM pg_tables
@@ -125,12 +125,236 @@ async function main(): Promise<void> {
   // ----------------------------------------------------------------
   // Resources (realistic Indian 2025 rates)
   // ----------------------------------------------------------------
-  const resourceSeed: Array<{ name: string; type: ResourceType; unit: string; rate: number; gstRate: number; hsn?: string; category: string }> = [
-    { name: 'OPC Cement 53G', type: ResourceType.MATERIAL, unit: 'bag', rate: 420, gstRate: 28, hsn: '2523', category: 'Cement' },
-    { name: 'TMT Steel Fe500', type: ResourceType.MATERIAL, unit: 'kg', rate: 72, gstRate: 18, hsn: '7213', category: 'Steel' },
-    { name: 'River Sand', type: ResourceType.MATERIAL, unit: 'cum', rate: 1800, gstRate: 5, hsn: '2505', category: 'Aggregates' },
-    { name: '20mm Aggregate', type: ResourceType.MATERIAL, unit: 'cum', rate: 1400, gstRate: 5, hsn: '2517', category: 'Aggregates' },
-    { name: 'Fly Ash Bricks', type: ResourceType.MATERIAL, unit: 'piece', rate: 8, gstRate: 5, hsn: '6810', category: 'Bricks' },
+  const resourceSeed: Array<{
+    name: string;
+    type: ResourceType;
+    unit: string;
+    rate: number;
+    gstRate: number;
+    hsn?: string;
+    category: string;
+    imageUrl?: string;
+  }> = [
+    {
+      name: 'OPC Cement 53G',
+      type: ResourceType.MATERIAL,
+      unit: 'bag',
+      rate: 420,
+      gstRate: 28,
+      hsn: '2523',
+      category: 'Cement',
+      imageUrl: 'https://images.unsplash.com/photo-1615873968403-89e068629265?w=400&h=400&fit=crop',
+    },
+    {
+      name: 'TMT Steel Fe500',
+      type: ResourceType.MATERIAL,
+      unit: 'kg',
+      rate: 72,
+      gstRate: 18,
+      hsn: '7213',
+      category: 'Steel',
+      imageUrl: 'https://images.unsplash.com/photo-1565793298595-6a879b1d9492?w=400&h=400&fit=crop',
+    },
+    {
+      name: 'River Sand',
+      type: ResourceType.MATERIAL,
+      unit: 'cum',
+      rate: 1800,
+      gstRate: 5,
+      hsn: '2505',
+      category: 'Aggregates',
+      imageUrl: 'https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=400&h=400&fit=crop',
+    },
+    {
+      name: '20mm Aggregate',
+      type: ResourceType.MATERIAL,
+      unit: 'cum',
+      rate: 1400,
+      gstRate: 5,
+      hsn: '2517',
+      category: 'Aggregates',
+    },
+    {
+      name: 'Fly Ash Bricks',
+      type: ResourceType.MATERIAL,
+      unit: 'piece',
+      rate: 8,
+      gstRate: 5,
+      hsn: '6810',
+      category: 'Bricks',
+      imageUrl: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&h=400&fit=crop',
+    },
+    {
+      name: 'PPC Cement 43G',
+      type: ResourceType.MATERIAL,
+      unit: 'bag',
+      rate: 395,
+      gstRate: 28,
+      hsn: '2523',
+      category: 'Cement',
+    },
+    {
+      name: '10mm Aggregate',
+      type: ResourceType.MATERIAL,
+      unit: 'cum',
+      rate: 1350,
+      gstRate: 5,
+      hsn: '2517',
+      category: 'Aggregates',
+    },
+    {
+      name: 'M-Sand (Manufactured)',
+      type: ResourceType.MATERIAL,
+      unit: 'cum',
+      rate: 1650,
+      gstRate: 5,
+      hsn: '2505',
+      category: 'Aggregates',
+    },
+    {
+      name: 'Binding Wire 18G',
+      type: ResourceType.MATERIAL,
+      unit: 'kg',
+      rate: 68,
+      gstRate: 18,
+      hsn: '7217',
+      category: 'Steel',
+    },
+    {
+      name: 'TMT Steel Fe550',
+      type: ResourceType.MATERIAL,
+      unit: 'kg',
+      rate: 74,
+      gstRate: 18,
+      hsn: '7213',
+      category: 'Steel',
+    },
+    {
+      name: 'Red Clay Bricks',
+      type: ResourceType.MATERIAL,
+      unit: 'piece',
+      rate: 9,
+      gstRate: 5,
+      hsn: '6901',
+      category: 'Bricks',
+    },
+    {
+      name: 'AAC Blocks 600mm',
+      type: ResourceType.MATERIAL,
+      unit: 'piece',
+      rate: 95,
+      gstRate: 12,
+      hsn: '6810',
+      category: 'Bricks',
+    },
+    {
+      name: 'Ready Mix Concrete M25',
+      type: ResourceType.MATERIAL,
+      unit: 'cum',
+      rate: 5200,
+      gstRate: 18,
+      hsn: '3824',
+      category: 'Other',
+    },
+    {
+      name: 'Plaster of Paris',
+      type: ResourceType.MATERIAL,
+      unit: 'bag',
+      rate: 320,
+      gstRate: 18,
+      hsn: '2520',
+      category: 'Other',
+    },
+    {
+      name: 'Wall Putty',
+      type: ResourceType.MATERIAL,
+      unit: 'bag',
+      rate: 580,
+      gstRate: 18,
+      hsn: '3214',
+      category: 'Other',
+    },
+    {
+      name: 'Exterior Emulsion Paint',
+      type: ResourceType.MATERIAL,
+      unit: 'litre',
+      rate: 420,
+      gstRate: 18,
+      hsn: '3209',
+      category: 'Other',
+    },
+    {
+      name: 'Waterproofing Compound',
+      type: ResourceType.MATERIAL,
+      unit: 'kg',
+      rate: 185,
+      gstRate: 18,
+      hsn: '3824',
+      category: 'Other',
+    },
+    {
+      name: 'Plywood 18mm Commercial',
+      type: ResourceType.MATERIAL,
+      unit: 'sqft',
+      rate: 62,
+      gstRate: 18,
+      hsn: '4412',
+      category: 'Other',
+    },
+    {
+      name: 'Concrete Admixture',
+      type: ResourceType.MATERIAL,
+      unit: 'litre',
+      rate: 95,
+      gstRate: 18,
+      hsn: '3824',
+      category: 'Other',
+    },
+    {
+      name: 'GI Pipe 25mm',
+      type: ResourceType.MATERIAL,
+      unit: 'metre',
+      rate: 145,
+      gstRate: 18,
+      hsn: '7306',
+      category: 'Other',
+    },
+    {
+      name: 'UPVC Pipe 110mm',
+      type: ResourceType.MATERIAL,
+      unit: 'metre',
+      rate: 320,
+      gstRate: 18,
+      hsn: '3917',
+      category: 'Other',
+    },
+    {
+      name: 'Ceramic Floor Tile 600x600',
+      type: ResourceType.MATERIAL,
+      unit: 'sqft',
+      rate: 48,
+      gstRate: 18,
+      hsn: '6907',
+      category: 'Other',
+    },
+    {
+      name: 'Granite Slab 20mm',
+      type: ResourceType.MATERIAL,
+      unit: 'sqft',
+      rate: 185,
+      gstRate: 18,
+      hsn: '6802',
+      category: 'Other',
+    },
+    {
+      name: 'Aluminium Window Section',
+      type: ResourceType.MATERIAL,
+      unit: 'kg',
+      rate: 285,
+      gstRate: 18,
+      hsn: '7610',
+      category: 'Other',
+    },
     { name: 'Mason Grade 1', type: ResourceType.LABOUR, unit: 'day', rate: 750, gstRate: 0, category: 'Skilled' },
     { name: 'Mason Grade 2', type: ResourceType.LABOUR, unit: 'day', rate: 650, gstRate: 0, category: 'Skilled' },
     { name: 'Carpenter', type: ResourceType.LABOUR, unit: 'day', rate: 800, gstRate: 0, category: 'Skilled' },
@@ -146,7 +370,7 @@ async function main(): Promise<void> {
       where: {
         companyId_name_type: { companyId: company.id, name: r.name, type: r.type },
       },
-      update: { rate: r.rate, gstRate: r.gstRate, hsnSacCode: r.hsn, lastRateUpdatedAt: new Date() },
+      update: { rate: r.rate, gstRate: r.gstRate, hsnSacCode: r.hsn, lastRateUpdatedAt: new Date(), imageUrl: r.imageUrl ?? undefined },
       create: {
         companyId: company.id,
         name: r.name,
@@ -156,6 +380,7 @@ async function main(): Promise<void> {
         gstRate: r.gstRate,
         hsnSacCode: r.hsn,
         category: r.category,
+        imageUrl: r.imageUrl,
         lastRateUpdatedAt: new Date(),
       },
     });
@@ -242,7 +467,60 @@ async function main(): Promise<void> {
   );
 
   // ----------------------------------------------------------------
-  // Project 1 — NH-65 Road Widening
+  // Rate regions (regional material rate books)
+  // ----------------------------------------------------------------
+  const regionHyderabad = await prisma.rateRegion.create({
+    data: {
+      companyId: company.id,
+      name: 'Telangana (Hyderabad)',
+      state: 'Telangana',
+    },
+  });
+
+  const regionApTier2 = await prisma.rateRegion.create({
+    data: {
+      companyId: company.id,
+      name: 'AP Tier-2',
+      state: 'Andhra Pradesh',
+    },
+  });
+
+  const effectiveDate = new Date('2025-01-01');
+  await prisma.regionalMaterialRate.createMany({
+    data: [
+      {
+        regionId: regionHyderabad.id,
+        resourceId: resources['OPC Cement 53G'].id,
+        rate: 418,
+        unit: 'bag',
+        effectiveDate,
+      },
+      {
+        regionId: regionHyderabad.id,
+        resourceId: resources['River Sand'].id,
+        rate: 1780,
+        unit: 'cum',
+        effectiveDate,
+      },
+      {
+        regionId: regionApTier2.id,
+        resourceId: resources['OPC Cement 53G'].id,
+        rate: 438,
+        unit: 'bag',
+        effectiveDate,
+      },
+      {
+        regionId: regionApTier2.id,
+        resourceId: resources['TMT Steel Fe500'].id,
+        rate: 74,
+        unit: 'kg',
+        effectiveDate,
+      },
+    ],
+  });
+
+  // ----------------------------------------------------------------
+  // Project 1 - NH-65 Road Widening
   // ----------------------------------------------------------------
   const project1 = await prisma.project.create({
     data: {
@@ -259,7 +537,18 @@ async function main(): Promise<void> {
       startDate: new Date('2025-01-15'),
       endDate: new Date('2026-06-30'),
       budget: 24_500_000,
+      rateRegionId: regionHyderabad.id,
       createdBy: owner.id,
+    },
+  });
+
+  await prisma.projectMaterialRate.create({
+    data: {
+      projectId: project1.id,
+      resourceId: resources['OPC Cement 53G'].id,
+      rate: 435,
+      unit: 'bag',
+      notes: 'Remote haulage included',
     },
   });
 
@@ -343,6 +632,7 @@ async function main(): Promise<void> {
       status: 'APPROVED',
       costImpact: 22_500,
       scheduleImpactDays: 5,
+      linkedTaskId: t3.id,
       createdBy: pm.id,
       approvedBy: owner.id,
       approvedAt: new Date('2025-02-10'),
@@ -518,6 +808,59 @@ async function main(): Promise<void> {
     },
   });
 
+  await prisma.changeOrder.create({
+    data: {
+      projectId: project1.id,
+      companyId: company.id,
+      number: 'VO-002',
+      title: 'Extra cement for drainage PCC',
+      reason: 'Additional PCC lining for drain',
+      status: 'SUBMITTED',
+      costImpact: 21_000,
+      scheduleImpactDays: 3,
+      linkedTaskId: t3.id,
+      linkedWorkOrderId: wo.id,
+      createdBy: pm.id,
+      lines: {
+        create: [
+          {
+            description: 'Extra OPC for drain PCC',
+            unit: 'bag',
+            qtyDelta: 50,
+            rate: 420,
+            amount: 21_000,
+            resourceId: resources['OPC Cement 53G'].id,
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.materialRequisition.create({
+    data: {
+      projectId: project1.id,
+      companyId: company.id,
+      reqNumber: 'IND-AUTO-EST-001',
+      status: 'DRAFT',
+      sourceType: 'ESTIMATE_CONVERT',
+      sourceRef: 'NH-65 Baseline Estimate',
+      requestedBy: pm.id,
+      notes: 'Auto-generated from estimate convert — review before submit.',
+      lines: {
+        create: [
+          {
+            resourceId: resources['OPC Cement 53G'].id,
+            quantity: 200,
+            unit: 'bag',
+            boqItemId: boqPcc.id,
+            expectedRate: 435,
+            rateSource: 'PROJECT',
+          },
+        ],
+      },
+    },
+  });
+
   await prisma.subcontractMeasurement.create({
     data: {
       workOrderId: wo.id,
@@ -550,9 +893,9 @@ async function main(): Promise<void> {
   });
 
   // ----------------------------------------------------------------
-  // Project 2 — Greenview Residency Block-C (planning)
+  // Project 2 - Greenview Residency Block-C (planning + sample estimate)
   // ----------------------------------------------------------------
-  await prisma.project.create({
+  const project2 = await prisma.project.create({
     data: {
       companyId: company.id,
       name: 'Greenview Residency Block-C',
@@ -563,14 +906,64 @@ async function main(): Promise<void> {
       startDate: new Date('2025-04-01'),
       endDate: new Date('2026-12-31'),
       budget: 0,
+      rateRegionId: regionApTier2.id,
       createdBy: pm.id,
     },
   });
 
+  const estimate2 = await prisma.estimate.create({
+    data: {
+      projectId: project2.id,
+      companyId: company.id,
+      name: 'GVR Block-C Baseline',
+      status: EstimateStatus.APPROVED,
+      grandTotal: 850_000,
+      subtotal: 850_000,
+      createdBy: pm.id,
+      approvedBy: owner.id,
+      approvedAt: new Date('2025-03-01'),
+    },
+  });
+
+  const estSection = await prisma.estimateSection.create({
+    data: {
+      estimateId: estimate2.id,
+      name: 'Structure',
+      orderIndex: 1,
+    },
+  });
+
+  await prisma.estimateItem.createMany({
+    data: [
+      {
+        estimateId: estimate2.id,
+        sectionId: estSection.id,
+        description: 'OPC Cement supply',
+        unit: 'bag',
+        quantity: 300,
+        rate: 445,
+        amount: 133_500,
+        type: CostType.MATERIAL,
+        resourceId: resources['OPC Cement 53G'].id,
+      },
+      {
+        estimateId: estimate2.id,
+        sectionId: estSection.id,
+        description: 'Masonry labour',
+        unit: 'day',
+        quantity: 120,
+        rate: 750,
+        amount: 90_000,
+        type: CostType.LABOUR,
+        resourceId: resources['Mason Grade 1'].id,
+      },
+    ],
+  });
+
   // ----------------------------------------------------------------
-  // Project 3 — TechPark Office Renovation (completed)
+  // Project 3 - TechPark Office Renovation (completed)
   // ----------------------------------------------------------------
-  await prisma.project.create({
+  const _project3 = await prisma.project.create({
     data: {
       companyId: company.id,
       name: 'TechPark Office Renovation',
@@ -581,6 +974,7 @@ async function main(): Promise<void> {
       startDate: new Date('2024-03-01'),
       endDate: new Date('2024-09-30'),
       budget: 1_200_000,
+      rateRegionId: regionApTier2.id,
       createdBy: pm.id,
     },
   });

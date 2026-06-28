@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Replay offline-queued mutations when connectivity returns.
+ * BuildFlow - Replay offline-queued mutations when connectivity returns.
  */
 import { apiFetch } from '@/lib/api-client';
 import { offlineQueueStore } from '@/stores/offline-queue.store';

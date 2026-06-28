@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Estimate export service (Excel + PDF).
+ * BuildFlow - Estimate export service (Excel + PDF).
  *
  * Excel: 4-sheet workbook (Summary, Detailed, Rate Analysis Used, Price Assumptions)
  *        with live Excel formulas and color-coded rows.
@@ -74,21 +74,21 @@ export async function generateEstimateExcel(companyId: string, estimateId: strin
   ws1.getCell('A1').value = company.name;
   ws1.getCell('A1').font = { bold: true, size: 16 };
   ws1.mergeCells('A2:D2');
-  ws1.getCell('A2').value = `GSTIN: ${company.gstin ?? '—'}`;
+  ws1.getCell('A2').value = `GSTIN: ${company.gstin ?? '-'}`;
   ws1.getCell('A2').font = { size: 10, color: { argb: 'FF64748B' } };
 
   ws1.mergeCells('A4:D4');
-  ws1.getCell('A4').value = 'PROJECT COST ESTIMATE — SUMMARY';
+  ws1.getCell('A4').value = 'PROJECT COST ESTIMATE - SUMMARY';
   ws1.getCell('A4').font = { bold: true, size: 14, color: { argb: 'FF1E3A5F' } };
 
   // Meta rows
   const meta: Array<[string, string]> = [
     ['Project', project.name],
     ['Project Code', project.code],
-    ['Location', project.locationAddress ?? '—'],
+    ['Location', project.locationAddress ?? '-'],
     ['Estimate', `${estimate.name} (v${estimate.version}.0)`],
     ['Prepared By', estimate.createdByName],
-    ['Approved By', estimate.approvedByName ?? '—'],
+    ['Approved By', estimate.approvedByName ?? '-'],
     ['Date', new Date(estimate.createdAt).toLocaleDateString('en-IN')],
     ['Status', estimate.status],
   ];
@@ -265,7 +265,7 @@ export async function generateEstimateExcel(companyId: string, estimateId: strin
     ws3.getCell(raRow, 1).font = { bold: true };
     ws3.getCell(raRow, 2).value = ra.unit;
     for (const comp of ra.components) {
-      ws3.getCell(raRow, 3).value = comp.resource?.name ?? comp.miscName ?? '—';
+      ws3.getCell(raRow, 3).value = comp.resource?.name ?? comp.miscName ?? '-';
       ws3.getCell(raRow, 4).value = comp.type;
       ws3.getCell(raRow, 5).value = Number(comp.quantityPerUnit);
       ws3.getCell(raRow, 6).value = Number(comp.rate);
@@ -322,7 +322,7 @@ export async function generateEstimateExcel(companyId: string, estimateId: strin
     ws4.getCell(r2, 4).numFmt = '#,##0.00';
     ws4.getCell(r2, 5).value = r.lastRateUpdatedAt
       ? new Date(r.lastRateUpdatedAt).toLocaleDateString('en-IN')
-      : '—';
+      : '-';
   });
   if (resources.length === 0) {
     ws4.getCell(2, 1).value = 'No resources referenced in this estimate.';
@@ -359,7 +359,7 @@ export async function generateEstimatePdf(companyId: string, estimateId: string)
       .fontSize(10)
       .fillColor('#64748B')
       .font('Helvetica')
-      .text(`GSTIN: ${company.gstin ?? '—'}`, { align: 'center' });
+      .text(`GSTIN: ${company.gstin ?? '-'}`, { align: 'center' });
     if (company.address) {
       doc.text(company.address, { align: 'center' });
     }
@@ -376,7 +376,7 @@ export async function generateEstimatePdf(companyId: string, estimateId: string)
     const metaLeft: Array<[string, string]> = [
       ['Project', project.name],
       ['Code', project.code],
-      ['Location', project.locationAddress ?? '—'],
+      ['Location', project.locationAddress ?? '-'],
     ];
     const metaRight: Array<[string, string]> = [
       ['Estimate', `${estimate.name} (v${estimate.version}.0)`],

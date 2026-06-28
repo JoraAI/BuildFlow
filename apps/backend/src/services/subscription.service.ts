@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Company subscription / trial lifecycle.
+ * BuildFlow - Company subscription / trial lifecycle.
  */
 import { SubscriptionPlan, SubscriptionStatus, Role } from '@prisma/client';
 import { prisma } from '../lib/prisma';
@@ -59,7 +59,7 @@ export async function getSubscriptionSummary(companyId: string): Promise<Subscri
   };
 }
 
-/** Called on public company registration — starts trial window. */
+/** Called on public company registration - starts trial window. */
 export async function initializeTrial(companyId: string): Promise<void> {
   const now = new Date();
   const ends = trialEndDate(now);

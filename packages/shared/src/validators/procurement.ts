@@ -1,10 +1,13 @@
 import { z } from 'zod';
+import { materialRateSourceSchema } from './material-rate';
 
 export const requisitionLineSchema = z.object({
   resourceId: z.string().uuid(),
   boqItemId: z.string().uuid().optional(),
   quantity: z.coerce.number().positive(),
   unit: z.string().min(1).max(20),
+  expectedRate: z.coerce.number().nonnegative().optional(),
+  rateSource: materialRateSourceSchema.optional(),
 });
 
 export const createRequisitionSchema = z.object({

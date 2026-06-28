@@ -1,12 +1,11 @@
 /**
- * BuildFlow — Users & Roles settings screen.
+ * BuildFlow - Users & Roles settings screen.
  */
 import React, { useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
-  Modal,
   Alert,
   Platform,
   Share,
@@ -14,6 +13,8 @@ import {
 } from 'react-native';
 import { Card, Avatar, Badge, Button, LoadingSkeleton, EmptyState } from '@/components/ui';
 import { SettingsPageLayout } from '@/components/layout/SettingsPageLayout';
+import { ResponsiveGrid } from '@/components/layout/ResponsiveGrid';
+import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
 import { useViewport } from '@/hooks/useViewport';
 import {
   useUsers,
@@ -26,6 +27,7 @@ import {
   type InviteCreated,
   type PendingInvite,
 } from '@/services/settings.queries';
+import { alertAsync, confirmAsync } from '@/utils/confirm';
 
 const ROLES = ['OWNER', 'PM', 'SUPERVISOR', 'ACCOUNTANT'] as const;
 const INVITE_ROLES = ['PM', 'SUPERVISOR', 'ACCOUNTANT'] as const;
@@ -46,6 +48,7 @@ export default function UsersScreen() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<InviteRole>('PM');
   const [lastInvite, setLastInvite] = useState<InviteCreated | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const onSaveRole = (role: Role) => {
     if (!editing) return;
@@ -53,7 +56,9 @@ export default function UsersScreen() {
       { userId: editing.id, data: { role } },
       {
         onSuccess: () => setEditing(null),
-        onError: (e: Error) => Alert.alert('Error', e.message),
+        onError: async (e: Error) => {
+          await alertAsync('Error', e.message);
+        },
       },
     );
   };
@@ -61,24 +66,29 @@ export default function UsersScreen() {
   const onToggleActive = (user: UserRow) => {
     updateUser.mutate(
       { userId: user.id, data: { isActive: !user.isActive } },
-      { onError: (e: Error) => Alert.alert('Error', e.message) },
+      { onError: async (e: Error) => void alertAsync('Error', e.message) },
     );
   };
 
   const onInvite = () => {
     if (!inviteEmail.trim()) {
-      Alert.alert('Email required', 'Enter the team member email address.');
+      setFormError('Enter the team member email address.');
+      void alertAsync('Email required', 'Enter the team member email address.');
       return;
     }
+    setFormError(null);
     createInvite.mutate(
       { email: inviteEmail.trim().toLowerCase(), role: inviteRole },
       {
-        onSuccess: (result) => {
+        onSuccess: async (result) => {
           setLastInvite(result);
           setInviteEmail('');
-          Alert.alert('Invite created', 'Share the invite link with your team member.');
+          await alertAsync('Invite created', 'Share the invite link with your team member.');
         },
-        onError: (e: Error) => Alert.alert('Error', e.message),
+        onError: async (e: Error) => {
+          setFormError(e.message);
+          await alertAsync('Error', e.message);
+        },
       },
     );
   };
@@ -130,7 +140,9 @@ export default function UsersScreen() {
                   onPress={() =>
                     resendInvite.mutate(inv.id, {
                       onSuccess: (r) => shareInviteLink(r.inviteUrl),
-                      onError: (e: Error) => Alert.alert('Error', e.message),
+                      onError: async (e: Error) => {
+                        await alertAsync('Error', e.message);
+                      },
                     })
                   }
                   className="px-3 py-1.5 rounded-md bg-primary/10"
@@ -138,19 +150,15 @@ export default function UsersScreen() {
                   <Text className="text-primary text-xs font-semibold">Resend link</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  onPress={() =>
-                    Alert.alert('Revoke invite?', inv.email, [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Revoke',
-                        style: 'destructive',
-                        onPress: () =>
-                          revokeInvite.mutate(inv.id, {
-                            onError: (e: Error) => Alert.alert('Error', e.message),
-                          }),
+                  onPress={async () => {
+                    const ok = await confirmAsync('Revoke invite?', inv.email);
+                    if (!ok) return;
+                    revokeInvite.mutate(inv.id, {
+                      onError: async (e: Error) => {
+                        await alertAsync('Error', e.message);
                       },
-                    ])
-                  }
+                    });
+                  }}
                   className="px-3 py-1.5 rounded-md bg-border"
                 >
                   <Text className="text-text text-xs font-semibold">Revoke</Text>
@@ -173,12 +181,9 @@ export default function UsersScreen() {
             action={<Button label="Invite user" onPress={() => setInviteOpen(true)} />}
           />
         ) : (
-          <View className={isDesktop ? 'flex-row flex-wrap gap-3' : ''}>
+          <ResponsiveGrid gap={12}>
             {users.map((u: UserRow) => (
-              <Card
-                key={u.id}
-                className={`mb-3 ${isDesktop ? 'w-[48%] min-w-[280px] flex-1 mb-0' : ''}`}
-              >
+              <Card key={u.id} className="h-full mb-0">
                 <View className="flex-row items-center justify-between">
                   <View className="flex-row items-center flex-1">
                     <Avatar name={u.name} size={44} />
@@ -217,7 +222,7 @@ export default function UsersScreen() {
                 </View>
               </Card>
             ))}
-          </View>
+          </ResponsiveGrid>
         )}
       </View>
     </View>
@@ -235,87 +240,89 @@ export default function UsersScreen() {
         {content}
       </SettingsPageLayout>
 
-      <Modal visible={inviteOpen} transparent animationType="slide" onRequestClose={() => setInviteOpen(false)}>
-        <View className="flex-1 justify-end bg-black/40">
-          <View className={`bg-card rounded-t-2xl p-5 ${isDesktop ? 'self-center w-full max-w-lg rounded-2xl mb-8' : ''}`}>
-            <Text className="text-lg font-bold text-text mb-1">Invite team member</Text>
-            <Text className="text-sm text-muted mb-4">
-              Only company owners can invite users. They will join via a secure link.
-            </Text>
-
-            <Text className="text-sm font-semibold text-text mb-1">Email</Text>
-            <TextInput
-              value={inviteEmail}
-              onChangeText={setInviteEmail}
-              placeholder="colleague@company.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              className="border border-border rounded-lg px-3 py-2.5 text-text mb-4 bg-surface"
+      <AdaptiveSheet
+        visible={inviteOpen}
+        onClose={() => setInviteOpen(false)}
+        title="Invite team member"
+        subtitle="Only company owners can invite users. They will join via a secure link."
+        size="md"
+        footer={
+          <View className="gap-2">
+            <Button
+              label={createInvite.isPending ? 'Sending…' : 'Send invite'}
+              onPress={onInvite}
+              loading={createInvite.isPending}
+              fullWidth
             />
-
-            <Text className="text-sm font-semibold text-text mb-2">Role</Text>
-            {INVITE_ROLES.map((r) => (
-              <TouchableOpacity
-                key={r}
-                onPress={() => setInviteRole(r)}
-                className={`py-3 px-4 rounded-lg mb-2 ${inviteRole === r ? 'bg-primary' : 'bg-surface'}`}
-              >
-                <Text className={`font-semibold ${inviteRole === r ? 'text-white' : 'text-text'}`}>
-                  {r}
-                </Text>
-              </TouchableOpacity>
-            ))}
-
-            {lastInvite ? (
-              <View className="mt-4 p-3 bg-primary/5 rounded-lg border border-primary/20">
-                <Text className="text-xs text-muted mb-2">Latest invite link</Text>
-                <Text className="text-xs text-text mb-3" numberOfLines={2}>
-                  {lastInvite.inviteUrl}
-                </Text>
-                <Button
-                  label="Copy / Share link"
-                  size="sm"
-                  variant="secondary"
-                  onPress={() => shareInviteLink(lastInvite.inviteUrl)}
-                />
-              </View>
-            ) : null}
-
-            <View className="mt-4 gap-2">
-              <Button
-                label={createInvite.isPending ? 'Sending…' : 'Send invite'}
-                onPress={onInvite}
-                loading={createInvite.isPending}
-                fullWidth
-              />
-              <Button label="Close" variant="ghost" onPress={() => setInviteOpen(false)} fullWidth />
-            </View>
+            <Button label="Close" variant="ghost" onPress={() => setInviteOpen(false)} fullWidth />
           </View>
-        </View>
-      </Modal>
+        }
+      >
+        <Text className="text-sm font-semibold text-text mb-1">Email</Text>
+        <TextInput
+          value={inviteEmail}
+          onChangeText={setInviteEmail}
+          placeholder="colleague@company.com"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          className="border border-border rounded-lg px-3 py-2.5 text-text mb-4 bg-surface"
+        />
 
-      <Modal visible={!!editing} transparent animationType="slide" onRequestClose={() => setEditing(null)}>
-        <View className="flex-1 justify-end bg-black/40">
-          <View className={`bg-card rounded-t-2xl p-5 ${isDesktop ? 'self-center w-full max-w-md rounded-2xl mb-8' : ''}`}>
-            <Text className="text-lg font-bold text-text mb-1">Change Role</Text>
-            <Text className="text-sm text-text-muted mb-4">
-              {editing?.name} · {editing?.email}
+        {formError ? (
+          <View className="mb-3 px-3 py-2 rounded-lg bg-danger/10 border border-danger/30">
+            <Text className="text-sm text-danger">{formError}</Text>
+          </View>
+        ) : null}
+
+        <Text className="text-sm font-semibold text-text mb-2">Role</Text>
+        {INVITE_ROLES.map((r) => (
+          <TouchableOpacity
+            key={r}
+            onPress={() => setInviteRole(r)}
+            className={`py-3 px-4 rounded-lg mb-2 ${inviteRole === r ? 'bg-primary' : 'bg-surface'}`}
+          >
+            <Text className={`font-semibold ${inviteRole === r ? 'text-white' : 'text-text'}`}>
+              {r}
             </Text>
-            {ROLES.map((r) => (
-              <TouchableOpacity
-                key={r}
-                onPress={() => onSaveRole(r)}
-                className={`py-3.5 px-4 rounded-lg mb-2 ${editing?.role === r ? 'bg-primary' : 'bg-surface'}`}
-              >
-                <Text className={`text-base font-semibold ${editing?.role === r ? 'text-white' : 'text-text'}`}>
-                  {r}
-                </Text>
-              </TouchableOpacity>
-            ))}
-            <Button label="Cancel" variant="ghost" onPress={() => setEditing(null)} fullWidth />
+          </TouchableOpacity>
+        ))}
+
+        {lastInvite ? (
+          <View className="mt-4 p-3 bg-primary/5 rounded-lg border border-primary/20">
+            <Text className="text-xs text-muted mb-2">Latest invite link</Text>
+            <Text className="text-xs text-text mb-3" numberOfLines={2}>
+              {lastInvite.inviteUrl}
+            </Text>
+            <Button
+              label="Copy / Share link"
+              size="sm"
+              variant="secondary"
+              onPress={() => shareInviteLink(lastInvite.inviteUrl)}
+            />
           </View>
-        </View>
-      </Modal>
+        ) : null}
+      </AdaptiveSheet>
+
+      <AdaptiveSheet
+        visible={!!editing}
+        onClose={() => setEditing(null)}
+        title="Change Role"
+        subtitle={editing ? `${editing.name} · ${editing.email}` : undefined}
+        size="sm"
+        footer={<Button label="Cancel" variant="ghost" onPress={() => setEditing(null)} fullWidth />}
+      >
+        {ROLES.map((r) => (
+          <TouchableOpacity
+            key={r}
+            onPress={() => onSaveRole(r)}
+            className={`py-3.5 px-4 rounded-lg mb-2 ${editing?.role === r ? 'bg-primary' : 'bg-surface'}`}
+          >
+            <Text className={`text-base font-semibold ${editing?.role === r ? 'text-white' : 'text-text'}`}>
+              {r}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </AdaptiveSheet>
     </>
   );
 }

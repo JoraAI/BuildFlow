@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Site Check-in (Web fallback).
+ * BuildFlow - Site Check-in (Web fallback).
  *
  * GPS check-in with maps is a native-mobile-only feature (requires
  * expo-location + react-native-maps native modules). On the web build,

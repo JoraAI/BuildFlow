@@ -1,5 +1,5 @@
 /**
- * Integration test helpers — login and fetch seeded fixtures.
+ * Integration test helpers - login and fetch seeded fixtures.
  */
 import request from 'supertest';
 import { app } from '../../app';
@@ -24,7 +24,7 @@ export function authPost(token: string, path: string, body?: object) {
 export async function getSeedProjectId(token: string): Promise<string> {
   const res = await authGet(token, '/api/projects');
   if (res.status !== 200 || !res.body.data?.length) {
-    throw new Error('No projects in seed data — run pnpm db:seed first');
+    throw new Error('No projects in seed data - run pnpm db:seed first');
   }
   const nh65 = res.body.data.find((p: { code: string }) => p.code === 'NH65');
   return (nh65 ?? res.body.data[0]).id as string;

@@ -1,5 +1,5 @@
 /**
- * Legacy /chat route — do not open the assistant here.
+ * Legacy /chat route - do not open the assistant here.
  *
  * History back (especially on web) can land on /chat after an earlier visit;
  * opening the overlay on mount caused the assistant to pop up unexpectedly.

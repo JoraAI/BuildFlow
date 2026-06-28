@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Task & Scheduling service.
+ * BuildFlow - Task & Scheduling service.
  */
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';

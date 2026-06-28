@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, Modal, Alert, ScrollView, Pressable, TextInput } from 'react-native';
+import { View, Text, Alert, ScrollView, Pressable, TextInput } from 'react-native';
+import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
 import {
   Card,
   Badge,
@@ -27,6 +28,7 @@ import {
   type WorkOrder,
 } from '@/services/expansion.queries';
 import * as Sharing from 'expo-sharing';
+import { alertAsync } from '@/utils/confirm';
 
 const STATUS_COLOR: Record<string, 'neutral' | 'warning' | 'success' | 'danger'> = {
   DRAFT: 'neutral',
@@ -60,7 +62,7 @@ function MeasurementsPanel({
 
   const onCreate = () => {
     if (!periodLabel.trim() || !desc.trim()) {
-      Alert.alert('Required', 'Period label and description are required.');
+      void alertAsync('Required', 'Period label and description are required.');
       return;
     }
     createMeas.mutate(
@@ -81,7 +83,7 @@ function MeasurementsPanel({
           setPeriodLabel('');
           setDesc('');
         },
-        onError: (e: Error) => Alert.alert('Error', e.message),
+        onError: (e: Error) => void alertAsync('Error', e.message),
       },
     );
   };
@@ -92,7 +94,7 @@ function MeasurementsPanel({
         type === 'book'
           ? await downloadMeasurementBookPdf(projectId)
           : await downloadAbstractSheetPdf(projectId);
-      if (await Sharing.isAvailableAsync()) {
+      if (uri && (await Sharing.isAvailableAsync())) {
         await Sharing.shareAsync(uri);
       } else {
         Alert.alert('Saved', 'PDF saved to device.');
@@ -137,7 +139,7 @@ function MeasurementsPanel({
                   variant="secondary"
                   onPress={() =>
                     submitMeas.mutate(m.id, {
-                      onError: (e: Error) => Alert.alert('Error', e.message),
+                      onError: (e: Error) => void alertAsync('Error', e.message),
                     })
                   }
                 />
@@ -148,7 +150,7 @@ function MeasurementsPanel({
                   size="sm"
                   onPress={() =>
                     approveMeas.mutate(m.id, {
-                      onError: (e: Error) => Alert.alert('Error', e.message),
+                      onError: (e: Error) => void alertAsync('Error', e.message),
                     })
                   }
                 />
@@ -170,27 +172,27 @@ function MeasurementsPanel({
         ))
       )}
 
-      <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
-        <View className="flex-1 justify-end bg-black/40">
-          <ScrollView className="bg-card rounded-t-2xl" contentContainerClassName="p-4 gap-3">
-            <Text className="text-lg font-bold text-text">New Measurement</Text>
-            <Input label="Period" value={periodLabel} onChangeText={setPeriodLabel} placeholder="Jan 2025" />
-            <TextInput
-              className="border border-border rounded-lg p-2 text-sm text-text"
-              placeholder="Work description"
-              value={desc}
-              onChangeText={setDesc}
-              multiline
-            />
-            <View className="flex-row gap-2">
-              <Input label="Qty" value={qty} onChangeText={setQty} keyboardType="numeric" />
-              <Input label="Unit" value={unit} onChangeText={setUnit} />
-              <Input label="Rate" value={rate} onChangeText={setRate} keyboardType="numeric" />
-            </View>
-            <Button label="Create" loading={createMeas.isPending} onPress={onCreate} />
-          </ScrollView>
+      <AdaptiveSheet
+        visible={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="New Measurement"
+        size="md"
+        footer={<Button label="Create" loading={createMeas.isPending} onPress={onCreate} />}
+      >
+        <Input label="Period" value={periodLabel} onChangeText={setPeriodLabel} placeholder="Jan 2025" />
+        <TextInput
+          className="border border-border rounded-lg p-2 text-sm text-text"
+          placeholder="Work description"
+          value={desc}
+          onChangeText={setDesc}
+          multiline
+        />
+        <View className="flex-row gap-2">
+          <Input label="Qty" value={qty} onChangeText={setQty} keyboardType="numeric" />
+          <Input label="Unit" value={unit} onChangeText={setUnit} />
+          <Input label="Rate" value={rate} onChangeText={setRate} keyboardType="numeric" />
         </View>
-      </Modal>
+      </AdaptiveSheet>
     </View>
   );
 }
@@ -220,7 +222,7 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
 
   const onCreateSub = () => {
     if (!subName.trim()) {
-      Alert.alert('Required', 'Subcontractor name is required.');
+      void alertAsync('Required', 'Subcontractor name is required.');
       return;
     }
     createSub.mutate(
@@ -235,14 +237,14 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
           setSubModal(false);
           setSubName('');
         },
-        onError: (e: Error) => Alert.alert('Error', e.message),
+        onError: (e: Error) => void alertAsync('Error', e.message),
       },
     );
   };
 
   const onCreateWO = () => {
     if (!woNumber.trim() || !scope.trim() || !selectedSub) {
-      Alert.alert('Required', 'WO number, scope, and subcontractor are required.');
+      void alertAsync('Required', 'WO number, scope, and subcontractor are required.');
       return;
     }
     createWO.mutate(
@@ -260,7 +262,7 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
           setWoNumber('');
           setScope('');
         },
-        onError: (e: Error) => Alert.alert('Error', e.message),
+        onError: (e: Error) => void alertAsync('Error', e.message),
       },
     );
   };
@@ -322,48 +324,46 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
         ))
       )}
 
-      {/* Create WO modal */}
-      <Modal visible={woModal} transparent animationType="slide" onRequestClose={() => setWoModal(false)}>
-        <View className="flex-1 justify-end bg-black/40">
-          <ScrollView className="bg-card rounded-t-2xl" contentContainerClassName="p-4 gap-3">
-            <Text className="text-lg font-bold text-text">New Work Order</Text>
-            <Input label="WO Number" value={woNumber} onChangeText={setWoNumber} placeholder="WO-001" />
-            <Input label="Scope" value={scope} onChangeText={setScope} multiline />
-            <Input
-              label="Contract value (₹)"
-              value={contractValue}
-              onChangeText={setContractValue}
-              keyboardType="numeric"
-            />
-            <Text className="text-sm font-semibold text-text">Subcontractor</Text>
-            {subs.map((s: Subcontractor) => (
-              <Pressable
-                key={s.id}
-                onPress={() => setSelectedSub(s.id)}
-                className={`p-2 rounded-lg border ${
-                  selectedSub === s.id ? 'border-primary bg-primary/5' : 'border-border'
-                }`}
-              >
-                <Text className="text-sm text-text">{s.name}</Text>
-              </Pressable>
-            ))}
-            <Button label="Create WO" loading={createWO.isPending} onPress={onCreateWO} />
-          </ScrollView>
-        </View>
-      </Modal>
+      <AdaptiveSheet
+        visible={woModal}
+        onClose={() => setWoModal(false)}
+        title="New Work Order"
+        size="lg"
+        footer={<Button label="Create WO" loading={createWO.isPending} onPress={onCreateWO} />}
+      >
+        <Input label="WO Number" value={woNumber} onChangeText={setWoNumber} placeholder="WO-001" />
+        <Input label="Scope" value={scope} onChangeText={setScope} multiline />
+        <Input
+          label="Contract value (₹)"
+          value={contractValue}
+          onChangeText={setContractValue}
+          keyboardType="numeric"
+        />
+        <Text className="text-sm font-semibold text-text">Subcontractor</Text>
+        {subs.map((s: Subcontractor) => (
+          <Pressable
+            key={s.id}
+            onPress={() => setSelectedSub(s.id)}
+            className={`p-2 rounded-lg border ${
+              selectedSub === s.id ? 'border-primary bg-primary/5' : 'border-border'
+            }`}
+          >
+            <Text className="text-sm text-text">{s.name}</Text>
+          </Pressable>
+        ))}
+      </AdaptiveSheet>
 
-      {/* Create subcontractor modal */}
-      <Modal visible={subModal} transparent animationType="slide" onRequestClose={() => setSubModal(false)}>
-        <View className="flex-1 justify-end bg-black/40">
-          <ScrollView className="bg-card rounded-t-2xl" contentContainerClassName="p-4 gap-3">
-            <Text className="text-lg font-bold text-text">Add Subcontractor</Text>
-            <Input label="Name" value={subName} onChangeText={setSubName} />
-            <Input label="GSTIN" value={subGstin} onChangeText={setSubGstin} autoCapitalize="characters" />
-            <Input label="Phone" value={subPhone} onChangeText={setSubPhone} keyboardType="phone-pad" />
-            <Button label="Save" loading={createSub.isPending} onPress={onCreateSub} />
-          </ScrollView>
-        </View>
-      </Modal>
+      <AdaptiveSheet
+        visible={subModal}
+        onClose={() => setSubModal(false)}
+        title="Add Subcontractor"
+        size="md"
+        footer={<Button label="Save" loading={createSub.isPending} onPress={onCreateSub} />}
+      >
+        <Input label="Name" value={subName} onChangeText={setSubName} />
+        <Input label="GSTIN" value={subGstin} onChangeText={setSubGstin} autoCapitalize="characters" />
+        <Input label="Phone" value={subPhone} onChangeText={setSubPhone} keyboardType="phone-pad" />
+      </AdaptiveSheet>
     </View>
   );
 }

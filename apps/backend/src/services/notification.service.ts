@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Notification service.
+ * BuildFlow - Notification service.
  *
  * Creates in-app Notification rows and enqueues delivery jobs (push, WhatsApp, SMS)
  * via the `notification` Bull queue. Trigger points:
@@ -11,6 +11,7 @@
  *   - Estimate approved/rejected (push)
  *   - Estimate vs actual variance > 15% (alert PM + OWNER)
  *   - Material price change > 10% (alert PM)
+ *   - PO material rate over plan threshold (push to PM + OWNER)
  *   - Razorpay payment captured (push to OWNER + ACCOUNTANT)
  *
  * Channel preference is read from user.notificationPreferences (JSON); defaults to all on.
@@ -29,12 +30,12 @@ export interface NotifyPayload {
   type: string;
   referenceId?: string;
   channels?: NotificationChannel[]; // defaults to ['PUSH']
-  // Out-of-band recipients (e.g. client phone for invoice WhatsApp) — bypass user pref lookup
+  // Out-of-band recipients (e.g. client phone for invoice WhatsApp) - bypass user pref lookup
   external?: { channel: 'WHATSAPP' | 'SMS'; to: string; message: string }[];
 }
 
 /**
- * Create a notification row + enqueue delivery. Never throws — logging only — so it
+ * Create a notification row + enqueue delivery. Never throws - logging only - so it
  * can't break the parent business flow.
  */
 export async function notify(payload: NotifyPayload): Promise<void> {
@@ -78,7 +79,7 @@ export async function notify(payload: NotifyPayload): Promise<void> {
         });
       }
     }
-    // External recipients (clients/vendors) — no pref check
+    // External recipients (clients/vendors) - no pref check
     for (const ext of payload.external ?? []) {
       jobs.push({ name: ext.channel.toLowerCase(), data: { companyId, to: ext.to, message: ext.message } });
     }

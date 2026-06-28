@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Payment routes (Razorpay invoice + SaaS billing webhooks).
+ * BuildFlow - Payment routes (Razorpay invoice + SaaS billing webhooks).
  */
 import { Router } from 'express';
 import * as ctrl from '../controllers/payment.controller';

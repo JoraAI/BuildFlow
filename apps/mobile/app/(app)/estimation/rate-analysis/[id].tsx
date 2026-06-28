@@ -1,15 +1,16 @@
 /**
- * BuildFlow — Rate Analysis create/edit screen.
+ * BuildFlow - Rate Analysis create/edit screen.
  * Component builder with live total box.
  */
 import React, { useState, useMemo } from 'react';
-import { View, Text, TextInput, ScrollView, Pressable, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, TextInput, ScrollView, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card } from '@/components/ui';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { dismissTo, DISMISS } from '@/utils/navigation';
+import { alertAsync } from '@/utils/confirm';
 import {
   useResources,
   useRateAnalysis,
@@ -57,6 +58,7 @@ export default function RateAnalysisEditorScreen() {
   const [components, setComponents] = useState<DraftComp[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [pickerFor, setPickerFor] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Hydrate from existing (edit mode)
   React.useEffect(() => {
@@ -105,8 +107,17 @@ export default function RateAnalysisEditorScreen() {
   }
 
   async function handleSave() {
-    if (!name.trim()) return Alert.alert('Name required');
-    if (components.length === 0) return Alert.alert('Add at least one component');
+    if (!name.trim()) {
+      setFormError('Name required');
+      await alertAsync('Required', 'Name required');
+      return;
+    }
+    if (components.length === 0) {
+      setFormError('Add at least one component');
+      await alertAsync('Required', 'Add at least one component');
+      return;
+    }
+    setFormError(null);
     const payload = {
       name: name.trim(),
       unit: unit.trim() || 'unit',
@@ -125,7 +136,9 @@ export default function RateAnalysisEditorScreen() {
       else await createMut.mutateAsync(payload);
       dismissTo(DISMISS.rateAnalysis);
     } catch (e) {
-      Alert.alert('Save failed', e instanceof Error ? e.message : 'Unknown error');
+      const msg = e instanceof Error ? e.message : 'Unknown error';
+      setFormError(msg);
+      await alertAsync('Save failed', msg);
     }
   }
 
@@ -142,6 +155,11 @@ export default function RateAnalysisEditorScreen() {
         />
 
         <ScrollView className="flex-1" contentContainerClassName="p-4 gap-4 pb-32">
+          {formError ? (
+            <View className="px-3 py-2 rounded-lg bg-danger/10 border border-danger/30">
+              <Text className="text-sm text-danger">{formError}</Text>
+            </View>
+          ) : null}
           {/* Header fields */}
           <Card>
             <Text className="text-sm font-semibold text-text mb-1">Name</Text>

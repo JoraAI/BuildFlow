@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TextInput } from 'react-native';
+import { useViewport } from '@/hooks/useViewport';
 
 interface InputProps {
   label?: string;
@@ -9,11 +10,13 @@ interface InputProps {
   error?: string;
   helper?: string;
   secureTextEntry?: boolean;
-  keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad';
+  keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad' | 'decimal-pad';
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
   multiline?: boolean;
+  /** Stretch to container width on desktop (default: compact max-width). */
+  fullWidth?: boolean;
 }
 
 export function Input({
@@ -29,11 +32,24 @@ export function Input({
   leftIcon,
   rightIcon,
   multiline = false,
+  fullWidth = false,
 }: InputProps) {
+  const { isDesktop } = useViewport();
+  const widthClass =
+    fullWidth || !isDesktop
+      ? 'w-full'
+      : multiline
+        ? 'w-full max-w-xl self-start'
+        : 'w-full max-w-md self-start';
+
   return (
-    <View className="mb-4">
-      {label && <Text className="text-sm font-semibold text-text mb-1.5">{label}</Text>}
-      <View className={`flex-row items-center rounded-lg border bg-card ${error ? 'border-danger' : 'border-border'} px-3`}>
+    <View className={`mb-4 ${widthClass}`}>
+      {label ? <Text className="text-sm font-semibold text-text mb-1.5">{label}</Text> : null}
+      <View
+        className={`flex-row items-center rounded-lg border bg-card ${
+          error ? 'border-danger' : 'border-border'
+        } px-3 ${multiline ? 'items-start py-2' : ''}`}
+      >
         {leftIcon}
         <TextInput
           value={value}
@@ -43,13 +59,15 @@ export function Input({
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
           multiline={multiline}
-          className={`flex-1 text-text py-3 ${leftIcon ? 'ml-2' : ''} ${multiline ? 'min-h-[80px] text-top' : ''}`}
+          className={`flex-1 text-text ${multiline ? 'min-h-[88px] py-2 text-top' : 'py-3'} ${
+            leftIcon ? 'ml-2' : ''
+          }`}
           placeholderTextColor="#94A3B8"
         />
         {rightIcon}
       </View>
-      {error && <Text className="text-xs text-danger mt-1">{error}</Text>}
-      {helper && !error && <Text className="text-xs text-text-muted mt-1">{helper}</Text>}
+      {error ? <Text className="text-xs text-danger mt-1">{error}</Text> : null}
+      {helper && !error ? <Text className="text-xs text-muted mt-1">{helper}</Text> : null}
     </View>
   );
 }

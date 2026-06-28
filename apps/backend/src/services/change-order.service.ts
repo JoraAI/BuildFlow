@@ -1,20 +1,113 @@
+import { Decimal } from '@prisma/client/runtime/library';
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
 import { recordAudit } from '../utils/audit';
 import type { CreateChangeOrderInput } from '@buildflow/shared';
 import { assertProjectAccess } from '../middleware/project-access.middleware';
+import { createDraftIndentsFromDemand, type MaterialDemandLine } from './material-demand.service';
 
 function round2(n: number) {
   return Math.round(n * 100) / 100;
 }
 
+function dec(d: Decimal | number | null | undefined): string {
+  if (d == null) return '0';
+  return String(Number(d));
+}
+
+function addDays(date: Date, days: number): Date {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+type ChangeOrderRecord = {
+  id: string;
+  projectId: string;
+  companyId: string;
+  number: string;
+  title: string;
+  reason: string | null;
+  status: string;
+  costImpact: Decimal;
+  scheduleImpactDays: number;
+  linkedTaskId: string | null;
+  linkedWorkOrderId: string | null;
+  estimateId: string | null;
+  createdBy: string;
+  approvedBy: string | null;
+  approvedAt: Date | null;
+  rejectionReason: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  lines: Array<{
+    id: string;
+    changeOrderId: string;
+    boqItemId: string | null;
+    resourceId: string | null;
+    description: string;
+    unit: string;
+    qtyDelta: Decimal;
+    rate: Decimal;
+    amount: Decimal;
+  }>;
+  createdByUser?: { id: string; name: string } | null;
+  linkedTask?: { id: string; name: string } | null;
+  linkedWorkOrder?: { id: string; woNumber: string } | null;
+};
+
+function serializeChangeOrder(co: ChangeOrderRecord) {
+  return {
+    id: co.id,
+    projectId: co.projectId,
+    companyId: co.companyId,
+    number: co.number,
+    title: co.title,
+    reason: co.reason,
+    status: co.status,
+    costImpact: dec(co.costImpact),
+    scheduleImpactDays: co.scheduleImpactDays,
+    linkedTaskId: co.linkedTaskId,
+    linkedWorkOrderId: co.linkedWorkOrderId,
+    estimateId: co.estimateId,
+    createdBy: co.createdBy,
+    approvedBy: co.approvedBy,
+    approvedAt: co.approvedAt?.toISOString() ?? null,
+    rejectionReason: co.rejectionReason,
+    createdAt: co.createdAt.toISOString(),
+    updatedAt: co.updatedAt.toISOString(),
+    lines: co.lines.map((line) => ({
+      id: line.id,
+      changeOrderId: line.changeOrderId,
+      boqItemId: line.boqItemId,
+      resourceId: line.resourceId,
+      description: line.description,
+      unit: line.unit,
+      qtyDelta: dec(line.qtyDelta),
+      rate: dec(line.rate),
+      amount: dec(line.amount),
+    })),
+    ...(co.createdByUser ? { createdByUser: co.createdByUser } : {}),
+    ...(co.linkedTask ? { linkedTask: co.linkedTask } : {}),
+    ...(co.linkedWorkOrder ? { linkedWorkOrder: co.linkedWorkOrder } : {}),
+  };
+}
+
+const changeOrderInclude = {
+  lines: true,
+  createdByUser: { select: { id: true, name: true } },
+  linkedTask: { select: { id: true, name: true } },
+  linkedWorkOrder: { select: { id: true, woNumber: true } },
+} as const;
+
 export async function listChangeOrders(companyId: string, userId: string, role: string, projectId: string) {
   await assertProjectAccess(companyId, userId, role as never, projectId);
-  return prisma.changeOrder.findMany({
+  const rows = await prisma.changeOrder.findMany({
     where: { projectId, companyId },
-    include: { lines: true, createdByUser: { select: { id: true, name: true } } },
+    include: changeOrderInclude,
     orderBy: { createdAt: 'desc' },
   });
+  return rows.map(serializeChangeOrder);
 }
 
 export async function createChangeOrder(
@@ -27,12 +120,17 @@ export async function createChangeOrder(
   await assertProjectAccess(companyId, userId, role as never, projectId, ['OWNER', 'PM']);
 
   const lines = input.lines.map((l) => ({
-    ...l,
+    boqItemId: l.boqItemId,
+    resourceId: l.resourceId,
+    description: l.description,
+    unit: l.unit,
+    qtyDelta: l.qtyDelta,
+    rate: l.rate,
     amount: round2(l.qtyDelta * l.rate),
   }));
   const costImpact = round2(lines.reduce((s, l) => s + l.amount, 0));
 
-  return prisma.changeOrder.create({
+  const created = await prisma.changeOrder.create({
     data: {
       projectId,
       companyId,
@@ -41,11 +139,14 @@ export async function createChangeOrder(
       reason: input.reason,
       costImpact,
       scheduleImpactDays: input.scheduleImpactDays,
+      linkedTaskId: input.linkedTaskId,
+      linkedWorkOrderId: input.linkedWorkOrderId,
       createdBy: userId,
       lines: { create: lines },
     },
-    include: { lines: true },
+    include: changeOrderInclude,
   });
+  return serializeChangeOrder(created);
 }
 
 export async function submitChangeOrder(companyId: string, userId: string, role: string, id: string) {
@@ -55,11 +156,12 @@ export async function submitChangeOrder(companyId: string, userId: string, role:
   if (co.status !== 'DRAFT' && co.status !== 'REJECTED') {
     throw ApiError.badRequest('Only draft or rejected variations can be submitted');
   }
-  return prisma.changeOrder.update({
+  const updated = await prisma.changeOrder.update({
     where: { id },
     data: { status: 'SUBMITTED' },
-    include: { lines: true },
+    include: changeOrderInclude,
   });
+  return serializeChangeOrder(updated);
 }
 
 export async function approveChangeOrder(
@@ -76,6 +178,8 @@ export async function approveChangeOrder(
   });
   if (!co) throw ApiError.notFound('Change order not found');
   if (co.status !== 'SUBMITTED') throw ApiError.badRequest('Variation must be submitted first');
+
+  const materialDemands: MaterialDemandLine[] = [];
 
   await prisma.$transaction(async (tx) => {
     for (const line of co.lines) {
@@ -103,6 +207,36 @@ export async function approveChangeOrder(
           },
         });
       }
+
+      if (line.resourceId && Number(line.qtyDelta) > 0) {
+        materialDemands.push({
+          resourceId: line.resourceId,
+          quantity: Number(line.qtyDelta),
+          unit: line.unit,
+          boqItemId: line.boqItemId ?? undefined,
+        });
+      }
+    }
+
+    if (co.linkedTaskId && co.scheduleImpactDays > 0) {
+      const task = await tx.task.findFirst({ where: { id: co.linkedTaskId, projectId: co.projectId } });
+      if (task) {
+        const baseEnd = task.endDate ?? task.startDate ?? new Date();
+        await tx.task.update({
+          where: { id: task.id },
+          data: {
+            endDate: addDays(baseEnd, co.scheduleImpactDays),
+            durationDays: task.durationDays + co.scheduleImpactDays,
+          },
+        });
+      }
+    }
+
+    if (co.linkedWorkOrderId) {
+      await tx.subcontractWorkOrder.update({
+        where: { id: co.linkedWorkOrderId },
+        data: { contractValue: { increment: co.costImpact } },
+      });
     }
 
     await tx.project.update({
@@ -116,6 +250,17 @@ export async function approveChangeOrder(
     });
   });
 
+  if (materialDemands.length > 0) {
+    await createDraftIndentsFromDemand(
+      companyId,
+      userId,
+      co.projectId,
+      materialDemands,
+      'VARIATION',
+      co.number,
+    );
+  }
+
   await recordAudit({
     companyId,
     userId,
@@ -125,7 +270,9 @@ export async function approveChangeOrder(
     ipAddress: ip,
   });
 
-  return prisma.changeOrder.findFirst({ where: { id }, include: { lines: true } });
+  const approved = await prisma.changeOrder.findFirst({ where: { id }, include: changeOrderInclude });
+  if (!approved) throw ApiError.notFound('Change order not found');
+  return serializeChangeOrder(approved);
 }
 
 export async function rejectChangeOrder(
@@ -142,7 +289,7 @@ export async function rejectChangeOrder(
   const updated = await prisma.changeOrder.update({
     where: { id },
     data: { status: 'REJECTED', rejectionReason: reason },
-    include: { lines: true },
+    include: changeOrderInclude,
   });
   await recordAudit({
     companyId,
@@ -152,5 +299,5 @@ export async function rejectChangeOrder(
     entityId: id,
     newValue: { reason },
   });
-  return updated;
+  return serializeChangeOrder(updated);
 }

@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Shared package barrel
+ * BuildFlow - Shared package barrel
  *
  * Usage:
  *   import { Role, loginSchema, formatINR } from '@buildflow/shared';
@@ -13,9 +13,10 @@ export * from './types';
 export * from './validators';
 export * from './constants';
 export * from './pricing';
+export * from './utils/date';
 
 /* ------------------------------------------------------------------ */
-/* Formatting utilities (no deps — safe for RN + Node)                 */
+/* Formatting utilities (no deps - safe for RN + Node)                 */
 /* ------------------------------------------------------------------ */
 
 /** Format a number as Indian currency: ₹1,23,456.78 (lakhs grouping). */

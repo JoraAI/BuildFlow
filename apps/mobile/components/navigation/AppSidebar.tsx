@@ -29,7 +29,7 @@ export function AppSidebar({ allowedTabs }: AppSidebarProps) {
   };
 
   return (
-    <View className="w-[260px] bg-primary shrink-0 border-r border-white/10">
+    <View className="w-[260px] bg-primary shrink-0 border-r border-white/10 self-stretch flex-col min-h-0">
       {/* Brand */}
       <ImageBackground
         source={{ uri: BRAND_IMAGES.sidebarTexture }}
@@ -59,7 +59,7 @@ export function AppSidebar({ allowedTabs }: AppSidebarProps) {
       </ImageBackground>
 
       {/* Nav groups */}
-      <ScrollView className="flex-1 py-4 px-3" showsVerticalScrollIndicator={false}>
+      <ScrollView className="flex-1 min-h-0 py-4 px-3" showsVerticalScrollIndicator={false}>
         {NAV_GROUPS.map((group) => {
           const groupTabs = group.tabs.filter((t) => allowedSet.has(t));
           if (groupTabs.length === 0) return null;
@@ -110,7 +110,7 @@ export function AppSidebar({ allowedTabs }: AppSidebarProps) {
 
       {/* User + logout */}
       {user && (
-        <View className="px-3 py-4 border-t border-white/10">
+        <View className="px-3 py-4 border-t border-white/10 shrink-0 mt-auto">
           <View className="flex-row items-center gap-3 px-2 mb-3">
             <View className="w-9 h-9 rounded-full bg-accent/25 border border-accent/40 items-center justify-center">
               <Text className="text-accent text-sm font-bold">

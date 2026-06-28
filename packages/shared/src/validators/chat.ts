@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Chat & Notification validators (shared).
+ * BuildFlow - Chat & Notification validators (shared).
  */
 import { z } from 'zod';
 

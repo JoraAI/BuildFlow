@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Environment configuration (Zod-validated)
+ * BuildFlow - Environment configuration (Zod-validated)
  */
 import dotenv from 'dotenv';
 import { existsSync } from 'node:fs';
@@ -54,13 +54,13 @@ const envSchema = z.object({
   // Tally Prime export (optional ledger name mapping JSON)
   TALLY_LEDGER_MAP: z.string().optional(),
 
-  // Twilio (WhatsApp + SMS) — optional
+  // Twilio (WhatsApp + SMS) - optional
   TWILIO_ACCOUNT_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_WHATSAPP_FROM: z.string().optional(),
   TWILIO_SMS_FROM: z.string().optional(),
 
-  // Razorpay — optional
+  // Razorpay - optional
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
@@ -69,16 +69,16 @@ const envSchema = z.object({
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
 
-  // Google Maps Platform — optional
+  // Google Maps Platform - optional
   GOOGLE_MAPS_API_KEY: z.string().optional(),
 
-  // Chatbot LLM proxy — optional (OpenAI-compatible endpoint)
+  // Chatbot LLM proxy - optional (OpenAI-compatible endpoint)
   // Treat empty string as undefined (common .env quirk)
   LLM_API_URL: z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()),
   LLM_API_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
   LLM_MODEL: z.string().default('gpt-4o-mini'),
 
-  // Expo push notifications — optional
+  // Expo push notifications - optional
   EXPO_ACCESS_TOKEN: z.string().optional(),
 
   // Auth / onboarding
@@ -96,7 +96,7 @@ const envSchema = z.object({
   // Trial length in days for new company registrations
   TRIAL_DAYS: z.coerce.number().int().min(1).max(90).default(14),
 
-  // BuildFlow SaaS billing (platform-owned — charges companies for subscriptions)
+  // BuildFlow SaaS billing (platform-owned - charges companies for subscriptions)
   SAAS_RAZORPAY_KEY_ID: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
   SAAS_RAZORPAY_KEY_SECRET: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
   SAAS_RAZORPAY_WEBHOOK_SECRET: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),

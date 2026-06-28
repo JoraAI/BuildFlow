@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Notification queue worker (WhatsApp / SMS / push).
+ * BuildFlow - Notification queue worker (WhatsApp / SMS / push).
  */
 import { getQueue } from '../lib/queue';
 import { sendWhatsApp, sendSMS, sendPush } from '../services/twilio.service';

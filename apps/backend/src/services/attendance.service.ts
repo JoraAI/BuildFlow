@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Attendance service (geo-fence check-in / check-out).
+ * BuildFlow - Attendance service (geo-fence check-in / check-out).
  */
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
@@ -69,7 +69,7 @@ export async function checkIn(
 }
 
 /**
- * Check out of a project site — sets checkOutAt on the most recent open record.
+ * Check out of a project site - sets checkOutAt on the most recent open record.
  */
 export async function checkOut(companyId: string, userId: string, projectId: string, ipAddress?: string) {
   const open = await prisma.attendance.findFirst({

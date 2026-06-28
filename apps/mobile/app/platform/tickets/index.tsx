@@ -1,11 +1,12 @@
 /**
- * BuildFlow Platform — escalated ticket queue.
+ * BuildFlow Platform - escalated ticket queue.
  */
 import React from 'react';
-import { View, Text, ScrollView, SafeAreaView, Alert } from 'react-native';
+import { View, Text, ScrollView, SafeAreaView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, Badge, Button, LoadingSkeleton, EmptyState } from '@/components/ui';
 import { usePlatformTickets, usePlatformUpdateTicket } from '@/services/platform.queries';
+import { alertAsync } from '@/utils/confirm';
 
 export default function PlatformTicketsScreen() {
   const router = useRouter();
@@ -21,10 +22,10 @@ export default function PlatformTicketsScreen() {
           resolutionNote:
             status === 'RESOLVED'
               ? 'Resolved by BuildFlow support'
-              : 'Unable to fulfill — contact owner',
+              : 'Unable to fulfill - contact owner',
         },
       },
-      { onError: (e) => Alert.alert('Error', e.message) },
+      { onError: async (e: Error) => void alertAsync('Error', e.message) },
     );
   };
 

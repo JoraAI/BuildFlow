@@ -1,24 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, RefreshControl, Linking, Alert, Share, Platform } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, ScrollView, Pressable, RefreshControl, Linking, Share, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Card, Badge, ProgressBar, LoadingSkeleton, EmptyState, Button, Input } from '@/components/ui';
-import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { desktopContentBottomPadding, mobileListBottomPadding } from '@/components/layout/fab-layout';
 import { dismissTo, DISMISS } from '@/utils/navigation';
+import { alertAsync } from '@/utils/confirm';
 import { useViewport } from '@/hooks/useViewport';
+import { ResponsiveGrid } from '@/components/layout/ResponsiveGrid';
 import {
   useProject,
   useProjectSummary,
-  useGantt,
-  type GanttTask,
 } from '@/services/project.queries';
-import { useBoq, type BoqItem, type BoqGroup } from '@/services/boq.queries';
 import { useProjectEstimates, type EstimateListRow } from '@/services/estimate.queries';
 import { VariationsTab } from '@/components/projects/VariationsTab';
 import { ProcurementTab } from '@/components/projects/ProcurementTab';
 import { SubcontractsTab } from '@/components/projects/SubcontractsTab';
+import { ScheduleTab } from '@/components/projects/ScheduleTab';
+import { ProjectReportsTab } from '@/components/projects/ProjectReportsTab';
+import { BoqTab } from '@/components/projects/BoqTab';
+import { ResourcesTab } from '@/components/projects/ResourcesTab';
 import { ProjectMembersSection } from '@/components/projects/ProjectMembersSection';
+import { ProjectMaterialRatesSection } from '@/components/projects/ProjectMaterialRatesSection';
 import { useCreatePortalAccess } from '@/services/expansion.queries';
 import { useAuthStore } from '@/stores/auth.store';
 import { formatINR, formatINRCompact, formatDate, daysBetween } from '@/utils/format';
@@ -42,7 +47,6 @@ export default function ProjectDetailScreen() {
   const { id: idParam, tab: tabParam } = useLocalSearchParams<{ id: string; tab?: string }>();
   const id = Array.isArray(idParam) ? idParam[0] : idParam;
   const tabFromUrl = Array.isArray(tabParam) ? tabParam[0] : tabParam;
-  const insets = useSafeAreaInsets();
   const { isDesktop } = useViewport();
   const [tab, setTab] = useState<Tab>('overview');
   const { data: project, isLoading, refetch, isFetching } = useProject(id);
@@ -55,73 +59,151 @@ export default function ProjectDetailScreen() {
   }, [id, tabFromUrl]);
 
   if (isLoading) {
-    return (
-      <SafeAreaView className="flex-1 bg-surface">
-        <OfflineBanner />
-        {!isDesktop && (
-          <FormScreenHeader
-            title="Project"
-            onCancel={() => dismissTo(DISMISS.projects)}
-          />
-        )}
-        <View className="p-4 gap-4">
-          <LoadingSkeleton className="h-20 rounded-xl" />
-          <LoadingSkeleton className="h-10 rounded-full" />
-          <LoadingSkeleton className="h-64 rounded-xl" />
+    const body = (
+      <View className="p-4 gap-4">
+        <LoadingSkeleton className="h-20 rounded-xl" />
+        <LoadingSkeleton className="h-10 rounded-full" />
+        <LoadingSkeleton className="h-64 rounded-xl" />
+      </View>
+    );
+    if (isDesktop) {
+      return (
+        <View className="flex-1 min-h-0 bg-surface px-8 pt-6 max-w-6xl w-full self-center">
+          <PageHeader title="Project" subtitle="Loading…" />
+          {body}
         </View>
+      );
+    }
+    return (
+      <SafeAreaView className="flex-1 bg-surface" edges={[]}>
+        <FormScreenHeader title="Project" onCancel={() => dismissTo(DISMISS.projects)} />
+        {body}
       </SafeAreaView>
     );
   }
 
   if (!project) {
+    if (isDesktop) {
+      return (
+        <View className="flex-1 min-h-0 bg-surface px-8 pt-6 max-w-6xl w-full self-center">
+          <PageHeader title="Project not found" subtitle="This project may have been deleted." />
+          <EmptyState title="Project not found" description="This project may have been deleted." />
+        </View>
+      );
+    }
     return (
-      <SafeAreaView className="flex-1 bg-surface">
-        <OfflineBanner />
-        {!isDesktop && (
-          <FormScreenHeader
-            title="Project not found"
-            onCancel={() => dismissTo(DISMISS.projects)}
-          />
-        )}
+      <SafeAreaView className="flex-1 bg-surface" edges={[]}>
+        <FormScreenHeader title="Project not found" onCancel={() => dismissTo(DISMISS.projects)} />
         <EmptyState title="Project not found" description="This project may have been deleted." />
       </SafeAreaView>
     );
   }
 
-  return (
-    <SafeAreaView className="flex-1 bg-surface" edges={isDesktop ? [] : ['top']}>
-      <Stack.Screen options={{ title: project.name }} />
-      <OfflineBanner />
-      {!isDesktop && (
-        <FormScreenHeader
-          title={project.name}
-          subtitle={project.code}
-          onCancel={() => dismissTo(DISMISS.projects)}
-          cancelLabel="Back"
-        />
+  const statusBadge = (
+    <Badge
+      color={project.status === 'COMPLETED' ? 'success' : project.status === 'IN_PROGRESS' ? 'warning' : 'neutral'}
+      label={project.status.replace('_', ' ')}
+    />
+  );
+
+  const tabBar = (
+    <View className="bg-surface border-b border-border">
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="px-4 py-2 gap-2">
+        {TABS.map((t) => (
+          <Pressable
+            key={t.value}
+            onPress={() => setTab(t.value)}
+            className={`px-4 py-2 rounded-full ${
+              tab === t.value ? 'bg-primary' : 'bg-card border border-border'
+            }`}
+          >
+            <Text className={`text-sm font-semibold ${tab === t.value ? 'text-white' : 'text-muted'}`}>
+              {t.label}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
+  );
+
+  const tabContent = (
+    <View className={isDesktop ? 'px-8 py-4 max-w-6xl w-full self-center' : 'p-4 pb-32'}>
+      {tab === 'overview' && (
+        <OverviewTab projectId={id} summary={summaryQ.data} summaryLoading={summaryQ.isLoading} project={project} />
       )}
+      {tab === 'estimate' && <EstimateTab projectId={id} />}
+      {tab === 'schedule' && <ScheduleTab projectId={id} />}
+      {tab === 'boq' && <BoqTab projectId={id} />}
+      {tab === 'variations' && <VariationsTab projectId={id} />}
+      {tab === 'procurement' && <ProcurementTab projectId={id} />}
+      {tab === 'subcontracts' && <SubcontractsTab projectId={id} />}
+      {tab === 'resources' && <ResourcesTab projectId={id} />}
+      {tab === 'reports' && <ProjectReportsTab projectId={id} />}
+      {tab === 'settings' && <SettingsTab projectId={id} />}
+    </View>
+  );
+
+  if (isDesktop) {
+    return (
+      <View className="flex-1 min-h-0 bg-surface">
+        <Stack.Screen options={{ title: project.name }} />
+        <ScrollView
+          className="flex-1 min-h-0"
+          refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
+          stickyHeaderIndices={[1]}
+          contentContainerStyle={{ paddingBottom: desktopContentBottomPadding() }}
+          showsVerticalScrollIndicator
+        >
+          <View className="px-8 pt-6 pb-2 max-w-6xl w-full self-center">
+            <PageHeader
+              title={project.name}
+              subtitle={`${project.code} · ${project.clientName}`}
+              actions={
+                <View className="flex-row gap-1">
+                  <Badge color="primary" label={project.type} />
+                  {statusBadge}
+                </View>
+              }
+            />
+            <Card>
+              {project.locationAddress ? (
+                <Text className="text-sm text-muted" numberOfLines={2}>
+                  📍 {project.locationAddress}
+                </Text>
+              ) : (
+                <Text className="text-sm text-muted">No site address on file</Text>
+              )}
+            </Card>
+          </View>
+          {tabBar}
+          {tabContent}
+        </ScrollView>
+      </View>
+    );
+  }
+
+    return (
+      <SafeAreaView className="flex-1 bg-surface min-h-0" edges={[]}>
+      <Stack.Screen options={{ title: project.name }} />
+      <FormScreenHeader
+        title={project.name}
+        subtitle={project.code}
+        onCancel={() => dismissTo(DISMISS.projects)}
+        cancelLabel="Back"
+      />
       <ScrollView
+        className="flex-1"
         refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
-        stickyHeaderIndices={[isDesktop ? 0 : 1]}
+        stickyHeaderIndices={[1]}
+        contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
       >
-        {/* Header card */}
-        <View className={`px-4 ${isDesktop ? 'pt-4' : 'pt-2'} pb-2`}>
+        <View className="px-4 pt-2 pb-2">
           <Card>
             <View className="flex-row justify-between items-start mb-2">
-              <View className="flex-1">
-                {isDesktop ? (
-                  <>
-                    <Text className="text-xl font-bold text-text">{project.name}</Text>
-                    <Text className="text-sm text-muted font-mono">{project.code}</Text>
-                  </>
-                ) : null}
-              </View>
+              <View className="flex-1" />
               <View className="flex-row gap-1">
                 <Badge color="primary" label={project.type} />
-                <Badge
-                  color={project.status === 'COMPLETED' ? 'success' : project.status === 'IN_PROGRESS' ? 'warning' : 'neutral'}
-                  label={project.status.replace('_', ' ')}
-                />
+                {statusBadge}
               </View>
             </View>
             <Text className="text-sm text-muted">{project.clientName}</Text>
@@ -132,45 +214,8 @@ export default function ProjectDetailScreen() {
             ) : null}
           </Card>
         </View>
-
-        {/* Tabs */}
-        <View className="bg-surface border-b border-border">
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="px-4 py-2 gap-2">
-            {TABS.map((t) => (
-              <Pressable
-                key={t.value}
-                onPress={() => setTab(t.value)}
-                className={`px-4 py-2 rounded-full ${
-                  tab === t.value ? 'bg-primary' : 'bg-card border border-border'
-                }`}
-              >
-                <Text className={`text-sm font-semibold ${tab === t.value ? 'text-white' : 'text-muted'}`}>
-                  {t.label}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* Tab content */}
-        <View className="p-4 pb-32">
-          {tab === 'overview' && (
-            <OverviewTab projectId={id} summary={summaryQ.data} summaryLoading={summaryQ.isLoading} project={project} />
-          )}
-          {tab === 'estimate' && <EstimateTab projectId={id} />}
-          {tab === 'schedule' && <ScheduleTab projectId={id} />}
-          {tab === 'boq' && <BoqTab projectId={id} />}
-          {tab === 'variations' && <VariationsTab projectId={id} />}
-          {tab === 'procurement' && <ProcurementTab projectId={id} />}
-          {tab === 'subcontracts' && <SubcontractsTab projectId={id} />}
-          {tab === 'resources' && (
-            <EmptyState title="Resources coming soon" description="Resource allocation and variance tracking will appear here." />
-          )}
-          {tab === 'reports' && (
-            <EmptyState title="No reports yet" description="Daily site reports will appear here once submitted by supervisors." />
-          )}
-          {tab === 'settings' && <SettingsTab projectId={id} />}
-        </View>
+        {tabBar}
+        {tabContent}
       </ScrollView>
     </SafeAreaView>
   );
@@ -196,29 +241,29 @@ function OverviewTab({
   return (
     <View className="gap-4">
       {/* KPI Row */}
-      <View className="flex-row flex-wrap gap-3">
+      <ResponsiveGrid gap={12} columns={2}>
         <KpiCard
           label="Budget"
           value={formatINRCompact(budget)}
-          sub={summary ? `${summary.budgetUtilizationPct.toFixed(0)}% used` : '—'}
+          sub={summary ? `${summary.budgetUtilizationPct.toFixed(0)}% used` : '-'}
         />
         <KpiCard
           label="Progress"
-          value={summary ? `${summary.actualProgressPct.toFixed(0)}%` : '—'}
-          sub={summary ? `Planned ${summary.plannedProgressPct.toFixed(0)}%` : '—'}
+          value={summary ? `${summary.actualProgressPct.toFixed(0)}%` : '-'}
+          sub={summary ? `Planned ${summary.plannedProgressPct.toFixed(0)}%` : '-'}
         />
         <KpiCard
           label="Days Left"
-          value={project.endDate ? `${Math.max(0, daysBetween(new Date(), project.endDate))}d` : '—'}
+          value={project.endDate ? `${Math.max(0, daysBetween(new Date(), project.endDate))}d` : '-'}
           sub={project.endDate ? formatDate(project.endDate) : 'No end date'}
         />
         <KpiCard
           label="Overdue"
-          value={summary ? `${summary.tasksOverdueCount}` : '—'}
+          value={summary ? `${summary.tasksOverdueCount}` : '-'}
           sub="tasks"
           color={summary && summary.tasksOverdueCount > 0 ? '#EF4444' : undefined}
         />
-      </View>
+      </ResponsiveGrid>
 
       {/* Schedule Variance */}
       {summary && (
@@ -282,8 +327,8 @@ function OverviewTab({
       {/* Project Details */}
       <Card>
         <Text className="text-sm font-bold text-text mb-2">Details</Text>
-        <DetailRow label="Start Date" value={project.startDate ? formatDate(project.startDate) : '—'} />
-        <DetailRow label="End Date" value={project.endDate ? formatDate(project.endDate) : '—'} />
+        <DetailRow label="Start Date" value={project.startDate ? formatDate(project.startDate) : '-'} />
+        <DetailRow label="End Date" value={project.endDate ? formatDate(project.endDate) : '-'} />
         <DetailRow label="Client" value={project.clientName} />
         {project.clientContact ? <DetailRow label="Contact" value={project.clientContact} /> : null}
       </Card>
@@ -293,7 +338,7 @@ function OverviewTab({
 
 function KpiCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
   return (
-    <View className="flex-1 min-w-[45%] bg-card rounded-xl border border-border p-3">
+    <View className="bg-card rounded-xl border border-border p-3 h-full">
       <Text className="text-xs text-muted mb-1">{label}</Text>
       <Text className="text-lg font-bold" style={{ color: color ?? '#0F172A' }}>
         {value}
@@ -381,7 +426,7 @@ function EstimateTab({ projectId }: { projectId: string }) {
         >
           <View className="flex-row justify-between items-start mb-1">
             <View className="flex-1 pr-2">
-              <Text className="text-sm font-semibold text-text">v{e.version}.0 — {e.name}</Text>
+              <Text className="text-sm font-semibold text-text">v{e.version}.0 - {e.name}</Text>
               <Text className="text-xs text-text-muted">{formatDate(e.createdAt)}</Text>
             </View>
             <Badge color={(ESTIMATE_STATUS_COLOR[e.status] ?? 'neutral') as 'neutral'} label={e.status} />
@@ -389,214 +434,6 @@ function EstimateTab({ projectId }: { projectId: string }) {
           <View className="flex-row justify-between items-center pt-2 mt-1 border-t border-border">
             <Text className="text-xs text-text-muted">Grand Total</Text>
             <Text className="text-base font-bold text-primary">{formatINR(Number(e.grandTotal))}</Text>
-          </View>
-        </Card>
-      ))}
-    </View>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Schedule Tab (Gantt)                                                */
-/* ------------------------------------------------------------------ */
-
-const TASK_BAR_COLORS: Record<string, string> = {
-  NOT_STARTED: '#94A3B8',
-  IN_PROGRESS: '#1E3A5F',
-  COMPLETED: '#10B981',
-  DELAYED: '#EF4444',
-  ON_HOLD: '#F59E0B',
-};
-
-function ScheduleTab({ projectId }: { projectId: string }) {
-  const { data: gantt, isLoading } = useGantt(projectId);
-
-  if (isLoading) {
-    return (
-      <View className="gap-3">
-        {[1, 2, 3, 4].map((i) => (
-          <LoadingSkeleton key={i} className="h-12 rounded-lg" />
-        ))}
-      </View>
-    );
-  }
-
-  if (!gantt || gantt.tasks.length === 0) {
-    return (
-      <EmptyState
-        title="No tasks scheduled"
-        description="Create tasks and set dependencies to build your project schedule and critical path."
-      />
-    );
-  }
-
-  const projectStart = gantt.projectStart ? new Date(gantt.projectStart) : new Date();
-  const projectEnd = gantt.projectEnd ? new Date(gantt.projectEnd) : new Date();
-  const totalDays = Math.max(1, daysBetween(projectStart, projectEnd));
-
-  return (
-    <View className="gap-2">
-      <View className="flex-row justify-between items-center mb-1">
-        <Text className="text-sm font-bold text-text">{gantt.tasks.length} Tasks</Text>
-        <Badge color="danger" label={`${gantt.criticalPath.length} critical`} />
-      </View>
-
-      {/* Legend */}
-      <View className="flex-row flex-wrap gap-2 mb-2">
-        {Object.entries(TASK_BAR_COLORS).map(([status, color]) => (
-          <View key={status} className="flex-row items-center gap-1">
-            <View className="w-3 h-3 rounded-sm" style={{ backgroundColor: color }} />
-            <Text className="text-xs text-muted">{status.replace('_', ' ')}</Text>
-          </View>
-        ))}
-        <View className="flex-row items-center gap-1">
-          <View className="w-3 h-3 rounded-sm bg-danger" />
-          <Text className="text-xs text-muted">Critical Path</Text>
-        </View>
-      </View>
-
-      {/* Gantt bars */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View style={{ minWidth: 600 }}>
-          {/* Date header */}
-          <View className="flex-row border-b border-border pb-1 mb-1">
-            <View style={{ width: 200 }}>
-              <Text className="text-xs font-semibold text-muted">Task</Text>
-            </View>
-            <View className="flex-1 flex-row justify-between px-2">
-              <Text className="text-xs text-muted">{formatDate(projectStart)}</Text>
-              <Text className="text-xs text-muted">{formatDate(projectEnd)}</Text>
-            </View>
-          </View>
-
-          {gantt.tasks.map((task: GanttTask) => (
-            <GanttRow key={task.id} task={task} projectStart={projectStart} totalDays={totalDays} />
-          ))}
-        </View>
-      </ScrollView>
-    </View>
-  );
-}
-
-function GanttRow({ task, projectStart, totalDays }: { task: GanttTask; projectStart: Date; totalDays: number }) {
-  if (!task.startDate || !task.endDate) {
-    return (
-      <View className="flex-row items-center py-1.5 border-b border-border/50">
-        <View style={{ width: 200 }} className="pr-2">
-          <Text className="text-xs text-text" numberOfLines={1}>
-            {task.isCritical ? '🔴 ' : ''}
-            {task.name}
-          </Text>
-        </View>
-        <View className="flex-1 px-2">
-          <Text className="text-xs text-muted italic">No dates set</Text>
-        </View>
-      </View>
-    );
-  }
-
-  const start = new Date(task.startDate);
-  const end = new Date(task.endDate);
-  const offsetDays = Math.max(0, daysBetween(projectStart, start));
-  const duration = Math.max(1, daysBetween(start, end));
-  const offsetPct = (offsetDays / totalDays) * 100;
-  const widthPct = Math.min(100 - offsetPct, (duration / totalDays) * 100);
-  const barColor = task.isCritical ? '#EF4444' : TASK_BAR_COLORS[task.status] ?? '#1E3A5F';
-
-  return (
-    <View className="flex-row items-center py-1.5 border-b border-border/50">
-      <View style={{ width: 200 }} className="pr-2">
-        <Text className="text-xs text-text" numberOfLines={1}>
-          {task.isCritical ? '🔴 ' : ''}
-          {task.name}
-        </Text>
-      </View>
-      <View className="flex-1 px-2">
-        <View className="h-5 bg-border/40 rounded relative">
-          <View
-            className="h-5 rounded absolute flex-row items-center"
-            style={{
-              left: `${offsetPct}%`,
-              width: `${widthPct}%`,
-              backgroundColor: barColor,
-            }}
-          >
-            {task.progressPct > 0 && (
-              <View
-                className="h-5 rounded absolute left-0 top-0 opacity-30 bg-white"
-                style={{ width: `${task.progressPct}%` }}
-              />
-            )}
-            <Text className="text-[10px] text-white px-1" numberOfLines={1}>
-              {task.progressPct}%
-            </Text>
-          </View>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* BOQ Tab                                                             */
-/* ------------------------------------------------------------------ */
-
-function BoqTab({ projectId }: { projectId: string }) {
-  const { data: boq, isLoading } = useBoq(projectId);
-
-  if (isLoading) {
-    return <LoadingSkeleton className="h-48 rounded-xl" />;
-  }
-
-  if (!boq || boq.items.length === 0) {
-    return (
-      <EmptyState
-        title="No BOQ items"
-        description="Add BOQ items manually, import from CSV, or convert from an approved estimate."
-      />
-    );
-  }
-
-  return (
-    <View className="gap-3">
-      {/* Summary */}
-      <Card>
-        <View className="flex-row justify-between items-center mb-2">
-          <Text className="text-sm font-bold text-text">BOQ Summary</Text>
-          <Text className="text-lg font-bold text-primary">{formatINR(boq.total)}</Text>
-        </View>
-        <View className="flex-row justify-between">
-          <Text className="text-xs text-muted">{boq.items.length} items</Text>
-          <Text className="text-xs text-muted">{boq.grouped.length} categories</Text>
-        </View>
-      </Card>
-
-      {/* Category breakdown */}
-      {boq.grouped.map((g: BoqGroup) => (
-        <Card key={g.category}>
-          <View className="flex-row justify-between items-center">
-            <Text className="text-sm font-semibold text-text">{g.category}</Text>
-            <Text className="text-sm font-bold text-text">{formatINR(g.amount)}</Text>
-          </View>
-        </Card>
-      ))}
-
-      {/* Items list */}
-      <Text className="text-sm font-bold text-text mt-2">Line Items</Text>
-      {boq.items.map((item: BoqItem) => (
-        <Card key={item.id}>
-          <View className="flex-row justify-between items-start mb-1">
-            <View className="flex-1 mr-2">
-              <Text className="text-xs font-mono text-muted">{item.itemCode}</Text>
-              <Text className="text-sm text-text" numberOfLines={2}>
-                {item.description}
-              </Text>
-            </View>
-            <Text className="text-sm font-bold text-text">{formatINR(parseFloat(item.amount))}</Text>
-          </View>
-          <View className="flex-row gap-3 mt-1">
-            <Text className="text-xs text-muted">Qty: {parseFloat(item.quantity)} {item.unit}</Text>
-            <Text className="text-xs text-muted">Rate: {formatINR(parseFloat(item.rate))}</Text>
           </View>
         </Card>
       ))}
@@ -626,12 +463,14 @@ function SettingsTab({ projectId }: { projectId: string }) {
           const url = `${Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : 'https://app.buildflow.in'}/portal/${result.token}`;
           if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
             await navigator.clipboard.writeText(url);
-            Alert.alert('Portal link created', 'Link copied to clipboard.');
+            await alertAsync('Portal link created', 'Link copied to clipboard.');
           } else {
             await Share.share({ message: `Project portal: ${url}`, url });
           }
         },
-        onError: (e: Error) => Alert.alert('Error', e.message),
+        onError: async (e: Error) => {
+          await alertAsync('Error', e.message);
+        },
       },
     );
   };
@@ -639,6 +478,7 @@ function SettingsTab({ projectId }: { projectId: string }) {
   return (
     <View className="gap-4">
       <ProjectMembersSection projectId={projectId} />
+      <ProjectMaterialRatesSection projectId={projectId} />
       {canPortal && (
         <Card>
           <Text className="text-sm font-bold text-text mb-2">Client Portal</Text>

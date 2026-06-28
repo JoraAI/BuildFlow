@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Resource controller (thin request handlers).
+ * BuildFlow - Resource controller (thin request handlers).
  */
 import { NextFunction, Request, Response } from 'express';
 import * as resourceService from '../services/resource.service';
@@ -34,6 +34,18 @@ export async function createResource(req: Request, res: Response, next: NextFunc
     const { companyId, id: userId } = req.user!;
     const resource = await resourceService.createResource(companyId, userId, req.body, ipOf(req));
     created(res, resource);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function createResourceImageUploadUrl(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await resourceService.createResourceImageUploadUrl(
+      req.user!.companyId,
+      req.body,
+    );
+    ok(res, result);
   } catch (err) {
     next(err);
   }

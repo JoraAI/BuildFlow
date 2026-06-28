@@ -1,5 +1,5 @@
 /**
- * BuildFlow — AWS S3 client + pre-signed URL helpers.
+ * BuildFlow - AWS S3 client + pre-signed URL helpers.
  *
  * Multi-tenant path convention:
  *   s3://{bucket}/{company_id}/{entity_type}/{project_id}/{filename}

@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useViewport } from '@/hooks/useViewport';
 
-/** Lightweight CTA — pricing lives only on /pricing for visit tracking. */
+/** Lightweight CTA - pricing lives only on /pricing for visit tracking. */
 export function PricingTeaser() {
   const router = useRouter();
   const { isMarketingDesktop } = useViewport();

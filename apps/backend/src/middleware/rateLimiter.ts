@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Rate limiting middleware.
+ * BuildFlow - Rate limiting middleware.
  *
  * Two presets:
  *   - authLimiter:  10 req / 15 min per IP  (login, register, forgot-password)

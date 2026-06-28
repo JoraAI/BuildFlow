@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Financial reports service.
+ * BuildFlow - Financial reports service.
  *
  * Provides:
  *  - P&L (income vs cost vs estimate)

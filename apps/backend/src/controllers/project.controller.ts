@@ -1,9 +1,12 @@
 /**
- * BuildFlow — Project controller (thin request handlers).
+ * BuildFlow - Project controller (thin request handlers).
  */
 import { NextFunction, Request, Response } from 'express';
 import * as projectService from '../services/project.service';
 import * as projectMemberService from '../services/project-member.service';
+import { getResourceUtilization as fetchResourceUtilization } from '../services/procurement.service';
+import { resolveMaterialRate } from '../services/material-rate.service';
+import { listMaterialRateVariance } from '../services/material-rate-variance.service';
 import { ok, okList, created, buildMeta } from '../utils/response';
 
 function ipOf(req: Request): string | undefined {
@@ -137,6 +140,36 @@ export async function deleteWbsItem(req: Request, res: Response, next: NextFunct
     const { companyId, id: userId } = req.user!;
     await projectService.deleteWbsItem(companyId, userId, req.params.id, req.params.itemId, ipOf(req));
     ok(res, { success: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getResourceUtilization(req: Request, res: Response, next: NextFunction) {
+  try {
+    const rows = await fetchResourceUtilization(req.user!.companyId, req.params.id);
+    ok(res, rows);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getMaterialRate(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { companyId } = req.user!;
+    const { id: projectId, resourceId } = req.params;
+    const { boqItemId } = req.query as { boqItemId?: string };
+    const resolved = await resolveMaterialRate(companyId, projectId, resourceId, { boqItemId });
+    ok(res, resolved);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getMaterialRateVariance(req: Request, res: Response, next: NextFunction) {
+  try {
+    const rows = await listMaterialRateVariance(req.user!.companyId, req.params.id);
+    ok(res, rows);
   } catch (err) {
     next(err);
   }

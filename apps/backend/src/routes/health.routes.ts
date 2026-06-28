@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Health check route.
+ * BuildFlow - Health check route.
  */
 import { Router } from 'express';
 import { env } from '../config/env';

@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Shared Constants
+ * BuildFlow - Shared Constants
  */
 import { Role } from '../enums';
 
@@ -42,8 +42,8 @@ export const ROLE_META: Record<
 /* ------------------------------------------------------------------ */
 
 export const ROLE_TABS: Record<Role, string[]> = {
-  OWNER: ['dashboard', 'projects', 'estimation', 'planning', 'reports', 'accounting', 'settings'],
-  PM: ['dashboard', 'projects', 'estimation', 'planning', 'reports', 'accounting'],
+  OWNER: ['dashboard', 'projects', 'proposals', 'planning', 'reports', 'accounting', 'settings'],
+  PM: ['dashboard', 'projects', 'proposals', 'planning', 'reports', 'accounting'],
   SUPERVISOR: ['dashboard', 'projects', 'reports'],
   ACCOUNTANT: ['dashboard', 'accounting', 'reports'],
 };
@@ -51,7 +51,7 @@ export const ROLE_TABS: Record<Role, string[]> = {
 export type TabKey =
   | 'dashboard'
   | 'projects'
-  | 'estimation'
+  | 'proposals'
   | 'planning'
   | 'reports'
   | 'accounting'
@@ -90,6 +90,16 @@ export const ESTIMATE_STATUS_META = {
   APPROVED: { label: 'Approved', color: '#10B981' },
   REJECTED: { label: 'Rejected', color: '#EF4444' },
   SUPERSEDED: { label: 'Superseded', color: '#94A3B8' },
+} as const;
+
+export const PROPOSAL_STATUS_META = {
+  DRAFT: { label: 'Draft', color: '#64748B' },
+  IN_REVIEW: { label: 'In Review', color: '#2563EB' },
+  APPROVED: { label: 'Approved', color: '#10B981' },
+  SENT: { label: 'Sent', color: '#8B5CF6' },
+  WON: { label: 'Won', color: '#059669' },
+  LOST: { label: 'Lost', color: '#EF4444' },
+  ARCHIVED: { label: 'Archived', color: '#94A3B8' },
 } as const;
 
 /* ------------------------------------------------------------------ */
@@ -141,6 +151,8 @@ export const COMMON_HSN_CODES = {
   CONSULTING: '9983',
 } as const;
 
+export * from './material-hsn';
+
 /* ------------------------------------------------------------------ */
 /* GST rates (India common slabs) + TDS                                */
 /* ------------------------------------------------------------------ */
@@ -153,11 +165,11 @@ export const GST_RATES = {
   TWENTY_EIGHT: 28,
 } as const;
 
-/** TDS u/s 194C (contractor) — single (non-transport) rate, in %. */
+/** TDS u/s 194C (contractor) - single (non-transport) rate, in %. */
 export const TDS_SECTION_194C_RATE = 2;
 
 /* ------------------------------------------------------------------ */
-/* Indian states (GSTIN first 2 digits) — subset, commonly used.       */
+/* Indian states (GSTIN first 2 digits) - subset, commonly used.       */
 /* Full 37-state list can be extended later; key states included here.  */
 /* ------------------------------------------------------------------ */
 

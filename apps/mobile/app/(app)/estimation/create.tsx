@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Create Estimate wizard (3 steps).
+ * BuildFlow - Create Estimate wizard (3 steps).
  * Step 1: Setup (name, notes, overhead/contingency/profit %)
  * Step 2: Build (sections + line items)
  * Step 3: Review (summary + submit/save)
@@ -13,7 +13,6 @@ import {
   Pressable,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,6 +22,7 @@ import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { EstimateBuildStep } from '@/components/estimation/EstimateBuildStep';
 import { useViewport } from '@/hooks/useViewport';
 import { dismissTo, DISMISS } from '@/utils/navigation';
+import { alertAsync } from '@/utils/confirm';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { SummaryBreakdownCard } from '@/components/ui';
 import {
@@ -35,7 +35,8 @@ import { formatINR } from '@/utils/format';
 type Step = 1 | 2 | 3;
 
 export default function CreateEstimateScreen() {
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
+  const { projectId, fromProposal } = useLocalSearchParams<{ projectId: string; fromProposal?: string }>();
+  const proposalId = Array.isArray(fromProposal) ? fromProposal[0] : fromProposal;
   const createMut = useCreateEstimate(projectId);
 
   const [step, setStep] = useState<Step>(1);
@@ -46,10 +47,12 @@ export default function CreateEstimateScreen() {
   const [profitPct, setProfitPct] = useState('10');
   const [estimateId, setEstimateId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   async function ensureEstimate() {
     if (estimateId) return estimateId;
     setCreating(true);
+    setFormError(null);
     try {
       const est = await createMut.mutateAsync({
         name: name.trim() || 'Untitled Estimate',
@@ -61,7 +64,9 @@ export default function CreateEstimateScreen() {
       setEstimateId(est.id);
       return est.id;
     } catch (e) {
-      Alert.alert('Failed to create estimate', e instanceof Error ? e.message : '');
+      const msg = e instanceof Error ? e.message : 'Failed to create estimate';
+      setFormError(msg);
+      await alertAsync('Failed to create estimate', msg);
       return null;
     } finally {
       setCreating(false);
@@ -69,14 +74,21 @@ export default function CreateEstimateScreen() {
   }
 
   async function goStep2() {
-    if (!name.trim()) return Alert.alert('Enter estimate name');
+    if (!name.trim()) {
+      setFormError('Enter estimate name');
+      await alertAsync('Required', 'Enter estimate name');
+      return;
+    }
+    setFormError(null);
     const id = await ensureEstimate();
     if (id) setStep(2);
   }
 
-  const cancelTarget = projectId
-    ? DISMISS.estimationForProject(projectId)
-    : DISMISS.estimation;
+  const cancelTarget = proposalId
+    ? DISMISS.proposalDetail(proposalId)
+    : projectId
+      ? DISMISS.estimationForProject(projectId)
+      : DISMISS.estimation;
 
   return (
     <SafeAreaView className="flex-1 bg-surface" edges={['bottom']}>
@@ -103,6 +115,7 @@ export default function CreateEstimateScreen() {
             setProfitPct={setProfitPct}
             onNext={goStep2}
             creating={creating}
+            formError={formError}
           />
         )}
 
@@ -145,6 +158,7 @@ function Step1Setup({
   setProfitPct,
   onNext,
   creating,
+  formError,
 }: {
   name: string;
   setName: (v: string) => void;
@@ -158,9 +172,15 @@ function Step1Setup({
   setProfitPct: (v: string) => void;
   onNext: () => void;
   creating: boolean;
+  formError: string | null;
 }) {
   return (
     <ScrollView className="flex-1" contentContainerClassName="p-4 gap-4 pb-32">
+      {formError ? (
+        <View className="px-3 py-2 rounded-lg bg-danger/10 border border-danger/30">
+          <Text className="text-sm text-danger">{formError}</Text>
+        </View>
+      ) : null}
       <Card>
         <Text className="text-sm font-semibold text-text mb-1">Estimate Name</Text>
         <TextInput
@@ -226,6 +246,7 @@ function Step3Review({
   const mut = useEstimateMutations(estimateId);
   const { isDesktop } = useViewport();
   const { data: estimate, isLoading } = useEstimate(estimateId);
+  const [formError, setFormError] = useState<string | null>(null);
 
   if (isLoading || !estimate) return <Text className="p-4 text-text-muted">Loading...</Text>;
   const s = estimate.summary;
@@ -241,6 +262,11 @@ function Step3Review({
   return (
     <View className="flex-1">
     <ScrollView className="flex-1" contentContainerClassName={isDesktop ? 'px-8 py-4 gap-4 pb-8' : 'p-4 gap-4 pb-32'}>
+      {formError ? (
+        <View className="px-3 py-2 rounded-lg bg-danger/10 border border-danger/30">
+          <Text className="text-sm text-danger">{formError}</Text>
+        </View>
+      ) : null}
       <Text className="text-lg font-bold text-text">Review & Summary</Text>
 
       {/* Meta */}
@@ -309,14 +335,19 @@ function Step3Review({
         label="Submit for Review"
         size="sm"
         onPress={async () => {
+          setFormError(null);
           try {
             await mut.submit.mutateAsync();
+            await alertAsync('Submitted', 'Estimate submitted for review.');
             onDone();
           } catch (e) {
-            Alert.alert('Submit failed', e instanceof Error ? e.message : '');
+            const msg = e instanceof Error ? e.message : 'Submit failed';
+            setFormError(msg);
+            await alertAsync('Submit failed', msg);
           }
         }}
         loading={mut.submit.isPending}
+        disabled={mut.submit.isPending}
       />
     </ActionBar>
     </View>

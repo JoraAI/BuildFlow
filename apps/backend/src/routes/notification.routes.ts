@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Notification routes (user notification center).
+ * BuildFlow - Notification routes (user notification center).
  */
 import { Router } from 'express';
 import * as ctrl from '../controllers/notification.controller';

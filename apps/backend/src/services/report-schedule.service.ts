@@ -19,7 +19,7 @@ export async function createReportSchedule(companyId: string, input: CreateRepor
   });
 }
 
-/** Called by notification worker cron — marks schedules as run (email when Twilio configured). */
+/** Called by notification worker cron - marks schedules as run (email when Twilio configured). */
 export async function runDueReportSchedules(): Promise<number> {
   const schedules = await prisma.reportSchedule.findMany({ where: { isActive: true } });
   const now = new Date();

@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Estimation Zustand store.
+ * BuildFlow - Estimation Zustand store.
  *
  * Holds draft state for the estimate wizard and provides a pure summary
  * computation helper used across screens.
@@ -115,6 +115,6 @@ export function computeSummary(
   const contingencyAmount = subtotal * (contingencyPct / 100);
   const profitAmount = subtotal * (profitMarginPct / 100);
   const totalBeforeTax = subtotal + overheadAmount + contingencyAmount + profitAmount;
-  // Mobile-side grand total excludes GST (weighted per-resource) — computed on backend GET.
+  // Mobile-side grand total excludes GST (weighted per-resource) - computed on backend GET.
   return { directCosts: direct, subtotal, overheadAmount, contingencyAmount, profitAmount, totalBeforeTax, grandTotal: totalBeforeTax };
 }

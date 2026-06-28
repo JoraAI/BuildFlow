@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Procurement controller (thin handlers).
+ * BuildFlow - Procurement controller (thin handlers).
  */
 import type { Request, Response } from 'express';
 import * as procurementService from '../services/procurement.service';

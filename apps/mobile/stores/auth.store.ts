@@ -1,5 +1,5 @@
 /**
- * BuildFlow Mobile — Auth store (Zustand)
+ * BuildFlow Mobile - Auth store (Zustand)
  */
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
@@ -13,6 +13,7 @@ import {
   type AuthResponsePayload,
 } from '@/services/auth.queries';
 import { apiFetch } from '@/lib/api-client';
+import { queryClient } from '@/lib/query-client';
 
 export interface AuthUser {
   id: string;
@@ -56,18 +57,21 @@ export const useAuthStore = create<AuthState>((set) => ({
       body: JSON.stringify({ email, password }),
     });
     await persistSession(data);
+    queryClient.clear();
     set({ user: data.user as AuthUser, accessToken: data.accessToken, isAuthenticated: true });
   },
 
   registerCompany: async (input: RegisterCompanyInput) => {
     const data = await registerCompanyRequest(input);
     await persistSession(data);
+    queryClient.clear();
     set({ user: data.user as AuthUser, accessToken: data.accessToken, isAuthenticated: true });
   },
 
   acceptInvite: async (input: AcceptInvitePayload) => {
     const data = await acceptInviteRequest(input);
     await persistSession(data);
+    queryClient.clear();
     set({ user: data.user as AuthUser, accessToken: data.accessToken, isAuthenticated: true });
   },
 
@@ -79,11 +83,12 @@ export const useAuthStore = create<AuthState>((set) => ({
         body: JSON.stringify({ refreshToken }),
       });
     } catch {
-      // Ignore — clearing local state regardless.
+      // Ignore - clearing local state regardless.
     }
     await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.ACCESS_TOKEN);
     await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.REFRESH_TOKEN);
     await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.USER);
+    queryClient.clear();
     set({ user: null, accessToken: null, isAuthenticated: false });
   },
 
@@ -96,21 +101,32 @@ export const useAuthStore = create<AuthState>((set) => ({
       if (token && userStr) {
         const parsed = JSON.parse(userStr) as AuthUser | null;
         if (parsed?.id && parsed?.email && parsed?.role) {
-          set({
-            accessToken: token,
-            user: parsed,
-            isAuthenticated: true,
-            isLoading: false,
-          });
-          return;
+          try {
+            const user = await apiFetch<AuthUser>('/auth/me');
+            await SecureStore.setItemAsync(SECURE_STORE_KEYS.USER, JSON.stringify(user));
+            set({
+              accessToken: token,
+              user,
+              isAuthenticated: true,
+              isLoading: false,
+            });
+            return;
+          } catch {
+            queryClient.clear();
+            await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.ACCESS_TOKEN);
+            await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.REFRESH_TOKEN);
+            await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.USER);
+            set({ user: null, accessToken: null, isAuthenticated: false, isLoading: false });
+            return;
+          }
         }
-        // Corrupt session — clear stale tokens.
+        // Corrupt session - clear stale tokens.
         await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.ACCESS_TOKEN);
         await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.REFRESH_TOKEN);
         await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.USER);
       }
     } catch {
-      // Corrupt storage — clear.
+      // Corrupt storage - clear.
     }
     set({ user: null, accessToken: null, isAuthenticated: false, isLoading: false });
   },

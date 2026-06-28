@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Audit log middleware.
+ * BuildFlow - Audit log middleware.
  *
  * Wraps a controller so that AFTER a successful mutation (2xx) an AuditLog row
  * is written. The controller may attach `res.locals.audit` with:

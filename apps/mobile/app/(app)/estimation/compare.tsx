@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Estimate Comparison screen.
+ * BuildFlow - Estimate Comparison screen.
  * Side-by-side comparison of two estimate versions.
  */
 import React, { useState } from 'react';
@@ -15,7 +15,8 @@ import { formatINR } from '@/utils/format';
 
 export default function CompareEstimatesScreen() {
   const router = useRouter();
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
+  const { projectId, fromProposal } = useLocalSearchParams<{ projectId: string; fromProposal?: string }>();
+  const proposalId = Array.isArray(fromProposal) ? fromProposal[0] : fromProposal;
   const { data: listData, isLoading: listLoading } = useProjectEstimates(projectId);
   const estimates = listData ?? [];
 
@@ -40,7 +41,13 @@ export default function CompareEstimatesScreen() {
         title="Compare Estimates"
         cancelLabel="Back"
         onCancel={() =>
-          dismissTo(projectId ? DISMISS.estimationForProject(projectId) : DISMISS.estimation)
+          dismissTo(
+            proposalId
+              ? DISMISS.proposalDetail(proposalId)
+              : projectId
+                ? DISMISS.estimationForProject(projectId)
+                : DISMISS.estimation,
+          )
         }
       />
 
@@ -57,7 +64,7 @@ export default function CompareEstimatesScreen() {
                   className={`px-3 py-2 border-b border-border/50 ${idA === e.id ? 'bg-primary/10' : ''}`}
                 >
                   <Text className={`text-sm ${idA === e.id ? 'font-bold text-primary' : 'text-text'}`}>
-                    v{e.version}.0 — {e.name}
+                    v{e.version}.0 - {e.name}
                   </Text>
                 </Pressable>
               ))}
@@ -73,7 +80,7 @@ export default function CompareEstimatesScreen() {
                   className={`px-3 py-2 border-b border-border/50 ${idB === e.id ? 'bg-primary/10' : ''}`}
                 >
                   <Text className={`text-sm ${idB === e.id ? 'font-bold text-primary' : 'text-text'}`}>
-                    v{e.version}.0 — {e.name}
+                    v{e.version}.0 - {e.name}
                   </Text>
                 </Pressable>
               ))}
@@ -96,7 +103,7 @@ export default function CompareEstimatesScreen() {
                 <Text className="w-24 text-right text-xs font-semibold text-text-muted">B</Text>
                 <Text className="w-24 text-right text-xs font-semibold text-text-muted">Diff</Text>
               </View>
-              {cmp.sectionDiff.map((d: EstimateComparison['sectionDiff'][number], i: number) => (
+              {(cmp.sectionDiff ?? []).map((d: EstimateComparison['sectionDiff'][number], i: number) => (
                 <View key={i} className="flex-row py-1.5 border-b border-border/50">
                   <Text className="flex-1 text-sm text-text" numberOfLines={1}>{d.name}</Text>
                   <Text className="w-24 text-right text-xs text-text">{formatINR(d.amountA)}</Text>

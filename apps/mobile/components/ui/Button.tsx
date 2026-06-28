@@ -1,7 +1,8 @@
 import React from 'react';
-import { Pressable, Text, ActivityIndicator } from 'react-native';
+import { Pressable, Text, ActivityIndicator, View, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'accent';
 type Size = 'sm' | 'md' | 'lg';
 
 interface ButtonProps {
@@ -13,6 +14,7 @@ interface ButtonProps {
   disabled?: boolean;
   fullWidth?: boolean;
   icon?: React.ReactNode;
+  className?: string;
 }
 
 const variants: Record<Variant, string> = {
@@ -20,6 +22,7 @@ const variants: Record<Variant, string> = {
   secondary: 'bg-card border border-border',
   ghost: 'bg-transparent',
   danger: 'bg-danger',
+  accent: 'bg-accent',
 };
 
 const textColors: Record<Variant, string> = {
@@ -27,6 +30,15 @@ const textColors: Record<Variant, string> = {
   secondary: 'text-text',
   ghost: 'text-primary',
   danger: 'text-white',
+  accent: 'text-primary',
+};
+
+const loaderColors: Record<Variant, string> = {
+  primary: '#fff',
+  secondary: '#1E3A5F',
+  ghost: '#1E3A5F',
+  danger: '#fff',
+  accent: '#1E3A5F',
 };
 
 const sizes: Record<Size, string> = {
@@ -50,19 +62,22 @@ export function Button({
   disabled = false,
   fullWidth = false,
   icon,
+  className = '',
 }: ButtonProps) {
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled || loading}
-      className={`rounded-lg flex-row items-center justify-center ${variants[variant]} ${sizes[size]} ${disabled ? 'opacity-50' : ''} ${fullWidth ? 'w-full' : ''}`}
+      className={`rounded-lg flex-row items-center justify-center ${variants[variant]} ${sizes[size]} ${disabled ? 'opacity-50' : 'active:opacity-90'} ${fullWidth ? 'w-full' : ''} ${className}`}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'ghost' ? '#1E3A5F' : '#fff'} />
+        <ActivityIndicator color={loaderColors[variant]} />
       ) : (
         <>
           {icon}
-          <Text className={`font-sans font-semibold ${textColors[variant]} ${textSizes[size]} ${icon ? 'ml-2' : ''}`}>
+          <Text
+            className={`font-sans font-semibold ${textColors[variant]} ${textSizes[size]} ${icon ? 'ml-2' : ''} ${variant === 'accent' ? 'font-bold' : ''}`}
+          >
             {label}
           </Text>
         </>

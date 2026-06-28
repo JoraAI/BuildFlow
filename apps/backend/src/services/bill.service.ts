@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Bill (vendor invoice) service.
+ * BuildFlow - Bill (vendor invoice) service.
  */
 import { Decimal } from '@prisma/client/runtime/library';
 import { prisma } from '../lib/prisma';

@@ -2,7 +2,6 @@ import React from 'react';
 import {
   View,
   Text,
-  FlatList,
   RefreshControl,
   ImageBackground,
 } from 'react-native';
@@ -12,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Card, Badge, ProgressBar, EmptyState, LoadingSkeleton } from '@/components/ui';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { MobileScreenHeader } from '@/components/layout/ScreenHeader';
+import { ResponsiveGridList } from '@/components/layout/ResponsiveGrid';
 import { useViewport } from '@/hooks/useViewport';
 import { useProjects, useProjectSummary, type ProjectListItem } from '@/services/project.queries';
 import { BRAND_IMAGES } from '@/constants/navigation';
@@ -19,14 +19,14 @@ import { daysBetween } from '@/utils/format';
 
 export default function PlanningScreen() {
   const router = useRouter();
-  const { isDesktop, isWideDesktop } = useViewport();
+  const { isDesktop } = useViewport();
   const { data: projects, isLoading, isFetching, refetch } = useProjects();
 
   const onTrack = projects?.filter((p: ProjectListItem) => p.status === 'IN_PROGRESS').length ?? 0;
 
   return (
     <SafeAreaView className="flex-1 bg-surface" edges={[]}>
-      <ScreenContainer scrollable={isDesktop}>
+      <ScreenContainer scrollable={false}>
         {isDesktop ? (
           <>
             <ImageBackground
@@ -56,24 +56,16 @@ export default function PlanningScreen() {
           />
         )}
 
-        <FlatList
+        <ResponsiveGridList<ProjectListItem>
           data={projects ?? []}
           keyExtractor={(item) => item.id}
-          scrollEnabled={!isDesktop}
           refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
           contentContainerClassName={isDesktop ? 'pb-8' : 'px-4 pb-28 pt-2'}
-          numColumns={isWideDesktop ? 3 : isDesktop ? 2 : 1}
-          key={isWideDesktop ? 'grid-3' : isDesktop ? 'grid-2' : 'list'}
-          columnWrapperClassName={isDesktop ? 'gap-4' : undefined}
-          ItemSeparatorComponent={() => <View className={isDesktop ? 'h-4' : 'h-3'} />}
           ListEmptyComponent={
             isLoading ? (
-              <View className="gap-3 flex-row flex-wrap">
+              <View className="gap-3">
                 {[1, 2, 3].map((i) => (
-                  <LoadingSkeleton
-                    key={i}
-                    className={`h-36 rounded-xl ${isDesktop ? 'flex-1 min-w-[30%]' : ''}`}
-                  />
+                  <LoadingSkeleton key={i} className="h-36 rounded-xl" />
                 ))}
               </View>
             ) : (
@@ -83,13 +75,8 @@ export default function PlanningScreen() {
               />
             )
           }
-          renderItem={({ item }: { item: ProjectListItem }) => (
-            <View className={isDesktop ? 'flex-1' : undefined}>
-              <PlanningCard
-                item={item}
-                onPress={() => router.push(`/projects/${item.id}`)}
-              />
-            </View>
+          renderItem={({ item }) => (
+            <PlanningCard item={item} onPress={() => router.push(`/projects/${item.id}`)} />
           )}
         />
       </ScreenContainer>
@@ -156,7 +143,7 @@ function PlanningCard({ item, onPress }: { item: ProjectListItem; onPress: () =>
         <View className="flex-row items-center gap-1">
           <Ionicons name="alert-circle-outline" size={12} color="#64748B" />
           <Text className="text-xs text-muted">
-            {summary ? `${summary.tasksOverdueCount} overdue` : '—'}
+            {summary ? `${summary.tasksOverdueCount} overdue` : '-'}
           </Text>
         </View>
         {daysLeft !== null && (

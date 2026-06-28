@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Rate Analysis Library screen.
+ * BuildFlow - Rate Analysis Library screen.
  * Search + filter chips + cards with total rate, component summary, actions.
  */
 import React, { useState, useMemo } from 'react';
@@ -10,7 +10,7 @@ import { Card, Badge, FAB, LoadingSkeleton, EmptyState, Button } from '@/compone
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { mobileListBottomPadding } from '@/components/layout/fab-layout';
-import { dismissTo, DISMISS } from '@/utils/navigation';
+import { dismissTo, navigateAppBack, DISMISS } from '@/utils/navigation';
 import { useRateAnalyses, useDuplicateRateAnalysis, type RateAnalysis } from '@/services/estimate.queries';
 import { formatINR, formatDate } from '@/utils/format';
 import { useAuthStore } from '@/stores/auth.store';
@@ -68,7 +68,9 @@ export default function RateAnalysisLibraryScreen() {
         title="Rate Analysis Library"
         subtitle="Search and manage rate analyses"
         onCancel={() =>
-          dismissTo(from === 'settings' ? DISMISS.settings : DISMISS.estimation)
+          navigateAppBack(
+            from === 'settings' ? DISMISS.settings : from === 'proposals' ? DISMISS.proposals : DISMISS.estimation,
+          )
         }
         cancelLabel="Back"
       />

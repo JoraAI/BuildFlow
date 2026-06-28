@@ -7,7 +7,7 @@ import { useViewport } from '@/hooks/useViewport';
 import { useAssistantStore } from '@/stores/assistant.store';
 import { assistantFabBottom, fabRight } from '@/components/layout/fab-layout';
 
-/** Floating assistant launcher — compact icon-only FAB, bottom-right on mobile & desktop. */
+/** Floating assistant launcher - compact icon-only FAB, bottom-right on mobile & desktop. */
 export function AssistantFab() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();

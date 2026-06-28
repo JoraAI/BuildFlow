@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
+import { usePathname } from 'expo-router';
 import { useViewport } from '@/hooks/useViewport';
+import { isPrimaryAppTabRoute } from '@/constants/navigation';
 import { NavHeaderBar } from '@/components/layout/NavBackButton';
 
 /** Standard list screen title block (matches Projects mobile header). */
@@ -26,7 +28,7 @@ export function MobileScreenHeader({
   );
 }
 
-/** Form / wizard header — always use dismissTo for onCancel, never router.back(). */
+/** Form / wizard header - use navigateAppBack/dismissTo for onCancel, never raw router.back(). */
 export function FormScreenHeader({
   title,
   subtitle,
@@ -34,6 +36,7 @@ export function FormScreenHeader({
   cancelLabel = 'Back',
   cancelIcon = 'back',
   right,
+  showBack,
 }: {
   title: string;
   subtitle?: string;
@@ -41,19 +44,28 @@ export function FormScreenHeader({
   cancelLabel?: string;
   cancelIcon?: 'back' | 'close';
   right?: React.ReactNode;
+  /** Override back visibility. Default: mobile nested routes only (hidden on desktop). */
+  showBack?: boolean;
 }) {
   const { isDesktop } = useViewport();
+  const pathname = usePathname();
+  const onPrimaryTab = isPrimaryAppTabRoute(pathname);
+  const showBackButton = showBack ?? (!isDesktop && !onPrimaryTab);
 
   return (
     <View
-      className={`border-b border-border bg-surface ${isDesktop ? 'px-8 py-5' : 'px-4 py-4'}`}
+      className={`border-b border-border bg-surface ${isDesktop ? 'px-8 py-5' : 'px-4 py-3'}`}
     >
-      <NavHeaderBar
-        onBack={onCancel}
-        backLabel={cancelLabel}
-        backIcon={cancelIcon}
-        right={right}
-      />
+      {showBackButton ? (
+        <NavHeaderBar
+          onBack={onCancel}
+          backLabel={cancelLabel}
+          backIcon={cancelIcon}
+          right={right}
+        />
+      ) : right ? (
+        <View className="flex-row justify-end mb-3">{right}</View>
+      ) : null}
       <Text className={`font-bold text-text ${isDesktop ? 'text-2xl' : 'text-xl'}`}>
         {title}
       </Text>

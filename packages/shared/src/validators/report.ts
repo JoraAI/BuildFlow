@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Zod validators for Daily Reports, Material Usage & Attendance.
+ * BuildFlow - Zod validators for Daily Reports, Material Usage & Attendance.
  */
 import { z } from 'zod';
 import { idSchema, paginationSchema } from './common';
@@ -18,8 +18,17 @@ export const materialUsageInputSchema = z.object({
   resourceId: idSchema,
   quantityUsed: z.number().positive('Quantity must be greater than 0'),
   notes: z.string().max(500).optional(),
+  taskId: idSchema.optional(),
+  boqItemId: idSchema.optional(),
+  postToBoqMeasurement: z.boolean().optional(),
 });
 export type MaterialUsageInput = z.infer<typeof materialUsageInputSchema>;
+
+export const dailyReportTaskUpdateSchema = z.object({
+  taskId: idSchema,
+  progressPct: z.number().int().min(0).max(100),
+});
+export type DailyReportTaskUpdateInput = z.infer<typeof dailyReportTaskUpdateSchema>;
 
 export const createDailyReportSchema = z.object({
   reportDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date'),
@@ -29,6 +38,8 @@ export const createDailyReportSchema = z.object({
   issues: z.string().max(5000).optional(),
   workersCount: z.number().int().min(0).max(100000).optional(),
   materialUsages: z.array(materialUsageInputSchema).optional(),
+  taskUpdates: z.array(dailyReportTaskUpdateSchema).optional(),
+  deductStock: z.boolean().optional(),
 });
 export type CreateDailyReportInput = z.infer<typeof createDailyReportSchema>;
 
@@ -37,6 +48,10 @@ export type UpdateDailyReportInput = z.infer<typeof updateDailyReportSchema>;
 
 export const dailyReportIdParamsSchema = z.object({
   id: idSchema,
+});
+
+export const materialUsageIdParamsSchema = z.object({
+  usageId: idSchema,
 });
 
 export const projectIdReportDateParamsSchema = z.object({

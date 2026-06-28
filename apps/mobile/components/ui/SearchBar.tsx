@@ -1,5 +1,5 @@
 /**
- * BuildFlow — SearchBar UI primitive.
+ * BuildFlow - SearchBar UI primitive.
  */
 import React from 'react';
 import { View, TextInput, Text } from 'react-native';

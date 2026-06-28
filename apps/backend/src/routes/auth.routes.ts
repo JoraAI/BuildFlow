@@ -1,7 +1,7 @@
 /**
- * BuildFlow — Auth routes.
+ * BuildFlow - Auth routes.
  *
- *   POST /api/auth/register   (authLimiter) — company + owner setup
+ *   POST /api/auth/register   (authLimiter) - company + owner setup
  *   POST /api/auth/login      (authLimiter)
  *   POST /api/auth/refresh    (authLimiter)
  *   POST /api/auth/logout     (authenticate)

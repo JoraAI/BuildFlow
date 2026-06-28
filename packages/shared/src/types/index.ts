@@ -1,7 +1,7 @@
 /**
- * BuildFlow — Domain Types
+ * BuildFlow - Domain Types
  *
- * Plain TS interfaces for all 24 Prisma models (DTO shapes — fields that the
+ * Plain TS interfaces for all 24 Prisma models (DTO shapes - fields that the
  * app cares about). Backend services map Prisma rows into these. Enums are
  * imported from ../enums.
  */
@@ -123,7 +123,7 @@ export interface Project {
   budget: number;
   createdBy: string;
   createdAt: string;
-  /** Computed summary — present on detail/summary endpoints. */
+  /** Computed summary - present on detail/summary endpoints. */
   stats?: ProjectStats;
 }
 
@@ -206,6 +206,7 @@ export interface Resource {
   hsnSacCode: string | null;
   brandOrSpec: string | null;
   category: string | null;
+  imageUrl: string | null;
   lastRateUpdatedAt: string | null;
   isActive: boolean;
   createdAt: string;

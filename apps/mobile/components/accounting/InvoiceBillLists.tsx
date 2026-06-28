@@ -1,14 +1,13 @@
 /**
- * Shared invoice & bill list components — mobile cards + desktop table rows.
+ * Shared invoice & bill list components - mobile cards + desktop table rows.
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   FlatList,
   RefreshControl,
   Pressable,
-  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, Badge, EmptyState, LoadingSkeleton, Button } from '@/components/ui';
@@ -24,6 +23,7 @@ import {
   type Bill,
 } from '@/services/accounting.queries';
 import { formatINR, formatDate, daysBetween } from '@/utils/format';
+import { confirmAsync, alertAsync } from '@/utils/confirm';
 
 const INVOICE_STATUS_COLOR: Record<string, 'success' | 'warning' | 'danger' | 'primary' | 'neutral'> = {
   DRAFT: 'neutral',
@@ -61,7 +61,7 @@ function FilterPills({
 }) {
   const { isDesktop } = useViewport();
   return (
-    <View className={`flex-row gap-2 flex-wrap ${isDesktop ? 'px-4 pt-3 pb-2' : 'pb-3'}`}>
+    <View className={`flex-row gap-2 flex-wrap ${isDesktop ? 'px-4 pt-3 pb-2' : 'px-1 pb-3'}`}>
       {options.map((f) => (
         <Pressable
           key={f}
@@ -89,6 +89,10 @@ export function ProjectInvoicesList({
   const { data: invoices, isLoading, isFetching, refetch } = useInvoices(projectId);
   const [filter, setFilter] = useState<string>('ALL');
 
+  useEffect(() => {
+    setFilter('ALL');
+  }, [projectId]);
+
   const filtered = (invoices ?? []).filter(
     (inv: Invoice) => filter === 'ALL' || inv.status === filter,
   );
@@ -103,11 +107,16 @@ export function ProjectInvoicesList({
     );
   }
 
-  const listPadding = embedded || isDesktop ? undefined : { paddingBottom: mobileListBottomPadding(true) };
+  const listPadding =
+    embedded && !isDesktop
+      ? { paddingBottom: mobileListBottomPadding(true) }
+      : embedded || isDesktop
+        ? undefined
+        : { paddingBottom: mobileListBottomPadding(true) };
 
   return (
     <FlatList
-      className={embedded ? 'flex-1' : undefined}
+      className={embedded ? 'flex-1 min-h-0' : undefined}
       data={filtered}
       keyExtractor={(item) => item.id}
       scrollEnabled={!embedded ? !isDesktop : true}
@@ -164,6 +173,10 @@ export function ProjectBillsList({
   const reject = useRejectBill();
   const [filter, setFilter] = useState<string>('ALL');
 
+  useEffect(() => {
+    setFilter('ALL');
+  }, [projectId]);
+
   const filtered = (bills ?? []).filter((b: Bill) => filter === 'ALL' || b.status === filter);
 
   if (isLoading) {
@@ -176,25 +189,32 @@ export function ProjectBillsList({
     );
   }
 
-  const onApprove = (id: string) => {
-    Alert.alert('Approve Bill', 'Mark this bill as approved?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Approve', onPress: () => approve.mutate(id) },
-    ]);
+  const onApprove = async (id: string) => {
+    const ok = await confirmAsync('Approve Bill', 'Mark this bill as approved?');
+    if (!ok) return;
+    approve.mutate(id, {
+      onError: async (e: Error) => alertAsync('Error', e.message),
+    });
   };
 
-  const onReject = (id: string) => {
-    Alert.alert('Reject Bill', 'Reject this bill?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Reject', style: 'destructive', onPress: () => reject.mutate(id) },
-    ]);
+  const onReject = async (id: string) => {
+    const ok = await confirmAsync('Reject Bill', 'Reject this bill?');
+    if (!ok) return;
+    reject.mutate(id, {
+      onError: async (e: Error) => alertAsync('Error', e.message),
+    });
   };
 
-  const listPadding = embedded || isDesktop ? undefined : { paddingBottom: mobileListBottomPadding(true) };
+  const listPadding =
+    embedded && !isDesktop
+      ? { paddingBottom: mobileListBottomPadding(true) }
+      : embedded || isDesktop
+        ? undefined
+        : { paddingBottom: mobileListBottomPadding(true) };
 
   return (
     <FlatList
-      className={embedded ? 'flex-1' : undefined}
+      className={embedded ? 'flex-1 min-h-0' : undefined}
       data={filtered}
       keyExtractor={(item) => item.id}
       scrollEnabled={!embedded ? !isDesktop : true}

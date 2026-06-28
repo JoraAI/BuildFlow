@@ -1,10 +1,21 @@
 /**
- * BuildFlow — Resource & Price History Zod validators.
+ * BuildFlow - Resource & Price History Zod validators.
  */
 import { z } from 'zod';
 import { ResourceType } from '../enums';
+import { dateSchema } from './common';
+import { isDateOnOrAfter, todayDateOnly } from '../utils/date';
 
 export const resourceTypeSchema = z.nativeEnum(ResourceType);
+
+/** HTTPS URLs or tenant S3 logical URLs (s3://bucket/key). */
+export const resourceImageUrlSchema = z
+  .string()
+  .max(2048)
+  .refine(
+    (v) => v.startsWith('http://') || v.startsWith('https://') || v.startsWith('s3://'),
+    'Image URL must be http(s) or s3://',
+  );
 
 export const createResourceSchema = z.object({
   name: z.string().min(1, 'Resource name is required').max(200),
@@ -15,12 +26,21 @@ export const createResourceSchema = z.object({
   hsnSacCode: z.string().max(20).optional(),
   brandOrSpec: z.string().max(200).optional(),
   category: z.string().max(100).optional(),
+  imageUrl: resourceImageUrlSchema.optional(),
 });
 
 export type CreateResourceInput = z.infer<typeof createResourceSchema>;
 
-export const updateResourceSchema = createResourceSchema.partial();
+export const updateResourceSchema = createResourceSchema.partial().extend({
+  imageUrl: resourceImageUrlSchema.nullable().optional(),
+});
 export type UpdateResourceInput = z.infer<typeof updateResourceSchema>;
+
+export const resourceImageUploadSchema = z.object({
+  filename: z.string().min(1).max(255),
+  contentType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/heic']),
+});
+export type ResourceImageUploadInput = z.infer<typeof resourceImageUploadSchema>;
 
 export const resourceQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -37,8 +57,11 @@ export const resourceIdParamsSchema = z.object({
 });
 
 export const createPriceHistorySchema = z.object({
-  rate: z.number().min(0),
-  effectiveDate: z.string().datetime(),
+  rate: z.coerce.number().min(0, 'Rate must be zero or greater'),
+  effectiveDate: dateSchema.refine(
+    (d) => isDateOnOrAfter(d, todayDateOnly()),
+    'Effective date cannot be in the past',
+  ),
   notes: z.string().max(500).optional(),
 });
 

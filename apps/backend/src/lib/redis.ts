@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Redis client (ioredis) for rate limiting, token blacklist, caching.
+ * BuildFlow - Redis client (ioredis) for rate limiting, token blacklist, caching.
  *
  * Key prefix: buildflow:{feature}:{key}  (company_id added by callers where relevant)
  */

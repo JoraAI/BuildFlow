@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text } from 'react-native';
-import { useRouter } from 'expo-router';
 import { NavHeaderBar } from '@/components/layout/NavBackButton';
+import { navigateAuthBack } from '@/utils/navigation';
 
 export function AuthFormHeader({
   backHref,
@@ -14,12 +14,10 @@ export function AuthFormHeader({
   subtitle?: string;
   backLabel?: string;
 }) {
-  const router = useRouter();
-
   return (
-    <View className="px-8 pt-6 pb-4 border-b border-border shrink-0">
+    <View className="px-8 pt-6 pb-4 border-b border-border shrink-0 bg-card">
       <NavHeaderBar
-        onBack={() => router.push(backHref as never)}
+        onBack={() => navigateAuthBack(backHref)}
         backLabel={backLabel}
       />
       {title ? <Text className="text-2xl font-bold text-text">{title}</Text> : null}

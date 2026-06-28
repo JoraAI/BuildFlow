@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Navigation configuration shared by sidebar & tab bar.
+ * BuildFlow - Navigation configuration shared by sidebar & tab bar.
  */
 import { Role } from '@buildflow/shared';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,7 +10,7 @@ export type TabName = keyof typeof TAB_CONFIG;
 export const TAB_CONFIG = {
   dashboard: { label: 'Home', icon: 'grid-outline' as const, href: '/dashboard' },
   projects: { label: 'Projects', icon: 'business-outline' as const, href: '/projects' },
-  estimation: { label: 'Estimation', icon: 'calculator-outline' as const, href: '/estimation' },
+  proposals: { label: 'Proposals', icon: 'calculator-outline' as const, href: '/proposals' },
   planning: { label: 'Planning', icon: 'calendar-outline' as const, href: '/planning' },
   reports: { label: 'Reports', icon: 'document-text-outline' as const, href: '/reports' },
   accounting: { label: 'Accounts', icon: 'cash-outline' as const, href: '/accounting' },
@@ -22,7 +22,7 @@ export const TAB_CONFIG = {
   { label: string; icon: keyof typeof Ionicons.glyphMap; href: string }
 >;
 
-/** Tabs reachable via FAB / top bar — excluded from sidebar & bottom nav. */
+/** Tabs reachable via FAB / top bar - excluded from sidebar & bottom nav. */
 export const OVERLAY_ONLY_TABS = ['chat'] as const;
 
 /** Tabs shown to every role in overflow / top bar (not primary bottom nav). */
@@ -31,10 +31,13 @@ export const UNIVERSAL_TABS = ['notifications'] as const;
 /** Primary bottom-bar tabs on mobile (overflow goes in Menu). */
 export const MOBILE_PRIMARY_TABS = ['dashboard', 'projects', 'planning', 'reports'] as const;
 
-/** Nested / detail routes — must be hidden from the tab navigator. */
+/** Nested / detail routes - must be hidden from the tab navigator. */
 export const HIDDEN_TAB_SCREENS = [
   'projects/[id]',
   'projects/create',
+  'proposals/create',
+  'proposals/[id]',
+  'estimation',
   'estimation/[id]',
   'estimation/create',
   'estimation/compare',
@@ -48,6 +51,7 @@ export const HIDDEN_TAB_SCREENS = [
   'accounting/create-invoice',
   'accounting/invoice/[id]',
   'accounting/project/[id]',
+  'settings/rate-regions',
   'settings/audit',
   'settings/company',
   'settings/export',
@@ -109,11 +113,21 @@ export function getBreadcrumbs(pathname: string, projectName?: string): Breadcru
     const config = TAB_CONFIG[root as TabName];
     const hasNestedRoute =
       !!second &&
-      ((root === 'projects' && second !== 'create') || root === 'settings');
+      ((root === 'projects' && second !== 'create') ||
+        (root === 'proposals' && second !== 'create') ||
+        root === 'settings');
     crumbs.push({
       label: config.label,
       href: hasNestedRoute ? config.href : undefined,
     });
+  }
+
+  if (root === 'proposals' && second) {
+    if (second === 'create') {
+      crumbs.push({ label: 'New Proposal' });
+    } else {
+      crumbs.push({ label: 'Proposal' });
+    }
   }
 
   if (root === 'projects' && second) {
@@ -145,7 +159,7 @@ const SETTINGS_CHILD_LABELS: Record<string, string> = {
   tickets: 'Support requests',
 };
 
-/** Unsplash — free for commercial use (Unsplash License). */
+/** Unsplash - free for commercial use (Unsplash License). */
 export const BRAND_IMAGES = {
   sidebarTexture:
     'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800&q=80&auto=format&fit=crop',
@@ -160,18 +174,18 @@ export const BRAND_IMAGES = {
 /** Sidebar navigation groups for desktop layout. */
 export const NAV_GROUPS: { title: string; tabs: TabName[] }[] = [
   { title: 'Workspace', tabs: ['dashboard', 'projects', 'planning'] },
-  { title: 'Operations', tabs: ['estimation', 'reports'] },
+  { title: 'Operations', tabs: ['proposals', 'reports'] },
   { title: 'Finance', tabs: ['accounting'] },
   { title: 'Alerts', tabs: ['notifications'] },
   { title: 'Admin', tabs: ['settings'] },
 ];
 
-/** Top-level tab index routes — show global mobile header on these only. */
+/** Top-level tab index routes - show global mobile header on these only. */
 export const PRIMARY_TAB_PATHS = [
   '/dashboard',
   '/projects',
   '/planning',
-  '/estimation',
+  '/proposals',
   '/reports',
   '/accounting',
   '/settings',

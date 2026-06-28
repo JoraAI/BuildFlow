@@ -1,5 +1,5 @@
 /**
- * Accept team invite — set name and password.
+ * Accept team invite - set name and password.
  */
 import React, { useEffect, useState } from 'react';
 import { View, Text } from 'react-native';

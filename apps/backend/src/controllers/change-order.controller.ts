@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Change order controller (thin handlers).
+ * BuildFlow - Change order controller (thin handlers).
  */
 import type { Request, Response } from 'express';
 import * as changeOrderService from '../services/change-order.service';

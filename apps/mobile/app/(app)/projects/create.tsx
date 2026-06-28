@@ -6,13 +6,13 @@ import {
   Pressable,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Input, Button, Card } from '@/components/ui';
+import { Input, Button, Card, DateField } from '@/components/ui';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { dismissTo, DISMISS } from '@/utils/navigation';
+import { alertAsync, confirmAsync } from '@/utils/confirm';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { useCreateProject } from '@/services/project.queries';
 import { ApiError } from '@/lib/api-client';
@@ -41,6 +41,7 @@ export default function CreateProjectScreen() {
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((p) => ({ ...p, [key]: value }));
@@ -57,6 +58,7 @@ export default function CreateProjectScreen() {
   }
 
   async function handleSubmit() {
+    setSubmitError(null);
     if (!validate()) return;
     try {
       const created = await createProject.mutateAsync({
@@ -70,20 +72,21 @@ export default function CreateProjectScreen() {
         endDate: form.endDate || undefined,
         budget: form.budget ? parseFloat(form.budget) : undefined,
       });
-      Alert.alert(
+      await alertAsync(
         'Project created',
         'Assign team members now or do it later from project Settings.',
-        [
-          {
-            text: 'Assign members',
-            onPress: () => router.replace(`/(app)/projects/${created.id}?tab=settings`),
-          },
-          { text: 'Later', onPress: () => router.replace('/projects'), style: 'cancel' },
-        ],
+      );
+      const assignNow = await confirmAsync(
+        'Assign team members?',
+        'Open project settings to assign members now?',
+      );
+      router.replace(
+        assignNow ? `/(app)/projects/${created.id}?tab=settings` : '/projects',
       );
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'Failed to create project';
-      Alert.alert('Error', msg);
+      setSubmitError(msg);
+      await alertAsync('Error', msg);
     }
   }
 
@@ -172,19 +175,18 @@ export default function CreateProjectScreen() {
             />
             <View className="flex-row gap-3">
               <View className="flex-1">
-                <Input
+                <DateField
                   label="Start Date"
                   value={form.startDate}
-                  onChangeText={(v) => set('startDate', v)}
-                  placeholder="YYYY-MM-DD"
+                  onChange={(v) => set('startDate', v)}
                 />
               </View>
               <View className="flex-1">
-                <Input
+                <DateField
                   label="End Date"
                   value={form.endDate}
-                  onChangeText={(v) => set('endDate', v)}
-                  placeholder="YYYY-MM-DD"
+                  onChange={(v) => set('endDate', v)}
+                  minimumDate={form.startDate || undefined}
                 />
               </View>
             </View>
@@ -195,9 +197,15 @@ export default function CreateProjectScreen() {
               placeholder="0"
               keyboardType="numeric"
               error={errors.budget}
-              helper="Can be left empty — set automatically when an estimate is approved"
+              helper="Can be left empty - set automatically when an estimate is approved"
             />
           </Card>
+
+          {submitError ? (
+            <View className="mb-4 px-3 py-2 rounded-lg bg-danger/10 border border-danger/30">
+              <Text className="text-sm text-danger">{submitError}</Text>
+            </View>
+          ) : null}
 
           <Button
             label="Create Project"

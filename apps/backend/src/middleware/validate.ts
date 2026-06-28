@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Zod validation middleware factory.
+ * BuildFlow - Zod validation middleware factory.
  *
  * Validates body / query / params against provided Zod schemas. On failure, returns
  * 422 with field-level details in the standard error envelope.

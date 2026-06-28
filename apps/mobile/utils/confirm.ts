@@ -1,6 +1,6 @@
 import { Alert, Platform } from 'react-native';
 
-/** Cross-platform confirm — Alert buttons are unreliable on web. */
+/** Cross-platform confirm - Alert buttons are unreliable on web. */
 export function confirmAsync(title: string, message: string): Promise<boolean> {
   if (Platform.OS === 'web') {
     return Promise.resolve(window.confirm(`${title}\n\n${message}`));

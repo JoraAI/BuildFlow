@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Unit tests for pure utils (no DB required).
+ * BuildFlow - Unit tests for pure utils (no DB required).
  */
 import jwt from 'jsonwebtoken';
 import { ApiError } from '../../utils/errors';

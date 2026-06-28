@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Global error handler + 404 handler.
+ * BuildFlow - Global error handler + 404 handler.
  *
  * Mounted last in app.ts. Converts any thrown error into the standard envelope.
  */
@@ -99,7 +99,7 @@ export function errorHandler(
     return;
   }
 
-  // Unknown — log full detail, return generic 500
+  // Unknown - log full detail, return generic 500
   logger.error('Unhandled error', {
     error: err instanceof Error ? err.message : String(err),
     stack: err instanceof Error ? err.stack : undefined,

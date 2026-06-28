@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Analytics controller (OWNER only).
+ * BuildFlow - Analytics controller (OWNER only).
  */
 import { Request, Response } from 'express';
 import { getOwnerDashboard } from '../services/analytics.service';

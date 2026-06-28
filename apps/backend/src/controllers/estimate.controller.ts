@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Estimate controller (thin).
+ * BuildFlow - Estimate controller (thin).
  */
 import { Request, Response } from 'express';
 import * as svc from '../services/estimate.service';

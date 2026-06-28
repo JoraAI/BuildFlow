@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useViewport } from '@/hooks/useViewport';
+import { StartFreeTrialButton } from '@/components/marketing/StartFreeTrialButton';
 
 export function MarketingNav() {
   const router = useRouter();
@@ -47,12 +48,7 @@ export function MarketingNav() {
           >
             <Text className="text-white text-sm font-semibold">Login</Text>
           </Pressable>
-          <Pressable
-            onPress={() => router.push('/signup')}
-            className="px-3 py-2 rounded-lg bg-accent active:opacity-90"
-          >
-            <Text className="text-primary text-sm font-semibold">Sign Up</Text>
-          </Pressable>
+          <StartFreeTrialButton onPress={() => router.push('/signup/company')} size="sm" label="Free trial" />
         </View>
       </View>
     </View>
