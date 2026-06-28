@@ -1,62 +1,169 @@
 /**
  * BuildFlow - Settings hub.
  */
-import React from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Card, Avatar, Button, Badge, CompanyLogo } from '@/components/ui';
+import { Ionicons } from '@expo/vector-icons';
+import { Button } from '@/components/ui';
 import { useMyProfile } from '@/services/settings.queries';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
-import { PageHeader } from '@/components/layout/PageHeader';
+import { PageHeader, StatChip } from '@/components/layout/PageHeader';
 import { MobileScreenHeader } from '@/components/layout/ScreenHeader';
 import { ResponsiveGrid } from '@/components/layout/ResponsiveGrid';
+import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 import { useViewport } from '@/hooks/useViewport';
 import { useAuthStore } from '@/stores/auth.store';
+import {
+  SettingsGroupCard,
+  SettingsLinkRow,
+  SettingsMobileProfileCard,
+  SettingsMobileRow,
+  SettingsMobileSection,
+  SettingsProfileHero,
+  SettingsVersionFooter,
+  formatRoleLabel,
+  type SettingsGroup,
+} from '@/components/settings/SettingsHubUI';
 
-function SettingRow({
-  label,
-  description,
-  value,
-  onPress,
-}: {
-  label: string;
-  description?: string;
-  value?: string;
-  onPress?: () => void;
-}) {
-  return (
-    <Pressable onPress={onPress} disabled={!onPress} className="active:opacity-80">
-      <View className="flex-row items-center justify-between py-3.5 border-b border-border">
-        <View className="flex-1 mr-3">
-          <Text className="text-base text-text font-medium">{label}</Text>
-          {description ? (
-            <Text className="text-xs text-muted mt-0.5">{description}</Text>
-          ) : null}
-        </View>
-        <View className="flex-row items-center shrink-0">
-          {value ? <Text className="text-sm text-muted mr-2">{value}</Text> : null}
-          {onPress ? <Text className="text-primary text-xl">›</Text> : null}
-        </View>
-      </View>
-    </Pressable>
-  );
-}
+const SETTINGS_GROUPS: SettingsGroup[] = [
+  {
+    id: 'account',
+    title: 'Account',
+    subtitle: 'Your profile & support',
+    icon: 'person-circle-outline',
+    accent: 'primary',
+    items: [
+      {
+        id: 'profile',
+        label: 'My Profile',
+        description: 'Name, phone & personal details',
+        href: '/(app)/settings/profile',
+        icon: 'person-outline',
+      },
+      {
+        id: 'tickets',
+        label: 'Support requests',
+        description: 'Submit or track change requests',
+        href: '/(app)/settings/tickets',
+        icon: 'help-circle-outline',
+      },
+    ],
+  },
+  {
+    id: 'company',
+    title: 'Company',
+    subtitle: 'Team, billing & catalog',
+    icon: 'business-outline',
+    accent: 'accent',
+    items: [
+      {
+        id: 'company-profile',
+        label: 'Company Profile',
+        description: 'Name, GSTIN, PAN, address',
+        href: '/(app)/settings/company',
+        icon: 'storefront-outline',
+      },
+      {
+        id: 'users',
+        label: 'Users & Roles',
+        description: 'Invite team and manage access',
+        href: '/(app)/settings/users',
+        icon: 'people-outline',
+        ownerOnly: true,
+      },
+      {
+        id: 'billing',
+        label: 'Billing & plan',
+        description: 'Trial status and subscription',
+        href: '/(app)/settings/billing',
+        icon: 'card-outline',
+        ownerOnly: true,
+      },
+      {
+        id: 'material-prices',
+        label: 'Material Prices',
+        description: 'Company-wide resource catalog',
+        href: '/(app)/settings/material-prices',
+        icon: 'cube-outline',
+      },
+      {
+        id: 'rate-regions',
+        label: 'Rate Regions',
+        description: 'Regional material rate books',
+        href: '/(app)/settings/rate-regions',
+        icon: 'map-outline',
+        ownerOnly: true,
+      },
+      {
+        id: 'rate-analysis',
+        label: 'Rate Analysis Library',
+        description: 'BOQ rate templates',
+        href: '/(app)/estimation/rate-analysis?from=settings',
+        icon: 'analytics-outline',
+      },
+    ],
+  },
+  {
+    id: 'integrations',
+    title: 'Integrations',
+    subtitle: 'Payments, SMS & accounting',
+    icon: 'extension-puzzle-outline',
+    accent: 'success',
+    items: [
+      {
+        id: 'integrations',
+        label: 'Manage Integrations',
+        description: 'Razorpay, Twilio, Tally, Maps',
+        href: '/(app)/settings/integrations',
+        icon: 'link-outline',
+        ownerOnly: true,
+      },
+    ],
+  },
+  {
+    id: 'general',
+    title: 'General',
+    subtitle: 'Alerts, audit & exports',
+    icon: 'options-outline',
+    accent: 'warning',
+    items: [
+      {
+        id: 'notifications',
+        label: 'Notifications',
+        description: 'Alerts and activity',
+        href: '/(app)/notifications',
+        icon: 'notifications-outline',
+      },
+      {
+        id: 'audit',
+        label: 'Audit Log',
+        description: 'Company activity history',
+        href: '/(app)/settings/audit',
+        icon: 'shield-checkmark-outline',
+        ownerOnly: true,
+      },
+      {
+        id: 'export',
+        label: 'Data Export',
+        description: 'Backup company data',
+        href: '/(app)/settings/export',
+        icon: 'download-outline',
+        ownerOnly: true,
+      },
+    ],
+  },
+];
 
-function SettingsSection({
-  title,
-  children,
-  className = '',
-}: {
-  title: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <Card className={`mb-4 ${className}`}>
-      <Text className="text-base font-bold text-text mb-1">{title}</Text>
-      {children}
-    </Card>
+function useVisibleSettingsGroups(isOwner: boolean) {
+  return useMemo(
+    () =>
+      SETTINGS_GROUPS.map((group) => ({
+        ...group,
+        items: group.items.filter((item) => !item.ownerOnly || isOwner),
+      })).filter((group) => group.items.length > 0),
+    [isOwner],
   );
 }
 
@@ -64,146 +171,134 @@ export default function SettingsScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
-  const { isDesktop } = useViewport();
+  const { isDesktop, isWideDesktop } = useViewport();
   const isOwner = user?.role === 'OWNER';
 
   const { data: profile } = useMyProfile();
   const logoUrl = profile?.companyLogoUrl ?? user?.companyLogoUrl ?? null;
+  const groups = useVisibleSettingsGroups(isOwner);
 
-  const profileCard = (
-    <Card className={isDesktop ? 'mb-0 h-full' : 'mb-4'}>
-      <View className="flex-row items-center mb-4">
-        <CompanyLogo name={user?.companyName ?? 'C'} logoUrl={logoUrl} size={isDesktop ? 56 : 48} />
-        <View className="mx-3">
-          <Avatar name={user?.name ?? 'U'} size={isDesktop ? 56 : 48} />
-        </View>
-        <View className="flex-1">
-          <Text className={`font-bold text-text ${isDesktop ? 'text-xl' : 'text-lg'}`}>
-            {user?.name}
-          </Text>
-          <Text className="text-sm text-muted">{user?.email}</Text>
-          <View className="mt-1">
-            <Badge label={user?.role ?? ''} color="primary" />
-          </View>
-        </View>
-      </View>
-      <Text className="text-sm font-medium text-text">{user?.companyName}</Text>
-      {user?.phone ? <Text className="text-xs text-muted mt-0.5">{user.phone}</Text> : null}
-    </Card>
-  );
+  const navigate = (href: string) => router.push(href as never);
 
-  const sections = (
-    <>
-      <SettingsSection title="Account">
-        <SettingRow
-          label="My Profile"
-          description="Name, phone & personal details"
-          onPress={() => router.push('/(app)/settings/profile')}
-        />
-        <SettingRow
-          label="Support requests"
-          description="Submit or track change requests"
-          onPress={() => router.push('/(app)/settings/tickets')}
-        />
-      </SettingsSection>
+  const profileProps = {
+    name: user?.name ?? 'User',
+    email: user?.email ?? '',
+    phone: user?.phone,
+    role: user?.role,
+    companyName: user?.companyName ?? 'Company',
+    logoUrl,
+    onEditProfile: () => navigate('/(app)/settings/profile'),
+    onSignOut: logout,
+  };
 
-      <SettingsSection title="Company">
-        <SettingRow
-          label="Company Profile"
-          description="Name, GSTIN, PAN, address"
-          onPress={() => router.push('/(app)/settings/company')}
+  const desktopSectionCards = groups.map((group) => (
+    <SettingsGroupCard
+      key={group.id}
+      title={group.title}
+      subtitle={group.subtitle}
+      icon={group.icon}
+      accent={group.accent}
+    >
+      {group.items.map((item, index) => (
+        <SettingsLinkRow
+          key={item.id}
+          label={item.label}
+          description={item.description}
+          icon={item.icon}
+          accent={group.accent}
+          onPress={() => navigate(item.href)}
+          isLast={index === group.items.length - 1}
         />
-        {isOwner && (
-          <SettingRow
-            label="Users & Roles"
-            description="Invite team and manage access"
-            onPress={() => router.push('/(app)/settings/users')}
-          />
-        )}
-        {isOwner && (
-          <SettingRow
-            label="Billing & plan"
-            description="Trial status and subscription"
-            onPress={() => router.push('/(app)/settings/billing')}
-          />
-        )}
-        <SettingRow
-          label="Material Prices"
-          description="Resource library pricing"
-          onPress={() => router.push('/(app)/settings/material-prices')}
-        />
-        {isOwner && (
-          <SettingRow
-            label="Rate Regions"
-            description="Regional material rate books"
-            onPress={() => router.push('/(app)/settings/rate-regions')}
-          />
-        )}
-        <SettingRow
-          label="Rate Analysis Library"
-          description="BOQ rate templates"
-          onPress={() => router.push('/(app)/estimation/rate-analysis?from=settings' as never)}
-        />
-      </SettingsSection>
+      ))}
+    </SettingsGroupCard>
+  ));
 
-      {isOwner && (
-        <SettingsSection title="Integrations">
-          <SettingRow
-            label="Manage Integrations"
-            description="Razorpay, Twilio, Tally, Maps"
-            onPress={() => router.push('/(app)/settings/integrations')}
-          />
-        </SettingsSection>
-      )}
-
-      <SettingsSection title="General">
-        <SettingRow
-          label="Notifications"
-          description="Alerts and activity"
-          onPress={() => router.push('/(app)/notifications')}
+  const mobileSections = groups.map((group) => (
+    <SettingsMobileSection key={group.id} title={group.title}>
+      {group.items.map((item, index) => (
+        <SettingsMobileRow
+          key={item.id}
+          label={item.label}
+          description={item.description}
+          onPress={() => navigate(item.href)}
+          isLast={index === group.items.length - 1}
         />
-        {isOwner && (
-          <SettingRow
-            label="Audit Log"
-            description="Company activity history"
-            onPress={() => router.push('/(app)/settings/audit')}
-          />
-        )}
-        {isOwner && (
-          <SettingRow
-            label="Data Export"
-            description="Backup company data"
-            onPress={() => router.push('/(app)/settings/export')}
-          />
-        )}
-      </SettingsSection>
-    </>
-  );
+      ))}
+    </SettingsMobileSection>
+  ));
 
   if (isDesktop) {
     return (
       <SafeAreaView className="flex-1 bg-surface" edges={[]}>
         <ScreenContainer scrollable constrained>
-          <PageHeader title="Settings" subtitle="Company, users & preferences" />
-          <View className="mb-4">{profileCard}</View>
-          <ResponsiveGrid gap={16}>{sections}</ResponsiveGrid>
-          <View className="max-w-md mt-4">
-            <Button label="Sign Out" variant="danger" onPress={logout} fullWidth />
-          </View>
-          <Text className="text-xs text-muted mt-6">BuildFlow v2.0.0 - by Jora AI</Text>
+          <PageHeader
+            title="Settings"
+            subtitle="Manage your account, company, and workspace preferences"
+            actions={
+              <Button
+                label="Edit profile"
+                size="sm"
+                variant="secondary"
+                onPress={profileProps.onEditProfile}
+                icon={<Ionicons name="create-outline" size={16} color="#1E3A5F" />}
+              />
+            }
+            stats={
+              <>
+                <StatChip label="Role" value={formatRoleLabel(user?.role)} accent="primary" />
+                <StatChip label="Company" value={user?.companyName ?? '—'} accent="warning" />
+              </>
+            }
+          />
+
+          {isWideDesktop ? (
+            <View className="flex-row items-start gap-6">
+              <View className="w-80 shrink-0">
+                <SettingsProfileHero {...profileProps} />
+                <SettingsVersionFooter className="mt-6 text-center" />
+              </View>
+              <View className="flex-1 min-w-0">
+                <ResponsiveGrid gap={16} columns={2}>
+                  {desktopSectionCards}
+                </ResponsiveGrid>
+              </View>
+            </View>
+          ) : (
+            <>
+              <View className="mb-6 max-w-md">
+                <SettingsProfileHero {...profileProps} compact />
+              </View>
+              <ResponsiveGrid gap={16} columns={2}>
+                {desktopSectionCards}
+              </ResponsiveGrid>
+              <SettingsVersionFooter className="mt-8" />
+            </>
+          )}
         </ScreenContainer>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-surface">
-      <ScrollView className="flex-1" contentContainerClassName="px-4 pb-6">
+    <SafeAreaView className="flex-1 bg-surface" edges={[]}>
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="px-4 pb-6"
+        contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
+        showsVerticalScrollIndicator={false}
+      >
         <MobileScreenHeader title="Settings" subtitle="Company, users & preferences" />
-        {profileCard}
-        {sections}
+        <SettingsMobileProfileCard
+          name={profileProps.name}
+          email={profileProps.email}
+          phone={profileProps.phone}
+          role={profileProps.role}
+          companyName={profileProps.companyName}
+          logoUrl={logoUrl}
+        />
+        {mobileSections}
         <Button label="Sign Out" variant="danger" onPress={logout} fullWidth />
-        <Text className="text-center text-xs text-muted mt-6">BuildFlow v2.0.0 - by Jora AI</Text>
+        <SettingsVersionFooter className="text-center mt-6" />
       </ScrollView>
     </SafeAreaView>
   );

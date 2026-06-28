@@ -5,6 +5,7 @@ import { useViewport } from '@/hooks/useViewport';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
+import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 import { goBackToSettings } from '@/utils/navigation';
 
 /**
@@ -49,7 +50,7 @@ export function SettingsPageLayout({
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-surface">
+    <SafeAreaView className="flex-1 bg-surface" edges={[]}>
       <FormScreenHeader
         title={title}
         subtitle={subtitle}
@@ -60,6 +61,7 @@ export function SettingsPageLayout({
       <ScrollView
         className="flex-1"
         contentContainerClassName="px-4 pb-6"
+        contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
         refreshControl={
           onRefresh ? (
             <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} />
