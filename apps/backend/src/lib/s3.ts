@@ -3,27 +3,15 @@
  *
  * Multi-tenant path convention:
  *   s3://{bucket}/{company_id}/{entity_type}/{project_id}/{filename}
+ *
+ * Credentials resolve per company via integration.service (BYOK) with platform fallback.
  */
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
+import { resolveS3Config, type S3Config } from '../services/integration.service';
 
-export const s3Client = new S3Client({
-  region: env.AWS_REGION,
-  ...(env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY
-    ? {
-        credentials: {
-          accessKeyId: env.AWS_ACCESS_KEY_ID,
-          secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
-        },
-      }
-    : {}),
-});
-
-/**
- * Build the canonical S3 key for a tenant-scoped upload.
- */
 export function buildS3Key(parts: {
   companyId: string;
   entityType: string;
@@ -36,58 +24,79 @@ export function buildS3Key(parts: {
   return segs.join('/');
 }
 
-/**
- * Generate a short-lived pre-signed PUT URL for a client-side upload.
- * Expires in S3_PRESIGN_EXPIRY_SECONDS (default 15 minutes).
- */
+function clientFor(config: S3Config): S3Client {
+  return new S3Client({
+    region: config.region,
+    ...(config.accessKeyId && config.secretAccessKey
+      ? {
+          credentials: {
+            accessKeyId: config.accessKeyId,
+            secretAccessKey: config.secretAccessKey,
+          },
+        }
+      : {}),
+  });
+}
+
+async function resolveConfig(companyId: string): Promise<S3Config> {
+  const cfg = await resolveS3Config(companyId);
+  if (!cfg) {
+    throw new Error('S3_NOT_CONFIGURED');
+  }
+  return cfg;
+}
+
 export async function getPresignedUploadUrl(opts: {
+  companyId: string;
   key: string;
   contentType: string;
 }): Promise<string> {
+  const config = await resolveConfig(opts.companyId);
   const command = new PutObjectCommand({
-    Bucket: env.AWS_S3_BUCKET,
+    Bucket: config.bucket,
     Key: opts.key,
     ContentType: opts.contentType,
   });
-  return getSignedUrl(s3Client, command, {
+  return getSignedUrl(clientFor(config), command, {
     expiresIn: env.S3_PRESIGN_EXPIRY_SECONDS,
   });
 }
 
-/**
- * Generate a short-lived pre-signed GET URL for downloads/viewing.
- */
-export async function getPresignedDownloadUrl(opts: { key: string }): Promise<string> {
+export async function getPresignedDownloadUrl(opts: {
+  companyId: string;
+  key: string;
+}): Promise<string> {
+  const config = await resolveConfig(opts.companyId);
   const command = new GetObjectCommand({
-    Bucket: env.AWS_S3_BUCKET,
+    Bucket: config.bucket,
     Key: opts.key,
   });
-  return getSignedUrl(s3Client, command, {
+  return getSignedUrl(clientFor(config), command, {
     expiresIn: env.S3_PRESIGN_EXPIRY_SECONDS,
   });
 }
 
-/**
- * Convert an S3 key to a stable logical URL stored in DB.
- * We store keys (not signed URLs) because signed URLs expire.
- * The frontend resolves keys to signed GET URLs via the API.
- */
-export function keyToLogicalUrl(key: string): string {
-  return `s3://${env.AWS_S3_BUCKET}/${key}`;
+export function keyToLogicalUrl(bucket: string, key: string): string {
+  return `s3://${bucket}/${key}`;
 }
 
-export function logicalUrlToKey(url: string): string | null {
-  const prefix = `s3://${env.AWS_S3_BUCKET}/`;
-  if (!url.startsWith(prefix)) {
+export async function keyToLogicalUrlForCompany(companyId: string, key: string): Promise<string> {
+  const config = await resolveConfig(companyId);
+  return keyToLogicalUrl(config.bucket, key);
+}
+
+/** Parse s3://bucket/key logical URLs (supports any tenant bucket). */
+export function logicalUrlToKey(url: string): { bucket: string; key: string } | null {
+  if (!url.startsWith('s3://')) {
     logger.warn('Unrecognised file URL format', { url });
     return null;
   }
-  return url.slice(prefix.length);
+  const rest = url.slice('s3://'.length);
+  const slash = rest.indexOf('/');
+  if (slash <= 0) return null;
+  return { bucket: rest.slice(0, slash), key: rest.slice(slash + 1) };
 }
 
-/**
- * Allowed MIME types for uploads.
- */
 export const ALLOWED_IMAGE_TYPES = [
   'image/jpeg',
   'image/png',

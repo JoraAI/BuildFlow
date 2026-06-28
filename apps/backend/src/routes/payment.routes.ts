@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Payment routes (Razorpay).
+ * BuildFlow — Payment routes (Razorpay invoice + SaaS billing webhooks).
  */
 import { Router } from 'express';
 import * as ctrl from '../controllers/payment.controller';
@@ -7,7 +7,6 @@ import { authenticateToken, requireRole } from '../middleware/auth';
 
 const router = Router();
 
-// Authenticated: create a payment link for an invoice (OWNER/PM/ACCOUNTANT)
 router.post(
   '/invoices/:id/payment-link',
   authenticateToken,
@@ -15,8 +14,10 @@ router.post(
   ctrl.createLink,
 );
 
-// Public webhook — must NOT use authenticateToken; HMAC verified in handler.
-// Express.json is configured with verify for this route in app.ts.
 router.post('/webhooks/razorpay', ctrl.webhook);
+router.post('/webhooks/razorpay/:companyId', ctrl.companyWebhook);
+router.post('/webhooks/stripe/:companyId', ctrl.companyStripeWebhook);
+router.post('/webhooks/saas/razorpay', ctrl.saasRazorpayWebhook);
+router.post('/webhooks/saas/stripe', ctrl.saasStripeWebhook);
 
 export default router;

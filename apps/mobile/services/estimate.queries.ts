@@ -2,7 +2,7 @@
  * BuildFlow — React Query hooks for Resources, Rate Analysis & Estimates.
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiFetch, apiDownload } from '@/lib/api-client';
+import { apiFetch, apiDownload, apiFetchList } from '@/lib/api-client';
 import * as Sharing from 'expo-sharing';
 import { Alert, Platform } from 'react-native';
 import { API_BASE_URL, SECURE_STORE_KEYS } from '@/constants';
@@ -130,6 +130,14 @@ export interface EstimateListRow {
 /** Alias used by list screens. */
 export type EstimateListItem = EstimateListRow;
 
+export interface ConvertToBoqResult {
+  projectId: string;
+  estimateId: string;
+  created: number;
+  archived: number;
+  budget: number;
+}
+
 export interface EstimateComparison {
   estimateA: { name: string; version: number; grandTotal: number };
   estimateB: { name: string; version: number; grandTotal: number };
@@ -145,7 +153,10 @@ export interface EstimateComparison {
 export function useResources() {
   return useQuery({
     queryKey: ['resources'] as const,
-    queryFn: () => apiFetch<{ data: Resource[] }>('/resources?limit=500'),
+    queryFn: async () => {
+      const { data } = await apiFetchList<Resource>('/resources?limit=200');
+      return { data };
+    },
     staleTime: 60 * 60 * 1000,
   });
 }
@@ -200,7 +211,7 @@ export function useRateAnalysis(id: string) {
 export function useProjectEstimates(projectId: string) {
   return useQuery({
     queryKey: ['projects', projectId, 'estimates'] as const,
-    queryFn: () => apiFetch<{ data: EstimateListRow[] }>(`/projects/${projectId}/estimates`),
+    queryFn: () => apiFetch<EstimateListRow[]>(`/projects/${projectId}/estimates`),
     enabled: !!projectId,
   });
 }
@@ -234,7 +245,10 @@ export function useEstimateMutations(estimateId: string) {
     }),
     addSection: useMutation({
       mutationFn: (body: { name: string }) =>
-        apiFetch<{ id: string }>(`/estimates/${estimateId}/sections`, { method: 'POST', body: JSON.stringify(body) }),
+        apiFetch<{ id: string; name: string }>(`/estimates/${estimateId}/sections`, {
+          method: 'POST',
+          body: JSON.stringify(body),
+        }),
       onSuccess: invalidate,
     }),
     updateSection: useMutation({
@@ -279,10 +293,15 @@ export function useEstimateMutations(estimateId: string) {
       onSuccess: () => qc.invalidateQueries({ queryKey: ['estimates'] }),
     }),
     convertToBoq: useMutation({
-      mutationFn: () => apiFetch<{ message: string; boqItems: { id: string }[] }>(`/estimates/${estimateId}/convert-to-boq`, { method: 'POST' }),
-      onSuccess: () => {
+      mutationFn: () =>
+        apiFetch<ConvertToBoqResult>(`/estimates/${estimateId}/convert-to-boq`, { method: 'POST' }),
+      onSuccess: (data) => {
         invalidate();
         qc.invalidateQueries({ queryKey: ['estimates'] });
+        qc.invalidateQueries({ queryKey: ['projects', data.projectId, 'boq'] });
+        qc.invalidateQueries({ queryKey: ['projects', data.projectId] });
+        qc.invalidateQueries({ queryKey: ['projects', data.projectId, 'summary'] });
+        qc.invalidateQueries({ queryKey: ['projects'] });
       },
     }),
   };

@@ -47,6 +47,10 @@ export async function authenticateToken(
       throw ApiError.unauthorized('Token has been revoked');
     }
 
+    if (!decoded.companyId || !decoded.role) {
+      throw ApiError.unauthorized('Invalid token payload');
+    }
+
     // Attach to req and run downstream within company ALS context.
     req.user = {
       id: decoded.sub,
@@ -71,7 +75,7 @@ export async function optionalAuth(
   if (!token) return next();
   try {
     const decoded = verifyAccessToken(token);
-    if (!(await isTokenBlacklisted(decoded.tid))) {
+    if (!(await isTokenBlacklisted(decoded.tid)) && decoded.companyId && decoded.role) {
       req.user = {
         id: decoded.sub,
         companyId: decoded.companyId,

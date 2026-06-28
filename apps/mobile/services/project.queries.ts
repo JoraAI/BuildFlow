@@ -3,7 +3,7 @@
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
-import type { CreateProjectInput, UpdateProjectInput } from '@buildflow/shared';
+import type { CreateProjectInput, UpdateProjectInput, ProjectStats, Role } from '@buildflow/shared';
 
 export interface ProjectListItem {
   id: string;
@@ -19,15 +19,7 @@ export interface ProjectListItem {
   _count?: { tasks: number };
 }
 
-export interface ProjectSummary {
-  plannedProgress: number;
-  actualProgress: number;
-  scheduleVarianceDays: number;
-  budgetUtilizationPct: number;
-  tasksOverdueCount: number;
-  approvedEstimateTotal: number;
-  estimateVsActualVariance: number;
-}
+export type ProjectSummary = ProjectStats;
 
 export interface ProjectDetail extends ProjectListItem {
   clientContact: string | null;
@@ -37,10 +29,18 @@ export interface ProjectDetail extends ProjectListItem {
   summary?: ProjectSummary;
 }
 
+export interface ProjectMemberRow {
+  id: string;
+  userId: string;
+  role: Role;
+  user: { id: string; name: string; email: string; role: Role };
+}
+
 const KEYS = {
   list: ['projects'] as const,
   detail: (id: string) => ['projects', id] as const,
   summary: (id: string) => ['projects', id, 'summary'] as const,
+  members: (id: string) => ['projects', id, 'members'] as const,
   wbs: (id: string) => ['projects', id, 'wbs'] as const,
   gantt: (id: string) => ['projects', id, 'gantt'] as const,
 };
@@ -89,6 +89,28 @@ export function useUpdateProject(id: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEYS.list });
       qc.invalidateQueries({ queryKey: KEYS.detail(id) });
+    },
+  });
+}
+
+export function useProjectMembers(projectId: string) {
+  return useQuery({
+    queryKey: KEYS.members(projectId),
+    queryFn: () => apiFetch<ProjectMemberRow[]>(`/projects/${projectId}/members`),
+    enabled: !!projectId,
+  });
+}
+
+export function useSetProjectMembers(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { members: Array<{ userId: string; role: Role }> }) =>
+      apiFetch<ProjectMemberRow[]>(`/projects/${projectId}/members`, {
+        method: 'PUT',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.members(projectId) });
     },
   });
 }

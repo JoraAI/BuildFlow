@@ -13,6 +13,7 @@ config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
 ];
+config.resolver.disableHierarchicalLookup = true;
 
 // Apply NativeWind FIRST so its CSS transformer/resolver is registered,
 // then layer our web-shim resolver on top (deferring to NativeWind for CSS).

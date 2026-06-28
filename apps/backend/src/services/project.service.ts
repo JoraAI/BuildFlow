@@ -37,12 +37,19 @@ function canDelete(role: Role): boolean {
 /* Projects CRUD                                                       */
 /* ------------------------------------------------------------------ */
 
-export async function listProjects(companyId: string, query: ProjectQueryInput) {
+export async function listProjects(companyId: string, userId: string, role: Role, query: ProjectQueryInput) {
   const { page, limit, status, type, search } = query;
   const where: Prisma.ProjectWhereInput = {
     companyId,
     isDeleted: false,
   };
+  if (role !== Role.OWNER) {
+    const memberIds = await prisma.projectMember.findMany({
+      where: { userId, project: { companyId, isDeleted: false } },
+      select: { projectId: true },
+    });
+    where.id = { in: memberIds.map((m) => m.projectId) };
+  }
   if (status) where.status = status;
   if (type) where.type = type;
   if (search) {
@@ -105,6 +112,16 @@ export async function createProject(
       createdBy: userId,
     },
   });
+
+  const creator = await prisma.user.findFirst({
+    where: { id: userId, companyId },
+    select: { role: true },
+  });
+  if (creator) {
+    await prisma.projectMember.create({
+      data: { projectId: project.id, userId, role: creator.role },
+    });
+  }
 
   await recordAudit({
     companyId,

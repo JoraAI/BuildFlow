@@ -23,6 +23,7 @@ export type NotificationChannel = 'PUSH' | 'WHATSAPP' | 'SMS';
 
 export interface NotifyPayload {
   userId: string;
+  companyId?: string;
   title: string;
   body: string;
   type: string;
@@ -43,7 +44,7 @@ export async function notify(payload: NotifyPayload): Promise<void> {
     // Fetch recipient + preferences
     const user = await prisma.user.findFirst({
       where: { id: payload.userId },
-      select: { id: true, phone: true, name: true, notificationPrefs: true },
+      select: { id: true, phone: true, name: true, companyId: true, notificationPrefs: true },
     });
 
     // In-app row always created (powers the notification center)
@@ -60,6 +61,8 @@ export async function notify(payload: NotifyPayload): Promise<void> {
 
     if (!user) return;
 
+    const companyId = payload.companyId ?? user.companyId;
+
     // User channel prefs (stored as JSON like { PUSH: true, WHATSAPP: true, SMS: false })
     const prefs = (user.notificationPrefs ?? {}) as Record<NotificationChannel, boolean | undefined>;
 
@@ -71,13 +74,13 @@ export async function notify(payload: NotifyPayload): Promise<void> {
       } else if ((ch === 'WHATSAPP' || ch === 'SMS') && user.phone) {
         jobs.push({
           name: ch.toLowerCase(),
-          data: { to: user.phone, message: `${payload.title}: ${payload.body}`, userId: user.id },
+          data: { companyId, to: user.phone, message: `${payload.title}: ${payload.body}`, userId: user.id },
         });
       }
     }
     // External recipients (clients/vendors) — no pref check
     for (const ext of payload.external ?? []) {
-      jobs.push({ name: ext.channel.toLowerCase(), data: { to: ext.to, message: ext.message } });
+      jobs.push({ name: ext.channel.toLowerCase(), data: { companyId, to: ext.to, message: ext.message } });
     }
 
     if (jobs.length > 0) {

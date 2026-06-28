@@ -11,7 +11,10 @@ import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
-const PASSWORD = 'BuildFlow@2025';
+const PASSWORD = 'Test@1234';
+const PLATFORM_ADMIN_PASSWORD = 'Admin@1234';
+const COMPANY_LOGO =
+  'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=200&h=200&fit=crop&auto=format';
 
 async function main(): Promise<void> {
   // ----------------------------------------------------------------
@@ -42,24 +45,82 @@ async function main(): Promise<void> {
       pan: 'AABCR1234A',
       state: 'Telangana',
       address: 'Banjara Hills, Hyderabad, Telangana 500034',
+      logoUrl: COMPANY_LOGO,
+      subscriptionPlan: 'PROFESSIONAL',
+      subscriptionStatus: 'ACTIVE',
+      trialStartsAt: new Date(Date.now() - 30 * 86_400_000),
+      trialEndsAt: new Date(Date.now() + 335 * 86_400_000),
     },
   });
 
   const users = await Promise.all(
     [
-      { name: 'Sai Reddy', email: 'owner@reddyconst.com', role: Role.OWNER },
-      { name: 'Ravi Kumar', email: 'pm@reddyconst.com', role: Role.PM },
-      { name: 'Mahesh Singh', email: 'site@reddyconst.com', role: Role.SUPERVISOR },
-      { name: 'Priya Sharma', email: 'accounts@reddyconst.com', role: Role.ACCOUNTANT },
+      { name: 'Sai Reddy', email: 'owner@reddyconst.com', role: Role.OWNER, phone: '+919876543210' },
+      { name: 'Ravi Kumar', email: 'pm@reddyconst.com', role: Role.PM, phone: '+919876543211' },
+      { name: 'Mahesh Singh', email: 'site@reddyconst.com', role: Role.SUPERVISOR, phone: '+919876543212' },
+      { name: 'Priya Sharma', email: 'accounts@reddyconst.com', role: Role.ACCOUNTANT, phone: '+919876543213' },
     ].map((u) =>
       prisma.user.upsert({
         where: { email: u.email },
-        update: {},
+        update: { phone: u.phone },
         create: { ...u, companyId: company.id, passwordHash },
       }),
     ),
   );
   const [owner, pm, supervisor] = users;
+
+  // Platform admin (BuildFlow internal)
+  await prisma.platformAdmin.upsert({
+    where: { email: 'admin@buildflow.com' },
+    update: { passwordHash: await bcrypt.hash(PLATFORM_ADMIN_PASSWORD, 10), isActive: true },
+    create: {
+      email: 'admin@buildflow.com',
+      name: 'BuildFlow Admin',
+      passwordHash: await bcrypt.hash(PLATFORM_ADMIN_PASSWORD, 10),
+    },
+  });
+
+  // Sample support tickets
+  await prisma.companyIntegration.create({
+    data: {
+      companyId: company.id,
+      provider: 'TALLY',
+      configuredBy: owner.id,
+      settings: {
+        sales: 'Sales Account',
+        purchase: 'Purchase Account',
+        cgst: 'CGST Payable',
+        sgst: 'SGST Payable',
+        igst: 'IGST Payable',
+        tdsPayable: 'TDS Payable',
+        bank: 'HDFC Bank',
+      },
+    },
+  });
+
+  await prisma.supportTicket.create({
+    data: {
+      companyId: company.id,
+      requesterId: pm.id,
+      scope: 'COMPANY',
+      category: 'PROFILE_CHANGE',
+      subject: 'Update my role to include estimation access',
+      description: 'I need PM role confirmed for estimation module access on all projects.',
+      payload: { requestedRole: 'PM' },
+      status: 'OPEN',
+    },
+  });
+  await prisma.supportTicket.create({
+    data: {
+      companyId: company.id,
+      requesterId: owner.id,
+      scope: 'PLATFORM',
+      category: 'BILLING',
+      subject: 'Extend trial for new branch office',
+      description: 'We opened a second site and need 14 more trial days while onboarding users.',
+      status: 'ESCALATED',
+    },
+  });
 
   // ----------------------------------------------------------------
   // Resources (realistic Indian 2025 rates)
@@ -237,6 +298,257 @@ async function main(): Promise<void> {
     },
   });
 
+  // Project-scoped access (PM + supervisor on NH-65)
+  await prisma.projectMember.createMany({
+    data: [
+      { projectId: project1.id, userId: owner.id, role: Role.OWNER },
+      { projectId: project1.id, userId: pm.id, role: Role.PM },
+      { projectId: project1.id, userId: supervisor.id, role: Role.SUPERVISOR },
+    ],
+  });
+
+  const boqEarth = await prisma.bOQItem.create({
+    data: {
+      projectId: project1.id,
+      itemCode: 'BOQ-001',
+      description: 'Earthwork excavation',
+      unit: 'cum',
+      quantity: 1000,
+      rate: 450,
+      amount: 450_000,
+      category: 'EARTHWORK',
+    },
+  });
+
+  const boqPcc = await prisma.bOQItem.create({
+    data: {
+      projectId: project1.id,
+      itemCode: 'BOQ-002',
+      description: 'PCC M15',
+      unit: 'cum',
+      quantity: 200,
+      rate: 5200,
+      amount: 1_040_000,
+      category: 'CONCRETE',
+    },
+  });
+
+  await prisma.changeOrder.create({
+    data: {
+      projectId: project1.id,
+      companyId: company.id,
+      number: 'VO-001',
+      title: 'Additional drainage layer',
+      reason: 'Client directive for extra drain excavation',
+      status: 'APPROVED',
+      costImpact: 22_500,
+      scheduleImpactDays: 5,
+      createdBy: pm.id,
+      approvedBy: owner.id,
+      approvedAt: new Date('2025-02-10'),
+      lines: {
+        create: [
+          {
+            boqItemId: boqEarth.id,
+            description: 'Extra excavation for drain',
+            unit: 'cum',
+            qtyDelta: 50,
+            rate: 450,
+            amount: 22_500,
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.bOQItem.update({
+    where: { id: boqEarth.id },
+    data: { quantity: 1050, amount: 472_500 },
+  });
+  await prisma.project.update({
+    where: { id: project1.id },
+    data: { budget: 24_522_500 },
+  });
+
+  await prisma.invoice.create({
+    data: {
+      projectId: project1.id,
+      companyId: company.id,
+      invoiceNumber: 'RA-2025-001',
+      clientName: 'NHAI',
+      clientGstin: '36AAAGN0534G1ZH',
+      invoiceDate: new Date('2025-03-31'),
+      dueDate: new Date('2025-04-30'),
+      status: InvoiceStatus.SENT,
+      invoiceType: 'RUNNING_ACCOUNT',
+      raSequence: 1,
+      retentionPct: 5,
+      subtotal: 200_800,
+      previousCertifiedTotal: 0,
+      currentCertifiedTotal: 200_800,
+      cumulativeCertifiedTotal: 200_800,
+      retentionAmount: 10_040,
+      gstRate: 18,
+      gstAmount: 36_144,
+      total: 226_904,
+      lineItems: {
+        create: [
+          {
+            boqItemId: boqEarth.id,
+            description: 'Earthwork excavation',
+            unit: 'cum',
+            quantity: 400,
+            rate: 450,
+            amount: 180_000,
+            previousQty: 0,
+            currentQty: 400,
+            cumulativeQty: 400,
+            certifiedAmount: 180_000,
+          },
+          {
+            boqItemId: boqPcc.id,
+            description: 'PCC M15',
+            unit: 'cum',
+            quantity: 4,
+            rate: 5200,
+            amount: 20_800,
+            previousQty: 0,
+            currentQty: 4,
+            cumulativeQty: 4,
+            certifiedAmount: 20_800,
+          },
+        ],
+      },
+    },
+  });
+
+  const requisition = await prisma.materialRequisition.create({
+    data: {
+      projectId: project1.id,
+      companyId: company.id,
+      reqNumber: 'IND-001',
+      status: 'APPROVED',
+      requestedBy: supervisor.id,
+      approvedBy: pm.id,
+      lines: {
+        create: [
+          {
+            resourceId: resources['OPC Cement 53G'].id,
+            quantity: 500,
+            unit: 'bag',
+          },
+        ],
+      },
+    },
+  });
+
+  const po = await prisma.purchaseOrder.create({
+    data: {
+      projectId: project1.id,
+      companyId: company.id,
+      requisitionId: requisition.id,
+      poNumber: 'PO-001',
+      vendorName: 'Hyderabad Cement Supply',
+      status: 'APPROVED',
+      totalAmount: 210_000,
+      lines: {
+        create: [
+          {
+            resourceId: resources['OPC Cement 53G'].id,
+            quantity: 500,
+            unit: 'bag',
+            rate: 420,
+            amount: 210_000,
+          },
+        ],
+      },
+    },
+  });
+
+  const stockLoc = await prisma.stockLocation.create({
+    data: { companyId: company.id, projectId: project1.id, name: 'Site Store' },
+  });
+
+  await prisma.goodsReceiptNote.create({
+    data: {
+      projectId: project1.id,
+      companyId: company.id,
+      purchaseOrderId: po.id,
+      grnNumber: 'GRN-001',
+      receivedDate: new Date('2025-02-15'),
+      lines: {
+        create: [
+          {
+            resourceId: resources['OPC Cement 53G'].id,
+            quantity: 500,
+            unit: 'bag',
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.stockBalance.create({
+    data: {
+      locationId: stockLoc.id,
+      resourceId: resources['OPC Cement 53G'].id,
+      quantity: 500,
+    },
+  });
+
+  const subbie = await prisma.subcontractor.create({
+    data: {
+      companyId: company.id,
+      name: 'Sharma Earthworks',
+      gstin: '36AABCS1234A1Z5',
+      contactPhone: '+919876543299',
+    },
+  });
+
+  const wo = await prisma.subcontractWorkOrder.create({
+    data: {
+      projectId: project1.id,
+      subcontractorId: subbie.id,
+      woNumber: 'WO-001',
+      scope: 'Earthwork sub-contract',
+      contractValue: 2_000_000,
+      retentionPct: 5,
+      status: 'ACTIVE',
+      startDate: new Date('2025-02-01'),
+    },
+  });
+
+  await prisma.subcontractMeasurement.create({
+    data: {
+      workOrderId: wo.id,
+      periodLabel: 'Feb 2025',
+      status: 'APPROVED',
+      totalAmount: 180_000,
+      approvedBy: owner.id,
+      approvedAt: new Date('2025-03-01'),
+      lines: {
+        create: [
+          {
+            description: 'Excavation completed',
+            quantity: 400,
+            unit: 'cum',
+            rate: 450,
+            amount: 180_000,
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.reportSchedule.create({
+    data: {
+      companyId: company.id,
+      reportType: 'GST_SUMMARY',
+      cronExpr: '0 9 1 * *',
+      recipients: ['accounts@reddyconst.com'],
+    },
+  });
+
   // ----------------------------------------------------------------
   // Project 2 — Greenview Residency Block-C (planning)
   // ----------------------------------------------------------------
@@ -274,7 +586,11 @@ async function main(): Promise<void> {
   });
 
   // eslint-disable-next-line no-console
-  console.log('✅ Seed complete. Login passwords for all users:', PASSWORD);
+  console.log('✅ Seed complete.');
+  // eslint-disable-next-line no-console
+  console.log('   Tenant users (all roles): password', PASSWORD);
+  // eslint-disable-next-line no-console
+  console.log('   Platform admin: admin@buildflow.com /', PLATFORM_ADMIN_PASSWORD);
 }
 
 main()

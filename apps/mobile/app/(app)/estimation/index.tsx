@@ -8,6 +8,8 @@ import { View, Text, ScrollView, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card, Button, FAB, EmptyState } from '@/components/ui';
+import { MobileScreenHeader } from '@/components/layout/ScreenHeader';
+import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { useRateAnalyses } from '@/services/estimate.queries';
 import { useAuthStore } from '@/stores/auth.store';
@@ -25,13 +27,14 @@ export default function EstimationHubScreen() {
       <OfflineBanner />
       <ScrollView
         className="flex-1"
-        contentContainerClassName="p-4 gap-4 pb-24"
+        contentContainerClassName="p-4 gap-4"
+        contentContainerStyle={{ paddingBottom: mobileListBottomPadding(true) }}
         refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
       >
-        <View>
-          <Text className="text-2xl font-bold text-text">Cost Estimation</Text>
-          <Text className="text-sm text-text-muted">Rate analysis library, estimates & material pricing</Text>
-        </View>
+        <MobileScreenHeader
+          title="Cost Estimation"
+          subtitle="Rate analysis library, estimates & material pricing"
+        />
 
         {/* Card 1: Rate Analysis Library */}
         <Card onPress={() => router.push('/(app)/estimation/rate-analysis')}>
@@ -69,7 +72,7 @@ export default function EstimationHubScreen() {
         </View>
       </ScrollView>
 
-      {canManage && <FAB onPress={() => router.push('/(app)/projects')} icon="+" label="New Estimate" />}
+      {canManage && <FAB label="New Estimate" onPress={() => router.push('/(app)/projects')} />}
     </SafeAreaView>
   );
 }

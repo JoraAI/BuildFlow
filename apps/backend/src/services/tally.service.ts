@@ -7,31 +7,8 @@
  * Ledger name mapping is configurable via env (TALLY_LEDGER_MAP JSON).
  */
 import { prisma } from '../lib/prisma';
-import { env } from '../config/env';
-import { logger } from '../config/logger';
 import { Decimal } from '@prisma/client/runtime/library';
-
-export interface TallyLedgerMap {
-  sales?: string;           // default: "Sales"
-  purchase?: string;        // default: "Purchases"
-  salesParty?: string;      // customer party ledger suffix
-  purchaseParty?: string;   // vendor party ledger suffix
-  cgst?: string;            // default: "CGST"
-  sgst?: string;            // default: "SGST"
-  igst?: string;            // default: "IGST"
-  tdsPayable?: string;      // default: "TDS Payable"
-  roundOff?: string;        // default: "Round Off"
-  bank?: string;            // default: "Bank"
-}
-
-function getLedgerMap(): TallyLedgerMap {
-  try {
-    if (env.TALLY_LEDGER_MAP) return JSON.parse(env.TALLY_LEDGER_MAP) as TallyLedgerMap;
-  } catch (err) {
-    logger.warn('Invalid TALLY_LEDGER_MAP JSON, using defaults', { error: String(err) });
-  }
-  return {};
-}
+import { resolveTallyLedgerMap, type TallyLedgerMap } from './integration.service';
 
 const AMP = `&${'amp;'}`;
 const LT = `&${'lt;'}`;
@@ -194,7 +171,7 @@ function buildPurchaseVoucher(
 
 /** Export a project's invoices and bills as Tally Prime import XML. */
 export async function exportProjectTallyXML(companyId: string, projectId: string): Promise<string> {
-  const m = getLedgerMap();
+  const m = await resolveTallyLedgerMap(companyId);
   const [invoices, bills] = await Promise.all([
     prisma.invoice.findMany({
       where: { companyId, projectId, status: { in: ['SENT', 'PAID', 'OVERDUE'] } },

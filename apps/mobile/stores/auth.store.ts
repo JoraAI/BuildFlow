@@ -1,13 +1,17 @@
 /**
  * BuildFlow Mobile — Auth store (Zustand)
- *
- * Holds the authenticated user + tokens (persisted to SecureStore).
- * Hydrated from SecureStore on app launch.
  */
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import { Role } from '@buildflow/shared';
+import type { RegisterCompanyInput } from '@buildflow/shared';
 import { SECURE_STORE_KEYS } from '@/constants';
+import {
+  acceptInviteRequest,
+  registerCompanyRequest,
+  type AcceptInvitePayload,
+  type AuthResponsePayload,
+} from '@/services/auth.queries';
 import { apiFetch } from '@/lib/api-client';
 
 export interface AuthUser {
@@ -17,6 +21,8 @@ export interface AuthUser {
   role: Role;
   companyId: string;
   companyName: string;
+  phone?: string | null;
+  companyLogoUrl?: string | null;
 }
 
 interface AuthState {
@@ -25,9 +31,17 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  registerCompany: (input: RegisterCompanyInput) => Promise<void>;
+  acceptInvite: (input: AcceptInvitePayload) => Promise<void>;
   logout: () => Promise<void>;
   hydrate: () => Promise<void>;
   refreshUser: () => Promise<void>;
+}
+
+async function persistSession(data: AuthResponsePayload) {
+  await SecureStore.setItemAsync(SECURE_STORE_KEYS.ACCESS_TOKEN, data.accessToken);
+  await SecureStore.setItemAsync(SECURE_STORE_KEYS.REFRESH_TOKEN, data.refreshToken);
+  await SecureStore.setItemAsync(SECURE_STORE_KEYS.USER, JSON.stringify(data.user));
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -37,17 +51,24 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: true,
 
   login: async (email: string, password: string) => {
-    const data = await apiFetch<{ user: AuthUser; accessToken: string; refreshToken: string }>(
-      '/auth/login',
-      {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      },
-    );
-    await SecureStore.setItemAsync(SECURE_STORE_KEYS.ACCESS_TOKEN, data.accessToken);
-    await SecureStore.setItemAsync(SECURE_STORE_KEYS.REFRESH_TOKEN, data.refreshToken);
-    await SecureStore.setItemAsync(SECURE_STORE_KEYS.USER, JSON.stringify(data.user));
-    set({ user: data.user, accessToken: data.accessToken, isAuthenticated: true });
+    const data = await apiFetch<AuthResponsePayload>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+    await persistSession(data);
+    set({ user: data.user as AuthUser, accessToken: data.accessToken, isAuthenticated: true });
+  },
+
+  registerCompany: async (input: RegisterCompanyInput) => {
+    const data = await registerCompanyRequest(input);
+    await persistSession(data);
+    set({ user: data.user as AuthUser, accessToken: data.accessToken, isAuthenticated: true });
+  },
+
+  acceptInvite: async (input: AcceptInvitePayload) => {
+    const data = await acceptInviteRequest(input);
+    await persistSession(data);
+    set({ user: data.user as AuthUser, accessToken: data.accessToken, isAuthenticated: true });
   },
 
   logout: async () => {
@@ -73,18 +94,25 @@ export const useAuthStore = create<AuthState>((set) => ({
         SecureStore.getItemAsync(SECURE_STORE_KEYS.USER),
       ]);
       if (token && userStr) {
-        set({
-          accessToken: token,
-          user: JSON.parse(userStr) as AuthUser,
-          isAuthenticated: true,
-          isLoading: false,
-        });
-        return;
+        const parsed = JSON.parse(userStr) as AuthUser | null;
+        if (parsed?.id && parsed?.email && parsed?.role) {
+          set({
+            accessToken: token,
+            user: parsed,
+            isAuthenticated: true,
+            isLoading: false,
+          });
+          return;
+        }
+        // Corrupt session — clear stale tokens.
+        await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.ACCESS_TOKEN);
+        await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.REFRESH_TOKEN);
+        await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.USER);
       }
     } catch {
       // Corrupt storage — clear.
     }
-    set({ isLoading: false });
+    set({ user: null, accessToken: null, isAuthenticated: false, isLoading: false });
   },
 
   refreshUser: async () => {

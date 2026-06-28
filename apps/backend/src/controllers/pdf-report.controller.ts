@@ -94,3 +94,17 @@ export async function getMaterialPriceHistoryPdf(req: Request, res: Response) {
   const result = await svc.reportMaterialPriceHistory(req.user!.companyId);
   return sendPdf(res, result);
 }
+
+// 13. Measurement Book
+export async function getMeasurementBookPdf(req: Request, res: Response) {
+  const { id } = req.params;
+  const result = await svc.reportMeasurementBook(req.user!.companyId, id);
+  return sendPdf(res, result);
+}
+
+// 14. Abstract Sheet
+export async function getAbstractSheetPdf(req: Request, res: Response) {
+  const { id } = req.params;
+  const result = await svc.reportAbstractSheet(req.user!.companyId, id);
+  return sendPdf(res, result);
+}

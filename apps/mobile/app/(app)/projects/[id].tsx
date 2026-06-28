@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, RefreshControl, Linking } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, Pressable, RefreshControl, Linking, Alert, Share, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { Card, Badge, ProgressBar, LoadingSkeleton, EmptyState, Button } from '@/components/ui';
+import { Card, Badge, ProgressBar, LoadingSkeleton, EmptyState, Button, Input } from '@/components/ui';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
+import { FormScreenHeader } from '@/components/layout/ScreenHeader';
+import { dismissTo, DISMISS } from '@/utils/navigation';
+import { useViewport } from '@/hooks/useViewport';
 import {
   useProject,
   useProjectSummary,
@@ -12,30 +15,55 @@ import {
 } from '@/services/project.queries';
 import { useBoq, type BoqItem, type BoqGroup } from '@/services/boq.queries';
 import { useProjectEstimates, type EstimateListRow } from '@/services/estimate.queries';
+import { VariationsTab } from '@/components/projects/VariationsTab';
+import { ProcurementTab } from '@/components/projects/ProcurementTab';
+import { SubcontractsTab } from '@/components/projects/SubcontractsTab';
+import { ProjectMembersSection } from '@/components/projects/ProjectMembersSection';
+import { useCreatePortalAccess } from '@/services/expansion.queries';
+import { useAuthStore } from '@/stores/auth.store';
 import { formatINR, formatINRCompact, formatDate, daysBetween } from '@/utils/format';
 
-type Tab = 'overview' | 'estimate' | 'schedule' | 'boq' | 'resources' | 'reports';
+type Tab = 'overview' | 'estimate' | 'schedule' | 'boq' | 'variations' | 'procurement' | 'subcontracts' | 'resources' | 'reports' | 'settings';
 
 const TABS: { label: string; value: Tab }[] = [
   { label: 'Overview', value: 'overview' },
   { label: 'Estimate', value: 'estimate' },
   { label: 'Schedule', value: 'schedule' },
   { label: 'BOQ', value: 'boq' },
+  { label: 'Variations', value: 'variations' },
+  { label: 'Procurement', value: 'procurement' },
+  { label: 'Subcontracts', value: 'subcontracts' },
   { label: 'Resources', value: 'resources' },
   { label: 'Reports', value: 'reports' },
+  { label: 'Settings', value: 'settings' },
 ];
 
 export default function ProjectDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id: idParam, tab: tabParam } = useLocalSearchParams<{ id: string; tab?: string }>();
+  const id = Array.isArray(idParam) ? idParam[0] : idParam;
+  const tabFromUrl = Array.isArray(tabParam) ? tabParam[0] : tabParam;
   const insets = useSafeAreaInsets();
+  const { isDesktop } = useViewport();
   const [tab, setTab] = useState<Tab>('overview');
   const { data: project, isLoading, refetch, isFetching } = useProject(id);
   const summaryQ = useProjectSummary(id);
+
+  // Reset tab when project changes; honour ?tab= for deep links (e.g. after BOQ conversion).
+  useEffect(() => {
+    const valid = tabFromUrl && TABS.some((t) => t.value === tabFromUrl);
+    setTab(valid ? (tabFromUrl as Tab) : 'overview');
+  }, [id, tabFromUrl]);
 
   if (isLoading) {
     return (
       <SafeAreaView className="flex-1 bg-surface">
         <OfflineBanner />
+        {!isDesktop && (
+          <FormScreenHeader
+            title="Project"
+            onCancel={() => dismissTo(DISMISS.projects)}
+          />
+        )}
         <View className="p-4 gap-4">
           <LoadingSkeleton className="h-20 rounded-xl" />
           <LoadingSkeleton className="h-10 rounded-full" />
@@ -49,26 +77,44 @@ export default function ProjectDetailScreen() {
     return (
       <SafeAreaView className="flex-1 bg-surface">
         <OfflineBanner />
+        {!isDesktop && (
+          <FormScreenHeader
+            title="Project not found"
+            onCancel={() => dismissTo(DISMISS.projects)}
+          />
+        )}
         <EmptyState title="Project not found" description="This project may have been deleted." />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-surface">
+    <SafeAreaView className="flex-1 bg-surface" edges={isDesktop ? [] : ['top']}>
       <Stack.Screen options={{ title: project.name }} />
       <OfflineBanner />
+      {!isDesktop && (
+        <FormScreenHeader
+          title={project.name}
+          subtitle={project.code}
+          onCancel={() => dismissTo(DISMISS.projects)}
+          cancelLabel="Back"
+        />
+      )}
       <ScrollView
         refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
-        stickyHeaderIndices={[1]}
+        stickyHeaderIndices={[isDesktop ? 0 : 1]}
       >
         {/* Header card */}
-        <View className="px-4 pt-4 pb-2">
+        <View className={`px-4 ${isDesktop ? 'pt-4' : 'pt-2'} pb-2`}>
           <Card>
             <View className="flex-row justify-between items-start mb-2">
               <View className="flex-1">
-                <Text className="text-xl font-bold text-text">{project.name}</Text>
-                <Text className="text-sm text-muted font-mono">{project.code}</Text>
+                {isDesktop ? (
+                  <>
+                    <Text className="text-xl font-bold text-text">{project.name}</Text>
+                    <Text className="text-sm text-muted font-mono">{project.code}</Text>
+                  </>
+                ) : null}
               </View>
               <View className="flex-row gap-1">
                 <Badge color="primary" label={project.type} />
@@ -114,12 +160,16 @@ export default function ProjectDetailScreen() {
           {tab === 'estimate' && <EstimateTab projectId={id} />}
           {tab === 'schedule' && <ScheduleTab projectId={id} />}
           {tab === 'boq' && <BoqTab projectId={id} />}
+          {tab === 'variations' && <VariationsTab projectId={id} />}
+          {tab === 'procurement' && <ProcurementTab projectId={id} />}
+          {tab === 'subcontracts' && <SubcontractsTab projectId={id} />}
           {tab === 'resources' && (
             <EmptyState title="Resources coming soon" description="Resource allocation and variance tracking will appear here." />
           )}
           {tab === 'reports' && (
             <EmptyState title="No reports yet" description="Daily site reports will appear here once submitted by supervisors." />
           )}
+          {tab === 'settings' && <SettingsTab projectId={id} />}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -154,8 +204,8 @@ function OverviewTab({
         />
         <KpiCard
           label="Progress"
-          value={summary ? `${summary.actualProgress.toFixed(0)}%` : '—'}
-          sub={summary ? `Planned ${summary.plannedProgress.toFixed(0)}%` : '—'}
+          value={summary ? `${summary.actualProgressPct.toFixed(0)}%` : '—'}
+          sub={summary ? `Planned ${summary.plannedProgressPct.toFixed(0)}%` : '—'}
         />
         <KpiCard
           label="Days Left"
@@ -189,7 +239,7 @@ function OverviewTab({
             </Text>
           </View>
           <ProgressBar
-            value={summary.actualProgress}
+            value={summary.actualProgressPct}
             color={summary.scheduleVarianceDays > 0 ? '#EF4444' : '#10B981'}
           />
         </Card>
@@ -276,10 +326,20 @@ const ESTIMATE_STATUS_COLOR: Record<string, string> = {
 
 function EstimateTab({ projectId }: { projectId: string }) {
   const router = useRouter();
-  const { data, isLoading } = useProjectEstimates(projectId);
-  const estimates = data?.data ?? [];
+  const { data, isLoading, isError, refetch } = useProjectEstimates(projectId);
+  const estimates = data ?? [];
 
   if (isLoading) return <LoadingSkeleton className="h-48 rounded-xl" />;
+
+  if (isError) {
+    return (
+      <EmptyState
+        title="Couldn't load estimates"
+        description="There was a problem fetching estimates for this project."
+        action={<Button label="Retry" onPress={() => refetch()} />}
+      />
+    );
+  }
 
   if (estimates.length === 0) {
     return (
@@ -328,7 +388,7 @@ function EstimateTab({ projectId }: { projectId: string }) {
           </View>
           <View className="flex-row justify-between items-center pt-2 mt-1 border-t border-border">
             <Text className="text-xs text-text-muted">Grand Total</Text>
-            <Text className="text-base font-bold text-primary">{formatINR(parseFloat(e.grandTotal))}</Text>
+            <Text className="text-base font-bold text-primary">{formatINR(Number(e.grandTotal))}</Text>
           </View>
         </Card>
       ))}
@@ -540,6 +600,65 @@ function BoqTab({ projectId }: { projectId: string }) {
           </View>
         </Card>
       ))}
+    </View>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Settings Tab (members + portal)                                     */
+/* ------------------------------------------------------------------ */
+
+function SettingsTab({ projectId }: { projectId: string }) {
+  const user = useAuthStore((s) => s.user);
+  const canPortal = user?.role === 'OWNER' || user?.role === 'PM';
+  const createPortal = useCreatePortalAccess(projectId);
+  const [portalLabel, setPortalLabel] = useState('Client portal');
+
+  const onGeneratePortal = () => {
+    createPortal.mutate(
+      {
+        label: portalLabel.trim() || 'Client portal',
+        scopes: ['VIEW_PROGRESS', 'VIEW_INVOICES'],
+        expiresInDays: 30,
+      },
+      {
+        onSuccess: async (result) => {
+          const url = `${Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : 'https://app.buildflow.in'}/portal/${result.token}`;
+          if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+            await navigator.clipboard.writeText(url);
+            Alert.alert('Portal link created', 'Link copied to clipboard.');
+          } else {
+            await Share.share({ message: `Project portal: ${url}`, url });
+          }
+        },
+        onError: (e: Error) => Alert.alert('Error', e.message),
+      },
+    );
+  };
+
+  return (
+    <View className="gap-4">
+      <ProjectMembersSection projectId={projectId} />
+      {canPortal && (
+        <Card>
+          <Text className="text-sm font-bold text-text mb-2">Client Portal</Text>
+          <Text className="text-xs text-muted mb-3">
+            Generate a shareable link for clients to view progress and invoices.
+          </Text>
+          <Input
+            label="Link label"
+            value={portalLabel}
+            onChangeText={setPortalLabel}
+            placeholder="Client portal"
+          />
+          <Button
+            label={createPortal.isPending ? 'Generating...' : 'Generate portal link'}
+            onPress={onGeneratePortal}
+            loading={createPortal.isPending}
+            fullWidth
+          />
+        </Card>
+      )}
     </View>
   );
 }

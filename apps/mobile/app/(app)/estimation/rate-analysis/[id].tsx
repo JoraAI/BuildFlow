@@ -8,6 +8,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card } from '@/components/ui';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
+import { FormScreenHeader } from '@/components/layout/ScreenHeader';
+import { dismissTo, DISMISS } from '@/utils/navigation';
 import {
   useResources,
   useRateAnalysis,
@@ -121,7 +123,7 @@ export default function RateAnalysisEditorScreen() {
     try {
       if (isEdit) await updateMut.mutateAsync(payload);
       else await createMut.mutateAsync(payload);
-      router.back();
+      dismissTo(DISMISS.rateAnalysis);
     } catch (e) {
       Alert.alert('Save failed', e instanceof Error ? e.message : 'Unknown error');
     }
@@ -133,12 +135,11 @@ export default function RateAnalysisEditorScreen() {
     <SafeAreaView className="flex-1 bg-surface" edges={['bottom']}>
       <OfflineBanner />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
-        <View className="flex-row items-center px-4 py-3 border-b border-border">
-          <Pressable onPress={() => router.back()} className="mr-3">
-            <Text className="text-primary text-lg">‹ Back</Text>
-          </Pressable>
-          <Text className="text-lg font-bold text-text flex-1">{isEdit ? 'Edit Rate Analysis' : 'New Rate Analysis'}</Text>
-        </View>
+        <FormScreenHeader
+          title={isEdit ? 'Edit Rate Analysis' : 'New Rate Analysis'}
+          cancelLabel="Back"
+          onCancel={() => dismissTo(DISMISS.rateAnalysis)}
+        />
 
         <ScrollView className="flex-1" contentContainerClassName="p-4 gap-4 pb-32">
           {/* Header fields */}

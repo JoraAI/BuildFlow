@@ -1,17 +1,18 @@
 /**
  * BuildFlow — Company Profile settings screen.
- *
- * Owner-only. Edit company name, GSTIN, PAN, address, state.
  */
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { Card, Input, Button, LoadingSkeleton } from '@/components/ui';
+import { View, KeyboardAvoidingView, Platform, Alert, Text } from 'react-native';
+import { Card, Input, Button, LoadingSkeleton, CompanyLogo } from '@/components/ui';
+import { SettingsPageLayout } from '@/components/layout/SettingsPageLayout';
+import { useViewport } from '@/hooks/useViewport';
+import { goBackToSettings } from '@/utils/navigation';
 import { useCompany, useUpdateCompany } from '@/services/settings.queries';
+import { useAuthStore } from '@/stores/auth.store';
 
 export default function CompanyProfileScreen() {
-  const router = useRouter();
+  const { isDesktop } = useViewport();
+  const refreshUser = useAuthStore((s) => s.refreshUser);
   const { data: company, isLoading } = useCompany();
   const update = useUpdateCompany();
 
@@ -21,6 +22,7 @@ export default function CompanyProfileScreen() {
     pan: '',
     address: '',
     state: '',
+    logoUrl: '',
   });
 
   useEffect(() => {
@@ -31,47 +33,60 @@ export default function CompanyProfileScreen() {
         pan: company.pan ?? '',
         address: company.address ?? '',
         state: company.state ?? '',
+        logoUrl: company.logoUrl ?? '',
       });
     }
   }, [company]);
 
   const onSave = () => {
-    update.mutate(form, {
-      onSuccess: () => {
-        Alert.alert('Saved', 'Company profile updated.');
-        router.back();
+    update.mutate(
+      {
+        ...form,
+        logoUrl: form.logoUrl.trim() || undefined,
       },
-      onError: (e: Error) => Alert.alert('Error', e.message),
-    });
+      {
+        onSuccess: async () => {
+          await refreshUser();
+          Alert.alert('Saved', 'Company profile updated.');
+          goBackToSettings();
+        },
+        onError: (e: Error) => Alert.alert('Error', e.message),
+      },
+    );
   };
 
-  if (isLoading) {
-    return (
-      <SafeAreaView className="flex-1 bg-surface">
-        <View className="p-4">
-          <LoadingSkeleton className="h-12 mb-4" />
-          <LoadingSkeleton className="h-48" />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  return (
-    <SafeAreaView className="flex-1 bg-surface">
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        className="flex-1"
-      >
-        <ScrollView className="flex-1" contentContainerClassName="px-4 pb-6">
-          <Text className="text-2xl font-bold text-text pt-4 pb-4">Company Profile</Text>
-
-          <Card className="mb-4">
+  const formContent = isLoading ? (
+    <View className="gap-3">
+      <LoadingSkeleton className="h-12" />
+      <LoadingSkeleton className="h-48" />
+    </View>
+  ) : (
+    <>
+      <Card className="mb-4">
+        <Text className="text-sm font-semibold text-text mb-3">Company logo</Text>
+        <View className="flex-row items-center gap-4 mb-4">
+          <CompanyLogo
+            name={form.name || 'Company'}
+            logoUrl={company?.logoDisplayUrl ?? (form.logoUrl.startsWith('http') ? form.logoUrl : null)}
+            size={72}
+          />
+          <View className="flex-1">
             <Input
-              label="Company Name"
-              value={form.name}
-              onChangeText={(v) => setForm((f) => ({ ...f, name: v }))}
+              label="Logo URL"
+              value={form.logoUrl}
+              onChangeText={(v) => setForm((f) => ({ ...f, logoUrl: v }))}
+              placeholder="https://..."
+              helper="Paste a public image URL (HTTPS)"
             />
-            <View className="h-4" />
+          </View>
+        </View>
+        <Input
+          label="Company Name"
+          value={form.name}
+          onChangeText={(v) => setForm((f) => ({ ...f, name: v }))}
+        />
+        <View className={isDesktop ? 'flex-row gap-4 mt-4' : 'mt-4'}>
+          <View className={isDesktop ? 'flex-1' : ''}>
             <Input
               label="GSTIN"
               value={form.gstin}
@@ -79,37 +94,57 @@ export default function CompanyProfileScreen() {
               autoCapitalize="characters"
               helper="15-character GST identification number"
             />
-            <View className="h-4" />
+          </View>
+          <View className={isDesktop ? 'flex-1' : 'mt-4'}>
             <Input
               label="PAN"
               value={form.pan}
               onChangeText={(v) => setForm((f) => ({ ...f, pan: v.toUpperCase() }))}
               autoCapitalize="characters"
             />
-            <View className="h-4" />
-            <Input
-              label="State"
-              value={form.state}
-              onChangeText={(v) => setForm((f) => ({ ...f, state: v }))}
-              helper="Used for GST intra/inter-state calculation"
-            />
-            <View className="h-4" />
-            <Input
-              label="Registered Address"
-              value={form.address}
-              onChangeText={(v) => setForm((f) => ({ ...f, address: v }))}
-              multiline
-            />
-          </Card>
-
-          <Button
-            label={update.isPending ? 'Saving...' : 'Save Changes'}
-            onPress={onSave}
-            disabled={update.isPending}
-            fullWidth
+          </View>
+        </View>
+        <View className="mt-4">
+          <Input
+            label="State"
+            value={form.state}
+            onChangeText={(v) => setForm((f) => ({ ...f, state: v }))}
+            helper="Used for GST intra/inter-state calculation"
           />
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        </View>
+        <View className="mt-4">
+          <Input
+            label="Registered Address"
+            value={form.address}
+            onChangeText={(v) => setForm((f) => ({ ...f, address: v }))}
+            multiline
+          />
+        </View>
+      </Card>
+
+      <View className={isDesktop ? 'max-w-xs' : ''}>
+        <Button
+          label={update.isPending ? 'Saving...' : 'Save Changes'}
+          onPress={onSave}
+          disabled={update.isPending}
+          fullWidth
+        />
+      </View>
+    </>
+  );
+
+  return (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      className="flex-1"
+    >
+      <SettingsPageLayout
+        title="Company Profile"
+        subtitle="Legal name, tax IDs, and registered address"
+        maxWidth="narrow"
+      >
+        {formContent}
+      </SettingsPageLayout>
+    </KeyboardAvoidingView>
   );
 }

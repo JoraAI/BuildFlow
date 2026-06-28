@@ -17,6 +17,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Card, Badge, EmptyState, LoadingSkeleton } from '@/components/ui';
+import { FormScreenHeader } from '@/components/layout/ScreenHeader';
+import { dismissTo, DISMISS } from '@/utils/navigation';
 import { useReport, useReportPhotos, type ReportListItem } from '@/services/report.queries';
 import { formatDate } from '@/utils/format';
 
@@ -35,14 +37,11 @@ export default function ReportDetailScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-surface">
-      {/* Header */}
-      <View className="px-4 py-3 flex-row items-center border-b border-border">
-        <Pressable onPress={() => router.back()}>
-          <Text className="text-sm text-muted">← Back</Text>
-        </Pressable>
-        <Text className="flex-1 text-center text-base font-bold text-text">Report Detail</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <FormScreenHeader
+        title="Report Detail"
+        cancelLabel="Back"
+        onCancel={() => dismissTo(DISMISS.reports)}
+      />
 
       {loading ? (
         <View className="p-4">

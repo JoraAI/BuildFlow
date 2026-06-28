@@ -9,3 +9,7 @@ export * from './report';
 export * from './accounting';
 export * from './chat';
 export * from './settings';
+export * from './change-order';
+export * from './procurement';
+export * from './subcontract';
+export * from './portal';

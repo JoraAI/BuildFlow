@@ -13,6 +13,8 @@
  */
 import React from 'react';
 import { View, Text, ScrollView, RefreshControl, Pressable } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuthStore } from '@/stores/auth.store';
 import {
@@ -25,19 +27,22 @@ import {
   type MaterialTrend,
 } from '@/services/analytics.queries';
 import { Card, LoadingSkeleton, EmptyState, Button } from '@/components/ui';
+import { ScreenContainer } from '@/components/layout/ScreenContainer';
+import { PageHeader, StatChip } from '@/components/layout/PageHeader';
+import { MobileScreenHeader } from '@/components/layout/ScreenHeader';
+import { useViewport } from '@/hooks/useViewport';
 import { formatINRCompact, formatINR } from '@/utils/format';
 
 export default function DashboardScreen() {
   const user = useAuthStore((s) => s.user);
+  const { isDesktop } = useViewport();
   const { data, isLoading, isError, refetch, isFetching } = useAnalyticsDashboard();
 
   // Non-OWNER: simple welcome screen.
   if (user && user.role !== 'OWNER') {
-    return (
-      <ScrollView className="flex-1 bg-surface" contentContainerClassName="p-4 flex-1">
-        <Text className="text-2xl font-bold text-text">Hello, {user.name.split(' ')[0]} 👋</Text>
-        <Text className="text-sm text-muted mt-1">Welcome back to BuildFlow.</Text>
-        <Card className="mt-4">
+    const welcome = (
+      <>
+        <Card className="mt-2">
           <Text className="text-base font-bold text-text mb-2">Quick actions</Text>
           <View className="gap-2">
             <ActionRow label="View Projects" onPress={() => router.push('/projects')} />
@@ -45,11 +50,35 @@ export default function DashboardScreen() {
             {user.role === 'ACCOUNTANT' && (
               <ActionRow label="Accounting" onPress={() => router.push('/accounting')} />
             )}
+            {user.role === 'ACCOUNTANT' && (
+              <ActionRow label="Reports Hub" onPress={() => router.push('/reports-hub')} />
+            )}
             {user.role === 'PM' && (
               <ActionRow label="Estimation" onPress={() => router.push('/estimation')} />
             )}
           </View>
         </Card>
+      </>
+    );
+
+    if (isDesktop) {
+      return (
+        <SafeAreaView className="flex-1 bg-surface" edges={[]}>
+          <ScreenContainer scrollable>
+            <PageHeader title={`Hello, ${user.name.split(' ')[0]}`} subtitle="Welcome back to BuildFlow." />
+            {welcome}
+          </ScreenContainer>
+        </SafeAreaView>
+      );
+    }
+
+    return (
+      <ScrollView className="flex-1 bg-surface" contentContainerClassName="px-4 pb-8 flex-1">
+        <MobileScreenHeader
+          title={`Hello, ${user.name.split(' ')[0]}`}
+          subtitle="Welcome back to BuildFlow."
+        />
+        {welcome}
       </ScrollView>
     );
   }
@@ -81,30 +110,73 @@ export default function DashboardScreen() {
   const d: AnalyticsDashboard = data;
   const { kpis, projectProgress, teamProductivity, budgetBurn, estimationAccuracy, materialTrends } =
     d;
+  const cashFlowForecast = d.cashFlowForecast ?? [];
   const maxBurn = Math.max(100, ...budgetBurn.map((b: BudgetBurnRow) => b.burnPct));
   const maxReports = Math.max(1, ...teamProductivity.map((t: TeamProductivityRow) => t.reportsCount));
 
-  return (
-    <ScrollView
-      className="flex-1 bg-surface"
-      contentContainerClassName="p-4 pb-8"
-      refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
-    >
-      <Text className="text-2xl font-bold text-text">Owner Dashboard</Text>
-      <Text className="text-sm text-muted mt-1">
-        {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
-      </Text>
+  const dateLabel = new Date().toLocaleDateString('en-IN', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
 
-      {/* KPI ROW */}
-      <View className="flex-row flex-wrap gap-2 mt-4">
-        <KpiCard label="Active Projects" value={String(kpis.activeProjects)} sub={`${kpis.totalProjects} total`} color="#1E3A5F" />
-        <KpiCard label="Revenue (Paid)" value={formatINRCompact(kpis.totalRevenue)} color="#10B981" />
-        <KpiCard label="Outstanding" value={formatINRCompact(kpis.totalOutstanding)} color="#F97316" />
-        <KpiCard label="Avg Progress" value={`${kpis.avgProgress}%`} color="#F59E0B" />
-      </View>
+  const content = (
+    <>
+      {isDesktop ? (
+        <PageHeader
+          title="Owner Dashboard"
+          subtitle={dateLabel}
+          stats={
+            <>
+              <StatChip label="Active Projects" value={String(kpis.activeProjects)} />
+              <StatChip label="Revenue" value={formatINRCompact(kpis.totalRevenue)} accent="success" />
+              <StatChip label="Outstanding" value={formatINRCompact(kpis.totalOutstanding)} accent="warning" />
+              <StatChip label="Avg Progress" value={`${kpis.avgProgress}%`} accent="primary" />
+            </>
+          }
+        />
+      ) : (
+        <>
+          <MobileScreenHeader title="Owner Dashboard" subtitle={dateLabel} />
+          <View className="flex-row flex-wrap gap-2 mt-2">
+            <KpiCard label="Active Projects" value={String(kpis.activeProjects)} sub={`${kpis.totalProjects} total`} color="#1E3A5F" />
+            <KpiCard label="Revenue (Paid)" value={formatINRCompact(kpis.totalRevenue)} color="#10B981" />
+            <KpiCard label="Outstanding" value={formatINRCompact(kpis.totalOutstanding)} color="#F97316" />
+            <KpiCard label="Avg Progress" value={`${kpis.avgProgress}%`} color="#F59E0B" />
+          </View>
+        </>
+      )}
 
-      {/* PROJECT PROGRESS RACE BARS */}
-      <Card className="mt-4">
+      <View className={isDesktop ? 'flex-row flex-wrap gap-4' : ''}>
+        {/* CASH FLOW FORECAST */}
+        <Card className={`mt-4 ${isDesktop ? 'flex-1 min-w-[48%]' : ''}`}>
+          <View className="flex-row justify-between items-center mb-1">
+            <Text className="text-base font-bold text-text">Cash Flow Forecast (90d)</Text>
+            <Pressable
+              onPress={() => router.push('/reports-hub')}
+              className="flex-row items-center gap-0.5"
+            >
+              <Text className="text-sm font-semibold text-primary">Reports Hub</Text>
+              <Ionicons name="chevron-forward" size={16} color="#1E3A5F" />
+            </Pressable>
+          </View>
+          <View className="mt-3 gap-2">
+            {cashFlowForecast.slice(0, 6).map((pt) => (
+              <View key={pt.date} className="flex-row justify-between items-center">
+                <Text className="text-xs text-muted">{pt.date}</Text>
+                <Text className={`text-sm font-semibold ${pt.net >= 0 ? 'text-success' : 'text-danger'}`}>
+                  {pt.net >= 0 ? '+' : ''}{formatINRCompact(pt.net)}
+                </Text>
+              </View>
+            ))}
+            {cashFlowForecast.length === 0 && (
+              <Text className="text-sm text-muted italic text-center py-3">No forecast data yet.</Text>
+            )}
+          </View>
+        </Card>
+
+        {/* PROJECT PROGRESS */}
+        <Card className={`mt-4 ${isDesktop ? 'flex-1 min-w-[48%]' : ''}`}>
         <Text className="text-base font-bold text-text">Project Progress</Text>
         <View className="mt-3 gap-2.5">
           {projectProgress.slice(0, 6).map((p: ProjectProgressRow) => (
@@ -120,8 +192,8 @@ export default function DashboardScreen() {
         </View>
       </Card>
 
-      {/* BUDGET BURN GAUGES */}
-      <Card className="mt-4">
+        {/* BUDGET BURN */}
+        <Card className={`mt-4 ${isDesktop ? 'flex-1 min-w-[48%]' : ''}`}>
         <Text className="text-base font-bold text-text">Budget Burn</Text>
         <View className="mt-3 gap-2.5">
           {budgetBurn.slice(0, 6).map((b: BudgetBurnRow) => {
@@ -143,8 +215,8 @@ export default function DashboardScreen() {
         </View>
       </Card>
 
-      {/* ESTIMATION ACCURACY LEADERBOARD */}
-      <Card className="mt-4">
+        {/* ESTIMATION ACCURACY */}
+        <Card className={`mt-4 ${isDesktop ? 'flex-1 min-w-[48%]' : ''}`}>
         <Text className="text-base font-bold text-text">Estimation Accuracy</Text>
         <View className="mt-3 gap-2.5">
           {estimationAccuracy.map((e: EstimationAccuracyRow, idx: number) => (
@@ -155,7 +227,7 @@ export default function DashboardScreen() {
               <View className="flex-1">
                 <Text className="text-sm font-semibold text-text" numberOfLines={1}>{e.projectName}</Text>
                 <Text className="text-xs text-muted">
-                  Var {e.variancePct > 0 ? '+' : ''}{e.variancePct}% • {formatINRCompact(e.estimated)} → {formatINRCompact(e.actual)}
+                  Var {e.variancePct > 0 ? '+' : ''}{e.variancePct}% · {formatINRCompact(e.estimated)} to {formatINRCompact(e.actual)}
                 </Text>
               </View>
               <View className={`px-2.5 py-1 rounded-xl ${e.accuracyScore >= 80 ? 'bg-success' : e.accuracyScore >= 60 ? 'bg-accent' : 'bg-danger'}`}>
@@ -169,8 +241,8 @@ export default function DashboardScreen() {
         </View>
       </Card>
 
-      {/* TEAM PRODUCTIVITY */}
-      <Card className="mt-4">
+        {/* TEAM PRODUCTIVITY */}
+        <Card className={`mt-4 ${isDesktop ? 'flex-1 min-w-[48%]' : ''}`}>
         <Text className="text-base font-bold text-text">Team Productivity (30d)</Text>
         <View className="mt-3 gap-2.5">
           {teamProductivity.slice(0, 6).map((t: TeamProductivityRow) => (
@@ -189,8 +261,8 @@ export default function DashboardScreen() {
         </View>
       </Card>
 
-      {/* MATERIAL PRICE TRENDS */}
-      <Card className="mt-4">
+        {/* MATERIAL TRENDS */}
+        <Card className={`mt-4 ${isDesktop ? 'flex-1 min-w-[48%]' : ''}`}>
         <Text className="text-base font-bold text-text">Material Price Trends (6mo)</Text>
         <View className="mt-3 gap-3">
           {materialTrends.map((m: MaterialTrend) => {
@@ -207,7 +279,7 @@ export default function DashboardScreen() {
                   </Text>
                 </View>
                 <Text className="text-xs text-muted mt-1">
-                  {formatINR(first)} → {formatINR(last)} / {m.unit}
+                  {formatINR(first)} to {formatINR(last)} / {m.unit}
                 </Text>
                 <MiniSparkline points={m.points.map((p: { rate: number }) => p.rate)} color={up ? '#EF4444' : '#10B981'} />
               </Pressable>
@@ -218,6 +290,32 @@ export default function DashboardScreen() {
           )}
         </View>
       </Card>
+      </View>
+    </>
+  );
+
+  if (isDesktop) {
+    return (
+      <SafeAreaView className="flex-1 bg-surface" edges={[]}>
+        <ScrollView
+          className="flex-1"
+          contentContainerClassName="items-center pb-10"
+          refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
+          showsVerticalScrollIndicator={false}
+        >
+          <View className="w-full max-w-7xl px-8 py-6">{content}</View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <ScrollView
+      className="flex-1 bg-surface"
+      contentContainerClassName="p-4 pb-8"
+      refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
+    >
+      {content}
     </ScrollView>
   );
 }

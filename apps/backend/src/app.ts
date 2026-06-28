@@ -30,6 +30,11 @@ import paymentRouter from './routes/payment.routes';
 import pdfReportRouter from './routes/pdf-report.routes';
 import analyticsRouter from './routes/analytics.routes';
 import settingsRouter from './routes/settings.routes';
+import platformRouter from './routes/platform.routes';
+import { changeOrderRouter } from './routes/change-order.routes';
+import { procurementRouter } from './routes/procurement.routes';
+import { subcontractProjectRouter, subcontractorRouter } from './routes/subcontract.routes';
+import { portalPublicRouter, portalProjectRouter } from './routes/portal.routes';
 
 const app = express();
 
@@ -45,9 +50,10 @@ app.use(
 );
 app.use(compression());
 
-// Capture RAW body for Razorpay webhook BEFORE json parsing (needed for HMAC verify).
-// All other routes fall through to normal json parsing.
+// Capture RAW body for payment webhooks BEFORE json parsing (needed for HMAC verify).
 app.use('/api/webhooks/razorpay', express.raw({ type: '*/*', limit: '1mb' }));
+app.use('/api/webhooks/saas', express.raw({ type: '*/*', limit: '1mb' }));
+app.use('/api/webhooks/stripe', express.raw({ type: '*/*', limit: '1mb' }));
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
@@ -90,6 +96,13 @@ app.use('/api', paymentRouter); // /invoices/:id/payment-link + /webhooks/razorp
 app.use('/api/reports/pdf', pdfReportRouter); // 12 PDF report downloads
 app.use('/api/analytics', analyticsRouter); // OWNER-only dashboard
 app.use('/api/settings', settingsRouter); // company profile, users, audit log
+app.use('/api/platform', platformRouter); // BuildFlow internal admin
+app.use('/api/projects', changeOrderRouter); // /:id/change-orders
+app.use('/api/projects', procurementRouter); // /:id/procurement/*
+app.use('/api/projects', subcontractProjectRouter); // /:id/subcontract/*
+app.use('/api/subcontractors', subcontractorRouter);
+app.use('/api/projects', portalProjectRouter); // /:id/portal-access
+app.use('/api/portal', portalPublicRouter); // public /:token
 
 // --- 404 + error handler (last) ---
 app.use(notFoundHandler);

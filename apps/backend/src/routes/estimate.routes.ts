@@ -40,12 +40,16 @@ import {
   rejectEstimateSchema,
 } from '@buildflow/shared';
 
-const uuidSchema = z.object({
+const projectIdParamsSchema = z.object({ projectId: z.string().uuid() });
+const estimateIdParamsSchema = z.object({ id: z.string().uuid() });
+const estimateSectionParamsSchema = z.object({
   id: z.string().uuid(),
-  sid: z.string().uuid().optional(),
-  itemId: z.string().uuid().optional(),
-  id2: z.string().uuid().optional(),
-  projectId: z.string().uuid().optional(),
+  sid: z.string().uuid(),
+});
+const estimateItemParamsSchema = z.object({ itemId: z.string().uuid() });
+const estimateCompareParamsSchema = z.object({
+  id: z.string().uuid(),
+  id2: z.string().uuid(),
 });
 
 export const estimateRouter = Router();
@@ -55,62 +59,106 @@ estimateRouter.use(authenticateToken);
 // Project-scoped routes
 estimateRouter.get(
   '/projects/:projectId/estimates',
-  validate({ params: uuidSchema }),
+  validate({ params: projectIdParamsSchema }),
   estimateController.list,
 );
 estimateRouter.post(
   '/projects/:projectId/estimates',
-  validate({ params: uuidSchema, body: createEstimateSchema }),
+  validate({ params: projectIdParamsSchema, body: createEstimateSchema }),
   estimateController.create,
 );
 
 // Estimate-scoped routes
-estimateRouter.get('/estimates/:id', estimateController.get);
+estimateRouter.get(
+  '/estimates/:id',
+  validate({ params: estimateIdParamsSchema }),
+  estimateController.get,
+);
 estimateRouter.put(
   '/estimates/:id',
-  validate({ body: updateEstimateMetaSchema }),
+  validate({ params: estimateIdParamsSchema, body: updateEstimateMetaSchema }),
   estimateController.update,
 );
-estimateRouter.delete('/estimates/:id', estimateController.remove);
+estimateRouter.delete(
+  '/estimates/:id',
+  validate({ params: estimateIdParamsSchema }),
+  estimateController.remove,
+);
 
 // Sections
 estimateRouter.post(
   '/estimates/:id/sections',
-  validate({ body: createEstimateSectionSchema }),
+  validate({ params: estimateIdParamsSchema, body: createEstimateSectionSchema }),
   estimateController.createSection,
 );
 estimateRouter.put(
   '/estimates/:id/sections/:sid',
-  validate({ params: uuidSchema, body: updateEstimateSectionSchema }),
+  validate({ params: estimateSectionParamsSchema, body: updateEstimateSectionSchema }),
   estimateController.updateSection,
 );
-estimateRouter.delete('/estimates/:id/sections/:sid', estimateController.deleteSection);
+estimateRouter.delete(
+  '/estimates/:id/sections/:sid',
+  validate({ params: estimateSectionParamsSchema }),
+  estimateController.deleteSection,
+);
 
 // Items
 estimateRouter.post(
   '/estimates/:id/sections/:sid/items',
-  validate({ body: createEstimateItemSchema }),
+  validate({ params: estimateSectionParamsSchema, body: createEstimateItemSchema }),
   estimateController.createItem,
 );
 estimateRouter.put(
   '/estimate-items/:itemId',
-  validate({ params: uuidSchema, body: updateEstimateItemSchema }),
+  validate({ params: estimateItemParamsSchema, body: updateEstimateItemSchema }),
   estimateController.updateItem,
 );
-estimateRouter.delete('/estimate-items/:itemId', estimateController.deleteItem);
+estimateRouter.delete(
+  '/estimate-items/:itemId',
+  validate({ params: estimateItemParamsSchema }),
+  estimateController.deleteItem,
+);
 
 // Workflow
-estimateRouter.post('/estimates/:id/submit', estimateController.submit);
-estimateRouter.post('/estimates/:id/approve', estimateController.approve);
+estimateRouter.post(
+  '/estimates/:id/submit',
+  validate({ params: estimateIdParamsSchema }),
+  estimateController.submit,
+);
+estimateRouter.post(
+  '/estimates/:id/approve',
+  validate({ params: estimateIdParamsSchema }),
+  estimateController.approve,
+);
 estimateRouter.post(
   '/estimates/:id/reject',
-  validate({ body: rejectEstimateSchema }),
+  validate({ params: estimateIdParamsSchema, body: rejectEstimateSchema }),
   estimateController.reject,
 );
-estimateRouter.post('/estimates/:id/duplicate', estimateController.duplicate);
-estimateRouter.post('/estimates/:id/convert-to-boq', boqController.convertEstimateToBoq);
-estimateRouter.get('/estimates/:id/compare/:id2', estimateController.compare);
+estimateRouter.post(
+  '/estimates/:id/duplicate',
+  validate({ params: estimateIdParamsSchema }),
+  estimateController.duplicate,
+);
+estimateRouter.post(
+  '/estimates/:id/convert-to-boq',
+  validate({ params: estimateIdParamsSchema }),
+  boqController.convertEstimateToBoq,
+);
+estimateRouter.get(
+  '/estimates/:id/compare/:id2',
+  validate({ params: estimateCompareParamsSchema }),
+  estimateController.compare,
+);
 
 // Exports
-estimateRouter.get('/estimates/:id/export/excel', estimateController.exportExcel);
-estimateRouter.get('/estimates/:id/export/pdf', estimateController.exportPdf);
+estimateRouter.get(
+  '/estimates/:id/export/excel',
+  validate({ params: estimateIdParamsSchema }),
+  estimateController.exportExcel,
+);
+estimateRouter.get(
+  '/estimates/:id/export/pdf',
+  validate({ params: estimateIdParamsSchema }),
+  estimateController.exportPdf,
+);

@@ -11,8 +11,8 @@ import {
   buildS3Key,
   getPresignedUploadUrl,
   getPresignedDownloadUrl,
+  keyToLogicalUrlForCompany,
   logicalUrlToKey,
-  keyToLogicalUrl,
 } from '../lib/s3';
 import { randomUUID } from 'crypto';
 import type {
@@ -103,7 +103,14 @@ export async function createReport(
   projectId: string,
   input: CreateDailyReportInput,
   ipAddress?: string,
+  idempotencyKey?: string,
 ) {
+  if (idempotencyKey) {
+    const { redis } = await import('../lib/redis');
+    const cached = await redis.get(`idempotency:report:${idempotencyKey}`);
+    if (cached) return JSON.parse(cached) as ReturnType<typeof serializeReport>;
+  }
+
   await getProject(companyId, projectId);
 
   const reportDate = new Date(input.reportDate);
@@ -155,7 +162,13 @@ export async function createReport(
     ipAddress,
   });
 
-  return serializeReport(report);
+  const serialized = serializeReport(report);
+  if (idempotencyKey) {
+    const { redis } = await import('../lib/redis');
+    await redis.set(`idempotency:report:${idempotencyKey}`, JSON.stringify(serialized), 'EX', 86_400);
+  }
+
+  return serialized;
 }
 
 /* ------------------------------------------------------------------ */
@@ -246,6 +259,7 @@ export async function createPhotoUploadUrl(
   });
 
   const uploadUrl = await getPresignedUploadUrl({
+    companyId,
     key,
     contentType: input.contentType,
   });
@@ -275,7 +289,9 @@ export async function confirmPhotoUpload(
   });
   if (!report) throw ApiError.notFound('Daily report not found');
 
-  const newPhotos = s3Keys.map(keyToLogicalUrl);
+  const newPhotos = await Promise.all(
+    s3Keys.map((k) => keyToLogicalUrlForCompany(companyId, k)),
+  );
   const photos = [...report.photos, ...newPhotos].slice(0, 10); // max 10
 
   const updated = await prisma.dailyReport.update({
@@ -301,12 +317,12 @@ export async function confirmPhotoUpload(
 /* Resolve a stored logical S3 URL -> short-lived GET URL              */
 /* ------------------------------------------------------------------ */
 
-export async function resolvePhotoUrls(photos: string[]): Promise<string[]> {
+export async function resolvePhotoUrls(companyId: string, photos: string[]): Promise<string[]> {
   const urls: string[] = [];
   for (const p of photos) {
-    const key = logicalUrlToKey(p);
-    if (key) {
-      urls.push(await getPresignedDownloadUrl({ key }));
+    const parsed = logicalUrlToKey(p);
+    if (parsed) {
+      urls.push(await getPresignedDownloadUrl({ companyId, key: parsed.key }));
     }
   }
   return urls;

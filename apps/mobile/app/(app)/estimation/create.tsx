@@ -15,9 +15,14 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Card, Badge, ProgressBar } from '@/components/ui';
+import { Button, Card, ProgressBar } from '@/components/ui';
+import { ActionBar } from '@/components/layout/ActionBar';
+import { FormScreenHeader } from '@/components/layout/ScreenHeader';
+import { EstimateBuildStep } from '@/components/estimation/EstimateBuildStep';
+import { useViewport } from '@/hooks/useViewport';
+import { dismissTo, DISMISS } from '@/utils/navigation';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { SummaryBreakdownCard } from '@/components/ui';
 import {
@@ -30,7 +35,6 @@ import { formatINR } from '@/utils/format';
 type Step = 1 | 2 | 3;
 
 export default function CreateEstimateScreen() {
-  const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const createMut = useCreateEstimate(projectId);
 
@@ -70,19 +74,19 @@ export default function CreateEstimateScreen() {
     if (id) setStep(2);
   }
 
+  const cancelTarget = projectId
+    ? DISMISS.estimationForProject(projectId)
+    : DISMISS.estimation;
+
   return (
     <SafeAreaView className="flex-1 bg-surface" edges={['bottom']}>
       <OfflineBanner />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
-        {/* Header */}
-        <View className="flex-row items-center px-4 py-3 border-b border-border">
-          <Pressable onPress={() => router.back()} className="mr-3">
-            <Text className="text-primary text-lg">‹ Cancel</Text>
-          </Pressable>
-          <Text className="text-lg font-bold text-text flex-1">New Estimate</Text>
-          {/* Step indicator */}
-          <Text className="text-sm text-text-muted">Step {step}/3</Text>
-        </View>
+        <FormScreenHeader
+          title="New Estimate"
+          subtitle={`Step ${step} of 3`}
+          onCancel={() => dismissTo(cancelTarget)}
+        />
         <ProgressBar value={(step / 3) * 100} />
 
         {step === 1 && (
@@ -103,7 +107,7 @@ export default function CreateEstimateScreen() {
         )}
 
         {step === 2 && estimateId && (
-          <Step2Build
+          <EstimateBuildStep
             estimateId={estimateId}
             overheadPct={parseFloat(overheadPct) || 0}
             contingencyPct={parseFloat(contingencyPct) || 0}
@@ -117,7 +121,7 @@ export default function CreateEstimateScreen() {
           <Step3Review
             estimateId={estimateId}
             onBack={() => setStep(2)}
-            onDone={() => router.back()}
+            onDone={() => dismissTo(cancelTarget)}
           />
         )}
       </KeyboardAvoidingView>
@@ -208,229 +212,6 @@ function PercentRow({ label, value, onChange }: { label: string; value: string; 
 }
 
 /* ------------------------------------------------------------------ */
-/* Step 2: Build                                                        */
-/* ------------------------------------------------------------------ */
-function Step2Build({
-  estimateId,
-  overheadPct,
-  contingencyPct,
-  profitPct,
-  onBack,
-  onNext,
-}: {
-  estimateId: string;
-  overheadPct: number;
-  contingencyPct: number;
-  profitPct: number;
-  onBack: () => void;
-  onNext: () => void;
-}) {
-  const mut = useEstimateMutations(estimateId);
-  const [newSectionName, setNewSectionName] = useState('');
-  const [showAddSection, setShowAddSection] = useState(false);
-  const { data: estimate, isLoading } = useEstimate(estimateId);
-
-  const summary = estimate?.summary;
-
-  if (isLoading) return <Text className="p-4 text-text-muted">Loading...</Text>;
-
-  const sections = estimate?.sections ?? [];
-
-  return (
-    <View className="flex-1">
-      <ScrollView className="flex-1" contentContainerClassName="p-4 gap-3 pb-40">
-        {/* Add section toggle */}
-        {showAddSection ? (
-          <Card>
-            <TextInput
-              value={newSectionName}
-              onChangeText={setNewSectionName}
-              placeholder="Section name (e.g. Substructure)"
-              placeholderTextColor="#94A3B8"
-              className="border border-border rounded-lg px-3 py-2.5 text-text mb-2"
-            />
-            <View className="flex-row gap-2">
-              <Button
-                label="Add"
-                size="sm"
-                onPress={async () => {
-                  if (!newSectionName.trim()) return;
-                  await mut.addSection.mutateAsync({ name: newSectionName.trim() });
-                  setNewSectionName('');
-                  setShowAddSection(false);
-                }}
-              />
-              <Button label="Cancel" size="sm" variant="ghost" onPress={() => setShowAddSection(false)} />
-            </View>
-          </Card>
-        ) : (
-          <Pressable onPress={() => setShowAddSection(true)} className="py-2">
-            <Text className="text-primary text-sm font-semibold">+ Add Section</Text>
-          </Pressable>
-        )}
-
-        {/* Sections */}
-        {sections.map((sec: { id: string; name: string; items: Array<{ id: string; description: string; unit: string; quantity: string; rate: string; amount: string; type: string }> }) => {
-          const secTotal = sec.items.reduce((s: number, it: { amount: string }) => s + parseFloat(it.amount), 0);
-          return (
-            <Card key={sec.id}>
-              <View className="flex-row justify-between items-center mb-2">
-                <Text className="text-base font-semibold text-text">{sec.name}</Text>
-                <Text className="text-sm font-bold text-primary">{formatINR(secTotal)}</Text>
-              </View>
-              {sec.items.map((it) => (
-                <View key={it.id} className="border-t border-border py-2">
-                  <View className="flex-row justify-between">
-                    <Text className="text-sm text-text flex-1 mr-2" numberOfLines={2}>{it.description}</Text>
-                    <Text className="text-sm font-semibold text-text">{formatINR(parseFloat(it.amount))}</Text>
-                  </View>
-                  <View className="flex-row gap-3 mt-0.5">
-                    <Text className="text-xs text-text-muted">{parseFloat(it.quantity)} {it.unit}</Text>
-                    <Text className="text-xs text-text-muted">@ {formatINR(parseFloat(it.rate))}</Text>
-                    <Badge label={it.type} color="neutral" />
-                  </View>
-                </View>
-              ))}
-              <AddItemRow sectionId={sec.id} mut={mut} />
-            </Card>
-          );
-        })}
-
-        {sections.length === 0 && (
-          <Text className="text-sm text-text-muted text-center py-8">Add a section to start building your estimate.</Text>
-        )}
-      </ScrollView>
-
-      {/* Live grand total bar */}
-      {summary && (
-        <View className="border-t border-border bg-card px-4 py-3">
-          <View className="flex-row justify-between mb-1">
-            <Text className="text-xs text-text-muted">Direct Cost</Text>
-            <Text className="text-xs text-text">{formatINR(summary.subtotal)}</Text>
-          </View>
-          <View className="flex-row justify-between mb-1">
-            <Text className="text-xs text-text-muted">+OH/Cont/Profit ({overheadPct + contingencyPct + profitPct}%)</Text>
-            <Text className="text-xs text-text">
-              {formatINR(summary.overheadAmount + summary.contingencyAmount + summary.profitMarginAmount)}
-            </Text>
-          </View>
-          <View className="flex-row justify-between items-center pt-1 border-t border-border mt-1">
-            <Text className="text-sm font-bold text-text">Grand Total</Text>
-            <Text className="text-lg font-bold text-primary">{formatINR(summary.grandTotal)}</Text>
-          </View>
-          <View className="flex-row gap-2 mt-3">
-            <Button label="‹ Back" variant="secondary" size="sm" onPress={onBack} />
-            <View className="flex-1" />
-            <Button label="Next: Review" size="sm" onPress={onNext} />
-          </View>
-        </View>
-      )}
-    </View>
-  );
-}
-
-function AddItemRow({
-  sectionId,
-  mut,
-}: {
-  sectionId: string;
-  mut: ReturnType<typeof useEstimateMutations>;
-}) {
-  const [open, setOpen] = useState(false);
-  const [desc, setDesc] = useState('');
-  const [unit, setUnit] = useState('cum');
-  const [qty, setQty] = useState('1');
-  const [rate, setRate] = useState('0');
-  const [type, setType] = useState<'MATERIAL' | 'LABOUR' | 'EQUIPMENT' | 'SUBCONTRACTOR' | 'MISC'>('MATERIAL');
-
-  if (!open) {
-    return (
-      <Pressable onPress={() => setOpen(true)} className="pt-2">
-        <Text className="text-primary text-xs font-semibold">+ Add Item</Text>
-      </Pressable>
-    );
-  }
-
-  return (
-    <View className="mt-2 border border-border rounded-lg p-2 gap-1.5">
-      <TextInput
-        value={desc}
-        onChangeText={setDesc}
-        placeholder="Description"
-        placeholderTextColor="#94A3B8"
-        className="border border-border rounded px-2 py-1.5 text-sm text-text"
-      />
-      <View className="flex-row gap-2">
-        <View className="flex-1">
-          <Text className="text-xs text-text-muted">Qty</Text>
-          <TextInput
-            value={qty}
-            onChangeText={setQty}
-            keyboardType="decimal-pad"
-            className="border border-border rounded px-2 py-1.5 text-sm text-text"
-          />
-        </View>
-        <View style={{ width: 70 }}>
-          <Text className="text-xs text-text-muted">Unit</Text>
-          <TextInput
-            value={unit}
-            onChangeText={setUnit}
-            className="border border-border rounded px-2 py-1.5 text-sm text-text"
-          />
-        </View>
-        <View className="flex-1">
-          <Text className="text-xs text-text-muted">Rate ₹</Text>
-          <TextInput
-            value={rate}
-            onChangeText={setRate}
-            keyboardType="decimal-pad"
-            className="border border-border rounded px-2 py-1.5 text-sm text-text"
-          />
-        </View>
-      </View>
-      <View className="flex-row items-center justify-between">
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-1">
-          {(['MATERIAL', 'LABOUR', 'EQUIPMENT', 'SUBCONTRACTOR', 'MISC'] as const).map((t) => (
-            <Pressable
-              key={t}
-              onPress={() => setType(t)}
-              className={`px-2 py-1 rounded ${type === t ? 'bg-primary' : 'bg-border'}`}
-            >
-              <Text className={`text-[10px] ${type === t ? 'text-white' : 'text-text'}`}>{t}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-        <Text className="text-xs font-semibold text-text">
-          = {formatINR((parseFloat(qty) || 0) * (parseFloat(rate) || 0))}
-        </Text>
-      </View>
-      <View className="flex-row gap-2 mt-1">
-        <Button
-          label="Add"
-          size="sm"
-          onPress={async () => {
-            if (!desc.trim()) return;
-            await mut.addItem.mutateAsync({
-              sectionId,
-              description: desc.trim(),
-              unit: unit.trim() || 'unit',
-              quantity: parseFloat(qty) || 0,
-              rate: parseFloat(rate) || 0,
-              type,
-            });
-            setDesc('');
-            setQty('1');
-            setRate('0');
-            setOpen(false);
-          }}
-        />
-        <Button label="Cancel" size="sm" variant="ghost" onPress={() => setOpen(false)} />
-      </View>
-    </View>
-  );
-}
-
-/* ------------------------------------------------------------------ */
 /* Step 3: Review                                                       */
 /* ------------------------------------------------------------------ */
 function Step3Review({
@@ -443,6 +224,7 @@ function Step3Review({
   onDone: () => void;
 }) {
   const mut = useEstimateMutations(estimateId);
+  const { isDesktop } = useViewport();
   const { data: estimate, isLoading } = useEstimate(estimateId);
 
   if (isLoading || !estimate) return <Text className="p-4 text-text-muted">Loading...</Text>;
@@ -457,7 +239,8 @@ function Step3Review({
   ];
 
   return (
-    <ScrollView className="flex-1" contentContainerClassName="p-4 gap-4 pb-32">
+    <View className="flex-1">
+    <ScrollView className="flex-1" contentContainerClassName={isDesktop ? 'px-8 py-4 gap-4 pb-8' : 'p-4 gap-4 pb-32'}>
       <Text className="text-lg font-bold text-text">Review & Summary</Text>
 
       {/* Meta */}
@@ -518,30 +301,24 @@ function Step3Review({
           <Text className="text-lg font-bold text-primary">{formatINR(s.grandTotal)}</Text>
         </View>
       </Card>
-
-      {/* Actions */}
-      <View className="gap-2 mt-2">
-        <Button label="‹ Back" variant="secondary" onPress={onBack} />
-        <Button
-          label="Save as Draft"
-          variant="secondary"
-          onPress={() => {
-            onDone();
-          }}
-        />
-        <Button
-          label="Submit for Review"
-          onPress={async () => {
-            try {
-              await mut.submit.mutateAsync();
-              onDone();
-            } catch (e) {
-              Alert.alert('Submit failed', e instanceof Error ? e.message : '');
-            }
-          }}
-          loading={mut.submit.isPending}
-        />
-      </View>
     </ScrollView>
+    <ActionBar>
+      <Button label="Back" variant="secondary" size="sm" onPress={onBack} />
+      <Button label="Save as Draft" variant="secondary" size="sm" onPress={onDone} />
+      <Button
+        label="Submit for Review"
+        size="sm"
+        onPress={async () => {
+          try {
+            await mut.submit.mutateAsync();
+            onDone();
+          } catch (e) {
+            Alert.alert('Submit failed', e instanceof Error ? e.message : '');
+          }
+        }}
+        loading={mut.submit.isPending}
+      />
+    </ActionBar>
+    </View>
   );
 }

@@ -11,6 +11,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Input, Button, Card } from '@/components/ui';
+import { FormScreenHeader } from '@/components/layout/ScreenHeader';
+import { dismissTo, DISMISS } from '@/utils/navigation';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { useCreateProject } from '@/services/project.queries';
 import { ApiError } from '@/lib/api-client';
@@ -57,7 +59,7 @@ export default function CreateProjectScreen() {
   async function handleSubmit() {
     if (!validate()) return;
     try {
-      await createProject.mutateAsync({
+      const created = await createProject.mutateAsync({
         name: form.name.trim(),
         code: form.code.trim().toUpperCase(),
         type: form.type,
@@ -68,7 +70,17 @@ export default function CreateProjectScreen() {
         endDate: form.endDate || undefined,
         budget: form.budget ? parseFloat(form.budget) : undefined,
       });
-      router.back();
+      Alert.alert(
+        'Project created',
+        'Assign team members now or do it later from project Settings.',
+        [
+          {
+            text: 'Assign members',
+            onPress: () => router.replace(`/(app)/projects/${created.id}?tab=settings`),
+          },
+          { text: 'Later', onPress: () => router.replace('/projects'), style: 'cancel' },
+        ],
+      );
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'Failed to create project';
       Alert.alert('Error', msg);
@@ -82,13 +94,11 @@ export default function CreateProjectScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         className="flex-1"
       >
-        {/* Header */}
-        <View className="flex-row items-center px-4 py-3 border-b border-border">
-          <Pressable onPress={() => router.back()} className="mr-3">
-            <Text className="text-primary font-medium">Cancel</Text>
-          </Pressable>
-          <Text className="text-lg font-bold text-text">New Project</Text>
-        </View>
+        <FormScreenHeader
+          title="New Project"
+          subtitle="Add a project to start planning and tracking"
+          onCancel={() => dismissTo(DISMISS.projectsCreate)}
+        />
 
         <ScrollView
           contentContainerClassName="px-4 py-4 pb-32"

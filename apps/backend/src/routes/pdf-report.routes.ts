@@ -47,4 +47,10 @@ router.get('/projects/:id/boq-vs-actual', ctrl.getBoqVsActualPdf);
 // 12. Material Price History
 router.get('/material-price-history', ctrl.getMaterialPriceHistoryPdf);
 
+// 13. Measurement Book (RA certified qty)
+router.get('/projects/:id/measurement-book', ctrl.getMeasurementBookPdf);
+
+// 14. Abstract Sheet
+router.get('/projects/:id/abstract-sheet', ctrl.getAbstractSheetPdf);
+
 export default router;

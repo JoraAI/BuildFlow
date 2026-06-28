@@ -8,6 +8,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card, Button, LoadingSkeleton, EmptyState } from '@/components/ui';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
+import { FormScreenHeader } from '@/components/layout/ScreenHeader';
+import { dismissTo, DISMISS } from '@/utils/navigation';
 import { useProjectEstimates, useCompareEstimates, type EstimateListItem, type EstimateComparison } from '@/services/estimate.queries';
 import { formatINR } from '@/utils/format';
 
@@ -15,7 +17,7 @@ export default function CompareEstimatesScreen() {
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { data: listData, isLoading: listLoading } = useProjectEstimates(projectId);
-  const estimates = listData?.data ?? [];
+  const estimates = listData ?? [];
 
   const [idA, setIdA] = useState<string>('');
   const [idB, setIdB] = useState<string>('');
@@ -34,12 +36,13 @@ export default function CompareEstimatesScreen() {
   return (
     <SafeAreaView className="flex-1 bg-surface" edges={['bottom']}>
       <OfflineBanner />
-      <View className="flex-row items-center px-4 py-3 border-b border-border">
-        <Pressable onPress={() => router.back()} className="mr-3">
-          <Text className="text-primary text-lg">‹ Back</Text>
-        </Pressable>
-        <Text className="text-lg font-bold text-text flex-1">Compare Estimates</Text>
-      </View>
+      <FormScreenHeader
+        title="Compare Estimates"
+        cancelLabel="Back"
+        onCancel={() =>
+          dismissTo(projectId ? DISMISS.estimationForProject(projectId) : DISMISS.estimation)
+        }
+      />
 
       <ScrollView contentContainerClassName="p-4 gap-4">
         {/* Version pickers */}

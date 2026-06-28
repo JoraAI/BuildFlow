@@ -1,6 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
+  darkMode: 'class',
   presets: [require('nativewind/preset')],
   theme: {
     extend: {
@@ -19,7 +20,14 @@ module.exports = {
         sans: ['Inter', 'System'],
         mono: ['JetBrains Mono', 'monospace'],
       },
-      borderRadius: { sm: 4, md: 8, lg: 12, xl: 16 },
+      borderRadius: { sm: 4, md: 8, lg: 12, xl: 16, '2xl': 20 },
+      boxShadow: {
+        card: '0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06)',
+        elevated: '0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06)',
+      },
+      maxWidth: {
+        '8xl': '90rem',
+      },
     },
   },
   plugins: [],

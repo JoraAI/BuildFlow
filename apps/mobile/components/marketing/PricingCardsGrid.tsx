@@ -1,0 +1,57 @@
+import React from 'react';
+import { View, Text } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { Card, Button } from '@/components/ui';
+import { useViewport } from '@/hooks/useViewport';
+import { MARKETING_PRICING } from '@/constants/marketing';
+
+/** Equal-width pricing tier cards — same layout on mobile (stack) and desktop (row). */
+export function PricingCardsGrid() {
+  const router = useRouter();
+  const { isMarketingDesktop } = useViewport();
+
+  return (
+    <View className={`w-full gap-4 ${isMarketingDesktop ? 'flex-row items-stretch' : ''}`}>
+      {MARKETING_PRICING.map((p) => (
+        <View
+          key={p.name}
+          className={isMarketingDesktop ? 'flex-1 min-w-0' : 'w-full'}
+        >
+          <Card
+            className={`h-full ${p.highlighted ? 'border-2 border-accent' : ''}`}
+          >
+            {p.highlighted && (
+              <Text className="text-xs font-bold text-accent mb-2 uppercase">Most popular</Text>
+            )}
+            <Text className="text-lg font-bold text-text">{p.name}</Text>
+            <View className="flex-row items-baseline mt-1 mb-2">
+              <Text className="text-3xl font-bold text-primary">{p.price}</Text>
+              {p.period ? <Text className="text-muted ml-1">{p.period}</Text> : null}
+            </View>
+            <Text className="text-sm text-muted mb-4">{p.description}</Text>
+            {p.features.map((feat) => (
+              <View key={feat} className="flex-row items-center mb-2">
+                <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                <Text className="text-sm text-text ml-2 flex-1">{feat}</Text>
+              </View>
+            ))}
+            <View className="mt-4">
+              <Button
+                label={p.name === 'Enterprise' ? 'Contact Sales' : 'Start Free Trial'}
+                variant={p.highlighted ? 'primary' : 'secondary'}
+                size="sm"
+                fullWidth
+                onPress={() =>
+                  p.name === 'Enterprise'
+                    ? router.push('/signup')
+                    : router.push('/signup/company')
+                }
+              />
+            </View>
+          </Card>
+        </View>
+      ))}
+    </View>
+  );
+}

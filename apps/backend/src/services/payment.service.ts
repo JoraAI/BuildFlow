@@ -1,31 +1,25 @@
 /**
- * BuildFlow — Razorpay payment service.
+ * BuildFlow — Razorpay payment service (tenant invoice collection).
  *
- *   createPaymentLink(invoiceId) -> Razorpay Payment Link + enqueues WhatsApp send
- *   verifyWebhookSignature(rawBody, signature) -> boolean (HMAC-SHA256)
- *   handlePaymentCaptured(paymentId, invoiceId) -> marks PAID + JournalEntry + notifies
- *
- * Idempotent: re-processing a captured payment is a no-op.
+ * Credentials resolve per company via integration.service with platform fallback.
  */
 import crypto from 'crypto';
 import Razorpay from 'razorpay';
 import { prisma } from '../lib/prisma';
-import { env } from '../config/env';
 import { logger } from '../config/logger';
 import { Decimal } from '@prisma/client/runtime/library';
 import { notify } from './notification.service';
+import { resolveRazorpayConfig } from './integration.service';
 
 function num(d: Decimal | number | null | undefined): number {
   if (d === null || d === undefined) return 0;
   return typeof d === 'number' ? d : Number(d);
 }
 
-function client(): Razorpay | null {
-  if (!env.RAZORPAY_KEY_ID || !env.RAZORPAY_KEY_SECRET) return null;
-  return new Razorpay({
-    key_id: env.RAZORPAY_KEY_ID,
-    key_secret: env.RAZORPAY_KEY_SECRET,
-  });
+async function clientFor(companyId: string): Promise<Razorpay | null> {
+  const cfg = await resolveRazorpayConfig(companyId);
+  if (!cfg) return null;
+  return new Razorpay({ key_id: cfg.keyId, key_secret: cfg.keySecret });
 }
 
 export interface PaymentLinkResult {
@@ -35,19 +29,19 @@ export interface PaymentLinkResult {
   currency: string;
 }
 
-/**
- * Create a Razorpay payment link for an invoice and (best-effort) WhatsApp the client.
- */
 export async function createPaymentLink(
   companyId: string,
   invoiceId: string,
 ): Promise<PaymentLinkResult> {
   const invoice = await prisma.invoice.findFirstOrThrow({
     where: { id: invoiceId, companyId },
-    include: { project: { select: { name: true, clientContact: true } } },
+    include: {
+      project: { select: { name: true, clientContact: true } },
+      company: { select: { name: true } },
+    },
   });
 
-  const rzp = client();
+  const rzp = await clientFor(companyId);
   if (!rzp) throw new Error('RAZORPAY_NOT_CONFIGURED');
 
   const amountPaise = Math.round(num(invoice.total) * 100);
@@ -58,18 +52,17 @@ export async function createPaymentLink(
     reference_id: invoice.id,
     customer: {
       name: invoice.clientName,
-      // contact/email optional in Razorpay; only pass if present
       ...(invoice.project.clientContact ? { contact: invoice.project.clientContact } : {}),
     },
     notify: { sms: true, email: false },
     reminder_enable: true,
   });
 
-  // Best-effort WhatsApp to client (queued via notification job)
   if (invoice.project.clientContact) {
     try {
       await notify({
         userId: await getAnyCompanyIdUser(companyId),
+        companyId,
         title: 'Invoice Payment Link',
         body: `Sent payment link ${link.short_url} to ${invoice.clientName}`,
         type: 'INVOICE_PAYMENT_LINK',
@@ -78,7 +71,7 @@ export async function createPaymentLink(
           {
             channel: 'WHATSAPP',
             to: invoice.project.clientContact,
-            message: `Dear ${invoice.clientName}, your invoice ${invoice.invoiceNumber} for Rs ${num(invoice.total).toLocaleString('en-IN')} is ready. Pay here: ${link.short_url} — Reddy Constructions`,
+            message: `Dear ${invoice.clientName}, your invoice ${invoice.invoiceNumber} for Rs ${num(invoice.total).toLocaleString('en-IN')} is ready. Pay here: ${link.short_url} — ${invoice.company.name}`,
           },
         ],
       });
@@ -95,13 +88,14 @@ export async function createPaymentLink(
   };
 }
 
-/** Verify Razorpay webhook signature (HMAC-SHA256 of raw body). */
-export function verifyWebhookSignature(rawBody: string, signature: string): boolean {
-  if (!env.RAZORPAY_WEBHOOK_SECRET) return false;
-  const expected = crypto
-    .createHmac('sha256', env.RAZORPAY_WEBHOOK_SECRET)
-    .update(rawBody)
-    .digest('hex');
+export async function verifyWebhookSignature(
+  companyId: string,
+  rawBody: string,
+  signature: string,
+): Promise<boolean> {
+  const cfg = await resolveRazorpayConfig(companyId);
+  if (!cfg?.webhookSecret) return false;
+  const expected = crypto.createHmac('sha256', cfg.webhookSecret).update(rawBody).digest('hex');
   try {
     return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
   } catch {
@@ -121,19 +115,13 @@ interface RazorpayPaymentLinkPayload {
     };
     payment_link?: {
       entity?: {
-        reference_id?: string; // = our invoice id
+        reference_id?: string;
         amount?: number;
       };
     };
   };
 }
 
-/**
- * Handle `payment.captured` (or `payment_link.paid`). Idempotent.
- *   - Marks invoice PAID (paidAmount += captured)
- *   - Creates a balancing JournalEntry (Bank debit / Sales credit)
- *   - Notifies OWNER + ACCOUNTANT
- */
 export async function handlePaymentCaptured(rawBody: string): Promise<{ handled: boolean; invoiceId?: string }> {
   const parsed = JSON.parse(rawBody) as RazorpayPaymentLinkPayload;
   const referenceId =
@@ -147,7 +135,6 @@ export async function handlePaymentCaptured(rawBody: string): Promise<{ handled:
   });
   if (!invoice) return { handled: false };
 
-  // Idempotency: already fully paid
   if (invoice.status === 'PAID') return { handled: true, invoiceId: invoice.id };
 
   const capturedPaise = parsed.payload?.payment?.entity?.amount ?? num(invoice.total) * 100;
@@ -172,12 +159,11 @@ export async function handlePaymentCaptured(rawBody: string): Promise<{ handled:
         debitAccount: 'Bank',
         creditAccount: 'Sales',
         amount: captured,
-        createdBy: (await getAnyCompanyIdUser(invoice.companyId)),
+        createdBy: await getAnyCompanyIdUser(invoice.companyId),
       },
     });
   });
 
-  // Notify finance roles
   const financeUsers = await prisma.user.findMany({
     where: { companyId: invoice.companyId, role: { in: ['OWNER', 'ACCOUNTANT'] } },
     select: { id: true },
@@ -186,6 +172,7 @@ export async function handlePaymentCaptured(rawBody: string): Promise<{ handled:
     financeUsers.map((u) =>
       notify({
         userId: u.id,
+        companyId: invoice.companyId,
         title: 'Payment Received',
         body: `Rs ${captured.toLocaleString('en-IN')} received for invoice ${invoice.invoiceNumber}.`,
         type: 'PAYMENT_CAPTURED',
@@ -198,7 +185,6 @@ export async function handlePaymentCaptured(rawBody: string): Promise<{ handled:
   return { handled: true, invoiceId: invoice.id };
 }
 
-/** Fallback helper to find an active user in a company (for created_by / journalEntry owned-by). */
 async function getAnyCompanyIdUser(companyId: string): Promise<string> {
   const u = await prisma.user.findFirst({
     where: { companyId, role: 'OWNER', isActive: true },

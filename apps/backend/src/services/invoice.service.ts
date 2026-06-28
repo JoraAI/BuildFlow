@@ -18,6 +18,9 @@ export interface InvoiceListItem {
   invoiceDate: Date;
   dueDate: Date;
   status: string;
+  invoiceType: string;
+  raSequence: number | null;
+  retentionPct: number;
   subtotal: number;
   gstAmount: number;
   tdsAmount: number;
@@ -49,7 +52,15 @@ function serialize(inv: {
   total: Decimal;
   paidAmount: Decimal;
   notes: string | null;
-  project: { id: string; name: string };
+  invoiceType?: string;
+  raSequence?: number | null;
+  milestoneLabel?: string | null;
+  retentionPct?: Decimal;
+  retentionAmount?: Decimal;
+  previousCertifiedTotal?: Decimal;
+  currentCertifiedTotal?: Decimal;
+  cumulativeCertifiedTotal?: Decimal;
+  project: { id: string; name: string; clientName?: string };
   lineItems: Array<{
     id: string;
     description: string;
@@ -69,6 +80,14 @@ function serialize(inv: {
     invoiceDate: inv.invoiceDate,
     dueDate: inv.dueDate,
     status: inv.status,
+    invoiceType: inv.invoiceType ?? 'STANDARD',
+    raSequence: inv.raSequence ?? null,
+    milestoneLabel: inv.milestoneLabel ?? null,
+    retentionPct: toNum(inv.retentionPct),
+    retentionAmount: toNum(inv.retentionAmount),
+    previousCertifiedTotal: toNum(inv.previousCertifiedTotal),
+    currentCertifiedTotal: toNum(inv.currentCertifiedTotal),
+    cumulativeCertifiedTotal: toNum(inv.cumulativeCertifiedTotal),
     subtotal: toNum(inv.subtotal),
     gstRate: toNum(inv.gstRate),
     gstAmount: toNum(inv.gstAmount),
@@ -121,6 +140,9 @@ export async function listInvoices(
     invoiceDate: i.invoiceDate,
     dueDate: i.dueDate,
     status: i.status,
+    invoiceType: i.invoiceType,
+    raSequence: i.raSequence,
+    retentionPct: toNum(i.retentionPct),
     subtotal: toNum(i.subtotal),
     gstAmount: toNum(i.gstAmount),
     tdsAmount: toNum(i.tdsAmount),
@@ -143,29 +165,64 @@ export async function getInvoice(companyId: string, id: string) {
 }
 
 export async function createInvoice(companyId: string, _userId: string, input: CreateInvoiceInput) {
-  // Verify project belongs to company
   const project = await prisma.project.findFirst({
     where: { id: input.projectId, companyId },
   });
   if (!project) throw ApiError.notFound('Project');
 
   const companyState = await getCompanyState(companyId);
+  const invoiceType = input.invoiceType ?? 'STANDARD';
 
-  // Calculate line item amounts and subtotal
-  const lineAmounts = input.lineItems.map((li) => ({
-    ...li,
-    amount: round2(li.quantity * li.rate),
-  }));
+  let lineAmounts = input.lineItems.map((li) => {
+    if (invoiceType === 'RUNNING_ACCOUNT') {
+      const currentQty = li.currentQty ?? li.quantity;
+      const cumulativeQty = li.cumulativeQty ?? currentQty;
+      const amount = round2(currentQty * li.rate);
+      return {
+        ...li,
+        quantity: currentQty,
+        currentQty,
+        previousQty: li.previousQty ?? 0,
+        cumulativeQty,
+        certifiedAmount: amount,
+        amount,
+      };
+    }
+    return { ...li, amount: round2(li.quantity * li.rate), certifiedAmount: round2(li.quantity * li.rate) };
+  });
+
   const subtotal = round2(lineAmounts.reduce((s, li) => s + li.amount, 0));
 
+  let previousCertifiedTotal = 0;
+  let raSequence = input.raSequence;
+  if (invoiceType === 'RUNNING_ACCOUNT') {
+    const prev = await prisma.invoice.findMany({
+      where: { projectId: input.projectId, companyId, invoiceType: 'RUNNING_ACCOUNT', status: { not: 'DRAFT' } },
+      select: { cumulativeCertifiedTotal: true, raSequence: true },
+      orderBy: { raSequence: 'desc' },
+      take: 1,
+    });
+    previousCertifiedTotal = prev[0] ? Number(prev[0].cumulativeCertifiedTotal) : 0;
+    if (raSequence == null) {
+      raSequence = (prev[0]?.raSequence ?? 0) + 1;
+    }
+  }
+
+  const currentCertifiedTotal = subtotal;
+  const cumulativeCertifiedTotal = round2(previousCertifiedTotal + currentCertifiedTotal);
+  const retentionPct = input.retentionPct ?? 0;
+  const retentionAmount = round2((cumulativeCertifiedTotal * retentionPct) / 100);
+
   const gst = calculateGST({
-    subtotal,
+    subtotal: currentCertifiedTotal,
     gstRate: input.gstRate,
     tdsEnabled: input.tdsEnabled,
     tdsRate: input.tdsRate,
     companyState,
     clientState: input.clientState,
   });
+
+  const totalAfterRetention = round2(gst.netPayable - retentionAmount);
 
   return prisma.invoice.create({
     data: {
@@ -177,7 +234,15 @@ export async function createInvoice(companyId: string, _userId: string, input: C
       invoiceDate: input.invoiceDate,
       dueDate: input.dueDate,
       status: 'DRAFT',
-      subtotal,
+      invoiceType,
+      raSequence,
+      milestoneLabel: input.milestoneLabel,
+      retentionPct,
+      retentionAmount,
+      previousCertifiedTotal,
+      currentCertifiedTotal,
+      cumulativeCertifiedTotal,
+      subtotal: currentCertifiedTotal,
       gstRate: input.gstRate,
       gstAmount: gst.gstAmount,
       cgstAmount: gst.cgstAmount,
@@ -185,7 +250,7 @@ export async function createInvoice(companyId: string, _userId: string, input: C
       igstAmount: gst.igstAmount,
       tdsRate: input.tdsEnabled ? input.tdsRate : 0,
       tdsAmount: gst.tdsAmount,
-      total: gst.netPayable,
+      total: totalAfterRetention,
       paidAmount: 0,
       notes: input.notes,
       lineItems: {
@@ -198,6 +263,10 @@ export async function createInvoice(companyId: string, _userId: string, input: C
           amount: li.amount,
           gstRate: li.gstRate,
           hsnSacCode: li.hsnSacCode,
+          previousQty: li.previousQty ?? 0,
+          currentQty: li.currentQty ?? li.quantity,
+          cumulativeQty: li.cumulativeQty ?? li.quantity,
+          certifiedAmount: li.certifiedAmount ?? li.amount,
         })),
       },
     },

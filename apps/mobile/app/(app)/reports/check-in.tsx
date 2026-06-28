@@ -31,6 +31,8 @@ import {
   type AttendanceRecord,
 } from '@/services/report.queries';
 import { formatTime } from '@/utils/format';
+import { FormScreenHeader } from '@/components/layout/ScreenHeader';
+import { dismissTo, DISMISS } from '@/utils/navigation';
 
 const GEOFENCE_RADIUS_M = 500;
 
@@ -150,14 +152,11 @@ export default function SiteCheckInScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-surface">
-      {/* Header */}
-      <View className="px-4 py-3 flex-row items-center border-b border-border">
-        <Pressable onPress={() => router.back()}>
-          <Text className="text-sm text-muted">← Back</Text>
-        </Pressable>
-        <Text className="flex-1 text-center text-base font-bold text-text">Site Check-in</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <FormScreenHeader
+        title="Site Check-in"
+        cancelLabel="Back"
+        onCancel={() => dismissTo(DISMISS.reports)}
+      />
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">

@@ -4,10 +4,13 @@
  */
 import React, { useState, useMemo } from 'react';
 import { View, Text, ScrollView, RefreshControl, TextInput, Pressable } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card, Badge, FAB, LoadingSkeleton, EmptyState, Button } from '@/components/ui';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
+import { FormScreenHeader } from '@/components/layout/ScreenHeader';
+import { mobileListBottomPadding } from '@/components/layout/fab-layout';
+import { dismissTo, DISMISS } from '@/utils/navigation';
 import { useRateAnalyses, useDuplicateRateAnalysis, type RateAnalysis } from '@/services/estimate.queries';
 import { formatINR, formatDate } from '@/utils/format';
 import { useAuthStore } from '@/stores/auth.store';
@@ -37,6 +40,7 @@ function componentSummary(ra: RateAnalysis) {
 
 export default function RateAnalysisLibraryScreen() {
   const router = useRouter();
+  const { from } = useLocalSearchParams<{ from?: string }>();
   const user = useAuthStore((s) => s.user);
   const { data, isLoading, refetch, isFetching } = useRateAnalyses();
   const duplicate = useDuplicateRateAnalysis();
@@ -60,8 +64,15 @@ export default function RateAnalysisLibraryScreen() {
   return (
     <SafeAreaView className="flex-1 bg-surface" edges={['bottom']}>
       <OfflineBanner />
+      <FormScreenHeader
+        title="Rate Analysis Library"
+        subtitle="Search and manage rate analyses"
+        onCancel={() =>
+          dismissTo(from === 'settings' ? DISMISS.settings : DISMISS.estimation)
+        }
+        cancelLabel="Back"
+      />
       <View className="p-4 pb-2 gap-3">
-        <Text className="text-2xl font-bold text-text">Rate Analysis Library</Text>
         {/* Search */}
         <View className="flex-row items-center bg-card border border-border rounded-lg px-3">
           <Text className="text-text-muted mr-2">🔍</Text>
@@ -91,7 +102,8 @@ export default function RateAnalysisLibraryScreen() {
 
       <ScrollView
         className="flex-1"
-        contentContainerClassName="px-4 pt-2 gap-3 pb-24"
+        contentContainerClassName="px-4 pt-2 gap-3"
+        contentContainerStyle={{ paddingBottom: mobileListBottomPadding(true) }}
         refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
       >
         {isLoading ? (
@@ -142,7 +154,7 @@ export default function RateAnalysisLibraryScreen() {
         )}
       </ScrollView>
 
-      {canManage && <FAB onPress={() => router.push('/(app)/estimation/rate-analysis/new')} icon="+" />}
+      {canManage && <FAB onPress={() => router.push('/(app)/estimation/rate-analysis/new')} />}
     </SafeAreaView>
   );
 }

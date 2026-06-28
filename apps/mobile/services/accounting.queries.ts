@@ -64,6 +64,8 @@ export interface Bill {
   approvedBy?: string | null;
 }
 
+export type InvoiceType = 'STANDARD' | 'RUNNING_ACCOUNT' | 'MILESTONE';
+
 export interface InvoiceInput {
   invoiceNumber: string;
   clientName: string;
@@ -75,13 +77,21 @@ export interface InvoiceInput {
   gstRate?: number;
   tdsEnabled?: boolean;
   notes?: string;
+  invoiceType?: InvoiceType;
+  raSequence?: number;
+  milestoneLabel?: string;
+  retentionPct?: number;
   lineItems: Array<{
+    boqItemId?: string;
     description: string;
     quantity: number;
     unit: string;
     rate: number;
     gstRate?: number;
     hsnSacCode?: string;
+    previousQty?: number;
+    currentQty?: number;
+    cumulativeQty?: number;
   }>;
 }
 

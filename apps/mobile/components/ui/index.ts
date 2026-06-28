@@ -6,7 +6,7 @@ export { ProgressBar } from './ProgressBar';
 export { EmptyState } from './EmptyState';
 export { LoadingSkeleton } from './LoadingSkeleton';
 export { FAB } from './FAB';
-export { Avatar } from './Avatar';
+export { Avatar, CompanyLogo } from './Avatar';
 export { SearchBar } from './SearchBar';
 export { NumberInput } from './NumberInput';
 export type { NumberInputProps } from './NumberInput';

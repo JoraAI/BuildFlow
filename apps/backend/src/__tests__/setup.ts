@@ -5,7 +5,7 @@
 import dotenv from 'dotenv';
 import path from 'node:path';
 
-dotenv.config({ path: path.resolve(__dirname, '../../../.env.test') });
+dotenv.config({ path: path.resolve(__dirname, '../../.env.test') });
 
 // Ensure required vars for env.ts schema even if .env.test is missing.
 process.env.NODE_ENV = process.env.NODE_ENV ?? 'test';

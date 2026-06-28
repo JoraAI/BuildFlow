@@ -6,12 +6,16 @@ import { env } from './config/env';
 import { logger } from './config/logger';
 import { disconnectPrisma } from './lib/prisma';
 import { disconnectRedis } from './lib/redis';
+import { startSubscriptionCron } from './jobs/subscription.cron';
+import { startNotificationWorker } from './jobs/notification.worker';
 
 const server = app.listen(env.PORT, () => {
   logger.info(`🚀 BuildFlow API listening on http://localhost:${env.PORT}`, {
     env: env.NODE_ENV,
     port: env.PORT,
   });
+  startSubscriptionCron();
+  startNotificationWorker();
 });
 
 async function shutdown(signal: string): Promise<void> {

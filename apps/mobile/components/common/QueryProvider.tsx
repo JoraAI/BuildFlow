@@ -7,6 +7,7 @@
  */
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { initOfflineSync } from '@/services/offline-sync.service';
 
 export function QueryProvider({ children }: { children: React.ReactNode }) {
   const queryClient = React.useRef<QueryClient | null>(null);
@@ -26,6 +27,14 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       },
     });
   }
+
+  React.useEffect(() => {
+    try {
+      return initOfflineSync();
+    } catch {
+      return undefined;
+    }
+  }, []);
 
   return <QueryClientProvider client={queryClient.current}>{children}</QueryClientProvider>;
 }

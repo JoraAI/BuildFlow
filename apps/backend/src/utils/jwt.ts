@@ -9,23 +9,30 @@ import { v4 as uuidv4 } from 'uuid';
 import { env } from '../config/env';
 
 export interface TokenPayload {
-  sub: string; // user id
-  companyId: string;
-  role: string;
+  sub: string; // user id or platform admin id
+  companyId?: string;
+  role?: string;
   tid: string; // token id (jti) for blacklisting
-  type: 'access' | 'refresh';
+  type: 'access' | 'refresh' | 'platform_access';
 }
 
 export interface DecodedToken extends Omit<JwtPayload, 'sub'>, TokenPayload {}
 
-export function signAccessToken(payload: Omit<TokenPayload, 'tid' | 'type'>): string {
+export function signAccessToken(payload: Omit<TokenPayload, 'tid' | 'type'> & { companyId: string; role: string }): string {
   const tid = uuidv4();
   return jwt.sign({ ...payload, tid, type: 'access' }, env.JWT_ACCESS_SECRET, {
     expiresIn: env.JWT_ACCESS_EXPIRES_IN,
   } as SignOptions);
 }
 
-export function signRefreshToken(payload: Omit<TokenPayload, 'tid' | 'type'>): string {
+export function signPlatformAccessToken(payload: { sub: string }): string {
+  const tid = uuidv4();
+  return jwt.sign({ sub: payload.sub, tid, type: 'platform_access' }, env.JWT_ACCESS_SECRET, {
+    expiresIn: env.JWT_ACCESS_EXPIRES_IN,
+  } as SignOptions);
+}
+
+export function signRefreshToken(payload: Omit<TokenPayload, 'tid' | 'type'> & { companyId: string; role: string }): string {
   const tid = uuidv4();
   return jwt.sign({ ...payload, tid, type: 'refresh' }, env.JWT_REFRESH_SECRET, {
     expiresIn: env.JWT_REFRESH_EXPIRES_IN,
@@ -38,6 +45,14 @@ export function verifyAccessToken(token: string): DecodedToken {
 
 export function verifyRefreshToken(token: string): DecodedToken {
   return jwt.verify(token, env.JWT_REFRESH_SECRET) as DecodedToken;
+}
+
+export function verifyPlatformAccessToken(token: string): DecodedToken {
+  const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET) as DecodedToken;
+  if (decoded.type !== 'platform_access') {
+    throw new Error('Wrong token type');
+  }
+  return decoded;
 }
 
 /** Decode expiry (seconds) from a jwt without verifying — for blacklist TTL. */

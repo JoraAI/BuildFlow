@@ -45,12 +45,14 @@ export async function getReport(req: Request, res: Response, next: NextFunction)
 export async function createReport(req: Request, res: Response, next: NextFunction) {
   try {
     const { companyId, id: userId } = req.user!;
+    const idempotencyKey = req.get('Idempotency-Key') ?? undefined;
     const item = await reportService.createReport(
       companyId,
       userId,
       req.params.id,
       req.body,
       ipOf(req),
+      idempotencyKey,
     );
     created(res, item);
   } catch (err) {
@@ -108,7 +110,7 @@ export async function confirmPhotoUpload(req: Request, res: Response, next: Next
 export async function resolvePhotos(req: Request, res: Response, next: NextFunction) {
   try {
     const report = await reportService.getReport(req.user!.companyId, req.params.id);
-    const urls = await reportService.resolvePhotoUrls(report.photos ?? []);
+    const urls = await reportService.resolvePhotoUrls(req.user!.companyId, report.photos ?? []);
     ok(res, { urls });
   } catch (err) {
     next(err);

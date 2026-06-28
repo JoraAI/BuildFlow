@@ -6,12 +6,14 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { apiFetch } from '../lib/api-client';
+import { apiFetch, ApiError } from '../lib/api-client';
 import type {
   CreateDailyReportInput,
   UpdateDailyReportInput,
   CheckInInput,
 } from '@buildflow/shared';
+import { useAppStore } from '@/stores/app.store';
+import { offlineQueueStore } from '@/stores/offline-queue.store';
 
 /* ------------------------------------------------------------------ */
 /* Keys                                                                */
@@ -106,11 +108,68 @@ export function useReportPhotos(reportId: string | undefined, enabled = true) {
 export function useCreateReport(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: CreateDailyReportInput) =>
-      apiFetch<ReportListItem>(`/projects/${projectId}/reports`, {
-        method: 'POST',
-        body: JSON.stringify(input),
-      }),
+    mutationFn: async (input: CreateDailyReportInput) => {
+      const isOffline = useAppStore.getState().networkStatus === 'offline';
+
+      if (isOffline) {
+        const idempotencyKey = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const opId = Math.random().toString(36).slice(2);
+        await offlineQueueStore.enqueue({
+          id: opId,
+          type: 'CREATE_DAILY_REPORT',
+          projectId,
+          idempotencyKey,
+          payload: input,
+          createdAt: new Date().toISOString(),
+        });
+        return {
+          id: opId,
+          reportDate: input.reportDate,
+          weather: input.weather ?? null,
+          siteStatus: input.siteStatus ?? null,
+          workDone: input.workDone ?? null,
+          issues: input.issues ?? null,
+          photos: [],
+          workersCount: input.workersCount ?? 0,
+          reportedByUser: { id: 'offline', name: 'Pending sync' },
+          materialUsages: [],
+        } satisfies ReportListItem;
+      }
+
+      try {
+        return await apiFetch<ReportListItem>(`/projects/${projectId}/reports`, {
+          method: 'POST',
+          body: JSON.stringify(input),
+          headers: { 'Idempotency-Key': `${Date.now()}-${Math.random().toString(36).slice(2)}` },
+        });
+      } catch (err) {
+        if (err instanceof ApiError && (err.code === 'NETWORK_ERROR' || err.status === 0)) {
+          const idempotencyKey = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+          const opId = Math.random().toString(36).slice(2);
+          await offlineQueueStore.enqueue({
+            id: opId,
+            type: 'CREATE_DAILY_REPORT',
+            projectId,
+            idempotencyKey,
+            payload: input,
+            createdAt: new Date().toISOString(),
+          });
+          return {
+            id: opId,
+            reportDate: input.reportDate,
+            weather: input.weather ?? null,
+            siteStatus: input.siteStatus ?? null,
+            workDone: input.workDone ?? null,
+            issues: input.issues ?? null,
+            photos: [],
+            workersCount: input.workersCount ?? 0,
+            reportedByUser: { id: 'offline', name: 'Pending sync' },
+            materialUsages: [],
+          } satisfies ReportListItem;
+        }
+        throw err;
+      }
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['reports'] });
       qc.invalidateQueries({

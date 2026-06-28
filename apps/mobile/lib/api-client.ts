@@ -90,6 +90,47 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   return body.data;
 }
 
+export interface ApiListMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+/** Paginated list fetch — returns data + meta (apiFetch strips meta). */
+export async function apiFetchList<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<{ data: T[]; meta: ApiListMeta }> {
+  const accessToken = await SecureStore.getItemAsync(SECURE_STORE_KEYS.ACCESS_TOKEN);
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(init.headers as Record<string, string>),
+  };
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
+  const res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+  const body: ApiResponse<T[]> = await res.json().catch(() => ({
+    success: false,
+    data: [] as T[],
+  }));
+
+  if (!res.ok || !body.success) {
+    throw new ApiError(
+      body.error?.code ?? 'ERROR',
+      body.error?.message ?? 'Request failed',
+      res.status,
+      body.error?.details,
+    );
+  }
+
+  if (!body.meta) {
+    throw new ApiError('INVALID_RESPONSE', 'Missing pagination metadata', res.status);
+  }
+
+  return { data: body.data, meta: body.meta };
+}
+
 /**
  * Download a binary file (Excel/PDF) from the API and save+share it.
  * Returns the local file URI.

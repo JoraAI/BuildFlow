@@ -3,6 +3,7 @@
  */
 import { NextFunction, Request, Response } from 'express';
 import * as projectService from '../services/project.service';
+import * as projectMemberService from '../services/project-member.service';
 import { ok, okList, created, buildMeta } from '../utils/response';
 
 function ipOf(req: Request): string | undefined {
@@ -15,8 +16,8 @@ function ipOf(req: Request): string | undefined {
 
 export async function listProjects(req: Request, res: Response, next: NextFunction) {
   try {
-    const { companyId } = req.user!;
-    const result = await projectService.listProjects(companyId, req.query as never);
+    const { companyId, id: userId, role } = req.user!;
+    const result = await projectService.listProjects(companyId, userId, role, req.query as never);
     okList(res, result.rows, buildMeta(result.page, result.limit, result.total));
   } catch (err) {
     next(err);
@@ -72,6 +73,28 @@ export async function getProjectSummary(req: Request, res: Response, next: NextF
 }
 
 /* ---------------- WBS ---------------- */
+
+export async function getMembers(req: Request, res: Response, next: NextFunction) {
+  try {
+    const rows = await projectMemberService.listMembers(req.user!.companyId, req.params.id);
+    ok(res, rows);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function setMembers(req: Request, res: Response, next: NextFunction) {
+  try {
+    const rows = await projectMemberService.setMembers(
+      req.user!.companyId,
+      req.params.id,
+      req.body.members,
+    );
+    ok(res, rows);
+  } catch (err) {
+    next(err);
+  }
+}
 
 export async function getWbsTree(req: Request, res: Response, next: NextFunction) {
   try {

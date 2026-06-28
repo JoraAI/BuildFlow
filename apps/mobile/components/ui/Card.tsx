@@ -8,10 +8,10 @@ interface CardProps {
 }
 
 export function Card({ children, className = '', onPress }: CardProps) {
-  const baseClass = `bg-card rounded-xl border border-border p-4 ${className}`;
+  const baseClass = `bg-card rounded-xl border border-border p-4 ${onPress ? 'active:opacity-80' : ''} ${className}`;
   if (onPress) {
     return (
-      <Pressable onPress={onPress} className={`${baseClass} active:opacity-80`}>
+      <Pressable onPress={onPress} className={baseClass}>
         {children}
       </Pressable>
     );

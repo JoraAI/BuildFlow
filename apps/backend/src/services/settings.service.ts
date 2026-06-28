@@ -6,12 +6,92 @@
  */
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
+import { randomUUID } from 'crypto';
+import {
+  buildS3Key,
+  getPresignedUploadUrl,
+  getPresignedDownloadUrl,
+  keyToLogicalUrlForCompany,
+  logicalUrlToKey,
+} from '../lib/s3';
+
+export async function resolveLogoDisplayUrl(companyId: string, logoUrl: string | null): Promise<string | null> {
+  if (!logoUrl) return null;
+  if (logoUrl.startsWith('http://') || logoUrl.startsWith('https://')) return logoUrl;
+  const parsed = logicalUrlToKey(logoUrl);
+  if (!parsed) return null;
+  try {
+    return await getPresignedDownloadUrl({ companyId, key: parsed.key });
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// My Profile (self-service)
+// ---------------------------------------------------------------------------
+export async function getMyProfile(userId: string, companyId: string) {
+  const user = await prisma.user.findFirstOrThrow({
+    where: { id: userId, companyId },
+    include: { company: { select: { name: true, logoUrl: true } } },
+  });
+  const companyLogoUrl = await resolveLogoDisplayUrl(user.companyId, user.company.logoUrl);
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    role: user.role as string,
+    companyId: user.companyId,
+    companyName: user.company.name,
+    companyLogoUrl,
+  };
+}
+
+export async function updateMyProfile(
+  userId: string,
+  companyId: string,
+  data: { name?: string; phone?: string | null },
+) {
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.phone !== undefined ? { phone: data.phone } : {}),
+    },
+    include: { company: { select: { name: true, logoUrl: true } } },
+  });
+  if (user.companyId !== companyId) throw ApiError.forbidden();
+  const companyLogoUrl = await resolveLogoDisplayUrl(user.companyId, user.company.logoUrl);
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    role: user.role as string,
+    companyId: user.companyId,
+    companyName: user.company.name,
+    companyLogoUrl,
+  };
+}
+
+export async function createCompanyLogoUploadUrl(
+  companyId: string,
+  input: { filename: string; contentType: string },
+) {
+  const ext = input.filename.split('.').pop() ?? 'png';
+  const filename = `${randomUUID()}.${ext}`;
+  const key = buildS3Key({ companyId, entityType: 'company-logo', filename });
+  const uploadUrl = await getPresignedUploadUrl({ companyId, key, contentType: input.contentType });
+  const logoUrl = await keyToLogicalUrlForCompany(companyId, key);
+  return { uploadUrl, logoUrl };
+}
 
 // ---------------------------------------------------------------------------
 // Company Profile
 // ---------------------------------------------------------------------------
 export async function getCompanyProfile(companyId: string) {
-  return prisma.company.findUniqueOrThrow({
+  const company = await prisma.company.findUniqueOrThrow({
     where: { id: companyId },
     select: {
       id: true,
@@ -24,6 +104,8 @@ export async function getCompanyProfile(companyId: string) {
       createdAt: true,
     },
   });
+  const logoDisplayUrl = await resolveLogoDisplayUrl(companyId, company.logoUrl);
+  return { ...company, logoDisplayUrl };
 }
 
 export interface CompanyUpdateInput {
@@ -36,7 +118,7 @@ export interface CompanyUpdateInput {
 }
 
 export async function updateCompanyProfile(companyId: string, data: CompanyUpdateInput) {
-  return prisma.company.update({
+  const company = await prisma.company.update({
     where: { id: companyId },
     data,
     select: {
@@ -49,6 +131,8 @@ export async function updateCompanyProfile(companyId: string, data: CompanyUpdat
       state: true,
     },
   });
+  const logoDisplayUrl = await resolveLogoDisplayUrl(companyId, company.logoUrl);
+  return { ...company, logoDisplayUrl };
 }
 
 // ---------------------------------------------------------------------------

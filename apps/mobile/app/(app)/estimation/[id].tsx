@@ -4,10 +4,15 @@
  */
 import React, { useState } from 'react';
 import { View, Text, ScrollView, Pressable, Alert, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
-import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card, Badge, LoadingSkeleton, EmptyState } from '@/components/ui';
+import { ActionBar } from '@/components/layout/ActionBar';
+import { FormScreenHeader } from '@/components/layout/ScreenHeader';
+import { dismissTo, DISMISS } from '@/utils/navigation';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
+import { useViewport } from '@/hooks/useViewport';
+import { confirmAsync, alertAsync } from '@/utils/confirm';
 import { SummaryBreakdownCard } from '@/components/ui';
 import { useEstimate, useEstimateMutations, useExportEstimate, type EstimateSection, type EstimateItem } from '@/services/estimate.queries';
 import { useAuthStore } from '@/stores/auth.store';
@@ -28,6 +33,7 @@ export default function EstimateDetailScreen() {
   const { data: estimate, isLoading } = useEstimate(id);
   const mut = useEstimateMutations(id);
   const exportMut = useExportEstimate(id);
+  const { isDesktop } = useViewport();
   const [showReject, setShowReject] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
 
@@ -87,32 +93,34 @@ export default function EstimateDetailScreen() {
   }
 
   async function handleConvert() {
-    Alert.alert(
+    const ok = await confirmAsync(
       'Convert to BOQ?',
       'This will archive the existing BOQ and create new BOQ items from this estimate. The project budget will be updated.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Convert',
-          onPress: async () => {
-            try {
-              const res = await mut.convertToBoq.mutateAsync();
-              Alert.alert('Success', `Created ${res.boqItems.length} BOQ items. Project budget updated.`);
-            } catch (e) {
-              Alert.alert('Conversion failed', e instanceof Error ? e.message : '');
-            }
-          },
-        },
-      ],
     );
+    if (!ok) return;
+    try {
+      const res = await mut.convertToBoq.mutateAsync();
+      await alertAsync(
+        'BOQ Created',
+        `Created ${res.created} BOQ item${res.created === 1 ? '' : 's'}${res.archived > 0 ? ` (archived ${res.archived} previous)` : ''}. Project budget set to ${formatINR(res.budget)}.`,
+      );
+      router.push(`/projects/${res.projectId}?tab=boq` as never);
+    } catch (e) {
+      await alertAsync('Conversion failed', e instanceof Error ? e.message : 'Unknown error');
+    }
   }
 
   return (
     <SafeAreaView className="flex-1 bg-surface" edges={['bottom']}>
-      <Stack.Screen options={{ title: estimate.name }} />
+      <FormScreenHeader
+        title={estimate.name}
+        subtitle={`Version ${estimate.version}.0 · ${estimate.status}`}
+        cancelLabel="Back"
+        onCancel={() => dismissTo(DISMISS.estimateTab(estimate.projectId))}
+      />
       <OfflineBanner />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
-        <ScrollView contentContainerClassName="p-4 gap-4 pb-32">
+        <ScrollView contentContainerClassName={isDesktop ? 'px-8 py-6 gap-4 pb-8' : 'p-4 gap-4 pb-32'}>
           {/* Header */}
           <Card>
             <View className="flex-row justify-between items-start mb-2">
@@ -249,76 +257,64 @@ export default function EstimateDetailScreen() {
         </ScrollView>
 
         {/* Action footer */}
-        <View className="border-t border-border bg-card p-4 gap-2">
+        <ActionBar>
           {canEdit && (
-            <Button label="Edit Estimate" variant="secondary" onPress={() => router.push(`/(app)/estimation/edit?id=${id}`)} />
+            <Button label="Edit Estimate" variant="secondary" size="sm" onPress={() => router.push(`/(app)/estimation/create?projectId=${estimate.projectId}&estimateId=${id}`)} />
           )}
           {canApprove && (
-            <View className="flex-row gap-2">
-              <View className="flex-1">
-                <Button label="Approve" onPress={handleApprove} loading={mut.approve.isPending} />
-              </View>
-              <View className="flex-1">
-                <Button label="Reject" variant="danger" onPress={() => setShowReject(true)} />
-              </View>
-            </View>
+            <>
+              <Button label="Approve" size="sm" onPress={handleApprove} loading={mut.approve.isPending} />
+              <Button label="Reject" variant="danger" size="sm" onPress={() => setShowReject(true)} />
+            </>
           )}
           {canConvert && (
             <Button
               label="Convert to BOQ"
-              variant="primary"
+              size="sm"
               onPress={handleConvert}
               loading={mut.convertToBoq.isPending}
             />
           )}
           <Button
-            label="Duplicate as New Version"
+            label="Duplicate"
             variant="ghost"
             size="sm"
             onPress={async () => {
               try {
                 await mut.duplicate.mutateAsync();
-                router.back();
+                dismissTo(DISMISS.estimateTab(estimate.projectId));
               } catch (e) {
-                Alert.alert('Duplicate failed', e instanceof Error ? e.message : '');
+                await alertAsync('Duplicate failed', e instanceof Error ? e.message : '');
               }
             }}
           />
-
-          {/* Export buttons */}
-          <View className="flex-row gap-2">
-            <View className="flex-1">
-              <Button
-                label="Export Excel"
-                variant="secondary"
-                size="sm"
-                loading={exportMut.isPending}
-                onPress={async () => {
-                  try {
-                    await exportMut.mutateAsync('excel');
-                  } catch (e) {
-                    Alert.alert('Export failed', e instanceof Error ? e.message : '');
-                  }
-                }}
-              />
-            </View>
-            <View className="flex-1">
-              <Button
-                label="Export PDF"
-                variant="secondary"
-                size="sm"
-                loading={exportMut.isPending}
-                onPress={async () => {
-                  try {
-                    await exportMut.mutateAsync('pdf');
-                  } catch (e) {
-                    Alert.alert('Export failed', e instanceof Error ? e.message : '');
-                  }
-                }}
-              />
-            </View>
-          </View>
-        </View>
+          <Button
+            label="Export Excel"
+            variant="secondary"
+            size="sm"
+            loading={exportMut.isPending}
+            onPress={async () => {
+              try {
+                await exportMut.mutateAsync('excel');
+              } catch (e) {
+                await alertAsync('Export failed', e instanceof Error ? e.message : '');
+              }
+            }}
+          />
+          <Button
+            label="Export PDF"
+            variant="secondary"
+            size="sm"
+            loading={exportMut.isPending}
+            onPress={async () => {
+              try {
+                await exportMut.mutateAsync('pdf');
+              } catch (e) {
+                await alertAsync('Export failed', e instanceof Error ? e.message : '');
+              }
+            }}
+          />
+        </ActionBar>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

@@ -1,8 +1,5 @@
 /**
- * BuildFlow — Auth route integration tests.
- *
- * Tests validation, 404, health, and the validation error envelope.
- * These do not hit the DB so they run without Postgres/Redis available.
+ * Auth route integration tests.
  */
 import request from 'supertest';
 import { app } from '../../app';
@@ -13,6 +10,15 @@ describe('GET /health', () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data.status).toBe('ok');
+  });
+});
+
+describe('GET /api/auth/config', () => {
+  it('returns public auth config', async () => {
+    const res = await request(app).get('/api/auth/config');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(typeof res.body.data.allowPublicCompanyRegistration).toBe('boolean');
   });
 });
 
@@ -52,12 +58,37 @@ describe('POST /api/auth/login (validation)', () => {
   });
 });
 
+describe('POST /api/auth/accept-invite (validation)', () => {
+  it('requires token, name, and strong password', async () => {
+    const res = await request(app).post('/api/auth/accept-invite').send({});
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+});
+
+describe('GET /api/auth/invite/:token', () => {
+  it('returns 404 for invalid token', async () => {
+    const res = await request(app).get('/api/auth/invite/not-a-valid-token');
+    expect(res.status).toBe(404);
+    expect(res.body.success).toBe(false);
+  });
+});
+
 describe('GET /api/auth/me (unauthenticated)', () => {
   it('returns 401 without a token', async () => {
     const res = await request(app).get('/api/auth/me');
     expect(res.status).toBe(401);
     expect(res.body.success).toBe(false);
     expect(res.body.error.code).toBe('UNAUTHORIZED');
+  });
+});
+
+describe('POST /api/settings/users/invite (unauthenticated)', () => {
+  it('returns 401 without a token', async () => {
+    const res = await request(app)
+      .post('/api/settings/users/invite')
+      .send({ email: 'test@example.com', role: 'PM' });
+    expect(res.status).toBe(401);
   });
 });
 
@@ -69,10 +100,6 @@ describe('Unknown route', () => {
   });
 
   it('returns 401 for unknown API paths (auth shielded)', async () => {
-    // Unknown /api/* paths are caught by the authenticated routers
-    // (estimateRouter, financialReportRouter, etc.) which apply
-    // authenticateToken before route matching. This is intentional —
-    // it prevents leaking route existence to unauthenticated callers.
     const res = await request(app).get('/api/nonexistent');
     expect(res.status).toBe(401);
     expect(res.body.error.code).toBe('UNAUTHORIZED');

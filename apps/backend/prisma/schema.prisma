@@ -98,6 +98,39 @@ enum BillCategory {
   OTHER
 }
 
+enum InvoiceType {
+  STANDARD
+  RUNNING_ACCOUNT
+  MILESTONE
+}
+
+enum ApprovalStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum StockMovementType {
+  IN
+  OUT
+  ADJUST
+}
+
+enum WorkOrderStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum ReportScheduleType {
+  GST_SUMMARY
+  TDS_REPORT
+  COMPANY_DASHBOARD
+  PROJECT_PL
+}
+
 enum MessageType {
   TEXT
   IMAGE
@@ -111,6 +144,53 @@ enum TaskConstraintType {
   MUST_FINISH_ON
   START_NO_EARLIER_THAN
   START_NO_LATER_THAN
+}
+
+enum SubscriptionPlan {
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+enum TicketCategory {
+  PROFILE_CHANGE
+  COMPANY_CHANGE
+  INTEGRATION_SETUP
+  BILLING
+  BUG
+  DATA_FIX
+  OTHER
+}
+
+enum IntegrationProvider {
+  TWILIO
+  RAZORPAY
+  STRIPE
+  TALLY
+  GOOGLE_MAPS
+  LLM
+  S3
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  REJECTED
+  ESCALATED
+}
+
+enum TicketScope {
+  COMPANY
+  PLATFORM
 }
 
 // ------------------------------------------------------------------
@@ -127,7 +207,15 @@ model Company {
   state     String
   createdAt DateTime @default(now()) @map("created_at")
 
+  subscriptionPlan   SubscriptionPlan   @default(STARTER) @map("subscription_plan")
+  subscriptionStatus SubscriptionStatus @default(TRIAL) @map("subscription_status")
+  trialStartsAt      DateTime           @default(now()) @map("trial_starts_at")
+  trialEndsAt          DateTime?          @map("trial_ends_at")
+  lastPaymentAt        DateTime?          @map("last_payment_at")
+  saasPaymentRef       String?            @map("saas_payment_ref")
+
   users               User[]
+  userInvites         UserInvite[]
   projects            Project[]
   resources           Resource[]
   rateAnalyses        RateAnalysis[]
@@ -138,6 +226,12 @@ model Company {
   chatMessages        ChatMessage[]
   auditLogs           AuditLog[]
   estimates           Estimate[]
+  supportTickets      SupportTicket[]
+  integrations        CompanyIntegration[]
+  changeOrders        ChangeOrder[]
+  subcontractors      Subcontractor[]
+  stockLocations      StockLocation[]
+  reportSchedules     ReportSchedule[]
 
   @@map("companies")
 }
@@ -171,13 +265,41 @@ id           String   @id @default(uuid()) @db.Uuid
   chatMessages         ChatMessage[]
   notifications        Notification[]
   auditLogs            AuditLog[]
+  invitesSent          UserInvite[] @relation("InvitesSent")
+  ticketsCreated       SupportTicket[] @relation("TicketsCreated")
+  projectMembers       ProjectMember[]
+  changeOrdersCreated  ChangeOrder[] @relation("ChangeOrderCreatedBy")
+  changeOrdersApproved ChangeOrder[] @relation("ChangeOrderApprovedBy")
+  portalAccessCreated  ClientPortalAccess[] @relation("PortalAccessCreatedBy")
 
   @@index([companyId])
   @@map("users")
 }
 
 // ------------------------------------------------------------------
-// 3. Project                                                         
+// 2b. UserInvite (team onboarding)
+// ------------------------------------------------------------------
+
+model UserInvite {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  email       String
+  role        Role      @default(PM)
+  tokenHash   String    @unique @map("token_hash")
+  invitedById String    @map("invited_by_id") @db.Uuid
+  expiresAt   DateTime  @map("expires_at")
+  acceptedAt  DateTime? @map("accepted_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invitedBy User    @relation("InvitesSent", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, email])
+  @@map("user_invites")
+}
+
+// ------------------------------------------------------------------
+// 3. Project
 // ------------------------------------------------------------------
 
 model Project {
@@ -211,6 +333,14 @@ model Project {
   bills          Bill[]
   journalEntries JournalEntry[]
   chatMessages   ChatMessage[]
+  members              ProjectMember[]
+  changeOrders         ChangeOrder[]
+  materialRequisitions MaterialRequisition[]
+  purchaseOrders       PurchaseOrder[]
+  goodsReceiptNotes    GoodsReceiptNote[]
+  stockLocations       StockLocation[]
+  subcontractWorkOrders SubcontractWorkOrder[]
+  portalAccess         ClientPortalAccess[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -318,6 +448,11 @@ model Resource {
   rateAnalysisComponents RateAnalysisComponent[]
   priceHistory       MaterialPriceHistory[]
   materialUsages     MaterialUsage[]
+  requisitionLines   MaterialRequisitionLine[]
+  purchaseOrderLines PurchaseOrderLine[]
+  goodsReceiptLines  GoodsReceiptLine[]
+  stockBalances      StockBalance[]
+  stockMovements     StockMovement[]
 
   @@unique([companyId, name, type])
   @@index([companyId])
@@ -628,6 +763,14 @@ model Invoice {
   total         Decimal       @default(0) @db.Decimal(14, 2)
   paidAmount    Decimal       @default(0) @map("paid_amount") @db.Decimal(14, 2)
   notes         String?
+  invoiceType   InvoiceType   @default(STANDARD) @map("invoice_type")
+  raSequence    Int?          @map("ra_sequence")
+  milestoneLabel String?      @map("milestone_label")
+  retentionPct  Decimal       @default(0) @map("retention_pct") @db.Decimal(5, 2)
+  retentionAmount Decimal     @default(0) @map("retention_amount") @db.Decimal(14, 2)
+  previousCertifiedTotal Decimal @default(0) @map("previous_certified_total") @db.Decimal(14, 2)
+  currentCertifiedTotal  Decimal @default(0) @map("current_certified_total") @db.Decimal(14, 2)
+  cumulativeCertifiedTotal Decimal @default(0) @map("cumulative_certified_total") @db.Decimal(14, 2)
 
   project   Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
   company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -636,6 +779,7 @@ model Invoice {
   @@index([projectId])
   @@index([companyId])
   @@index([status])
+  @@index([invoiceType])
   @@map("invoices")
 }
 
@@ -654,6 +798,10 @@ model InvoiceLineItem {
   amount     Decimal @default(0) @db.Decimal(14, 2)
   gstRate    Decimal @default(0) @map("gst_rate") @db.Decimal(5, 2)
   hsnSacCode String? @map("hsn_sac_code")
+  previousQty Decimal @default(0) @map("previous_qty") @db.Decimal(12, 3)
+  currentQty  Decimal @default(0) @map("current_qty") @db.Decimal(12, 3)
+  cumulativeQty Decimal @default(0) @map("cumulative_qty") @db.Decimal(12, 3)
+  certifiedAmount Decimal @default(0) @map("certified_amount") @db.Decimal(14, 2)
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   boqItem BOQItem? @relation(fields: [boqItemId], references: [id])
@@ -684,11 +832,17 @@ model Bill {
   category    BillCategory @default(OTHER)
   attachmentUrl String?   @map("attachment_url")
   approvedBy  String?     @map("approved_by") @db.Uuid
+  purchaseOrderId String? @map("purchase_order_id") @db.Uuid
+  workOrderId String?     @map("work_order_id") @db.Uuid
+  measurementId String?   @map("measurement_id") @db.Uuid
   createdAt   DateTime    @default(now()) @map("created_at")
 
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   approvedByUser User? @relation("BillApprovedBy", fields: [approvedBy], references: [id])
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  workOrder SubcontractWorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  measurement SubcontractMeasurement? @relation(fields: [measurementId], references: [id], onDelete: SetNull)
 
   @@unique([companyId, billNumber])
   @@index([projectId])
@@ -789,4 +943,425 @@ model AuditLog {
   @@index([companyId])
   @@index([entityType, entityId])
   @@map("audit_logs")
+}
+
+// ------------------------------------------------------------------
+// 25. CompanyIntegration (per-company API keys & settings)
+// ------------------------------------------------------------------
+
+model CompanyIntegration {
+  id           String              @id @default(uuid()) @db.Uuid
+  companyId    String              @map("company_id") @db.Uuid
+  provider     IntegrationProvider
+  settings     Json                @default("{}")
+  configuredBy String?             @map("configured_by") @db.Uuid
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, provider])
+  @@map("company_integrations")
+}
+
+// ------------------------------------------------------------------
+// 26. SupportTicket (company + platform support)
+// ------------------------------------------------------------------
+
+model SupportTicket {
+  id             String         @id @default(uuid()) @db.Uuid
+  companyId      String         @map("company_id") @db.Uuid
+  requesterId    String         @map("requester_id") @db.Uuid
+  scope          TicketScope    @default(COMPANY)
+  category       TicketCategory
+  subject        String
+  description    String
+  payload        Json?
+  status         TicketStatus   @default(OPEN)
+  resolutionNote String?        @map("resolution_note")
+  resolvedAt     DateTime?      @map("resolved_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  requester User    @relation("TicketsCreated", fields: [requesterId], references: [id])
+
+  @@index([companyId, scope, status])
+  @@index([requesterId])
+  @@map("support_tickets")
+}
+
+// ------------------------------------------------------------------
+// ProjectMember (project-scoped access)
+// ------------------------------------------------------------------
+
+model ProjectMember {
+  id        String   @id @default(uuid()) @db.Uuid
+  projectId String   @map("project_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  role      Role
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@map("project_members")
+}
+
+// ------------------------------------------------------------------
+// ChangeOrder (variations)
+// ------------------------------------------------------------------
+
+model ChangeOrder {
+  id                 String         @id @default(uuid()) @db.Uuid
+  projectId          String         @map("project_id") @db.Uuid
+  companyId          String         @map("company_id") @db.Uuid
+  number             String
+  title              String
+  reason             String?
+  status             ApprovalStatus @default(DRAFT)
+  costImpact         Decimal        @default(0) @map("cost_impact") @db.Decimal(14, 2)
+  scheduleImpactDays Int            @default(0) @map("schedule_impact_days")
+  estimateId         String?        @map("estimate_id") @db.Uuid
+  createdBy          String         @map("created_by") @db.Uuid
+  approvedBy         String?        @map("approved_by") @db.Uuid
+  approvedAt         DateTime?      @map("approved_at")
+  rejectionReason    String?        @map("rejection_reason")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+
+  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  company   Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdByUser  User         @relation("ChangeOrderCreatedBy", fields: [createdBy], references: [id])
+  approvedByUser User?        @relation("ChangeOrderApprovedBy", fields: [approvedBy], references: [id])
+  lines     ChangeOrderLine[]
+
+  @@unique([projectId, number])
+  @@index([companyId, status])
+  @@map("change_orders")
+}
+
+model ChangeOrderLine {
+  id            String  @id @default(uuid()) @db.Uuid
+  changeOrderId String  @map("change_order_id") @db.Uuid
+  boqItemId     String? @map("boq_item_id") @db.Uuid
+  description   String
+  unit          String
+  qtyDelta      Decimal @map("qty_delta") @db.Decimal(12, 3)
+  rate          Decimal @db.Decimal(12, 2)
+  amount        Decimal @default(0) @db.Decimal(14, 2)
+
+  changeOrder ChangeOrder @relation(fields: [changeOrderId], references: [id], onDelete: Cascade)
+
+  @@index([changeOrderId])
+  @@map("change_order_lines")
+}
+
+// ------------------------------------------------------------------
+// Procurement
+// ------------------------------------------------------------------
+
+model MaterialRequisition {
+  id          String         @id @default(uuid()) @db.Uuid
+  projectId   String         @map("project_id") @db.Uuid
+  companyId   String         @map("company_id") @db.Uuid
+  reqNumber   String         @map("req_number")
+  status      ApprovalStatus @default(DRAFT)
+  notes       String?
+  requestedBy String         @map("requested_by") @db.Uuid
+  approvedBy  String?        @map("approved_by") @db.Uuid
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  lines   MaterialRequisitionLine[]
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([companyId, reqNumber])
+  @@index([projectId])
+  @@map("material_requisitions")
+}
+
+model MaterialRequisitionLine {
+  id            String  @id @default(uuid()) @db.Uuid
+  requisitionId String  @map("requisition_id") @db.Uuid
+  resourceId    String  @map("resource_id") @db.Uuid
+  boqItemId     String? @map("boq_item_id") @db.Uuid
+  quantity      Decimal @db.Decimal(12, 3)
+  unit          String
+
+  requisition MaterialRequisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  resource    Resource            @relation(fields: [resourceId], references: [id])
+
+  @@index([requisitionId])
+  @@map("material_requisition_lines")
+}
+
+model PurchaseOrder {
+  id            String         @id @default(uuid()) @db.Uuid
+  projectId     String         @map("project_id") @db.Uuid
+  companyId     String         @map("company_id") @db.Uuid
+  requisitionId String?        @map("requisition_id") @db.Uuid
+  poNumber      String         @map("po_number")
+  vendorName    String         @map("vendor_name")
+  status        ApprovalStatus @default(DRAFT)
+  totalAmount   Decimal        @default(0) @map("total_amount") @db.Decimal(14, 2)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  project     Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requisition MaterialRequisition? @relation(fields: [requisitionId], references: [id], onDelete: SetNull)
+  lines       PurchaseOrderLine[]
+  goodsReceipts GoodsReceiptNote[]
+  bills       Bill[]
+
+  @@unique([companyId, poNumber])
+  @@index([projectId])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderLine {
+  id              String  @id @default(uuid()) @db.Uuid
+  purchaseOrderId String  @map("purchase_order_id") @db.Uuid
+  resourceId      String  @map("resource_id") @db.Uuid
+  quantity        Decimal @db.Decimal(12, 3)
+  unit            String
+  rate            Decimal @db.Decimal(12, 2)
+  amount          Decimal @default(0) @db.Decimal(14, 2)
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  resource      Resource      @relation(fields: [resourceId], references: [id])
+
+  @@index([purchaseOrderId])
+  @@map("purchase_order_lines")
+}
+
+model GoodsReceiptNote {
+  id              String   @id @default(uuid()) @db.Uuid
+  projectId       String   @map("project_id") @db.Uuid
+  companyId       String   @map("company_id") @db.Uuid
+  purchaseOrderId String   @map("purchase_order_id") @db.Uuid
+  grnNumber       String   @map("grn_number")
+  receivedDate    DateTime @map("received_date") @db.Date
+  notes           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  lines         GoodsReceiptLine[]
+
+  @@unique([companyId, grnNumber])
+  @@index([projectId])
+  @@map("goods_receipt_notes")
+}
+
+model GoodsReceiptLine {
+  id         String  @id @default(uuid()) @db.Uuid
+  grnId      String  @map("grn_id") @db.Uuid
+  resourceId String  @map("resource_id") @db.Uuid
+  quantity   Decimal @db.Decimal(12, 3)
+  unit       String
+
+  grn      GoodsReceiptNote @relation(fields: [grnId], references: [id], onDelete: Cascade)
+  resource Resource         @relation(fields: [resourceId], references: [id])
+
+  @@index([grnId])
+  @@map("goods_receipt_lines")
+}
+
+model StockLocation {
+  id        String  @id @default(uuid()) @db.Uuid
+  companyId String  @map("company_id") @db.Uuid
+  projectId String? @map("project_id") @db.Uuid
+  name      String
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  project  Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  balances StockBalance[]
+  movements StockMovement[]
+
+  @@index([companyId])
+  @@map("stock_locations")
+}
+
+model StockBalance {
+  id         String  @id @default(uuid()) @db.Uuid
+  locationId String  @map("location_id") @db.Uuid
+  resourceId String  @map("resource_id") @db.Uuid
+  quantity   Decimal @default(0) @db.Decimal(12, 3)
+
+  location StockLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  resource Resource      @relation(fields: [resourceId], references: [id])
+
+  @@unique([locationId, resourceId])
+  @@map("stock_balances")
+}
+
+model StockMovement {
+  id            String            @id @default(uuid()) @db.Uuid
+  locationId    String            @map("location_id") @db.Uuid
+  resourceId    String            @map("resource_id") @db.Uuid
+  quantity      Decimal           @db.Decimal(12, 3)
+  type          StockMovementType
+  referenceType String?           @map("reference_type")
+  referenceId   String?           @map("reference_id")
+  createdAt     DateTime          @default(now()) @map("created_at")
+
+  location StockLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  resource Resource      @relation(fields: [resourceId], references: [id])
+
+  @@index([locationId])
+  @@map("stock_movements")
+}
+
+// ------------------------------------------------------------------
+// Subcontractors
+// ------------------------------------------------------------------
+
+model Subcontractor {
+  id           String  @id @default(uuid()) @db.Uuid
+  companyId    String  @map("company_id") @db.Uuid
+  name         String
+  gstin        String?
+  contactPhone String? @map("contact_phone")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  company    Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  workOrders SubcontractWorkOrder[]
+
+  @@index([companyId])
+  @@map("subcontractors")
+}
+
+model SubcontractWorkOrder {
+  id              String          @id @default(uuid()) @db.Uuid
+  projectId       String          @map("project_id") @db.Uuid
+  subcontractorId String          @map("subcontractor_id") @db.Uuid
+  woNumber        String          @map("wo_number")
+  scope           String
+  contractValue   Decimal         @default(0) @map("contract_value") @db.Decimal(14, 2)
+  retentionPct    Decimal         @default(0) @map("retention_pct") @db.Decimal(5, 2)
+  advanceAmount   Decimal         @default(0) @map("advance_amount") @db.Decimal(14, 2)
+  status          WorkOrderStatus @default(DRAFT)
+  startDate       DateTime?       @map("start_date") @db.Date
+  endDate         DateTime?       @map("end_date") @db.Date
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  project       Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  subcontractor Subcontractor           @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
+  measurements  SubcontractMeasurement[]
+  bills         Bill[]
+
+  @@unique([projectId, woNumber])
+  @@map("subcontract_work_orders")
+}
+
+model SubcontractMeasurement {
+  id          String         @id @default(uuid()) @db.Uuid
+  workOrderId String         @map("work_order_id") @db.Uuid
+  periodLabel String         @map("period_label")
+  status      ApprovalStatus @default(DRAFT)
+  totalAmount Decimal        @default(0) @map("total_amount") @db.Decimal(14, 2)
+  approvedBy  String?        @map("approved_by") @db.Uuid
+  approvedAt  DateTime?      @map("approved_at")
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  workOrder SubcontractWorkOrder       @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  lines     SubcontractMeasurementLine[]
+  bills     Bill[]
+
+  @@index([workOrderId])
+  @@map("subcontract_measurements")
+}
+
+model SubcontractMeasurementLine {
+  id            String  @id @default(uuid()) @db.Uuid
+  measurementId String  @map("measurement_id") @db.Uuid
+  description   String
+  quantity      Decimal @db.Decimal(12, 3)
+  unit          String
+  rate          Decimal @db.Decimal(12, 2)
+  amount        Decimal @default(0) @db.Decimal(14, 2)
+
+  measurement SubcontractMeasurement @relation(fields: [measurementId], references: [id], onDelete: Cascade)
+
+  @@index([measurementId])
+  @@map("subcontract_measurement_lines")
+}
+
+// ------------------------------------------------------------------
+// Client portal
+// ------------------------------------------------------------------
+
+model ClientPortalAccess {
+  id        String   @id @default(uuid()) @db.Uuid
+  projectId String   @map("project_id") @db.Uuid
+  tokenHash String   @unique @map("token_hash")
+  label     String
+  scopes    String[]
+  expiresAt DateTime @map("expires_at")
+  createdBy String   @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project       Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdByUser User    @relation("PortalAccessCreatedBy", fields: [createdBy], references: [id])
+
+  @@index([projectId])
+  @@map("client_portal_access")
+}
+
+// ------------------------------------------------------------------
+// Scheduled reports
+// ------------------------------------------------------------------
+
+model ReportSchedule {
+  id         String             @id @default(uuid()) @db.Uuid
+  companyId  String             @map("company_id") @db.Uuid
+  reportType ReportScheduleType @map("report_type")
+  cronExpr   String             @map("cron_expr")
+  recipients String[]
+  lastRunAt  DateTime?          @map("last_run_at")
+  isActive   Boolean            @default(true) @map("is_active")
+  createdAt  DateTime           @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@map("report_schedules")
+}
+
+// ------------------------------------------------------------------
+// 26. PlatformAdmin (BuildFlow internal ops)
+// ------------------------------------------------------------------
+
+model PlatformAdmin {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  name         String
+  passwordHash String   @map("password_hash")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  auditLogs PlatformAuditLog[]
+
+  @@map("platform_admins")
+}
+
+model PlatformAuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  adminId   String   @map("admin_id") @db.Uuid
+  action    String
+  companyId String?  @map("company_id") @db.Uuid
+  targetId  String?  @map("target_id")
+  oldValue  Json?    @map("old_value")
+  newValue  Json?    @map("new_value")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  admin PlatformAdmin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([companyId])
+  @@map("platform_audit_logs")
 }

@@ -13,8 +13,8 @@
  * context — so the assistant is always usable in local dev.
  */
 import { prisma } from '../lib/prisma';
-import { env } from '../config/env';
 import { logger } from '../config/logger';
+import { resolveLlmConfig } from './integration.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import { getEstimateVsActual } from './financial-report.service';
 
@@ -76,30 +76,31 @@ export async function buildContext(companyId: string, projectId?: string): Promi
 
 interface LlmMessage { role: 'system' | 'user' | 'assistant'; content: string }
 
-async function callLLM(messages: LlmMessage[]): Promise<string | null> {
-  if (!env.LLM_API_URL || !env.LLM_API_KEY) return null;
+async function callLLM(companyId: string, messages: LlmMessage[]): Promise<string | null> {
+  const cfg = await resolveLlmConfig(companyId);
+  if (!cfg) return null;
   try {
-    const res = await fetch(`${env.LLM_API_URL}/chat/completions`, {
+    const res = await fetch(`${cfg.apiUrl}/chat/completions`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${env.LLM_API_KEY}`,
+        Authorization: `Bearer ${cfg.apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: env.LLM_MODEL,
+        model: cfg.model,
         messages,
         temperature: 0.4,
         max_tokens: 800,
       }),
     });
     if (!res.ok) {
-      logger.warn('LLM call failed', { status: res.status });
+      logger.warn('LLM call failed', { status: res.status, companyId });
       return null;
     }
     const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
     return data.choices?.[0]?.message?.content ?? null;
   } catch (err) {
-    logger.warn('LLM call error', { error: String(err) });
+    logger.warn('LLM call error', { error: String(err), companyId });
     return null;
   }
 }
@@ -165,7 +166,7 @@ export async function handleChatMessage(
   ];
 
   // 4. Get reply (LLM or canned)
-  let reply = await callLLM(llmMessages);
+  let reply = await callLLM(companyId, llmMessages);
   if (!reply) reply = cannedReply(message, context);
 
   // 5. Persist bot message

@@ -15,6 +15,8 @@ import {
 } from '../utils/jwt';
 import { blacklistToken, isTokenBlacklisted } from '../lib/redis';
 import { recordAudit } from '../utils/audit';
+import { initializeTrial, notifyNewTrialSignup } from './subscription.service';
+import { env } from '../config/env';
 import { Role } from '@buildflow/shared';
 import type { RegisterCompanyInput, LoginInput } from '@buildflow/shared';
 
@@ -32,26 +34,40 @@ export interface AuthResponse {
     role: Role;
     companyId: string;
     companyName: string;
+    phone: string | null;
+    companyLogoUrl: string | null;
   };
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
 }
 
-const ACCESS_EXPIRES_SECONDS = 15 * 60;
-
-function toPublicUser(
-  user: { id: string; name: string; email: string; role: Role; companyId: string; company: { name: string } },
+async function toPublicUser(
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string | null;
+    role: Role;
+    companyId: string;
+    company: { name: string; logoUrl: string | null };
+  },
 ) {
+  const { resolveLogoDisplayUrl } = await import('./settings.service');
+  const companyLogoUrl = await resolveLogoDisplayUrl(user.companyId, user.company.logoUrl);
   return {
     id: user.id,
     name: user.name,
     email: user.email,
+    phone: user.phone,
     role: user.role,
     companyId: user.companyId,
     companyName: user.company.name,
+    companyLogoUrl,
   };
 }
+
+const ACCESS_EXPIRES_SECONDS = 15 * 60;
 
 function issueTokens(payload: { sub: string; companyId: string; role: Role }): AuthTokens {
   const accessToken = signAccessToken(payload);
@@ -64,6 +80,10 @@ function issueTokens(payload: { sub: string; companyId: string; role: Role }): A
 /* ------------------------------------------------------------------ */
 
 export async function registerCompany(input: RegisterCompanyInput, ipAddress?: string): Promise<AuthResponse> {
+  if (!env.ALLOW_PUBLIC_COMPANY_REGISTRATION) {
+    throw ApiError.forbidden('Public company registration is disabled. Contact sales to get started.');
+  }
+
   const existing = await prisma.user.findUnique({
     where: { email: input.ownerEmail },
     select: { id: true },
@@ -81,6 +101,8 @@ export async function registerCompany(input: RegisterCompanyInput, ipAddress?: s
       state: input.state,
     },
   });
+
+  await initializeTrial(company.id);
 
   const owner = await prisma.user.create({
     data: {
@@ -105,15 +127,18 @@ export async function registerCompany(input: RegisterCompanyInput, ipAddress?: s
     ipAddress,
   });
 
+  void notifyNewTrialSignup(company.id, company.name, owner.email);
+
   return {
-    user: {
+    user: await toPublicUser({
       id: owner.id,
       name: owner.name,
       email: owner.email,
+      phone: owner.phone,
       role: owner.role,
       companyId: company.id,
-      companyName: company.name,
-    },
+      company: { name: company.name, logoUrl: company.logoUrl ?? null },
+    }),
     ...tokens,
   };
 }
@@ -128,7 +153,7 @@ export async function login(
 ): Promise<AuthResponse> {
   const user = await prisma.user.findUnique({
     where: { email: input.email },
-    include: { company: { select: { name: true } } },
+    include: { company: { select: { name: true, logoUrl: true } } },
   });
   if (!user) throw ApiError.unauthorized('Invalid email or password');
 
@@ -150,14 +175,7 @@ export async function login(
   });
 
   return {
-    user: toPublicUser({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      companyId: user.companyId,
-      company: user.company,
-    }),
+    user: await toPublicUser(user),
     ...tokens,
   };
 }
@@ -207,17 +225,10 @@ export async function logout(refreshToken: string | undefined): Promise<void> {
 /* me                                                                  */
 /* ------------------------------------------------------------------ */
 
-export async function me(userId: string): Promise<{
-  id: string;
-  name: string;
-  email: string;
-  role: Role;
-  companyId: string;
-  companyName: string;
-}> {
+export async function me(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: { company: { select: { name: true } } },
+    include: { company: { select: { name: true, logoUrl: true } } },
   });
   if (!user) throw ApiError.notFound('User not found');
   return toPublicUser(user);

@@ -12,7 +12,7 @@ import { ToastHost } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
 
 export default function RootLayout() {
-  const { isLoading, isAuthenticated, hydrate } = useAuthStore();
+  const { isLoading, hydrate } = useAuthStore();
 
   useEffect(() => {
     hydrate();
@@ -32,11 +32,11 @@ export default function RootLayout() {
         <StatusBar style="light" />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
-          {isAuthenticated ? (
-            <Stack.Screen name="(app)" />
-          ) : (
-            <Stack.Screen name="(auth)" />
-          )}
+          <Stack.Screen name="(public)" />
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(app)" />
+          <Stack.Screen name="platform" />
+          <Stack.Screen name="portal" options={{ headerShown: false }} />
         </Stack>
         <ToastHost />
       </View>

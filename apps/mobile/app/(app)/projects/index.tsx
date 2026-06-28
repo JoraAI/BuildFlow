@@ -2,8 +2,13 @@ import React, { useState } from 'react';
 import { View, Text, FlatList, RefreshControl, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Card, Badge, ProgressBar, FAB, EmptyState, LoadingSkeleton } from '@/components/ui';
-import { OfflineBanner } from '@/components/common/OfflineBanner';
+import { Ionicons } from '@expo/vector-icons';
+import { Card, Badge, ProgressBar, EmptyState, LoadingSkeleton, Button } from '@/components/ui';
+import { ScreenContainer } from '@/components/layout/ScreenContainer';
+import { PageHeader, StatChip } from '@/components/layout/PageHeader';
+import { MobileScreenHeader } from '@/components/layout/ScreenHeader';
+import { mobileListBottomPadding } from '@/components/layout/fab-layout';
+import { useViewport } from '@/hooks/useViewport';
 import { useProjects, type ProjectListItem } from '@/services/project.queries';
 import { formatINRCompact, formatDate, daysBetween } from '@/utils/format';
 
@@ -33,6 +38,7 @@ const TYPE_COLOR: Record<string, 'danger' | 'warning' | 'primary' | 'neutral'> =
 
 export default function ProjectsScreen() {
   const router = useRouter();
+  const { isDesktop, isWideDesktop } = useViewport();
   const [filter, setFilter] = useState<Filter>('ALL');
   const { data: projects, isLoading, isFetching, refetch } = useProjects();
 
@@ -40,66 +46,109 @@ export default function ProjectsScreen() {
     (p: ProjectListItem) => filter === 'ALL' || p.status === filter,
   );
 
-  return (
-    <SafeAreaView className="flex-1 bg-surface">
-      <OfflineBanner />
+  const activeCount = (projects ?? []).filter((p: ProjectListItem) => p.status === 'IN_PROGRESS').length;
 
-      {/* Header */}
-      <View className="px-4 pt-4 pb-2">
-        <Text className="text-2xl font-bold text-text">Projects</Text>
-        <Text className="text-sm text-muted">
-          {projects?.length ?? 0} project{(projects?.length ?? 0) === 1 ? '' : 's'}
-        </Text>
-      </View>
-
-      {/* Filter chips */}
-      <View className="flex-row px-4 pb-2 gap-2">
-        {FILTERS.map((f) => (
-          <Pressable
-            key={f.value}
-            onPress={() => setFilter(f.value)}
-            className={`px-3 py-1.5 rounded-full border ${
-              filter === f.value
-                ? 'bg-primary border-primary'
-                : 'bg-card border-border'
-            }`}
+  const filterChips = (
+    <View className="flex-row gap-2 flex-wrap">
+      {FILTERS.map((f) => (
+        <Pressable
+          key={f.value}
+          onPress={() => setFilter(f.value)}
+          className={`px-4 py-2 rounded-lg border ${
+            filter === f.value ? 'bg-primary border-primary' : 'bg-card border-border'
+          }`}
+        >
+          <Text
+            className={`text-sm font-medium ${filter === f.value ? 'text-white' : 'text-muted'}`}
           >
-            <Text
-              className={`text-xs font-medium ${
-                filter === f.value ? 'text-white' : 'text-muted'
-              }`}
-            >
-              {f.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+            {f.label}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
 
-      {/* List */}
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.id}
-        refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
-        contentContainerClassName="px-4 pb-24 pt-2"
-        ItemSeparatorComponent={() => <View className="h-3" />}
-        ListEmptyComponent={
-          isLoading ? (
-            <View className="gap-3">
-              {[1, 2, 3].map((i) => (
-                <LoadingSkeleton key={i} className="h-32 rounded-xl" />
-              ))}
+  return (
+    <SafeAreaView className="flex-1 bg-surface" edges={isDesktop ? [] : ['top']}>
+      <ScreenContainer scrollable={isDesktop}>
+        {isDesktop ? (
+          <PageHeader
+            title="Projects"
+            subtitle={`${projects?.length ?? 0} total · ${activeCount} active`}
+            actions={
+              <Button
+                label="New Project"
+                size="sm"
+                onPress={() => router.push('/projects/create')}
+                icon={<Ionicons name="add" size={18} color="#fff" />}
+              />
+            }
+            stats={
+              <>
+                <StatChip label="Total" value={String(projects?.length ?? 0)} />
+                <StatChip label="Active" value={String(activeCount)} accent="success" />
+                <StatChip
+                  label="Planning"
+                  value={String((projects ?? []).filter((p: ProjectListItem) => p.status === 'PLANNING').length)}
+                  accent="warning"
+                />
+              </>
+            }
+          />
+        ) : (
+          <MobileScreenHeader
+            title="Projects"
+            subtitle={`${projects?.length ?? 0} project${(projects?.length ?? 0) === 1 ? '' : 's'}`}
+            actions={
+              <Button
+                label="New"
+                size="sm"
+                onPress={() => router.push('/projects/create')}
+                icon={<Ionicons name="add" size={16} color="#fff" />}
+              />
+            }
+          />
+        )}
+
+        <View className={isDesktop ? 'mb-5' : 'px-4 pb-2'}>{filterChips}</View>
+
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => item.id}
+          scrollEnabled={!isDesktop}
+          refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
+          contentContainerClassName={
+            isDesktop ? 'pb-8' : `px-4 pt-2`
+          }
+          contentContainerStyle={!isDesktop ? { paddingBottom: mobileListBottomPadding() } : undefined}
+          numColumns={isWideDesktop ? 3 : isDesktop ? 2 : 1}
+          key={isWideDesktop ? 'grid-3' : isDesktop ? 'grid-2' : 'list'}
+          columnWrapperClassName={isDesktop ? 'gap-4' : undefined}
+          ItemSeparatorComponent={() => <View className={isDesktop ? 'h-4' : 'h-3'} />}
+          ListEmptyComponent={
+            isLoading ? (
+              <View className="gap-3 flex-row flex-wrap">
+                {[1, 2, 3].map((i) => (
+                  <LoadingSkeleton
+                    key={i}
+                    className={`h-40 rounded-xl ${isDesktop ? 'flex-1 min-w-[30%]' : ''}`}
+                  />
+                ))}
+              </View>
+            ) : (
+              <EmptyState
+                title="No projects yet"
+                description="Create your first project to start planning, scheduling, and tracking costs."
+              />
+            )
+          }
+          renderItem={({ item }) => (
+            <View className={isDesktop ? 'flex-1' : undefined}>
+              <ProjectCard item={item} onPress={() => router.push(`/projects/${item.id}`)} />
             </View>
-          ) : (
-            <EmptyState
-              title="No projects yet"
-              description="Create your first project to start planning, scheduling, and tracking costs."
-            />
-          )
-        }
-        renderItem={({ item }) => <ProjectCard item={item} onPress={() => router.push(`/projects/${item.id}`)} />}
-      />
-
-      <FAB label="Create" onPress={() => router.push('/projects/create')} />
+          )}
+        />
+      </ScreenContainer>
     </SafeAreaView>
   );
 }
@@ -109,15 +158,15 @@ function ProjectCard({ item, onPress }: { item: ProjectListItem; onPress: () => 
   const daysLeft = item.endDate ? daysBetween(new Date(), item.endDate) : null;
 
   return (
-    <Card onPress={onPress}>
+    <Card onPress={onPress} className="h-full">
       <View className="flex-row justify-between items-start mb-2">
         <View className="flex-1 mr-2">
           <Text className="text-base font-semibold text-text" numberOfLines={1}>
             {item.name}
           </Text>
-          <Text className="text-xs text-muted font-mono">{item.code}</Text>
+          <Text className="text-xs text-muted font-mono mt-0.5">{item.code}</Text>
         </View>
-        <View className="flex-row gap-1">
+        <View className="flex-row gap-1 flex-wrap justify-end">
           <Badge color={TYPE_COLOR[item.type] ?? 'neutral'} label={item.type} />
           <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status.replace('_', ' ')} />
         </View>
@@ -127,7 +176,6 @@ function ProjectCard({ item, onPress }: { item: ProjectListItem; onPress: () => 
         {item.clientName}
       </Text>
 
-      {/* Budget + progress row */}
       <View className="flex-row justify-between items-center mb-2">
         <View>
           <Text className="text-xs text-muted">Budget</Text>
@@ -136,7 +184,11 @@ function ProjectCard({ item, onPress }: { item: ProjectListItem; onPress: () => 
         {daysLeft !== null && (
           <View className="items-end">
             <Text className="text-xs text-muted">Days left</Text>
-            <Text className={`text-sm font-semibold ${daysLeft < 0 ? 'text-danger' : daysLeft < 30 ? 'text-warning' : 'text-text'}`}>
+            <Text
+              className={`text-sm font-semibold ${
+                daysLeft < 0 ? 'text-danger' : daysLeft < 30 ? 'text-warning' : 'text-text'
+              }`}
+            >
               {daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : `${daysLeft}d`}
             </Text>
           </View>

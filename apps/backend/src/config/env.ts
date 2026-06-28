@@ -80,6 +80,28 @@ const envSchema = z.object({
 
   // Expo push notifications — optional
   EXPO_ACCESS_TOKEN: z.string().optional(),
+
+  // Auth / onboarding
+  ALLOW_PUBLIC_COMPANY_REGISTRATION: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+  INVITE_TOKEN_EXPIRES_DAYS: z.coerce.number().int().min(1).max(30).default(7),
+  APP_PUBLIC_URL: z.string().url().default('http://localhost:8081'),
+
+  // Internal ops alerts (new trials, expiring subscriptions)
+  INTERNAL_OPS_EMAIL: z.preprocess((v) => (v === '' ? undefined : v), z.string().email().optional()),
+  INTERNAL_OPS_WEBHOOK_URL: z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()),
+
+  // Trial length in days for new company registrations
+  TRIAL_DAYS: z.coerce.number().int().min(1).max(90).default(14),
+
+  // BuildFlow SaaS billing (platform-owned — charges companies for subscriptions)
+  SAAS_RAZORPAY_KEY_ID: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  SAAS_RAZORPAY_KEY_SECRET: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  SAAS_RAZORPAY_WEBHOOK_SECRET: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  SAAS_STRIPE_SECRET_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  SAAS_STRIPE_WEBHOOK_SECRET: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
 });
 
 const parsed = envSchema.safeParse(process.env);

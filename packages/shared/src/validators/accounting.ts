@@ -15,6 +15,9 @@ export const invoiceLineItemSchema = z.object({
   rate: z.coerce.number().nonnegative(),
   gstRate: z.coerce.number().min(0).max(28).default(18),
   hsnSacCode: z.string().max(15).optional(),
+  previousQty: z.coerce.number().nonnegative().optional(),
+  currentQty: z.coerce.number().nonnegative().optional(),
+  cumulativeQty: z.coerce.number().nonnegative().optional(),
 });
 export type InvoiceLineItemInput = z.infer<typeof invoiceLineItemSchema>;
 
@@ -30,6 +33,10 @@ export const createInvoiceSchema = z.object({
   tdsEnabled: z.boolean().default(false),
   tdsRate: z.coerce.number().min(0).max(30).default(2),
   notes: z.string().max(2000).optional(),
+  invoiceType: z.enum(['STANDARD', 'RUNNING_ACCOUNT', 'MILESTONE']).default('STANDARD'),
+  raSequence: z.coerce.number().int().positive().optional(),
+  milestoneLabel: z.string().max(200).optional(),
+  retentionPct: z.coerce.number().min(0).max(100).default(0),
   lineItems: z.array(invoiceLineItemSchema).min(1),
 });
 export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>;

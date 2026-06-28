@@ -5,10 +5,12 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, Pressable, Modal, TextInput, Alert, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import { Card, Button, Badge, LoadingSkeleton, EmptyState, SearchBar } from '@/components/ui';
 import { LineChart, Sparkline } from '@/components/charts/LineChart';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
+import { SettingsPageLayout } from '@/components/layout/SettingsPageLayout';
+import { NavBackButton } from '@/components/layout/NavBackButton';
+import { useViewport } from '@/hooks/useViewport';
 import {
   useResources,
   usePriceHistory,
@@ -19,7 +21,7 @@ import {
 import { formatINR, formatDate } from '@/utils/format';
 
 export default function MaterialPriceTrackerScreen() {
-  const router = useRouter();
+  const { isDesktop } = useViewport();
   const { data, isLoading } = useResources();
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
@@ -29,34 +31,39 @@ export default function MaterialPriceTrackerScreen() {
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={['bottom']}>
+    <View className="flex-1 bg-surface">
       <OfflineBanner />
-      <View className="flex-row items-center px-4 py-3 border-b border-border">
-        <Pressable onPress={() => router.back()} className="mr-3">
-          <Text className="text-primary text-lg">‹ Back</Text>
-        </Pressable>
-        <Text className="text-lg font-bold text-text flex-1">Material Prices</Text>
-      </View>
+      <SettingsPageLayout
+        title="Material Prices"
+        subtitle="Track market rates and price history"
+      >
+        <View className="mb-4">
+          <SearchBar value={search} onChangeText={setSearch} placeholder="Search materials..." />
+        </View>
 
-      <View className="px-4 py-3">
-        <SearchBar value={search} onChangeText={setSearch} placeholder="Search materials..." />
-      </View>
-
-      <ScrollView contentContainerClassName="px-4 pb-32 gap-3">
         {isLoading ? (
-          [1, 2, 3, 4, 5].map((i) => <LoadingSkeleton key={i} className="h-20 rounded-xl" />)
+          <View className="gap-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <LoadingSkeleton key={i} className="h-20 rounded-xl" />
+            ))}
+          </View>
         ) : materials.length === 0 ? (
           <EmptyState title="No materials" description="Materials with price history will appear here." />
         ) : (
-          materials.map((m: Resource) => <MaterialRow key={m.id} material={m} onPress={() => setSelected(m.id)} />)
+          <View className={isDesktop ? 'flex-row flex-wrap gap-3' : 'gap-3'}>
+            {materials.map((m: Resource) => (
+              <View key={m.id} className={isDesktop ? 'w-[48%] min-w-[300px] flex-1' : ''}>
+                <MaterialRow material={m} onPress={() => setSelected(m.id)} />
+              </View>
+            ))}
+          </View>
         )}
-      </ScrollView>
+      </SettingsPageLayout>
 
-      {/* Price history modal */}
       <Modal visible={!!selected} animationType="slide" onRequestClose={() => setSelected(null)}>
         {selected && <PriceHistorySheet resourceId={selected} onClose={() => setSelected(null)} />}
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -135,10 +142,8 @@ function PriceHistorySheet({ resourceId, onClose }: { resourceId: string; onClos
 
   return (
     <SafeAreaView className="flex-1 bg-surface">
-      <View className="flex-row items-center px-4 py-3 border-b border-border">
-        <Pressable onPress={onClose} className="mr-3">
-          <Text className="text-primary text-lg">‹ Back</Text>
-        </Pressable>
+      <View className="flex-row items-center px-4 py-3 border-b border-border gap-3">
+        <NavBackButton onPress={onClose} label="Back" size="sm" />
         <View className="flex-1">
           <Text className="text-lg font-bold text-text">{res?.name ?? 'Material'}</Text>
           <Text className="text-xs text-text-muted">Price History</Text>

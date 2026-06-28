@@ -16,10 +16,19 @@ import {
   registerCompanySchema,
   loginSchema,
   refreshSchema,
+  acceptInviteSchema,
 } from '@buildflow/shared';
 
 export const authRouter = Router();
 
+authRouter.get('/config', authController.config);
+authRouter.get('/invite/:token', authLimiter, authController.getInvitePreview);
+authRouter.post(
+  '/accept-invite',
+  authLimiter,
+  validate({ body: acceptInviteSchema }),
+  authController.acceptInvite,
+);
 authRouter.post('/register', authLimiter, validate({ body: registerCompanySchema }), authController.register);
 authRouter.post('/login', authLimiter, validate({ body: loginSchema }), authController.login);
 authRouter.post('/refresh', authLimiter, validate({ body: refreshSchema }), authController.refresh);

@@ -65,3 +65,24 @@ export const forgotPasswordSchema = z.object({
 });
 
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+
+/* ------------------------------------------------------------------ */
+/* Invite-based team signup                                            */
+/* ------------------------------------------------------------------ */
+
+export const inviteRoleSchema = z.enum(['PM', 'SUPERVISOR', 'ACCOUNTANT']);
+
+export const createUserInviteSchema = z.object({
+  email: emailSchema,
+  role: inviteRoleSchema.default('PM'),
+});
+
+export type CreateUserInviteInput = z.infer<typeof createUserInviteSchema>;
+
+export const acceptInviteSchema = z.object({
+  token: z.string().min(16).max(256),
+  name: z.string().trim().min(2).max(120),
+  password: passwordSchema,
+});
+
+export type AcceptInviteInput = z.infer<typeof acceptInviteSchema>;

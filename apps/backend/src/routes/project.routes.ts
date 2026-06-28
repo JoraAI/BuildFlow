@@ -15,6 +15,7 @@ import {
   createWbsItemSchema,
   updateWbsItemSchema,
   wbsItemParamsSchema,
+  setProjectMembersSchema,
 } from '@buildflow/shared';
 import { Role } from '@buildflow/shared';
 
@@ -41,6 +42,19 @@ projectRouter.get(
   '/:id/summary',
   validate({ params: projectIdParamsSchema }),
   projectController.getProjectSummary,
+);
+
+projectRouter.get(
+  '/:id/members',
+  requireRole(Role.OWNER, Role.PM),
+  validate({ params: projectIdParamsSchema }),
+  projectController.getMembers,
+);
+projectRouter.put(
+  '/:id/members',
+  requireRole(Role.OWNER),
+  validate({ params: projectIdParamsSchema, body: setProjectMembersSchema }),
+  projectController.setMembers,
 );
 
 // WBS

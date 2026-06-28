@@ -1,13 +1,17 @@
 /**
  * (auth) layout — unauthenticated screens (login, forgot password).
  */
-import { Stack } from 'expo-router';
+import { Redirect, Stack } from 'expo-router';
+import { useAuthStore } from '@/stores/auth.store';
 
 export default function AuthLayout() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  if (isAuthenticated) {
+    return <Redirect href="/dashboard" />;
+  }
+
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="login" />
-      <Stack.Screen name="forgot-password" />
-    </Stack>
+    <Stack screenOptions={{ headerShown: false }} />
   );
 }

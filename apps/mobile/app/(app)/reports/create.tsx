@@ -23,6 +23,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Card, Button, Badge } from '@/components/ui';
+import { FormScreenHeader } from '@/components/layout/ScreenHeader';
+import { dismissTo, DISMISS } from '@/utils/navigation';
 import { useAppStore } from '@/stores/app.store';
 import { useProjects } from '@/services/project.queries';
 import { useResources } from '@/services/estimate.queries';
@@ -182,14 +184,10 @@ export default function CreateReportScreen() {
         className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* Header */}
-        <View className="px-4 py-3 flex-row items-center justify-between border-b border-border">
-          <Pressable onPress={() => router.back()}>
-            <Text className="text-sm text-muted">Cancel</Text>
-          </Pressable>
-          <Text className="text-base font-bold text-text">New Daily Report</Text>
-          <View style={{ width: 40 }} />
-        </View>
+        <FormScreenHeader
+          title="New Daily Report"
+          onCancel={() => dismissTo(DISMISS.reports)}
+        />
 
         {/* Step indicator */}
         <View className="px-4 py-3 flex-row items-center">

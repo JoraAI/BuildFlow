@@ -297,15 +297,59 @@ export async function reportInvoice(companyId: string, invoiceId: string): Promi
   const company = await prisma.company.findFirstOrThrow({ where: { id: companyId }, select: { name: true, gstin: true, address: true } });
 
   const doc = newDoc();
-  drawHeader(doc, 'TAX INVOICE', company ?? undefined);
+  const title =
+    invoice.invoiceType === 'RUNNING_ACCOUNT'
+      ? 'RUNNING ACCOUNT BILL'
+      : invoice.invoiceType === 'MILESTONE'
+        ? 'MILESTONE INVOICE'
+        : 'TAX INVOICE';
+  drawHeader(doc, title, company ?? undefined);
   doc.fontSize(11).font('Helvetica-Bold').fillColor(NAVY).text(`Invoice #: ${invoice.invoiceNumber}`, MARGIN);
-  doc.font('Helvetica').fontSize(9).fillColor(MUTED).text(`Date: ${invoice.invoiceDate.toISOString().slice(0, 10)} | Due: ${invoice.dueDate.toISOString().slice(0, 10)} | Project: ${invoice.project.name}`);
+  let meta = `Date: ${invoice.invoiceDate.toISOString().slice(0, 10)} | Due: ${invoice.dueDate.toISOString().slice(0, 10)} | Project: ${invoice.project.name}`;
+  if (invoice.invoiceType === 'RUNNING_ACCOUNT' && invoice.raSequence) {
+    meta += ` | RA Bill #${invoice.raSequence}`;
+  }
+  if (invoice.milestoneLabel) meta += ` | Milestone: ${invoice.milestoneLabel}`;
+  doc.font('Helvetica').fontSize(9).fillColor(MUTED).text(meta);
   doc.moveDown(0.5);
   doc.font('Helvetica-Bold').fillColor('#0F172A').text('Bill To:', MARGIN);
   doc.font('Helvetica').text(invoice.clientName, MARGIN);
   if (invoice.clientGstin) doc.text(`GSTIN: ${invoice.clientGstin}`);
   doc.moveDown(1);
 
+  if (invoice.invoiceType === 'RUNNING_ACCOUNT') {
+    const widths = [30, 150, 55, 55, 55, 55, 70];
+    let y = tableHeaders(
+      doc,
+      ['Sr', 'Description', 'Prev Qty', 'Curr Qty', 'Cum Qty', 'Rate', 'Amount'],
+      widths,
+      doc.y,
+    );
+    invoice.lineItems.forEach((li, i) => {
+      y = tableRow(
+        doc,
+        [
+          `${i + 1}`,
+          li.description,
+          `${num(li.previousQty)}`,
+          `${num(li.currentQty)}`,
+          `${num(li.cumulativeQty)}`,
+          num(li.rate).toLocaleString('en-IN'),
+          num(li.certifiedAmount || li.amount).toLocaleString('en-IN'),
+        ],
+        widths,
+        y,
+        i % 2 === 1,
+      );
+    });
+    doc.moveDown(1);
+    summaryLine(doc, 'Previous Certified', inr(num(invoice.previousCertifiedTotal)));
+    summaryLine(doc, 'Current Certified', inr(num(invoice.currentCertifiedTotal)));
+    summaryLine(doc, 'Cumulative Certified', inr(num(invoice.cumulativeCertifiedTotal)));
+    if (num(invoice.retentionPct) > 0) {
+      summaryLine(doc, `Retention (${num(invoice.retentionPct)}%)`, `- ${inr(num(invoice.retentionAmount))}`);
+    }
+  } else {
   const widths = [40, 200, 70, 70, 90, 90];
   let y = tableHeaders(doc, ['Sr', 'Description', 'HSN', 'Qty', 'Rate (Rs)', 'Amount (Rs)'], widths, doc.y);
   invoice.lineItems.forEach((li, i) => {
@@ -326,6 +370,7 @@ export async function reportInvoice(companyId: string, invoiceId: string): Promi
   });
 
   doc.moveDown(1);
+  }
   summaryLine(doc, 'Subtotal', inr(num(invoice.subtotal)));
   if (num(invoice.cgstAmount) > 0) summaryLine(doc, 'CGST', inr(num(invoice.cgstAmount)));
   if (num(invoice.sgstAmount) > 0) summaryLine(doc, 'SGST', inr(num(invoice.sgstAmount)));
@@ -771,4 +816,136 @@ export async function reportMaterialPriceHistory(companyId: string): Promise<Pdf
 
   drawFooter(doc);
   return { buffer: await endBuffer(doc), filename: 'material-price-history.pdf' };
+}
+
+// ===========================================================================
+// 13. MEASUREMENT BOOK (RA certified quantities per BOQ line)
+// ===========================================================================
+export async function reportMeasurementBook(companyId: string, projectId: string): Promise<PdfResult> {
+  const [project, company, boqItems, raInvoices] = await Promise.all([
+    prisma.project.findFirstOrThrow({
+      where: { id: projectId, companyId },
+      select: { name: true, code: true },
+    }),
+    prisma.company.findFirstOrThrow({ where: { id: companyId }, select: { name: true, gstin: true } }),
+    prisma.bOQItem.findMany({ where: { projectId }, orderBy: { itemCode: 'asc' } }),
+    prisma.invoice.findMany({
+      where: { projectId, companyId, invoiceType: 'RUNNING_ACCOUNT', status: { not: 'DRAFT' } },
+      include: { lineItems: true },
+      orderBy: { raSequence: 'asc' },
+    }),
+  ]);
+
+  const certified = new Map<string, { previous: number; current: number; cumulative: number }>();
+  for (const inv of raInvoices) {
+    for (const li of inv.lineItems) {
+      if (!li.boqItemId) continue;
+      const prev = certified.get(li.boqItemId);
+      certified.set(li.boqItemId, {
+        previous: prev?.cumulative ?? 0,
+        current: num(li.currentQty),
+        cumulative: num(li.cumulativeQty),
+      });
+    }
+  }
+
+  const doc = newDoc();
+  drawHeader(doc, 'Measurement Book', company ?? undefined);
+  doc.fontSize(10).font('Helvetica-Bold').fillColor(NAVY).text(project.name, MARGIN);
+  doc.font('Helvetica').fontSize(9).fillColor(MUTED).text(`Project Code: ${project.code}`);
+  doc.moveDown(1);
+
+  const widths = [50, 140, 50, 55, 55, 55, 55, 70];
+  let y = tableHeaders(
+    doc,
+    ['Code', 'Description', 'Unit', 'Sanctioned', 'Previous', 'Current', 'Cumulative', 'Rate'],
+    widths,
+    doc.y,
+  );
+  boqItems.forEach((item, i) => {
+    const cert = certified.get(item.id);
+    y = tableRow(
+      doc,
+      [
+        item.itemCode,
+        item.description,
+        item.unit,
+        `${num(item.quantity)}`,
+        `${cert?.previous ?? 0}`,
+        `${cert?.current ?? 0}`,
+        `${cert?.cumulative ?? 0}`,
+        num(item.rate).toLocaleString('en-IN'),
+      ],
+      widths,
+      y,
+      i % 2 === 1,
+    );
+  });
+
+  drawFooter(doc);
+  return { buffer: await endBuffer(doc), filename: `measurement-book-${project.code}.pdf` };
+}
+
+// ===========================================================================
+// 14. ABSTRACT SHEET (section-wise BOQ abstract)
+// ===========================================================================
+export async function reportAbstractSheet(companyId: string, projectId: string): Promise<PdfResult> {
+  const [project, company, boqItems] = await Promise.all([
+    prisma.project.findFirstOrThrow({
+      where: { id: projectId, companyId },
+      select: { name: true, code: true },
+    }),
+    prisma.company.findFirstOrThrow({ where: { id: companyId }, select: { name: true, gstin: true } }),
+    prisma.bOQItem.findMany({ where: { projectId }, orderBy: [{ category: 'asc' }, { itemCode: 'asc' }] }),
+  ]);
+
+  const sections = new Map<string, typeof boqItems>();
+  for (const item of boqItems) {
+    const cat = item.category ?? 'GENERAL';
+    const list = sections.get(cat) ?? [];
+    list.push(item);
+    sections.set(cat, list);
+  }
+
+  const doc = newDoc();
+  drawHeader(doc, 'Abstract Sheet', company ?? undefined);
+  doc.fontSize(10).font('Helvetica-Bold').fillColor(NAVY).text(project.name, MARGIN);
+  doc.font('Helvetica').fontSize(9).fillColor(MUTED).text(`Project Code: ${project.code}`);
+  doc.moveDown(1);
+
+  let grandTotal = 0;
+  for (const [section, items] of sections) {
+    doc.y = ensureSpace(doc, 60);
+    doc.font('Helvetica-Bold').fontSize(10).fillColor(NAVY).text(section, MARGIN, doc.y);
+    doc.moveDown(0.3);
+    const widths = [50, 180, 45, 55, 65, 80];
+    let y = tableHeaders(doc, ['Code', 'Description', 'Unit', 'Qty', 'Rate', 'Amount'], widths, doc.y);
+    let sectionTotal = 0;
+    items.forEach((item, i) => {
+      const amt = num(item.amount);
+      sectionTotal += amt;
+      y = tableRow(
+        doc,
+        [
+          item.itemCode,
+          item.description,
+          item.unit,
+          `${num(item.quantity)}`,
+          num(item.rate).toLocaleString('en-IN'),
+          amt.toLocaleString('en-IN'),
+        ],
+        widths,
+        y,
+        i % 2 === 1,
+      );
+    });
+    grandTotal += sectionTotal;
+    summaryLine(doc, `${section} Subtotal`, inr(sectionTotal));
+    doc.moveDown(0.5);
+  }
+
+  doc.moveTo(MARGIN, doc.y).lineTo(PAGE_W - MARGIN, doc.y).strokeColor(NAVY).lineWidth(1.5).stroke();
+  summaryLine(doc, 'GRAND TOTAL', inr(grandTotal), true);
+  drawFooter(doc);
+  return { buffer: await endBuffer(doc), filename: `abstract-sheet-${project.code}.pdf` };
 }

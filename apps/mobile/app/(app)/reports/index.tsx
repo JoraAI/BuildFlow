@@ -7,6 +7,8 @@ import { View, Text, ScrollView, Pressable, FlatList, RefreshControl } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Card, Badge, EmptyState, Button, FAB, LoadingSkeleton } from '@/components/ui';
+import { MobileScreenHeader } from '@/components/layout/ScreenHeader';
+import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 import { useAppStore } from '@/stores/app.store';
 import { useProjects } from '@/services/project.queries';
 import {
@@ -53,23 +55,23 @@ export default function ReportsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-surface">
-      <View className="px-4 pt-4 pb-2 flex-row items-center justify-between">
-        <View>
-          <Text className="text-2xl font-bold text-text">Reports</Text>
-          <Text className="text-sm text-muted">Daily site reports</Text>
-        </View>
-        {hasProject && (
-          <Pressable
-            onPress={() => setPickerOpen((v) => !v)}
-            className="flex-row items-center gap-1 px-3 py-1.5 rounded-md bg-card border border-border"
-          >
-            <Text className="text-sm font-medium text-text">
-              {projects?.find((p: ProjectListItem) => p.id === projectId)?.name ?? 'Select'}
-            </Text>
-            <Text className="text-xs text-muted">▾</Text>
-          </Pressable>
-        )}
-      </View>
+      <MobileScreenHeader
+        title="Reports"
+        subtitle="Daily site reports"
+        actions={
+          hasProject ? (
+            <Pressable
+              onPress={() => setPickerOpen((v) => !v)}
+              className="flex-row items-center gap-1 px-3 py-1.5 rounded-lg bg-card border border-border"
+            >
+              <Text className="text-sm font-medium text-text">
+                {projects?.find((p: ProjectListItem) => p.id === projectId)?.name ?? 'Select'}
+              </Text>
+              <Text className="text-xs text-muted">▾</Text>
+            </Pressable>
+          ) : undefined
+        }
+      />
 
       {pickerOpen && (
         <View className="mx-4 mb-2 rounded-lg border border-border bg-card overflow-hidden">
@@ -97,6 +99,7 @@ export default function ReportsScreen() {
       ) : (
         <ScrollView
           className="flex-1"
+          contentContainerStyle={{ paddingBottom: mobileListBottomPadding(true) }}
           refreshControl={
             <RefreshControl
               refreshing={loading}
@@ -163,7 +166,7 @@ export default function ReportsScreen() {
           </View>
 
           {/* Reports list */}
-          <View className="px-4 pb-24">
+          <View className="px-4">
             <Text className="text-sm font-semibold text-text mb-2">Recent Reports</Text>
             {loading ? (
               <LoadingSkeleton />

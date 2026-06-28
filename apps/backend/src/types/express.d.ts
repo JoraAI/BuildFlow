@@ -14,6 +14,10 @@ declare global {
         role: Role;
         tokenId: string; // jti, for blacklisting
       };
+      platformAdmin?: {
+        id: string;
+        tokenId: string;
+      };
     }
   }
 }
