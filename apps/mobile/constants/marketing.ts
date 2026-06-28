@@ -60,25 +60,36 @@ export const MARKETING_TESTIMONIALS = [
   },
 ];
 
+export const GST_PRICING_NOTE = '+ 18% GST';
+
 export const MARKETING_PRICING = [
   {
     name: 'Starter',
     price: '₹4,999',
     period: '/month',
+    annualPrice: '₹49,999/yr',
     description: 'For small contractors getting started',
-    features: ['Up to 3 projects', 'Estimation & BOQ', 'Daily reports', '5 team members'],
+    features: [
+      'Up to 3 projects',
+      'Estimation & BOQ',
+      'Daily reports',
+      'Basic invoicing',
+      '5 team members',
+    ],
     highlighted: false,
   },
   {
     name: 'Professional',
-    price: '₹12,999',
+    price: '₹13,999',
     period: '/month',
+    annualPrice: '₹1,39,999/yr',
     description: 'For growing construction firms',
     features: [
       'Unlimited projects',
       'Full accounting & GST',
       'CPM planning',
-      'BuildFlow Assistant',
+      'BuildFlow Assistant (500 queries/mo)',
+      'Procurement, subcontracts & client portal',
       '25 team members',
     ],
     highlighted: true,
@@ -87,9 +98,11 @@ export const MARKETING_PRICING = [
     name: 'Enterprise',
     price: 'Custom',
     period: '',
+    annualPrice: null,
     description: 'For large firms with custom needs',
     features: [
       'Everything in Professional',
+      'BuildFlow Assistant (unlimited, fair use)',
       'Dedicated support',
       'Custom integrations',
       'Unlimited team members',
@@ -132,7 +145,11 @@ export const PRICING_FAQ = [
   },
   {
     q: 'Do you offer annual billing?',
-    a: 'Contact sales for annual pricing and volume discounts on Enterprise plans.',
+    a: 'Yes. Starter is ₹49,999/year and Professional is ₹1,39,999/year (2 months free vs monthly). Enterprise pricing is custom — contact sales. All prices are before 18% GST.',
+  },
+  {
+    q: 'Is GST included in the listed price?',
+    a: 'No. Plan prices shown are before GST. 18% GST is added on checkout invoices in India.',
   },
 ];
 
@@ -149,7 +166,19 @@ export const PRICING_COMPARISON: {
   { feature: 'Estimation & BOQ', starter: 'Yes', professional: 'Yes', enterprise: 'Yes' },
   { feature: 'CPM Planning', starter: '—', professional: 'Yes', enterprise: 'Yes' },
   { feature: 'Accounting & GST', starter: 'Basic', professional: 'Full', enterprise: 'Full' },
-  { feature: 'BuildFlow Assistant', starter: '—', professional: 'Yes', enterprise: 'Yes' },
+  {
+    feature: 'Procurement & subcontracts',
+    starter: '—',
+    professional: 'Yes',
+    enterprise: 'Yes',
+  },
+  { feature: 'Client portal', starter: '—', professional: 'Yes', enterprise: 'Yes' },
+  {
+    feature: 'BuildFlow Assistant',
+    starter: '—',
+    professional: '500 queries/mo',
+    enterprise: 'Unlimited (fair use)',
+  },
   { feature: 'Dedicated support', starter: '—', professional: '—', enterprise: 'Yes' },
   { feature: 'Custom integrations', starter: '—', professional: '—', enterprise: 'Yes' },
 ];

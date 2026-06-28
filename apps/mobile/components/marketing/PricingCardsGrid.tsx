@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, Button } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
-import { MARKETING_PRICING } from '@/constants/marketing';
+import { MARKETING_PRICING, GST_PRICING_NOTE } from '@/constants/marketing';
 
 /** Equal-width pricing tier cards — same layout on mobile (stack) and desktop (row). */
 export function PricingCardsGrid() {
@@ -25,10 +25,18 @@ export function PricingCardsGrid() {
               <Text className="text-xs font-bold text-accent mb-2 uppercase">Most popular</Text>
             )}
             <Text className="text-lg font-bold text-text">{p.name}</Text>
-            <View className="flex-row items-baseline mt-1 mb-2">
+            <View className="flex-row items-baseline mt-1 mb-1">
               <Text className="text-3xl font-bold text-primary">{p.price}</Text>
               {p.period ? <Text className="text-muted ml-1">{p.period}</Text> : null}
             </View>
+            {p.annualPrice ? (
+              <Text className="text-xs text-muted mb-1">or {p.annualPrice} (2 months free)</Text>
+            ) : null}
+            {p.name !== 'Enterprise' ? (
+              <Text className="text-xs text-muted mb-2">{GST_PRICING_NOTE}</Text>
+            ) : (
+              <View className="mb-2" />
+            )}
             <Text className="text-sm text-muted mb-4">{p.description}</Text>
             {p.features.map((feat) => (
               <View key={feat} className="flex-row items-center mb-2">

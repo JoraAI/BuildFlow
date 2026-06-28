@@ -215,12 +215,14 @@ Anyone can raise a request; the Owner resolves company-level items.
 
 ## Subscription & pricing (BuildFlow plans)
 
-| Plan | Indicative price | Best for |
-|------|------------------|----------|
-| **Starter** | ₹4,999 / month | Small contractors, up to 3 projects |
-| **Professional** | ₹12,999 / month | Growing firms, full accounting & planning |
-| **Enterprise** | Custom | Large firms, dedicated support, custom integrations |
+| Plan | Monthly (pre-GST) | Annual (pre-GST) | Best for |
+|------|-------------------|------------------|----------|
+| **Starter** | ₹4,999 / month | ₹49,999 / year | Small contractors, up to 3 projects, 5 team members |
+| **Professional** | ₹13,999 / month | ₹1,39,999 / year | Growing firms — full GST/RA, CPM, procurement, portal, Assistant (500 queries/mo) |
+| **Enterprise** | Custom (from ₹39,999 / month) | Contact sales | Large firms, dedicated support, custom integrations, unlimited Assistant (fair use) |
 
+- **18% GST** is added on top of listed prices (Indian billing).
+- **Annual plans** save 2 months vs paying monthly (Starter and Professional).
 - **14-day free trial** on signup (no card required).
 - Reminders are sent as the trial nears expiry (7, 3, and 1 day).
 - **Upgrade:** Settings → Billing & plan (online checkout when enabled by BuildFlow ops, otherwise submit a billing request).

@@ -6,16 +6,13 @@
 import crypto from 'crypto';
 import Razorpay from 'razorpay';
 import { SubscriptionPlan, SubscriptionStatus } from '@prisma/client';
+import { PLAN_PRICES_INR } from '@buildflow/shared';
 import { prisma } from '../lib/prisma';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
 import { notifyInternalOps } from './ops-notification.service';
 
-export const PLAN_PRICES_INR: Record<SubscriptionPlan, number> = {
-  STARTER: 4999,
-  PROFESSIONAL: 12999,
-  ENTERPRISE: 24999,
-};
+export { PLAN_PRICES_INR };
 
 function saasRazorpayClient(): Razorpay | null {
   if (!env.SAAS_RAZORPAY_KEY_ID || !env.SAAS_RAZORPAY_KEY_SECRET) return null;
