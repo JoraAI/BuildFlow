@@ -57,8 +57,16 @@ export function errorHandler(
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
     // P2002 = unique constraint violation
     if (err.code === 'P2002') {
-      const target = (err.meta?.target as string[] | undefined)?.join(', ') ?? 'field';
-      fail(res, ApiError.conflict(`Duplicate value for: ${target}`));
+      const target = (err.meta?.target as string[] | undefined) ?? [];
+      if (target.some((field) => field.includes('po_number'))) {
+        fail(res, ApiError.conflict('This PO number is already in use. Choose a different number.'));
+        return;
+      }
+      if (target.some((field) => field.includes('grn_number'))) {
+        fail(res, ApiError.conflict('This GRN number is already in use. Choose a different number.'));
+        return;
+      }
+      fail(res, ApiError.conflict(`Duplicate value for: ${target.join(', ') || 'field'}`));
       return;
     }
     // P2025 = record not found

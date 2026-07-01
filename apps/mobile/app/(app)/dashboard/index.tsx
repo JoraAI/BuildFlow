@@ -33,6 +33,8 @@ import { MobileScreenHeader } from '@/components/layout/ScreenHeader';
 import { ResponsiveGrid } from '@/components/layout/ResponsiveGrid';
 import { useViewport } from '@/hooks/useViewport';
 import { formatINRCompact, formatINR } from '@/utils/format';
+import { RolePlaybookCard } from '@/components/dashboard/RolePlaybookCard';
+import { OwnerWelcomeModal } from '@/components/onboarding/OwnerWelcomeModal';
 
 export default function DashboardScreen() {
   const user = useAuthStore((s) => s.user);
@@ -43,6 +45,7 @@ export default function DashboardScreen() {
   if (user && user.role !== 'OWNER') {
     const welcome = (
       <>
+        <RolePlaybookCard role={user.role} />
         <Card className="mt-2">
           <Text className="text-base font-bold text-text mb-2">Quick actions</Text>
           <View className="gap-2">
@@ -298,6 +301,7 @@ export default function DashboardScreen() {
   if (isDesktop) {
     return (
       <SafeAreaView className="flex-1 bg-surface" edges={[]}>
+        <OwnerWelcomeModal />
         <ScrollView
           className="flex-1"
           contentContainerClassName="items-center pb-10"
@@ -311,13 +315,16 @@ export default function DashboardScreen() {
   }
 
   return (
-    <ScrollView
-      className="flex-1 bg-surface"
-      contentContainerClassName="p-4 pb-8"
-      refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
-    >
-      {content}
-    </ScrollView>
+    <>
+      <OwnerWelcomeModal />
+      <ScrollView
+        className="flex-1 bg-surface"
+        contentContainerClassName="p-4 pb-8"
+        refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
+      >
+        {content}
+      </ScrollView>
+    </>
   );
 }
 

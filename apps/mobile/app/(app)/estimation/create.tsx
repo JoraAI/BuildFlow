@@ -4,19 +4,18 @@
  * Step 2: Build (sections + line items)
  * Step 3: Review (summary + submit/save)
  */
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   TextInput,
   ScrollView,
-  Pressable,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Card, ProgressBar } from '@/components/ui';
+import { Button, Card, ProgressBar, LoadingSkeleton, EmptyState } from '@/components/ui';
 import { ActionBar } from '@/components/layout/ActionBar';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { EstimateBuildStep } from '@/components/estimation/EstimateBuildStep';
@@ -34,10 +33,25 @@ import { formatINR } from '@/utils/format';
 
 type Step = 1 | 2 | 3;
 
+function paramString(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
 export default function CreateEstimateScreen() {
-  const { projectId, fromProposal } = useLocalSearchParams<{ projectId: string; fromProposal?: string }>();
-  const proposalId = Array.isArray(fromProposal) ? fromProposal[0] : fromProposal;
+  const { projectId, fromProposal, estimateId: routeEstimateId } = useLocalSearchParams<{
+    projectId: string;
+    fromProposal?: string;
+    estimateId?: string;
+  }>();
+  const proposalId = paramString(fromProposal);
+  const editEstimateId = paramString(routeEstimateId);
+  const isEditMode = Boolean(editEstimateId);
+
   const createMut = useCreateEstimate(projectId);
+  const { data: existingEstimate, isLoading: isLoadingExisting, isError: isEditLoadError } =
+    useEstimate(editEstimateId ?? '');
+  const editMut = useEstimateMutations(editEstimateId ?? '');
 
   const [step, setStep] = useState<Step>(1);
   const [name, setName] = useState('');
@@ -48,9 +62,50 @@ export default function CreateEstimateScreen() {
   const [estimateId, setEstimateId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const hydratedIdRef = useRef<string | null>(null);
+  const [isHydrated, setIsHydrated] = useState(!isEditMode);
 
-  async function ensureEstimate() {
+  useEffect(() => {
+    if (!editEstimateId || !existingEstimate) return;
+    if (hydratedIdRef.current === editEstimateId) return;
+
+    setName(existingEstimate.name);
+    setNotes(existingEstimate.notes ?? '');
+    setOverheadPct(String(existingEstimate.summary.overheadPct));
+    setContingencyPct(String(existingEstimate.summary.contingencyPct));
+    setProfitPct(String(existingEstimate.summary.profitMarginPct));
+    setEstimateId(editEstimateId);
+    setStep(2);
+    hydratedIdRef.current = editEstimateId;
+    setIsHydrated(true);
+  }, [editEstimateId, existingEstimate]);
+
+  async function ensureEstimate(): Promise<string | null> {
+    if (isEditMode && editEstimateId) {
+      setCreating(true);
+      setFormError(null);
+      try {
+        await editMut.updateMeta.mutateAsync({
+          name: name.trim() || 'Untitled Estimate',
+          notes: notes.trim() || undefined,
+          overheadPct: parseFloat(overheadPct) || 0,
+          contingencyPct: parseFloat(contingencyPct) || 0,
+          profitMarginPct: parseFloat(profitPct) || 0,
+        });
+        setEstimateId(editEstimateId);
+        return editEstimateId;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Failed to update estimate';
+        setFormError(msg);
+        await alertAsync('Failed to update estimate', msg);
+        return null;
+      } finally {
+        setCreating(false);
+      }
+    }
+
     if (estimateId) return estimateId;
+
     setCreating(true);
     setFormError(null);
     try {
@@ -90,12 +145,79 @@ export default function CreateEstimateScreen() {
       ? DISMISS.estimationForProject(projectId)
       : DISMISS.estimation;
 
+  const editBlocked =
+    isEditMode &&
+    existingEstimate &&
+    (existingEstimate.status !== 'DRAFT' ||
+      (projectId && existingEstimate.projectId !== projectId));
+
+  const isEditLoading = isEditMode && (isLoadingExisting || !isHydrated);
+
+  if (isEditLoading) {
+    return (
+      <SafeAreaView className="flex-1 bg-surface" edges={['bottom']}>
+        <OfflineBanner />
+        <FormScreenHeader
+          title="Edit Estimate"
+          subtitle="Loading…"
+          onCancel={() => dismissTo(cancelTarget)}
+        />
+        <View className="p-4 gap-3">
+          <LoadingSkeleton className="h-16 rounded-xl" />
+          <LoadingSkeleton className="h-48 rounded-xl" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (isEditMode && !isLoadingExisting && (isEditLoadError || !existingEstimate)) {
+    return (
+      <SafeAreaView className="flex-1 bg-surface" edges={['bottom']}>
+        <OfflineBanner />
+        <FormScreenHeader
+          title="Edit Estimate"
+          onCancel={() => dismissTo(cancelTarget)}
+        />
+        <EmptyState
+          title="Estimate not found"
+          description="This estimate may have been deleted or you may not have access."
+          action={
+            <Button label="Go Back" variant="secondary" onPress={() => dismissTo(cancelTarget)} />
+          }
+        />
+      </SafeAreaView>
+    );
+  }
+
+  if (editBlocked) {
+    const reason =
+      existingEstimate?.status !== 'DRAFT'
+        ? 'Only draft estimates can be edited.'
+        : 'This estimate does not belong to the selected project.';
+    return (
+      <SafeAreaView className="flex-1 bg-surface" edges={['bottom']}>
+        <OfflineBanner />
+        <FormScreenHeader
+          title="Edit Estimate"
+          onCancel={() => dismissTo(cancelTarget)}
+        />
+        <EmptyState
+          title="Cannot edit estimate"
+          description={reason}
+          action={
+            <Button label="Go Back" variant="secondary" onPress={() => dismissTo(cancelTarget)} />
+          }
+        />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-surface" edges={['bottom']}>
       <OfflineBanner />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
         <FormScreenHeader
-          title="New Estimate"
+          title={isEditMode ? 'Edit Estimate' : 'New Estimate'}
           subtitle={`Step ${step} of 3`}
           onCancel={() => dismissTo(cancelTarget)}
         />

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ScrollView } from 'react-native';
+import { View, ScrollView, Platform, type ViewStyle } from 'react-native';
 import { useViewport } from '@/hooks/useViewport';
 import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 
@@ -32,7 +32,7 @@ export function ScreenContainer({
 
   const inner = (
     <View
-      className={`flex-1 w-full ${constrained && isDesktop ? (isWideDesktop ? 'max-w-7xl' : 'max-w-6xl') : ''} ${isDesktop ? 'px-8 py-6' : ''} ${className}`}
+      className={`w-full ${scrollable ? '' : 'flex-1'} ${constrained && isDesktop ? (isWideDesktop ? 'max-w-7xl' : 'max-w-6xl') : ''} ${isDesktop ? 'px-8 py-6' : ''} ${className}`}
     >
       {children}
     </View>
@@ -52,9 +52,11 @@ export function ScreenContainer({
   if (scrollable) {
     return (
       <ScrollView
-        className="flex-1 bg-surface"
-        contentContainerClassName="items-center pb-10"
-        showsVerticalScrollIndicator={false}
+        className="flex-1 bg-surface min-h-0"
+        style={Platform.OS === 'web' ? ({ flex: 1, overflow: 'scroll' } as ViewStyle) : { flex: 1 }}
+        contentContainerClassName="items-center pb-10 flex-grow"
+        showsVerticalScrollIndicator
+        keyboardShouldPersistTaps="handled"
       >
         {inner}
       </ScrollView>

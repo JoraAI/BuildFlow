@@ -24,6 +24,7 @@ import {
 } from '@/services/accounting.queries';
 import { formatINR, formatDate, daysBetween } from '@/utils/format';
 import { confirmAsync, alertAsync } from '@/utils/confirm';
+import { billDetailHref, invoiceDetailHref, DISMISS } from '@/utils/navigation';
 
 const INVOICE_STATUS_COLOR: Record<string, 'success' | 'warning' | 'danger' | 'primary' | 'neutral'> = {
   DRAFT: 'neutral',
@@ -80,9 +81,12 @@ function FilterPills({
 export function ProjectInvoicesList({
   projectId,
   embedded = false,
+  returnTo,
 }: {
   projectId: string;
   embedded?: boolean;
+  /** Where back should land when opening invoice detail from this list. */
+  returnTo?: string;
 }) {
   const router = useRouter();
   const { isDesktop } = useViewport();
@@ -92,6 +96,9 @@ export function ProjectInvoicesList({
   useEffect(() => {
     setFilter('ALL');
   }, [projectId]);
+
+  const detailReturnTo =
+    returnTo ?? (embedded ? `/accounting/project/${projectId}?tab=invoices` : DISMISS.accounting);
 
   const filtered = (invoices ?? []).filter(
     (inv: Invoice) => filter === 'ALL' || inv.status === filter,
@@ -151,7 +158,7 @@ export function ProjectInvoicesList({
       renderItem={({ item }) => (
         <InvoiceRow
           item={item}
-          onPress={() => router.push(`/accounting/invoice/${item.id}`)}
+          onPress={() => router.push(invoiceDetailHref(item.id, detailReturnTo) as never)}
         />
       )}
     />
@@ -161,10 +168,13 @@ export function ProjectInvoicesList({
 export function ProjectBillsList({
   projectId,
   embedded = false,
+  returnTo,
 }: {
   projectId: string;
   embedded?: boolean;
+  returnTo?: string;
 }) {
+  const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const canApprove = user?.role === 'OWNER' || user?.role === 'PM';
   const { isDesktop } = useViewport();
@@ -176,6 +186,9 @@ export function ProjectBillsList({
   useEffect(() => {
     setFilter('ALL');
   }, [projectId]);
+
+  const detailReturnTo =
+    returnTo ?? (embedded ? `/accounting/project/${projectId}?tab=bills` : DISMISS.accounting);
 
   const filtered = (bills ?? []).filter((b: Bill) => filter === 'ALL' || b.status === filter);
 
@@ -248,6 +261,7 @@ export function ProjectBillsList({
         <BillRow
           item={item}
           canApprove={canApprove}
+          onPress={() => router.push(billDetailHref(item.id, detailReturnTo) as never)}
           onApprove={() => onApprove(item.id)}
           onReject={() => onReject(item.id)}
         />
@@ -323,11 +337,13 @@ function InvoiceRow({ item, onPress }: { item: Invoice; onPress: () => void }) {
 function BillRow({
   item,
   canApprove,
+  onPress,
   onApprove,
   onReject,
 }: {
   item: Bill;
   canApprove: boolean;
+  onPress: () => void;
   onApprove: () => void;
   onReject: () => void;
 }) {
@@ -335,7 +351,7 @@ function BillRow({
 
   if (isDesktop) {
     return (
-      <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/50">
+      <Pressable onPress={onPress} className="flex-row items-center px-4 py-3 bg-card border-b border-border/50">
         <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.billNumber}</Text>
         <Text className="flex-[1.4] text-sm text-text" numberOfLines={1}>
           {item.vendorName}
@@ -346,48 +362,66 @@ function BillRow({
         <View className="flex-1">
           <Badge color={BILL_STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
         </View>
-        <Text className="flex-1 text-sm font-semibold text-text text-right">{formatINR(item.total)}</Text>
+        <View className="flex-1 items-end">
+          <Text className="text-sm font-semibold text-text">{formatINR(item.total)}</Text>
+          {item.paidAmount > 0 && (
+            <Text className="text-xs text-success">Paid {formatINR(item.paidAmount)}</Text>
+          )}
+        </View>
         {canApprove && item.status === 'PENDING' ? (
           <View className="w-36 flex-row gap-1 justify-end">
-            <Button label="Approve" variant="primary" size="sm" onPress={onApprove} />
+            <Button
+              label="Approve"
+              variant="primary"
+              size="sm"
+              onPress={onApprove}
+            />
             <Button label="Reject" variant="danger" size="sm" onPress={onReject} />
           </View>
         ) : (
           <View className="w-36" />
         )}
-      </View>
+      </Pressable>
     );
   }
 
   return (
-    <Card className={item.status === 'PENDING' ? 'border-warning' : ''}>
-      <View className="flex-row justify-between items-start mb-2">
-        <View className="flex-1 mr-2">
-          <Text className="text-sm font-mono font-semibold text-text">{item.billNumber}</Text>
-          <Text className="text-xs text-muted">{item.vendorName}</Text>
-        </View>
-        <View className="flex-row gap-1">
-          <Badge color={BILL_CATEGORY_COLOR[item.category] ?? 'neutral'} label={item.category} />
-          <Badge color={BILL_STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
-        </View>
-      </View>
-      <View className="flex-row justify-between items-end mb-2">
-        <View>
-          <Text className="text-xs text-muted">Total</Text>
-          <Text className="text-base font-bold text-text">{formatINR(item.total)}</Text>
-        </View>
-        <Text className="text-xs text-muted">{formatDate(item.billDate)}</Text>
-      </View>
-      {canApprove && item.status === 'PENDING' && (
-        <View className="flex-row gap-2 mt-1">
-          <View className="flex-1">
-            <Button label="Approve" variant="primary" size="sm" onPress={onApprove} />
+    <Pressable onPress={onPress}>
+      <Card className={item.status === 'PENDING' ? 'border-warning' : ''}>
+        <View className="flex-row justify-between items-start mb-2">
+          <View className="flex-1 mr-2">
+            <Text className="text-sm font-mono font-semibold text-text">{item.billNumber}</Text>
+            <Text className="text-xs text-muted">{item.vendorName}</Text>
           </View>
-          <View className="flex-1">
-            <Button label="Reject" variant="danger" size="sm" onPress={onReject} />
+          <View className="flex-row gap-1">
+            <Badge color={BILL_CATEGORY_COLOR[item.category] ?? 'neutral'} label={item.category} />
+            <Badge color={BILL_STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
           </View>
         </View>
-      )}
-    </Card>
+        <View className="flex-row justify-between items-end mb-2">
+          <View>
+            <Text className="text-xs text-muted">Net payable</Text>
+            <Text className="text-base font-bold text-text">{formatINR(item.total)}</Text>
+          </View>
+          {item.paidAmount > 0 && (
+            <View className="items-end">
+              <Text className="text-xs text-muted">Paid</Text>
+              <Text className="text-sm font-semibold text-success">{formatINR(item.paidAmount)}</Text>
+            </View>
+          )}
+          <Text className="text-xs text-muted">{formatDate(item.billDate)}</Text>
+        </View>
+        {canApprove && item.status === 'PENDING' && (
+          <View className="flex-row gap-2 mt-1">
+            <View className="flex-1">
+              <Button label="Approve" variant="primary" size="sm" onPress={onApprove} />
+            </View>
+            <View className="flex-1">
+              <Button label="Reject" variant="danger" size="sm" onPress={onReject} />
+            </View>
+          </View>
+        )}
+      </Card>
+    </Pressable>
   );
 }

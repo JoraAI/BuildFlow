@@ -1,21 +1,24 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { useRouter, usePathname } from 'expo-router';
+import { useRouter, usePathname, useGlobalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/stores/auth.store';
 import { useProject } from '@/services/project.queries';
-import { getBreadcrumbs, getProjectIdFromPath } from '@/constants/navigation';
+import { getBreadcrumbs, getProjectIdFromPath, getProjectIdFromReturnTo } from '@/constants/navigation';
+import { parseReturnTo } from '@/utils/navigation';
 import { CompanyLogo } from '@/components/ui/Avatar';
 import { ProjectSearchField } from '@/components/layout/ProjectSearchField';
 
 export function AppTopBar() {
   const router = useRouter();
   const pathname = usePathname();
+  const params = useGlobalSearchParams<{ returnTo?: string }>();
+  const returnTo = parseReturnTo(params.returnTo);
   const user = useAuthStore((s) => s.user);
 
-  const projectId = getProjectIdFromPath(pathname);
+  const projectId = getProjectIdFromPath(pathname) ?? getProjectIdFromReturnTo(returnTo);
   const { data: project } = useProject(projectId ?? '');
-  const breadcrumbs = getBreadcrumbs(pathname, project?.name);
+  const breadcrumbs = getBreadcrumbs(pathname, project?.name, returnTo);
 
   const today = new Date().toLocaleDateString('en-IN', {
     weekday: 'short',

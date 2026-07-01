@@ -96,7 +96,22 @@ export async function pay(req: Request, res: Response) {
     action: 'CUSTOM',
     entityType: 'Bill',
     entityId: data.id,
-    newValue: { status: data.status },
+    newValue: { status: data.status, paidAmount: data.paidAmount },
+    ipAddress: req.ip,
+  });
+  return ok(res, data);
+}
+
+export async function recordPayment(req: Request, res: Response) {
+  const { companyId, id: userId } = req.user!;
+  const data = await billService.recordBillPayment(companyId, userId, req.params.id, req.body);
+  await recordAudit({
+    companyId,
+    userId,
+    action: 'CUSTOM',
+    entityType: 'Bill',
+    entityId: data.id,
+    newValue: { status: data.status, paidAmount: data.paidAmount },
     ipAddress: req.ip,
   });
   return ok(res, data);

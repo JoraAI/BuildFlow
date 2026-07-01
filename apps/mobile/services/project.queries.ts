@@ -1,8 +1,9 @@
 /**
  * BuildFlow - Project React Query hooks.
  */
-import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, apiFetchList } from '@/lib/api-client';
+import { invalidateProjectSchedule } from '@/lib/project-query-invalidation';
 import type { CreateProjectInput, UpdateProjectInput, ProjectStats, Role, CreateTaskInput, UpdateTaskInput, ResolvedMaterialRate, MaterialRateVarianceRow } from '@buildflow/shared';
 
 export interface ProjectListItem {
@@ -50,13 +51,6 @@ const KEYS = {
     ['projects', projectId, 'resources', resourceId, 'rate', boqItemId ?? ''] as const,
   materialRateVariance: (projectId: string) => ['projects', projectId, 'material-rate-variance'] as const,
 };
-
-function invalidateScheduleQueries(qc: QueryClient, projectId: string) {
-  qc.invalidateQueries({ queryKey: KEYS.gantt(projectId) });
-  qc.invalidateQueries({ queryKey: KEYS.tasks(projectId) });
-  qc.invalidateQueries({ queryKey: KEYS.summary(projectId) });
-  qc.invalidateQueries({ queryKey: KEYS.list });
-}
 
 export function useProjects() {
   return useQuery({
@@ -228,7 +222,7 @@ export function useCreateTask(projectId: string) {
         method: 'POST',
         body: JSON.stringify(input),
       }),
-    onSuccess: () => invalidateScheduleQueries(qc, projectId),
+    onSuccess: () => invalidateProjectSchedule(qc, projectId),
   });
 }
 
@@ -240,7 +234,7 @@ export function useUpdateTask(projectId: string) {
         method: 'PUT',
         body: JSON.stringify(input),
       }),
-    onSuccess: () => invalidateScheduleQueries(qc, projectId),
+    onSuccess: () => invalidateProjectSchedule(qc, projectId),
   });
 }
 
@@ -252,7 +246,7 @@ export function useUpdateTaskProgress(projectId: string) {
         method: 'PUT',
         body: JSON.stringify({ progressPct }),
       }),
-    onSuccess: () => invalidateScheduleQueries(qc, projectId),
+    onSuccess: () => invalidateProjectSchedule(qc, projectId),
   });
 }
 
@@ -261,7 +255,7 @@ export function useDeleteTask(projectId: string) {
   return useMutation({
     mutationFn: (taskId: string) =>
       apiFetch<{ success: boolean }>(`/tasks/${taskId}`, { method: 'DELETE' }),
-    onSuccess: () => invalidateScheduleQueries(qc, projectId),
+    onSuccess: () => invalidateProjectSchedule(qc, projectId),
   });
 }
 

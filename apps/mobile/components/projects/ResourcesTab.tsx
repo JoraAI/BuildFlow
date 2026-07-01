@@ -114,7 +114,7 @@ export function ResourcesTab({ projectId }: ResourcesTabProps) {
                     Last PO:{' '}
                     {row.lastPoRate != null
                       ? `${formatINR(row.lastPoRate)}${row.lastPoRef ? ` (${row.lastPoRef})` : ''}`
-                      : '—'}
+                      : '-'}
                   </Text>
                   {row.variancePct != null ? (
                     <Text

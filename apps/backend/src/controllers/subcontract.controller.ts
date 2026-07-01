@@ -3,6 +3,7 @@
  */
 import type { Request, Response } from 'express';
 import * as subcontractService from '../services/subcontract.service';
+import * as subPortalService from '../services/subcontract-portal.service';
 import { ok, created } from '../utils/response';
 import { recordAudit } from '../utils/audit';
 
@@ -63,6 +64,18 @@ export async function listWorkOrders(req: Request, res: Response) {
   return ok(res, data);
 }
 
+export async function getWorkOrderSummary(req: Request, res: Response) {
+  const { companyId, id: userId, role } = req.user!;
+  const data = await subcontractService.getWorkOrderSummary(
+    companyId,
+    userId,
+    role,
+    req.params.id,
+    req.params.workOrderId,
+  );
+  return ok(res, data);
+}
+
 export async function getWorkOrder(req: Request, res: Response) {
   const { companyId, id: userId, role } = req.user!;
   const data = await subcontractService.getWorkOrder(
@@ -93,6 +106,18 @@ export async function createWorkOrder(req: Request, res: Response) {
     newValue: { woNumber: data.woNumber },
     ipAddress: req.ip,
   });
+  return created(res, data);
+}
+
+export async function createWorkOrderFromBoq(req: Request, res: Response) {
+  const { companyId, id: userId, role } = req.user!;
+  const data = await subcontractService.createWorkOrderFromBoq(
+    companyId,
+    userId,
+    role,
+    req.params.id,
+    req.body,
+  );
   return created(res, data);
 }
 
@@ -205,6 +230,45 @@ export async function approveMeasurement(req: Request, res: Response) {
     req.params.id,
     req.params.measurementId,
     req.body,
+    req.ip,
   );
   return ok(res, data);
+}
+
+export async function rejectMeasurement(req: Request, res: Response) {
+  const { companyId, id: userId, role } = req.user!;
+  const data = await subcontractService.rejectMeasurement(
+    companyId,
+    userId,
+    role,
+    req.params.id,
+    req.params.measurementId,
+    req.body.reason,
+  );
+  return ok(res, data);
+}
+
+export async function recordBillPayment(req: Request, res: Response) {
+  const { companyId, id: userId, role } = req.user!;
+  const data = await subcontractService.recordSubcontractBillPayment(
+    companyId,
+    userId,
+    role,
+    req.params.id,
+    req.params.billId,
+    req.body.amount,
+  );
+  return ok(res, data);
+}
+
+export async function createSubcontractorPortalAccess(req: Request, res: Response) {
+  const { companyId, id: userId, role } = req.user!;
+  const data = await subPortalService.createSubcontractorPortalAccess(
+    companyId,
+    userId,
+    role,
+    req.params.id,
+    req.body,
+  );
+  return created(res, data);
 }

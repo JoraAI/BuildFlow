@@ -6,7 +6,7 @@
  * Step 3: Materials used (resource picker + quantity rows)
  * Step 4: Photos & issues (camera/gallery + issues text + submit)
  */
-import React, { useState } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -19,7 +19,7 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Card, Button, DateField } from '@/components/ui';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
@@ -34,6 +34,7 @@ import { MaterialPicker } from '@/components/materials/MaterialPicker';
 import { useMaterials, type Resource } from '@/services/estimate.queries';
 import { useBoq, type BoqItem } from '@/services/boq.queries';
 import { useCreateReport, useUploadReportPhoto } from '@/services/report.queries';
+import { useStockSummary } from '@/services/expansion.queries';
 import type { Weather, SiteStatus } from '@buildflow/shared';
 
 interface MaterialRow {
@@ -77,17 +78,22 @@ const SITE_STATUSES: { label: string; value: SiteStatus; color: string }[] = [
 
 export default function CreateReportScreen() {
   const router = useRouter();
+  const { projectId: routeProjectId, reset: resetKey } = useLocalSearchParams<{
+    projectId?: string | string[];
+    reset?: string | string[];
+  }>();
   const activeProjectId = useAppStore((s) => s.activeProjectId);
+  const setActiveProject = useAppStore((s) => s.setActiveProject);
   const { data: projects, isLoading: projectsLoading } = useProjects();
-  const projectId = activeProjectId ?? projects?.[0]?.id ?? '';
-  const projectName =
-    projects?.find((p: ProjectListItem) => p.id === projectId)?.name ??
-    (projectsLoading ? 'Loading…' : 'No project');
 
-  const createMut = useCreateReport(projectId);
-  const uploadMut = useUploadReportPhoto();
-  const { data: projectTasks } = useTasks(projectId);
-  const { data: projectBoq } = useBoq(projectId);
+  const routeId =
+    typeof routeProjectId === 'string' ? routeProjectId : routeProjectId?.[0];
+  const resetToken =
+    typeof resetKey === 'string' ? resetKey : resetKey?.[0];
+  const isProjectLocked = Boolean(routeId);
+
+  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [formError, setFormError] = useState<string | null>(null);
@@ -110,6 +116,56 @@ export default function CreateReportScreen() {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [issues, setIssues] = useState('');
 
+  const resetForm = useCallback(
+    (projectIdForForm: string) => {
+      setStep(1);
+      setFormError(null);
+      setReportDate(todayDateOnly());
+      setWeather(null);
+      setWorkersCount('');
+      setSiteStatus(null);
+      setWorkDone('');
+      setMaterials([]);
+      setDeductStock(true);
+      setPhotos([]);
+      setIssues('');
+      setTaskDrafts([]);
+      setProjectPickerOpen(false);
+      setSelectedProjectId(projectIdForForm);
+    },
+    [],
+  );
+
+  // Fresh form every time user opens create (reset token in URL from navigation)
+  const lastResetRef = useRef<string | null>(null);
+  React.useEffect(() => {
+    const pid = routeId ?? activeProjectId ?? projects?.[0]?.id ?? '';
+
+    if (resetToken) {
+      if (lastResetRef.current === resetToken) return;
+      lastResetRef.current = resetToken;
+      resetForm(routeId ?? pid);
+      if (routeId) setActiveProject(routeId);
+      return;
+    }
+
+    if (lastResetRef.current || !pid) return;
+    lastResetRef.current = 'initial';
+    resetForm(pid);
+    if (routeId) setActiveProject(routeId);
+  }, [resetToken, routeId, projects, activeProjectId, resetForm, setActiveProject]);
+
+  const projectId = isProjectLocked ? routeId! : selectedProjectId;
+  const projectName =
+    projects?.find((p: ProjectListItem) => p.id === projectId)?.name ??
+    (projectsLoading ? 'Loading…' : 'Select project');
+
+  const createMut = useCreateReport(projectId);
+  const uploadMut = useUploadReportPhoto();
+  const { data: projectTasks } = useTasks(projectId);
+  const { data: projectBoq } = useBoq(projectId);
+  const { data: stockSummary } = useStockSummary(projectId);
+
   React.useEffect(() => {
     if (projectTasks?.length) {
       setTaskDrafts(
@@ -125,8 +181,17 @@ export default function CreateReportScreen() {
     }
   }, [projectTasks]);
 
+  const handleProjectSelect = (pId: string) => {
+    setFormError(null);
+    setSelectedProjectId(pId);
+    setActiveProject(pId);
+    setMaterials([]);
+    setTaskDrafts([]);
+    setProjectPickerOpen(false);
+  };
+
   const canNext = () => {
-    if (step === 1) return !!reportDate;
+    if (step === 1) return !!reportDate && !!projectId;
     return true;
   };
 
@@ -134,9 +199,40 @@ export default function CreateReportScreen() {
     setFormError(null);
 
     if (!projectId) {
-      setFormError('Select a project on the Reports screen before submitting.');
-      await alertAsync('No project', 'Select a project on the Reports screen before submitting.');
+      setFormError('Select a project before submitting.');
+      await alertAsync('No project', 'Select a project on Step 1 before submitting.');
       return;
+    }
+
+    const usageLines = materials
+      .filter((m) => m.quantityUsed && parseFloat(m.quantityUsed) > 0)
+      .map((m) => ({
+        resourceId: m.resourceId,
+        quantityUsed: parseFloat(m.quantityUsed),
+        taskId: m.taskId,
+        boqItemId: m.boqItemId,
+        postToBoqMeasurement: m.postToBoqMeasurement && !!m.boqItemId,
+      }));
+
+    if (deductStock && usageLines.length > 0 && stockSummary) {
+      for (const line of usageLines) {
+        const row = stockSummary.find((s) => s.resourceId === line.resourceId);
+        const onHand = row?.balance ?? 0;
+        const name = materials.find((m) => m.resourceId === line.resourceId)?.resourceName ?? 'Material';
+        const unit = materials.find((m) => m.resourceId === line.resourceId)?.unit ?? '';
+        if (onHand === 0) {
+          const msg = `${name}: no site stock on this project - receive via GRN first.`;
+          setFormError(msg);
+          await alertAsync('Insufficient stock', msg);
+          return;
+        }
+        if (line.quantityUsed > onHand) {
+          const msg = `${name}: only ${onHand} ${unit} on hand, requested ${line.quantityUsed} ${unit}.`;
+          setFormError(msg);
+          await alertAsync('Insufficient stock', msg);
+          return;
+        }
+      }
     }
 
     try {
@@ -154,27 +250,35 @@ export default function CreateReportScreen() {
             progressPct: Math.min(100, Math.max(0, parseInt(t.progressPct, 10) || 0)),
           })),
         deductStock,
-        materialUsages: materials
-          .filter((m) => m.quantityUsed && parseFloat(m.quantityUsed) > 0)
-          .map((m) => ({
-            resourceId: m.resourceId,
-            quantityUsed: parseFloat(m.quantityUsed),
-            taskId: m.taskId,
-            boqItemId: m.boqItemId,
-            postToBoqMeasurement: m.postToBoqMeasurement && !!m.boqItemId,
-          })),
+        materialUsages: usageLines.length ? usageLines : undefined,
       });
 
+      let photoUploadFailures = 0;
       for (const photo of photos) {
-        await uploadMut.mutateAsync({
-          reportId: created.id,
-          uri: photo.uri,
-          filename: photo.filename,
-          contentType: photo.contentType,
-        });
+        try {
+          await uploadMut.mutateAsync({
+            reportId: created.id,
+            uri: photo.uri,
+            filename: photo.filename,
+            contentType: photo.contentType,
+          });
+        } catch {
+          photoUploadFailures += 1;
+        }
       }
 
-      await alertAsync('Success', 'Daily report submitted successfully.');
+      const stockNote =
+        created.stockDeductionApplied && usageLines.length
+          ? ' Site stock was updated.'
+          : '';
+      const photoNote =
+        photoUploadFailures > 0
+          ? ` ${photoUploadFailures} photo(s) were not uploaded - file storage is not configured on this server.`
+          : '';
+      await alertAsync(
+        'Success',
+        `Daily report submitted successfully.${stockNote}${photoNote}`,
+      );
       router.replace('/(app)/reports');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to submit report';
@@ -272,6 +376,55 @@ export default function CreateReportScreen() {
           {/* STEP 1: Basic Info */}
           {step === 1 && (
             <View className="space-y-4">
+              <Card className="p-4">
+                <Text className="text-sm font-semibold text-text mb-2">Project</Text>
+                {isProjectLocked ? (
+                  <View className="border border-border rounded-md px-3 py-2.5 bg-surface">
+                    <Text className="text-sm text-text">{projectName}</Text>
+                    {projectId ? (
+                      <Text className="text-xs text-muted mt-0.5">
+                        {projects?.find((p) => p.id === projectId)?.code ?? ''}
+                      </Text>
+                    ) : null}
+                  </View>
+                ) : (
+                  <>
+                    <Pressable
+                      onPress={() => setProjectPickerOpen((v) => !v)}
+                      className="flex-row items-center justify-between border border-border rounded-md px-3 py-2.5"
+                    >
+                      <View className="flex-1">
+                        <Text className="text-sm text-text">{projectName}</Text>
+                        {projectId ? (
+                          <Text className="text-xs text-muted mt-0.5">
+                            {projects?.find((p) => p.id === projectId)?.code ?? ''}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <Text className="text-xs text-muted">▾</Text>
+                    </Pressable>
+                    {projectPickerOpen && (
+                      <View className="mt-2 border border-border rounded-md overflow-hidden">
+                        {projects?.map((p: ProjectListItem) => (
+                          <Pressable
+                            key={p.id}
+                            onPress={() => handleProjectSelect(p.id)}
+                            className="px-3 py-2.5 border-b border-border"
+                          >
+                            <Text
+                              className={`text-sm ${p.id === projectId ? 'text-primary font-semibold' : 'text-text'}`}
+                            >
+                              {p.name}
+                            </Text>
+                            <Text className="text-xs text-muted">{p.code}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    )}
+                  </>
+                )}
+              </Card>
+
               <Card className="p-4">
                 <DateField label="Report Date" value={reportDate} onChange={setReportDate} />
               </Card>
@@ -410,6 +563,7 @@ export default function CreateReportScreen() {
               boqItems={projectBoq?.items ?? []}
               deductStock={deductStock}
               setDeductStock={setDeductStock}
+              stockSummary={stockSummary ?? []}
             />
           )}
 
@@ -516,6 +670,7 @@ function MaterialsStep({
   boqItems,
   deductStock,
   setDeductStock,
+  stockSummary,
 }: {
   projectId: string;
   materials: MaterialRow[];
@@ -524,6 +679,7 @@ function MaterialsStep({
   boqItems: BoqItem[];
   deductStock: boolean;
   setDeductStock: (v: boolean) => void;
+  stockSummary: Array<{ resourceId: string; balance: number }>;
 }) {
   useMaterials({ limit: 200 });
   const [showPicker, setShowPicker] = useState(false);
@@ -636,12 +792,26 @@ function MaterialsStep({
         {materials.length === 0 ? (
           <Text className="text-xs text-muted">No materials added. Tap "+ Add material" to pick from your library.</Text>
         ) : (
-          materials.map((m) => (
+          materials.map((m) => {
+            const onHand = stockSummary.find((s) => s.resourceId === m.resourceId)?.balance;
+            const qty = m.quantityUsed ? parseFloat(m.quantityUsed) : 0;
+            const overStock = deductStock && onHand !== undefined && qty > onHand;
+            const noStock = deductStock && onHand === 0;
+            return (
             <View key={m.resourceId} className="py-2 border-b border-border">
               <View className="flex-row items-center gap-2">
                 <View className="flex-1" pointerEvents="none">
                   <Text className="text-sm font-medium text-text">{m.resourceName}</Text>
                   <Text className="text-xs text-muted">{m.unit}</Text>
+                  {deductStock && onHand !== undefined && (
+                    <Text
+                      className={`text-xs mt-0.5 ${noStock || overStock ? 'text-danger font-medium' : 'text-muted'}`}
+                    >
+                      On hand: {onHand} {m.unit}
+                      {noStock ? ' - receive via GRN first' : ''}
+                      {overStock && !noStock ? ' - exceeds on hand' : ''}
+                    </Text>
+                  )}
                 </View>
                 <View className="items-end">
                   <Text className="text-[10px] text-muted mb-0.5 uppercase tracking-wide">Qty</Text>
@@ -768,7 +938,8 @@ function MaterialsStep({
                 </View>
               )}
             </View>
-          ))
+            );
+          })
         )}
 
         {materials.some((m) => m.quantityUsed) && (

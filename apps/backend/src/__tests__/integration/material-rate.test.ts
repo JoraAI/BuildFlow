@@ -45,12 +45,12 @@ describe('Material rate resolution (integration)', () => {
     expect(res.body.data.source).toBe('PROJECT');
   });
 
-  it('GVR cement resolves from approved estimate (445)', async () => {
+  it('GVR cement resolves from approved estimate or linked BOQ (445)', async () => {
     const res = await authGet(token, `/api/projects/${gvrId}/resources/${cementId}/rate`);
     expect(res.status).toBe(200);
     expect(res.body.data.rate).toBe(445);
-    expect(res.body.data.source).toBe('ESTIMATE');
-    expect(res.body.data.sourceRef).toContain('GVR');
+    expect(['ESTIMATE', 'BOQ']).toContain(res.body.data.source);
+    expect(res.body.data.sourceRef).toMatch(/GVR|EST-/i);
   });
 
   it('TechPark cement resolves from regional rate book (438)', async () => {

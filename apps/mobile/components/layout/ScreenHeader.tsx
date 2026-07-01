@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { usePathname } from 'expo-router';
 import { useViewport } from '@/hooks/useViewport';
-import { isPrimaryAppTabRoute } from '@/constants/navigation';
+import { isPrimaryAppTabRoute, isNestedAppRoute } from '@/constants/navigation';
 import { NavHeaderBar } from '@/components/layout/NavBackButton';
 
 /** Standard list screen title block (matches Projects mobile header). */
@@ -50,7 +50,8 @@ export function FormScreenHeader({
   const { isDesktop } = useViewport();
   const pathname = usePathname();
   const onPrimaryTab = isPrimaryAppTabRoute(pathname);
-  const showBackButton = showBack ?? (!isDesktop && !onPrimaryTab);
+  const onNested = isNestedAppRoute(pathname);
+  const showBackButton = showBack ?? (!onPrimaryTab && (!isDesktop || onNested));
 
   return (
     <View

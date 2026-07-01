@@ -84,6 +84,31 @@ async function resolveFromLastPo(
   projectId: string,
   resourceId: string,
 ): Promise<ResolvedMaterialRate | null> {
+  // Prefer POs with a GRN (goods actually received) - avoids draft/test POs skewing variance.
+  const grns = await prisma.goodsReceiptNote.findMany({
+    where: { projectId, companyId },
+    select: { purchaseOrderId: true, receivedDate: true },
+    orderBy: { receivedDate: 'desc' },
+  });
+
+  const seenPo = new Set<string>();
+  for (const grn of grns) {
+    if (seenPo.has(grn.purchaseOrderId)) continue;
+    seenPo.add(grn.purchaseOrderId);
+
+    const line = await prisma.purchaseOrderLine.findFirst({
+      where: { purchaseOrderId: grn.purchaseOrderId, resourceId },
+      include: { purchaseOrder: { select: { poNumber: true } } },
+    });
+    if (line) {
+      return {
+        rate: Number(line.rate),
+        source: 'LAST_PO',
+        sourceRef: line.purchaseOrder.poNumber,
+      };
+    }
+  }
+
   const line = await prisma.purchaseOrderLine.findFirst({
     where: {
       resourceId,
@@ -142,7 +167,7 @@ export async function resolveMaterialRate(
   return { rate: catalogRate, source: 'CATALOG' satisfies MaterialRateSource };
 }
 
-/** Planned rate chain — excludes last PO (budget/planning source of truth). */
+/** Planned rate chain - excludes last PO (budget/planning source of truth). */
 export async function resolvePlannedMaterialRate(
   companyId: string,
   projectId: string,

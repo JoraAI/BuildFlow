@@ -34,6 +34,7 @@ import platformRouter from './routes/platform.routes';
 import { changeOrderRouter } from './routes/change-order.routes';
 import { procurementRouter } from './routes/procurement.routes';
 import { subcontractProjectRouter, subcontractorRouter } from './routes/subcontract.routes';
+import { subPortalPublicRouter } from './routes/subcontract-portal.routes';
 import { portalPublicRouter, portalProjectRouter } from './routes/portal.routes';
 import { proposalRouter } from './routes/proposal.routes';
 
@@ -104,6 +105,7 @@ app.use('/api/projects', subcontractProjectRouter); // /:id/subcontract/*
 app.use('/api/subcontractors', subcontractorRouter);
 app.use('/api/projects', portalProjectRouter); // /:id/portal-access
 app.use('/api/portal', portalPublicRouter); // public /:token
+app.use('/api/portal/sub', subPortalPublicRouter); // subcontractor portal
 app.use('/api/proposals', proposalRouter);
 
 // --- 404 + error handler (last) ---

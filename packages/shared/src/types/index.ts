@@ -135,6 +135,10 @@ export interface ProjectStats {
   tasksOverdueCount: number;
   approvedEstimateTotal: number;
   estimateVsActualVariance: number;
+  /** Sum of approved/ paid bill totals (committed obligations). */
+  committedSpend: number;
+  /** Sum of bill paidAmount (cash out). */
+  paidSpend: number;
 }
 
 /* ------------------------------------------------------------------ */

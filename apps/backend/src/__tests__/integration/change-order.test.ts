@@ -53,4 +53,48 @@ describe('Change orders (integration)', () => {
     expect(approveRes.status).toBe(200);
     expect(approveRes.body.data.status).toBe('APPROVED');
   });
+
+  it('approving variation linked to WO bumps WO contractValue in summary', async () => {
+    const woRes = await authGet(token, `/api/projects/${projectId}/subcontract/work-orders`);
+    const wo = (woRes.body.data as Array<{ id: string; woNumber: string }>).find(
+      (w) => w.woNumber === 'WO-001',
+    );
+    expect(wo).toBeTruthy();
+
+    const summaryBefore = await authGet(
+      token,
+      `/api/projects/${projectId}/subcontract/work-orders/${wo!.id}/summary`,
+    );
+    const contractBefore = Number(summaryBefore.body.data.contractValue);
+
+    const createRes = await authPost(token, `/api/projects/${projectId}/change-orders`, {
+      number: `VO-WO-${Date.now()}`,
+      title: 'WO contract bump test',
+      reason: 'Integration test',
+      linkedWorkOrderId: wo!.id,
+      scheduleImpactDays: 0,
+      lines: [
+        {
+          description: 'Extra scope on WO',
+          unit: 'Nos',
+          qtyDelta: 1,
+          rate: 5000,
+        },
+      ],
+    });
+    expect(createRes.status).toBe(201);
+    const coId = createRes.body.data.id as string;
+    const costImpact = Number(createRes.body.data.costImpact);
+
+    await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/submit`);
+    const approveRes = await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/approve`);
+    expect(approveRes.status).toBe(200);
+
+    const summaryAfter = await authGet(
+      token,
+      `/api/projects/${projectId}/subcontract/work-orders/${wo!.id}/summary`,
+    );
+    expect(Number(summaryAfter.body.data.contractValue)).toBe(contractBefore + costImpact);
+    expect(Number(summaryAfter.body.data.variationTotal)).toBeGreaterThanOrEqual(costImpact);
+  });
 });

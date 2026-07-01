@@ -424,15 +424,6 @@ export async function resolveS3Config(companyId: string): Promise<S3Config | nul
       secretAccessKey: env.AWS_SECRET_ACCESS_KEY!,
     };
   }
-  // Platform bucket without explicit keys (IAM role / local dev)
-  if (env.AWS_S3_BUCKET) {
-    return {
-      region: env.AWS_REGION,
-      bucket: env.AWS_S3_BUCKET,
-      accessKeyId: env.AWS_ACCESS_KEY_ID ?? '',
-      secretAccessKey: env.AWS_SECRET_ACCESS_KEY ?? '',
-    };
-  }
   return null;
 }
 

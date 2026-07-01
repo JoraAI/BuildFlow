@@ -1,5 +1,14 @@
 import { router } from 'expo-router';
 import { useAssistantStore } from '@/stores/assistant.store';
+export {
+  parseReturnTo,
+  withReturnTo,
+  projectTabHref,
+  billDetailHref,
+  invoiceDetailHref,
+  reportDetailHref,
+  createReportHref,
+} from './navigation-paths';
 
 /**
  * Navigate to a parent route. Use instead of router.back() on hidden tab screens -
@@ -11,11 +20,15 @@ export function dismissTo(href: string) {
 }
 
 /**
- * Nested app screen back: pop stack when possible, otherwise replace with a safe fallback.
- * Prefer this over dismissTo for FormScreenHeader cancel/back on child routes (create, detail).
+ * Nested app screen back: when returnTo is set, always navigate there (Expo Tabs history is unreliable).
+ * Otherwise pop stack when possible, else replace with fallback.
  */
-export function navigateAppBack(fallbackHref: string) {
+export function navigateAppBack(fallbackHref: string, returnTo?: string | null) {
   useAssistantStore.getState().close();
+  if (returnTo) {
+    dismissTo(returnTo);
+    return;
+  }
   if (router.canGoBack()) {
     router.back();
     return;

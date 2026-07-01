@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Alert } from 'react-native';
+import { View, Text, Alert, Pressable } from 'react-native';
 import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
 import {
   Card,
@@ -8,7 +8,9 @@ import {
   LoadingSkeleton,
   Input,
   ProgressBar,
+  Badge,
 } from '@/components/ui';
+import { TermHint } from '@/components/ui/TermHint';
 import { useAuthStore } from '@/stores/auth.store';
 import { formatINR } from '@/utils/format';
 import {
@@ -19,10 +21,36 @@ import {
   type BoqGroup,
   type BoqVsActualLine,
 } from '@/services/boq.queries';
+import {
+  useSubcontractors,
+  useCreateWorkOrderFromBoq,
+} from '@/services/expansion.queries';
 import { alertAsync } from '@/utils/confirm';
 
 interface BoqTabProps {
   projectId: string;
+}
+
+const CATEGORY_BADGE: Record<string, 'primary' | 'success' | 'warning' | 'neutral' | 'accent'> = {
+  MATERIAL: 'primary',
+  LABOUR: 'warning',
+  EQUIPMENT: 'accent',
+  SUBCONTRACTOR: 'success',
+  MISC: 'neutral',
+  VARIATION: 'primary',
+  EARTHWORK: 'neutral',
+  CONCRETE: 'primary',
+  OTHER: 'neutral',
+};
+
+function categoryBadgeColor(category: string | null): 'primary' | 'success' | 'warning' | 'neutral' | 'accent' {
+  if (!category) return 'neutral';
+  return CATEGORY_BADGE[category] ?? 'neutral';
+}
+
+function formatCategoryLabel(category: string | null): string {
+  if (!category) return 'OTHER';
+  return category.replace(/_/g, ' ');
 }
 
 export function BoqTab({ projectId }: BoqTabProps) {
@@ -32,11 +60,43 @@ export function BoqTab({ projectId }: BoqTabProps) {
 
   const { data: boq, isLoading } = useBoq(projectId);
   const { data: vsActual } = useBoqVsActual(projectId);
+  const { data: subcontractors } = useSubcontractors();
   const recordMeasurement = useRecordBoqMeasurement(projectId);
+  const createWOBoq = useCreateWorkOrderFromBoq(projectId);
 
   const [measureItem, setMeasureItem] = useState<BoqItem | null>(null);
+  const [woItem, setWoItem] = useState<BoqItem | null>(null);
+  const [woNumber, setWoNumber] = useState('');
+  const [selectedSub, setSelectedSub] = useState('');
   const [qty, setQty] = useState('');
   const [notes, setNotes] = useState('');
+
+  const canManageSub =
+    user?.role === 'OWNER' || user?.role === 'PM';
+
+  const onCreateWoFromBoq = () => {
+    if (!woItem || !woNumber.trim() || !selectedSub) {
+      void alertAsync('Required', 'WO number and subcontractor are required.');
+      return;
+    }
+    createWOBoq.mutate(
+      {
+        subcontractorId: selectedSub,
+        woNumber: woNumber.trim(),
+        boqItemIds: [woItem.id],
+        retentionPct: 5,
+        advanceAmount: 0,
+      },
+      {
+        onSuccess: async () => {
+          setWoItem(null);
+          setWoNumber('');
+          await alertAsync('Created', 'Work order created from BOQ line.');
+        },
+        onError: (e: Error) => Alert.alert('Error', e.message),
+      },
+    );
+  };
 
   const onRecord = () => {
     if (!measureItem) return;
@@ -80,9 +140,19 @@ export function BoqTab({ projectId }: BoqTabProps) {
           <Text className="text-lg font-bold text-primary">{formatINR(boq.total)}</Text>
         </View>
         <Text className="text-xs text-muted">
-          Sanctioned quantities are from BOQ. Executed qty is measured on site. Billed cumulative
-          comes from Running Account invoices.
+          BOQ lines are billable scope. Link estimate MATERIAL lines to catalog resources or rate
+          analyses so procurement and procured qty roll up correctly.
         </Text>
+        <View className="mt-2 pt-2 border-t border-border/60 gap-1">
+          <Text className="text-[10px] font-semibold text-muted uppercase">Line metrics</Text>
+          <Text className="text-[10px] text-muted">
+            Sanctioned = approved qty · Executed = work measured on site · Procured = materials received (GRN) · Billed = on client invoice
+          </Text>
+          <View className="flex-row flex-wrap gap-3 mt-1">
+            <TermHint term="EXECUTED" label="Executed" />
+            <TermHint term="PROCURED" label="Procured" />
+          </View>
+        </View>
       </Card>
 
       {boq.grouped.map((g: BoqGroup) => (
@@ -104,7 +174,13 @@ export function BoqTab({ projectId }: BoqTabProps) {
           <Card key={item.id}>
             <View className="flex-row justify-between items-start mb-1">
               <View className="flex-1 mr-2">
-                <Text className="text-xs font-mono text-muted">{item.itemCode}</Text>
+                <View className="flex-row items-center gap-2 flex-wrap mb-0.5">
+                  <Text className="text-xs font-mono text-muted">{item.itemCode}</Text>
+                  <Badge
+                    label={formatCategoryLabel(item.category)}
+                    color={categoryBadgeColor(item.category)}
+                  />
+                </View>
                 <Text className="text-sm text-text" numberOfLines={2}>
                   {item.description}
                 </Text>
@@ -120,9 +196,19 @@ export function BoqTab({ projectId }: BoqTabProps) {
               <Text className="text-xs text-muted">
                 Executed: {executed} {item.unit}
               </Text>
+              {(item.procuredQty ?? 0) > 0 && (
+                <Text className="text-xs text-success font-semibold">
+                  Procured: {item.procuredQty} {item.unit}
+                </Text>
+              )}
               <Text className="text-xs text-muted">
                 Billed: {billed} {item.unit}
               </Text>
+              {item.category === 'MATERIAL' && (item.stockQty ?? 0) > 0 && (
+                <Text className="text-xs text-success font-semibold">
+                  Site stock: {item.stockQty} {item.unit}
+                </Text>
+              )}
               {(item.billableQty ?? 0) > 0 && (
                 <Text className="text-xs text-accent font-semibold">
                   Billable: {item.billableQty} {item.unit}
@@ -143,6 +229,19 @@ export function BoqTab({ projectId }: BoqTabProps) {
                   setNotes('');
                 }}
               />
+            )}
+            {canManageSub && item.category === 'SUBCONTRACTOR' && (
+              <View className="mt-2">
+                <Button
+                  label="Create work order"
+                  variant="secondary"
+                  onPress={() => {
+                    setWoItem(item);
+                    setWoNumber('');
+                    setSelectedSub(subcontractors?.[0]?.id ?? '');
+                  }}
+                />
+              </View>
             )}
           </Card>
         );
@@ -206,6 +305,34 @@ export function BoqTab({ projectId }: BoqTabProps) {
           onChangeText={setNotes}
           placeholder="e.g. Block A footing"
         />
+      </AdaptiveSheet>
+
+      <AdaptiveSheet
+        visible={!!woItem}
+        onClose={() => setWoItem(null)}
+        title="Create work order from BOQ"
+        subtitle={woItem?.description}
+        footer={
+          <Button
+            label={createWOBoq.isPending ? 'Creating...' : 'Create WO'}
+            onPress={onCreateWoFromBoq}
+            disabled={createWOBoq.isPending}
+          />
+        }
+      >
+        <Input label="WO Number" value={woNumber} onChangeText={setWoNumber} placeholder="WO-001" />
+        <Text className="text-sm font-semibold text-text">Subcontractor</Text>
+        {(subcontractors ?? []).map((s) => (
+          <Pressable
+            key={s.id}
+            onPress={() => setSelectedSub(s.id)}
+            className={`p-2 rounded-lg border mb-1 ${
+              selectedSub === s.id ? 'border-primary bg-primary/5' : 'border-border'
+            }`}
+          >
+            <Text className="text-sm text-text">{s.name}</Text>
+          </Pressable>
+        ))}
       </AdaptiveSheet>
     </View>
   );

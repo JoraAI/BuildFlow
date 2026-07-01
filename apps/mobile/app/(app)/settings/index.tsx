@@ -49,6 +49,13 @@ const SETTINGS_GROUPS: SettingsGroup[] = [
         href: '/(app)/settings/tickets',
         icon: 'help-circle-outline',
       },
+      {
+        id: 'help',
+        label: 'How BuildFlow works',
+        description: 'Beginner guides and workflow help',
+        href: '/(app)/settings/help',
+        icon: 'book-outline',
+      },
     ],
   },
   {
@@ -246,7 +253,7 @@ export default function SettingsScreen() {
             stats={
               <>
                 <StatChip label="Role" value={formatRoleLabel(user?.role)} accent="primary" />
-                <StatChip label="Company" value={user?.companyName ?? '—'} accent="warning" />
+                <StatChip label="Company" value={user?.companyName ?? '-'} accent="warning" />
               </>
             }
           />

@@ -5,6 +5,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, apiDownload } from '@/lib/api-client';
 import { API_BASE_URL } from '@/constants';
+import {
+  invalidateChangeOrderImpact,
+  invalidateProjectAccounting,
+  invalidateProjectBoq,
+  invalidateProjectCore,
+  invalidateProjectProcurement,
+  invalidateProjectSubcontract,
+  invalidateAnalyticsDashboard,
+} from '@/lib/project-query-invalidation';
 import type {
   CreateChangeOrderInput,
   CreateRequisitionInput,
@@ -12,8 +21,10 @@ import type {
   CreateGrnInput,
   CreateSubcontractorInput,
   CreateWorkOrderInput,
+  CreateWorkOrderFromBoqInput,
   CreateMeasurementInput,
   CreatePortalAccessInput,
+  CreateSubcontractorPortalInput,
   CreateReportScheduleInput,
 } from '@buildflow/shared';
 import type { Role } from '@buildflow/shared';
@@ -26,8 +37,14 @@ export const expansionKeys = {
   changeOrders: (projectId: string) => ['change-orders', projectId] as const,
   requisitions: (projectId: string) => ['procurement', 'requisitions', projectId] as const,
   stock: (projectId: string) => ['procurement', 'stock', projectId] as const,
+  stockSummary: (projectId: string) => ['procurement', 'stock', 'summary', projectId] as const,
+  stockMovements: (projectId: string, resourceId: string) =>
+    ['procurement', 'stock', 'movements', projectId, resourceId] as const,
+  boqShortfalls: (projectId: string) => ['procurement', 'boq-shortfalls', projectId] as const,
   subcontractors: ['subcontractors'] as const,
   workOrders: (projectId: string) => ['subcontract', 'work-orders', projectId] as const,
+  workOrderSummary: (projectId: string, workOrderId: string) =>
+    ['subcontract', 'summary', projectId, workOrderId] as const,
   measurements: (projectId: string, workOrderId: string) =>
     ['subcontract', 'measurements', projectId, workOrderId] as const,
   reportSchedules: ['report-schedules'] as const,
@@ -77,6 +94,48 @@ export interface RequisitionLine {
   expectedRate?: string | null;
   rateSource?: string | null;
   resource?: { id: string; name: string };
+  boqItem?: { itemCode: string; description: string } | null;
+}
+
+export interface BoqShortfall {
+  boqItemId: string;
+  itemCode: string;
+  description: string;
+  resourceId: string;
+  resourceName: string;
+  quantity: number;
+  unit: string;
+  stockQty: number;
+  openRequisitionQty: number;
+  shortfall: number;
+}
+
+export interface GenerateFromBoqResult {
+  created: number;
+  reqNumbers: string[];
+}
+
+export interface PurchaseOrderLine {
+  id: string;
+  resourceId: string;
+  quantity: string;
+  unit: string;
+  resource: { id: string; name: string; unit: string };
+}
+
+export interface GoodsReceiptSummary {
+  id: string;
+  grnNumber: string;
+  receivedDate: string;
+  lines: Array<{ resourceId: string; quantity: string; unit: string }>;
+}
+
+export interface PurchaseOrderSummary {
+  id: string;
+  poNumber: string;
+  status: string;
+  lines: PurchaseOrderLine[];
+  goodsReceipts?: GoodsReceiptSummary[];
 }
 
 export interface Requisition {
@@ -88,7 +147,7 @@ export interface Requisition {
   sourceRef?: string | null;
   createdAt: string;
   lines: RequisitionLine[];
-  purchaseOrders?: { id: string; poNumber: string; status: string }[];
+  purchaseOrders?: PurchaseOrderSummary[];
 }
 
 export interface StockBalance {
@@ -101,6 +160,27 @@ export interface StockLocation {
   id: string;
   name: string;
   balances: StockBalance[];
+}
+
+export interface StockSummaryRow {
+  resourceId: string;
+  name: string;
+  unit: string;
+  received: number;
+  issued: number;
+  balance: number;
+}
+
+export interface StockMovementRow {
+  id: string;
+  type: string;
+  quantity: number;
+  unit: string;
+  createdAt: string;
+  referenceType: string | null;
+  referenceId: string | null;
+  referenceLabel: string | null;
+  locationName: string;
 }
 
 export interface Subcontractor {
@@ -117,9 +197,49 @@ export interface WorkOrder {
   scope: string;
   contractValue: string;
   retentionPct: string;
+  advanceAmount: string;
   status: string;
   subcontractor: { id: string; name: string; gstin?: string | null };
+  contractLines?: WorkOrderLine[];
   _count?: { measurements: number };
+}
+
+export interface WorkOrderLine {
+  id: string;
+  description: string;
+  unit: string;
+  contractQty: string;
+  rate: string;
+  amount: string;
+  boqItemId?: string | null;
+}
+
+export interface WorkOrderSummary {
+  contractValue: number;
+  retentionPct: number;
+  advanceAmount: number;
+  advanceRecovered: number;
+  certifiedTotal: number;
+  submittedPending: number;
+  billedTotal: number;
+  paidTotal: number;
+  retentionHeld: number;
+  retentionReleased: number;
+  balanceRemaining: number;
+  variationTotal: number;
+  certifiedPct: number;
+  lines: Array<{
+    id: string;
+    description: string;
+    unit: string;
+    contractQty: number;
+    rate: number;
+    amount: number;
+    certifiedQty: number;
+    balanceQty: number;
+    boqItemId: string | null;
+  }>;
+  variations: Array<{ number: string; title: string; costImpact: number }>;
 }
 
 export interface MeasurementLine {
@@ -136,9 +256,18 @@ export interface Measurement {
   periodLabel: string;
   status: ApprovalStatus;
   totalAmount: string;
+  rejectionReason?: string | null;
   createdAt: string;
   lines: MeasurementLine[];
   bills?: { id: string; billNumber: string; status: string }[];
+}
+
+export interface SubcontractPortalAccessResult {
+  id: string;
+  label: string;
+  scopes: string[];
+  expiresAt: string;
+  token: string;
 }
 
 export interface PortalAccessResult {
@@ -195,6 +324,14 @@ export function abstractSheetPdfPath(projectId: string) {
   return `/reports/pdf/projects/${projectId}/abstract-sheet`;
 }
 
+export function subcontractMeasurementBookPdfPath(projectId: string, workOrderId: string) {
+  return `/reports/pdf/projects/${projectId}/subcontract/work-orders/${workOrderId}/measurement-book`;
+}
+
+export function subcontractAbstractSheetPdfPath(projectId: string, workOrderId: string) {
+  return `/reports/pdf/projects/${projectId}/subcontract/work-orders/${workOrderId}/abstract-sheet`;
+}
+
 export async function downloadMeasurementBookPdf(projectId: string) {
   return apiDownload(
     measurementBookPdfPath(projectId),
@@ -207,6 +344,22 @@ export async function downloadAbstractSheetPdf(projectId: string) {
   return apiDownload(
     abstractSheetPdfPath(projectId),
     `abstract-sheet-${projectId}.pdf`,
+    'application/pdf',
+  );
+}
+
+export async function downloadSubcontractMeasurementBookPdf(projectId: string, workOrderId: string) {
+  return apiDownload(
+    subcontractMeasurementBookPdfPath(projectId, workOrderId),
+    `sub-measurement-book-${workOrderId}.pdf`,
+    'application/pdf',
+  );
+}
+
+export async function downloadSubcontractAbstractSheetPdf(projectId: string, workOrderId: string) {
+  return apiDownload(
+    subcontractAbstractSheetPdfPath(projectId, workOrderId),
+    `sub-abstract-${workOrderId}.pdf`,
     'application/pdf',
   );
 }
@@ -255,7 +408,7 @@ export function useApproveChangeOrder(projectId: string) {
         method: 'POST',
         body: '{}',
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: expansionKeys.changeOrders(projectId) }),
+    onSuccess: () => invalidateChangeOrderImpact(qc, projectId),
   });
 }
 
@@ -329,7 +482,7 @@ export function useCreatePurchaseOrder(projectId: string) {
         method: 'POST',
         body: JSON.stringify(input),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: expansionKeys.requisitions(projectId) }),
+    onSuccess: () => invalidateProjectProcurement(qc, projectId),
   });
 }
 
@@ -341,10 +494,7 @@ export function useCreateGRN(projectId: string) {
         method: 'POST',
         body: JSON.stringify(input),
       }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: expansionKeys.requisitions(projectId) });
-      qc.invalidateQueries({ queryKey: expansionKeys.stock(projectId) });
-    },
+    onSuccess: () => invalidateProjectProcurement(qc, projectId),
   });
 }
 
@@ -353,6 +503,48 @@ export function useStock(projectId: string) {
     queryKey: expansionKeys.stock(projectId),
     queryFn: () => apiFetch<StockLocation[]>(`/projects/${projectId}/procurement/stock`),
     enabled: !!projectId,
+  });
+}
+
+export function useStockSummary(projectId: string) {
+  return useQuery({
+    queryKey: expansionKeys.stockSummary(projectId),
+    queryFn: () => apiFetch<StockSummaryRow[]>(`/projects/${projectId}/procurement/stock/summary`),
+    enabled: !!projectId,
+  });
+}
+
+export function useStockMovements(projectId: string, resourceId: string | undefined) {
+  return useQuery({
+    queryKey: expansionKeys.stockMovements(projectId, resourceId ?? ''),
+    queryFn: () =>
+      apiFetch<StockMovementRow[]>(
+        `/projects/${projectId}/procurement/stock/movements?resourceId=${resourceId}&limit=50`,
+      ),
+    enabled: !!projectId && !!resourceId,
+  });
+}
+
+export function useBoqShortfalls(projectId: string, enabled = true) {
+  return useQuery({
+    queryKey: expansionKeys.boqShortfalls(projectId),
+    queryFn: () => apiFetch<BoqShortfall[]>(`/projects/${projectId}/procurement/boq-shortfalls`),
+    enabled: !!projectId && enabled,
+  });
+}
+
+export function useGenerateIndentsFromBoq(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<GenerateFromBoqResult>(`/projects/${projectId}/procurement/generate-from-boq`, {
+        method: 'POST',
+        body: '{}',
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: expansionKeys.requisitions(projectId) });
+      qc.invalidateQueries({ queryKey: expansionKeys.boqShortfalls(projectId) });
+    },
   });
 }
 
@@ -396,7 +588,54 @@ export function useCreateWorkOrder(projectId: string) {
         method: 'POST',
         body: JSON.stringify(input),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: expansionKeys.workOrders(projectId) }),
+    onSuccess: () => invalidateProjectSubcontract(qc, projectId),
+  });
+}
+
+export function useCreateWorkOrderFromBoq(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateWorkOrderFromBoqInput) =>
+      apiFetch<WorkOrder>(`/projects/${projectId}/subcontract/work-orders/from-boq`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => {
+      invalidateProjectSubcontract(qc, projectId);
+      invalidateProjectBoq(qc, projectId);
+    },
+  });
+}
+
+export interface UpdateWorkOrderResult {
+  workOrder: WorkOrder;
+  retentionReleaseBill?: {
+    id: string;
+    billNumber: string;
+    total: number;
+  } | null;
+}
+
+export function useUpdateWorkOrder(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ workOrderId, ...input }: Partial<CreateWorkOrderInput> & { workOrderId: string; status?: string }) =>
+      apiFetch<UpdateWorkOrderResult>(`/projects/${projectId}/subcontract/work-orders/${workOrderId}`, {
+        method: 'PUT',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => invalidateProjectSubcontract(qc, projectId),
+  });
+}
+
+export function useWorkOrderSummary(projectId: string, workOrderId: string, enabled = true) {
+  return useQuery({
+    queryKey: expansionKeys.workOrderSummary(projectId, workOrderId),
+    queryFn: () =>
+      apiFetch<WorkOrderSummary>(
+        `/projects/${projectId}/subcontract/work-orders/${workOrderId}/summary`,
+      ),
+    enabled: !!projectId && !!workOrderId && enabled,
   });
 }
 
@@ -440,11 +679,54 @@ export function useApproveMeasurement(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (measurementId: string) =>
-      apiFetch<Measurement>(
+      apiFetch<{ measurement: Measurement; bill?: { id: string; billNumber: string; total: string } }>(
         `/projects/${projectId}/subcontract/measurements/${measurementId}/approve`,
         { method: 'POST', body: JSON.stringify({ createBill: true }) },
       ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['subcontract', 'measurements'] }),
+    onSuccess: () => {
+      invalidateProjectSubcontract(qc, projectId);
+      invalidateProjectAccounting(qc, projectId);
+      invalidateProjectBoq(qc, projectId);
+      invalidateProjectCore(qc, projectId);
+      invalidateAnalyticsDashboard(qc);
+    },
+  });
+}
+
+export function useRejectMeasurement(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ measurementId, reason }: { measurementId: string; reason?: string }) =>
+      apiFetch<Measurement>(
+        `/projects/${projectId}/subcontract/measurements/${measurementId}/reject`,
+        { method: 'POST', body: JSON.stringify({ reason }) },
+      ),
+    onSuccess: () => invalidateProjectSubcontract(qc, projectId),
+  });
+}
+
+export function useRecordSubcontractBillPayment(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ billId, amount }: { billId: string; amount: number }) =>
+      apiFetch(`/projects/${projectId}/subcontract/bills/${billId}/payment`, {
+        method: 'POST',
+        body: JSON.stringify({ amount }),
+      }),
+    onSuccess: () => {
+      invalidateProjectSubcontract(qc, projectId);
+      invalidateProjectAccounting(qc, projectId);
+    },
+  });
+}
+
+export function useCreateSubcontractorPortalAccess(projectId: string) {
+  return useMutation({
+    mutationFn: (input: CreateSubcontractorPortalInput) =>
+      apiFetch<SubcontractPortalAccessResult>(`/projects/${projectId}/subcontract-portal-access`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
   });
 }
 
@@ -470,6 +752,47 @@ export async function fetchPortalData(token: string): Promise<PortalData> {
     throw new Error(body.error?.message ?? 'Invalid or expired portal link');
   }
   return body.data as PortalData;
+}
+
+export interface SubPortalData {
+  project: { id: string; name: string; code: string };
+  subcontractor: { id: string; name: string };
+  workOrder?: { id: string; woNumber: string; scope: string; contractValue: string; status: string };
+  workOrders?: Array<{
+    id: string;
+    woNumber: string;
+    scope: string;
+    contractValue: string;
+    status: string;
+  }>;
+  scopes: string[];
+  label: string;
+  expiresAt: string;
+  payments?: Array<{
+    id: string;
+    billNumber: string;
+    status: string;
+    total: string;
+    paidAmount: string;
+  }>;
+}
+
+export async function fetchSubPortalData(token: string): Promise<SubPortalData> {
+  const res = await fetch(`${API_BASE_URL}/portal/sub/${token}`);
+  const body = await res.json().catch(() => ({ success: false }));
+  if (!res.ok || !body.success) {
+    throw new Error(body.error?.message ?? 'Invalid or expired portal link');
+  }
+  return body.data as SubPortalData;
+}
+
+export function useSubPortalData(token: string) {
+  return useQuery({
+    queryKey: ['sub-portal', token],
+    queryFn: () => fetchSubPortalData(token),
+    enabled: !!token,
+    retry: false,
+  });
 }
 
 export function usePortalData(token: string) {

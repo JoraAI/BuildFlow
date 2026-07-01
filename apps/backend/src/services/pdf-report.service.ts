@@ -881,9 +881,9 @@ export async function reportProjectMaterialRates(
           inr(r.plannedRate),
           PLANNED_SOURCE_LABEL[r.plannedSource] ?? r.plannedSource,
           inr(r.catalogRate),
-          r.lastPoRate != null ? inr(r.lastPoRate) : '—',
-          r.variancePct != null ? `${r.variancePct > 0 ? '+' : ''}${r.variancePct}%` : '—',
-          r.overThreshold ? 'YES' : '—',
+          r.lastPoRate != null ? inr(r.lastPoRate) : '-',
+          r.variancePct != null ? `${r.variancePct > 0 ? '+' : ''}${r.variancePct}%` : '-',
+          r.overThreshold ? 'YES' : '-',
         ],
         widths,
         y,
@@ -1027,4 +1027,154 @@ export async function reportAbstractSheet(companyId: string, projectId: string):
   summaryLine(doc, 'GRAND TOTAL', inr(grandTotal), true);
   drawFooter(doc);
   return { buffer: await endBuffer(doc), filename: `abstract-sheet-${project.code}.pdf` };
+}
+
+// ===========================================================================
+// 16. SUBCONTRACT WO MEASUREMENT BOOK
+// ===========================================================================
+export async function reportSubcontractMeasurementBook(
+  companyId: string,
+  projectId: string,
+  workOrderId: string,
+): Promise<PdfResult> {
+  const wo = await prisma.subcontractWorkOrder.findFirst({
+    where: { id: workOrderId, projectId, project: { companyId } },
+    include: {
+      subcontractor: true,
+      project: { select: { name: true, code: true } },
+      measurements: {
+        where: { status: { in: ['SUBMITTED', 'APPROVED'] } },
+        include: { lines: true },
+        orderBy: { createdAt: 'asc' },
+      },
+    },
+  });
+  if (!wo) throw new Error('Work order not found');
+
+  const company = await prisma.company.findFirstOrThrow({
+    where: { id: companyId },
+    select: { name: true, gstin: true },
+  });
+
+  const doc = newDoc();
+  drawHeader(doc, 'Subcontract Measurement Book', company ?? undefined);
+  doc.fontSize(10).font('Helvetica-Bold').fillColor(NAVY).text(wo.project.name, MARGIN);
+  doc
+    .font('Helvetica')
+    .fontSize(9)
+    .fillColor(MUTED)
+    .text(`WO ${wo.woNumber} - ${wo.subcontractor.name}`);
+  doc.moveDown(1);
+
+  for (const m of wo.measurements) {
+    doc.font('Helvetica-Bold').fontSize(9).fillColor(NAVY).text(`${m.periodLabel} (${m.status})`);
+    doc.font('Helvetica').fontSize(8).fillColor(MUTED).text(`Total: ${inr(num(m.totalAmount))}`);
+    const widths = [180, 50, 45, 55, 70];
+    let y = tableHeaders(doc, ['Description', 'Qty', 'Unit', 'Rate', 'Amount'], widths, doc.y);
+    m.lines.forEach((line, i) => {
+      y = tableRow(
+        doc,
+        [
+          line.description,
+          `${num(line.quantity)}`,
+          line.unit,
+          num(line.rate).toLocaleString('en-IN'),
+          inr(num(line.amount)),
+        ],
+        widths,
+        y,
+        i % 2 === 1,
+      );
+    });
+    doc.moveDown(0.75);
+  }
+
+  drawFooter(doc);
+  return {
+    buffer: await endBuffer(doc),
+    filename: `sub-measurement-book-${wo.woNumber}.pdf`,
+  };
+}
+
+// ===========================================================================
+// 17. SUBCONTRACT WO ABSTRACT SHEET
+// ===========================================================================
+export async function reportSubcontractAbstractSheet(
+  companyId: string,
+  projectId: string,
+  workOrderId: string,
+): Promise<PdfResult> {
+  const wo = await prisma.subcontractWorkOrder.findFirst({
+    where: { id: workOrderId, projectId, project: { companyId } },
+    include: {
+      subcontractor: true,
+      project: { select: { name: true, code: true } },
+      contractLines: true,
+      measurements: {
+        where: { status: 'APPROVED' },
+        include: { lines: true },
+      },
+    },
+  });
+  if (!wo) throw new Error('Work order not found');
+
+  const company = await prisma.company.findFirstOrThrow({
+    where: { id: companyId },
+    select: { name: true, gstin: true },
+  });
+
+  const certifiedByLine = new Map<string, number>();
+  for (const m of wo.measurements) {
+    for (const line of m.lines) {
+      if (line.workOrderLineId) {
+        certifiedByLine.set(
+          line.workOrderLineId,
+          (certifiedByLine.get(line.workOrderLineId) ?? 0) + num(line.quantity),
+        );
+      }
+    }
+  }
+
+  const doc = newDoc();
+  drawHeader(doc, 'Subcontract Abstract Sheet', company ?? undefined);
+  doc.fontSize(10).font('Helvetica-Bold').fillColor(NAVY).text(wo.project.name, MARGIN);
+  doc
+    .font('Helvetica')
+    .fontSize(9)
+    .fillColor(MUTED)
+    .text(`WO ${wo.woNumber} - Contract ${inr(num(wo.contractValue))}`);
+  doc.moveDown(1);
+
+  const widths = [160, 40, 55, 55, 55, 55, 70];
+  let y = tableHeaders(
+    doc,
+    ['Description', 'Unit', 'Contract', 'Certified', 'Balance', 'Rate', 'Amount'],
+    widths,
+    doc.y,
+  );
+  wo.contractLines.forEach((cl, i) => {
+    const certified = certifiedByLine.get(cl.id) ?? 0;
+    const balance = Math.max(0, num(cl.contractQty) - certified);
+    y = tableRow(
+      doc,
+      [
+        cl.description,
+        cl.unit,
+        `${num(cl.contractQty)}`,
+        `${certified}`,
+        `${balance}`,
+        num(cl.rate).toLocaleString('en-IN'),
+        inr(num(cl.amount)),
+      ],
+      widths,
+      y,
+      i % 2 === 1,
+    );
+  });
+
+  drawFooter(doc);
+  return {
+    buffer: await endBuffer(doc),
+    filename: `sub-abstract-${wo.woNumber}.pdf`,
+  };
 }

@@ -50,6 +50,7 @@ export const HIDDEN_TAB_SCREENS = [
   'accounting/create-bill',
   'accounting/create-invoice',
   'accounting/invoice/[id]',
+  'accounting/bill/[id]',
   'accounting/project/[id]',
   'settings/rate-regions',
   'settings/audit',
@@ -80,11 +81,6 @@ export function getMobileOverflowTabs(role: Role): TabName[] {
   return allowed.filter((t) => !primary.has(t));
 }
 
-export function getActiveTabFromPath(pathname: string): string {
-  const segment = pathname.split('/').filter(Boolean)[0] ?? 'dashboard';
-  return segment in TAB_CONFIG ? segment : 'dashboard';
-}
-
 export interface Breadcrumb {
   label: string;
   href?: string;
@@ -97,9 +93,46 @@ export function getProjectIdFromPath(pathname: string): string | null {
   return segments[1];
 }
 
+/** Project id from a returnTo href (e.g. `/projects/uuid?tab=procurement`). */
+export function getProjectIdFromReturnTo(returnTo: string | null | undefined): string | null {
+  if (!returnTo) return null;
+  const pathOnly = returnTo.split('?')[0] ?? returnTo;
+  return getProjectIdFromPath(pathOnly);
+}
+
+export function getActiveTabFromPath(pathname: string, returnTo?: string | null): string {
+  const source = returnTo?.split('?')[0] ?? pathname;
+  const segment = source.split('/').filter(Boolean)[0] ?? 'dashboard';
+  return segment in TAB_CONFIG ? segment : 'dashboard';
+}
+
+function nestedRouteLabel(segments: string[]): string | null {
+  const [root, second] = segments;
+  if (root === 'accounting' && second === 'bill') return 'Bill';
+  if (root === 'accounting' && second === 'invoice') return 'Invoice';
+  if (root === 'accounting' && second === 'project') return 'Project accounts';
+  if (root === 'reports' && second && second !== 'create' && !second.startsWith('check-in')) return 'Report';
+  if (root === 'projects' && second === 'create') return 'New project';
+  if (root === 'proposals' && second === 'create') return 'New proposal';
+  return null;
+}
+
 /** Build breadcrumb trail for the top bar. */
-export function getBreadcrumbs(pathname: string, projectName?: string): Breadcrumb[] {
-  const segments = pathname.split('/').filter(Boolean);
+export function getBreadcrumbs(
+  pathname: string,
+  projectName?: string,
+  returnTo?: string | null,
+): Breadcrumb[] {
+  const normalized = normalizePath(pathname);
+  const segments = normalized.split('/').filter(Boolean);
+
+  if (returnTo) {
+    const basePath = returnTo.split('?')[0] ?? returnTo;
+    const baseCrumbs = getBreadcrumbs(basePath, projectName);
+    const childLabel = nestedRouteLabel(segments);
+    return childLabel ? [...baseCrumbs, { label: childLabel }] : baseCrumbs;
+  }
+
   const crumbs: Breadcrumb[] = [{ label: 'BuildFlow', href: '/dashboard' }];
 
   if (segments.length === 0) {
@@ -201,6 +234,17 @@ export function isPrimaryAppTabRoute(pathname: string): boolean {
   return (PRIMARY_TAB_PATHS as readonly string[]).includes(normalizePath(pathname));
 }
 
+/** Convert a hidden-screen glob like `projects/[id]` to a safe RegExp. */
+function hiddenScreenToRegex(screen: string): RegExp {
+  const parts = screen.split('/').map((segment) => {
+    if (segment.startsWith('[') && segment.endsWith(']')) {
+      return '[^/]+';
+    }
+    return segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  });
+  return new RegExp(`^${parts.join('/')}$`);
+}
+
 /** True on detail / form / secondary screens (FormScreenHeader instead of global header). */
 export function isNestedAppRoute(pathname: string): boolean {
   const normalized = normalizePath(pathname);
@@ -209,8 +253,8 @@ export function isNestedAppRoute(pathname: string): boolean {
   const segments = normalized.split('/').filter(Boolean);
   if (segments.length === 0) return false;
   const pathTail = segments.join('/');
-  return HIDDEN_TAB_SCREENS.some((screen) => {
-    const pattern = screen.replace(/\[id\]/g, '[^/]+').replace(/\[.*?\]/g, '[^/]+');
-    return new RegExp(`^${pattern}$`).test(pathTail);
-  }) || segments.length > 1;
+  return (
+    HIDDEN_TAB_SCREENS.some((screen) => hiddenScreenToRegex(screen).test(pathTail)) ||
+    segments.length > 1
+  );
 }

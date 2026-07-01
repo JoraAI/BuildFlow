@@ -31,7 +31,7 @@ export function MaterialPicker({
     if (isLoading) return null;
     if (total === 0) return emptyLabel;
     if (materials.length < total) {
-      return `Showing ${materials.length} of ${total} — refine search to find more`;
+      return `Showing ${materials.length} of ${total} - refine search to find more`;
     }
     return `${total} material${total === 1 ? '' : 's'}`;
   }, [emptyLabel, isLoading, materials.length, total]);

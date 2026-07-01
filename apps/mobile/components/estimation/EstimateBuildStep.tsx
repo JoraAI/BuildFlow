@@ -16,15 +16,131 @@ import { useViewport } from '@/hooks/useViewport';
 import {
   useEstimate,
   useEstimateMutations,
+  useMaterials,
+  useRateAnalyses,
   type EstimateItem,
   type EstimateSection,
+  type Resource,
+  type RateAnalysis,
 } from '@/services/estimate.queries';
 import {
   ESTIMATE_TEMPLATES,
   type EstimateTemplate,
 } from '@/constants/estimate-templates';
-import { confirmAsync, alertAsync } from '@/utils/confirm';
+import { confirmAsync, alertAsync, promptLinkApplyAsync } from '@/utils/confirm';
 import { formatINR } from '@/utils/format';
+import { MaterialPicker } from '@/components/materials/MaterialPicker';
+import { RateAnalysisPicker } from '@/components/estimation/RateAnalysisPicker';
+
+function resolveTemplateItemLinks(
+  item: import('@/constants/estimate-templates').EstimateTemplateItem,
+  materials: Resource[],
+  rateAnalyses: RateAnalysis[],
+): { resourceId?: string; rateAnalysisId?: string } {
+  const resourceId = item.resourceName
+    ? materials.find((m) => m.name === item.resourceName)?.id
+    : undefined;
+  const rateAnalysisId = item.rateAnalysisName
+    ? rateAnalyses.find((r) => r.name === item.rateAnalysisName)?.id
+    : undefined;
+  return { resourceId, rateAnalysisId };
+}
+
+type ScopeSetters = {
+  setDesc?: (v: string) => void;
+  setUnit?: (v: string) => void;
+  setRate?: (v: string) => void;
+};
+
+async function handleCatalogSelect(
+  resource: Resource,
+  setResourceId: (id: string) => void,
+  setRateAnalysisId: (id: string) => void,
+  scope?: ScopeSetters,
+) {
+  const choice = await promptLinkApplyAsync(resource.name);
+  if (choice === 'cancel') return;
+  setResourceId(resource.id);
+  setRateAnalysisId('');
+  if (choice === 'apply_defaults' && scope) {
+    scope.setDesc?.(resource.name);
+    scope.setUnit?.(resource.unit);
+    scope.setRate?.(String(parseFloat(resource.rate)));
+  }
+}
+
+async function handleRateAnalysisSelect(
+  analysis: RateAnalysis,
+  setResourceId: (id: string) => void,
+  setRateAnalysisId: (id: string) => void,
+  scope?: ScopeSetters,
+) {
+  const choice = await promptLinkApplyAsync(analysis.name);
+  if (choice === 'cancel') return;
+  setRateAnalysisId(analysis.id);
+  setResourceId('');
+  if (choice === 'apply_defaults' && scope) {
+    scope.setDesc?.(analysis.name);
+    scope.setUnit?.(analysis.unit);
+    scope.setRate?.(String(parseFloat(analysis.totalRate)));
+  }
+}
+
+function ProcurementLinkFields({
+  resourceId,
+  rateAnalysisId,
+  onResourceIdChange,
+  onRateAnalysisIdChange,
+  scope,
+  compact,
+}: {
+  resourceId: string;
+  rateAnalysisId: string;
+  onResourceIdChange: (id: string) => void;
+  onRateAnalysisIdChange: (id: string) => void;
+  scope?: ScopeSetters;
+  compact?: boolean;
+}) {
+  const hasLink = Boolean(resourceId || rateAnalysisId);
+
+  return (
+    <View className="gap-2 mt-1">
+      <View className="flex-row items-center justify-between">
+        <Text className="text-[10px] text-muted">Procurement link (optional)</Text>
+        {hasLink ? (
+          <Pressable
+            onPress={() => {
+              onResourceIdChange('');
+              onRateAnalysisIdChange('');
+            }}
+          >
+            <Text className="text-danger text-[10px] font-semibold">Clear link</Text>
+          </Pressable>
+        ) : null}
+      </View>
+      <View className="gap-1">
+        <Text className="text-[10px] text-muted">Catalog material (1:1)</Text>
+        <MaterialPicker
+          selectedId={resourceId || undefined}
+          onSelect={(r) =>
+            void handleCatalogSelect(r, onResourceIdChange, onRateAnalysisIdChange, scope)
+          }
+          maxHeight={compact ? 100 : 140}
+        />
+      </View>
+      <View className="gap-1">
+        <Text className="text-[10px] text-muted">Rate analysis (composite BOM)</Text>
+        <RateAnalysisPicker
+          selectedId={rateAnalysisId || undefined}
+          onSelect={(ra) =>
+            void handleRateAnalysisSelect(ra, onResourceIdChange, onRateAnalysisIdChange, scope)
+          }
+          maxHeight={compact ? 100 : 140}
+        />
+      </View>
+    </View>
+  );
+}
 
 export function EstimateBuildStep({
   estimateId,
@@ -48,6 +164,10 @@ export function EstimateBuildStep({
   const [loadingTemplate, setLoadingTemplate] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const { data: estimate, isLoading } = useEstimate(estimateId);
+  const { data: materialsData } = useMaterials({ limit: 300 });
+  const materials = materialsData?.data ?? [];
+  const { data: rateAnalysesData } = useRateAnalyses();
+  const rateAnalyses = rateAnalysesData?.data ?? [];
 
   const summary = estimate?.summary;
   const sections = estimate?.sections ?? [];
@@ -65,6 +185,7 @@ export function EstimateBuildStep({
       for (const section of template.sections) {
         const created = await mut.addSection.mutateAsync({ name: section.name });
         for (const item of section.items) {
+          const links = resolveTemplateItemLinks(item, materials, rateAnalyses);
           await mut.addItem.mutateAsync({
             sectionId: created.id,
             description: item.description,
@@ -73,6 +194,7 @@ export function EstimateBuildStep({
             rate: item.rate,
             type: item.type,
             itemCode: item.itemCode,
+            ...links,
           });
         }
       }
@@ -197,7 +319,13 @@ export function EstimateBuildStep({
                 </View>
               </View>
               {sec.items.map((it: EstimateItem) => (
-                <EditableLineItem key={it.id} item={it} mut={mut} />
+                <EditableLineItem
+                  key={it.id}
+                  item={it}
+                  mut={mut}
+                  materials={materials}
+                  rateAnalyses={rateAnalyses}
+                />
               ))}
               <AddItemRow sectionId={sec.id} mut={mut} />
             </Card>
@@ -246,32 +374,64 @@ export function EstimateBuildStep({
 function EditableLineItem({
   item,
   mut,
+  materials,
+  rateAnalyses,
 }: {
   item: EstimateItem;
   mut: ReturnType<typeof useEstimateMutations>;
+  materials: Resource[];
+  rateAnalyses: RateAnalysis[];
 }) {
   const [editing, setEditing] = useState(false);
   const [desc, setDesc] = useState(item.description);
   const [qty, setQty] = useState(String(parseFloat(item.quantity)));
   const [rate, setRate] = useState(String(parseFloat(item.rate)));
   const [unit, setUnit] = useState(item.unit);
+  const [resourceId, setResourceId] = useState(item.resourceId ?? '');
+  const [rateAnalysisId, setRateAnalysisId] = useState(item.rateAnalysisId ?? '');
+
+  const linkedResource = materials.find((m) => m.id === (resourceId || item.resourceId));
+  const linkedRa = rateAnalyses.find((r) => r.id === (rateAnalysisId || item.rateAnalysisId));
+
+  async function clearLink() {
+    await mut.updateItem.mutateAsync({
+      itemId: item.id,
+      body: { resourceId: null, rateAnalysisId: null },
+    });
+  }
 
   if (!editing) {
     return (
       <View className="border-t border-border py-2">
         <View className="flex-row justify-between items-start">
-          <Pressable className="flex-1 mr-2" onPress={() => setEditing(true)}>
-            <Text className="text-sm text-text" numberOfLines={2}>
-              {item.description}
-            </Text>
-            <View className="flex-row gap-3 mt-0.5 flex-wrap">
-              <Text className="text-xs text-muted">
-                {parseFloat(item.quantity)} {item.unit}
+          <View className="flex-1 mr-2">
+            <Pressable onPress={() => setEditing(true)}>
+              <Text className="text-sm text-text" numberOfLines={2}>
+                {item.description}
               </Text>
-              <Text className="text-xs text-muted">@ {formatINR(parseFloat(item.rate))}</Text>
-              <Badge label={item.type} color="neutral" />
-            </View>
-          </Pressable>
+              <View className="flex-row gap-3 mt-0.5 flex-wrap">
+                <Text className="text-xs text-muted">
+                  {parseFloat(item.quantity)} {item.unit}
+                </Text>
+                <Text className="text-xs text-muted">@ {formatINR(parseFloat(item.rate))}</Text>
+                <Badge label={item.type} color="neutral" />
+              </View>
+            </Pressable>
+            {item.type === 'MATERIAL' && (linkedResource || linkedRa) ? (
+              <View className="flex-row items-center gap-2 mt-0.5 flex-wrap">
+                <Text className="text-[10px] text-primary">
+                  {linkedResource
+                    ? `Catalog: ${linkedResource.name}`
+                    : linkedRa
+                      ? `Rate analysis: ${linkedRa.name}`
+                      : null}
+                </Text>
+                <Pressable onPress={() => void clearLink()}>
+                  <Text className="text-danger text-[10px] font-semibold">Clear link</Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
           <View className="items-end gap-1">
             <Text className="text-sm font-semibold text-text">
               {formatINR(parseFloat(item.amount))}
@@ -325,6 +485,15 @@ function EditableLineItem({
           />
         </View>
       </View>
+      {item.type === 'MATERIAL' ? (
+        <ProcurementLinkFields
+          resourceId={resourceId}
+          rateAnalysisId={rateAnalysisId}
+          onResourceIdChange={setResourceId}
+          onRateAnalysisIdChange={setRateAnalysisId}
+          scope={{ setDesc, setUnit, setRate }}
+        />
+      ) : null}
       <View className="flex-row gap-2">
         <Button
           label="Save"
@@ -337,12 +506,27 @@ function EditableLineItem({
                 quantity: parseFloat(qty) || 0,
                 rate: parseFloat(rate) || 0,
                 unit: unit.trim() || 'unit',
+                resourceId: resourceId || null,
+                rateAnalysisId: rateAnalysisId || null,
               },
             });
             setEditing(false);
           }}
         />
-        <Button label="Cancel" size="sm" variant="ghost" onPress={() => setEditing(false)} />
+        <Button
+          label="Cancel"
+          size="sm"
+          variant="ghost"
+          onPress={() => {
+            setDesc(item.description);
+            setQty(String(parseFloat(item.quantity)));
+            setRate(String(parseFloat(item.rate)));
+            setUnit(item.unit);
+            setResourceId(item.resourceId ?? '');
+            setRateAnalysisId(item.rateAnalysisId ?? '');
+            setEditing(false);
+          }}
+        />
       </View>
     </View>
   );
@@ -360,6 +544,8 @@ function AddItemRow({
   const [unit, setUnit] = useState('cum');
   const [qty, setQty] = useState('1');
   const [rate, setRate] = useState('0');
+  const [resourceId, setResourceId] = useState('');
+  const [rateAnalysisId, setRateAnalysisId] = useState('');
   const [type, setType] = useState<'MATERIAL' | 'LABOUR' | 'EQUIPMENT' | 'SUBCONTRACTOR' | 'MISC'>(
     'MATERIAL',
   );
@@ -425,6 +611,16 @@ function AddItemRow({
           = {formatINR((parseFloat(qty) || 0) * (parseFloat(rate) || 0))}
         </Text>
       </View>
+      {type === 'MATERIAL' ? (
+        <ProcurementLinkFields
+          resourceId={resourceId}
+          rateAnalysisId={rateAnalysisId}
+          onResourceIdChange={setResourceId}
+          onRateAnalysisIdChange={setRateAnalysisId}
+          scope={{ setDesc, setUnit, setRate }}
+          compact
+        />
+      ) : null}
       <View className="flex-row gap-2 mt-1">
         <Button
           label="Add"
@@ -438,10 +634,14 @@ function AddItemRow({
               quantity: parseFloat(qty) || 0,
               rate: parseFloat(rate) || 0,
               type,
+              resourceId: resourceId || undefined,
+              rateAnalysisId: rateAnalysisId || undefined,
             });
             setDesc('');
             setQty('1');
             setRate('0');
+            setResourceId('');
+            setRateAnalysisId('');
             setOpen(false);
           }}
         />

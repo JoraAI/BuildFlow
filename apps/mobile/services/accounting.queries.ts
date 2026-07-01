@@ -7,6 +7,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
+import { invalidateProjectBoq, invalidateProjectCore, invalidateBillPaymentImpact, invalidateAnalyticsDashboard } from '@/lib/project-query-invalidation';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -59,6 +60,13 @@ export interface Bill {
   tdsRate: number;
   tdsAmount: number;
   total: number;
+  paidAmount: number;
+  paidAt?: string | null;
+  retentionAmount: number;
+  advanceRecoveryAmount: number;
+  workOrderId?: string | null;
+  measurementId?: string | null;
+  isRetentionRelease: boolean;
   category: 'MATERIAL' | 'LABOUR' | 'EQUIPMENT' | 'SUBCONTRACTOR' | 'OTHER';
   attachmentUrl?: string | null;
   approvedBy?: string | null;
@@ -161,6 +169,8 @@ export function useSendInvoice() {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['invoices', 'detail', data.id] });
       qc.invalidateQueries({ queryKey: ['invoices', 'list', data.projectId] });
+      invalidateProjectBoq(qc, data.projectId);
+      invalidateProjectCore(qc, data.projectId);
     },
   });
 }
@@ -173,6 +183,9 @@ export function useRecordPayment() {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['invoices', 'detail', data.id] });
       qc.invalidateQueries({ queryKey: ['invoices', 'list', data.projectId] });
+      invalidateProjectBoq(qc, data.projectId);
+      invalidateProjectCore(qc, data.projectId);
+      invalidateAnalyticsDashboard(qc);
     },
   });
 }
@@ -185,6 +198,14 @@ export function useBills(projectId: string) {
     queryKey: ['bills', 'list', projectId] as const,
     queryFn: () => apiFetch<Bill[]>(`/projects/${projectId}/bills`),
     enabled: !!projectId,
+  });
+}
+
+export function useBill(id: string) {
+  return useQuery({
+    queryKey: ['bills', 'detail', id] as const,
+    queryFn: () => apiFetch<Bill>(`/bills/${id}`),
+    enabled: !!id,
   });
 }
 
@@ -211,10 +232,12 @@ export function useCreateBill() {
 export function useApproveBill() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => apiFetch<Bill>(`/bills/${id}/approve`, { method: 'PUT' }),
+    mutationFn: (id: string) => apiFetch<Bill>(`/bills/${id}/approve`, { method: 'POST' }),
     onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['bills', 'detail', data.id] });
       qc.invalidateQueries({ queryKey: ['bills', 'list', data.projectId] });
       qc.invalidateQueries({ queryKey: ['bills', 'summary', data.projectId] });
+      invalidateBillPaymentImpact(qc, data.projectId);
     },
   });
 }
@@ -222,10 +245,36 @@ export function useApproveBill() {
 export function useRejectBill() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => apiFetch<Bill>(`/bills/${id}/reject`, { method: 'PUT' }),
+    mutationFn: (id: string) => apiFetch<Bill>(`/bills/${id}/reject`, { method: 'POST' }),
     onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ['bills', 'list', data.projectId] });
-      qc.invalidateQueries({ queryKey: ['bills', 'summary', data.projectId] });
+      qc.invalidateQueries({ queryKey: ['bills', 'detail', data.id] });
+      invalidateBillPaymentImpact(qc, data.projectId);
+    },
+  });
+}
+
+export function useRecordBillPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, amount }: { id: string; amount: number }) =>
+      apiFetch<Bill>(`/bills/${id}/record-payment`, {
+        method: 'POST',
+        body: JSON.stringify({ amount }),
+      }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['bills', 'detail', data.id] });
+      invalidateBillPaymentImpact(qc, data.projectId);
+    },
+  });
+}
+
+export function usePayBill() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<Bill>(`/bills/${id}/pay`, { method: 'POST' }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['bills', 'detail', data.id] });
+      invalidateBillPaymentImpact(qc, data.projectId);
     },
   });
 }

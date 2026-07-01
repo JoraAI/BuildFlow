@@ -18,6 +18,7 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset --force",
+    "db:test:reset": "prisma migrate reset --force",
     "clean": "rm -rf dist .turbo coverage"
   },
   "prisma": {

@@ -23,6 +23,19 @@ import type {
   UpdateDailyReportInput,
 } from '@buildflow/shared';
 
+const reportInclude = {
+  project: { select: { id: true, code: true, name: true } },
+  reportedByUser: { select: { id: true, name: true } },
+  materialUsages: {
+    include: {
+      resource: { select: { id: true, name: true, unit: true } },
+      task: { select: { id: true, name: true } },
+      boqItem: { select: { id: true, itemCode: true, description: true } },
+    },
+  },
+  taskUpdates: { include: { task: { select: { id: true, name: true } } } },
+} as const;
+
 /* ------------------------------------------------------------------ */
 /* List (with optional date filters)                                   */
 /* ------------------------------------------------------------------ */
@@ -43,10 +56,7 @@ export async function listReports(
 
   const reports = await prisma.dailyReport.findMany({
     where: where as never,
-    include: {
-      reportedByUser: { select: { id: true, name: true } },
-      materialUsages: { include: { resource: { select: { id: true, name: true, unit: true } } } },
-    },
+    include: reportInclude,
     orderBy: { reportDate: 'desc' },
   });
 
@@ -87,10 +97,7 @@ export async function getReportCalendar(
 export async function getReport(companyId: string, reportId: string) {
   const report = await prisma.dailyReport.findFirst({
     where: { id: reportId, project: { companyId } },
-    include: {
-      reportedByUser: { select: { id: true, name: true } },
-      materialUsages: { include: { resource: { select: { id: true, name: true, unit: true } } } },
-    },
+    include: reportInclude,
   });
   if (!report) throw ApiError.notFound('Daily report not found');
   return serializeReport(report);
@@ -136,6 +143,7 @@ export async function createReport(
         reportedBy: userId,
         reportDate,
         weather: reportFields.weather,
+        siteStatus: reportFields.siteStatus,
         workDone: reportFields.workDone,
         issues: reportFields.issues,
         photos: [],
@@ -160,13 +168,7 @@ export async function createReport(
             }
           : undefined,
       },
-      include: {
-        reportedByUser: { select: { id: true, name: true } },
-        materialUsages: {
-          include: { resource: { select: { id: true, name: true, unit: true } } },
-        },
-        taskUpdates: { include: { task: { select: { id: true, name: true } } } },
-      },
+      include: reportInclude,
     });
 
     if (deductStock && materialUsages?.length) {
@@ -176,6 +178,7 @@ export async function createReport(
         created.id,
         materialUsages.map((m) => ({ resourceId: m.resourceId, quantityUsed: m.quantityUsed })),
         tx,
+        { strict: true },
       );
     }
 
@@ -211,13 +214,7 @@ export async function createReport(
     }
     const refreshed = await prisma.dailyReport.findFirst({
       where: { id: report.id },
-      include: {
-        reportedByUser: { select: { id: true, name: true } },
-        materialUsages: {
-          include: { resource: { select: { id: true, name: true, unit: true } } },
-        },
-        taskUpdates: { include: { task: { select: { id: true, name: true } } } },
-      },
+      include: reportInclude,
     });
     if (refreshed) {
       report = refreshed;
@@ -235,12 +232,15 @@ export async function createReport(
   });
 
   const serialized = serializeReport(report);
+  const stockDeductionApplied = !!(deductStock && materialUsages?.length);
+  const result = { ...serialized, stockDeductionApplied };
+
   if (idempotencyKey) {
     const { redis } = await import('../lib/redis');
-    await redis.set(`idempotency:report:${idempotencyKey}`, JSON.stringify(serialized), 'EX', 86_400);
+    await redis.set(`idempotency:report:${idempotencyKey}`, JSON.stringify(result), 'EX', 86_400);
   }
 
-  return serialized;
+  return result;
 }
 
 /* ------------------------------------------------------------------ */
@@ -266,14 +266,12 @@ export async function updateReport(
     where: { id: reportId },
     data: {
       ...(reportFields.weather !== undefined && { weather: reportFields.weather }),
+      ...(reportFields.siteStatus !== undefined && { siteStatus: reportFields.siteStatus }),
       ...(reportFields.workDone !== undefined && { workDone: reportFields.workDone }),
       ...(reportFields.issues !== undefined && { issues: reportFields.issues }),
       ...(reportFields.workersCount !== undefined && { workersCount: reportFields.workersCount }),
     },
-    include: {
-      reportedByUser: { select: { id: true, name: true } },
-      materialUsages: { include: { resource: { select: { id: true, name: true, unit: true } } } },
-    },
+    include: reportInclude,
   });
 
   // Replace material usages if provided
@@ -336,6 +334,14 @@ export async function createPhotoUploadUrl(
     companyId,
     key,
     contentType: input.contentType,
+  }).catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg === 'S3_NOT_CONFIGURED' || msg.includes('credentials')) {
+      throw ApiError.unprocessable(
+        'Photo uploads are not available - configure S3 storage in Settings → Integrations.',
+      );
+    }
+    throw err;
   });
 
   await recordAudit({
@@ -441,9 +447,21 @@ export async function postMaterialUsageToBoq(
 /* Serializer - normalise Decimals + ISO dates                         */
 /* ------------------------------------------------------------------ */
 
-function serializeReport<T extends { reportDate: Date }>(r: T): Omit<T, 'reportDate'> & { reportDate: string } {
+function serializeReport<T extends { reportDate: Date; materialUsages?: Array<{ quantityUsed: unknown }> }>(
+  r: T,
+): Omit<T, 'reportDate' | 'materialUsages'> & {
+  reportDate: string;
+  materialUsages?: Array<Omit<NonNullable<T['materialUsages']>[number], 'quantityUsed'> & { quantityUsed: number }>;
+} {
+  const { reportDate, materialUsages, ...rest } = r;
   return {
-    ...r,
-    reportDate: r.reportDate.toISOString().slice(0, 10),
-  } as Omit<T, 'reportDate'> & { reportDate: string };
+    ...rest,
+    reportDate: reportDate.toISOString().slice(0, 10),
+    ...(materialUsages && {
+      materialUsages: materialUsages.map((m) => ({
+        ...m,
+        quantityUsed: Number(m.quantityUsed),
+      })),
+    }),
+  } as never;
 }

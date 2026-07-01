@@ -17,6 +17,7 @@ import { MobileScreenHeader, FilterChip, FilterChipRow } from '@/components/layo
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { PageHeader, StatChip } from '@/components/layout/PageHeader';
 import { ProjectInvoicesList, ProjectBillsList } from '@/components/accounting/InvoiceBillLists';
+import { AccountingExplainer } from '@/components/accounting/AccountingExplainer';
 import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 import { ResponsiveGrid } from '@/components/layout/ResponsiveGrid';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
@@ -106,6 +107,7 @@ export default function AccountingScreen() {
             }
           />
           {tabChips}
+          {(tab === 'INVOICES' || tab === 'BILLS') && <AccountingExplainer />}
           {tab === 'INVOICES' && <DesktopSplitPane mode="invoices" projects={projects ?? []} />}
           {tab === 'BILLS' && <DesktopSplitPane mode="bills" projects={projects ?? []} />}
           {tab === 'DASHBOARD' && <DashboardTab />}
@@ -119,6 +121,11 @@ export default function AccountingScreen() {
       <OfflineBanner />
       <MobileScreenHeader title="Accounting" subtitle="Invoices, bills, GST & TDS" />
       {tabChips}
+      {(tab === 'INVOICES' || tab === 'BILLS') && (
+        <View className="px-4 pt-2">
+          <AccountingExplainer />
+        </View>
+      )}
       {tab === 'INVOICES' && (
         <MobileAccountingPane
           mode="invoices"

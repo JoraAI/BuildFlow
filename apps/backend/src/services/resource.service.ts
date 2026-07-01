@@ -245,7 +245,7 @@ export async function deleteResource(
     if (rateAnalysisRefs > 0) parts.push(`${rateAnalysisRefs} rate analysis component(s)`);
     if (estimateItemRefs > 0) parts.push(`${estimateItemRefs} estimate line item(s)`);
     throw ApiError.conflict(
-      `Cannot delete this material — it is used in ${parts.join(' and ')}. Remove those references first.`,
+      `Cannot delete this material - it is used in ${parts.join(' and ')}. Remove those references first.`,
     );
   }
 

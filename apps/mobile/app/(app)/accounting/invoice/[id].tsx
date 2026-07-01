@@ -12,13 +12,13 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { Card, Badge, Button, Input, EmptyState, LoadingSkeleton } from '@/components/ui';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { useViewport } from '@/hooks/useViewport';
-import { dismissTo, DISMISS } from '@/utils/navigation';
+import { navigateAppBack, parseReturnTo, DISMISS } from '@/utils/navigation';
 import { alertAsync, confirmAsync } from '@/utils/confirm';
 import {
   useInvoice,
@@ -36,9 +36,10 @@ const STATUS_COLOR: Record<string, 'success' | 'warning' | 'danger' | 'primary' 
 };
 
 export default function InvoiceDetailScreen() {
-  const router = useRouter();
   const { isDesktop } = useViewport();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, returnTo: returnToParam } = useLocalSearchParams<{ id: string; returnTo?: string }>();
+  const returnTo = parseReturnTo(returnToParam);
+  const goBack = () => navigateAppBack(DISMISS.accounting, returnTo);
   const { data: invoice, isLoading } = useInvoice(id);
   const sendInvoice = useSendInvoice();
   const recordPayment = useRecordPayment();
@@ -50,6 +51,7 @@ export default function InvoiceDetailScreen() {
     return (
       <SafeAreaView className="flex-1 bg-surface">
         <OfflineBanner />
+        <FormScreenHeader title="Invoice" cancelLabel="Back" onCancel={goBack} />
         <View className="px-4 pt-4">
           <LoadingSkeleton className="h-64 rounded-xl" />
         </View>
@@ -61,6 +63,7 @@ export default function InvoiceDetailScreen() {
     return (
       <SafeAreaView className="flex-1 bg-surface">
         <OfflineBanner />
+        <FormScreenHeader title="Invoice not found" cancelLabel="Back" onCancel={goBack} />
         <EmptyState title="Invoice not found" description="This invoice may have been deleted." />
       </SafeAreaView>
     );
@@ -272,7 +275,7 @@ export default function InvoiceDetailScreen() {
               title={invoice.invoiceNumber}
               subtitle={invoice.clientName}
               cancelLabel="Back"
-              onCancel={() => dismissTo(DISMISS.accounting)}
+              onCancel={goBack}
             />
             <View className="flex-1 flex-row gap-6 items-start">
               <ScrollView className="flex-[2]" contentContainerClassName="gap-4 pb-6" showsVerticalScrollIndicator={false}>
@@ -290,7 +293,7 @@ export default function InvoiceDetailScreen() {
               title={invoice.invoiceNumber}
               subtitle={invoice.clientName}
               cancelLabel="Back"
-              onCancel={() => dismissTo(DISMISS.accounting)}
+              onCancel={goBack}
             />
             <ScrollView contentContainerClassName="px-4 pb-24 pt-2 gap-4">{mainContent}</ScrollView>
           </>

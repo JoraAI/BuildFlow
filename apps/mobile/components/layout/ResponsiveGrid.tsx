@@ -37,7 +37,7 @@ interface ResponsiveGridProps {
   className?: string;
 }
 
-/** Flex-wrap grid with fixed column widths — last row items stay column-width, left-aligned. */
+/** Flex-wrap grid with fixed column widths - last row items stay column-width, left-aligned. */
 export function ResponsiveGrid({ children, gap = DEFAULT_GAP, columns, className = '' }: ResponsiveGridProps) {
   const { containerStyle, itemStyle } = useGridLayout(gap, columns);
   const items = React.Children.toArray(children);

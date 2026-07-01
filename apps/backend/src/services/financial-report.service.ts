@@ -111,8 +111,8 @@ export async function getCashFlow(companyId: string, projectId: string): Promise
       select: { paidAmount: true, invoiceDate: true },
     }),
     prisma.bill.findMany({
-      where: { companyId, projectId, status: 'PAID' },
-      select: { total: true, billDate: true },
+      where: { companyId, projectId, status: { in: ['APPROVED', 'PAID'] }, paidAmount: { gt: 0 } },
+      select: { paidAmount: true, billDate: true },
     }),
   ]);
 
@@ -130,7 +130,7 @@ export async function getCashFlow(companyId: string, projectId: string): Promise
   }
   for (const bill of bills) {
     const key = bill.billDate.toISOString().slice(0, 7);
-    bump(key, 0, num(bill.total));
+    bump(key, 0, num(bill.paidAmount));
   }
 
   const months = Array.from(map.values()).sort((a, b) => a.month.localeCompare(b.month));
@@ -298,7 +298,7 @@ export async function getCompanyDashboard(companyId: string): Promise<CompanyDas
       status: true,
       budget: true,
       invoices: { select: { total: true, paidAmount: true, status: true } },
-      bills: { select: { total: true, status: true } },
+      bills: { select: { total: true, paidAmount: true, status: true } },
     },
   });
 
@@ -311,10 +311,11 @@ export async function getCompanyDashboard(companyId: string): Promise<CompanyDas
     const billed = p.invoices.reduce((s, i) => s + num(i.total), 0);
     const collected = p.invoices.reduce((s, i) => s + num(i.paidAmount), 0);
     const billTotal = p.bills.reduce((s, b) => s + num(b.total), 0);
+    const billPaid = p.bills.reduce((s, b) => s + num(b.paidAmount), 0);
     totalInvoiced += billed;
     totalCollected += collected;
     totalBilled += billTotal;
-    if (p.bills.some((b) => b.status === 'PAID')) totalPaid += billTotal;
+    totalPaid += billPaid;
     return {
       id: p.id,
       name: p.name,

@@ -56,4 +56,14 @@ router.get('/projects/:id/abstract-sheet', ctrl.getAbstractSheetPdf);
 // 15. Project Material Rate Sheet
 router.get('/projects/:id/material-rates', ctrl.getProjectMaterialRatesPdf);
 
+// 16–17. Subcontract WO PDFs
+router.get(
+  '/projects/:id/subcontract/work-orders/:woId/measurement-book',
+  ctrl.getSubcontractMeasurementBookPdf,
+);
+router.get(
+  '/projects/:id/subcontract/work-orders/:woId/abstract-sheet',
+  ctrl.getSubcontractAbstractSheetPdf,
+);
+
 export default router;

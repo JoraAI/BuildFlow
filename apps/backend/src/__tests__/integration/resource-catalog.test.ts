@@ -49,7 +49,7 @@ describe('Material catalog (integration)', () => {
       expect(res.body.data.uploadUrl).toMatch(/^https?:\/\//);
       expect(res.body.data.imageUrl).toMatch(/^s3:\/\//);
     } else {
-      // S3 may be unconfigured in CI — endpoint should still exist
+      // S3 may be unconfigured in CI - endpoint should still exist
       expect([500, 503]).toContain(res.status);
     }
   });

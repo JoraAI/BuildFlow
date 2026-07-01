@@ -110,7 +110,7 @@ async function loadOwnerDashboard(companyId: string): Promise<AnalyticsDashboard
     }),
     prisma.bill.findMany({
       where: { companyId, status: { in: ['APPROVED', 'PAID'] } },
-      select: { projectId: true, total: true },
+      select: { projectId: true, total: true, paidAmount: true },
     }),
     prisma.resource.findMany({
       where: { companyId, type: 'MATERIAL', isActive: true },
@@ -205,7 +205,7 @@ async function loadOwnerDashboard(companyId: string): Promise<AnalyticsDashboard
     const ds = d.toISOString().slice(0, 10);
     // simple stub: project outstanding prorated over 30 days for inflow, bills avg for outflow
     const dailyInflow = totalOutstanding / 30;
-    const dailyOutflow = approvedBills.reduce((s, b) => s + num(b.total), 0) / 30;
+    const dailyOutflow = approvedBills.reduce((s, b) => s + num(b.paidAmount || b.total), 0) / 30;
     cashFlowForecast.push({
       date: ds,
       inflow: Math.round(dailyInflow),
@@ -217,7 +217,7 @@ async function loadOwnerDashboard(companyId: string): Promise<AnalyticsDashboard
   // ---- Budget burn gauges ----
   const spendByProject = new Map<string, number>();
   approvedBills.forEach((b) => {
-    spendByProject.set(b.projectId, (spendByProject.get(b.projectId) ?? 0) + num(b.total));
+    spendByProject.set(b.projectId, (spendByProject.get(b.projectId) ?? 0) + num(b.paidAmount || b.total));
   });
   const budgetBurn = projects
     .map((p) => {

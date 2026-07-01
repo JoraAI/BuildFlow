@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, Alert, Pressable, ScrollView } from 'react-native';
 import { alertAsync } from '@/utils/confirm';
+import { FlowHintCard } from '@/components/ui/FlowHintCard';
 import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
 import { ResponsiveGrid } from '@/components/layout/ResponsiveGrid';
 import {
@@ -60,11 +61,36 @@ function lineAmount(qtyDelta: string, rate: string): number {
   return Math.round((parseFloat(qtyDelta) || 0) * (parseFloat(rate) || 0) * 100) / 100;
 }
 
+function isMaterialBoqCategory(category: string | null | undefined): boolean {
+  return category === 'MATERIAL';
+}
+
+function applyBoqLinkToLine(line: DraftLine, boq: BoqItem | null): DraftLine {
+  if (!boq) {
+    return { ...line, boqItemId: undefined, resourceId: undefined };
+  }
+  const isMaterial = isMaterialBoqCategory(boq.category);
+  return {
+    ...line,
+    boqItemId: boq.id,
+    description: line.description || boq.description,
+    unit: boq.unit,
+    rate: String(parseFloat(boq.rate) || 0),
+    resourceId: isMaterial && boq.resourceId ? boq.resourceId : undefined,
+  };
+}
+
+function showMaterialPickerForLine(line: DraftLine, boqItems: BoqItem[]): boolean {
+  if (!line.boqItemId) return true;
+  const linked = boqItems.find((b) => b.id === line.boqItemId);
+  return isMaterialBoqCategory(linked?.category);
+}
+
 function formatLineSummary(line: ChangeOrderLine): string {
   const qty = parseFloat(line.qtyDelta) || 0;
   const rate = parseFloat(line.rate) || 0;
   const amount = parseFloat(line.amount) || qty * rate;
-  return `• ${line.description} — ${qty} ${line.unit} @ ${formatINR(rate)} = ${formatINR(amount)}`;
+  return `• ${line.description} - ${qty} ${line.unit} @ ${formatINR(rate)} = ${formatINR(amount)}`;
 }
 
 function VariationCard({
@@ -108,6 +134,12 @@ function VariationCard({
       {co.reason ? (
         <Text className="text-xs text-muted mb-2" numberOfLines={2}>
           {co.reason}
+        </Text>
+      ) : null}
+      {co.linkedWorkOrder ? (
+        <Text className="text-xs text-accent mb-1">
+          Linked WO: {co.linkedWorkOrder.woNumber}
+          {co.status === 'APPROVED' ? ` - contract +${formatINR(co.costImpact)}` : ''}
         </Text>
       ) : null}
       {orderLines.map((line) => (
@@ -296,6 +328,16 @@ export function VariationsTab({ projectId }: { projectId: string }) {
 
   return (
     <View className="gap-3">
+      <FlowHintCard
+        title="When to use variations"
+        steps={[
+          'Use when the client agrees to extra scope or quantity after BOQ was approved',
+          'PM creates a variation → Owner approves → BOQ and budget update automatically',
+          'Link to a subcontract work order to bump contract value when scope is subcontracted',
+        ]}
+        defaultCollapsed
+      />
+
       <View className="flex-row justify-between items-center">
         <Text className="text-sm font-bold text-text shrink">{orders.length} Variations</Text>
         {canManage && orders.length > 0 && (
@@ -405,18 +447,22 @@ export function VariationsTab({ projectId }: { projectId: string }) {
           </View>
         ) : null}
         <Text className="text-sm font-bold text-text -mb-2">Line items</Text>
+        <Text className="text-xs text-muted mb-1">
+          Link to BOQ updates billed quantity on approve. Pick a catalog material only when this
+          variation needs extra material ordered.
+        </Text>
         {lines.map((line, idx) => (
           <View key={line.id} className="border border-border rounded-lg p-3 gap-2">
             <Text className="text-xs text-muted">Line {idx + 1}</Text>
             <Input
-              label="Description"
+              label="Scope / BOQ description"
               value={line.description}
               onChangeText={(v) =>
                 setLines((prev) =>
                   prev.map((l) => (l.id === line.id ? { ...l, description: v } : l)),
                 )
               }
-              placeholder="Work description"
+              placeholder="Work or scope description"
               fullWidth
             />
             {boqItems.length > 0 ? (
@@ -426,7 +472,9 @@ export function VariationsTab({ projectId }: { projectId: string }) {
                   <Pressable
                     onPress={() =>
                       setLines((prev) =>
-                        prev.map((l) => (l.id === line.id ? { ...l, boqItemId: undefined } : l)),
+                        prev.map((l) =>
+                          l.id === line.id ? applyBoqLinkToLine(l, null) : l,
+                        ),
                       )
                     }
                     className={`px-2 py-1 rounded border ${!line.boqItemId ? 'bg-accent border-accent' : 'border-border'}`}
@@ -439,15 +487,7 @@ export function VariationsTab({ projectId }: { projectId: string }) {
                       onPress={() =>
                         setLines((prev) =>
                           prev.map((l) =>
-                            l.id === line.id
-                              ? {
-                                  ...l,
-                                  boqItemId: b.id,
-                                  description: l.description || b.description,
-                                  unit: b.unit,
-                                  rate: String(parseFloat(b.rate) || 0),
-                                }
-                              : l,
+                            l.id === line.id ? applyBoqLinkToLine(l, b) : l,
                           ),
                         )
                       }
@@ -464,9 +504,9 @@ export function VariationsTab({ projectId }: { projectId: string }) {
                 </ScrollView>
               </View>
             ) : null}
-            {materialResources.length > 0 ? (
+            {materialResources.length > 0 && showMaterialPickerForLine(line, boqItems) ? (
               <View className="gap-1">
-                <Text className="text-xs text-muted">Material (for auto-indent on approve)</Text>
+                <Text className="text-xs text-muted">Catalog material for procurement (optional)</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-1">
                   <Pressable
                     onPress={() =>
@@ -498,6 +538,10 @@ export function VariationsTab({ projectId }: { projectId: string }) {
                   ))}
                 </ScrollView>
               </View>
+            ) : line.boqItemId && !showMaterialPickerForLine(line, boqItems) ? (
+              <Text className="text-[10px] text-muted italic">
+                Linked BOQ line is not material-type - no procurement indent needed.
+              </Text>
             ) : null}
             <View className="flex-row gap-2">
               <View className="flex-1">

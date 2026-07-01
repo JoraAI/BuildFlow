@@ -24,6 +24,9 @@ import { BoqTab } from '@/components/projects/BoqTab';
 import { ResourcesTab } from '@/components/projects/ResourcesTab';
 import { ProjectMembersSection } from '@/components/projects/ProjectMembersSection';
 import { ProjectMaterialRatesSection } from '@/components/projects/ProjectMaterialRatesSection';
+import { ProjectSetupChecklist } from '@/components/projects/ProjectSetupChecklist';
+import { TermHint } from '@/components/ui/TermHint';
+import { PROJECT_TAB_HINTS } from '@/constants/project-workflow';
 import { useCreatePortalAccess } from '@/services/expansion.queries';
 import { useAuthStore } from '@/stores/auth.store';
 import { formatINR, formatINRCompact, formatDate, daysBetween } from '@/utils/format';
@@ -108,28 +111,43 @@ export default function ProjectDetailScreen() {
 
   const tabBar = (
     <View className="bg-surface border-b border-border">
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="px-4 py-2 gap-2">
-        {TABS.map((t) => (
-          <Pressable
-            key={t.value}
-            onPress={() => setTab(t.value)}
-            className={`px-4 py-2 rounded-full ${
-              tab === t.value ? 'bg-primary' : 'bg-card border border-border'
-            }`}
-          >
-            <Text className={`text-sm font-semibold ${tab === t.value ? 'text-white' : 'text-muted'}`}>
-              {t.label}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+      <View className={isDesktop ? 'px-8 max-w-6xl w-full self-center' : undefined}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerClassName={isDesktop ? 'py-2 gap-2' : 'px-4 py-2 gap-2'}
+        >
+          {TABS.map((t) => (
+            <Pressable
+              key={t.value}
+              onPress={() => setTab(t.value)}
+              className={`px-4 py-2 rounded-full ${
+                tab === t.value ? 'bg-primary' : 'bg-card border border-border'
+              }`}
+            >
+              <Text className={`text-sm font-semibold ${tab === t.value ? 'text-white' : 'text-muted'}`}>
+                {t.label}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+        <View className={`px-4 py-1.5 ${isDesktop ? 'px-8 max-w-6xl w-full self-center' : ''}`}>
+          <Text className="text-xs text-muted">{PROJECT_TAB_HINTS[tab]}</Text>
+        </View>
+      </View>
     </View>
   );
 
   const tabContent = (
     <View className={isDesktop ? 'px-8 py-4 max-w-6xl w-full self-center' : 'p-4 pb-32'}>
       {tab === 'overview' && (
-        <OverviewTab projectId={id} summary={summaryQ.data} summaryLoading={summaryQ.isLoading} project={project} />
+        <OverviewTab
+          projectId={id}
+          summary={summaryQ.data}
+          summaryLoading={summaryQ.isLoading}
+          project={project}
+          onGoToTab={setTab}
+        />
       )}
       {tab === 'estimate' && <EstimateTab projectId={id} />}
       {tab === 'schedule' && <ScheduleTab projectId={id} />}
@@ -230,23 +248,41 @@ function OverviewTab({
   summary,
   summaryLoading,
   project,
+  onGoToTab,
 }: {
   projectId: string;
   summary?: import('@/services/project.queries').ProjectSummary;
   summaryLoading: boolean;
   project: import('@/services/project.queries').ProjectDetail;
+  onGoToTab: (tab: Tab) => void;
 }) {
   const budget = parseFloat(project.budget ?? '0');
 
   return (
     <View className="gap-4">
+      <ProjectSetupChecklist projectId={projectId} onGoToTab={onGoToTab} />
+
       {/* KPI Row */}
       <ResponsiveGrid gap={12} columns={2}>
         <KpiCard
           label="Budget"
           value={formatINRCompact(budget)}
-          sub={summary ? `${summary.budgetUtilizationPct.toFixed(0)}% used` : '-'}
+          sub={summary ? `${summary.budgetUtilizationPct.toFixed(0)}% committed` : '-'}
         />
+        {summary && summary.committedSpend > 0 ? (
+          <>
+            <KpiCard
+              label="Committed"
+              value={formatINRCompact(summary.committedSpend)}
+              sub="Approved bill obligations"
+            />
+            <KpiCard
+              label="Paid out"
+              value={formatINRCompact(summary.paidSpend)}
+              sub="Cash actually paid"
+            />
+          </>
+        ) : null}
         <KpiCard
           label="Progress"
           value={summary ? `${summary.actualProgressPct.toFixed(0)}%` : '-'}
@@ -293,16 +329,21 @@ function OverviewTab({
       {/* Estimate vs Actual */}
       {summary && summary.approvedEstimateTotal > 0 && (
         <Card>
-          <Text className="text-sm font-bold text-text mb-3">Estimate vs Actual</Text>
+          <View className="flex-row items-center gap-2 mb-3">
+            <Text className="text-sm font-bold text-text">Estimate vs Actual</Text>
+            <TermHint term="BOQ" />
+          </View>
           <View className="flex-row justify-between mb-1">
             <Text className="text-sm text-muted">Approved Estimate</Text>
             <Text className="text-sm font-semibold text-text">{formatINR(summary.approvedEstimateTotal)}</Text>
           </View>
+          <View className="flex-row justify-between mb-1">
+            <Text className="text-sm text-muted">Committed spend (bills)</Text>
+            <Text className="text-sm font-semibold text-text">{formatINR(summary.committedSpend)}</Text>
+          </View>
           <View className="flex-row justify-between mb-3">
-            <Text className="text-sm text-muted">Actual Spend</Text>
-            <Text className="text-sm font-semibold text-text">
-              {formatINR(summary.approvedEstimateTotal + summary.estimateVsActualVariance)}
-            </Text>
+            <Text className="text-sm text-muted">Paid out (cash)</Text>
+            <Text className="text-sm font-semibold text-success">{formatINR(summary.paidSpend)}</Text>
           </View>
           <View className="flex-row justify-between items-center pt-2 border-t border-border">
             <Text className="text-sm font-bold">Variance</Text>

@@ -286,17 +286,18 @@ async function loadProjectSummary(companyId: string, id: string) {
     }
   }
 
-  // Budget utilization from bills + material usage
-  const billsTotal = await prisma.bill.aggregate({
+  // committedSpend = approved bill obligations; paidSpend = cash actually paid out
+  const billsAgg = await prisma.bill.aggregate({
     where: { projectId: id, companyId, status: { in: ['APPROVED', 'PAID'] } },
-    _sum: { total: true },
+    _sum: { total: true, paidAmount: true },
   });
-  const spend = Number(billsTotal._sum.total ?? 0);
+  const committedSpend = Number(billsAgg._sum.total ?? 0);
+  const paidSpend = Number(billsAgg._sum.paidAmount ?? 0);
   const budget = Number(project.budget ?? 0);
-  const budgetUtilization = budget > 0 ? Math.round((spend / budget) * 100) : 0;
+  const budgetUtilization = budget > 0 ? Math.round((committedSpend / budget) * 100) : 0;
 
   const approvedTotal = approvedEstimate ? Number(approvedEstimate.grandTotal) : 0;
-  const estimateVsActualVariance = approvedTotal > 0 ? spend - approvedTotal : 0;
+  const estimateVsActualVariance = approvedTotal > 0 ? committedSpend - approvedTotal : 0;
 
   return {
     plannedProgressPct: plannedProgress,
@@ -306,6 +307,8 @@ async function loadProjectSummary(companyId: string, id: string) {
     tasksOverdueCount: overdueCount,
     approvedEstimateTotal: approvedTotal,
     estimateVsActualVariance,
+    committedSpend,
+    paidSpend,
   };
 }
 

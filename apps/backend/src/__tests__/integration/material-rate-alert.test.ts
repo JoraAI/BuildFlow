@@ -1,7 +1,7 @@
 /**
  * PO rate variance notification integration tests.
  */
-import { loginAs, authGet, authPost, getSeedProjectId } from './test-helpers';
+import { loginAs, authGet, authPost } from './test-helpers';
 
 const OWNER = 'owner@reddyconst.com';
 
@@ -14,14 +14,22 @@ async function getCementResourceId(token: string): Promise<string> {
   return resource.id;
 }
 
+async function getProjectId(token: string, code: string): Promise<string> {
+  const res = await authGet(token, '/api/projects');
+  const project = (res.body.data as Array<{ id: string; code: string }>).find((p) => p.code === code);
+  if (!project) throw new Error(`Project ${code} not found`);
+  return project.id;
+}
+
 describe('Material rate PO alerts (integration)', () => {
   let token: string;
+  /** TPK-RENO avoids polluting NH-65 last-PO variance fixtures. */
   let projectId: string;
   let cementId: string;
 
   beforeAll(async () => {
     token = await loginAs(OWNER);
-    projectId = await getSeedProjectId(token);
+    projectId = await getProjectId(token, 'TPK-RENO');
     cementId = await getCementResourceId(token);
   });
 
@@ -50,7 +58,7 @@ describe('Material rate PO alerts (integration)', () => {
     const items = notifRes.body.data.items as Array<{ type: string; body: string }>;
     const alert = items.find((n) => n.type === 'MATERIAL_RATE_VARIANCE' && n.body.includes('500'));
     expect(alert).toBeTruthy();
-    expect(alert!.body).toContain('NH65');
+    expect(alert!.body).toContain('TPK-RENO');
   });
 
   it('returns material rate sheet PDF', async () => {

@@ -1,6 +1,7 @@
 /**
- * Material demand engine — compute shortfalls and create DRAFT indents for PM review.
+ * Material demand engine - compute shortfalls and create DRAFT indents for PM review.
  */
+import { CostType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { resolveRequisitionLineRate } from './material-rate.service';
 
@@ -38,7 +39,7 @@ async function getOpenRequisitionQty(
       requisition: {
         companyId,
         projectId,
-        status: { in: ['DRAFT', 'SUBMITTED'] },
+        status: { in: ['DRAFT', 'SUBMITTED', 'APPROVED'] },
       },
     },
   });
@@ -49,6 +50,52 @@ async function nextAutoReqNumber(companyId: string): Promise<string> {
   const count = await prisma.materialRequisition.count({ where: { companyId } });
   const ts = Date.now().toString(36).toUpperCase();
   return `IND-AUTO-${ts}-${count + 1}`;
+}
+
+/** Explode one estimate/BOQ MATERIAL line into catalog resource demand lines. */
+export async function materialDemandsForEstimateItem(
+  item: {
+    type: string;
+    resourceId: string | null;
+    rateAnalysisId: string | null;
+    quantity: unknown;
+    unit: string;
+  },
+  boqItemId?: string,
+): Promise<MaterialDemandLine[]> {
+  if (item.type !== CostType.MATERIAL && item.type !== 'MATERIAL') return [];
+
+  const scopeQty = Number(item.quantity);
+  if (scopeQty <= 0) return [];
+
+  if (item.resourceId) {
+    return [
+      {
+        resourceId: item.resourceId,
+        quantity: round3(scopeQty),
+        unit: item.unit,
+        boqItemId,
+      },
+    ];
+  }
+
+  if (item.rateAnalysisId) {
+    const components = await prisma.rateAnalysisComponent.findMany({
+      where: {
+        rateAnalysisId: item.rateAnalysisId,
+        type: CostType.MATERIAL,
+        resourceId: { not: null },
+      },
+    });
+    return components.map((c) => ({
+      resourceId: c.resourceId!,
+      quantity: round3(scopeQty * Number(c.quantityPerUnit)),
+      unit: c.unit,
+      boqItemId,
+    }));
+  }
+
+  return [];
 }
 
 /**
@@ -71,11 +118,10 @@ export async function createDraftIndentsFromDemand(
 
   for (const line of lines) {
     if (line.quantity <= 0) continue;
-    const key = line.resourceId;
+    const key = `${line.resourceId}:${line.boqItemId ?? ''}`;
     const existing = grouped.get(key);
     if (existing) {
       existing.quantity = round3(existing.quantity + line.quantity);
-      if (!existing.boqItemId && line.boqItemId) existing.boqItemId = line.boqItemId;
     } else {
       grouped.set(key, {
         resourceId: line.resourceId,
@@ -131,7 +177,137 @@ export async function createDraftIndentsFromDemand(
   return { created, reqNumbers };
 }
 
-/** Build material demand lines from approved estimate items (MATERIAL type only). */
+export interface BoqMaterialDemand extends MaterialDemandLine {
+  itemCode: string;
+  description: string;
+}
+
+export interface BoqShortfallPreview extends BoqMaterialDemand {
+  resourceName: string;
+  stockQty: number;
+  openRequisitionQty: number;
+  shortfall: number;
+}
+
+/** Load remaining material demand from active BOQ MATERIAL lines (catalog or rate-analysis BOM). */
+export async function fetchBoqMaterialDemands(projectId: string): Promise<BoqMaterialDemand[]> {
+  const items = await prisma.bOQItem.findMany({
+    where: { projectId, isSuperseded: false, category: 'MATERIAL' },
+    include: {
+      estimateItem: {
+        select: { resourceId: true, rateAnalysisId: true, type: true },
+      },
+    },
+  });
+
+  const lines: BoqMaterialDemand[] = [];
+
+  for (const item of items) {
+    const remaining = round3(Math.max(0, Number(item.quantity) - Number(item.executedQty)));
+    if (remaining <= 0) continue;
+
+    const est = item.estimateItem;
+    const demands = await materialDemandsForEstimateItem(
+      {
+        type: est?.type ?? 'MATERIAL',
+        resourceId: est?.resourceId ?? null,
+        rateAnalysisId: est?.rateAnalysisId ?? null,
+        quantity: remaining,
+        unit: item.unit,
+      },
+      item.id,
+    );
+
+    for (const d of demands) {
+      if (d.quantity <= 0) continue;
+      lines.push({
+        ...d,
+        itemCode: item.itemCode,
+        description: item.description,
+      });
+    }
+  }
+
+  return lines;
+}
+
+/** Build material demand lines from BOQ items (sync helper for tests). */
+export function demandsFromBoqItems(
+  items: Array<{
+    id: string;
+    itemCode: string;
+    description: string;
+    unit: string;
+    quantity: unknown;
+    executedQty: unknown;
+    category: string | null;
+    resourceId?: string | null;
+  }>,
+): MaterialDemandLine[] {
+  return items
+    .filter((i) => i.category === 'MATERIAL' && i.resourceId)
+    .map((i) => ({
+      resourceId: i.resourceId!,
+      quantity: round3(Math.max(0, Number(i.quantity) - Number(i.executedQty ?? 0))),
+      unit: i.unit,
+      boqItemId: i.id,
+    }))
+    .filter((i) => i.quantity > 0);
+}
+
+export async function previewBoqShortfalls(
+  companyId: string,
+  projectId: string,
+): Promise<BoqShortfallPreview[]> {
+  const demands = await fetchBoqMaterialDemands(projectId);
+  if (demands.length === 0) return [];
+
+  const resourceIds = [...new Set(demands.map((d) => d.resourceId))];
+  const resources = await prisma.resource.findMany({
+    where: { id: { in: resourceIds }, companyId },
+    select: { id: true, name: true },
+  });
+  const resourceNameById = new Map(resources.map((r) => [r.id, r.name]));
+
+  const previews: BoqShortfallPreview[] = [];
+  for (const demand of demands) {
+    const stockQty = await getStockQty(companyId, projectId, demand.resourceId);
+    const openRequisitionQty = await getOpenRequisitionQty(companyId, projectId, demand.resourceId);
+    const shortfall = round3(demand.quantity - stockQty - openRequisitionQty);
+    previews.push({
+      ...demand,
+      resourceName: resourceNameById.get(demand.resourceId) ?? 'Material',
+      stockQty,
+      openRequisitionQty,
+      shortfall,
+    });
+  }
+
+  return previews.filter((p) => p.shortfall > 0);
+}
+
+/** Build material demand lines from approved estimate items (MATERIAL + optional rate-analysis BOM). */
+export async function buildMaterialDemandsFromEstimateItems(
+  items: Array<{
+    id: string;
+    type: string;
+    resourceId: string | null;
+    rateAnalysisId: string | null;
+    quantity: unknown;
+    unit: string;
+  }>,
+  boqByEstimateItemId: Map<string, string>,
+): Promise<MaterialDemandLine[]> {
+  const lines: MaterialDemandLine[] = [];
+  for (const item of items) {
+    const boqItemId = boqByEstimateItemId.get(item.id);
+    const demands = await materialDemandsForEstimateItem(item, boqItemId);
+    lines.push(...demands);
+  }
+  return lines;
+}
+
+/** @deprecated Use buildMaterialDemandsFromEstimateItems - sync path for direct resourceId only. */
 export function demandsFromEstimateItems(
   items: Array<{
     type: string;

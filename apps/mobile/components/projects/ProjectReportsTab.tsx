@@ -10,6 +10,7 @@ import {
   type CalendarEntry,
 } from '@/services/report.queries';
 import { formatDate } from '@/utils/format';
+import { createReportHref, reportDetailHref, projectTabHref } from '@/utils/navigation';
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
@@ -43,7 +44,7 @@ export function ProjectReportsTab({ projectId }: ProjectReportsTabProps) {
 
   const openCreate = () => {
     setActiveProject(projectId);
-    router.push('/reports/create' as never);
+    router.push(createReportHref(projectId) as never);
   };
 
   return (
@@ -107,7 +108,9 @@ export function ProjectReportsTab({ projectId }: ProjectReportsTabProps) {
             <ReportRow
               key={item.id}
               item={item}
-              onPress={() => router.push(`/reports/${item.id}` as never)}
+              onPress={() =>
+                router.push(reportDetailHref(item.id, projectTabHref(projectId, 'reports')) as never)
+              }
             />
           ))
         ) : (

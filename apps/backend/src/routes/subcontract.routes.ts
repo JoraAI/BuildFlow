@@ -10,10 +10,15 @@ import { z } from 'zod';
 import * as subcontractController from '../controllers/subcontract.controller';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { validate } from '../middleware/validate';
+import { asyncHandler } from '../utils/async-handler';
 import {
   createSubcontractorSchema,
   createWorkOrderSchema,
+  createWorkOrderFromBoqSchema,
   createMeasurementSchema,
+  rejectMeasurementSchema,
+  createSubcontractorPortalSchema,
+  recordBillPaymentSchema,
   idSchema,
 } from '@buildflow/shared';
 import { Role } from '@buildflow/shared';
@@ -37,48 +42,59 @@ subcontractProjectRouter.use(authenticateToken);
 subcontractProjectRouter.get(
   '/:id/subcontract/work-orders',
   validate({ params: projectIdParams }),
-  subcontractController.listWorkOrders,
+  asyncHandler(subcontractController.listWorkOrders),
 );
 subcontractProjectRouter.post(
   '/:id/subcontract/work-orders',
   requireRole(Role.OWNER, Role.PM),
   validate({ params: projectIdParams, body: createWorkOrderSchema }),
-  subcontractController.createWorkOrder,
+  asyncHandler(subcontractController.createWorkOrder),
 );
 subcontractProjectRouter.get(
   '/:id/subcontract/work-orders/:workOrderId',
   validate({ params: workOrderParams }),
-  subcontractController.getWorkOrder,
+  asyncHandler(subcontractController.getWorkOrder),
+);
+subcontractProjectRouter.get(
+  '/:id/subcontract/work-orders/:workOrderId/summary',
+  validate({ params: workOrderParams }),
+  asyncHandler(subcontractController.getWorkOrderSummary),
+);
+subcontractProjectRouter.post(
+  '/:id/subcontract/work-orders/from-boq',
+  requireRole(Role.OWNER, Role.PM),
+  validate({ params: projectIdParams, body: createWorkOrderFromBoqSchema }),
+  asyncHandler(subcontractController.createWorkOrderFromBoq),
 );
 subcontractProjectRouter.put(
   '/:id/subcontract/work-orders/:workOrderId',
   requireRole(Role.OWNER, Role.PM),
   validate({ params: workOrderParams, body: updateWorkOrderSchema }),
-  subcontractController.updateWorkOrder,
+  asyncHandler(subcontractController.updateWorkOrder),
 );
 subcontractProjectRouter.delete(
   '/:id/subcontract/work-orders/:workOrderId',
   requireRole(Role.OWNER, Role.PM),
   validate({ params: workOrderParams }),
-  subcontractController.deleteWorkOrder,
+  asyncHandler(subcontractController.deleteWorkOrder),
 );
 subcontractProjectRouter.get(
   '/:id/subcontract/work-orders/:workOrderId/measurements',
   validate({ params: workOrderParams }),
-  subcontractController.listMeasurements,
+  asyncHandler(subcontractController.listMeasurements),
 );
 subcontractProjectRouter.post(
   '/:id/subcontract/work-orders/:workOrderId/measurements',
   requireRole(Role.OWNER, Role.PM, Role.SUPERVISOR),
   validate({ params: workOrderParams, body: createMeasurementSchema }),
-  subcontractController.createMeasurement,
+  asyncHandler(subcontractController.createMeasurement),
 );
 subcontractProjectRouter.get(
   '/:id/subcontract/measurements/:measurementId',
   validate({
     params: z.object({ id: idSchema, measurementId: z.string().uuid() }),
   }),
-  subcontractController.getMeasurement,
+  asyncHandler(subcontractController.getMeasurement),
 );
 subcontractProjectRouter.put(
   '/:id/subcontract/measurements/:measurementId',
@@ -87,7 +103,7 @@ subcontractProjectRouter.put(
     params: z.object({ id: idSchema, measurementId: z.string().uuid() }),
     body: createMeasurementSchema,
   }),
-  subcontractController.updateMeasurement,
+  asyncHandler(subcontractController.updateMeasurement),
 );
 subcontractProjectRouter.delete(
   '/:id/subcontract/measurements/:measurementId',
@@ -95,7 +111,7 @@ subcontractProjectRouter.delete(
   validate({
     params: z.object({ id: idSchema, measurementId: z.string().uuid() }),
   }),
-  subcontractController.deleteMeasurement,
+  asyncHandler(subcontractController.deleteMeasurement),
 );
 subcontractProjectRouter.post(
   '/:id/subcontract/measurements/:measurementId/submit',
@@ -103,7 +119,7 @@ subcontractProjectRouter.post(
   validate({
     params: z.object({ id: idSchema, measurementId: z.string().uuid() }),
   }),
-  subcontractController.submitMeasurement,
+  asyncHandler(subcontractController.submitMeasurement),
 );
 subcontractProjectRouter.post(
   '/:id/subcontract/measurements/:measurementId/approve',
@@ -112,33 +128,57 @@ subcontractProjectRouter.post(
     params: z.object({ id: idSchema, measurementId: z.string().uuid() }),
     body: approveMeasurementSchema,
   }),
-  subcontractController.approveMeasurement,
+  asyncHandler(subcontractController.approveMeasurement),
+);
+subcontractProjectRouter.post(
+  '/:id/subcontract/measurements/:measurementId/reject',
+  requireRole(Role.OWNER, Role.PM),
+  validate({
+    params: z.object({ id: idSchema, measurementId: z.string().uuid() }),
+    body: rejectMeasurementSchema,
+  }),
+  asyncHandler(subcontractController.rejectMeasurement),
+);
+subcontractProjectRouter.post(
+  '/:id/subcontract/bills/:billId/payment',
+  requireRole(Role.OWNER, Role.PM, Role.ACCOUNTANT),
+  validate({
+    params: z.object({ id: idSchema, billId: z.string().uuid() }),
+    body: recordBillPaymentSchema,
+  }),
+  asyncHandler(subcontractController.recordBillPayment),
+);
+subcontractProjectRouter.post(
+  '/:id/subcontract-portal-access',
+  requireRole(Role.OWNER, Role.PM),
+  validate({ params: projectIdParams, body: createSubcontractorPortalSchema }),
+  asyncHandler(subcontractController.createSubcontractorPortalAccess),
 );
 
 export const subcontractorRouter = Router();
 subcontractorRouter.use(authenticateToken);
 
-subcontractorRouter.get('/', subcontractController.listSubcontractors);
+subcontractorRouter.get('/', asyncHandler(subcontractController.listSubcontractors));
 subcontractorRouter.post(
   '/',
   requireRole(Role.OWNER, Role.PM, Role.ACCOUNTANT),
   validate({ body: createSubcontractorSchema }),
-  subcontractController.createSubcontractor,
+  asyncHandler(subcontractController.createSubcontractor),
 );
 subcontractorRouter.get(
   '/:subcontractorId',
   validate({ params: subcontractorIdParams }),
-  subcontractController.getSubcontractor,
+  asyncHandler(subcontractController.getSubcontractor),
 );
 subcontractorRouter.put(
   '/:subcontractorId',
   requireRole(Role.OWNER, Role.PM, Role.ACCOUNTANT),
   validate({ params: subcontractorIdParams, body: updateSubcontractorSchema }),
-  subcontractController.updateSubcontractor,
+  asyncHandler(subcontractController.updateSubcontractor),
 );
 subcontractorRouter.delete(
   '/:subcontractorId',
   requireRole(Role.OWNER, Role.PM),
   validate({ params: subcontractorIdParams }),
-  subcontractController.deleteSubcontractor,
+  asyncHandler(subcontractController.deleteSubcontractor),
 );

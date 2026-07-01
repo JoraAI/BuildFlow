@@ -22,6 +22,9 @@ const QUICK_CHIPS = [
   'Estimate vs Actual',
   'GST Summary',
   'Overdue Tasks',
+  'Explain subcontract billing',
+  'What is GRN?',
+  'Invoice vs bill?',
 ];
 
 export function AssistantChatContent({ projectId }: { projectId?: string }) {

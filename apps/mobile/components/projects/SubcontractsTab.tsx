@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { View, Text, Alert, ScrollView, Pressable, TextInput } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, Alert, ScrollView, Pressable, TextInput, Share, Platform } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
 import {
   Card,
@@ -8,41 +10,279 @@ import {
   EmptyState,
   LoadingSkeleton,
   Input,
+  ProgressBar,
 } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
 import { formatINR, formatDate } from '@/utils/format';
 import {
   useWorkOrders,
+  useWorkOrderSummary,
   useSubcontractors,
   useCreateSubcontractor,
   useCreateWorkOrder,
+  useCreateWorkOrderFromBoq,
+  useUpdateWorkOrder,
   useMeasurements,
   useCreateMeasurement,
   useSubmitMeasurement,
   useApproveMeasurement,
-  downloadMeasurementBookPdf,
-  downloadAbstractSheetPdf,
+  useRejectMeasurement,
+  useCreateSubcontractorPortalAccess,
+  downloadSubcontractMeasurementBookPdf,
+  downloadSubcontractAbstractSheetPdf,
   type Measurement,
   type Subcontractor,
   type WorkOrder,
+  type WorkOrderSummary,
 } from '@/services/expansion.queries';
+import { useBills, type Bill } from '@/services/accounting.queries';
+import { useBoq, type BoqItem } from '@/services/boq.queries';
+import { billDetailHref, projectTabHref } from '@/utils/navigation';
 import * as Sharing from 'expo-sharing';
 import { alertAsync } from '@/utils/confirm';
+import { FlowHintCard } from '@/components/ui/FlowHintCard';
+import { TermHint } from '@/components/ui/TermHint';
 
 const STATUS_COLOR: Record<string, 'neutral' | 'warning' | 'success' | 'danger'> = {
   DRAFT: 'neutral',
   SUBMITTED: 'warning',
   APPROVED: 'success',
   REJECTED: 'danger',
+  ACTIVE: 'success',
+  COMPLETED: 'neutral',
+  CANCELLED: 'danger',
 };
+
+const BILL_STATUS_COLOR: Record<string, 'neutral' | 'warning' | 'success' | 'danger' | 'primary'> = {
+  PENDING: 'warning',
+  APPROVED: 'primary',
+  PAID: 'success',
+  REJECTED: 'danger',
+};
+
+interface DraftMeasLine {
+  id: string;
+  description: string;
+  quantity: string;
+  unit: string;
+  rate: string;
+  workOrderLineId?: string;
+  boqItemId?: string;
+}
+
+function emptyMeasLine(): DraftMeasLine {
+  return {
+    id: Math.random().toString(36).slice(2),
+    description: '',
+    quantity: '1',
+    unit: 'Nos',
+    rate: '0',
+  };
+}
+
+function lineAmount(qty: string, rate: string) {
+  return Math.round((parseFloat(qty) || 0) * (parseFloat(rate) || 0) * 100) / 100;
+}
+
+function WorkOrderSummaryBar({ projectId, workOrderId }: { projectId: string; workOrderId: string }) {
+  const { data, isLoading } = useWorkOrderSummary(projectId, workOrderId);
+
+  if (isLoading) return <LoadingSkeleton className="h-20 rounded-lg mt-2" />;
+  if (!data) return null;
+
+  return <SummaryContent summary={data} />;
+}
+
+function SummaryContent({ summary }: { summary: WorkOrderSummary }) {
+  type Metric = { label: string; value: string; accent?: boolean; highlight?: boolean };
+  const metrics: Metric[] = [
+    { label: 'Contract', value: formatINR(summary.contractValue) },
+    { label: 'Certified', value: formatINR(summary.certifiedTotal) },
+    { label: 'Paid', value: formatINR(summary.paidTotal), accent: true },
+    { label: 'Retention', value: formatINR(summary.retentionHeld) },
+    ...(summary.advanceRecovered > 0
+      ? [{ label: 'Advance recovered', value: formatINR(summary.advanceRecovered) }]
+      : []),
+    { label: 'Balance', value: formatINR(summary.balanceRemaining), highlight: true },
+  ];
+
+  return (
+    <View className="mt-3 p-3 bg-surface rounded-xl border border-border gap-3">
+      <View className="flex-row flex-wrap gap-2">
+        {metrics.map((m) => (
+          <View
+            key={m.label}
+            className={`px-2.5 py-1.5 rounded-lg border min-w-[46%] flex-1 ${
+              m.highlight ? 'bg-primary/5 border-primary/20' : 'bg-card border-border/60'
+            }`}
+          >
+            <Text className="text-[10px] uppercase tracking-wide text-muted">{m.label}</Text>
+            <Text
+              className={`text-sm font-semibold mt-0.5 ${
+                m.highlight ? 'text-primary' : m.accent ? 'text-success' : 'text-text'
+              }`}
+            >
+              {m.value}
+            </Text>
+          </View>
+        ))}
+      </View>
+      <View>
+        <View className="flex-row justify-between mb-1">
+          <Text className="text-xs text-muted">Certification progress</Text>
+          <Text className="text-xs font-semibold text-text">{summary.certifiedPct}%</Text>
+        </View>
+        <ProgressBar value={summary.certifiedPct} color="#1E3A5F" />
+      </View>
+      {summary.retentionReleased > 0 && (
+        <Text className="text-xs text-accent">Retention released {formatINR(summary.retentionReleased)}</Text>
+      )}
+      {summary.variationTotal > 0 && (
+        <Text className="text-xs text-accent">
+          Variations: +{formatINR(summary.variationTotal)}
+          {summary.variations.length > 0
+            ? ` (${summary.variations.map((v) => v.number).join(', ')})`
+            : ''}
+        </Text>
+      )}
+    </View>
+  );
+}
+
+function SectionHeader({
+  title,
+  icon,
+  action,
+}: {
+  title: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  action?: React.ReactNode;
+}) {
+  return (
+    <View className="flex-row items-center justify-between mb-2">
+      <View className="flex-row items-center gap-2">
+        <Ionicons name={icon} size={16} color="#64748B" />
+        <Text className="text-xs font-bold text-muted uppercase tracking-wide">{title}</Text>
+      </View>
+      {action}
+    </View>
+  );
+}
+
+function getCompleteBlockReason(summary?: WorkOrderSummary): string | null {
+  if (!summary) return 'Loading work order summary…';
+  if (summary.submittedPending > 0) return 'Resolve submitted measurement sheets first';
+  if (summary.balanceRemaining > 0.01) {
+    return `Certify remaining ${formatINR(summary.balanceRemaining)} first`;
+  }
+  return null;
+}
+
+function WorkOrderBillsPanel({ projectId, workOrderId }: { projectId: string; workOrderId: string }) {
+  const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+  const canPay = user?.role === 'OWNER' || user?.role === 'PM' || user?.role === 'ACCOUNTANT';
+  const { data: bills, isLoading } = useBills(projectId);
+  const woBills = useMemo(
+    () => (bills ?? []).filter((b: Bill) => b.workOrderId === workOrderId),
+    [bills, workOrderId],
+  );
+
+  if (isLoading) return <LoadingSkeleton className="h-12 rounded-lg mt-3" />;
+  if (woBills.length === 0) return null;
+
+  return (
+    <View className="mt-3 p-3 rounded-xl border border-border bg-card/50 gap-2">
+      <View className="flex-row items-center justify-between mb-1">
+        <SectionHeader title="Linked bills" icon="receipt-outline" />
+        <TermHint term="BILL" label="Payable bills" />
+      </View>
+      <Text className="text-[10px] text-muted mb-1">
+        Open a bill to approve or record payment. Created when measurement sheets are approved.
+      </Text>
+      {woBills.map((bill: Bill) => {
+        const balance = Math.max(0, bill.total - bill.paidAmount);
+        const paidPct = bill.total > 0 ? Math.min(100, Math.round((bill.paidAmount / bill.total) * 100)) : 0;
+        const statusColor = BILL_STATUS_COLOR[bill.status] ?? 'neutral';
+
+        return (
+          <Pressable
+            key={bill.id}
+            onPress={() =>
+              router.push(billDetailHref(bill.id, projectTabHref(projectId, 'subcontracts')) as never)
+            }
+            className="rounded-xl border border-border bg-card p-3 active:opacity-80 active:bg-surface"
+          >
+            <View className="flex-row justify-between items-start gap-2">
+              <View className="flex-1 min-w-0">
+                <Text className="text-sm font-mono font-semibold text-text" numberOfLines={1}>
+                  {bill.billNumber}
+                </Text>
+                {bill.isRetentionRelease && (
+                  <Text className="text-xs text-accent mt-0.5">Retention release</Text>
+                )}
+              </View>
+              <Badge color={statusColor} label={bill.status} />
+            </View>
+            <View className="flex-row justify-between items-end mt-2">
+              <View>
+                <Text className="text-xs text-muted">Net payable</Text>
+                <Text className="text-base font-bold text-text">{formatINR(bill.total)}</Text>
+              </View>
+              {bill.paidAmount > 0 && (
+                <View className="items-end">
+                  <Text className="text-xs text-muted">Paid</Text>
+                  <Text className="text-sm font-semibold text-success">{formatINR(bill.paidAmount)}</Text>
+                </View>
+              )}
+            </View>
+            {bill.paidAmount > 0 && bill.paidAmount < bill.total && (
+              <View className="mt-2">
+                <ProgressBar value={paidPct} color="#16A34A" height={4} />
+                <Text className="text-[10px] text-muted mt-1">
+                  {paidPct}% paid · {formatINR(balance)} due
+                </Text>
+              </View>
+            )}
+            {canPay && bill.status === 'PENDING' && (
+              <View className="flex-row items-center gap-1 mt-2 pt-2 border-t border-border/60">
+                <Ionicons name="document-text-outline" size={14} color="#1E3A5F" />
+                <Text className="text-xs font-medium text-primary">Open to review & pay</Text>
+                <Ionicons name="chevron-forward" size={14} color="#1E3A5F" style={{ marginLeft: 'auto' }} />
+              </View>
+            )}
+            {canPay && bill.status === 'APPROVED' && balance > 0.01 && (
+              <View className="flex-row items-center gap-1 mt-2 pt-2 border-t border-border/60">
+                <Ionicons name="card-outline" size={14} color="#1E3A5F" />
+                <Text className="text-xs font-medium text-primary">Open to record payment</Text>
+                <Ionicons name="chevron-forward" size={14} color="#1E3A5F" style={{ marginLeft: 'auto' }} />
+              </View>
+            )}
+            {bill.status === 'PAID' && (
+              <View className="flex-row justify-end mt-1">
+                <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+              </View>
+            )}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
 
 function MeasurementsPanel({
   projectId,
   workOrderId,
+  woNumber,
+  woStatus,
+  summary,
 }: {
   projectId: string;
   workOrderId: string;
+  woNumber: string;
+  woStatus: string;
+  summary?: WorkOrderSummary;
 }) {
   const user = useAuthStore((s) => s.user);
   const canCreate = user?.role === 'OWNER' || user?.role === 'PM' || user?.role === 'SUPERVISOR';
@@ -52,36 +292,67 @@ function MeasurementsPanel({
   const createMeas = useCreateMeasurement(projectId, workOrderId);
   const submitMeas = useSubmitMeasurement(projectId);
   const approveMeas = useApproveMeasurement(projectId);
+  const rejectMeas = useRejectMeasurement(projectId);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [periodLabel, setPeriodLabel] = useState('');
-  const [desc, setDesc] = useState('');
-  const [qty, setQty] = useState('1');
-  const [unit, setUnit] = useState('Nos');
-  const [rate, setRate] = useState('0');
+  const [lines, setLines] = useState<DraftMeasLine[]>([emptyMeasLine()]);
+
+  const subtotal = useMemo(
+    () => lines.reduce((s, l) => s + lineAmount(l.quantity, l.rate), 0),
+    [lines],
+  );
+
+  const copyFromContractLines = () => {
+    if (!summary?.lines.length) {
+      void alertAsync('No contract lines', 'Add contract lines to the work order first.');
+      return;
+    }
+    setLines(
+      summary.lines
+        .filter((l) => l.balanceQty > 0)
+        .map((l) => ({
+          id: Math.random().toString(36).slice(2),
+          description: l.description,
+          quantity: String(l.balanceQty),
+          unit: l.unit,
+          rate: String(l.rate),
+          workOrderLineId: l.id,
+          boqItemId: l.boqItemId ?? undefined,
+        })),
+    );
+    if (summary.lines.every((l) => l.balanceQty <= 0)) {
+      void alertAsync('Fully certified', 'All contract lines are fully certified.');
+    }
+  };
 
   const onCreate = () => {
-    if (!periodLabel.trim() || !desc.trim()) {
-      void alertAsync('Required', 'Period label and description are required.');
+    if (!periodLabel.trim()) {
+      void alertAsync('Required', 'Period label is required.');
+      return;
+    }
+    const validLines = lines.filter((l) => l.description.trim());
+    if (validLines.length === 0) {
+      void alertAsync('Required', 'Add at least one line with a description.');
       return;
     }
     createMeas.mutate(
       {
         periodLabel: periodLabel.trim(),
-        lines: [
-          {
-            description: desc.trim(),
-            quantity: parseFloat(qty) || 1,
-            unit: unit.trim() || 'Nos',
-            rate: parseFloat(rate) || 0,
-          },
-        ],
+        lines: validLines.map((l) => ({
+          description: l.description.trim(),
+          quantity: parseFloat(l.quantity) || 0,
+          unit: l.unit.trim() || 'Nos',
+          rate: parseFloat(l.rate) || 0,
+          workOrderLineId: l.workOrderLineId,
+          boqItemId: l.boqItemId,
+        })),
       },
       {
         onSuccess: () => {
           setModalOpen(false);
           setPeriodLabel('');
-          setDesc('');
+          setLines([emptyMeasLine()]);
         },
         onError: (e: Error) => void alertAsync('Error', e.message),
       },
@@ -92,8 +363,8 @@ function MeasurementsPanel({
     try {
       const uri =
         type === 'book'
-          ? await downloadMeasurementBookPdf(projectId)
-          : await downloadAbstractSheetPdf(projectId);
+          ? await downloadSubcontractMeasurementBookPdf(projectId, workOrderId)
+          : await downloadSubcontractAbstractSheetPdf(projectId, workOrderId);
       if (uri && (await Sharing.isAvailableAsync())) {
         await Sharing.shareAsync(uri);
       } else {
@@ -104,35 +375,63 @@ function MeasurementsPanel({
     }
   };
 
-  if (isLoading) return <LoadingSkeleton className="h-16 rounded-lg mt-2" />;
+  if (isLoading) return <LoadingSkeleton className="h-16 rounded-lg mt-3" />;
 
   const measurements = data ?? [];
 
   return (
-    <View className="mt-2 pl-2 border-l-2 border-border gap-2">
-      <View className="flex-row justify-between items-center">
-        <Text className="text-xs font-bold text-muted uppercase">Measurement sheets</Text>
-        {canCreate && (
-          <Pressable onPress={() => setModalOpen(true)}>
-            <Text className="text-primary text-xs font-semibold">+ Add</Text>
-          </Pressable>
-        )}
+    <View className="mt-3 p-3 rounded-xl border border-border bg-card/50 gap-2">
+      <View className="flex-row items-center justify-between mb-1">
+        <SectionHeader
+          title="Measurement sheets"
+          icon="clipboard-outline"
+          action={
+            canCreate && woStatus === 'ACTIVE' ? (
+              <Pressable onPress={() => setModalOpen(true)} className="flex-row items-center gap-1">
+                <Ionicons name="add-circle-outline" size={16} color="#1E3A5F" />
+                <Text className="text-primary text-xs font-semibold">Add</Text>
+              </Pressable>
+            ) : undefined
+          }
+        />
+        <TermHint term="MEASUREMENT_SHEET" />
       </View>
+      <Text className="text-[10px] text-muted mb-1">
+        Record work done each period. Approval creates a linked bill (see above).
+      </Text>
+      {woStatus !== 'ACTIVE' && (
+        <Text className="text-xs text-muted italic mb-1">
+          Measurements can only be added on active work orders.
+        </Text>
+      )}
       {measurements.length === 0 ? (
-        <Text className="text-xs text-muted italic">No measurements yet.</Text>
+        <Text className="text-xs text-muted italic py-2">No measurements yet.</Text>
       ) : (
         measurements.map((m: Measurement) => (
-          <View key={m.id} className="bg-surface rounded-lg p-2">
-            <View className="flex-row justify-between items-center">
-              <Text className="text-sm font-medium text-text">{m.periodLabel}</Text>
+          <View key={m.id} className="rounded-xl border border-border bg-card p-3 gap-1">
+            <View className="flex-row justify-between items-start gap-2">
+              <View className="flex-1">
+                <Text className="text-sm font-semibold text-text">{m.periodLabel}</Text>
+                <Text className="text-xs text-muted mt-0.5">{formatDate(m.createdAt)}</Text>
+              </View>
               <Badge color={STATUS_COLOR[m.status] ?? 'neutral'} label={m.status} />
             </View>
-            <Text className="text-xs text-muted">{formatDate(m.createdAt)}</Text>
-            <Text className="text-sm font-semibold text-text mt-1">
+            <Text className="text-lg font-bold text-text mt-1">
               {formatINR(parseFloat(m.totalAmount))}
             </Text>
-            <View className="flex-row flex-wrap gap-2 mt-2">
-              {canCreate && m.status === 'DRAFT' && (
+            {m.rejectionReason ? (
+              <Text className="text-xs text-danger mt-1">Rejected: {m.rejectionReason}</Text>
+            ) : null}
+            {m.lines?.slice(0, 3).map((l) => (
+              <Text key={l.id} className="text-xs text-muted" numberOfLines={1}>
+                {l.description} · {l.quantity} {l.unit} @ {formatINR(parseFloat(l.rate))}
+              </Text>
+            ))}
+            {(m.lines?.length ?? 0) > 3 && (
+              <Text className="text-xs text-muted">+{(m.lines?.length ?? 0) - 3} more lines</Text>
+            )}
+            <View className="flex-row flex-wrap gap-2 mt-2 pt-2 border-t border-border/60">
+              {canCreate && (m.status === 'DRAFT' || m.status === 'REJECTED') && (
                 <Button
                   label="Submit"
                   size="sm"
@@ -145,15 +444,37 @@ function MeasurementsPanel({
                 />
               )}
               {canApprove && m.status === 'SUBMITTED' && (
-                <Button
-                  label="Approve"
-                  size="sm"
-                  onPress={() =>
-                    approveMeas.mutate(m.id, {
-                      onError: (e: Error) => void alertAsync('Error', e.message),
-                    })
-                  }
-                />
+                <>
+                  <Button
+                    label="Approve"
+                    size="sm"
+                    onPress={() =>
+                      approveMeas.mutate(m.id, {
+                        onSuccess: (res) => {
+                          const bill = res.bill;
+                          if (bill) {
+                            void alertAsync(
+                              'Approved',
+                              `Bill ${bill.billNumber} created - net ${formatINR(parseFloat(bill.total))}`,
+                            );
+                          }
+                        },
+                        onError: (e: Error) => void alertAsync('Error', e.message),
+                      })
+                    }
+                  />
+                  <Button
+                    label="Reject"
+                    size="sm"
+                    variant="secondary"
+                    onPress={() =>
+                      rejectMeas.mutate(
+                        { measurementId: m.id, reason: 'Needs revision' },
+                        { onError: (e: Error) => void alertAsync('Error', e.message) },
+                      )
+                    }
+                  />
+                </>
               )}
               <Button
                 label="MB PDF"
@@ -175,23 +496,69 @@ function MeasurementsPanel({
       <AdaptiveSheet
         visible={modalOpen}
         onClose={() => setModalOpen(false)}
-        title="New Measurement"
-        size="md"
-        footer={<Button label="Create" loading={createMeas.isPending} onPress={onCreate} />}
+        title={`New Measurement - ${woNumber}`}
+        size="lg"
+        footer={
+          <View className="gap-2">
+            <Text className="text-sm font-semibold text-text text-right">
+              Subtotal: {formatINR(subtotal)}
+            </Text>
+            <Button label="Create" loading={createMeas.isPending} onPress={onCreate} />
+          </View>
+        }
       >
         <Input label="Period" value={periodLabel} onChangeText={setPeriodLabel} placeholder="Jan 2025" />
-        <TextInput
-          className="border border-border rounded-lg p-2 text-sm text-text"
-          placeholder="Work description"
-          value={desc}
-          onChangeText={setDesc}
-          multiline
-        />
-        <View className="flex-row gap-2">
-          <Input label="Qty" value={qty} onChangeText={setQty} keyboardType="numeric" />
-          <Input label="Unit" value={unit} onChangeText={setUnit} />
-          <Input label="Rate" value={rate} onChangeText={setRate} keyboardType="numeric" />
-        </View>
+        {summary && summary.lines.length > 0 && (
+          <Button label="Copy from WO contract lines" variant="secondary" onPress={copyFromContractLines} />
+        )}
+        {lines.map((line, idx) => (
+          <View key={line.id} className="border border-border rounded-lg p-2 mb-2 gap-1">
+            <TextInput
+              className="border border-border rounded-lg p-2 text-sm text-text"
+              placeholder="Description"
+              value={line.description}
+              onChangeText={(v) =>
+                setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, description: v } : l)))
+              }
+              multiline
+            />
+            <View className="flex-row gap-2">
+              <Input
+                label="Qty"
+                value={line.quantity}
+                onChangeText={(v) =>
+                  setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, quantity: v } : l)))
+                }
+                keyboardType="numeric"
+              />
+              <Input
+                label="Unit"
+                value={line.unit}
+                onChangeText={(v) =>
+                  setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, unit: v } : l)))
+                }
+              />
+              <Input
+                label="Rate"
+                value={line.rate}
+                onChangeText={(v) =>
+                  setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, rate: v } : l)))
+                }
+                keyboardType="numeric"
+              />
+            </View>
+            <Text className="text-xs text-muted">{formatINR(lineAmount(line.quantity, line.rate))}</Text>
+            {lines.length > 1 && (
+              <Pressable
+                onPress={() => setLines((prev) => prev.filter((_, i) => i !== idx))}
+                className="self-end"
+              >
+                <Text className="text-xs text-danger">Remove line</Text>
+              </Pressable>
+            )}
+          </View>
+        ))}
+        <Button label="+ Add line" variant="secondary" onPress={() => setLines((p) => [...p, emptyMeasLine()])} />
       </AdaptiveSheet>
     </View>
   );
@@ -203,22 +570,36 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
   const canManage = user?.role === 'OWNER' || user?.role === 'PM';
 
   const { data: workOrders, isLoading } = useWorkOrders(projectId);
+  const { data: boq } = useBoq(projectId);
   const { data: subcontractors } = useSubcontractors();
   const createSub = useCreateSubcontractor();
   const createWO = useCreateWorkOrder(projectId);
+  const createWOBoq = useCreateWorkOrderFromBoq(projectId);
+  const updateWO = useUpdateWorkOrder(projectId);
+  const createPortal = useCreateSubcontractorPortalAccess(projectId);
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [woModal, setWoModal] = useState(false);
   const [subModal, setSubModal] = useState(false);
+  const [boqModal, setBoqModal] = useState(false);
 
   const [woNumber, setWoNumber] = useState('');
   const [scope, setScope] = useState('');
   const [contractValue, setContractValue] = useState('');
+  const [retentionPct, setRetentionPct] = useState('5');
+  const [advanceAmount, setAdvanceAmount] = useState('0');
   const [selectedSub, setSelectedSub] = useState('');
+  const [selectedBoqIds, setSelectedBoqIds] = useState<string[]>([]);
 
   const [subName, setSubName] = useState('');
   const [subGstin, setSubGstin] = useState('');
   const [subPhone, setSubPhone] = useState('');
+
+  const expandedSummary = useWorkOrderSummary(projectId, expandedId ?? '', !!expandedId);
+  const subcontractBoqItems = useMemo(
+    () => (boq?.items ?? []).filter((i: BoqItem) => i.category === 'SUBCONTRACTOR'),
+    [boq],
+  );
 
   const onCreateSub = () => {
     if (!subName.trim()) {
@@ -253,14 +634,82 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
         woNumber: woNumber.trim(),
         scope: scope.trim(),
         contractValue: parseFloat(contractValue) || 0,
-        retentionPct: 0,
-        advanceAmount: 0,
+        retentionPct: parseFloat(retentionPct) || 0,
+        advanceAmount: parseFloat(advanceAmount) || 0,
       },
       {
         onSuccess: () => {
           setWoModal(false);
           setWoNumber('');
           setScope('');
+        },
+        onError: (e: Error) => void alertAsync('Error', e.message),
+      },
+    );
+  };
+
+  const onCreateFromBoq = () => {
+    if (!woNumber.trim() || !selectedSub || selectedBoqIds.length === 0) {
+      void alertAsync('Required', 'WO number, subcontractor, and BOQ lines are required.');
+      return;
+    }
+    createWOBoq.mutate(
+      {
+        subcontractorId: selectedSub,
+        woNumber: woNumber.trim(),
+        boqItemIds: selectedBoqIds,
+        retentionPct: parseFloat(retentionPct) || 0,
+        advanceAmount: parseFloat(advanceAmount) || 0,
+      },
+      {
+        onSuccess: () => {
+          setBoqModal(false);
+          setWoNumber('');
+          setSelectedBoqIds([]);
+        },
+        onError: (e: Error) => void alertAsync('Error', e.message),
+      },
+    );
+  };
+
+  const onSharePortal = (wo: WorkOrder) => {
+    createPortal.mutate(
+      {
+        subcontractorId: wo.subcontractor.id,
+        workOrderId: wo.id,
+        label: `${wo.woNumber} portal`,
+        scopes: ['VIEW_WO', 'SUBMIT_MEASUREMENT', 'VIEW_PAYMENTS'],
+        expiresInDays: 30,
+      },
+      {
+        onSuccess: async (res) => {
+          const origin =
+            Platform.OS === 'web' && typeof window !== 'undefined'
+              ? window.location.origin
+              : 'https://app.buildflow.in';
+          const url = `${origin}/portal/sub/${res.token}`;
+          try {
+            await Share.share({ message: `Subcontractor portal: ${url}`, url });
+          } catch {
+            void alertAsync('Portal link', url);
+          }
+        },
+        onError: (e: Error) => void alertAsync('Error', e.message),
+      },
+    );
+  };
+
+  const onUpdateStatus = (wo: WorkOrder, status: string) => {
+    updateWO.mutate(
+      { workOrderId: wo.id, status },
+      {
+        onSuccess: (res) => {
+          if (res.retentionReleaseBill) {
+            void alertAsync(
+              'Work order completed',
+              `Retention release bill ${res.retentionReleaseBill.billNumber} created for ${formatINR(res.retentionReleaseBill.total)}`,
+            );
+          }
         },
         onError: (e: Error) => void alertAsync('Error', e.message),
       },
@@ -274,11 +723,26 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
 
   return (
     <View className="gap-3">
+      <FlowHintCard
+        title="How subcontract billing works"
+        steps={[
+          'Create a work order with contract scope and retention %',
+          'Add a measurement sheet for work done in a period',
+          'Submit the sheet — PM approves it and a linked bill is created',
+          'Accountant approves the bill and records payment in Accounts',
+          'When all work is certified, complete the WO to release retention',
+        ]}
+        defaultCollapsed
+      />
+
       <View className="flex-row justify-between items-center">
         <Text className="text-sm font-bold text-text">{orders.length} Work Orders</Text>
         {canManage && (
-          <View className={`gap-2 ${isDesktop ? 'flex-row' : ''}`}>
+          <View className={`gap-2 ${isDesktop ? 'flex-row flex-wrap' : ''}`}>
             <Button label="Add Subcontractor" size="sm" variant="secondary" onPress={() => setSubModal(true)} />
+            {subcontractBoqItems.length > 0 && (
+              <Button label="Import from BOQ" size="sm" variant="secondary" onPress={() => setBoqModal(true)} />
+            )}
             <Button label="New WO" size="sm" onPress={() => setWoModal(true)} />
           </View>
         )}
@@ -303,7 +767,7 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
                   <Text className="text-sm font-semibold text-text">{wo.woNumber}</Text>
                   <Text className="text-xs text-muted">{wo.subcontractor.name}</Text>
                 </View>
-                <Badge color="neutral" label={wo.status} />
+                <Badge color={STATUS_COLOR[wo.status] ?? 'neutral'} label={wo.status} />
               </View>
               <Text className="text-xs text-muted mt-1" numberOfLines={2}>
                 {wo.scope}
@@ -318,7 +782,61 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
               </View>
             </Pressable>
             {expandedId === wo.id && (
-              <MeasurementsPanel projectId={projectId} workOrderId={wo.id} />
+              <>
+                {expandedSummary.data ? (
+                  <SummaryContent summary={expandedSummary.data} />
+                ) : (
+                  <WorkOrderSummaryBar projectId={projectId} workOrderId={wo.id} />
+                )}
+                {canManage && (
+                  <View className="flex-row flex-wrap gap-2 mt-2">
+                    {wo.status === 'DRAFT' && (
+                      <Button label="Activate" size="sm" onPress={() => onUpdateStatus(wo, 'ACTIVE')} />
+                    )}
+                    {wo.status === 'ACTIVE' && (
+                      <>
+                        {(() => {
+                          const blockReason = getCompleteBlockReason(expandedSummary.data);
+                          return (
+                            <>
+                              <Button
+                                label="Complete"
+                                size="sm"
+                                variant="secondary"
+                                disabled={!!blockReason}
+                                onPress={() => onUpdateStatus(wo, 'COMPLETED')}
+                              />
+                              {blockReason && (
+                                <Text className="text-xs text-muted w-full">{blockReason}</Text>
+                              )}
+                            </>
+                          );
+                        })()}
+                        <Button
+                          label="Cancel"
+                          size="sm"
+                          variant="secondary"
+                          onPress={() => onUpdateStatus(wo, 'CANCELLED')}
+                        />
+                      </>
+                    )}
+                    <Button
+                      label="Share portal"
+                      size="sm"
+                      variant="secondary"
+                      onPress={() => onSharePortal(wo)}
+                    />
+                  </View>
+                )}
+                <WorkOrderBillsPanel projectId={projectId} workOrderId={wo.id} />
+                <MeasurementsPanel
+                  projectId={projectId}
+                  workOrderId={wo.id}
+                  woNumber={wo.woNumber}
+                  woStatus={wo.status}
+                  summary={expandedSummary.data}
+                />
+              </>
             )}
           </Card>
         ))
@@ -339,18 +857,91 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
           onChangeText={setContractValue}
           keyboardType="numeric"
         />
+        <Input
+          label="Retention %"
+          value={retentionPct}
+          onChangeText={setRetentionPct}
+          keyboardType="numeric"
+        />
+        <Input
+          label="Advance amount (₹)"
+          value={advanceAmount}
+          onChangeText={setAdvanceAmount}
+          keyboardType="numeric"
+        />
+        <Text className="text-sm font-semibold text-text">Subcontractor</Text>
+        <ScrollView className="max-h-40">
+          {subs.map((s: Subcontractor) => (
+            <Pressable
+              key={s.id}
+              onPress={() => setSelectedSub(s.id)}
+              className={`p-2 rounded-lg border mb-1 ${
+                selectedSub === s.id ? 'border-primary bg-primary/5' : 'border-border'
+              }`}
+            >
+              <Text className="text-sm text-text">{s.name}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </AdaptiveSheet>
+
+      <AdaptiveSheet
+        visible={boqModal}
+        onClose={() => setBoqModal(false)}
+        title="Import from BOQ"
+        size="lg"
+        footer={
+          <Button label="Create WO" loading={createWOBoq.isPending} onPress={onCreateFromBoq} />
+        }
+      >
+        <Input label="WO Number" value={woNumber} onChangeText={setWoNumber} placeholder="WO-TRAIL-001" />
+        <Input
+          label="Retention %"
+          value={retentionPct}
+          onChangeText={setRetentionPct}
+          keyboardType="numeric"
+        />
+        <Input
+          label="Advance amount (₹)"
+          value={advanceAmount}
+          onChangeText={setAdvanceAmount}
+          keyboardType="numeric"
+        />
         <Text className="text-sm font-semibold text-text">Subcontractor</Text>
         {subs.map((s: Subcontractor) => (
           <Pressable
             key={s.id}
             onPress={() => setSelectedSub(s.id)}
-            className={`p-2 rounded-lg border ${
+            className={`p-2 rounded-lg border mb-1 ${
               selectedSub === s.id ? 'border-primary bg-primary/5' : 'border-border'
             }`}
           >
             <Text className="text-sm text-text">{s.name}</Text>
           </Pressable>
         ))}
+        <Text className="text-sm font-semibold text-text mt-2">SUBCONTRACTOR BOQ lines</Text>
+        {subcontractBoqItems.map((item: BoqItem) => {
+          const selected = selectedBoqIds.includes(item.id);
+          return (
+            <Pressable
+              key={item.id}
+              onPress={() =>
+                setSelectedBoqIds((prev) =>
+                  selected ? prev.filter((id) => id !== item.id) : [...prev, item.id],
+                )
+              }
+              className={`p-2 rounded-lg border mb-1 ${
+                selected ? 'border-primary bg-primary/5' : 'border-border'
+              }`}
+            >
+              <Text className="text-xs font-mono text-muted">{item.itemCode}</Text>
+              <Text className="text-sm text-text">{item.description}</Text>
+              <Text className="text-xs text-muted">
+                {item.quantity} {item.unit} @ {formatINR(parseFloat(item.rate))}
+              </Text>
+            </Pressable>
+          );
+        })}
       </AdaptiveSheet>
 
       <AdaptiveSheet

@@ -1,17 +1,31 @@
 /**
- * Subcontract integration tests - measurement approval and bill linkage path.
+ * Subcontract integration tests - summary, retention, BOQ→WO, reject flow.
  */
-import { loginAs, authGet, authPost, getSeedProjectId } from './test-helpers';
+import request from 'supertest';
+import { loginAs, authGet, authPost, authPut, authDelete, getSeedProjectId, getProjectId } from './test-helpers';
+import { app } from '../../app';
 
 const OWNER = 'owner@reddyconst.com';
 
 describe('Subcontract (integration)', () => {
   let token: string;
   let projectId: string;
+  let trailProjectId: string;
 
   beforeAll(async () => {
     token = await loginAs(OWNER);
     projectId = await getSeedProjectId(token);
+    trailProjectId = await getProjectId(token, 'TRAIL');
+  });
+
+  afterAll(async () => {
+    const woRes = await authGet(token, `/api/projects/${trailProjectId}/subcontract/work-orders`);
+    const testWo = (woRes.body.data as Array<{ id: string; woNumber: string; _count?: { measurements: number; bills: number } }>).find(
+      (w) => w.woNumber === 'WO-TEST-BOQ',
+    );
+    if (testWo && (testWo._count?.measurements ?? 0) === 0 && (testWo._count?.bills ?? 0) === 0) {
+      await authDelete(token, `/api/projects/${trailProjectId}/subcontract/work-orders/${testWo.id}`);
+    }
   });
 
   it('lists seeded work order WO-001', async () => {
@@ -20,14 +34,33 @@ describe('Subcontract (integration)', () => {
     expect((res.body.data as Array<{ woNumber: string }>).some((w) => w.woNumber === 'WO-001')).toBe(true);
   });
 
-  it('creates measurement, submits, approves with bill linkage', async () => {
+  it('returns work order summary with certified totals', async () => {
     const woRes = await authGet(token, `/api/projects/${projectId}/subcontract/work-orders`);
-    const wo = (woRes.body.data as Array<{ id: string; woNumber: string }>)[0];
+    const wo = (woRes.body.data as Array<{ id: string; woNumber: string }>).find(
+      (w) => w.woNumber === 'WO-001',
+    );
+    expect(wo).toBeTruthy();
+
+    const summaryRes = await authGet(
+      token,
+      `/api/projects/${projectId}/subcontract/work-orders/${wo!.id}/summary`,
+    );
+    expect(summaryRes.status).toBe(200);
+    const summary = summaryRes.body.data as { contractValue: number; certifiedTotal: number };
+    expect(summary.contractValue).toBeGreaterThanOrEqual(2_000_000);
+    expect(summary.certifiedTotal).toBeGreaterThanOrEqual(0);
+  });
+
+  it('creates measurement, submits, approves with bill retention', async () => {
+    const woRes = await authGet(token, `/api/projects/${projectId}/subcontract/work-orders`);
+    const wo = (woRes.body.data as Array<{ id: string; woNumber: string }>).find(
+      (w) => w.woNumber === 'WO-001',
+    );
     expect(wo).toBeTruthy();
 
     const createRes = await authPost(
       token,
-      `/api/projects/${projectId}/subcontract/work-orders/${wo.id}/measurements`,
+      `/api/projects/${projectId}/subcontract/work-orders/${wo!.id}/measurements`,
       {
         periodLabel: 'Test period',
         lines: [{ description: 'Test work', quantity: 10, unit: 'cum', rate: 500 }],
@@ -46,5 +79,206 @@ describe('Subcontract (integration)', () => {
     expect(approveRes.body.data.measurement?.status ?? approveRes.body.data.status).toBe('APPROVED');
     expect(approveRes.body.data.bill).toBeTruthy();
     expect(approveRes.body.data.bill.measurementId).toBe(measId);
+
+    const gross = 5000;
+    const bill = approveRes.body.data.bill as {
+      subtotal: string | number;
+      retentionAmount: string | number;
+      total: string | number;
+    };
+    expect(Number(bill.subtotal)).toBe(gross);
+    expect(Number(bill.retentionAmount)).toBeGreaterThan(0);
+    expect(Number(bill.total)).toBeLessThan(gross);
+  });
+
+  it('rejects submitted measurement then allows resubmit after edit', async () => {
+    const woRes = await authGet(token, `/api/projects/${projectId}/subcontract/work-orders`);
+    const wo = (woRes.body.data as Array<{ id: string; woNumber: string }>).find(
+      (w) => w.woNumber === 'WO-001',
+    );
+    expect(wo).toBeTruthy();
+
+    const createRes = await authPost(
+      token,
+      `/api/projects/${projectId}/subcontract/work-orders/${wo!.id}/measurements`,
+      {
+        periodLabel: 'Reject test',
+        lines: [{ description: 'Reject me', quantity: 1, unit: 'Nos', rate: 1000 }],
+      },
+    );
+    const measId = createRes.body.data.id as string;
+    await authPost(token, `/api/projects/${projectId}/subcontract/measurements/${measId}/submit`);
+
+    const rejectRes = await authPost(
+      token,
+      `/api/projects/${projectId}/subcontract/measurements/${measId}/reject`,
+      { reason: 'Qty mismatch' },
+    );
+    expect(rejectRes.status).toBe(200);
+    expect(rejectRes.body.data.status).toBe('REJECTED');
+
+    const updateRes = await request(app)
+      .put(`/api/projects/${projectId}/subcontract/measurements/${measId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        periodLabel: 'Reject test revised',
+        lines: [{ description: 'Reject me fixed', quantity: 1, unit: 'Nos', rate: 1000 }],
+      });
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body.data.status).toBe('DRAFT');
+
+    const resubmit = await authPost(
+      token,
+      `/api/projects/${projectId}/subcontract/measurements/${measId}/submit`,
+    );
+    expect(resubmit.status).toBe(200);
+    expect(resubmit.body.data.status).toBe('SUBMITTED');
+  });
+
+  it('creates work order from SUBCONTRACTOR BOQ items on Trail project', async () => {
+    const projectsRes = await authGet(token, '/api/projects');
+    const trail = (projectsRes.body.data as Array<{ id: string; code: string }>).find(
+      (p) => p.code === 'TRAIL',
+    );
+    expect(trail).toBeTruthy();
+
+    const boqRes = await authGet(token, `/api/projects/${trail!.id}/boq`);
+    const scItem = (boqRes.body.data.items as Array<{ id: string; category: string }>).find(
+      (i) => i.category === 'SUBCONTRACTOR',
+    );
+    expect(scItem).toBeTruthy();
+
+    const subsRes = await authGet(token, '/api/subcontractors');
+    const sub = (subsRes.body.data as Array<{ id: string; name: string }>).find(
+      (s) => s.name === 'FloorCraft Interiors',
+    );
+    expect(sub).toBeTruthy();
+
+    const woRes = await authPost(
+      token,
+      `/api/projects/${trail!.id}/subcontract/work-orders/from-boq`,
+      {
+        subcontractorId: sub!.id,
+        woNumber: 'WO-TEST-BOQ',
+        boqItemIds: [scItem!.id],
+        retentionPct: 5,
+        advanceAmount: 0,
+      },
+    );
+    expect(woRes.status).toBe(201);
+    expect(woRes.body.data.woNumber).toBe('WO-TEST-BOQ');
+    expect(woRes.body.data.contractLines?.length ?? 0).toBeGreaterThan(0);
+  });
+
+  it('blocks completing WO when not fully certified', async () => {
+    const subsRes = await authGet(token, '/api/subcontractors');
+    const sub = (subsRes.body.data as Array<{ id: string }>)[0];
+    expect(sub).toBeTruthy();
+
+    const createWo = await authPost(token, `/api/projects/${projectId}/subcontract/work-orders`, {
+      subcontractorId: sub!.id,
+      woNumber: `WO-PARTIAL-${Date.now()}`,
+      scope: 'Partial certify test',
+      contractValue: 10_000,
+      retentionPct: 5,
+      advanceAmount: 0,
+    });
+    expect(createWo.status).toBe(201);
+    const woId = createWo.body.data.id as string;
+
+    const createMeas = await authPost(
+      token,
+      `/api/projects/${projectId}/subcontract/work-orders/${woId}/measurements`,
+      {
+        periodLabel: 'Partial only',
+        lines: [{ description: 'Partial work', quantity: 2, unit: 'cum', rate: 500 }],
+      },
+    );
+    const measId = createMeas.body.data.id as string;
+    await authPost(token, `/api/projects/${projectId}/subcontract/measurements/${measId}/submit`);
+    await authPost(
+      token,
+      `/api/projects/${projectId}/subcontract/measurements/${measId}/approve`,
+      { createBill: false },
+    );
+
+    const res = await authPut(token, `/api/projects/${projectId}/subcontract/work-orders/${woId}`, {
+      status: 'COMPLETED',
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error?.message ?? res.body.message).toMatch(/not fully certified/i);
+  });
+
+  it('creates retention release bill when WO is fully certified and completed', async () => {
+    const subsRes = await authGet(token, '/api/subcontractors');
+    const sub = (subsRes.body.data as Array<{ id: string }>)[0];
+    expect(sub).toBeTruthy();
+
+    const woNumber = `WO-RET-${Date.now()}`;
+    const createWo = await authPost(token, `/api/projects/${projectId}/subcontract/work-orders`, {
+      subcontractorId: sub!.id,
+      woNumber,
+      scope: 'Retention release test',
+      contractValue: 1000,
+      retentionPct: 5,
+      advanceAmount: 0,
+    });
+    expect(createWo.status).toBe(201);
+    const woId = createWo.body.data.id as string;
+
+    const createMeas = await authPost(
+      token,
+      `/api/projects/${projectId}/subcontract/work-orders/${woId}/measurements`,
+      {
+        periodLabel: 'Full certify',
+        lines: [{ description: 'All work', quantity: 2, unit: 'Nos', rate: 500 }],
+      },
+    );
+    const measId = createMeas.body.data.id as string;
+    await authPost(token, `/api/projects/${projectId}/subcontract/measurements/${measId}/submit`);
+    const approveMeas = await authPost(
+      token,
+      `/api/projects/${projectId}/subcontract/measurements/${measId}/approve`,
+      { createBill: true },
+    );
+    expect(approveMeas.status).toBe(200);
+    expect(Number(approveMeas.body.data.bill.retentionAmount)).toBeGreaterThan(0);
+
+    const complete = await authPut(token, `/api/projects/${projectId}/subcontract/work-orders/${woId}`, {
+      status: 'COMPLETED',
+    });
+    expect(complete.status).toBe(200);
+    expect(complete.body.data.retentionReleaseBill).toBeTruthy();
+    expect(complete.body.data.retentionReleaseBill.billNumber).toMatch(/^SC-RET-/);
+  });
+
+  it('blocks measurements on non-ACTIVE work order', async () => {
+    const subsRes = await authGet(token, '/api/subcontractors');
+    const sub = (subsRes.body.data as Array<{ id: string }>)[0];
+
+    const createWo = await authPost(token, `/api/projects/${projectId}/subcontract/work-orders`, {
+      subcontractorId: sub!.id,
+      woNumber: `WO-DRAFT-${Date.now()}`,
+      scope: 'Draft WO',
+      contractValue: 500,
+      retentionPct: 0,
+      advanceAmount: 0,
+    });
+    expect(createWo.status).toBe(201);
+    const woId = createWo.body.data.id as string;
+
+    await authPut(token, `/api/projects/${projectId}/subcontract/work-orders/${woId}`, {
+      status: 'DRAFT',
+    });
+
+    const measRes = await authPost(
+      token,
+      `/api/projects/${projectId}/subcontract/work-orders/${woId}/measurements`,
+      {
+        periodLabel: 'Should fail',
+        lines: [{ description: 'Test', quantity: 1, unit: 'Nos', rate: 500 }],
+      },
+    );
+    expect(measRes.status).toBe(400);
   });
 });

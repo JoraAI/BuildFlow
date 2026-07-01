@@ -8,6 +8,7 @@ import { z } from 'zod';
 import * as procurementController from '../controllers/procurement.controller';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { validate } from '../middleware/validate';
+import { asyncHandler } from '../utils/async-handler';
 import {
   createRequisitionSchema,
   createPurchaseOrderSchema,
@@ -28,40 +29,61 @@ procurementRouter.use(authenticateToken);
 procurementRouter.get(
   '/:id/procurement/requisitions',
   validate({ params: projectIdParams }),
-  procurementController.listRequisitions,
+  asyncHandler(procurementController.listRequisitions),
 );
 procurementRouter.post(
   '/:id/procurement/requisitions',
   requireRole(Role.OWNER, Role.PM, Role.SUPERVISOR),
   validate({ params: projectIdParams, body: createRequisitionSchema }),
-  procurementController.createRequisition,
+  asyncHandler(procurementController.createRequisition),
 );
 procurementRouter.post(
   '/:id/procurement/requisitions/:requisitionId/submit',
   requireRole(Role.OWNER, Role.PM, Role.SUPERVISOR),
   validate({ params: requisitionIdParams }),
-  procurementController.submitRequisition,
+  asyncHandler(procurementController.submitRequisition),
 );
 procurementRouter.post(
   '/:id/procurement/requisitions/:requisitionId/approve',
   requireRole(Role.OWNER, Role.PM),
   validate({ params: requisitionIdParams }),
-  procurementController.approveRequisition,
+  asyncHandler(procurementController.approveRequisition),
 );
 procurementRouter.post(
   '/:id/procurement/purchase-orders',
   requireRole(Role.OWNER, Role.PM, Role.ACCOUNTANT),
   validate({ params: projectIdParams, body: createPurchaseOrderSchema }),
-  procurementController.createPO,
+  asyncHandler(procurementController.createPO),
 );
 procurementRouter.post(
   '/:id/procurement/grn',
   requireRole(Role.OWNER, Role.PM, Role.SUPERVISOR),
   validate({ params: projectIdParams, body: createGrnSchema }),
-  procurementController.createGRN,
+  asyncHandler(procurementController.createGRN),
+);
+procurementRouter.get(
+  '/:id/procurement/stock/summary',
+  validate({ params: projectIdParams }),
+  asyncHandler(procurementController.getStockSummary),
+);
+procurementRouter.get(
+  '/:id/procurement/stock/movements',
+  validate({ params: projectIdParams }),
+  asyncHandler(procurementController.listStockMovements),
 );
 procurementRouter.get(
   '/:id/procurement/stock',
   validate({ params: projectIdParams }),
-  procurementController.listStock,
+  asyncHandler(procurementController.listStock),
+);
+procurementRouter.get(
+  '/:id/procurement/boq-shortfalls',
+  validate({ params: projectIdParams }),
+  asyncHandler(procurementController.getBoqShortfalls),
+);
+procurementRouter.post(
+  '/:id/procurement/generate-from-boq',
+  requireRole(Role.OWNER, Role.PM, Role.SUPERVISOR),
+  validate({ params: projectIdParams }),
+  asyncHandler(procurementController.generateIndentsFromBoq),
 );

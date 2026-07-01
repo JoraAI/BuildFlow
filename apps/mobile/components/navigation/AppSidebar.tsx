@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Pressable, ImageBackground, ScrollView } from 'react-native';
-import { useRouter, usePathname } from 'expo-router';
+import { useRouter, usePathname, useGlobalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/stores/auth.store';
 import {
@@ -10,6 +10,7 @@ import {
   getActiveTabFromPath,
   type TabName,
 } from '@/constants/navigation';
+import { parseReturnTo } from '@/utils/navigation';
 
 interface AppSidebarProps {
   allowedTabs: TabName[];
@@ -18,9 +19,11 @@ interface AppSidebarProps {
 export function AppSidebar({ allowedTabs }: AppSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const params = useGlobalSearchParams<{ returnTo?: string }>();
+  const returnTo = parseReturnTo(params.returnTo);
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
-  const activeTab = getActiveTabFromPath(pathname);
+  const activeTab = getActiveTabFromPath(pathname, returnTo);
   const allowedSet = new Set<string>(allowedTabs);
 
   const handleLogout = async () => {

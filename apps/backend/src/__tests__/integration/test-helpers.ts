@@ -21,6 +21,15 @@ export function authPost(token: string, path: string, body?: object) {
   return body !== undefined ? req.send(body) : req.send({});
 }
 
+export function authPut(token: string, path: string, body?: object) {
+  const req = request(app).put(path).set('Authorization', `Bearer ${token}`);
+  return body !== undefined ? req.send(body) : req.send({});
+}
+
+export function authDelete(token: string, path: string) {
+  return request(app).delete(path).set('Authorization', `Bearer ${token}`);
+}
+
 export async function getSeedProjectId(token: string): Promise<string> {
   const res = await authGet(token, '/api/projects');
   if (res.status !== 200 || !res.body.data?.length) {
@@ -28,4 +37,12 @@ export async function getSeedProjectId(token: string): Promise<string> {
   }
   const nh65 = res.body.data.find((p: { code: string }) => p.code === 'NH65');
   return (nh65 ?? res.body.data[0]).id as string;
+}
+
+export async function getProjectId(token: string, code: string): Promise<string> {
+  const res = await authGet(token, '/api/projects');
+  if (res.status !== 200) throw new Error('Failed to list projects');
+  const project = (res.body.data as Array<{ id: string; code: string }>).find((p) => p.code === code);
+  if (!project) throw new Error(`Project ${code} not found`);
+  return project.id;
 }

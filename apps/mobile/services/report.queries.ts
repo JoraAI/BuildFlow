@@ -13,6 +13,7 @@ import type {
   CheckInInput,
 } from '@buildflow/shared';
 import { useAppStore } from '@/stores/app.store';
+import { invalidateProjectBoq, invalidateProjectProcurement, invalidateProjectSchedule } from '@/lib/project-query-invalidation';
 import { offlineQueueStore } from '@/stores/offline-queue.store';
 
 /* ------------------------------------------------------------------ */
@@ -42,12 +43,22 @@ export interface ReportListItem {
   issues: string | null;
   photos: string[];
   workersCount: number;
+  stockDeductionApplied?: boolean;
+  project?: { id: string; code: string; name: string };
   reportedByUser: { id: string; name: string };
+  taskUpdates?: {
+    id: string;
+    taskId: string;
+    progressPct: number;
+    task: { id: string; name: string };
+  }[];
   materialUsages: {
     id: string;
     quantityUsed: number;
     notes: string | null;
     resource: { id: string; name: string; unit: string };
+    task?: { id: string; name: string } | null;
+    boqItem?: { id: string; itemCode: string; description: string } | null;
   }[];
 }
 
@@ -172,10 +183,9 @@ export function useCreateReport(projectId: string) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['reports'] });
-      qc.invalidateQueries({ queryKey: ['projects', projectId, 'gantt'] });
-      qc.invalidateQueries({ queryKey: ['projects', projectId, 'tasks'] });
-      qc.invalidateQueries({ queryKey: ['projects', projectId, 'summary'] });
-      qc.invalidateQueries({ queryKey: ['projects', projectId, 'resources', 'utilization'] });
+      invalidateProjectSchedule(qc, projectId);
+      invalidateProjectBoq(qc, projectId);
+      invalidateProjectProcurement(qc, projectId);
       qc.invalidateQueries({
         queryKey: reportKeys.calendar(projectId, new Date().toISOString().slice(0, 7)),
       });

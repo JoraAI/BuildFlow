@@ -10,7 +10,7 @@ import { recordAudit } from '../utils/audit';
 import { getProject } from './project.service';
 import { EstimateStatus } from '@buildflow/shared';
 import type { CreateBoqItemInput, UpdateBoqItemInput } from '@buildflow/shared';
-import { createDraftIndentsFromDemand, demandsFromEstimateItems } from './material-demand.service';
+import { createDraftIndentsFromDemand, buildMaterialDemandsFromEstimateItems } from './material-demand.service';
 
 /* ------------------------------------------------------------------ */
 /* List & Get                                                          */
@@ -21,6 +21,9 @@ export async function listBoq(companyId: string, projectId: string) {
   const [items, invoiceLines] = await Promise.all([
     prisma.bOQItem.findMany({
       where: { projectId, isSuperseded: false },
+      include: {
+        estimateItem: { select: { resourceId: true } },
+      },
       orderBy: [{ category: 'asc' }, { itemCode: 'asc' }],
     }),
     prisma.invoiceLineItem.findMany({
@@ -40,17 +43,21 @@ export async function listBoq(companyId: string, projectId: string) {
   }
 
   const enrichedItems = items.map((item) => {
+    const { estimateItem, ...rest } = item;
     const sanctionedQty = Number(item.quantity);
     const executedQty = Number(item.executedQty);
+    const procuredQty = Number(item.procuredQty ?? 0);
     const billedCumulativeQty = billedByBoq.get(item.id) ?? 0;
     const balanceQty = Math.max(0, sanctionedQty - executedQty);
     const progressPct =
       sanctionedQty > 0 ? Math.min(100, Math.round((executedQty / sanctionedQty) * 100)) : 0;
     const billableQty = Math.max(0, executedQty - billedCumulativeQty);
     return {
-      ...item,
+      ...rest,
+      resourceId: estimateItem?.resourceId ?? null,
       sanctionedQty,
       executedQty,
+      procuredQty,
       billedCumulativeQty,
       balanceQty,
       progressPct,
@@ -58,9 +65,34 @@ export async function listBoq(companyId: string, projectId: string) {
     };
   });
 
-  const total = enrichedItems.reduce((sum, i) => sum + Number(i.amount), 0);
-  const grouped = groupByCategory(enrichedItems);
-  return { items: enrichedItems, grouped, total };
+  const resourceIds = enrichedItems
+    .map((i) => i.resourceId)
+    .filter((id): id is string => Boolean(id));
+
+  const stockByResource = new Map<string, number>();
+  if (resourceIds.length > 0) {
+    const balances = await prisma.stockBalance.findMany({
+      where: {
+        resourceId: { in: resourceIds },
+        location: { projectId, companyId },
+      },
+    });
+    for (const balance of balances) {
+      stockByResource.set(
+        balance.resourceId,
+        (stockByResource.get(balance.resourceId) ?? 0) + Number(balance.quantity),
+      );
+    }
+  }
+
+  const itemsWithStock = enrichedItems.map((item) => ({
+    ...item,
+    stockQty: item.resourceId ? (stockByResource.get(item.resourceId) ?? 0) : undefined,
+  }));
+
+  const total = itemsWithStock.reduce((sum, i) => sum + Number(i.amount), 0);
+  const grouped = groupByCategory(itemsWithStock);
+  return { items: itemsWithStock, grouped, total };
 }
 
 function groupByCategory(items: Array<{ category: string | null; amount: Prisma.Decimal }>) {
@@ -262,7 +294,11 @@ export async function convertEstimateToBoq(
 
   const projectId = estimate.projectId;
 
-  // Archive existing BOQ
+  // Archive existing BOQ and release estimate-item links (unique constraint)
+  await prisma.bOQItem.updateMany({
+    where: { projectId },
+    data: { estimateItemId: null },
+  });
   const archived = await prisma.bOQItem.updateMany({
     where: { projectId, isSuperseded: false },
     data: { isSuperseded: true },
@@ -300,13 +336,14 @@ export async function convertEstimateToBoq(
     if (b.estimateItemId) boqByEstimateItemId.set(b.estimateItemId, b.id);
   }
 
-  const materialDemands = demandsFromEstimateItems(
+  const materialDemands = await buildMaterialDemandsFromEstimateItems(
     estimate.items.map((i) => ({
+      id: i.id,
       type: i.type,
       resourceId: i.resourceId,
+      rateAnalysisId: i.rateAnalysisId,
       quantity: i.quantity,
       unit: i.unit,
-      estimateItemId: i.id,
     })),
     boqByEstimateItemId,
   );
@@ -325,7 +362,7 @@ export async function convertEstimateToBoq(
     action: 'CREATE',
     entityType: 'boq_from_estimate',
     entityId: estimateId,
-    newValue: { projectId, created: created.count, archived: archived.count },
+    newValue: { projectId, created: created.count },
     ipAddress,
   });
 

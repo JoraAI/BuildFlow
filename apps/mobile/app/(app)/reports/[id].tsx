@@ -15,18 +15,19 @@ import {
   FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { Card, Badge, EmptyState, LoadingSkeleton } from '@/components/ui';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
-import { dismissTo, DISMISS } from '@/utils/navigation';
+import { DISMISS, parseReturnTo, navigateAppBack } from '@/utils/navigation';
 import { useReport, useReportPhotos, type ReportListItem } from '@/services/report.queries';
 import { formatDate } from '@/utils/format';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export default function ReportDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
+  const { id, returnTo: returnToParam } = useLocalSearchParams<{ id: string; returnTo?: string }>();
+  const returnTo = parseReturnTo(returnToParam);
+  const goBack = () => navigateAppBack(DISMISS.reports, returnTo);
   const reportQ = useReport(id);
   const photosQ = useReportPhotos(id);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
@@ -40,7 +41,7 @@ export default function ReportDetailScreen() {
       <FormScreenHeader
         title="Report Detail"
         cancelLabel="Back"
-        onCancel={() => dismissTo(DISMISS.reports)}
+        onCancel={goBack}
       />
 
       {loading ? (
@@ -74,6 +75,12 @@ export default function ReportDetailScreen() {
                   }
                 />
               </View>
+              {report.project && (
+                <Text className="text-sm font-medium text-text mb-1">
+                  {report.project.name}{' '}
+                  <Text className="text-muted font-normal">({report.project.code})</Text>
+                </Text>
+              )}
               <View className="flex-row gap-4">
                 {report.weather && (
                   <Text className="text-sm text-muted">Weather: {report.weather}</Text>
@@ -94,20 +101,45 @@ export default function ReportDetailScreen() {
             </View>
           )}
 
+          {/* Schedule updates */}
+          {report.taskUpdates && report.taskUpdates.length > 0 && (
+            <View className="px-4 pb-3">
+              <Card className="p-4">
+                <Text className="text-sm font-semibold text-text mb-2">Schedule Updates</Text>
+                {report.taskUpdates.map((tu) => (
+                  <View key={tu.id} className="flex-row justify-between py-1.5 border-b border-border">
+                    <Text className="text-sm text-text flex-1">{tu.task.name}</Text>
+                    <Text className="text-sm text-muted">{tu.progressPct}%</Text>
+                  </View>
+                ))}
+              </Card>
+            </View>
+          )}
+
           {/* Materials */}
           {report.materialUsages.length > 0 && (
             <View className="px-4 pb-3">
               <Card className="p-4">
                 <Text className="text-sm font-semibold text-text mb-2">Materials Used</Text>
                 {report.materialUsages.map((m: ReportListItem['materialUsages'][number]) => (
-                  <View key={m.id} className="flex-row justify-between py-1.5 border-b border-border">
-                    <View className="flex-1">
-                      <Text className="text-sm text-text">{m.resource.name}</Text>
-                      {m.notes && <Text className="text-xs text-muted">{m.notes}</Text>}
+                  <View key={m.id} className="py-1.5 border-b border-border">
+                    <View className="flex-row justify-between">
+                      <View className="flex-1">
+                        <Text className="text-sm text-text">{m.resource.name}</Text>
+                        {m.notes && <Text className="text-xs text-muted">{m.notes}</Text>}
+                        {m.task && (
+                          <Text className="text-xs text-primary mt-0.5">Task: {m.task.name}</Text>
+                        )}
+                        {m.boqItem && (
+                          <Text className="text-xs text-accent mt-0.5">
+                            BOQ: {m.boqItem.itemCode} - {m.boqItem.description}
+                          </Text>
+                        )}
+                      </View>
+                      <Text className="text-sm text-text">
+                        {m.quantityUsed} {m.resource.unit}
+                      </Text>
                     </View>
-                    <Text className="text-sm text-text">
-                      {m.quantityUsed} {m.resource.unit}
-                    </Text>
                   </View>
                 ))}
               </Card>

@@ -1,6 +1,6 @@
 /**
  * Offline HSN/SAC suggestion for construction materials (India).
- * Assistive only — users can always override.
+ * Assistive only - users can always override.
  */
 
 export type HsnSuggestSource = 'catalog' | 'keyword' | 'category';
@@ -117,10 +117,10 @@ export function suggestGst(category?: string): number | null {
 export function hsnSuggestHelperText(source: HsnSuggestSource): string {
   switch (source) {
     case 'catalog':
-      return 'Suggested from your catalog — tap to change';
+      return 'Suggested from your catalog - tap to change';
     case 'keyword':
-      return 'Suggested from material name — tap to change';
+      return 'Suggested from material name - tap to change';
     case 'category':
-      return 'Suggested from category — tap to change';
+      return 'Suggested from category - tap to change';
   }
 }

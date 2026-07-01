@@ -16,6 +16,7 @@ import { useViewport } from '@/hooks/useViewport';
 import { AssistantFab } from '@/components/navigation/AssistantFab';
 import { AssistantOverlay } from '@/components/assistant/AssistantOverlay';
 import { useAssistantStore } from '@/stores/assistant.store';
+import { useOnboardingStore } from '@/stores/onboarding.store';
 import {
   TAB_CONFIG,
   HIDDEN_TAB_SCREENS,
@@ -34,10 +35,14 @@ export default function AppLayout() {
   const pathname = usePathname();
   const router = useRouter();
   const prevPathRef = useRef(pathname);
-  /** Global mobile chrome (logo, company, alerts) on every app screen — not just tab roots. */
+  /** Global mobile chrome (logo, company, alerts) on every app screen - not just tab roots. */
   const showMobileHeader = !isDesktop;
 
   // Close assistant when navigating; /chat in history must not reopen the overlay.
+  useEffect(() => {
+    void useOnboardingStore.getState().load();
+  }, []);
+
   useEffect(() => {
     const normalized = pathname.replace(/\/$/, '') || '/dashboard';
     if (normalized === '/chat') {

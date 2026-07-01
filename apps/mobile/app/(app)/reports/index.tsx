@@ -18,7 +18,8 @@ import {
   type CalendarEntry,
 } from '@/services/report.queries';
 import type { ProjectListItem } from '@/services/project.queries';
-import { formatINR, formatDate } from '@/utils/format';
+import { formatDate } from '@/utils/format';
+import { createReportHref } from '@/utils/navigation';
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
@@ -181,14 +182,14 @@ export default function ReportsScreen() {
               <EmptyState
                 title="No reports yet"
                 description="Tap the + button to create the first daily report for this project."
-                action={<Button label="New Daily Report" onPress={() => router.push('/reports/create')} />}
+                action={<Button label="New Daily Report" onPress={() => router.push(createReportHref(projectId))} />}
               />
             )}
           </View>
         </ScrollView>
       )}
 
-      {hasProject && <FAB onPress={() => router.push('/reports/create')} />}
+      {hasProject && <FAB onPress={() => router.push(createReportHref(projectId))} />}
     </SafeAreaView>
   );
 }

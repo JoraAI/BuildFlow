@@ -115,3 +115,17 @@ export async function getProjectMaterialRatesPdf(req: Request, res: Response) {
   const result = await svc.reportProjectMaterialRates(req.user!.companyId, id);
   return sendPdf(res, result);
 }
+
+// 16. Subcontract WO Measurement Book
+export async function getSubcontractMeasurementBookPdf(req: Request, res: Response) {
+  const { id, woId } = req.params;
+  const result = await svc.reportSubcontractMeasurementBook(req.user!.companyId, id, woId);
+  return sendPdf(res, result);
+}
+
+// 17. Subcontract WO Abstract Sheet
+export async function getSubcontractAbstractSheetPdf(req: Request, res: Response) {
+  const { id, woId } = req.params;
+  const result = await svc.reportSubcontractAbstractSheet(req.user!.companyId, id, woId);
+  return sendPdf(res, result);
+}

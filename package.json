@@ -20,6 +20,7 @@
     "db:migrate": "pnpm --filter @buildflow/backend db:migrate",
     "db:seed": "pnpm --filter @buildflow/backend db:seed",
     "db:studio": "pnpm --filter @buildflow/backend db:studio",
+    "test:backend": "bash scripts/test-backend.sh",
     "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {

@@ -3,6 +3,7 @@
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
+import { invalidateProjectBoq, invalidateProjectCore } from '@/lib/project-query-invalidation';
 
 export interface BoqItem {
   id: string;
@@ -13,12 +14,17 @@ export interface BoqItem {
   rate: string;
   amount: string;
   category: string | null;
+  /** Catalog material from linked estimate item, when set. */
+  resourceId?: string | null;
   sanctionedQty?: number;
   executedQty?: number;
+  procuredQty?: number;
   billedCumulativeQty?: number;
   balanceQty?: number;
   progressPct?: number;
   billableQty?: number;
+  /** On-hand qty at site store (from GRN receipts), for MATERIAL lines linked to catalog. */
+  stockQty?: number;
 }
 
 export interface BoqGroup {
@@ -103,8 +109,8 @@ export function useRecordBoqMeasurement(projectId: string) {
         body: JSON.stringify({ quantity, notes }),
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['projects', projectId, 'boq'] });
-      qc.invalidateQueries({ queryKey: ['projects', projectId, 'boq', 'vs-actual'] });
+      invalidateProjectBoq(qc, projectId);
+      invalidateProjectCore(qc, projectId);
     },
   });
 }

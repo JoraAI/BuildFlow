@@ -92,3 +92,47 @@ export async function listStock(req: Request, res: Response) {
   const data = await procurementService.listStock(companyId, userId, role, req.params.id);
   return ok(res, data);
 }
+
+export async function getStockSummary(req: Request, res: Response) {
+  const { companyId, id: userId, role } = req.user!;
+  const data = await procurementService.getStockSummary(companyId, userId, role, req.params.id);
+  return ok(res, data);
+}
+
+export async function listStockMovements(req: Request, res: Response) {
+  const { companyId, id: userId, role } = req.user!;
+  const resourceId = typeof req.query.resourceId === 'string' ? req.query.resourceId : undefined;
+  const limit =
+    typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : undefined;
+  const data = await procurementService.listStockMovements(companyId, userId, role, req.params.id, {
+    resourceId,
+    limit: Number.isFinite(limit) ? limit : undefined,
+  });
+  return ok(res, data);
+}
+
+export async function getBoqShortfalls(req: Request, res: Response) {
+  const { companyId, id: userId, role } = req.user!;
+  const data = await procurementService.getBoqShortfalls(companyId, userId, role, req.params.id);
+  return ok(res, data);
+}
+
+export async function generateIndentsFromBoq(req: Request, res: Response) {
+  const { companyId, id: userId, role } = req.user!;
+  const data = await procurementService.generateIndentsFromBoq(
+    companyId,
+    userId,
+    role,
+    req.params.id,
+  );
+  await recordAudit({
+    companyId,
+    userId,
+    action: 'CREATE',
+    entityType: 'MaterialRequisition',
+    entityId: req.params.id,
+    newValue: { source: 'BOQ_UPDATE', created: data.created, reqNumbers: data.reqNumbers },
+    ipAddress: req.ip,
+  });
+  return created(res, data);
+}

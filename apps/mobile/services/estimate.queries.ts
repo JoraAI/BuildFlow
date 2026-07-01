@@ -3,6 +3,7 @@
  */
 import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiFetch, apiDownload, apiFetchList, type ApiListMeta } from '@/lib/api-client';
+import { invalidateConvertToBoqImpact } from '@/lib/project-query-invalidation';
 import type { CreateResourceInput, UpdateResourceInput } from '@buildflow/shared';
 import * as Sharing from 'expo-sharing';
 import { Alert } from 'react-native';
@@ -65,6 +66,7 @@ export interface EstimateItem {
   unit: string;
   quantity: string;
   resourceId: string | null;
+  rateAnalysisId?: string | null;
   rate: string;
   amount: string;
   type: 'MATERIAL' | 'LABOUR' | 'EQUIPMENT' | 'SUBCONTRACTOR' | 'MISC';
@@ -435,12 +437,24 @@ export function useEstimateMutations(estimateId: string) {
         rate: number;
         type: EstimateItem['type'];
         resourceId?: string;
+        rateAnalysisId?: string;
         itemCode?: string;
       }) => apiFetch<{ id: string }>(`/estimates/${estimateId}/sections/${body.sectionId}/items`, { method: 'POST', body: JSON.stringify(body) }),
       onSuccess: invalidate,
     }),
     updateItem: useMutation({
-      mutationFn: (args: { itemId: string; body: Partial<{ description: string; unit: string; quantity: number; rate: number; type: EstimateItem['type'] }> }) =>
+      mutationFn: (args: {
+        itemId: string;
+        body: Partial<{
+          description: string;
+          unit: string;
+          quantity: number;
+          rate: number;
+          type: EstimateItem['type'];
+          resourceId: string | null;
+          rateAnalysisId: string | null;
+        }>;
+      }) =>
         apiFetch<{ id: string }>(`/estimate-items/${args.itemId}`, { method: 'PUT', body: JSON.stringify(args.body) }),
       onSuccess: invalidate,
     }),
@@ -478,10 +492,7 @@ export function useEstimateMutations(estimateId: string) {
       onSuccess: (data) => {
         invalidate();
         qc.invalidateQueries({ queryKey: ['estimates'] });
-        qc.invalidateQueries({ queryKey: ['projects', data.projectId, 'boq'] });
-        qc.invalidateQueries({ queryKey: ['projects', data.projectId] });
-        qc.invalidateQueries({ queryKey: ['projects', data.projectId, 'summary'] });
-        qc.invalidateQueries({ queryKey: ['projects'] });
+        invalidateConvertToBoqImpact(qc, data.projectId);
       },
     }),
   };

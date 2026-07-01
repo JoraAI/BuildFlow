@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, Alert } from 'react-native';
+import { View, Text, ScrollView, Pressable } from 'react-native';
 import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
 import {
   Card,
@@ -12,7 +12,7 @@ import {
   ProgressBar,
 } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
-import { alertAsync } from '@/utils/confirm';
+import { alertAsync, confirmAsync } from '@/utils/confirm';
 import { formatDate, daysBetween } from '@/utils/format';
 import { todayDateOnly } from '@/utils/date-field';
 import {
@@ -108,24 +108,17 @@ export function ScheduleTab({ projectId }: ScheduleTabProps) {
     updateProgress.mutate(
       { taskId, progressPct },
       {
-        onError: (e: Error) => Alert.alert('Error', e.message),
+        onError: (e: Error) => void alertAsync('Error', e.message),
       },
     );
   };
 
-  const onDeleteTask = (taskId: string, name: string) => {
-    Alert.alert('Delete task?', `Remove "${name}" from the schedule?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          deleteTask.mutate(taskId, {
-            onError: (e: Error) => Alert.alert('Error', e.message),
-          });
-        },
-      },
-    ]);
+  const onDeleteTask = async (taskId: string, name: string) => {
+    const ok = await confirmAsync('Delete task?', `Remove "${name}" from the schedule?`);
+    if (!ok) return;
+    deleteTask.mutate(taskId, {
+      onError: (e: Error) => void alertAsync('Error', e.message),
+    });
   };
 
   if (isLoading) {

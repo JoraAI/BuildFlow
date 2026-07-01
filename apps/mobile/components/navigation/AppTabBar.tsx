@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, Modal, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, usePathname } from 'expo-router';
+import { useRouter, usePathname, useGlobalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import {
@@ -11,6 +11,7 @@ import {
   MOBILE_PRIMARY_TABS,
   type TabName,
 } from '@/constants/navigation';
+import { parseReturnTo } from '@/utils/navigation';
 import { useAuthStore } from '@/stores/auth.store';
 import { useAssistantStore } from '@/stores/assistant.store';
 
@@ -22,10 +23,12 @@ export function AppTabBar({ allowedTabs }: AppTabBarProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const pathname = usePathname();
+  const params = useGlobalSearchParams<{ returnTo?: string }>();
+  const returnTo = parseReturnTo(params.returnTo);
   const user = useAuthStore((s) => s.user);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const activeTab = getActiveTabFromPath(pathname);
+  const activeTab = getActiveTabFromPath(pathname, returnTo);
   const primaryTabs = MOBILE_PRIMARY_TABS.filter((t) => allowedTabs.includes(t));
   const overflowTabs = user ? getMobileOverflowTabs(user.role) : [];
   const isOverflowActive = overflowTabs.includes(activeTab as TabName);

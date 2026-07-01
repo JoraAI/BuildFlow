@@ -10,6 +10,10 @@ export interface EstimateTemplateItem {
   quantity: number;
   rate: number;
   type: EstimateItemType;
+  /** Link to Settings → Material Prices catalog (1:1 MATERIAL lines). */
+  resourceName?: string;
+  /** Link to Rate Analysis library (composite BOM - procurement explodes components). */
+  rateAnalysisName?: string;
 }
 
 export interface EstimateTemplateSection {
@@ -35,8 +39,8 @@ export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [
         items: [
           { itemCode: 'E-001', description: 'Site clearing & levelling', unit: 'sqm', quantity: 200, rate: 45, type: 'LABOUR' },
           { itemCode: 'E-002', description: 'Excavation in ordinary soil', unit: 'cum', quantity: 120, rate: 380, type: 'LABOUR' },
-          { itemCode: 'E-003', description: 'PCC 1:4:8 (100mm)', unit: 'cum', quantity: 18, rate: 5200, type: 'MATERIAL' },
-          { itemCode: 'E-004', description: 'RCC M25 in footings', unit: 'cum', quantity: 32, rate: 7800, type: 'MATERIAL' },
+          { itemCode: 'E-003', description: 'PCC 1:4:8 (100mm)', unit: 'cum', quantity: 18, rate: 5200, type: 'MATERIAL', rateAnalysisName: 'PCC M15 (1:2:4)' },
+          { itemCode: 'E-004', description: 'RCC M25 in footings', unit: 'cum', quantity: 32, rate: 7800, type: 'MATERIAL', rateAnalysisName: 'RCC M25 with Fe500 TMT' },
           { itemCode: 'E-005', description: 'Waterproofing for basement/footing', unit: 'sqm', quantity: 85, rate: 420, type: 'SUBCONTRACTOR' },
         ],
       },
@@ -92,8 +96,8 @@ export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [
       {
         name: 'Flooring & Paint',
         items: [
-          { itemCode: 'O-020', description: 'Carpet tiles (commercial grade)', unit: 'sqm', quantity: 950, rate: 680, type: 'MATERIAL' },
-          { itemCode: 'O-021', description: 'Emulsion paint - walls & ceiling', unit: 'sqm', quantity: 2800, rate: 65, type: 'MATERIAL' },
+          { itemCode: 'O-020', description: 'Carpet tiles (commercial grade)', unit: 'sqm', quantity: 950, rate: 680, type: 'MATERIAL', resourceName: 'Commercial Carpet Tile' },
+          { itemCode: 'O-021', description: 'Emulsion paint - walls & ceiling', unit: 'sqm', quantity: 2800, rate: 65, type: 'MATERIAL', rateAnalysisName: 'Emulsion paint per sqm' },
         ],
       },
       {

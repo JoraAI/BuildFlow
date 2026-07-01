@@ -151,6 +151,18 @@ function round2(n: number): number {
   return Number(n.toFixed(2));
 }
 
+/** Catalog resource and rate analysis are mutually exclusive procurement links. */
+function resolveProcurementLinks(
+  resourceId: string | null | undefined,
+  rateAnalysisId: string | null | undefined,
+): { resourceId: string | null; rateAnalysisId: string | null } {
+  const rid = resourceId ?? null;
+  const raid = rateAnalysisId ?? null;
+  if (rid) return { resourceId: rid, rateAnalysisId: null };
+  if (raid) return { resourceId: null, rateAnalysisId: raid };
+  return { resourceId: null, rateAnalysisId: null };
+}
+
 /* ------------------------------------------------------------------ */
 /* Fetch full estimate with computed summary (always fresh)           */
 /* ------------------------------------------------------------------ */
@@ -489,6 +501,7 @@ export async function createItem(
   if (!section) throw ApiError.badRequest('Section does not belong to this estimate');
 
   const amount = round2(input.quantity * input.rate);
+  const links = resolveProcurementLinks(input.resourceId, input.rateAnalysisId);
 
   const item = await prisma.estimateItem.create({
     data: {
@@ -500,7 +513,8 @@ export async function createItem(
       rate: input.rate,
       amount,
       type: input.type,
-      resourceId: input.resourceId ?? null,
+      resourceId: links.resourceId,
+      rateAnalysisId: links.rateAnalysisId,
       wbsItemId: input.wbsItemId ?? null,
       itemCode: input.itemCode ?? null,
       notes: input.notes ?? null,
@@ -538,6 +552,15 @@ export async function updateItem(
   const rate = input.rate ?? Number(item.rate);
   const amount = round2(quantity * rate);
 
+  const mergedResourceId =
+    input.resourceId !== undefined ? input.resourceId : item.resourceId;
+  const mergedRateAnalysisId =
+    input.rateAnalysisId !== undefined ? input.rateAnalysisId : item.rateAnalysisId;
+  const links =
+    input.resourceId !== undefined || input.rateAnalysisId !== undefined
+      ? resolveProcurementLinks(mergedResourceId, mergedRateAnalysisId)
+      : null;
+
   const updated = await prisma.estimateItem.update({
     where: { id: itemId },
     data: {
@@ -548,7 +571,7 @@ export async function updateItem(
       rate,
       amount,
       ...(input.type !== undefined && { type: input.type }),
-      ...(input.resourceId !== undefined && { resourceId: input.resourceId }),
+      ...(links && { resourceId: links.resourceId, rateAnalysisId: links.rateAnalysisId }),
       ...(input.wbsItemId !== undefined && { wbsItemId: input.wbsItemId }),
       ...(input.itemCode !== undefined && { itemCode: input.itemCode }),
       ...(input.notes !== undefined && { notes: input.notes }),

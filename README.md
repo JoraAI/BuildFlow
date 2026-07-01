@@ -77,6 +77,7 @@ pnpm dev
 | `pnpm build`     | Build all packages                       |
 | `pnpm lint`      | Lint all packages                        |
 | `pnpm test`      | Run all tests                            |
+| `pnpm test:backend` | Reset isolated test DB + run backend tests |
 | `pnpm typecheck` | TypeScript type-check (no emit)          |
 | `pnpm db:up`     | Start Postgres + Redis containers        |
 | `pnpm db:down`   | Stop containers                          |
