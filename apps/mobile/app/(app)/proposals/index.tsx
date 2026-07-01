@@ -124,7 +124,7 @@ export default function ProposalsHubScreen() {
       }
     />
   ) : (
-    <ResponsiveGrid gap={16}>
+    <ResponsiveGrid>
       {filtered.map((p: ProposalListItem) => {
         const latest = p.temporaryProject?.estimates?.[0];
         const statusMeta = PROPOSAL_STATUS_META[p.status as keyof typeof PROPOSAL_STATUS_META];

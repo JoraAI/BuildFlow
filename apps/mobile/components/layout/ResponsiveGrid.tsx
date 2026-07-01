@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useViewport } from '@/hooks/useViewport';
 
-const DEFAULT_GAP = 16;
+const DEFAULT_GAP = 20;
 
 function useGridLayout(gap = DEFAULT_GAP, columnsOverride?: number) {
   const { gridColumns } = useViewport();
@@ -88,12 +88,15 @@ export function ResponsiveGridList<T>({
         <FlatList
           data={data}
           keyExtractor={keyExtractor}
-          renderItem={renderItem}
+          renderItem={(info) => (
+            <View style={{ marginBottom: gap }}>
+              {renderItem(info)}
+            </View>
+          )}
           refreshControl={refreshControl}
           ListEmptyComponent={ListEmptyComponent ?? undefined}
           contentContainerClassName={contentContainerClassName}
           contentContainerStyle={contentContainerStyle}
-          ItemSeparatorComponent={() => <View style={{ height: gap }} />}
         />
       );
     }

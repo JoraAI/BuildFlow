@@ -738,7 +738,7 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
 
       <View className="flex-row justify-between items-center">
         <Text className="text-sm font-bold text-text">{orders.length} Work Orders</Text>
-        {canManage && (
+        {canManage && orders.length > 0 && (
           <View className={`gap-2 ${isDesktop ? 'flex-row flex-wrap' : ''}`}>
             <Button label="Add Subcontractor" size="sm" variant="secondary" onPress={() => setSubModal(true)} />
             {subcontractBoqItems.length > 0 && (
