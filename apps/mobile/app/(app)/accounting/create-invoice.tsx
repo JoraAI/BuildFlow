@@ -541,7 +541,7 @@ export default function CreateInvoiceScreen() {
         className="flex-1"
       >
         {isDesktop ? (
-          <ScreenContainer scrollable={false} constrained>
+          <ScreenContainer scrollable constrained>
             <FormScreenHeader title="New Invoice" onCancel={() => dismissTo(DISMISS.accounting)} />
             <View className="flex-1 flex-row gap-6 items-start">
               <ScrollView className="flex-[2]" contentContainerClassName="gap-4 pb-6" showsVerticalScrollIndicator={false}>

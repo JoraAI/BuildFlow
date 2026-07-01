@@ -117,40 +117,49 @@ export default function AccountingScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-surface">
+    <SafeAreaView className="flex-1 bg-surface" edges={['bottom']}>
       <OfflineBanner />
-      <MobileScreenHeader title="Accounting" subtitle="Invoices, bills, GST & TDS" />
-      {tabChips}
-      {(tab === 'INVOICES' || tab === 'BILLS') && (
-        <View className="px-4 pt-2">
-          <AccountingExplainer />
+      <ScreenContainer scrollable>
+        <View className="flex-row items-center justify-between pb-2">
+          <MobileScreenHeader title="Accounting" subtitle="Invoices, bills, GST & TDS" />
+          {(tab === 'INVOICES' || tab === 'BILLS') && (
+            <Pressable
+              onPress={() => {
+                const base =
+                  tab === 'INVOICES' ? '/accounting/create-invoice' : '/accounting/create-bill';
+                router.push(mobileProjectId ? `${base}?projectId=${mobileProjectId}` : base);
+              }}
+              className="flex-row items-center gap-1 px-3 py-2 rounded-lg bg-primary active:opacity-80"
+            >
+              <Ionicons name="add" size={16} color="#fff" />
+              <Text className="text-xs font-semibold text-white">
+                {tab === 'INVOICES' ? 'Invoice' : 'Bill'}
+              </Text>
+            </Pressable>
+          )}
         </View>
-      )}
-      {tab === 'INVOICES' && (
-        <MobileAccountingPane
-          mode="invoices"
-          selectedId={mobileProjectId}
-          onSelectProject={setMobileProjectId}
-        />
-      )}
-      {tab === 'BILLS' && (
-        <MobileAccountingPane
-          mode="bills"
-          selectedId={mobileProjectId}
-          onSelectProject={setMobileProjectId}
-        />
-      )}
-      {tab === 'DASHBOARD' && <DashboardTab />}
-      {(tab === 'INVOICES' || tab === 'BILLS') && (
-        <FAB
-          label={tab === 'INVOICES' ? 'Invoice' : 'Bill'}
-          onPress={() => {
-            const base =
-              tab === 'INVOICES' ? '/accounting/create-invoice' : '/accounting/create-bill';
-            router.push(mobileProjectId ? `${base}?projectId=${mobileProjectId}` : base);
-          }}
-        />
-      )}
+        {tabChips}
+        {(tab === 'INVOICES' || tab === 'BILLS') && (
+          <View className="px-4 pt-2">
+            <AccountingExplainer />
+          </View>
+        )}
+        {tab === 'INVOICES' && (
+          <MobileAccountingPane
+            mode="invoices"
+            selectedId={mobileProjectId}
+            onSelectProject={setMobileProjectId}
+          />
+        )}
+        {tab === 'BILLS' && (
+          <MobileAccountingPane
+            mode="bills"
+            selectedId={mobileProjectId}
+            onSelectProject={setMobileProjectId}
+          />
+        )}
+        {tab === 'DASHBOARD' && <DashboardTab />}
+      </ScreenContainer>
     </SafeAreaView>
   );
 }
@@ -253,8 +262,9 @@ function MobileAccountingPane({
   selectedId: string | null;
   onSelectProject: (id: string) => void;
 }) {
-  const router = useRouter();
   const { data: projects, isLoading } = useProjects();
+  const [showProjectPicker, setShowProjectPicker] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     if (selectedId && projects && !projects.some((p: ProjectListItem) => p.id === selectedId)) {
@@ -288,25 +298,41 @@ function MobileAccountingPane({
     : `/accounting/${mode === 'invoices' ? 'create-invoice' : 'create-bill'}`;
 
   return (
-    <View className="flex-1">
+    <View>
       <View className="px-4 pt-2 pb-1">
         <Text className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">
           Project
         </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-grow-0">
-          <View className="flex-row gap-2 pb-1">
+        <Pressable
+          onPress={() => setShowProjectPicker(!showProjectPicker)}
+          className="flex-row items-center justify-between px-3 py-2.5 rounded-xl border bg-card border-border active:opacity-80"
+        >
+          <View className="flex-1">
+            <Text className="text-sm font-semibold text-text" numberOfLines={1}>
+              {selected?.name ?? 'Select project'}
+            </Text>
+            {selected && (
+              <Text className="text-xs text-muted mt-0.5" numberOfLines={1}>
+                {selected.clientName}
+              </Text>
+            )}
+          </View>
+          <Ionicons name={showProjectPicker ? 'chevron-up' : 'chevron-down'} size={16} color="#64748B" />
+        </Pressable>
+        {showProjectPicker && (
+          <View className="mt-1 rounded-xl border border-border bg-card overflow-hidden">
             {projects.map((p: ProjectListItem) => (
               <Pressable
                 key={p.id}
-                onPress={() => onSelectProject(p.id)}
-                className={`px-3 py-2 rounded-xl border max-w-[220px] ${
-                  selectedId === p.id ? 'bg-primary/10 border-primary' : 'bg-card border-border'
+                onPress={() => {
+                  onSelectProject(p.id);
+                  setShowProjectPicker(false);
+                }}
+                className={`px-3 py-2.5 border-b border-border/60 active:bg-surface ${
+                  selectedId === p.id ? 'bg-primary/8' : ''
                 }`}
               >
-                <Text
-                  className={`text-sm font-semibold ${selectedId === p.id ? 'text-primary' : 'text-text'}`}
-                  numberOfLines={1}
-                >
+                <Text className={`text-sm font-semibold ${selectedId === p.id ? 'text-primary' : 'text-text'}`} numberOfLines={1}>
                   {p.name}
                 </Text>
                 <Text className="text-xs text-muted mt-0.5" numberOfLines={1}>
@@ -315,26 +341,16 @@ function MobileAccountingPane({
               </Pressable>
             ))}
           </View>
-        </ScrollView>
+        )}
       </View>
 
       {selectedId && selected ? (
-        <View className="flex-1 px-4">
-          <View className="flex-row items-center justify-between py-2 mb-1">
-            <View className="flex-1 mr-2">
-              <Text className="text-base font-bold text-text" numberOfLines={1}>
-                {selected.name}
-              </Text>
-              <Text className="text-xs text-muted">{selected.clientName}</Text>
-            </View>
-            <Pressable
-              onPress={() => router.push(createPath as never)}
-              className="px-3 py-1.5 rounded-lg bg-primary/10 active:opacity-80"
-            >
-              <Text className="text-xs font-semibold text-primary">
-                {mode === 'invoices' ? '+ Invoice' : '+ Bill'}
-              </Text>
-            </Pressable>
+        <View className="px-4">
+          <View className="py-2 mb-1">
+            <Text className="text-base font-bold text-text" numberOfLines={1}>
+              {selected.name}
+            </Text>
+            <Text className="text-xs text-muted">{selected.clientName}</Text>
           </View>
           {mode === 'invoices' ? (
             <ProjectInvoicesList key={selectedId} projectId={selectedId} embedded />

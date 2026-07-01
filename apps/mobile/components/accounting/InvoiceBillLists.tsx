@@ -131,7 +131,7 @@ export function ProjectInvoicesList({
       contentContainerClassName={embedded ? 'pb-4' : isDesktop ? undefined : 'px-4 pt-2'}
       contentContainerStyle={listPadding}
       ItemSeparatorComponent={() =>
-        isDesktop ? <View className="h-px bg-border mx-4" /> : <View className="h-3" />
+        isDesktop ? <View className="h-px bg-border mx-4" /> : <View className="h-4" />
       }
       ListEmptyComponent={
         <View className={embedded || isDesktop ? 'p-8' : undefined}>
@@ -235,7 +235,7 @@ export function ProjectBillsList({
       contentContainerClassName={embedded ? 'pb-4' : isDesktop ? undefined : 'px-4 pt-2'}
       contentContainerStyle={listPadding}
       ItemSeparatorComponent={() =>
-        isDesktop ? <View className="h-px bg-border mx-4" /> : <View className="h-3" />
+        isDesktop ? <View className="h-px bg-border mx-4" /> : <View className="h-4" />
       }
       ListEmptyComponent={
         <View className={embedded || isDesktop ? 'p-8' : undefined}>
@@ -311,24 +311,32 @@ function InvoiceRow({ item, onPress }: { item: Invoice; onPress: () => void }) {
           </View>
           <Badge color={INVOICE_STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
         </View>
-        <View className="flex-row justify-between items-end">
-          <View>
+        <View className="pt-2 mt-1 border-t border-border/60">
+          <View className="flex-row justify-between items-center mb-1">
             <Text className="text-xs text-muted">Total</Text>
-            <Text className="text-base font-bold text-text">{formatINR(item.total)}</Text>
+            <Text className="text-sm font-bold text-text">{formatINR(item.total)}</Text>
           </View>
           {item.paidAmount > 0 && (
-            <View className="items-end">
+            <View className="flex-row justify-between items-center mb-1">
               <Text className="text-xs text-muted">Paid</Text>
-              <Text className="text-sm font-semibold text-success">{formatINR(item.paidAmount)}</Text>
+              <Text className="text-xs font-semibold text-success">{formatINR(item.paidAmount)}</Text>
             </View>
           )}
-          {overdueDays > 0 && (
-            <View className="items-end">
-              <Text className="text-xs text-danger font-semibold">{overdueDays}d overdue</Text>
+          {item.total - item.paidAmount > 0.01 && (
+            <View className="flex-row justify-between items-center mb-1">
+              <Text className="text-xs text-muted">Balance</Text>
+              <Text className="text-xs font-semibold text-primary">
+                {formatINR(item.total - item.paidAmount)}
+              </Text>
             </View>
           )}
         </View>
-        <Text className="text-xs text-muted mt-2">Due {formatDate(item.dueDate)}</Text>
+        <View className="flex-row justify-between items-center mt-2">
+          <Text className="text-xs text-muted">Due {formatDate(item.dueDate)}</Text>
+          {overdueDays > 0 && (
+            <Text className="text-xs text-danger font-semibold">{overdueDays}d overdue</Text>
+          )}
+        </View>
       </Card>
     </Pressable>
   );
@@ -398,21 +406,24 @@ function BillRow({
             <Badge color={BILL_STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
           </View>
         </View>
-        <View className="flex-row justify-between items-end mb-2">
-          <View>
+        <View className="pt-2 mt-1 border-t border-border/60">
+          <View className="flex-row justify-between items-center mb-1">
             <Text className="text-xs text-muted">Net payable</Text>
-            <Text className="text-base font-bold text-text">{formatINR(item.total)}</Text>
+            <Text className="text-sm font-bold text-text">{formatINR(item.total)}</Text>
           </View>
           {item.paidAmount > 0 && (
-            <View className="items-end">
+            <View className="flex-row justify-between items-center mb-1">
               <Text className="text-xs text-muted">Paid</Text>
-              <Text className="text-sm font-semibold text-success">{formatINR(item.paidAmount)}</Text>
+              <Text className="text-xs font-semibold text-success">{formatINR(item.paidAmount)}</Text>
             </View>
           )}
-          <Text className="text-xs text-muted">{formatDate(item.billDate)}</Text>
+          <View className="flex-row justify-between items-center">
+            <Text className="text-xs text-muted">Bill date</Text>
+            <Text className="text-xs text-muted">{formatDate(item.billDate)}</Text>
+          </View>
         </View>
         {canApprove && item.status === 'PENDING' && (
-          <View className="flex-row gap-2 mt-1">
+          <View className="flex-row gap-2 mt-3">
             <View className="flex-1">
               <Button label="Approve" variant="primary" size="sm" onPress={onApprove} />
             </View>
