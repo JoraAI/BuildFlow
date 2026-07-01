@@ -1,5 +1,10 @@
+/**
+ * BuildFlow - BOQ Tab
+ * Shows BOQ items grouped by section (from estimate), with category badges.
+ */
 import React, { useState } from 'react';
 import { View, Text, Alert, Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
 import {
   Card,
@@ -18,13 +23,14 @@ import {
   useRecordBoqMeasurement,
   useBoqVsActual,
   type BoqItem,
-  type BoqGroup,
+  type BoqSectionGroup,
   type BoqVsActualLine,
 } from '@/services/boq.queries';
 import {
   useSubcontractors,
   useCreateWorkOrderFromBoq,
-} from '@/services/expansion.queries';
+  type Subcontractor,
+} from "@/services/expansion.queries";
 import { alertAsync } from '@/utils/confirm';
 
 interface BoqTabProps {
@@ -70,9 +76,10 @@ export function BoqTab({ projectId }: BoqTabProps) {
   const [selectedSub, setSelectedSub] = useState('');
   const [qty, setQty] = useState('');
   const [notes, setNotes] = useState('');
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<'section' | 'category'>('section');
 
-  const canManageSub =
-    user?.role === 'OWNER' || user?.role === 'PM';
+  const canManageSub = user?.role === 'OWNER' || user?.role === 'PM';
 
   const onCreateWoFromBoq = () => {
     if (!woItem || !woNumber.trim() || !selectedSub) {
@@ -119,6 +126,15 @@ export function BoqTab({ projectId }: BoqTabProps) {
     );
   };
 
+  const toggleSection = (section: string) => {
+    setCollapsedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(section)) next.delete(section);
+      else next.add(section);
+      return next;
+    });
+  };
+
   if (isLoading) {
     return <LoadingSkeleton className="h-48 rounded-xl" />;
   }
@@ -131,6 +147,18 @@ export function BoqTab({ projectId }: BoqTabProps) {
       />
     );
   }
+
+  // Use sectionGrouped if available, otherwise fall back to grouping manually
+  const sections: BoqSectionGroup[] = boq.sectionGrouped ?? groupBySectionFallback(boq.items);
+
+  // For category view, group items by category
+  const categoryGroups: BoqSectionGroup[] = (boq.grouped ?? []).map((g: { category: string; amount: number }) => ({
+    section: g.category,
+    items: boq.items.filter((i: BoqItem) => (i.category ?? 'OTHER') === g.category),
+    amount: g.amount,
+  }));
+
+  const displayGroups = viewMode === 'section' ? sections : categoryGroups;
 
   return (
     <View className="gap-3">
@@ -155,95 +183,132 @@ export function BoqTab({ projectId }: BoqTabProps) {
         </View>
       </Card>
 
-      {boq.grouped.map((g: BoqGroup) => (
-        <Card key={g.category}>
-          <View className="flex-row justify-between items-center">
-            <Text className="text-sm font-semibold text-text">{g.category}</Text>
-            <Text className="text-sm font-bold text-text">{formatINR(g.amount)}</Text>
-          </View>
-        </Card>
-      ))}
+      {/* View toggle: By Section | By Category */}
+      <View className="flex-row gap-2 px-1">
+        <Pressable
+          onPress={() => setViewMode('section')}
+          className={`flex-row items-center gap-1.5 px-3 py-2 rounded-lg border ${viewMode === 'section' ? 'bg-primary border-primary' : 'bg-card border-border'}`}
+        >
+          <Ionicons name="folder-outline" size={14} color={viewMode === 'section' ? '#fff' : '#64748B'} />
+          <Text className={`text-xs font-semibold ${viewMode === 'section' ? 'text-white' : 'text-muted'}`}>
+            By Section
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setViewMode('category')}
+          className={`flex-row items-center gap-1.5 px-3 py-2 rounded-lg border ${viewMode === 'category' ? 'bg-primary border-primary' : 'bg-card border-border'}`}
+        >
+          <Ionicons name="pricetag-outline" size={14} color={viewMode === 'category' ? '#fff' : '#64748B'} />
+          <Text className={`text-xs font-semibold ${viewMode === 'category' ? 'text-white' : 'text-muted'}`}>
+            By Category
+          </Text>
+        </Pressable>
+      </View>
 
-      <Text className="text-sm font-bold text-text mt-2">Line items</Text>
-      {boq.items.map((item: BoqItem) => {
-        const sanctioned = parseFloat(item.quantity);
-        const executed = item.executedQty ?? 0;
-        const billed = item.billedCumulativeQty ?? 0;
-        const progress = item.progressPct ?? 0;
+      {/* Items grouped by section or category */}
+      {displayGroups.map((grp: BoqSectionGroup) => {
+        const isCollapsed = collapsedSections.has(grp.section);
         return (
-          <Card key={item.id}>
-            <View className="flex-row justify-between items-start mb-1">
-              <View className="flex-1 mr-2">
-                <View className="flex-row items-center gap-2 flex-wrap mb-0.5">
-                  <Text className="text-xs font-mono text-muted">{item.itemCode}</Text>
-                  <Badge
-                    label={formatCategoryLabel(item.category)}
-                    color={categoryBadgeColor(item.category)}
-                  />
-                </View>
-                <Text className="text-sm text-text" numberOfLines={2}>
-                  {item.description}
-                </Text>
-              </View>
-              <Text className="text-sm font-bold text-text">
-                {formatINR(parseFloat(item.amount))}
-              </Text>
-            </View>
-            <View className="flex-row flex-wrap gap-x-3 gap-y-1 mt-1">
-              <Text className="text-xs text-muted">
-                Sanctioned: {sanctioned} {item.unit}
-              </Text>
-              <Text className="text-xs text-muted">
-                Executed: {executed} {item.unit}
-              </Text>
-              {(item.procuredQty ?? 0) > 0 && (
-                <Text className="text-xs text-success font-semibold">
-                  Procured: {item.procuredQty} {item.unit}
-                </Text>
-              )}
-              <Text className="text-xs text-muted">
-                Billed: {billed} {item.unit}
-              </Text>
-              {item.category === 'MATERIAL' && (item.stockQty ?? 0) > 0 && (
-                <Text className="text-xs text-success font-semibold">
-                  Site stock: {item.stockQty} {item.unit}
-                </Text>
-              )}
-              {(item.billableQty ?? 0) > 0 && (
-                <Text className="text-xs text-accent font-semibold">
-                  Billable: {item.billableQty} {item.unit}
-                </Text>
-              )}
-            </View>
-            <View className="mt-2 mb-2">
-              <ProgressBar value={progress} color="#1E3A5F" />
-              <Text className="text-xs text-muted mt-1">{progress}% executed</Text>
-            </View>
-            {canMeasure && (
-              <Button
-                label="Record measurement"
-                variant="secondary"
-                onPress={() => {
-                  setMeasureItem(item);
-                  setQty('');
-                  setNotes('');
-                }}
-              />
-            )}
-            {canManageSub && item.category === 'SUBCONTRACTOR' && (
-              <View className="mt-2">
-                <Button
-                  label="Create work order"
-                  variant="secondary"
-                  onPress={() => {
-                    setWoItem(item);
-                    setWoNumber('');
-                    setSelectedSub(subcontractors?.[0]?.id ?? '');
-                  }}
+          <View key={grp.section}>
+            <Pressable
+              onPress={() => toggleSection(grp.section)}
+              className="flex-row items-center justify-between px-1 py-2"
+            >
+              <View className="flex-row items-center gap-2">
+                <Ionicons
+                  name={isCollapsed ? 'chevron-down' : 'chevron-up'}
+                  size={16}
+                  color="#1E3A5F"
                 />
+                <Text className="text-sm font-bold text-text">{grp.section}</Text>
+                <Badge color="neutral" label={`${grp.items.length} items`} />
               </View>
-            )}
-          </Card>
+              <Text className="text-sm font-bold text-primary">{formatINR(grp.amount)}</Text>
+            </Pressable>
+
+            {!isCollapsed &&
+              grp.items.map((item: BoqItem) => {
+                const sanctioned = parseFloat(item.quantity);
+                const executed = item.executedQty ?? 0;
+                const billed = item.billedCumulativeQty ?? 0;
+                const progress = item.progressPct ?? 0;
+                return (
+                  <Card key={item.id}>
+                    <View className="flex-row justify-between items-start mb-1">
+                      <View className="flex-1 mr-2">
+                        <View className="flex-row items-center gap-2 flex-wrap mb-0.5">
+                          <Text className="text-xs font-mono text-muted">{item.itemCode}</Text>
+                          <Badge
+                            label={formatCategoryLabel(item.category)}
+                            color={categoryBadgeColor(item.category)}
+                          />
+                        </View>
+                        <Text className="text-sm text-text" numberOfLines={2}>
+                          {item.description}
+                        </Text>
+                      </View>
+                      <Text className="text-sm font-bold text-text">
+                        {formatINR(parseFloat(item.amount))}
+                      </Text>
+                    </View>
+                    <View className="flex-row flex-wrap gap-x-3 gap-y-1 mt-1">
+                      <Text className="text-xs text-muted">
+                        Sanctioned: {sanctioned} {item.unit}
+                      </Text>
+                      <Text className="text-xs text-muted">
+                        Executed: {executed} {item.unit}
+                      </Text>
+                      {(item.procuredQty ?? 0) > 0 && (
+                        <Text className="text-xs text-success font-semibold">
+                          Procured: {item.procuredQty} {item.unit}
+                        </Text>
+                      )}
+                      <Text className="text-xs text-muted">
+                        Billed: {billed} {item.unit}
+                      </Text>
+                      {item.category === 'MATERIAL' && (item.stockQty ?? 0) > 0 && (
+                        <Text className="text-xs text-success font-semibold">
+                          Site stock: {item.stockQty} {item.unit}
+                        </Text>
+                      )}
+                      {(item.billableQty ?? 0) > 0 && (
+                        <Text className="text-xs text-accent font-semibold">
+                          Billable: {item.billableQty} {item.unit}
+                        </Text>
+                      )}
+                    </View>
+                    <View className="mt-2 mb-2">
+                      <ProgressBar value={progress} color="#1E3A5F" />
+                      <Text className="text-xs text-muted mt-1">{progress}% executed</Text>
+                    </View>
+                    {canMeasure && (
+                      <Button
+                        label="Record measurement"
+                        variant="secondary"
+                        onPress={() => {
+                          setMeasureItem(item);
+                          setQty('');
+                          setNotes('');
+                        }}
+                      />
+                    )}
+                    {canManageSub && item.category === 'SUBCONTRACTOR' && (
+                      <View className="mt-2">
+                        <Button
+                          label="Create work order"
+                          variant="secondary"
+                          onPress={() => {
+                            setWoItem(item);
+                            setWoNumber('');
+                            setSelectedSub(subcontractors?.[0]?.id ?? '');
+                          }}
+                        />
+                      </View>
+                    )}
+                  </Card>
+                );
+              })}
+          </View>
         );
       })}
 
@@ -322,7 +387,7 @@ export function BoqTab({ projectId }: BoqTabProps) {
       >
         <Input label="WO Number" value={woNumber} onChangeText={setWoNumber} placeholder="WO-001" />
         <Text className="text-sm font-semibold text-text">Subcontractor</Text>
-        {(subcontractors ?? []).map((s) => (
+        {(subcontractors ?? []).map((s: Subcontractor) => (
           <Pressable
             key={s.id}
             onPress={() => setSelectedSub(s.id)}
@@ -336,4 +401,20 @@ export function BoqTab({ projectId }: BoqTabProps) {
       </AdaptiveSheet>
     </View>
   );
+}
+
+/** Fallback section grouping if backend doesn't return sectionGrouped yet. */
+function groupBySectionFallback(items: BoqItem[]): BoqSectionGroup[] {
+  const map = new Map<string, BoqItem[]>();
+  for (const item of items) {
+    const sec = item.section ?? 'Ungrouped';
+    const existing = map.get(sec);
+    if (existing) existing.push(item);
+    else map.set(sec, [item]);
+  }
+  return Array.from(map.entries()).map(([section, sectionItems]) => ({
+    section,
+    items: sectionItems,
+    amount: sectionItems.reduce((sum, i) => sum + parseFloat(i.amount), 0),
+  }));
 }

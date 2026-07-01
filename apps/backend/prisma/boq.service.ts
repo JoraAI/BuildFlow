@@ -92,29 +92,8 @@ export async function listBoq(companyId: string, projectId: string) {
 
   const total = itemsWithStock.reduce((sum, i) => sum + Number(i.amount), 0);
   const grouped = groupByCategory(itemsWithStock);
-  const sectionGrouped = groupBySection(itemsWithStock);
+  -
   return { items: itemsWithStock, grouped, sectionGrouped, total };
-}
-
-/** Group BOQ items by their `section` field (from estimate section name). */
-function groupBySection(items: Array<{ section: string | null; amount: Prisma.Decimal }>) {
-  const map = new Map<string, { items: typeof items; amount: number }>();
-  for (const item of items) {
-    const sec = item.section ?? 'Ungrouped';
-    const itemAmount = Number(item.amount);
-    const existing = map.get(sec);
-    if (existing) {
-      existing.items.push(item);
-      existing.amount += itemAmount;
-    } else {
-      map.set(sec, { items: [item], amount: itemAmount });
-    }
-  }
-  return Array.from(map.entries()).map(([section, { items: sectionItems, amount }]) => ({
-    section,
-    items: sectionItems,
-    amount,
-  }));
 }
 
 function groupByCategory(items: Array<{ category: string | null; amount: Prisma.Decimal }>) {
@@ -151,7 +130,6 @@ export async function createBoqItem(
       rate: input.rate,
       amount,
       category: input.category ?? 'OTHER',
-      section: input.section ?? null,
       isSuperseded: false,
     },
   });
@@ -195,7 +173,6 @@ export async function updateBoqItem(
       ...(input.rate !== undefined && { rate }),
       amount,
       ...(input.category !== undefined && { category: input.category }),
-      ...(input.section !== undefined && { section: input.section }),
       ...(input.wbsId !== undefined && { wbsId: input.wbsId }),
     },
   });
@@ -261,7 +238,6 @@ export async function importBoq(
     rate: r.rate,
     amount: r.rate * r.quantity,
     category: r.category ?? 'OTHER',
-    section: r.section ?? null,
     isSuperseded: false,
   }));
 
@@ -299,11 +275,7 @@ export async function convertEstimateToBoq(
 ) {
   const estimate = await prisma.estimate.findFirst({
     where: { id: estimateId, companyId },
-    include: {
-      items: {
-        include: { section: { select: { name: true } } },
-      },
-    },
+    include: { items: true },
   });
   if (!estimate) throw ApiError.notFound('Estimate not found');
   if (estimate.status !== EstimateStatus.APPROVED) {
@@ -344,7 +316,6 @@ export async function convertEstimateToBoq(
     rate: Number(item.rate),
     amount: Number(item.quantity) * Number(item.rate),
     category: item.type,
-    section: item.section?.name ?? null,
     estimateItemId: item.id,
     isSuperseded: false,
   }));

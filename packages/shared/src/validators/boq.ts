@@ -11,6 +11,7 @@ export const createBoqItemSchema = z.object({
   quantity: z.number().min(0),
   rate: z.number().min(0),
   category: z.string().max(100).optional(),
+  section: z.string().max(200).optional(),
 });
 
 export type CreateBoqItemInput = z.infer<typeof createBoqItemSchema>;
@@ -30,6 +31,7 @@ export const boqImportRowSchema = z.object({
   quantity: z.coerce.number().min(0),
   rate: z.coerce.number().min(0),
   category: z.string().optional(),
+  section: z.string().optional(),
 });
 
 export const boqImportSchema = z.array(boqImportRowSchema).min(1, 'At least one row required');

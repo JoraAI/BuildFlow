@@ -237,7 +237,7 @@ export async function approveChangeOrder(
       }
     }
 
-    if (co.linkedTaskId && co.scheduleImpactDays > 0) {
+    if (co.linkedTaskId && co.scheduleImpactDays !== 0) {
       const task = await tx.task.findFirst({ where: { id: co.linkedTaskId, projectId: co.projectId } });
       if (task) {
         const baseEnd = task.endDate ?? task.startDate ?? new Date();

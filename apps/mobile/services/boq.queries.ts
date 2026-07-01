@@ -14,6 +14,7 @@ export interface BoqItem {
   rate: string;
   amount: string;
   category: string | null;
+  section?: string | null;
   /** Catalog material from linked estimate item, when set. */
   resourceId?: string | null;
   sanctionedQty?: number;
@@ -27,6 +28,12 @@ export interface BoqItem {
   stockQty?: number;
 }
 
+export interface BoqSectionGroup {
+  section: string;
+  items: BoqItem[];
+  amount: number;
+}
+
 export interface BoqGroup {
   category: string;
   amount: number;
@@ -35,6 +42,7 @@ export interface BoqGroup {
 export interface BoqListResponse {
   items: BoqItem[];
   grouped: BoqGroup[];
+  sectionGrouped: BoqSectionGroup[];
   total: number;
 }
 
@@ -44,6 +52,7 @@ export interface BoqVsActualLine {
   description: string;
   unit: string;
   category: string | null;
+  section?: string | null;
   sanctionedQty: number;
   executedQty: number;
   billedCumulativeQty: number;

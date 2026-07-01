@@ -86,6 +86,20 @@ pnpm dev
 | `pnpm db:studio` | Open Prisma Studio                       |
 | `pnpm format`    | Format all files with Prettier           |
 
+## Feature Highlights
+
+### BOQ with Sections & Categories
+- **Section grouping**: When converting an estimate to BOQ, items retain their estimate section (Substructure, Superstructure, Finishes, etc.)
+- **View toggle**: Switch between "By Section" (default) and "By Category" (MATERIAL, LABOUR, EQUIPMENT, SUBCONTRACTOR) views
+- **Composite + item-level**: Supports both composite rate items (e.g., "M20 Concrete") and raw material line items
+- **Collapsible groups**: Each section/category group can be expanded/collapsed with item count and subtotal
+
+### Variations (Change Orders)
+- Full variation workflow: Draft → Submit → Approve/Reject
+- **Schedule impact**: Positive (delays) and negative (time savings) `scheduleImpactDays` applied to linked tasks on approval
+- Cost impact with BOQ quantity adjustments and budget updates
+- Auto-generates draft procurement indents for material demands
+
 ## Implementation Status
 
 - Phase 1 - Foundation & Auth ✅ Complete

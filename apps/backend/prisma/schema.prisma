@@ -562,6 +562,7 @@ model BOQItem {
   rate          Decimal @db.Decimal(12, 2)
   amount        Decimal @default(0) @db.Decimal(14, 2)
   category      String?
+  section       String?
   estimateItemId String? @map("estimate_item_id") @db.Uuid @unique
   isSuperseded  Boolean @default(false) @map("is_superseded")
   executedQty   Decimal @default(0) @map("executed_qty") @db.Decimal(12, 3)
