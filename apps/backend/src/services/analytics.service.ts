@@ -41,7 +41,7 @@ export interface AnalyticsDashboard {
   revenueVsTarget: { month: string; revenue: number; target: number }[];
   projectProgress: { id: string; name: string; progress: number; budget: number }[];
   teamProductivity: { userId: string; name: string; reportsCount: number; role: string }[];
-  cashFlowForecast: { date: string; inflow: number; outflow: number; net: number }[];
+  cashFlowForecast: { date: string; inflow: number; outflow: number; net: number; cumulative: number }[];
   budgetBurn: {
     projectId: string;
     projectName: string;
@@ -198,19 +198,83 @@ async function loadOwnerDashboard(companyId: string): Promise<AnalyticsDashboard
     .map(([userId, v]) => ({ userId, name: v.name, role: v.role, reportsCount: v.count }))
     .sort((a, b) => b.reportsCount - a.reportsCount);
 
-  // ---- Cash flow forecast (30 days) ----
-  const cashFlowForecast: { date: string; inflow: number; outflow: number; net: number }[] = [];
-  for (let i = 0; i < 30; i++) {
-    const d = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
-    const ds = d.toISOString().slice(0, 10);
-    // simple stub: project outstanding prorated over 30 days for inflow, bills avg for outflow
-    const dailyInflow = totalOutstanding / 30;
-    const dailyOutflow = approvedBills.reduce((s, b) => s + num(b.paidAmount || b.total), 0) / 30;
+  // ---- Cash flow forecast (90 days, date-aware) ----
+  // Build a daily calendar of projected inflows and outflows based on actual due dates.
+  const forecastDays = 90;
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  // Fetch outstanding invoices for inflow projection
+  const dueInvoices = await prisma.invoice.findMany({
+    where: {
+      companyId,
+      status: { in: ['SENT', 'OVERDUE'] },
+    },
+    select: { total: true, paidAmount: true, dueDate: true },
+  });
+
+  // Fetch bills for outflow projection (unpaid portion)
+  const pendingBills = await prisma.bill.findMany({
+    where: {
+      companyId,
+      status: { in: ['PENDING', 'APPROVED'] },
+    },
+    select: { total: true, paidAmount: true, billDate: true },
+  });
+
+  // Build daily buckets keyed by YYYY-MM-DD
+  const inflowByDate = new Map<string, number>();
+  const outflowByDate = new Map<string, number>();
+
+  // Map each invoice's outstanding amount to its due date
+  for (const inv of dueInvoices) {
+    const remaining = num(inv.total) - num(inv.paidAmount);
+    if (remaining > 0 && inv.dueDate) {
+      const ds = inv.dueDate.toISOString().slice(0, 10);
+      inflowByDate.set(ds, (inflowByDate.get(ds) ?? 0) + remaining);
+    }
+  }
+
+  // Map each bill's outstanding amount to its bill date + 30 day terms
+  for (const bill of pendingBills) {
+    const remaining = num(bill.total) - num(bill.paidAmount);
+    if (remaining > 0 && bill.billDate) {
+      // Assume 30-day payment terms from bill date
+      const payDate = new Date(bill.billDate.getTime() + 30 * dayMs);
+      // Only include if within forecast window
+      if (payDate >= now && payDate <= new Date(now.getTime() + forecastDays * dayMs)) {
+        const ds = payDate.toISOString().slice(0, 10);
+        outflowByDate.set(ds, (outflowByDate.get(ds) ?? 0) + remaining);
+      }
+    }
+  }
+
+  // Current cash position (cumulative starting point)
+  const paidInflowTotal = paidInvoices.reduce((s, i) => s + num(i.paidAmount || i.total), 0);
+  const paidOutflowTotal = approvedBills.reduce((s, b) => s + num(b.paidAmount || b.total), 0);
+  let cumulative = Math.round(paidInflowTotal - paidOutflowTotal);
+
+  // Generate weekly buckets (13 weeks ≈ 90 days) for cleaner display
+  const cashFlowForecast: { date: string; inflow: number; outflow: number; net: number; cumulative: number }[] = [];
+  for (let week = 0; week < 13; week++) {
+    const weekStart = new Date(now.getTime() + week * 7 * dayMs);
+    const weekEnd = new Date(weekStart.getTime() + 6 * dayMs);
+    let weekInflow = 0;
+    let weekOutflow = 0;
+
+    // Sum daily buckets within this week
+    for (let d = new Date(weekStart); d <= weekEnd; d = new Date(d.getTime() + dayMs)) {
+      const ds = d.toISOString().slice(0, 10);
+      weekInflow += inflowByDate.get(ds) ?? 0;
+      weekOutflow += outflowByDate.get(ds) ?? 0;
+    }
+
+    cumulative += Math.round(weekInflow - weekOutflow);
     cashFlowForecast.push({
-      date: ds,
-      inflow: Math.round(dailyInflow),
-      outflow: Math.round(dailyOutflow),
-      net: Math.round(dailyInflow - dailyOutflow),
+      date: weekStart.toISOString().slice(0, 10),
+      inflow: Math.round(weekInflow),
+      outflow: Math.round(weekOutflow),
+      net: Math.round(weekInflow - weekOutflow),
+      cumulative,
     });
   }
 

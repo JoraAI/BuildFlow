@@ -49,6 +49,7 @@ export interface CashFlowPoint {
   inflow: number;
   outflow: number;
   net: number;
+  cumulative: number;
 }
 
 export interface BudgetBurnRow {

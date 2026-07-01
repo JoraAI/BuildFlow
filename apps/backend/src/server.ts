@@ -8,6 +8,8 @@ import { disconnectPrisma } from './lib/prisma';
 import { disconnectRedis } from './lib/redis';
 import { startSubscriptionCron } from './jobs/subscription.cron';
 import { startNotificationWorker } from './jobs/notification.worker';
+import { startInvoiceOverdueCron } from './jobs/invoice-overdue.cron';
+import { startReportScheduleCron } from './jobs/report-schedule.cron';
 
 const server = app.listen(env.PORT, () => {
   logger.info(`🚀 BuildFlow API listening on http://localhost:${env.PORT}`, {
@@ -16,6 +18,8 @@ const server = app.listen(env.PORT, () => {
   });
   startSubscriptionCron();
   startNotificationWorker();
+  startInvoiceOverdueCron();
+  startReportScheduleCron();
 });
 
 async function shutdown(signal: string): Promise<void> {

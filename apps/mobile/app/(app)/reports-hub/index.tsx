@@ -17,7 +17,6 @@ import { useProjects, type ProjectListItem } from '@/services/project.queries';
 import {
   useGstReport,
   useTdsReport,
-  useProfitLoss,
   useEstimateVsActual,
 } from '@/services/accounting.queries';
 import {
@@ -26,6 +25,7 @@ import {
   type ReportSchedule,
 } from '@/services/expansion.queries';
 import { apiDownload } from '@/lib/api-client';
+import { COLORS } from '@/constants';
 import { formatINR } from '@/utils/format';
 import * as Sharing from 'expo-sharing';
 
@@ -38,7 +38,6 @@ export default function ReportsHubScreen() {
   const [selectedProject, setSelectedProject] = useState('');
   const gstQ = useGstReport();
   const tdsQ = useTdsReport();
-  const plQ = useProfitLoss(selectedProject);
   const evaQ = useEstimateVsActual(selectedProject);
   const schedulesQ = useReportSchedules();
   const createSchedule = useCreateReportSchedule();
@@ -107,69 +106,123 @@ export default function ReportsHubScreen() {
         </Card>
       )}
 
-      {/* Project reports */}
+      {/* Project reports - improved selector + report cards */}
       <Card>
-        <Text className="text-base font-bold text-text mb-2">Project Reports</Text>
-        <Text className="text-xs text-muted mb-3">Select a project for P&L and BOQ vs actual.</Text>
+        <View className="flex-row items-center justify-between mb-1">
+          <Text className="text-base font-bold text-text">Project Reports</Text>
+          {projects ? (
+            <Badge label={`${projects.length} project${projects.length === 1 ? '' : 's'}`} color="neutral" />
+          ) : null}
+        </View>
+        <Text className="text-xs text-muted mb-3">
+          Select a project to view P&L, BOQ variance, and material rate analysis.
+        </Text>
+
+        {/* Project selector - status dots + names */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3">
           <View className="flex-row gap-2">
-            {(projects ?? []).map((p: ProjectListItem) => (
-              <Pressable
-                key={p.id}
-                onPress={() => setSelectedProject(p.id)}
-                className={`px-3 py-2 rounded-lg border ${
-                  selectedProject === p.id ? 'bg-primary/10 border-primary' : 'border-border'
-                }`}
-              >
-                <Text className="text-sm text-text">{p.name}</Text>
-              </Pressable>
-            ))}
+            {(projects ?? []).map((p: ProjectListItem) => {
+              const selected = selectedProject === p.id;
+              const status = projectStatusColor(p.status);
+              return (
+                <Pressable
+                  key={p.id}
+                  onPress={() => setSelectedProject(p.id)}
+                  className={`px-3 py-2 rounded-lg border flex-row items-center gap-2 ${
+                    selected ? 'bg-primary/10 border-primary' : 'border-border'
+                  }`}
+                >
+                  <View
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: status.dot }}
+                  />
+                  <Text
+                    className={`text-sm ${selected ? 'text-primary font-semibold' : 'text-text'}`}
+                    numberOfLines={1}
+                  >
+                    {p.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
         </ScrollView>
+
         {selectedProject ? (
-          <View className="gap-2">
-            <ReportLink
-              label="Profit & Loss (PDF)"
-              sub="Download project P&L"
-              onPress={() =>
-                downloadPdf(
-                  `/reports/pdf/projects/${selectedProject}/profit-loss`,
-                  'profit-loss.pdf',
-                )
-              }
-            />
-            <ReportLink
-              label="BOQ vs Actual (PDF)"
-              sub={
-                evaQ.data
-                  ? `${evaQ.data.completionPct.toFixed(0)}% complete`
-                  : 'Variance analysis'
-              }
-              onPress={() =>
-                downloadPdf(
-                  `/reports/pdf/projects/${selectedProject}/boq-vs-actual`,
-                  'boq-vs-actual.pdf',
-                )
-              }
-            />
-            <ReportLink
-              label="Material Rate Sheet (PDF)"
-              sub="Planned vs last PO by material"
-              onPress={() =>
-                downloadPdf(
-                  `/reports/pdf/projects/${selectedProject}/material-rates`,
-                  'material-rates.pdf',
-                )
-              }
-            />
-            {plQ.data && typeof plQ.data === 'object' && plQ.data !== null && (
-              <Text className="text-xs text-muted mt-1">
-                P&L data loaded - use PDF for full report.
-              </Text>
-            )}
+          <View className="gap-3">
+            {/* Selected project context bar */}
+            {(() => {
+              const proj = (projects ?? []).find((p: ProjectListItem) => p.id === selectedProject);
+              if (!proj) return null;
+              const status = projectStatusColor(proj.status);
+              return (
+                <View className="flex-row items-center justify-between rounded-lg bg-surface px-3 py-2.5 border border-border/60">
+                  <View className="flex-1 mr-3">
+                    <Text className="text-sm font-bold text-text" numberOfLines={1}>
+                      {proj.name}
+                    </Text>
+                    <Text className="text-xs text-muted" numberOfLines={1}>
+                      {proj.code} · {proj.clientName}
+                    </Text>
+                  </View>
+                  <View className="flex-row items-center gap-2">
+                    <Badge label={formatStatusLabel(proj.status)} color={status.badge} />
+                    <Text className="text-xs font-semibold text-text">
+                      {formatINR(Number(proj.budget))}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })()}
+
+            {/* Reports grid - responsive: 3 cols desktop, 1 col mobile */}
+            <ResponsiveGrid gap={8} columns={isDesktop ? 3 : 1}>
+              <ProjectReportCard
+                accent={COLORS.primary}
+                tag="P&L"
+                title="Profit & Loss"
+                description="Revenue, costs & margin"
+                onPress={() =>
+                  downloadPdf(
+                    `/reports/pdf/projects/${selectedProject}/profit-loss`,
+                    'profit-loss.pdf',
+                  )
+                }
+              />
+              <ProjectReportCard
+                accent={COLORS.success}
+                tag="BOQ"
+                title="BOQ vs Actual"
+                description="Quantity & cost variance"
+                meta={evaQ.data ? `${evaQ.data.completionPct.toFixed(0)}% complete` : undefined}
+                onPress={() =>
+                  downloadPdf(
+                    `/reports/pdf/projects/${selectedProject}/boq-vs-actual`,
+                    'boq-vs-actual.pdf',
+                  )
+                }
+              />
+              <ProjectReportCard
+                accent={COLORS.accent}
+                tag="₹"
+                title="Material Rate Sheet"
+                description="Planned vs last PO rate"
+                onPress={() =>
+                  downloadPdf(
+                    `/reports/pdf/projects/${selectedProject}/material-rates`,
+                    'material-rates.pdf',
+                  )
+                }
+              />
+            </ResponsiveGrid>
+
+            {evaQ.isLoading ? <LoadingSkeleton className="h-4" /> : null}
           </View>
         ) : (
-          <EmptyState title="Select a project" description="Choose a project above to view reports." />
+          <EmptyState
+            title="Select a project"
+            description="Choose a project above to view its reports."
+          />
         )}
       </Card>
 
@@ -246,6 +299,73 @@ function ReportLink({
     >
       <Text className="text-sm font-semibold text-primary">{label}</Text>
       <Text className="text-xs text-muted mt-0.5">{sub}</Text>
+    </Pressable>
+  );
+}
+
+/** Maps a project status to a badge color + dot color. */
+function projectStatusColor(status: string): {
+  badge: 'success' | 'warning' | 'danger' | 'primary' | 'neutral';
+  dot: string;
+} {
+  switch (status) {
+    case 'IN_PROGRESS':
+      return { badge: 'primary', dot: COLORS.primary };
+    case 'COMPLETED':
+      return { badge: 'success', dot: COLORS.success };
+    case 'ON_HOLD':
+      return { badge: 'warning', dot: COLORS.warning };
+    case 'CANCELLED':
+      return { badge: 'danger', dot: COLORS.danger };
+    default:
+      return { badge: 'neutral', dot: COLORS.muted };
+  }
+}
+
+/** Human-readable status label: "IN_PROGRESS" -> "IN PROGRESS". */
+function formatStatusLabel(status: string): string {
+  return status.replace(/_/g, ' ');
+}
+
+/** Rich report card with a colored icon tile, title, description, and meta. */
+function ProjectReportCard({
+  accent,
+  tag,
+  title,
+  description,
+  meta,
+  onPress,
+}: {
+  accent: string;
+  tag: string;
+  title: string;
+  description: string;
+  meta?: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className="p-3 rounded-lg border border-border active:bg-surface flex-row items-center gap-3 h-full"
+    >
+      <View
+        className="w-11 h-11 rounded-lg items-center justify-center"
+        style={{ backgroundColor: accent + '1A' }}
+      >
+        <Text className="text-sm font-bold" style={{ color: accent }}>
+          {tag}
+        </Text>
+      </View>
+      <View className="flex-1">
+        <Text className="text-sm font-semibold text-text">{title}</Text>
+        <Text className="text-xs text-muted mt-0.5">{description}</Text>
+        {meta ? (
+          <Text className="text-xs font-semibold mt-1" style={{ color: accent }}>
+            {meta}
+          </Text>
+        ) : null}
+      </View>
+      <Text className="text-lg text-muted">↓</Text>
     </Pressable>
   );
 }

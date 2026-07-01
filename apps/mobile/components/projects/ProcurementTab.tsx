@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { View, Text, Pressable } from 'react-native';
+import { useRouter } from 'expo-router';
 import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
 import {
   Card,
@@ -12,6 +13,7 @@ import {
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
 import { formatDate } from '@/utils/format';
+import { projectTabHref } from '@/utils/navigation';
 import {
   useRequisitions,
   useCreateRequisition,
@@ -124,6 +126,13 @@ function buildGrnModalLines(
   }));
 }
 
+/** Extract vendor name from a requisition's first PO (fallback to "Vendor"). */
+function vendorNameForPo(req: Requisition): string {
+  return req.purchaseOrders?.[0]?.poNumber
+    ? `Vendor (${req.purchaseOrders[0].poNumber})`
+    : 'Vendor';
+}
+
 function requisitionWorkflowHint(
   req: Requisition,
   opts: { canCreate: boolean; canApprove: boolean; canCreatePO: boolean },
@@ -150,11 +159,14 @@ function requisitionWorkflowHint(
 }
 
 export function ProcurementTab({ projectId }: { projectId: string }) {
+  const router = useRouter();
   const { isDesktop } = useViewport();
   const user = useAuthStore((s) => s.user);
   const canCreate = user?.role === 'OWNER' || user?.role === 'PM' || user?.role === 'SUPERVISOR';
   const canApprove = user?.role === 'OWNER' || user?.role === 'PM';
   const canCreatePO =
+    user?.role === 'OWNER' || user?.role === 'PM' || user?.role === 'ACCOUNTANT';
+  const canCreateBill =
     user?.role === 'OWNER' || user?.role === 'PM' || user?.role === 'ACCOUNTANT';
 
   const reqQ = useRequisitions(projectId);
@@ -510,6 +522,23 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
                           poNumber: po.poNumber,
                           lines: modalLines,
                         });
+                      }}
+                    />
+                  </View>
+                )}
+                {canCreateBill && (po.goodsReceipts?.length ?? 0) > 0 && (
+                  <View className="mt-1">
+                    <Button
+                      label="Create Bill"
+                      size="sm"
+                      variant="secondary"
+                      onPress={() => {
+                        const returnTo = encodeURIComponent(projectTabHref(projectId, 'procurement'));
+                        const vendor = encodeURIComponent(vendorNameForPo(req) || 'Vendor');
+                        const billNum = encodeURIComponent(`BILL-${po.poNumber.replace(/^PO-/, '')}`);
+                        router.push(
+                          `/accounting/create-bill?projectId=${projectId}&vendorName=${vendor}&category=MATERIAL&suggestedBillNumber=${billNum}&returnTo=${returnTo}` as never,
+                        );
                       }}
                     />
                   </View>

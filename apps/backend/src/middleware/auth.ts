@@ -4,18 +4,43 @@
  * authenticateToken:
  *   - Reads Bearer token from Authorization header
  *   - Verifies access JWT, checks blacklist, attaches req.user
+ *   - Enforces subscription status (expired/cancelled companies are blocked
+ *     except for billing/auth/platform routes so they can still upgrade)
  *   - Sets company ALS context for Prisma auto-scoping
  *
  * requireRole(...roles):
  *   - Role guard; must run AFTER authenticateToken
  */
 import { NextFunction, Request, Response } from 'express';
+import { SubscriptionStatus } from '@prisma/client';
 import type { Role } from '@buildflow/shared';
 import { verifyAccessToken } from '../utils/jwt';
 import { isTokenBlacklisted } from '../lib/redis';
 import { companyALS } from '../lib/als';
 import { ApiError } from '../utils/errors';
 import { logger } from '../config/logger';
+import { prisma } from '../lib/prisma';
+import { env } from '../config/env';
+
+/** Routes accessible even when subscription is expired. */
+const BILLING_EXEMPT_PREFIXES = [
+  '/api/auth/',
+  '/api/settings/billing',
+  '/api/settings/company',
+  '/api/platform/',
+  '/api/webhooks/',
+];
+
+function isBillingExemptPath(path: string): boolean {
+  return BILLING_EXEMPT_PREFIXES.some((p) => path.startsWith(p));
+}
+
+/** True if the company's subscription should block API access. */
+function isSubscriptionBlocked(status: SubscriptionStatus, trialEndsAt: Date | null): boolean {
+  if (status === SubscriptionStatus.EXPIRED || status === SubscriptionStatus.CANCELLED) return true;
+  if (status === SubscriptionStatus.TRIAL && trialEndsAt && trialEndsAt < new Date()) return true;
+  return false;
+}
 
 function extractBearerToken(req: Request): string | null {
   const header = req.headers.authorization;
@@ -51,7 +76,7 @@ export async function authenticateToken(
       throw ApiError.unauthorized('Invalid token payload');
     }
 
-    // Attach to req and run downstream within company ALS context.
+    // Attach to req.
     req.user = {
       id: decoded.sub,
       companyId: decoded.companyId,
@@ -59,6 +84,20 @@ export async function authenticateToken(
       tokenId: decoded.tid,
     } as Express.Request['user'];
 
+    // Subscription enforcement (skipped in test env + on billing-exempt routes).
+    if (env.NODE_ENV !== 'test' && !isBillingExemptPath(req.path)) {
+      const company = await prisma.company.findUnique({
+        where: { id: decoded.companyId },
+        select: { subscriptionStatus: true, trialEndsAt: true },
+      });
+      if (company && isSubscriptionBlocked(company.subscriptionStatus, company.trialEndsAt)) {
+        throw ApiError.paymentRequired(
+          'Your subscription has expired. Please renew in Settings > Billing.',
+        );
+      }
+    }
+
+    // Run downstream within company ALS context.
     companyALS.run({ companyId: decoded.companyId, userId: decoded.sub }, () => next());
   } catch (err) {
     next(err instanceof ApiError ? err : ApiError.unauthorized());

@@ -12,6 +12,7 @@ import { ApiError } from '../utils/errors';
 import { recordAudit } from '../utils/audit';
 import { getProject } from './project.service';
 import * as proposalService from './proposal.service';
+import { notify } from './notification.service';
 import type {
   CreateEstimateInput,
   UpdateEstimateMetaInput,
@@ -656,6 +657,24 @@ export async function submitForReview(
 
   await proposalService.syncProposalFromEstimate(companyId, estimate.projectId, updated.status);
 
+  // Notify all Owners that an estimate is awaiting their review
+  const owners = await prisma.user.findMany({
+    where: { companyId, role: 'OWNER', isActive: true },
+    select: { id: true },
+  });
+  await Promise.all(
+    owners.map((o) =>
+      notify({
+        userId: o.id,
+        companyId,
+        title: 'Estimate submitted for review',
+        body: `${estimate.name} v${estimate.version} is awaiting your approval.`,
+        type: 'ESTIMATE_SUBMITTED',
+        referenceId: estimateId,
+      }),
+    ),
+  );
+
   return updated;
 }
 
@@ -712,6 +731,16 @@ export async function approveEstimate(
 
   await proposalService.syncProposalFromEstimate(companyId, estimate.projectId, updated.status);
 
+  // Notify the estimator (creator) that their estimate was approved
+  await notify({
+    userId: estimate.createdBy,
+    companyId,
+    title: 'Estimate approved',
+    body: `${estimate.name} v${estimate.version} has been approved and can be converted to BOQ.`,
+    type: 'ESTIMATE_APPROVED',
+    referenceId: estimateId,
+  });
+
   return updated;
 }
 
@@ -754,6 +783,16 @@ export async function rejectEstimate(
   });
 
   await proposalService.syncProposalFromEstimate(companyId, estimate.projectId, updated.status);
+
+  // Notify the estimator (creator) that their estimate was rejected
+  await notify({
+    userId: estimate.createdBy,
+    companyId,
+    title: 'Estimate rejected',
+    body: `${estimate.name} v${estimate.version} was rejected${input.reason ? `: ${input.reason}` : '.'}`,
+    type: 'ESTIMATE_REJECTED',
+    referenceId: estimateId,
+  });
 
   return updated;
 }

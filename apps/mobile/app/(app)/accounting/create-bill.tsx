@@ -31,20 +31,36 @@ type Category = (typeof CATEGORIES)[number];
 export default function CreateBillScreen() {
   const router = useRouter();
   const { isDesktop } = useViewport();
-  const { projectId: preselected } = useLocalSearchParams<{ projectId?: string }>();
+  const {
+    projectId: preselected,
+    vendorName: preVendor,
+    category: preCategory,
+    suggestedBillNumber,
+    returnTo: returnToParam,
+  } = useLocalSearchParams<{
+    projectId?: string;
+    vendorName?: string;
+    category?: string;
+    suggestedBillNumber?: string;
+    returnTo?: string;
+  }>();
   const { data: projects } = useProjects();
   const createBill = useCreateBill();
 
   const [projectId, setProjectId] = useState(preselected ?? '');
-  const [billNumber, setBillNumber] = useState('');
-  const [vendorName, setVendorName] = useState('');
+  const [billNumber, setBillNumber] = useState(suggestedBillNumber ?? '');
+  const [vendorName, setVendorName] = useState(preVendor ?? '');
   const [vendorGstin, setVendorGstin] = useState('');
   const [billDate, setBillDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState('');
   const [subtotal, setSubtotal] = useState('0');
   const [gstAmount, setGstAmount] = useState('0');
   const [tdsEnabled, setTdsEnabled] = useState(false);
-  const [category, setCategory] = useState<Category>('MATERIAL');
+  const [category, setCategory] = useState<Category>(
+    preCategory && (CATEGORIES as readonly string[]).includes(preCategory)
+      ? (preCategory as Category)
+      : 'MATERIAL',
+  );
   const [formError, setFormError] = useState<string | null>(null);
 
   // Live TDS + total preview
@@ -93,7 +109,12 @@ export default function CreateBillScreen() {
       {
         onSuccess: async (bill) => {
           await alertAsync('Success', `Bill ${bill.billNumber} created (status: ${bill.status}).`);
-          dismissTo(DISMISS.accounting);
+          if (returnToParam) {
+            router.dismiss();
+            router.push(returnToParam as never);
+          } else {
+            dismissTo(DISMISS.accounting);
+          }
         },
         onError: async (e: unknown) => {
           const message = e instanceof Error ? e.message : 'Failed to create bill';
@@ -264,12 +285,12 @@ export default function CreateBillScreen() {
         className="flex-1"
       >
         {isDesktop ? (
-          <ScreenContainer scrollable={false} constrained>
-            <FormScreenHeader title="New Bill" onCancel={() => dismissTo(DISMISS.accounting)} />
+          <ScreenContainer scrollable constrained>
+            <FormScreenHeader title="New Bill" onCancel={() => dismissTo(returnToParam ? decodeURIComponent(returnToParam) : DISMISS.accounting)} />
             <View className="flex-1 flex-row gap-6 items-start">
-              <ScrollView className="flex-[2]" contentContainerClassName="gap-4 pb-6" showsVerticalScrollIndicator={false}>
+              <View className="flex-[2] gap-4">
                 {formFields}
-              </ScrollView>
+              </View>
               <View className="flex-1 max-w-sm">{summaryCard}</View>
             </View>
             <ActionBar>
@@ -279,7 +300,7 @@ export default function CreateBillScreen() {
           </ScreenContainer>
         ) : (
           <>
-            <FormScreenHeader title="New Bill" onCancel={() => dismissTo(DISMISS.accounting)} />
+            <FormScreenHeader title="New Bill" onCancel={() => dismissTo(returnToParam ? decodeURIComponent(returnToParam) : DISMISS.accounting)} />
             <ScrollView contentContainerClassName="px-4 pb-32 pt-2 gap-4">{formFields}</ScrollView>
             <View className="absolute bottom-0 left-0 right-0 bg-card border-t border-border p-4">
               {formErrorBanner}

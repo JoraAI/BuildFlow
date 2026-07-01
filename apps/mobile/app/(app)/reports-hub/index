@@ -1,0 +1,494 @@
+/**
+ * BuildFlow - Reports Hub
+ * Financial reports, cash flow forecast, PDF downloads, and scheduled reports.
+ */
+import React, { useState } from 'react';
+import { View, Text, ScrollView, Alert, Pressable, RefreshControl } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Card, Button, LoadingSkeleton, EmptyState, Input, Badge } from '@/components/ui';
+import { MobileScreenHeader } from '@/components/layout/ScreenHeader';
+import { ScreenContainer } from '@/components/layout/ScreenContainer';
+import { ResponsiveGrid } from '@/components/layout/ResponsiveGrid';
+import { useViewport } from '@/hooks/useViewport';
+import { useAuthStore } from '@/stores/auth.store';
+import { useProjects, type ProjectListItem } from '@/services/project.queries';
+import {
+  useAnalyticsDashboard,
+  type CashFlowPoint,
+} from '@/services/analytics.queries';
+import {
+  useGstReport,
+  useTdsReport,
+  useProfitLoss,
+  useEstimateVsActual,
+} from '@/services/accounting.queries';
+import {
+  useReportSchedules,
+  useCreateReportSchedule,
+  type ReportSchedule,
+} from '@/services/expansion.queries';
+import { apiDownload } from '@/lib/api-client';
+import { formatINR, formatINRCompact, formatDate } from '@/utils/format';
+import * as Sharing from 'expo-sharing';
+
+export default function ReportsHubScreen() {
+  const { isDesktop } = useViewport();
+  const user = useAuthStore((s) => s.user);
+  const canFinancials = user?.role === 'OWNER' || user?.role === 'ACCOUNTANT';
+
+  const { data: projects } = useProjects();
+  const { data: dashboard, isLoading: dashLoading, refetch: refetchDash } = useAnalyticsDashboard();
+  const [selectedProject, setSelectedProject] = useState('');
+  const gstQ = useGstReport();
+  const tdsQ = useTdsReport();
+  const plQ = useProfitLoss(selectedProject);
+  const evaQ = useEstimateVsActual(selectedProject);
+  const schedulesQ = useReportSchedules();
+  const createSchedule = useCreateReportSchedule();
+
+  const [cronExpr, setCronExpr] = useState('0 9 * * 1');
+  const [recipient, setRecipient] = useState(user?.email ?? '');
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+
+  const forecast = dashboard?.cashFlowForecast ?? [];
+
+  const downloadPdf = async (path: string, filename: string) => {
+    try {
+      const uri = await apiDownload(path, filename, 'application/pdf');
+      if (uri && (await Sharing.isAvailableAsync())) {
+        await Sharing.shareAsync(uri);
+      } else {
+        Alert.alert('Saved', 'Report downloaded.');
+      }
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'Download failed');
+    }
+  };
+
+  const onCreateSchedule = () => {
+    if (!recipient.trim()) {
+      setScheduleError('Enter at least one recipient email.');
+      return;
+    }
+    setScheduleError(null);
+    createSchedule.mutate(
+      {
+        reportType: 'GST_SUMMARY',
+        cronExpr: cronExpr.trim() || '0 9 * * 1',
+        recipients: [recipient.trim()],
+      },
+      {
+        onSuccess: () => Alert.alert('Scheduled', 'Report schedule created.'),
+        onError: (e: Error) => {
+          setScheduleError(e.message);
+          Alert.alert('Error', e.message);
+        },
+      },
+    );
+  };
+
+  const content = (
+    <View className="gap-4">
+      {/* Cash Flow Forecast (90 days) */}
+      {canFinancials && (
+        <Card>
+          <View className="flex-row justify-between items-center mb-3">
+            <View>
+              <Text className="text-base font-bold text-text">Cash Flow Forecast</Text>
+              <Text className="text-xs text-muted">13-week projection (90 days)</Text>
+            </View>
+            <Pressable onPress={() => refetchDash()}>
+              <Text className="text-sm text-primary font-semibold">Refresh</Text>
+            </Pressable>
+          </View>
+
+          {dashLoading ? (
+            <LoadingSkeleton className="h-32" />
+          ) : forecast.length > 0 ? (
+            <ForecastChart points={forecast} />
+          ) : (
+            <Text className="text-sm text-muted italic text-center py-3">
+              No forecast data yet. Outstanding invoices and pending bills will appear here.
+            </Text>
+          )}
+        </Card>
+      )}
+
+      {/* Financial Summary KPIs */}
+      {canFinancials && dashboard && (
+        <Card>
+          <Text className="text-base font-bold text-text mb-3">Financial Summary</Text>
+          <ResponsiveGrid gap={8} columns={isDesktop ? 4 : 2}>
+            <KpiTile label="Revenue (Paid)" value={formatINRCompact(dashboard.kpis.totalRevenue)} color="#10B981" />
+            <KpiTile label="Outstanding" value={formatINRCompact(dashboard.kpis.totalOutstanding)} color="#F97316" />
+            <KpiTile
+              label="GST Collected"
+              value={gstQ.data ? formatINRCompact(gstQ.data.totalTax) : '—'}
+              color="#1E3A5F"
+            />
+            <KpiTile
+              label="TDS Deducted"
+              value={tdsQ.data ? formatINRCompact(tdsQ.data.totalTdsDeducted) : '—'}
+              color="#8B5CF6"
+            />
+          </ResponsiveGrid>
+          {(gstQ.isLoading || tdsQ.isLoading) && <LoadingSkeleton className="h-4 mt-2" />}
+        </Card>
+      )}
+
+      {/* Company Financial Reports - PDF Downloads */}
+      {canFinancials && (
+        <Card>
+          <Text className="text-base font-bold text-text mb-3">Tax Reports (PDF)</Text>
+          <ResponsiveGrid gap={8} columns={isDesktop ? 2 : 1}>
+            <ReportLink
+              label="GST Summary"
+              sub={gstQ.data ? formatINR(gstQ.data.totalTax) + ' total tax' : 'Download PDF'}
+              icon="receipt"
+              onPress={() => downloadPdf('/reports/pdf/gst-summary', 'gst-summary.pdf')}
+            />
+            <ReportLink
+              label="TDS Report"
+              sub={tdsQ.data ? formatINR(tdsQ.data.totalTdsDeducted) + ' deducted' : 'Download PDF'}
+              icon="document-text"
+              onPress={() => downloadPdf('/reports/pdf/tds', 'tds-report.pdf')}
+            />
+          </ResponsiveGrid>
+        </Card>
+      )}
+
+      {/* Project Reports */}
+      <Card>
+        <Text className="text-base font-bold text-text mb-2">Project Reports</Text>
+        <Text className="text-xs text-muted mb-3">Select a project for P&L, BOQ vs actual, and material rates.</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3">
+          <View className="flex-row gap-2">
+            {(projects ?? []).map((p: ProjectListItem) => (
+              <Pressable
+                key={p.id}
+                onPress={() => setSelectedProject(p.id)}
+                className={`px-3 py-2 rounded-lg border ${
+                  selectedProject === p.id ? 'bg-primary/10 border-primary' : 'border-border'
+                }`}
+              >
+                <Text className="text-sm text-text">{p.name}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </ScrollView>
+        {selectedProject ? (
+          <View className="gap-2">
+            {/* Inline P&L summary */}
+            {plQ.data && typeof plQ.data === 'object' && (
+              <View className="p-3 rounded-lg bg-surface border border-border">
+                <Text className="text-xs font-semibold text-muted uppercase mb-2">Profit & Loss</Text>
+                <View className="gap-1">
+                  <PnLRow label="Revenue" value={plQ.data.revenue} />
+                  <PnLRow label="Costs" value={plQ.data.costs} isNegative />
+                  <View className="h-px bg-border my-1" />
+                  <PnLRow
+                    label="Margin"
+                    value={plQ.data.margin}
+                    bold
+                  />
+                </View>
+              </View>
+            )}
+
+            <ReportLink
+              label="Download P&L (PDF)"
+              sub="Full profit & loss statement"
+              icon="trending-up"
+              onPress={() =>
+                downloadPdf(
+                  `/reports/pdf/projects/${selectedProject}/profit-loss`,
+                  'profit-loss.pdf',
+                )
+              }
+            />
+            <ReportLink
+              label="BOQ vs Actual (PDF)"
+              sub={
+                evaQ.data
+                  ? evaQ.data.completionPct.toFixed(0) + '% complete'
+                  : 'Variance analysis'
+              }
+              icon="cube"
+              onPress={() =>
+                downloadPdf(
+                  `/reports/pdf/projects/${selectedProject}/boq-vs-actual`,
+                  'boq-vs-actual.pdf',
+                )
+              }
+            />
+            <ReportLink
+              label="Material Rate Sheet (PDF)"
+              sub="Planned vs last PO by material"
+              icon="pricetag"
+              onPress={() =>
+                downloadPdf(
+                  `/reports/pdf/projects/${selectedProject}/material-rates`,
+                  'material-rates.pdf',
+                )
+              }
+            />
+          </View>
+        ) : (
+          <EmptyState title="Select a project" description="Choose a project above to view reports." />
+        )}
+      </Card>
+
+      {/* Scheduled Reports */}
+      {canFinancials && (
+        <Card>
+          <Text className="text-base font-bold text-text mb-3">Scheduled Reports</Text>
+          {schedulesQ.isLoading ? (
+            <LoadingSkeleton className="h-16" />
+          ) : (schedulesQ.data ?? []).length === 0 ? (
+            <Text className="text-sm text-muted mb-3">No schedules yet.</Text>
+          ) : (
+            (schedulesQ.data ?? []).map((s: ReportSchedule) => (
+              <View key={s.id} className="flex-row justify-between items-center py-2 border-b border-border/50">
+                <View className="flex-1">
+                  <Text className="text-sm font-semibold text-text">{s.reportType}</Text>
+                  <Text className="text-xs text-muted">
+                    {formatCronDisplay(s.cronExpr)} • {s.recipients.length} recipient(s)
+                  </Text>
+                </View>
+                <Badge color="success" label="Active" />
+              </View>
+            ))
+          )}
+
+          <View className="mt-3 gap-2">
+            <Text className="text-sm font-semibold text-text">Schedule a New Report</Text>
+            <View className="flex-row gap-2">
+              <View className="flex-1">
+                <Input
+                  label="Report type"
+                  value="GST Summary"
+                  onChangeText={() => {}}
+                  editable={false}
+                />
+              </View>
+              <View className="flex-1">
+                <Input
+                  label="Frequency"
+                  value={formatCronDisplay(cronExpr)}
+                  onChangeText={(v) => setCronExpr(reverseCronDisplay(v))}
+                  placeholder="Weekly Mon 9AM"
+                />
+              </View>
+            </View>
+            <Input
+              label="Recipient email"
+              value={recipient}
+              onChangeText={setRecipient}
+              keyboardType="email-address"
+              placeholder="finance@company.com"
+            />
+            {scheduleError ? (
+              <View className="px-3 py-2 rounded-lg bg-danger/10 border border-danger/30">
+                <Text className="text-sm text-danger">{scheduleError}</Text>
+              </View>
+            ) : null}
+            <Button
+              label="Schedule Report"
+              variant="secondary"
+              loading={createSchedule.isPending}
+              disabled={createSchedule.isPending}
+              onPress={onCreateSchedule}
+            />
+          </View>
+        </Card>
+      )}
+    </View>
+  );
+
+  if (isDesktop) {
+    return (
+      <SafeAreaView className="flex-1 bg-surface" edges={[]}>
+        <ScreenContainer scrollable>
+          <MobileScreenHeader title="Reports Hub" subtitle="Financial reports, forecasts & PDFs" />
+          <View className="mt-4">{content}</View>
+        </ScreenContainer>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView className="flex-1 bg-surface">
+      <ScrollView
+        contentContainerClassName="p-4 pb-8"
+        refreshControl={<RefreshControl refreshing={dashLoading} onRefresh={refetchDash} />}
+      >
+        <MobileScreenHeader title="Reports Hub" subtitle="Financial reports, forecasts & PDFs" />
+        <View className="mt-2">{content}</View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Cash Flow Forecast Bar Chart
+// ---------------------------------------------------------------------------
+function ForecastChart({ points }: { points: CashFlowPoint[] }) {
+  const maxAbs = Math.max(1, ...points.map((p) => Math.abs(p.net)));
+  const lastCumulative = points[points.length - 1]?.cumulative ?? 0;
+
+  return (
+    <View>
+      {/* Cumulative balance header */}
+      <View className="flex-row justify-between items-center mb-3">
+        <View>
+          <Text className="text-xs text-muted uppercase font-semibold">Projected Balance (90d)</Text>
+          <Text className={`text-xl font-extrabold ${lastCumulative >= 0 ? 'text-success' : 'text-danger'}`}>
+            {lastCumulative >= 0 ? '+' : ''}{formatINRCompact(lastCumulative)}
+          </Text>
+        </View>
+        <View className="items-end">
+          <Text className="text-xs text-muted uppercase font-semibold">Peak Inflow Week</Text>
+          <Text className="text-sm font-bold text-text">
+            {formatINRCompact(Math.max(...points.map((p) => p.inflow)))}
+          </Text>
+        </View>
+      </View>
+
+      {/* Bar chart */}
+      <View className="flex-row items-end gap-1 h-32 mb-2">
+        {points.map((pt, i) => {
+          const heightPct = (Math.abs(pt.net) / maxAbs) * 100;
+          const isPositive = pt.net >= 0;
+          return (
+            <View key={i} className="flex-1 justify-end items-center">
+              <View
+                className="w-full rounded-t-sm"
+                style={{
+                  height: `${Math.max(4, heightPct)}%`,
+                  backgroundColor: isPositive ? '#10B981' : '#EF4444',
+                  opacity: 0.85,
+                }}
+              />
+            </View>
+          );
+        })}
+      </View>
+
+      {/* X-axis labels (every 3rd week) */}
+      <View className="flex-row gap-1">
+        {points.map((pt, i) => (
+          <View key={i} className="flex-1 items-center">
+            {i % 3 === 0 && (
+              <Text className="text-[9px] text-muted">
+                {new Date(pt.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+              </Text>
+            )}
+          </View>
+        ))}
+      </View>
+
+      {/* Legend */}
+      <View className="flex-row gap-4 mt-3">
+        <View className="flex-row items-center gap-1.5">
+          <View className="w-3 h-3 rounded-sm bg-success" />
+          <Text className="text-xs text-muted">Net inflow</Text>
+        </View>
+        <View className="flex-row items-center gap-1.5">
+          <View className="w-3 h-3 rounded-sm bg-danger" />
+          <Text className="text-xs text-muted">Net outflow</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+function KpiTile({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <View
+      className="bg-surface rounded-xl border border-border p-3"
+      style={{ borderTopColor: color, borderTopWidth: 3 }}
+    >
+      <Text className="text-xs text-muted font-semibold uppercase">{label}</Text>
+      <Text className="text-lg font-extrabold text-text mt-1">{value}</Text>
+    </View>
+  );
+}
+
+function PnLRow({ label, value, isNegative, bold }: { label: string; value: number; isNegative?: boolean; bold?: boolean }) {
+  return (
+    <View className="flex-row justify-between items-center">
+      <Text className={`text-sm ${bold ? 'font-bold text-text' : 'text-muted'}`}>{label}</Text>
+      <Text
+        className={`text-sm ${bold ? 'font-extrabold' : 'font-semibold'} ${
+          value >= 0 ? 'text-success' : 'text-danger'
+        }`}
+      >
+        {isNegative && value > 0 ? '-' : ''}
+        {formatINRCompact(Math.abs(value))}
+      </Text>
+    </View>
+  );
+}
+
+function ReportLink({
+  label,
+  sub,
+  icon,
+  onPress,
+}: {
+  label: string;
+  sub: string;
+  icon?: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className="p-3 rounded-lg border border-border active:bg-surface"
+    >
+      <View className="flex-row items-center justify-between">
+        <View className="flex-1">
+          <Text className="text-sm font-semibold text-primary">{label}</Text>
+          <Text className="text-xs text-muted mt-0.5">{sub}</Text>
+        </View>
+        <Text className="text-2xl text-muted">›</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Cron display helpers
+// ---------------------------------------------------------------------------
+function formatCronDisplay(cron: string): string {
+  // "0 9 * * 1" -> "Weekly Mon 9AM"
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length !== 5) return cron;
+  const [min, hour, dom, mon, dow] = parts;
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const h = parseInt(hour) || 9;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+
+  if (dow !== '*' && dom === '*') {
+    const dayIdx = parseInt(dow);
+    const dayName = !isNaN(dayIdx) ? days[dayIdx] ?? 'Daily' : 'Daily';
+    return `Weekly ${dayName} ${h12}${ampm}`;
+  }
+  if (dom === '*' && dow === '*') return `Daily ${h12}${ampm}`;
+  return cron;
+}
+
+function reverseCronDisplay(display: string): string {
+  // Best-effort reverse parse - return the original cron format
+  const lower = display.toLowerCase();
+  if (lower.includes('daily')) return '0 9 * * *';
+  const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  for (let i = 0; i < days.length; i++) {
+    if (lower.includes(days[i])) return `0 9 * * ${i}`;
+  }
+  return '0 9 * * 1';
+}

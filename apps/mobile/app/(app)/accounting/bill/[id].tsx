@@ -56,8 +56,10 @@ export default function BillDetailScreen() {
 
   const { id, returnTo: returnToParam } = useLocalSearchParams<{ id: string; returnTo?: string }>();
   const returnTo = parseReturnTo(returnToParam);
-  const goBack = () => navigateAppBack(DISMISS.accounting, returnTo);
   const { data: bill, isLoading } = useBill(id ?? '');
+  // Build a project-based return path if returnTo wasn't passed (defensive fallback).
+  const resolvedReturnTo = returnTo ?? (bill?.projectId ? projectTabHref(bill.projectId, 'bills') : null);
+  const goBack = () => navigateAppBack(DISMISS.accounting, resolvedReturnTo);
   const approveBill = useApproveBill();
   const recordPayment = useRecordBillPayment();
   const payBill = usePayBill();
@@ -186,18 +188,24 @@ export default function BillDetailScreen() {
         className="flex-1 min-h-0"
       >
         {isDesktop ? (
-          <ScreenContainer scrollable constrained className="min-h-0">
-            <FormScreenHeader
-              title={bill.billNumber}
-              subtitle={bill.vendorName}
-              cancelLabel="Back"
-              onCancel={goBack}
-            />
-            <View className="flex-row gap-6 items-start pb-10">
-              <View className="flex-[2] min-w-0 gap-4">{body}</View>
-              <View className="flex-1 max-w-sm min-w-[280px] gap-4">{actionsBlock}</View>
+          <ScrollView
+            className="flex-1 min-h-0"
+            contentContainerClassName="items-center px-8 py-6 pb-32"
+            showsVerticalScrollIndicator
+          >
+            <View className="w-full max-w-6xl">
+              <FormScreenHeader
+                title={bill.billNumber}
+                subtitle={bill.vendorName}
+                cancelLabel="Back"
+                onCancel={goBack}
+              />
+              <View className="flex-row gap-6 items-start">
+                <View className="flex-[2] min-w-0 gap-4">{body}</View>
+                <View className="flex-1 max-w-sm min-w-[280px] gap-4">{actionsBlock}</View>
+              </View>
             </View>
-          </ScreenContainer>
+          </ScrollView>
         ) : (
           <View className="flex-1 min-h-0">
             <FormScreenHeader

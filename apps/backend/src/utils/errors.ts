@@ -10,6 +10,7 @@ export type ErrorCode =
   | 'CONFLICT'
   | 'UNPROCESSABLE'
   | 'RATE_LIMITED'
+  | 'PAYMENT_REQUIRED'
   | 'INTERNAL_ERROR';
 
 const HTTP_STATUS: Record<ErrorCode, number> = {
@@ -21,6 +22,7 @@ const HTTP_STATUS: Record<ErrorCode, number> = {
   CONFLICT: 409,
   UNPROCESSABLE: 422,
   RATE_LIMITED: 429,
+  PAYMENT_REQUIRED: 402,
   INTERNAL_ERROR: 500,
 };
 
@@ -65,6 +67,9 @@ export class ApiError extends Error {
   }
   static rateLimited(message = 'Too many requests'): ApiError {
     return new ApiError('RATE_LIMITED', message);
+  }
+  static paymentRequired(message = 'Subscription required'): ApiError {
+    return new ApiError('PAYMENT_REQUIRED', message);
   }
   static internal(message = 'Something went wrong'): ApiError {
     return new ApiError('INTERNAL_ERROR', message);

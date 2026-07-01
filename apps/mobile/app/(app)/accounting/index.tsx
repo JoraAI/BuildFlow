@@ -80,7 +80,7 @@ export default function AccountingScreen() {
     return (
       <SafeAreaView className="flex-1 bg-surface" edges={[]}>
         <OfflineBanner />
-        <ScreenContainer scrollable={tab === 'DASHBOARD'} constrained>
+        <ScreenContainer scrollable constrained>
           <PageHeader
             title="Accounting"
             subtitle="Invoices, bills, GST & TDS"

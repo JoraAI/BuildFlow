@@ -270,23 +270,23 @@ export default function InvoiceDetailScreen() {
         className="flex-1"
       >
         {isDesktop ? (
-          <ScreenContainer scrollable={false} constrained>
+          <ScrollView className="flex-1 min-h-0" contentContainerClassName="items-center px-8 py-6 pb-32" showsVerticalScrollIndicator>
             <FormScreenHeader
               title={invoice.invoiceNumber}
               subtitle={invoice.clientName}
               cancelLabel="Back"
               onCancel={goBack}
             />
-            <View className="flex-1 flex-row gap-6 items-start">
-              <ScrollView className="flex-[2]" contentContainerClassName="gap-4 pb-6" showsVerticalScrollIndicator={false}>
-                {mainContent}
-              </ScrollView>
-              <View className="flex-1 max-w-sm gap-4">
+            <View className="w-full max-w-6xl">
+              <View className="flex-row gap-6 items-start">
+              <View className="flex-[2] min-w-0 gap-4">{mainContent}</View>
+              <View className="flex-1 max-w-sm min-w-[280px] gap-4">
                 {totalsCard}
                 {actionsBlock}
               </View>
             </View>
-          </ScreenContainer>
+            </View>
+          </ScrollView>
         ) : (
           <>
             <FormScreenHeader

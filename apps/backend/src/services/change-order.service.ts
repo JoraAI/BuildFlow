@@ -5,6 +5,7 @@ import { recordAudit } from '../utils/audit';
 import type { CreateChangeOrderInput } from '@buildflow/shared';
 import { assertProjectAccess } from '../middleware/project-access.middleware';
 import { createDraftIndentsFromDemand, type MaterialDemandLine } from './material-demand.service';
+import { notify } from './notification.service';
 
 function round2(n: number) {
   return Math.round(n * 100) / 100;
@@ -161,6 +162,24 @@ export async function submitChangeOrder(companyId: string, userId: string, role:
     data: { status: 'SUBMITTED' },
     include: changeOrderInclude,
   });
+
+  const owners = await prisma.user.findMany({
+    where: { companyId: co.companyId, role: 'OWNER', isActive: true },
+    select: { id: true },
+  });
+  await Promise.all(
+    owners.map((o) =>
+      notify({
+        userId: o.id,
+        companyId: co.companyId,
+        title: 'Variation submitted for approval',
+        body: co.number + ' - ' + co.title + ' (cost impact: Rs ' + Number(co.costImpact).toLocaleString('en-IN') + ').',
+        type: 'CHANGE_ORDER_SUBMITTED',
+        referenceId: id,
+      }),
+    ),
+  );
+
   return serializeChangeOrder(updated);
 }
 
@@ -272,6 +291,16 @@ export async function approveChangeOrder(
 
   const approved = await prisma.changeOrder.findFirst({ where: { id }, include: changeOrderInclude });
   if (!approved) throw ApiError.notFound('Change order not found');
+
+  await notify({
+    userId: co.createdBy,
+    companyId,
+    title: 'Variation approved',
+    body: co.number + ' - ' + co.title + ' has been approved. BOQ and budget updated.',
+    type: 'CHANGE_ORDER_APPROVED',
+    referenceId: id,
+  });
+
   return serializeChangeOrder(approved);
 }
 
@@ -299,5 +328,15 @@ export async function rejectChangeOrder(
     entityId: id,
     newValue: { reason },
   });
+
+  await notify({
+    userId: co.createdBy,
+    companyId,
+    title: 'Variation rejected',
+    body: co.number + ' - ' + co.title + ' was rejected: ' + reason,
+    type: 'CHANGE_ORDER_REJECTED',
+    referenceId: id,
+  });
+
   return serializeChangeOrder(updated);
 }

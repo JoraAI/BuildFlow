@@ -21,6 +21,7 @@ import { SubcontractsTab } from '@/components/projects/SubcontractsTab';
 import { ScheduleTab } from '@/components/projects/ScheduleTab';
 import { ProjectReportsTab } from '@/components/projects/ProjectReportsTab';
 import { BoqTab } from '@/components/projects/BoqTab';
+import { BillsTab } from '@/components/projects/BillsTab';
 import { ResourcesTab } from '@/components/projects/ResourcesTab';
 import { ProjectMembersSection } from '@/components/projects/ProjectMembersSection';
 import { ProjectMaterialRatesSection } from '@/components/projects/ProjectMaterialRatesSection';
@@ -31,13 +32,14 @@ import { useCreatePortalAccess } from '@/services/expansion.queries';
 import { useAuthStore } from '@/stores/auth.store';
 import { formatINR, formatINRCompact, formatDate, daysBetween } from '@/utils/format';
 
-type Tab = 'overview' | 'estimate' | 'schedule' | 'boq' | 'variations' | 'procurement' | 'subcontracts' | 'resources' | 'reports' | 'settings';
+type Tab = 'overview' | 'estimate' | 'schedule' | 'boq' | 'bills' | 'variations' | 'procurement' | 'subcontracts' | 'resources' | 'reports' | 'settings';
 
 const TABS: { label: string; value: Tab }[] = [
   { label: 'Overview', value: 'overview' },
   { label: 'Estimate', value: 'estimate' },
   { label: 'Schedule', value: 'schedule' },
   { label: 'BOQ', value: 'boq' },
+  { label: 'Bills', value: 'bills' },
   { label: 'Variations', value: 'variations' },
   { label: 'Procurement', value: 'procurement' },
   { label: 'Subcontracts', value: 'subcontracts' },
@@ -152,6 +154,7 @@ export default function ProjectDetailScreen() {
       {tab === 'estimate' && <EstimateTab projectId={id} />}
       {tab === 'schedule' && <ScheduleTab projectId={id} />}
       {tab === 'boq' && <BoqTab projectId={id} />}
+      {tab === 'bills' && <BillsTab projectId={id} />}
       {tab === 'variations' && <VariationsTab projectId={id} />}
       {tab === 'procurement' && <ProcurementTab projectId={id} />}
       {tab === 'subcontracts' && <SubcontractsTab projectId={id} />}
@@ -169,7 +172,7 @@ export default function ProjectDetailScreen() {
           className="flex-1 min-h-0"
           refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
           stickyHeaderIndices={[1]}
-          contentContainerStyle={{ paddingBottom: desktopContentBottomPadding() }}
+          contentContainerStyle={{ paddingBottom: desktopContentBottomPadding() + 48 }}
           showsVerticalScrollIndicator
         >
           <View className="px-8 pt-6 pb-2 max-w-6xl w-full self-center">

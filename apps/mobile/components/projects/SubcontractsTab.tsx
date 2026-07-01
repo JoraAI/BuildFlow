@@ -565,6 +565,7 @@ function MeasurementsPanel({
 }
 
 export function SubcontractsTab({ projectId }: { projectId: string }) {
+  const router = useRouter();
   const { isDesktop } = useViewport();
   const user = useAuthStore((s) => s.user);
   const canManage = user?.role === 'OWNER' || user?.role === 'PM';
@@ -812,6 +813,19 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
                             </>
                           );
                         })()}
+                        <Button
+                          label="Create Bill"
+                          size="sm"
+                          variant="secondary"
+                          onPress={() => {
+                            const returnTo = encodeURIComponent(projectTabHref(projectId, 'subcontracts'));
+                            const vendor = encodeURIComponent(wo.subcontractor.name);
+                            const billNum = encodeURIComponent(`BILL-${wo.woNumber.replace(/^WO-/, '')}`);
+                            router.push(
+                              `/accounting/create-bill?projectId=${projectId}&vendorName=${vendor}&category=SUBCONTRACTOR&suggestedBillNumber=${billNum}&returnTo=${returnTo}` as never,
+                            );
+                          }}
+                        />
                         <Button
                           label="Cancel"
                           size="sm"

@@ -4,6 +4,7 @@ export type ProjectTabId =
   | 'estimate'
   | 'schedule'
   | 'boq'
+  | 'bills'
   | 'variations'
   | 'procurement'
   | 'subcontracts'
@@ -16,6 +17,7 @@ export const PROJECT_TAB_HINTS: Record<ProjectTabId, string> = {
   estimate: 'Cost plan before work starts',
   schedule: 'When tasks happen on site',
   boq: 'Approved quantities and rates for billing',
+  bills: 'Vendor bills and payments for this project',
   variations: 'Extra scope after BOQ was fixed',
   procurement: 'Buy materials: request → order → receive',
   subcontracts: 'Subcontractors: measure work → pay bills',
