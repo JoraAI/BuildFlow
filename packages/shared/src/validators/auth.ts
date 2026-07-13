@@ -70,7 +70,16 @@ export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 /* Invite-based team signup                                            */
 /* ------------------------------------------------------------------ */
 
-export const inviteRoleSchema = z.enum(['PM', 'SUPERVISOR', 'ACCOUNTANT']);
+export const inviteRoleSchema = z.enum([
+  'PM',
+  'DPM',
+  'QC',
+  'MECHANICAL_MANAGER',
+  'STORE_INCHARGE',
+  'WEIGHBRIDGE_INCHARGE',
+  'SITE_SUPERVISOR',
+  'ACCOUNTANT',
+]);
 
 export const createUserInviteSchema = z.object({
   email: emailSchema,

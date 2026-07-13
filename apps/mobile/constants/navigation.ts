@@ -63,6 +63,7 @@ export const HIDDEN_TAB_SCREENS = [
   'settings/profile',
   'settings/tickets/index',
   'settings/tickets/create',
+  'settings/permissions',
   'reports-hub/index',
 ] as const;
 
@@ -190,6 +191,7 @@ const SETTINGS_CHILD_LABELS: Record<string, string> = {
   'material-prices': 'Material Prices',
   profile: 'My Profile',
   tickets: 'Support requests',
+  permissions: 'Role Permissions',
 };
 
 /** Unsplash - free for commercial use (Unsplash License). */

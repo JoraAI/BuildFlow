@@ -8,6 +8,8 @@
  */
 import { PrismaClient, Role, ProjectType, ProjectStatus, ResourceType, InvoiceStatus, CostType, EstimateStatus, StockMovementType } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { CATALOG_DATA } from './catalog-data';
+import { RATE_ANALYSES } from './rate-analysis-data';
 
 const prisma = new PrismaClient();
 
@@ -114,7 +116,12 @@ async function main(): Promise<void> {
     [
       { name: 'Sai Reddy', email: 'owner@reddyconst.com', role: Role.OWNER, phone: '+919876543210' },
       { name: 'Ravi Kumar', email: 'pm@reddyconst.com', role: Role.PM, phone: '+919876543211' },
-      { name: 'Mahesh Singh', email: 'site@reddyconst.com', role: Role.SUPERVISOR, phone: '+919876543212' },
+      { name: 'Arjun Naidu', email: 'dpm@reddyconst.com', role: Role.DPM, phone: '+919876543214' },
+      { name: 'Vikram Patel', email: 'qc@reddyconst.com', role: Role.QC, phone: '+919876543215' },
+      { name: 'Suresh Reddy', email: 'mechanical@reddyconst.com', role: Role.MECHANICAL_MANAGER, phone: '+919876543216' },
+      { name: 'Anil Gupta', email: 'store@reddyconst.com', role: Role.STORE_INCHARGE, phone: '+919876543217' },
+      { name: 'Karthik Rao', email: 'weighbridge@reddyconst.com', role: Role.WEIGHBRIDGE_INCHARGE, phone: '+919876543218' },
+      { name: 'Mahesh Singh', email: 'site@reddyconst.com', role: Role.SITE_SUPERVISOR, phone: '+919876543212' },
       { name: 'Priya Sharma', email: 'accounts@reddyconst.com', role: Role.ACCOUNTANT, phone: '+919876543213' },
     ].map((u) =>
       prisma.user.upsert({
@@ -124,7 +131,7 @@ async function main(): Promise<void> {
       }),
     ),
   );
-  const [owner, pm, supervisor] = users;
+  const [owner, pm, dpm, qc, mechanicalMgr, storeIncharge, weighbridgeIncharge, supervisor] = users;
 
   // Platform admin (BuildFlow internal)
   await prisma.platformAdmin.upsert({
@@ -180,281 +187,44 @@ async function main(): Promise<void> {
   });
 
   // ----------------------------------------------------------------
-  // Resources (realistic Indian 2025 rates)
+  // Resources — comprehensive catalog (~500+ items)
   // ----------------------------------------------------------------
-  const resourceSeed: Array<{
-    name: string;
-    type: ResourceType;
-    unit: string;
-    rate: number;
-    gstRate: number;
-    hsn?: string;
-    category: string;
-    imageUrl?: string;
-  }> = [
-    {
-      name: 'OPC Cement 53G',
-      type: ResourceType.MATERIAL,
-      unit: 'bag',
-      rate: 420,
-      gstRate: 28,
-      hsn: '2523',
-      category: 'Cement',
-      imageUrl: 'https://images.unsplash.com/photo-1615873968403-89e068629265?w=400&h=400&fit=crop',
-    },
-    {
-      name: 'TMT Steel Fe500',
-      type: ResourceType.MATERIAL,
-      unit: 'kg',
-      rate: 72,
-      gstRate: 18,
-      hsn: '7213',
-      category: 'Steel',
-      imageUrl: 'https://images.unsplash.com/photo-1565793298595-6a879b1d9492?w=400&h=400&fit=crop',
-    },
-    {
-      name: 'River Sand',
-      type: ResourceType.MATERIAL,
-      unit: 'cum',
-      rate: 1800,
-      gstRate: 5,
-      hsn: '2505',
-      category: 'Aggregates',
-      imageUrl: 'https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=400&h=400&fit=crop',
-    },
-    {
-      name: '20mm Aggregate',
-      type: ResourceType.MATERIAL,
-      unit: 'cum',
-      rate: 1400,
-      gstRate: 5,
-      hsn: '2517',
-      category: 'Aggregates',
-    },
-    {
-      name: 'Fly Ash Bricks',
-      type: ResourceType.MATERIAL,
-      unit: 'piece',
-      rate: 8,
-      gstRate: 5,
-      hsn: '6810',
-      category: 'Bricks',
-      imageUrl: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&h=400&fit=crop',
-    },
-    {
-      name: 'PPC Cement 43G',
-      type: ResourceType.MATERIAL,
-      unit: 'bag',
-      rate: 395,
-      gstRate: 28,
-      hsn: '2523',
-      category: 'Cement',
-    },
-    {
-      name: '10mm Aggregate',
-      type: ResourceType.MATERIAL,
-      unit: 'cum',
-      rate: 1350,
-      gstRate: 5,
-      hsn: '2517',
-      category: 'Aggregates',
-    },
-    {
-      name: 'M-Sand (Manufactured)',
-      type: ResourceType.MATERIAL,
-      unit: 'cum',
-      rate: 1650,
-      gstRate: 5,
-      hsn: '2505',
-      category: 'Aggregates',
-    },
-    {
-      name: 'Binding Wire 18G',
-      type: ResourceType.MATERIAL,
-      unit: 'kg',
-      rate: 68,
-      gstRate: 18,
-      hsn: '7217',
-      category: 'Steel',
-    },
-    {
-      name: 'TMT Steel Fe550',
-      type: ResourceType.MATERIAL,
-      unit: 'kg',
-      rate: 74,
-      gstRate: 18,
-      hsn: '7213',
-      category: 'Steel',
-    },
-    {
-      name: 'Red Clay Bricks',
-      type: ResourceType.MATERIAL,
-      unit: 'piece',
-      rate: 9,
-      gstRate: 5,
-      hsn: '6901',
-      category: 'Bricks',
-    },
-    {
-      name: 'AAC Blocks 600mm',
-      type: ResourceType.MATERIAL,
-      unit: 'piece',
-      rate: 95,
-      gstRate: 12,
-      hsn: '6810',
-      category: 'Bricks',
-    },
-    {
-      name: 'Ready Mix Concrete M25',
-      type: ResourceType.MATERIAL,
-      unit: 'cum',
-      rate: 5200,
-      gstRate: 18,
-      hsn: '3824',
-      category: 'Other',
-    },
-    {
-      name: 'Plaster of Paris',
-      type: ResourceType.MATERIAL,
-      unit: 'bag',
-      rate: 320,
-      gstRate: 18,
-      hsn: '2520',
-      category: 'Other',
-    },
-    {
-      name: 'Wall Putty',
-      type: ResourceType.MATERIAL,
-      unit: 'bag',
-      rate: 580,
-      gstRate: 18,
-      hsn: '3214',
-      category: 'Other',
-    },
-    {
-      name: 'Exterior Emulsion Paint',
-      type: ResourceType.MATERIAL,
-      unit: 'litre',
-      rate: 420,
-      gstRate: 18,
-      hsn: '3209',
-      category: 'Other',
-    },
-    {
-      name: 'Waterproofing Compound',
-      type: ResourceType.MATERIAL,
-      unit: 'kg',
-      rate: 185,
-      gstRate: 18,
-      hsn: '3824',
-      category: 'Other',
-    },
-    {
-      name: 'Plywood 18mm Commercial',
-      type: ResourceType.MATERIAL,
-      unit: 'sqft',
-      rate: 62,
-      gstRate: 18,
-      hsn: '4412',
-      category: 'Other',
-    },
-    {
-      name: 'Concrete Admixture',
-      type: ResourceType.MATERIAL,
-      unit: 'litre',
-      rate: 95,
-      gstRate: 18,
-      hsn: '3824',
-      category: 'Other',
-    },
-    {
-      name: 'GI Pipe 25mm',
-      type: ResourceType.MATERIAL,
-      unit: 'metre',
-      rate: 145,
-      gstRate: 18,
-      hsn: '7306',
-      category: 'Other',
-    },
-    {
-      name: 'UPVC Pipe 110mm',
-      type: ResourceType.MATERIAL,
-      unit: 'metre',
-      rate: 320,
-      gstRate: 18,
-      hsn: '3917',
-      category: 'Other',
-    },
-    {
-      name: 'Ceramic Floor Tile 600x600',
-      type: ResourceType.MATERIAL,
-      unit: 'sqft',
-      rate: 48,
-      gstRate: 18,
-      hsn: '6907',
-      category: 'Other',
-    },
-    {
-      name: 'Granite Slab 20mm',
-      type: ResourceType.MATERIAL,
-      unit: 'sqft',
-      rate: 185,
-      gstRate: 18,
-      hsn: '6802',
-      category: 'Other',
-    },
-    {
-      name: 'Aluminium Window Section',
-      type: ResourceType.MATERIAL,
-      unit: 'kg',
-      rate: 285,
-      gstRate: 18,
-      hsn: '7610',
-      category: 'Other',
-    },
-    {
-      name: 'Commercial Carpet Tile',
-      type: ResourceType.MATERIAL,
-      unit: 'sqm',
-      rate: 680,
-      gstRate: 18,
-      hsn: '5703',
-      category: 'Flooring',
-    },
-    { name: 'Mason Grade 1', type: ResourceType.LABOUR, unit: 'day', rate: 750, gstRate: 0, category: 'Skilled' },
-    { name: 'Mason Grade 2', type: ResourceType.LABOUR, unit: 'day', rate: 650, gstRate: 0, category: 'Skilled' },
-    { name: 'Carpenter', type: ResourceType.LABOUR, unit: 'day', rate: 800, gstRate: 0, category: 'Skilled' },
-    { name: 'Unskilled Labour', type: ResourceType.LABOUR, unit: 'day', rate: 450, gstRate: 0, category: 'Unskilled' },
-    { name: 'Concrete Mixer 200L', type: ResourceType.EQUIPMENT, unit: 'day', rate: 1800, gstRate: 18, hsn: '8474', category: 'Mixing' },
-    { name: 'Concrete Vibrator', type: ResourceType.EQUIPMENT, unit: 'day', rate: 600, gstRate: 18, hsn: '8474', category: 'Vibration' },
-    { name: 'JCB Excavator', type: ResourceType.EQUIPMENT, unit: 'day', rate: 12000, gstRate: 18, hsn: '8429', category: 'Earthwork' },
-  ];
-
   const resources: Record<string, { id: string }> = {};
-  for (const r of resourceSeed) {
+  let resourceCount = 0;
+  for (const item of CATALOG_DATA) {
     const created = await prisma.resource.upsert({
       where: {
-        companyId_name_type: { companyId: company.id, name: r.name, type: r.type },
+        companyId_name_type: { companyId: company.id, name: item.name, type: item.type },
       },
-      update: { rate: r.rate, gstRate: r.gstRate, hsnSacCode: r.hsn, lastRateUpdatedAt: new Date(), imageUrl: r.imageUrl ?? undefined },
+      update: {
+        rate: item.rate,
+        gstRate: item.gstRate,
+        hsnSacCode: item.hsn,
+        category: item.category,
+        brandOrSpec: item.brandOrSpec,
+        lastRateUpdatedAt: new Date(),
+      },
       create: {
         companyId: company.id,
-        name: r.name,
-        type: r.type,
-        unit: r.unit,
-        rate: r.rate,
-        gstRate: r.gstRate,
-        hsnSacCode: r.hsn,
-        category: r.category,
-        imageUrl: r.imageUrl,
+        name: item.name,
+        type: item.type,
+        unit: item.unit,
+        rate: item.rate,
+        gstRate: item.gstRate,
+        hsnSacCode: item.hsn,
+        category: item.category,
+        brandOrSpec: item.brandOrSpec,
         lastRateUpdatedAt: new Date(),
       },
     });
-    resources[r.name] = created;
+    resources[item.name] = created;
+    resourceCount++;
   }
+  // eslint-disable-next-line no-console
+  console.log(`   Seeded ${resourceCount} catalog resources`);
 
   // ----------------------------------------------------------------
-  // Rate Analyses (seed 3 of the 5 from spec)
+  // Rate Analyses (composite rates referencing catalog items)
   // ----------------------------------------------------------------
   type Component = {
     resourceName?: string;
@@ -477,8 +247,9 @@ async function main(): Promise<void> {
         totalRate: total,
         components: {
           create: components.map((c) => ({
-            resourceId: c.resourceName ? resources[c.resourceName]?.id : null,
-            miscName: c.miscName ?? null,
+            resourceId: c.resourceName ? (resources[c.resourceName]?.id ?? null) : null,
+            // Preserve the material name as miscName fallback if resource lookup fails
+            miscName: c.miscName ?? (c.resourceName && !resources[c.resourceName]?.id ? c.resourceName : null),
             quantityPerUnit: c.quantityPerUnit,
             unit: c.unit,
             rate: c.rate,
@@ -495,14 +266,20 @@ async function main(): Promise<void> {
     'cum',
     'M25 grade RCC (1:1:2) with Fe500 TMT steel reinforcement',
     [
-      { resourceName: 'OPC Cement 53G', quantityPerUnit: 6.5, unit: 'bag', rate: 420, type: CostType.MATERIAL },
-      { resourceName: 'River Sand', quantityPerUnit: 0.42, unit: 'cum', rate: 1800, type: CostType.MATERIAL },
-      { resourceName: '20mm Aggregate', quantityPerUnit: 0.84, unit: 'cum', rate: 1400, type: CostType.MATERIAL },
-      { resourceName: 'TMT Steel Fe500', quantityPerUnit: 78, unit: 'kg', rate: 72, type: CostType.MATERIAL },
-      { resourceName: 'Mason Grade 1', quantityPerUnit: 0.8, unit: 'day', rate: 750, type: CostType.LABOUR },
-      { resourceName: 'Unskilled Labour', quantityPerUnit: 2.5, unit: 'day', rate: 450, type: CostType.LABOUR },
-      { resourceName: 'Concrete Vibrator', quantityPerUnit: 0.5, unit: 'day', rate: 600, type: CostType.EQUIPMENT },
-      { miscName: 'Shuttering', quantityPerUnit: 1, unit: 'ls', rate: 850, type: CostType.MISC },
+      { resourceName: 'OPC Cement 53 Grade', quantityPerUnit: 6.5, unit: 'bag', rate: 420, type: CostType.MATERIAL },
+      { resourceName: 'River Sand (Fine)', quantityPerUnit: 0.42, unit: 'cum', rate: 1800, type: CostType.MATERIAL },
+      { resourceName: '20mm Aggregate', quantityPerUnit: 0.42, unit: 'cum', rate: 1400, type: CostType.MATERIAL },
+      { resourceName: '10mm Aggregate', quantityPerUnit: 0.42, unit: 'cum', rate: 1350, type: CostType.MATERIAL },
+      { resourceName: 'TMT Steel Fe500 12mm', quantityPerUnit: 78, unit: 'kg', rate: 73, type: CostType.MATERIAL },
+      { resourceName: 'Superplasticizer (SNF Based)', quantityPerUnit: 1.5, unit: 'litre', rate: 95, type: CostType.MATERIAL },
+      { resourceName: 'Binding Wire 18G', quantityPerUnit: 1.2, unit: 'kg', rate: 68, type: CostType.MATERIAL },
+      { resourceName: 'Cover Blocks (PVC) 25mm', quantityPerUnit: 4, unit: 'piece', rate: 3, type: CostType.MATERIAL },
+      { resourceName: 'Mason Grade 1 (Mistri)', quantityPerUnit: 0.8, unit: 'day', rate: 750, type: CostType.LABOUR },
+      { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 2.5, unit: 'day', rate: 450, type: CostType.LABOUR },
+      { resourceName: 'Concrete Mixer 200L', quantityPerUnit: 0.3, unit: 'day', rate: 1800, type: CostType.EQUIPMENT },
+      { resourceName: 'Needle Vibrator 40mm', quantityPerUnit: 0.5, unit: 'day', rate: 700, type: CostType.EQUIPMENT },
+      { miscName: 'Shuttering & Formwork', quantityPerUnit: 1, unit: 'ls', rate: 850, type: CostType.MISC },
+      { miscName: 'Electricity & Water', quantityPerUnit: 1, unit: 'ls', rate: 45, type: CostType.MISC },
     ],
   );
 
@@ -511,10 +288,11 @@ async function main(): Promise<void> {
     'cum',
     'Plain cement concrete M15 grade',
     [
-      { resourceName: 'OPC Cement 53G', quantityPerUnit: 3.4, unit: 'bag', rate: 420, type: CostType.MATERIAL },
-      { resourceName: 'River Sand', quantityPerUnit: 0.42, unit: 'cum', rate: 1800, type: CostType.MATERIAL },
+      { resourceName: 'OPC Cement 53 Grade', quantityPerUnit: 3.4, unit: 'bag', rate: 420, type: CostType.MATERIAL },
+      { resourceName: 'River Sand (Fine)', quantityPerUnit: 0.42, unit: 'cum', rate: 1800, type: CostType.MATERIAL },
       { resourceName: '20mm Aggregate', quantityPerUnit: 0.84, unit: 'cum', rate: 1400, type: CostType.MATERIAL },
-      { resourceName: 'Unskilled Labour', quantityPerUnit: 1.5, unit: 'day', rate: 450, type: CostType.LABOUR },
+      { resourceName: '40mm Aggregate', quantityPerUnit: 0.42, unit: 'cum', rate: 1300, type: CostType.MATERIAL },
+      { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 1.5, unit: 'day', rate: 450, type: CostType.LABOUR },
       { resourceName: 'Concrete Mixer 200L', quantityPerUnit: 0.3, unit: 'day', rate: 1800, type: CostType.EQUIPMENT },
     ],
   );
@@ -524,11 +302,11 @@ async function main(): Promise<void> {
     'sqm',
     '230mm thick brick masonry in cement mortar 1:6',
     [
-      { resourceName: 'Fly Ash Bricks', quantityPerUnit: 56, unit: 'piece', rate: 8, type: CostType.MATERIAL },
-      { resourceName: 'OPC Cement 53G', quantityPerUnit: 0.5, unit: 'bag', rate: 420, type: CostType.MATERIAL },
-      { resourceName: 'River Sand', quantityPerUnit: 0.03, unit: 'cum', rate: 1800, type: CostType.MATERIAL },
-      { resourceName: 'Mason Grade 1', quantityPerUnit: 0.35, unit: 'day', rate: 750, type: CostType.LABOUR },
-      { resourceName: 'Unskilled Labour', quantityPerUnit: 0.5, unit: 'day', rate: 450, type: CostType.LABOUR },
+      { resourceName: 'Fly Ash Brick 230x110x75', quantityPerUnit: 56, unit: 'piece', rate: 8, type: CostType.MATERIAL },
+      { resourceName: 'OPC Cement 53 Grade', quantityPerUnit: 0.5, unit: 'bag', rate: 420, type: CostType.MATERIAL },
+      { resourceName: 'River Sand (Fine)', quantityPerUnit: 0.03, unit: 'cum', rate: 1800, type: CostType.MATERIAL },
+      { resourceName: 'Mason Grade 1 (Mistri)', quantityPerUnit: 0.35, unit: 'day', rate: 750, type: CostType.LABOUR },
+      { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 0.5, unit: 'day', rate: 450, type: CostType.LABOUR },
     ],
   );
 
@@ -537,11 +315,80 @@ async function main(): Promise<void> {
     'sqm',
     'Interior emulsion - putty, primer, two coats',
     [
-      { resourceName: 'Exterior Emulsion Paint', quantityPerUnit: 0.12, unit: 'litre', rate: 420, type: CostType.MATERIAL },
-      { resourceName: 'Wall Putty', quantityPerUnit: 0.025, unit: 'bag', rate: 580, type: CostType.MATERIAL },
-      { resourceName: 'Unskilled Labour', quantityPerUnit: 0.08, unit: 'day', rate: 450, type: CostType.LABOUR },
+      { resourceName: 'Interior Emulsion (Premium)', quantityPerUnit: 0.12, unit: 'litre', rate: 380, type: CostType.MATERIAL },
+      { resourceName: 'Wall Putty (Cement Based)', quantityPerUnit: 0.025, unit: 'bag', rate: 580, type: CostType.MATERIAL },
+      { resourceName: 'Primer (Acrylic)', quantityPerUnit: 0.05, unit: 'litre', rate: 220, type: CostType.MATERIAL },
+      { resourceName: 'Painter (Skilled)', quantityPerUnit: 0.08, unit: 'day', rate: 700, type: CostType.LABOUR },
     ],
   );
+
+  await seedRateAnalysis(
+    'Internal Plaster 12mm CM 1:4',
+    'sqm',
+    '12mm thick internal plaster in cement mortar 1:4',
+    [
+      { resourceName: 'OPC Cement 53 Grade', quantityPerUnit: 0.15, unit: 'bag', rate: 420, type: CostType.MATERIAL },
+      { resourceName: 'River Sand (Fine)', quantityPerUnit: 0.02, unit: 'cum', rate: 1800, type: CostType.MATERIAL },
+      { resourceName: 'Mason Grade 2', quantityPerUnit: 0.15, unit: 'day', rate: 650, type: CostType.LABOUR },
+      { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 0.15, unit: 'day', rate: 450, type: CostType.LABOUR },
+    ],
+  );
+
+  await seedRateAnalysis(
+    'Vitrified Tile Flooring 600x600',
+    'sqft',
+    'Vitrified tile 600x600 laid in adhesive + cement slurry',
+    [
+      { resourceName: 'Vitrified Tile 600x600 Polished', quantityPerUnit: 1.1, unit: 'sqft', rate: 55, type: CostType.MATERIAL },
+      { resourceName: 'Tile Adhesive (Premium)', quantityPerUnit: 0.1, unit: 'bag', rate: 420, type: CostType.MATERIAL },
+      { resourceName: 'OPC Cement 53 Grade', quantityPerUnit: 0.05, unit: 'bag', rate: 420, type: CostType.MATERIAL },
+      { resourceName: 'River Sand (Fine)', quantityPerUnit: 0.003, unit: 'cum', rate: 1800, type: CostType.MATERIAL },
+      { resourceName: 'Tile / Marble Fixer', quantityPerUnit: 0.04, unit: 'day', rate: 750, type: CostType.LABOUR },
+      { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 0.04, unit: 'day', rate: 450, type: CostType.LABOUR },
+    ],
+  );
+
+  await seedRateAnalysis(
+    'RCC M20 Slabs & Beams',
+    'cum',
+    'M20 grade RCC for slabs and beams',
+    [
+      { resourceName: 'OPC Cement 53 Grade', quantityPerUnit: 6.0, unit: 'bag', rate: 420, type: CostType.MATERIAL },
+      { resourceName: 'River Sand (Fine)', quantityPerUnit: 0.42, unit: 'cum', rate: 1800, type: CostType.MATERIAL },
+      { resourceName: '20mm Aggregate', quantityPerUnit: 0.45, unit: 'cum', rate: 1400, type: CostType.MATERIAL },
+      { resourceName: '10mm Aggregate', quantityPerUnit: 0.45, unit: 'cum', rate: 1350, type: CostType.MATERIAL },
+      { resourceName: 'TMT Steel Fe500 16mm', quantityPerUnit: 100, unit: 'kg', rate: 72, type: CostType.MATERIAL },
+      { resourceName: 'Binding Wire 18G', quantityPerUnit: 1.5, unit: 'kg', rate: 68, type: CostType.MATERIAL },
+      { resourceName: 'Mason Grade 1 (Mistri)', quantityPerUnit: 0.6, unit: 'day', rate: 750, type: CostType.LABOUR },
+      { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 3.0, unit: 'day', rate: 450, type: CostType.LABOUR },
+      { resourceName: 'Concrete Mixer 350L', quantityPerUnit: 0.2, unit: 'day', rate: 2500, type: CostType.EQUIPMENT },
+      { resourceName: 'Needle Vibrator 60mm', quantityPerUnit: 0.5, unit: 'day', rate: 800, type: CostType.EQUIPMENT },
+      { miscName: 'Shuttering', quantityPerUnit: 1, unit: 'ls', rate: 1200, type: CostType.MISC },
+    ],
+  );
+
+  await seedRateAnalysis(
+    'Terrace Waterproofing (Brick Bat Coba)',
+    'sqm',
+    'Traditional brick bat coba waterproofing for terraces',
+    [
+      { resourceName: 'OPC Cement 53 Grade', quantityPerUnit: 1.0, unit: 'bag', rate: 420, type: CostType.MATERIAL },
+      { resourceName: 'Integral Waterproofing Liquid', quantityPerUnit: 0.15, unit: 'litre', rate: 140, type: CostType.MATERIAL },
+      { resourceName: 'River Sand (Fine)', quantityPerUnit: 0.04, unit: 'cum', rate: 1800, type: CostType.MATERIAL },
+      { resourceName: 'Fly Ash Brick 230x110x75', quantityPerUnit: 8, unit: 'piece', rate: 8, type: CostType.MATERIAL },
+      { resourceName: 'Mason Grade 2', quantityPerUnit: 0.2, unit: 'day', rate: 650, type: CostType.LABOUR },
+      { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 0.3, unit: 'day', rate: 450, type: CostType.LABOUR },
+    ],
+  );
+
+  // Bulk seed all composite rate analyses from rate-analysis-data.ts
+  let raDataCount = 0;
+  for (const ra of RATE_ANALYSES) {
+    await seedRateAnalysis(ra.name, ra.unit, ra.description, ra.components);
+    raDataCount++;
+  }
+  // eslint-disable-next-line no-console
+  console.log(`   Seeded ${raDataCount} composite rate analyses from data file`);
 
   // ----------------------------------------------------------------
   // Rate regions (regional material rate books)
@@ -567,28 +414,28 @@ async function main(): Promise<void> {
     data: [
       {
         regionId: regionHyderabad.id,
-        resourceId: resources['OPC Cement 53G'].id,
+        resourceId: resources['OPC Cement 53 Grade'].id,
         rate: 418,
         unit: 'bag',
         effectiveDate,
       },
       {
         regionId: regionHyderabad.id,
-        resourceId: resources['River Sand'].id,
+        resourceId: resources['River Sand (Fine)'].id,
         rate: 1780,
         unit: 'cum',
         effectiveDate,
       },
       {
         regionId: regionApTier2.id,
-        resourceId: resources['OPC Cement 53G'].id,
+        resourceId: resources['OPC Cement 53 Grade'].id,
         rate: 438,
         unit: 'bag',
         effectiveDate,
       },
       {
         regionId: regionApTier2.id,
-        resourceId: resources['TMT Steel Fe500'].id,
+        resourceId: resources['TMT Steel Fe500 12mm'].id,
         rate: 74,
         unit: 'kg',
         effectiveDate,
@@ -622,7 +469,7 @@ async function main(): Promise<void> {
   await prisma.projectMaterialRate.create({
     data: {
       projectId: project1.id,
-      resourceId: resources['OPC Cement 53G'].id,
+      resourceId: resources['OPC Cement 53 Grade'].id,
       rate: 435,
       unit: 'bag',
       notes: 'Remote haulage included',
@@ -800,7 +647,7 @@ async function main(): Promise<void> {
       lines: {
         create: [
           {
-            resourceId: resources['OPC Cement 53G'].id,
+            resourceId: resources['OPC Cement 53 Grade'].id,
             quantity: 500,
             unit: 'bag',
           },
@@ -821,7 +668,7 @@ async function main(): Promise<void> {
       lines: {
         create: [
           {
-            resourceId: resources['OPC Cement 53G'].id,
+            resourceId: resources['OPC Cement 53 Grade'].id,
             quantity: 500,
             unit: 'bag',
             rate: 420,
@@ -846,7 +693,7 @@ async function main(): Promise<void> {
       lines: {
         create: [
           {
-            resourceId: resources['OPC Cement 53G'].id,
+            resourceId: resources['OPC Cement 53 Grade'].id,
             quantity: 500,
             unit: 'bag',
           },
@@ -856,7 +703,7 @@ async function main(): Promise<void> {
   });
 
   await applyStockIn(stockLoc.id, grn1.id, [
-    { resourceId: resources['OPC Cement 53G'].id, quantity: 500 },
+    { resourceId: resources['OPC Cement 53 Grade'].id, quantity: 500 },
   ]);
 
   const subbie = await prisma.subcontractor.create({
@@ -942,7 +789,7 @@ async function main(): Promise<void> {
             qtyDelta: 50,
             rate: 420,
             amount: 21_000,
-            resourceId: resources['OPC Cement 53G'].id,
+            resourceId: resources['OPC Cement 53 Grade'].id,
           },
         ],
       },
@@ -962,7 +809,7 @@ async function main(): Promise<void> {
       lines: {
         create: [
           {
-            resourceId: resources['OPC Cement 53G'].id,
+            resourceId: resources['OPC Cement 53 Grade'].id,
             quantity: 200,
             unit: 'bag',
             boqItemId: boqPcc.id,
@@ -1057,7 +904,7 @@ async function main(): Promise<void> {
         rate: 445,
         amount: 133_500,
         type: CostType.MATERIAL,
-        resourceId: resources['OPC Cement 53G'].id,
+        resourceId: resources['OPC Cement 53 Grade'].id,
       },
       {
         estimateId: estimate2.id,
@@ -1068,7 +915,7 @@ async function main(): Promise<void> {
         rate: 750,
         amount: 90_000,
         type: CostType.LABOUR,
-        resourceId: resources['Mason Grade 1'].id,
+        resourceId: resources['Mason Grade 1 (Mistri)'].id,
       },
     ],
   });
@@ -1242,7 +1089,7 @@ async function main(): Promise<void> {
             rateSource: 'CATALOG',
           },
           {
-            resourceId: resources['Exterior Emulsion Paint'].id,
+            resourceId: resources['Exterior Emulsion Paint (Premium)'].id,
             quantity: paintLitres,
             unit: 'litre',
             expectedRate: 420,
@@ -1272,7 +1119,7 @@ async function main(): Promise<void> {
             amount: 646_000,
           },
           {
-            resourceId: resources['Exterior Emulsion Paint'].id,
+            resourceId: resources['Exterior Emulsion Paint (Premium)'].id,
             quantity: paintLitres,
             unit: 'litre',
             rate: 420,
@@ -1302,7 +1149,7 @@ async function main(): Promise<void> {
             unit: 'sqm',
           },
           {
-            resourceId: resources['Exterior Emulsion Paint'].id,
+            resourceId: resources['Exterior Emulsion Paint (Premium)'].id,
             quantity: paintLitres,
             unit: 'litre',
           },
@@ -1313,7 +1160,7 @@ async function main(): Promise<void> {
 
   await applyStockIn(stockLocTrail.id, grnTrail.id, [
     { resourceId: resources['Commercial Carpet Tile'].id, quantity: 950 },
-    { resourceId: resources['Exterior Emulsion Paint'].id, quantity: paintLitres },
+    { resourceId: resources['Exterior Emulsion Paint (Premium)'].id, quantity: paintLitres },
   ]);
 
   const paintIssuedDemo = 36;
@@ -1326,7 +1173,7 @@ async function main(): Promise<void> {
       workersCount: 8,
       materialUsages: {
         create: {
-          resourceId: resources['Exterior Emulsion Paint'].id,
+          resourceId: resources['Exterior Emulsion Paint (Premium)'].id,
           quantityUsed: paintIssuedDemo,
           notes: 'Deduct from site stock (demo)',
         },
@@ -1335,7 +1182,7 @@ async function main(): Promise<void> {
   });
 
   await applyStockOut(stockLocTrail.id, trailDailyReport.id, [
-    { resourceId: resources['Exterior Emulsion Paint'].id, quantity: paintIssuedDemo },
+    { resourceId: resources['Exterior Emulsion Paint (Premium)'].id, quantity: paintIssuedDemo },
   ]);
 
   const boqCarpetInstall = await prisma.bOQItem.create({

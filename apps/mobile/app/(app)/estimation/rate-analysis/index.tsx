@@ -50,7 +50,7 @@ export default function RateAnalysisLibraryScreen() {
   const canManage = user?.role === 'OWNER' || user?.role === 'PM';
 
   const analyses = useMemo(() => {
-    let rows = data?.data ?? [];
+    let rows = data ?? [];
     if (search.trim()) {
       const q = search.toLowerCase();
       rows = rows.filter((r: RateAnalysis) => r.name.toLowerCase().includes(q));

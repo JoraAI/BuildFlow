@@ -11,7 +11,7 @@ import { logger } from '../config/logger';
 export interface AuditEntry {
   companyId: string;
   userId: string;
-  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'LOGIN' | 'LOGOUT' | 'APPROVE' | 'REJECT' | 'SUBMIT' | 'SEND' | 'CUSTOM';
+  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'LOGIN' | 'LOGOUT' | 'APPROVE' | 'REJECT' | 'SUBMIT' | 'SEND' | 'CUSTOM' | 'RESET';
   entityType: string;
   entityId: string;
   oldValue?: unknown;

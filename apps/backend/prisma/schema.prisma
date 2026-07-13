@@ -19,6 +19,13 @@ datasource db {
 enum Role {
   OWNER
   PM
+  DPM
+  QC
+  MECHANICAL_MANAGER
+  STORE_INCHARGE
+  WEIGHBRIDGE_INCHARGE
+  SITE_SUPERVISOR
+  /// @deprecated — kept for backward compat; use SITE_SUPERVISOR
   SUPERVISOR
   ACCOUNTANT
 }
@@ -244,6 +251,7 @@ model Company {
   reportSchedules     ReportSchedule[]
   proposals           Proposal[]
   rateRegions         RateRegion[]
+  rolePermissions     CompanyRolePermission[]
 
   @@map("companies")
 }
@@ -1145,6 +1153,25 @@ model CompanyIntegration {
 
   @@unique([companyId, provider])
   @@map("company_integrations")
+}
+
+// ------------------------------------------------------------------
+// CompanyRolePermission (per-company role permission overrides)
+// ------------------------------------------------------------------
+
+model CompanyRolePermission {
+  id           String   @id @default(uuid()) @db.Uuid
+  companyId    String   @map("company_id") @db.Uuid
+  role         Role
+  permissions  String[] @default([])
+  isCustomized Boolean  @default(false) @map("is_customized")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, role])
+  @@index([companyId])
+  @@map("company_role_permissions")
 }
 
 // ------------------------------------------------------------------

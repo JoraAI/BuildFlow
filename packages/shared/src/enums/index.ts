@@ -8,15 +8,63 @@
 export const Role = {
   OWNER: 'OWNER',
   PM: 'PM',
+  DPM: 'DPM',
+  QC: 'QC',
+  MECHANICAL_MANAGER: 'MECHANICAL_MANAGER',
+  STORE_INCHARGE: 'STORE_INCHARGE',
+  WEIGHBRIDGE_INCHARGE: 'WEIGHBRIDGE_INCHARGE',
+  SITE_SUPERVISOR: 'SITE_SUPERVISOR',
+  /** @deprecated Use SITE_SUPERVISOR — kept for migration compatibility */
   SUPERVISOR: 'SUPERVISOR',
   ACCOUNTANT: 'ACCOUNTANT',
 } as const;
 export type Role = (typeof Role)[keyof typeof Role];
 
-export const ALL_ROLES: Role[] = [Role.OWNER, Role.PM, Role.SUPERVISOR, Role.ACCOUNTANT];
+/** All selectable roles for invites / UI dropdowns (excludes deprecated). */
+export const ALL_ROLES: Role[] = [
+  Role.OWNER,
+  Role.PM,
+  Role.DPM,
+  Role.QC,
+  Role.MECHANICAL_MANAGER,
+  Role.STORE_INCHARGE,
+  Role.WEIGHBRIDGE_INCHARGE,
+  Role.SITE_SUPERVISOR,
+  Role.ACCOUNTANT,
+];
 
-/** Roles that can access the Accounting module. */
+/** Roles that can access the Accounting module (default permissions). */
 export const ACCOUNTING_ROLES: Role[] = [Role.OWNER, Role.ACCOUNTANT];
+
+/**
+ * Human-readable labels for each role, used in invite UI and user management.
+ */
+export const ROLE_LABELS: Record<Role, string> = {
+  OWNER: 'Owner / MD',
+  PM: 'Project Manager',
+  DPM: 'Deputy Project Manager',
+  QC: 'Senior QC Engineer',
+  MECHANICAL_MANAGER: 'Mechanical Manager',
+  STORE_INCHARGE: 'Store Incharge',
+  WEIGHBRIDGE_INCHARGE: 'WeighBridge Incharge',
+  SITE_SUPERVISOR: 'Site Supervisor',
+  SUPERVISOR: 'Site Supervisor (legacy)',
+  ACCOUNTANT: 'Accountant',
+};
+
+/**
+ * Roles that can be assigned via invite (Owner is assigned at company creation only).
+ */
+export const INVITABLE_ROLES: Role[] = [
+  Role.PM,
+  Role.DPM,
+  Role.QC,
+  Role.MECHANICAL_MANAGER,
+  Role.STORE_INCHARGE,
+  Role.WEIGHBRIDGE_INCHARGE,
+  Role.SITE_SUPERVISOR,
+  Role.ACCOUNTANT,
+];
 
 export const ProjectType = {
   HEAVY: 'HEAVY',

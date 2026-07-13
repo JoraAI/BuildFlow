@@ -60,6 +60,7 @@ export async function materialDemandsForEstimateItem(
     rateAnalysisId: string | null;
     quantity: unknown;
     unit: string;
+    description?: string;
   },
   boqItemId?: string,
 ): Promise<MaterialDemandLine[]> {
@@ -68,6 +69,7 @@ export async function materialDemandsForEstimateItem(
   const scopeQty = Number(item.quantity);
   if (scopeQty <= 0) return [];
 
+  // 1. Direct catalog resource link
   if (item.resourceId) {
     return [
       {
@@ -79,6 +81,7 @@ export async function materialDemandsForEstimateItem(
     ];
   }
 
+  // 2. Rate analysis BOM explosion
   if (item.rateAnalysisId) {
     const components = await prisma.rateAnalysisComponent.findMany({
       where: {
@@ -93,6 +96,25 @@ export async function materialDemandsForEstimateItem(
       unit: c.unit,
       boqItemId,
     }));
+  }
+
+  // 3. Safety-net: MATERIAL item with no procurement link.
+  //    Try to find a catalog resource by description match so indents are still generated.
+  if (!item.resourceId && !item.rateAnalysisId && item.description) {
+    const match = await prisma.resource.findFirst({
+      where: { name: { contains: item.description, mode: 'insensitive' } },
+      select: { id: true },
+    });
+    if (match) {
+      return [
+        {
+          resourceId: match.id,
+          quantity: round3(scopeQty),
+          unit: item.unit,
+          boqItemId,
+        },
+      ];
+    }
   }
 
   return [];
@@ -214,6 +236,7 @@ export async function fetchBoqMaterialDemands(projectId: string): Promise<BoqMat
         rateAnalysisId: est?.rateAnalysisId ?? null,
         quantity: remaining,
         unit: item.unit,
+        description: item.description,
       },
       item.id,
     );
@@ -295,6 +318,7 @@ export async function buildMaterialDemandsFromEstimateItems(
     rateAnalysisId: string | null;
     quantity: unknown;
     unit: string;
+    description?: string;
   }>,
   boqByEstimateItemId: Map<string, string>,
 ): Promise<MaterialDemandLine[]> {

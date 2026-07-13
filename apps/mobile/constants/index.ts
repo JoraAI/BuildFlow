@@ -12,10 +12,16 @@ export const SECURE_STORE_KEYS = {
   USER: 'bf_user',
 } as const;
 
-/** Maps each role to the tabs it may see. */
+/** Maps each role to the tabs it may see (default; overridable per company). */
 export const ROLE_TABS: Record<Role, readonly string[]> = {
   OWNER: ['dashboard', 'projects', 'proposals', 'planning', 'reports', 'accounting', 'settings'],
   PM: ['dashboard', 'projects', 'proposals', 'planning', 'reports', 'accounting'],
+  DPM: ['dashboard', 'projects', 'planning', 'reports'],
+  QC: ['dashboard', 'projects', 'reports'],
+  MECHANICAL_MANAGER: ['dashboard', 'projects', 'reports'],
+  STORE_INCHARGE: ['dashboard', 'projects', 'reports'],
+  WEIGHBRIDGE_INCHARGE: ['dashboard', 'projects', 'reports'],
+  SITE_SUPERVISOR: ['dashboard', 'projects', 'reports'],
   SUPERVISOR: ['dashboard', 'projects', 'reports'],
   ACCOUNTANT: ['dashboard', 'accounting', 'reports'],
 } as const;

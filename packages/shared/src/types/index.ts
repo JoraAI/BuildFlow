@@ -66,6 +66,12 @@ export interface AuthUser {
   email: string;
   role: Role;
   isActive: boolean;
+  /** Resolved permission list for the user's role (company-customizable). */
+  permissions?: string[];
+  /** Display fields (populated on login/me endpoints). */
+  companyName?: string;
+  phone?: string | null;
+  companyLogoUrl?: string | null;
 }
 
 export interface AuthTokens {

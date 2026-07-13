@@ -23,11 +23,47 @@ export const ROLE_META: Record<
     color: '#2563EB',
     description: 'Project planning, scheduling, cost estimation, resources',
   },
-  SUPERVISOR: {
+  DPM: {
+    label: 'Deputy Project Manager',
+    short: 'DPM',
+    color: '#3B82F6',
+    description: 'Deputy PM — project ops without final approvals',
+  },
+  QC: {
+    label: 'Senior QC Engineer',
+    short: 'QC',
+    color: '#0D9488',
+    description: 'Quality control, inspections, measurements',
+  },
+  MECHANICAL_MANAGER: {
+    label: 'Mechanical Manager',
+    short: 'Mech. Mgr',
+    color: '#0891B2',
+    description: 'Equipment & mechanical work oversight',
+  },
+  STORE_INCHARGE: {
+    label: 'Store Incharge',
+    short: 'Store',
+    color: '#CA8A04',
+    description: 'Inventory, stock, procurement, GRN',
+  },
+  WEIGHBRIDGE_INCHARGE: {
+    label: 'WeighBridge Incharge',
+    short: 'WeighBridge',
+    color: '#D97706',
+    description: 'Material weighing, concrete pour tracking',
+  },
+  SITE_SUPERVISOR: {
     label: 'Site Supervisor / Foreman',
     short: 'Supervisor',
     color: '#10B981',
     description: 'Daily reports, progress updates, material tracking',
+  },
+  SUPERVISOR: {
+    label: 'Site Supervisor (legacy)',
+    short: 'Supervisor',
+    color: '#10B981',
+    description: 'Legacy supervisor role — use Site Supervisor',
   },
   ACCOUNTANT: {
     label: 'Accountant / Finance',
@@ -44,6 +80,12 @@ export const ROLE_META: Record<
 export const ROLE_TABS: Record<Role, string[]> = {
   OWNER: ['dashboard', 'projects', 'proposals', 'planning', 'reports', 'accounting', 'settings'],
   PM: ['dashboard', 'projects', 'proposals', 'planning', 'reports', 'accounting'],
+  DPM: ['dashboard', 'projects', 'planning', 'reports'],
+  QC: ['dashboard', 'projects', 'reports'],
+  MECHANICAL_MANAGER: ['dashboard', 'projects', 'reports'],
+  STORE_INCHARGE: ['dashboard', 'projects', 'reports'],
+  WEIGHBRIDGE_INCHARGE: ['dashboard', 'projects', 'reports'],
+  SITE_SUPERVISOR: ['dashboard', 'projects', 'reports'],
   SUPERVISOR: ['dashboard', 'projects', 'reports'],
   ACCOUNTANT: ['dashboard', 'accounting', 'reports'],
 };

@@ -74,7 +74,7 @@ export default function EstimateDetailScreen() {
       dismissTo(DISMISS.proposalDetail(proposalId));
       return;
     }
-    dismissTo(DISMISS.estimateTab(estimate.projectId));
+    dismissTo(DISMISS.estimateTab(estimate!.projectId));
   }
 
   const breakdownRows = [

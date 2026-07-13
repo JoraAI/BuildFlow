@@ -1,8 +1,8 @@
 /**
  * BuildFlow - Settings routes.
  *
- * Company profile, Users & Roles, Audit Log, Data Export.
- * All routes require authentication. Company mutations + Users require OWNER.
+ * Company profile, Users & Roles, Audit Log, Data Export, Role Permissions.
+ * All routes require authentication. Permission-based guards (company-customizable).
  */
 import { Router } from 'express';
 import {
@@ -37,7 +37,9 @@ import {
   updateTicket,
 } from '../controllers/settings.controller';
 import * as rateRegionController from '../controllers/rate-region.controller';
-import { authenticateToken, requireRole } from '../middleware/auth';
+import * as permissionController from '../controllers/permission.controller';
+import { authenticateToken } from '../middleware/auth';
+import { requirePermission, requireAnyPermission } from '../middleware/permission';
 import { validate } from '../middleware/validate';
 import { auditLog } from '../middleware/audit';
 import {
@@ -80,7 +82,7 @@ router.get('/company', authenticateToken, getCompany);
 router.put(
   '/company',
   authenticateToken,
-  requireRole('OWNER'),
+  requirePermission('settings.company'),
   validate({ body: companyUpdateSchema }),
   auditLog('UPDATE', 'Company'),
   updateCompany,
@@ -89,7 +91,7 @@ router.put(
 router.post(
   '/company/logo/upload-url',
   authenticateToken,
-  requireRole('OWNER'),
+  requirePermission('settings.company'),
   validate({ body: logoUploadSchema }),
   createLogoUploadUrl,
 );
@@ -102,22 +104,22 @@ router.post(
   createTicket,
 );
 router.get('/tickets/mine', authenticateToken, listMyTickets);
-router.get('/tickets/inbox', authenticateToken, requireRole('OWNER'), listTicketInbox);
+router.get('/tickets/inbox', authenticateToken, requirePermission('settings.tickets'), listTicketInbox);
 router.patch(
   '/tickets/:ticketId',
   authenticateToken,
-  requireRole('OWNER'),
+  requirePermission('settings.tickets'),
   validate({ body: updateTicketSchema }),
   updateTicket,
 );
 
 // Users & Roles
-router.get('/users', authenticateToken, requireRole('OWNER'), listCompanyUsers);
-router.get('/users/:userId/audit', authenticateToken, requireRole('OWNER'), getUserAudit);
+router.get('/users', authenticateToken, requirePermission('settings.users'), listCompanyUsers);
+router.get('/users/:userId/audit', authenticateToken, requirePermission('settings.users'), getUserAudit);
 router.put(
   '/users/:userId',
   authenticateToken,
-  requireRole('OWNER'),
+  requirePermission('settings.users'),
   validate({ body: userRoleUpdateSchema }),
   auditLog('UPDATE', 'User'),
   updateUserRole,
@@ -126,33 +128,33 @@ router.put(
 router.post(
   '/users/invite',
   authenticateToken,
-  requireRole('OWNER'),
+  requirePermission('settings.users'),
   validate({ body: createUserInviteSchema }),
   createUserInvite,
 );
-router.get('/users/invites', authenticateToken, requireRole('OWNER'), listUserInvites);
+router.get('/users/invites', authenticateToken, requirePermission('settings.users'), listUserInvites);
 router.delete(
   '/users/invites/:inviteId',
   authenticateToken,
-  requireRole('OWNER'),
+  requirePermission('settings.users'),
   revokeUserInvite,
 );
 router.post(
   '/users/invites/:inviteId/resend',
   authenticateToken,
-  requireRole('OWNER'),
+  requirePermission('settings.users'),
   resendUserInvite,
 );
 
 // Audit Log
-router.get('/audit', authenticateToken, requireRole('OWNER'), validate({ query: auditQuerySchema }), listAudit);
+router.get('/audit', authenticateToken, requirePermission('settings.audit'), validate({ query: auditQuerySchema }), listAudit);
 
-// Integrations (company-scoped credentials; OWNER only)
-router.get('/integrations', authenticateToken, requireRole('OWNER'), getIntegrations);
+// Integrations (company-scoped credentials)
+router.get('/integrations', authenticateToken, requirePermission('settings.integrations'), getIntegrations);
 router.put(
   '/integrations/twilio',
   authenticateToken,
-  requireRole('OWNER'),
+  requirePermission('settings.integrations'),
   validate({ body: twilioIntegrationSchema }),
   auditLog('UPDATE', 'CompanyIntegration'),
   updateTwilioIntegration,
@@ -160,7 +162,7 @@ router.put(
 router.put(
   '/integrations/razorpay',
   authenticateToken,
-  requireRole('OWNER'),
+  requirePermission('settings.integrations'),
   validate({ body: razorpayIntegrationSchema }),
   auditLog('UPDATE', 'CompanyIntegration'),
   updateRazorpayIntegration,
@@ -168,7 +170,7 @@ router.put(
 router.put(
   '/integrations/stripe',
   authenticateToken,
-  requireRole('OWNER'),
+  requirePermission('settings.integrations'),
   validate({ body: stripeIntegrationSchema }),
   auditLog('UPDATE', 'CompanyIntegration'),
   updateStripeIntegration,
@@ -176,7 +178,7 @@ router.put(
 router.put(
   '/integrations/tally',
   authenticateToken,
-  requireRole('OWNER'),
+  requirePermission('settings.integrations'),
   validate({ body: tallyIntegrationSchema }),
   auditLog('UPDATE', 'CompanyIntegration'),
   updateTallyIntegration,
@@ -184,7 +186,7 @@ router.put(
 router.put(
   '/integrations/google-maps',
   authenticateToken,
-  requireRole('OWNER'),
+  requirePermission('settings.integrations'),
   validate({ body: googleMapsIntegrationSchema }),
   auditLog('UPDATE', 'CompanyIntegration'),
   updateGoogleMapsIntegration,
@@ -192,7 +194,7 @@ router.put(
 router.put(
   '/integrations/llm',
   authenticateToken,
-  requireRole('OWNER'),
+  requirePermission('settings.integrations'),
   validate({ body: llmIntegrationSchema }),
   auditLog('UPDATE', 'CompanyIntegration'),
   updateLlmIntegration,
@@ -200,62 +202,89 @@ router.put(
 router.put(
   '/integrations/s3',
   authenticateToken,
-  requireRole('OWNER'),
+  requirePermission('settings.integrations'),
   validate({ body: s3IntegrationSchema }),
   auditLog('UPDATE', 'CompanyIntegration'),
   updateS3Integration,
 );
 
 // Subscription / billing
-router.get('/subscription', authenticateToken, requireRole('OWNER'), getSubscription);
+router.get('/subscription', authenticateToken, requirePermission('settings.billing'), getSubscription);
 router.post(
   '/subscription/checkout',
   authenticateToken,
-  requireRole('OWNER'),
+  requirePermission('settings.billing'),
   validate({ body: saasCheckoutSchema }),
   createSubscriptionCheckout,
 );
 
 // Data Export
-router.get('/export', authenticateToken, requireRole('OWNER'), exportData);
-router.get('/export/zip', authenticateToken, requireRole('OWNER'), exportDataZip);
+router.get('/export', authenticateToken, requirePermission('settings.export'), exportData);
+router.get('/export/zip', authenticateToken, requirePermission('settings.export'), exportDataZip);
 
 // Rate regions (regional material rate books)
-router.get('/rate-regions', authenticateToken, requireRole('OWNER', 'PM'), rateRegionController.listRateRegions);
+router.get('/rate-regions', authenticateToken, requireAnyPermission(['settings.rate_regions', 'settings.material_prices']), rateRegionController.listRateRegions);
 router.post(
   '/rate-regions',
   authenticateToken,
-  requireRole('OWNER'),
+  requirePermission('settings.rate_regions'),
   validate({ body: createRateRegionSchema }),
   rateRegionController.createRateRegion,
 );
 router.put(
   '/rate-regions/:regionId',
   authenticateToken,
-  requireRole('OWNER'),
+  requirePermission('settings.rate_regions'),
   validate({ params: rateRegionParamsSchema, body: updateRateRegionSchema }),
   rateRegionController.updateRateRegion,
 );
 router.delete(
   '/rate-regions/:regionId',
   authenticateToken,
-  requireRole('OWNER'),
+  requirePermission('settings.rate_regions'),
   validate({ params: rateRegionParamsSchema }),
   rateRegionController.deleteRateRegion,
 );
 router.get(
   '/rate-regions/:regionId/rates',
   authenticateToken,
-  requireRole('OWNER', 'PM'),
+  requireAnyPermission(['settings.rate_regions', 'settings.material_prices']),
   validate({ params: rateRegionParamsSchema }),
   rateRegionController.listRegionalRates,
 );
 router.put(
   '/rate-regions/:regionId/rates',
   authenticateToken,
-  requireRole('OWNER'),
+  requirePermission('settings.rate_regions'),
   validate({ params: rateRegionParamsSchema, body: bulkUpsertRegionalRatesSchema }),
   rateRegionController.upsertRegionalRates,
+);
+
+// ── Role Permissions (company-customizable) ──────────────────────────
+router.get(
+  '/permissions',
+  authenticateToken,
+  requirePermission('settings.permissions'),
+  permissionController.getPermissions,
+);
+router.put(
+  '/permissions/:role',
+  authenticateToken,
+  requirePermission('settings.permissions'),
+  auditLog('UPDATE', 'RolePermissions'),
+  permissionController.updateRolePermissions,
+);
+router.post(
+  '/permissions/:role/reset',
+  authenticateToken,
+  requirePermission('settings.permissions'),
+  permissionController.resetRolePermissions,
+);
+router.post(
+  '/permissions/reset',
+  authenticateToken,
+  requirePermission('settings.permissions'),
+  permissionController.resetAllRolePermissions,
 );
 
 export default router;

@@ -24,7 +24,7 @@ export function RateAnalysisPicker({
   }, [search]);
 
   const { data, isLoading, isFetching } = useRateAnalyses();
-  const all = data?.data ?? [];
+  const all = data ?? [];
 
   const analyses = useMemo(() => {
     if (!debouncedSearch) return all;

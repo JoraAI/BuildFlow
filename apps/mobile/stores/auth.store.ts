@@ -24,6 +24,8 @@ export interface AuthUser {
   companyName: string;
   phone?: string | null;
   companyLogoUrl?: string | null;
+  /** Role-based permissions loaded at login (string permission codes). */
+  permissions?: string[];
 }
 
 interface AuthState {

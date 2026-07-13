@@ -167,7 +167,7 @@ export function EstimateBuildStep({
   const { data: materialsData } = useMaterials({ limit: 300 });
   const materials = materialsData?.data ?? [];
   const { data: rateAnalysesData } = useRateAnalyses();
-  const rateAnalyses = rateAnalysesData?.data ?? [];
+  const rateAnalyses = rateAnalysesData ?? [];
 
   const summary = estimate?.summary;
   const sections = estimate?.sections ?? [];

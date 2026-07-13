@@ -36,6 +36,7 @@ export interface AuthResponse {
     companyName: string;
     phone: string | null;
     companyLogoUrl: string | null;
+    permissions: string[]; // resolved permissions for this role
   };
   accessToken: string;
   refreshToken: string;
@@ -54,7 +55,11 @@ async function toPublicUser(
   },
 ) {
   const { resolveLogoDisplayUrl } = await import('./settings.service');
-  const companyLogoUrl = await resolveLogoDisplayUrl(user.companyId, user.company.logoUrl);
+  const { getRolePermissions } = await import('../lib/permissions');
+  const [companyLogoUrl, permissions] = await Promise.all([
+    resolveLogoDisplayUrl(user.companyId, user.company.logoUrl),
+    getRolePermissions(user.companyId, user.role),
+  ]);
   return {
     id: user.id,
     name: user.name,
@@ -64,6 +69,7 @@ async function toPublicUser(
     companyId: user.companyId,
     companyName: user.company.name,
     companyLogoUrl,
+    permissions,
   };
 }
 

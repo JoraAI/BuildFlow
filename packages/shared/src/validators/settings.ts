@@ -80,7 +80,18 @@ export const platformTicketUpdateSchema = z.object({
 export const userRoleUpdateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   phone: z.string().max(20).optional(),
-  role: z.enum(['OWNER', 'PM', 'SUPERVISOR', 'ACCOUNTANT']).optional(),
+  role: z.enum([
+    'OWNER',
+    'PM',
+    'DPM',
+    'QC',
+    'MECHANICAL_MANAGER',
+    'STORE_INCHARGE',
+    'WEIGHBRIDGE_INCHARGE',
+    'SITE_SUPERVISOR',
+    'SUPERVISOR',
+    'ACCOUNTANT',
+  ]).optional(),
   isActive: z.boolean().optional(),
 });
 

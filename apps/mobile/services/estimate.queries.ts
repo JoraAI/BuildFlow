@@ -359,7 +359,11 @@ export function useAddPriceHistory(resourceId: string) {
 export function useRateAnalyses() {
   return useQuery({
     queryKey: ['rate-analysis'] as const,
-    queryFn: () => apiFetch<{ data: RateAnalysis[] }>('/rate-analysis?limit=500'),
+    queryFn: async () => {
+      const { data } = await apiFetchList<RateAnalysis>('/rate-analysis?limit=200');
+      // Sort alphabetically by name as a safety net
+      return data.sort((a, b) => a.name.localeCompare(b.name));
+    },
     staleTime: 60 * 60 * 1000,
   });
 }

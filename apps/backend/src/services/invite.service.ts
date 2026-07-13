@@ -111,7 +111,7 @@ export async function resendInvite(
 
   return createInvite(companyId, invitedById, {
     email: invite.email,
-    role: invite.role as 'PM' | 'SUPERVISOR' | 'ACCOUNTANT',
+    role: invite.role as 'PM' | 'DPM' | 'QC' | 'MECHANICAL_MANAGER' | 'STORE_INCHARGE' | 'WEIGHBRIDGE_INCHARGE' | 'SITE_SUPERVISOR' | 'ACCOUNTANT',
   });
 }
 
@@ -191,7 +191,11 @@ export async function acceptInvite(
   const tokens = issueTokens({ sub: user.id, companyId: user.companyId, role: user.role });
   const companyMeta = invite.company as { name: string; logoUrl: string | null };
   const { resolveLogoDisplayUrl } = await import('./settings.service');
-  const companyLogoUrl = await resolveLogoDisplayUrl(user.companyId, companyMeta.logoUrl);
+  const { getRolePermissions } = await import('../lib/permissions');
+  const [companyLogoUrl, permissions] = await Promise.all([
+    resolveLogoDisplayUrl(user.companyId, companyMeta.logoUrl),
+    getRolePermissions(user.companyId, user.role),
+  ]);
 
   return {
     user: {
@@ -203,6 +207,7 @@ export async function acceptInvite(
       companyName: companyMeta.name,
       phone: user.phone,
       companyLogoUrl,
+      permissions,
     },
     ...tokens,
   };

@@ -39,7 +39,7 @@ export default function ProposalsHubScreen() {
   const { data: raData, refetch: refetchRa, isFetching: raFetching } = useRateAnalyses();
   const { data: proposals, refetch, isFetching, isLoading } = useProposals();
 
-  const analyses = raData?.data ?? [];
+  const analyses = raData ?? [];
   const canManage = user?.role === 'OWNER' || user?.role === 'PM';
 
   const filtered = (proposals ?? []).filter((p: ProposalListItem) =>
