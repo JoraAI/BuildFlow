@@ -75,7 +75,7 @@ export interface Bill {
 export type InvoiceType = 'STANDARD' | 'RUNNING_ACCOUNT' | 'MILESTONE';
 
 export interface InvoiceInput {
-  invoiceNumber: string;
+  invoiceNumber?: string;
   clientName: string;
   clientGstin?: string;
   clientState?: string;
@@ -104,7 +104,7 @@ export interface InvoiceInput {
 }
 
 export interface BillInput {
-  billNumber: string;
+  billNumber?: string;
   vendorName: string;
   vendorGstin?: string;
   billDate: string;

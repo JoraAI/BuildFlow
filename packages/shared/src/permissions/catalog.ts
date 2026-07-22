@@ -43,6 +43,7 @@ export const PERMISSIONS = {
   // ── Procurement & Inventory ────────────────────────────────────────
   'procurement.view': 'View indents, POs & GRNs',
   'procurement.create_indent': 'Create material indents / requisitions',
+  'procurement.approve_indent': 'Approve material indents / requisitions',
   'procurement.approve_po': 'Approve purchase orders',
   'procurement.record_grn': 'Record goods receipt notes (GRN)',
   'stock.view': 'View stock levels & movements',
@@ -145,6 +146,7 @@ export const PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] =
     permissions: [
       'procurement.view',
       'procurement.create_indent',
+      'procurement.approve_indent',
       'procurement.approve_po',
       'procurement.record_grn',
       'stock.view',

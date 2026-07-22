@@ -8,7 +8,7 @@
  */
 import { PrismaClient, Role, ProjectType, ProjectStatus, ResourceType, InvoiceStatus, CostType, EstimateStatus, StockMovementType } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { CATALOG_DATA } from './catalog-data';
+import { CATALOG_DATA, type CatalogItem } from './catalog-data';
 import { RATE_ANALYSES } from './rate-analysis-data';
 
 const prisma = new PrismaClient();
@@ -191,7 +191,18 @@ async function main(): Promise<void> {
   // ----------------------------------------------------------------
   const resources: Record<string, { id: string }> = {};
   let resourceCount = 0;
+  // Auto-assign SAC codes for services (LABOUR/EQUIPMENT) if no HSN provided
+  // 9954 = Construction services | 9973 = Leasing/rental services without operator
+  const resolveHsnSac = (item: CatalogItem): string | undefined => {
+    // LABOUR and EQUIPMENT are services — always use SAC codes (not HSN)
+    if (item.type === "LABOUR") return "9954";
+    if (item.type === "EQUIPMENT") return "9973";
+    // MATERIAL uses HSN codes from the catalog
+    return item.hsn;
+  };
+
   for (const item of CATALOG_DATA) {
+    const hsnSac = resolveHsnSac(item);
     const created = await prisma.resource.upsert({
       where: {
         companyId_name_type: { companyId: company.id, name: item.name, type: item.type },
@@ -199,7 +210,7 @@ async function main(): Promise<void> {
       update: {
         rate: item.rate,
         gstRate: item.gstRate,
-        hsnSacCode: item.hsn,
+        hsnSacCode: hsnSac,
         category: item.category,
         brandOrSpec: item.brandOrSpec,
         lastRateUpdatedAt: new Date(),
@@ -211,7 +222,7 @@ async function main(): Promise<void> {
         unit: item.unit,
         rate: item.rate,
         gstRate: item.gstRate,
-        hsnSacCode: item.hsn,
+        hsnSacCode: hsnSac,
         category: item.category,
         brandOrSpec: item.brandOrSpec,
         lastRateUpdatedAt: new Date(),
@@ -222,6 +233,73 @@ async function main(): Promise<void> {
   }
   // eslint-disable-next-line no-console
   console.log(`   Seeded ${resourceCount} catalog resources`);
+
+  // ----------------------------------------------------------------
+  // Daily report helper (defined here so it can close over `resources`)
+  // ----------------------------------------------------------------
+  type Weather = 'SUNNY' | 'CLOUDY' | 'RAIN' | 'STORM' | 'FOG';
+  type SiteStatus = 'ON_SCHEDULE' | 'DELAYED' | 'BLOCKED';
+
+  interface ReportMaterialInput {
+    resourceName: string;
+    quantity: number;
+    notes?: string;
+    taskId?: string;
+    boqItemId?: string;
+    boqMeasurementPosted?: boolean;
+  }
+
+  /**
+   * Seed a DailyReport with optional material usages and task updates.
+   * Returns the created report so the caller can apply stock deduction.
+   */
+  async function seedReport(
+    projectId: string,
+    reportedBy: string,
+    reportDate: string,
+    opts: {
+      weather?: Weather;
+      siteStatus?: SiteStatus;
+      workDone?: string;
+      issues?: string;
+      workersCount?: number;
+      materials?: ReportMaterialInput[];
+      taskUpdates?: Array<{ taskId: string; progressPct: number }>;
+    },
+  ) {
+    return prisma.dailyReport.create({
+      data: {
+        projectId,
+        reportedBy,
+        reportDate: new Date(reportDate),
+        weather: opts.weather,
+        siteStatus: opts.siteStatus,
+        workDone: opts.workDone,
+        issues: opts.issues,
+        workersCount: opts.workersCount ?? 0,
+        materialUsages: opts.materials?.length
+          ? {
+              create: opts.materials.map((m) => ({
+                resourceId: resources[m.resourceName]!.id,
+                quantityUsed: m.quantity,
+                notes: m.notes,
+                taskId: m.taskId ?? null,
+                boqItemId: m.boqItemId ?? null,
+                boqMeasurementPosted: m.boqMeasurementPosted ?? false,
+              })),
+            }
+          : undefined,
+        taskUpdates: opts.taskUpdates?.length
+          ? {
+              create: opts.taskUpdates.map((t) => ({
+                taskId: t.taskId,
+                progressPct: t.progressPct,
+              })),
+            }
+          : undefined,
+      },
+    });
+  }
 
   // ----------------------------------------------------------------
   // Rate Analyses (composite rates referencing catalog items)
@@ -236,6 +314,8 @@ async function main(): Promise<void> {
   };
 
   async function seedRateAnalysis(name: string, unit: string, description: string, components: Component[]) {
+    // Delete existing RA with same name (so re-seeding updates it)
+    await prisma.rateAnalysis.deleteMany({ where: { name, companyId: company.id } });
     let total = 0;
     for (const c of components) total += c.quantityPerUnit * c.rate;
     return prisma.rateAnalysis.create({
@@ -261,127 +341,7 @@ async function main(): Promise<void> {
     });
   }
 
-  await seedRateAnalysis(
-    'RCC M25 with Fe500 TMT',
-    'cum',
-    'M25 grade RCC (1:1:2) with Fe500 TMT steel reinforcement',
-    [
-      { resourceName: 'OPC Cement 53 Grade', quantityPerUnit: 6.5, unit: 'bag', rate: 420, type: CostType.MATERIAL },
-      { resourceName: 'River Sand (Fine)', quantityPerUnit: 0.42, unit: 'cum', rate: 1800, type: CostType.MATERIAL },
-      { resourceName: '20mm Aggregate', quantityPerUnit: 0.42, unit: 'cum', rate: 1400, type: CostType.MATERIAL },
-      { resourceName: '10mm Aggregate', quantityPerUnit: 0.42, unit: 'cum', rate: 1350, type: CostType.MATERIAL },
-      { resourceName: 'TMT Steel Fe500 12mm', quantityPerUnit: 78, unit: 'kg', rate: 73, type: CostType.MATERIAL },
-      { resourceName: 'Superplasticizer (SNF Based)', quantityPerUnit: 1.5, unit: 'litre', rate: 95, type: CostType.MATERIAL },
-      { resourceName: 'Binding Wire 18G', quantityPerUnit: 1.2, unit: 'kg', rate: 68, type: CostType.MATERIAL },
-      { resourceName: 'Cover Blocks (PVC) 25mm', quantityPerUnit: 4, unit: 'piece', rate: 3, type: CostType.MATERIAL },
-      { resourceName: 'Mason Grade 1 (Mistri)', quantityPerUnit: 0.8, unit: 'day', rate: 750, type: CostType.LABOUR },
-      { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 2.5, unit: 'day', rate: 450, type: CostType.LABOUR },
-      { resourceName: 'Concrete Mixer 200L', quantityPerUnit: 0.3, unit: 'day', rate: 1800, type: CostType.EQUIPMENT },
-      { resourceName: 'Needle Vibrator 40mm', quantityPerUnit: 0.5, unit: 'day', rate: 700, type: CostType.EQUIPMENT },
-      { miscName: 'Shuttering & Formwork', quantityPerUnit: 1, unit: 'ls', rate: 850, type: CostType.MISC },
-      { miscName: 'Electricity & Water', quantityPerUnit: 1, unit: 'ls', rate: 45, type: CostType.MISC },
-    ],
-  );
-
-  await seedRateAnalysis(
-    'PCC M15 (1:2:4)',
-    'cum',
-    'Plain cement concrete M15 grade',
-    [
-      { resourceName: 'OPC Cement 53 Grade', quantityPerUnit: 3.4, unit: 'bag', rate: 420, type: CostType.MATERIAL },
-      { resourceName: 'River Sand (Fine)', quantityPerUnit: 0.42, unit: 'cum', rate: 1800, type: CostType.MATERIAL },
-      { resourceName: '20mm Aggregate', quantityPerUnit: 0.84, unit: 'cum', rate: 1400, type: CostType.MATERIAL },
-      { resourceName: '40mm Aggregate', quantityPerUnit: 0.42, unit: 'cum', rate: 1300, type: CostType.MATERIAL },
-      { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 1.5, unit: 'day', rate: 450, type: CostType.LABOUR },
-      { resourceName: 'Concrete Mixer 200L', quantityPerUnit: 0.3, unit: 'day', rate: 1800, type: CostType.EQUIPMENT },
-    ],
-  );
-
-  await seedRateAnalysis(
-    'Brick Masonry 230mm CM 1:6',
-    'sqm',
-    '230mm thick brick masonry in cement mortar 1:6',
-    [
-      { resourceName: 'Fly Ash Brick 230x110x75', quantityPerUnit: 56, unit: 'piece', rate: 8, type: CostType.MATERIAL },
-      { resourceName: 'OPC Cement 53 Grade', quantityPerUnit: 0.5, unit: 'bag', rate: 420, type: CostType.MATERIAL },
-      { resourceName: 'River Sand (Fine)', quantityPerUnit: 0.03, unit: 'cum', rate: 1800, type: CostType.MATERIAL },
-      { resourceName: 'Mason Grade 1 (Mistri)', quantityPerUnit: 0.35, unit: 'day', rate: 750, type: CostType.LABOUR },
-      { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 0.5, unit: 'day', rate: 450, type: CostType.LABOUR },
-    ],
-  );
-
-  const emulsionPaintRa = await seedRateAnalysis(
-    'Emulsion paint per sqm',
-    'sqm',
-    'Interior emulsion - putty, primer, two coats',
-    [
-      { resourceName: 'Interior Emulsion (Premium)', quantityPerUnit: 0.12, unit: 'litre', rate: 380, type: CostType.MATERIAL },
-      { resourceName: 'Wall Putty (Cement Based)', quantityPerUnit: 0.025, unit: 'bag', rate: 580, type: CostType.MATERIAL },
-      { resourceName: 'Primer (Acrylic)', quantityPerUnit: 0.05, unit: 'litre', rate: 220, type: CostType.MATERIAL },
-      { resourceName: 'Painter (Skilled)', quantityPerUnit: 0.08, unit: 'day', rate: 700, type: CostType.LABOUR },
-    ],
-  );
-
-  await seedRateAnalysis(
-    'Internal Plaster 12mm CM 1:4',
-    'sqm',
-    '12mm thick internal plaster in cement mortar 1:4',
-    [
-      { resourceName: 'OPC Cement 53 Grade', quantityPerUnit: 0.15, unit: 'bag', rate: 420, type: CostType.MATERIAL },
-      { resourceName: 'River Sand (Fine)', quantityPerUnit: 0.02, unit: 'cum', rate: 1800, type: CostType.MATERIAL },
-      { resourceName: 'Mason Grade 2', quantityPerUnit: 0.15, unit: 'day', rate: 650, type: CostType.LABOUR },
-      { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 0.15, unit: 'day', rate: 450, type: CostType.LABOUR },
-    ],
-  );
-
-  await seedRateAnalysis(
-    'Vitrified Tile Flooring 600x600',
-    'sqft',
-    'Vitrified tile 600x600 laid in adhesive + cement slurry',
-    [
-      { resourceName: 'Vitrified Tile 600x600 Polished', quantityPerUnit: 1.1, unit: 'sqft', rate: 55, type: CostType.MATERIAL },
-      { resourceName: 'Tile Adhesive (Premium)', quantityPerUnit: 0.1, unit: 'bag', rate: 420, type: CostType.MATERIAL },
-      { resourceName: 'OPC Cement 53 Grade', quantityPerUnit: 0.05, unit: 'bag', rate: 420, type: CostType.MATERIAL },
-      { resourceName: 'River Sand (Fine)', quantityPerUnit: 0.003, unit: 'cum', rate: 1800, type: CostType.MATERIAL },
-      { resourceName: 'Tile / Marble Fixer', quantityPerUnit: 0.04, unit: 'day', rate: 750, type: CostType.LABOUR },
-      { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 0.04, unit: 'day', rate: 450, type: CostType.LABOUR },
-    ],
-  );
-
-  await seedRateAnalysis(
-    'RCC M20 Slabs & Beams',
-    'cum',
-    'M20 grade RCC for slabs and beams',
-    [
-      { resourceName: 'OPC Cement 53 Grade', quantityPerUnit: 6.0, unit: 'bag', rate: 420, type: CostType.MATERIAL },
-      { resourceName: 'River Sand (Fine)', quantityPerUnit: 0.42, unit: 'cum', rate: 1800, type: CostType.MATERIAL },
-      { resourceName: '20mm Aggregate', quantityPerUnit: 0.45, unit: 'cum', rate: 1400, type: CostType.MATERIAL },
-      { resourceName: '10mm Aggregate', quantityPerUnit: 0.45, unit: 'cum', rate: 1350, type: CostType.MATERIAL },
-      { resourceName: 'TMT Steel Fe500 16mm', quantityPerUnit: 100, unit: 'kg', rate: 72, type: CostType.MATERIAL },
-      { resourceName: 'Binding Wire 18G', quantityPerUnit: 1.5, unit: 'kg', rate: 68, type: CostType.MATERIAL },
-      { resourceName: 'Mason Grade 1 (Mistri)', quantityPerUnit: 0.6, unit: 'day', rate: 750, type: CostType.LABOUR },
-      { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 3.0, unit: 'day', rate: 450, type: CostType.LABOUR },
-      { resourceName: 'Concrete Mixer 350L', quantityPerUnit: 0.2, unit: 'day', rate: 2500, type: CostType.EQUIPMENT },
-      { resourceName: 'Needle Vibrator 60mm', quantityPerUnit: 0.5, unit: 'day', rate: 800, type: CostType.EQUIPMENT },
-      { miscName: 'Shuttering', quantityPerUnit: 1, unit: 'ls', rate: 1200, type: CostType.MISC },
-    ],
-  );
-
-  await seedRateAnalysis(
-    'Terrace Waterproofing (Brick Bat Coba)',
-    'sqm',
-    'Traditional brick bat coba waterproofing for terraces',
-    [
-      { resourceName: 'OPC Cement 53 Grade', quantityPerUnit: 1.0, unit: 'bag', rate: 420, type: CostType.MATERIAL },
-      { resourceName: 'Integral Waterproofing Liquid', quantityPerUnit: 0.15, unit: 'litre', rate: 140, type: CostType.MATERIAL },
-      { resourceName: 'River Sand (Fine)', quantityPerUnit: 0.04, unit: 'cum', rate: 1800, type: CostType.MATERIAL },
-      { resourceName: 'Fly Ash Brick 230x110x75', quantityPerUnit: 8, unit: 'piece', rate: 8, type: CostType.MATERIAL },
-      { resourceName: 'Mason Grade 2', quantityPerUnit: 0.2, unit: 'day', rate: 650, type: CostType.LABOUR },
-      { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 0.3, unit: 'day', rate: 450, type: CostType.LABOUR },
-    ],
-  );
-
-  // Bulk seed all composite rate analyses from rate-analysis-data.ts
+  // Seed all composite rate analyses from rate-analysis-data.ts (single source of truth)
   let raDataCount = 0;
   for (const ra of RATE_ANALYSES) {
     await seedRateAnalysis(ra.name, ra.unit, ra.description, ra.components);
@@ -389,6 +349,11 @@ async function main(): Promise<void> {
   }
   // eslint-disable-next-line no-console
   console.log(`   Seeded ${raDataCount} composite rate analyses from data file`);
+
+  // Look up the emulsion paint RA for estimate item linking (from data file)
+  const emulsionPaintRa = await prisma.rateAnalysis.findFirst({
+    where: { companyId: company.id, name: 'Distemper Painting (2 Coats)' },
+  });
 
   // ----------------------------------------------------------------
   // Rate regions (regional material rate books)
@@ -1034,7 +999,7 @@ async function main(): Promise<void> {
       rate: 65,
       amount: 182_000,
       type: CostType.MATERIAL,
-      rateAnalysisId: emulsionPaintRa.id,
+      rateAnalysisId: emulsionPaintRa?.id,
     },
   });
 
@@ -1324,6 +1289,169 @@ async function main(): Promise<void> {
   });
 
   // ----------------------------------------------------------------
+  // Daily Reports (rich, multi-project) — exercises calendar, materials,
+  // stock deduction, task progress, BOQ posting & issues.
+  // ----------------------------------------------------------------
+  // Resolve Trail (project3) task IDs (created via createMany above).
+  const trailTasks = await prisma.task.findMany({ where: { projectId: project3.id } });
+  const trailCarpetTask = trailTasks.find((t) => t.name === 'Carpet installation')!;
+  const trailPaintTask = trailTasks.find((t) => t.name === 'Wall painting')!;
+
+  // --- Project 1 (NH-65) — 5 reports across the earthwork week ---
+  // Note: stockLoc has 500 bag OPC Cement on hand. Total drawn here = 90 bag.
+  const p1r1 = await seedReport(project1.id, supervisor.id, '2025-02-03', {
+    weather: 'SUNNY',
+    siteStatus: 'ON_SCHEDULE',
+    workDone:
+      'Excavation started at chainage 0+000. Two excavators deployed. Soil is hard morum - good progress.',
+    workersCount: 25,
+    materials: [{ resourceName: 'OPC Cement 53 Grade', quantity: 20, boqItemId: boqPcc.id, notes: 'PCC bedding for drain' }],
+    taskUpdates: [{ taskId: t3.id, progressPct: 20 }],
+  });
+  await applyStockOut(stockLoc.id, p1r1.id, [
+    { resourceId: resources['OPC Cement 53 Grade'].id, quantity: 20 },
+  ]);
+
+  const p1r2 = await seedReport(project1.id, supervisor.id, '2025-02-04', {
+    weather: 'CLOUDY',
+    siteStatus: 'ON_SCHEDULE',
+    workDone:
+      'Continued excavation to chainage 0+200. PCC M15 pour for U-drain base completed (40 cum).',
+    workersCount: 30,
+    materials: [{ resourceName: 'OPC Cement 53 Grade', quantity: 40, boqItemId: boqPcc.id }],
+    taskUpdates: [{ taskId: t3.id, progressPct: 35 }],
+  });
+  await applyStockOut(stockLoc.id, p1r2.id, [
+    { resourceId: resources['OPC Cement 53 Grade'].id, quantity: 40 },
+  ]);
+
+  await seedReport(project1.id, supervisor.id, '2025-02-05', {
+    weather: 'RAIN',
+    siteStatus: 'DELAYED',
+    workDone: 'Light rain after 11 AM. Dewatering pumps deployed. Excavation paused for safety.',
+    issues: 'Water table high near chainage 0+180 - may need shoring before resuming.',
+    workersCount: 15,
+    materials: [],
+  });
+
+  const p1r4 = await seedReport(project1.id, supervisor.id, '2025-02-06', {
+    weather: 'SUNNY',
+    siteStatus: 'ON_SCHEDULE',
+    workDone: 'Catch-up excavation 0+200 to 0+350. Drain PCC lining resumed.',
+    workersCount: 28,
+    materials: [{ resourceName: 'OPC Cement 53 Grade', quantity: 30, boqItemId: boqPcc.id }],
+    taskUpdates: [{ taskId: t3.id, progressPct: 45 }],
+  });
+  await applyStockOut(stockLoc.id, p1r4.id, [
+    { resourceId: resources['OPC Cement 53 Grade'].id, quantity: 30 },
+  ]);
+
+  await seedReport(project1.id, supervisor.id, '2025-02-07', {
+    weather: 'STORM',
+    siteStatus: 'BLOCKED',
+    workDone: 'Overnight storm flooded the trench. Site inaccessible. Pumps running.',
+    issues:
+      'Storm water entered trench 0+150 to 0+350. Need 2 days to dewater. Subcontractor team sent home.',
+    workersCount: 8,
+    materials: [],
+  });
+
+  // --- Project 3 (Trail) — 4 reports for the renovation phase ---
+  // Note: stockLocTrail has 950 sqm carpet + ~300 litre paint on hand.
+  // R1 posts carpet usage to BOQ measurement (mirrors service behaviour).
+  const p3r1 = await seedReport(project3.id, supervisor.id, '2025-05-15', {
+    weather: 'SUNNY',
+    siteStatus: 'ON_SCHEDULE',
+    workDone: 'Carpet installation started in reception & corridor. Floor prepared, adhesive laid.',
+    workersCount: 12,
+    materials: [
+      {
+        resourceName: 'Commercial Carpet Tile',
+        quantity: 240,
+        boqItemId: boqCarpet.id,
+        boqMeasurementPosted: true,
+        notes: 'Reception + corridor carpet laid',
+      },
+    ],
+    taskUpdates: [{ taskId: trailCarpetTask.id, progressPct: 25 }],
+  });
+  await applyStockOut(stockLocTrail.id, p3r1.id, [
+    { resourceId: resources['Commercial Carpet Tile'].id, quantity: 240 },
+  ]);
+  await prisma.boqMeasurement.create({
+    data: {
+      boqItemId: boqCarpet.id,
+      projectId: project3.id,
+      quantity: 240,
+      recordedBy: supervisor.id,
+      notes: 'From daily report 2025-05-15 (seed)',
+    },
+  });
+  await prisma.bOQItem.update({
+    where: { id: boqCarpet.id },
+    data: { executedQty: { increment: 240 } },
+  });
+
+  const p3r2 = await seedReport(project3.id, supervisor.id, '2025-05-18', {
+    weather: 'CLOUDY',
+    siteStatus: 'ON_SCHEDULE',
+    workDone: 'Primer coat applied on corridor walls. Surface prep (putty) 60% complete.',
+    workersCount: 10,
+    materials: [
+      { resourceName: 'Exterior Emulsion Paint (Premium)', quantity: 48, notes: 'Primer + first coat' },
+    ],
+    taskUpdates: [{ taskId: trailPaintTask.id, progressPct: 15 }],
+  });
+  await applyStockOut(stockLocTrail.id, p3r2.id, [
+    { resourceId: resources['Exterior Emulsion Paint (Premium)'].id, quantity: 48 },
+  ]);
+
+  const p3r3 = await seedReport(project3.id, supervisor.id, '2025-05-22', {
+    weather: 'FOG',
+    siteStatus: 'ON_SCHEDULE',
+    workDone:
+      'Carpet extended to meeting rooms. Wall paint second coat started in corridor.',
+    workersCount: 14,
+    materials: [
+      { resourceName: 'Commercial Carpet Tile', quantity: 200, boqItemId: boqCarpet.id },
+      { resourceName: 'Exterior Emulsion Paint (Premium)', quantity: 40 },
+    ],
+    taskUpdates: [
+      { taskId: trailCarpetTask.id, progressPct: 45 },
+      { taskId: trailPaintTask.id, progressPct: 25 },
+    ],
+  });
+  await applyStockOut(stockLocTrail.id, p3r3.id, [
+    { resourceId: resources['Commercial Carpet Tile'].id, quantity: 200 },
+    { resourceId: resources['Exterior Emulsion Paint (Premium)'].id, quantity: 40 },
+  ]);
+  await prisma.bOQItem.update({
+    where: { id: boqCarpet.id },
+    data: { executedQty: { increment: 200 } },
+  });
+
+  // (The pre-existing 2025-05-25 report above remains as the 4th Trail report.)
+
+  // --- Project 2 (Greenview) — 2 planning-phase reports (no stock, no materials) ---
+  await seedReport(project2.id, pm.id, '2025-04-02', {
+    weather: 'SUNNY',
+    siteStatus: 'ON_SCHEDULE',
+    workDone: 'Site survey and benchmark marking completed. Soil testing samples collected.',
+    workersCount: 5,
+  });
+
+  await seedReport(project2.id, pm.id, '2025-04-03', {
+    weather: 'CLOUDY',
+    siteStatus: 'ON_SCHEDULE',
+    workDone: 'Soil test results received. Reviewing foundation design with structural consultant.',
+    issues: 'Borehole 3 showed loose fill - may require deeper footing locally.',
+    workersCount: 6,
+  });
+
+  // eslint-disable-next-line no-console
+  console.log('   Seeded 11 daily reports (P1: 5, P2: 2, P3: 4 incl. pre-existing)');
+
+  // ----------------------------------------------------------------
   // Project 4 - TechPark Office Renovation (completed archive)
   // ----------------------------------------------------------------
   const _project4 = await prisma.project.create({
@@ -1350,7 +1478,26 @@ async function main(): Promise<void> {
   console.log('   Platform admin: admin@buildflow.com /', PLATFORM_ADMIN_PASSWORD);
 }
 
+async function flushCache() {
+  try {
+    // Best-effort cache flush so the API serves fresh data after re-seed.
+    // Uses the same Redis client pattern as the app.
+    const redisUrl = process.env.REDIS_URL || process.env.REDIS_HOST;
+    if (!redisUrl) return;
+    const { createClient } = await import('redis');
+    const client = createClient({ url: typeof redisUrl === 'string' ? redisUrl : undefined });
+    await client.connect();
+    await client.flushAll();
+    await client.quit();
+    // eslint-disable-next-line no-console
+    console.log('   Flushed Redis cache');
+  } catch {
+    // Non-fatal - cache will expire naturally
+  }
+}
+
 main()
+  .then(() => flushCache())
   .catch((e) => {
     // eslint-disable-next-line no-console
     console.error('Seed failed:', e);

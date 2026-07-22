@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
 import {
@@ -17,6 +17,7 @@ import { projectTabHref } from '@/utils/navigation';
 import {
   useRequisitions,
   useCreateRequisition,
+  useDeleteRequisition,
   useSubmitRequisition,
   useApproveRequisition,
   useCreatePurchaseOrder,
@@ -41,17 +42,9 @@ import {
 import { alertAsync, confirmAsync } from '@/utils/confirm';
 import type { MaterialRateSource } from '@buildflow/shared';
 
-function sourceBadge(req: Requisition): string | null {
-  if (!req.sourceType) return null;
-  const labels: Record<string, string> = {
-    ESTIMATE_CONVERT: 'From estimate',
-    VARIATION: 'From variation',
-    BOQ_UPDATE: 'From BOQ',
-    MANUAL: 'Manual',
-  };
-  const label = labels[req.sourceType] ?? req.sourceType;
-  return req.sourceRef ? `${label}: ${req.sourceRef}` : label;
-}
+/* ------------------------------------------------------------------ */
+/* Helpers                                                             */
+/* ------------------------------------------------------------------ */
 
 const STATUS_COLOR: Record<string, 'neutral' | 'warning' | 'success' | 'danger'> = {
   DRAFT: 'neutral',
@@ -70,16 +63,20 @@ const RATE_SOURCE_LABEL: Record<string, string> = {
   MANUAL: 'Manual',
 };
 
-const STEPS = [
-  { key: 'indent', label: 'Indent', sub: 'Material requisition' },
-  { key: 'po', label: 'PO', sub: 'Purchase order' },
-  { key: 'grn', label: 'GRN', sub: 'Goods receipt' },
-] as const;
+function sourceBadge(req: Requisition): string | null {
+  if (!req.sourceType) return null;
+  const labels: Record<string, string> = {
+    ESTIMATE_CONVERT: 'From estimate',
+    VARIATION: 'From variation',
+    BOQ_UPDATE: 'From BOQ',
+    MANUAL: 'Manual',
+  };
+  const label = labels[req.sourceType] ?? req.sourceType;
+  return req.sourceRef ? `${label}: ${req.sourceRef}` : label;
+}
 
 function suggestPoNumber(req: Requisition, allReqs: Requisition[]): string {
-  const used = new Set(
-    allReqs.flatMap((r) => r.purchaseOrders?.map((po) => po.poNumber) ?? []),
-  );
+  const used = new Set(allReqs.flatMap((r) => r.purchaseOrders?.map((po) => po.poNumber) ?? []));
   const base = `PO-${req.reqNumber.replace(/^IND-/, '')}`;
   if (!used.has(base)) return base;
   for (let n = 2; n < 1000; n++) {
@@ -94,69 +91,11 @@ function suggestGrnNumber(poNumber: string): string {
   return `GRN-${poNumber.replace(/^PO/, '')}`;
 }
 
-type GrnModalLine = {
-  lineId: string;
-  resourceId: string;
-  resourceName: string;
-  unit: string;
-  poQty: number;
-  boqItem?: { itemCode: string; description: string } | null;
-};
+type SubTab = 'indents' | 'pos' | 'stock' | 'shortfalls';
 
-type GrnModalState = {
-  poId: string;
-  poNumber: string;
-  lines: GrnModalLine[];
-};
-
-function buildGrnModalLines(
-  po: PurchaseOrderSummary,
-  reqLines: Requisition['lines'],
-): GrnModalLine[] {
-  const boqByResource = new Map(
-    reqLines.filter((l) => l.boqItem).map((l) => [l.resourceId, l.boqItem]),
-  );
-  return po.lines.map((line) => ({
-    lineId: line.id,
-    resourceId: line.resourceId,
-    resourceName: line.resource.name,
-    unit: line.unit || line.resource.unit,
-    poQty: parseFloat(line.quantity) || 0,
-    boqItem: boqByResource.get(line.resourceId) ?? null,
-  }));
-}
-
-/** Extract vendor name from a requisition's first PO (fallback to "Vendor"). */
-function vendorNameForPo(req: Requisition): string {
-  return req.purchaseOrders?.[0]?.poNumber
-    ? `Vendor (${req.purchaseOrders[0].poNumber})`
-    : 'Vendor';
-}
-
-function requisitionWorkflowHint(
-  req: Requisition,
-  opts: { canCreate: boolean; canApprove: boolean; canCreatePO: boolean },
-): string | null {
-  if (req.status === 'DRAFT' || req.status === 'REJECTED') {
-    return opts.canCreate ? 'Next: Submit indent' : 'Waiting for site team to submit';
-  }
-  if (req.status === 'SUBMITTED') {
-    return opts.canApprove ? 'Next: Approve indent' : 'Waiting for PM/Owner approval';
-  }
-  if (req.status === 'APPROVED' && !req.purchaseOrders?.length) {
-    return opts.canCreatePO
-      ? 'Next: Create purchase order'
-      : 'Approved - waiting for PM/Accounts to create PO';
-  }
-  if (req.purchaseOrders?.length) {
-    const hasGrn = req.purchaseOrders.some((po) => (po.goodsReceipts?.length ?? 0) > 0);
-    if (hasGrn) {
-      return 'Goods received - see Site stock below; BOQ executed qty updates via measurements or daily reports';
-    }
-    return 'Next: Record GRN when goods arrive (updates site stock, not BOQ executed qty)';
-  }
-  return null;
-}
+/* ------------------------------------------------------------------ */
+/* Main Component                                                      */
+/* ------------------------------------------------------------------ */
 
 export function ProcurementTab({ projectId }: { projectId: string }) {
   const router = useRouter();
@@ -164,49 +103,172 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
   const user = useAuthStore((s) => s.user);
   const canCreate = user?.role === 'OWNER' || user?.role === 'PM' || user?.role === 'SUPERVISOR';
   const canApprove = user?.role === 'OWNER' || user?.role === 'PM';
-  const canCreatePO =
-    user?.role === 'OWNER' || user?.role === 'PM' || user?.role === 'ACCOUNTANT';
-  const canCreateBill =
-    user?.role === 'OWNER' || user?.role === 'PM' || user?.role === 'ACCOUNTANT';
+  const canCreatePO = user?.role === 'OWNER' || user?.role === 'PM' || user?.role === 'ACCOUNTANT';
+  const canCreateBill = user?.role === 'OWNER' || user?.role === 'PM' || user?.role === 'ACCOUNTANT';
+
+  const [subTab, setSubTab] = useState<SubTab>('indents');
 
   const reqQ = useRequisitions(projectId);
-  const stockSummaryQ = useStockSummary(projectId);
-  const { data: boq } = useBoq(projectId);
-  const { data: materialsData } = useMaterials({ limit: 200 });
-  const materials: Resource[] = materialsData?.data ?? [];
-  const boqItems = boq?.items ?? [];
+  const requisitions = reqQ.data ?? [];
 
+  return (
+    <View className="gap-3">
+      {/* Sub-tab bar */}
+      <SubTabBar active={subTab} onChange={setSubTab} counts={{
+        indents: requisitions.length,
+        pos: requisitions.filter((r) => r.purchaseOrders?.length).length,
+      }} />
+
+      {subTab === 'indents' && (
+        <IndentsSection
+          projectId={projectId}
+          canCreate={canCreate}
+          canApprove={canApprove}
+          canCreatePO={canCreatePO}
+          canCreateBill={canCreateBill}
+          requisitions={requisitions}
+          isLoading={reqQ.isLoading}
+          allReqs={requisitions}
+          router={router}
+        />
+      )}
+
+      {subTab === 'stock' && <StockSection projectId={projectId} />}
+
+      {subTab === 'shortfalls' && (
+        <ShortfallsSection projectId={projectId} canCreate={canCreate} />
+      )}
+    </View>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Sub-Tab Bar                                                         */
+/* ------------------------------------------------------------------ */
+
+function SubTabBar({
+  active,
+  onChange,
+  counts,
+}: {
+  active: SubTab;
+  onChange: (tab: SubTab) => void;
+  counts: { indents: number; pos: number };
+}) {
+  const tabs: { key: SubTab; label: string; count?: number }[] = [
+    { key: 'indents', label: 'Indents', count: counts.indents },
+    { key: 'stock', label: 'Stock' },
+    { key: 'shortfalls', label: 'Shortfalls' },
+  ];
+
+  return (
+    <View className="flex-row gap-2 flex-wrap">
+      {tabs.map((t) => (
+        <Pressable
+          key={t.key}
+          onPress={() => onChange(t.key)}
+          className={`px-3 py-1.5 rounded-full flex-row items-center gap-1.5 ${
+            active === t.key ? 'bg-primary' : 'bg-card border border-border'
+          }`}
+        >
+          <Text className={`text-xs font-semibold ${active === t.key ? 'text-white' : 'text-muted'}`}>
+            {t.label}
+          </Text>
+          {t.count !== undefined && t.count > 0 && (
+            <View className={`px-1.5 py-0.5 rounded-full ${active === t.key ? 'bg-white/20' : 'bg-border'}`}>
+              <Text className={`text-[10px] font-bold ${active === t.key ? 'text-white' : 'text-muted'}`}>
+                {t.count}
+              </Text>
+            </View>
+          )}
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Indents Section                                                     */
+/* ------------------------------------------------------------------ */
+
+function IndentsSection({
+  projectId,
+  canCreate,
+  canApprove,
+  canCreatePO,
+  canCreateBill,
+  requisitions,
+  isLoading,
+  allReqs,
+  router,
+}: {
+  projectId: string;
+  canCreate: boolean;
+  canApprove: boolean;
+  canCreatePO: boolean;
+  canCreateBill: boolean;
+  requisitions: Requisition[];
+  isLoading: boolean;
+  allReqs: Requisition[];
+  router: ReturnType<typeof useRouter>;
+}) {
   const createReq = useCreateRequisition(projectId);
+  const deleteReq = useDeleteRequisition(projectId);
   const submitReq = useSubmitRequisition(projectId);
   const approveReq = useApproveRequisition(projectId);
   const createPO = useCreatePurchaseOrder(projectId);
   const createGRN = useCreateGRN(projectId);
-  const generateFromBoq = useGenerateIndentsFromBoq(projectId);
+  const { data: materialsData } = useMaterials({ limit: 200 });
+  const materials: Resource[] = materialsData?.data ?? [];
+  const { data: boq } = useBoq(projectId);
+  const boqItems = boq?.items ?? [];
 
   const [reqModal, setReqModal] = useState(false);
   const [poModal, setPoModal] = useState<Requisition | null>(null);
-  const [grnModal, setGrnModal] = useState<GrnModalState | null>(null);
+  const [grnModal, setGrnModal] = useState<{
+    poId: string;
+    poNumber: string;
+    lines: Array<{
+      lineId: string;
+      resourceId: string;
+      resourceName: string;
+      unit: string;
+      poQty: number;
+      boqItem?: { itemCode: string; description: string } | null;
+    }>;
+  } | null>(null);
 
-  const [reqNumber, setReqNumber] = useState('');
   const [reqNotes, setReqNotes] = useState('');
   const [draftLines, setDraftLines] = useState<IndentDraftLine[]>([emptyIndentLine()]);
-
   const [poNumber, setPoNumber] = useState('');
   const [vendorName, setVendorName] = useState('');
   const [poLineRates, setPoLineRates] = useState<Record<string, string>>({});
+  const [grnNumber, setGrnNumber] = useState('');
+  const [grnNotes, setGrnNotes] = useState('');
+  const [grnLineQtys, setGrnLineQtys] = useState<Record<string, string>>({});
 
-  const shortfallsQ = useBoqShortfalls(projectId, reqModal || canCreate);
+  // Shortfalls loaded only when modal opens
+  const shortfallsQ = useBoqShortfalls(projectId, reqModal);
   const shortfalls = shortfallsQ.data ?? [];
-  const linkableBoqItems = boqItems;
+
+  // Stock summary — build a map of resourceId → on-hand balance for
+  // showing per-material stock info on exploded lines.
+  const stockSummaryQ = useStockSummary(projectId);
+  const stockByResource = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of stockSummaryQ.data ?? []) {
+      map.set(row.resourceId, row.balance);
+    }
+    return map;
+  }, [stockSummaryQ.data]);
 
   const draftTotal = useMemo(
     () => draftLines.reduce((sum, l) => sum + indentLineTotal(l), 0),
     [draftLines],
   );
-  const draftLineCount = draftLines.filter((l) => l.resourceId).length;
+  const draftLineCount = draftLines.filter((l) => l.resourceId || l.boqItemId).length;
 
   const resetReqForm = () => {
-    setReqNumber('');
     setReqNotes('');
     setDraftLines([emptyIndentLine()]);
   };
@@ -224,70 +286,34 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
     setDraftLines((prev) => (prev.length <= 1 ? prev : prev.filter((l) => l.id !== id)));
   };
 
-  const onGenerateFromBoq = async () => {
-    if (shortfalls.length === 0) {
-      void alertAsync('No shortfalls', 'All MATERIAL BOQ lines are covered by stock and open indents.');
-      return;
-    }
-    const ok = await confirmAsync(
-      'Generate indents from BOQ',
-      `Create ${shortfalls.length} draft indent(s) for BOQ material shortfalls?`,
-    );
-    if (!ok) return;
-    generateFromBoq.mutate(undefined, {
-      onSuccess: (result) => {
-        void alertAsync(
-          'Indents created',
-          result.created > 0
-            ? `Created ${result.created} draft indent(s): ${result.reqNumbers.join(', ')}`
-            : 'No new indents needed - stock and open requisitions cover BOQ demand.',
-        );
-      },
-      onError: (e: Error) => void alertAsync('Error', e.message),
-    });
-  };
-
-  const [grnNumber, setGrnNumber] = useState('');
-  const [grnNotes, setGrnNotes] = useState('');
-  const [grnLineQtys, setGrnLineQtys] = useState<Record<string, string>>({});
-  const [stockHistoryResource, setStockHistoryResource] = useState<StockSummaryRow | null>(null);
-
-  const movementsQ = useStockMovements(projectId, stockHistoryResource?.resourceId);
-
-  const requisitions = reqQ.data ?? [];
-  const stockSummary = stockSummaryQ.data ?? [];
-
-  const activeStep = requisitions.some((r: Requisition) => r.purchaseOrders?.length)
-    ? requisitions.some((r: Requisition) => r.status === 'APPROVED')
-      ? 2
-      : 1
-    : 0;
-
   const onCreateReq = () => {
-    if (!reqNumber.trim()) {
-      void alertAsync('Required', 'Enter requisition number.');
-      return;
-    }
     const validLines = draftLines.filter((l) => l.resourceId);
     if (validLines.length === 0) {
       void alertAsync('Required', 'Add at least one line with a material selected.');
       return;
     }
-    const missingMaterial = validLines.find((l) => !materials.some((m) => m.id === l.resourceId));
+    // Validation: exploded lines (from BOQ) always have resourceId set;
+    // they don't need to be in the loaded materials list (only 200 loaded).
+    const missingMaterial = validLines.find(
+      (l) => !l.resourceId && !l.boqItemId,
+    );
     if (missingMaterial) {
-      void alertAsync('Required', 'One or more selected materials could not be resolved.');
+      void alertAsync('Required', 'One or more lines is missing a material.');
       return;
     }
     createReq.mutate(
       {
-        reqNumber: reqNumber.trim(),
         notes: reqNotes.trim() || undefined,
         lines: validLines.map((l) => {
-          const res = materials.find((r: Resource) => r.id === l.resourceId)!;
+          // For exploded lines (from BOQ explode), the resourceId is already
+          // a valid catalog resource ID but may not be in the loaded `materials`
+          // list (only loads 200). Use l.resourceId directly, with resourceUnit
+          // fallback for the unit.
+          const res = materials.find((r: Resource) => r.id === l.resourceId);
           return {
-            resourceId: res.id,
+            resourceId: l.resourceId,
             quantity: parseFloat(l.qty) || 1,
-            unit: res.unit,
+            unit: res?.unit || l.resourceUnit || 'unit',
             boqItemId: l.boqItemId || undefined,
             expectedRate: parseFloat(l.expectedRate) || undefined,
             rateSource: l.rateSource as MaterialRateSource | undefined,
@@ -357,7 +383,6 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
         resourceId: line.resourceId,
         quantity: parseFloat(grnLineQtys[line.lineId] ?? '0') || 0,
         unit: line.unit,
-        materialName: line.resourceName,
       }))
       .filter((l) => l.quantity > 0);
     if (lines.length === 0) {
@@ -370,7 +395,7 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
         purchaseOrderId: grnModal.poId,
         receivedDate: new Date(),
         notes: grnNotes.trim() || undefined,
-        lines: lines.map(({ materialName: _n, ...line }) => line),
+        lines,
       },
       {
         onSuccess: () => {
@@ -379,357 +404,97 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
           setGrnNumber('');
           setGrnNotes('');
           setGrnLineQtys({});
-          void alertAsync(
-            'GRN recorded',
-            `${num} saved. Site stock updated - scroll to Site stock below. BOQ executed qty is updated separately via measurements or daily reports.`,
-          );
+          void alertAsync('GRN recorded', `${num} saved. Site stock updated.`);
         },
         onError: (e: Error) => void alertAsync('Error', e.message),
       },
     );
   };
 
-  if (reqQ.isLoading) return <LoadingSkeleton className="h-48 rounded-xl" />;
+  if (isLoading) return <LoadingSkeleton className="h-48 rounded-xl" />;
 
   return (
-    <View className="gap-4">
-      {/* Step cards */}
-      <View className={`gap-2 ${isDesktop ? 'flex-row' : ''}`}>
-        {STEPS.map((step, idx) => (
-          <Card key={step.key} className={isDesktop ? 'flex-1' : undefined}>
-            <View className="flex-row items-center gap-2">
-              <View
-                className={`w-8 h-8 rounded-full items-center justify-center ${
-                  idx <= activeStep ? 'bg-primary' : 'bg-border'
-                }`}
-              >
-                <Text className={`text-sm font-bold ${idx <= activeStep ? 'text-white' : 'text-muted'}`}>
-                  {idx + 1}
-                </Text>
-              </View>
-              <View>
-                <Text className="text-sm font-semibold text-text">{step.label}</Text>
-                <Text className="text-xs text-muted">{step.sub}</Text>
-              </View>
-            </View>
-          </Card>
-        ))}
-      </View>
-
-      <View className="flex-row justify-between items-center flex-wrap gap-2">
-        <Text className="text-sm font-bold text-text">Requisitions</Text>
+    <View className="gap-3">
+      {/* Header */}
+      <View className="flex-row justify-between items-center">
+        <Text className="text-sm font-bold text-text">Requisitions ({requisitions.length})</Text>
         {canCreate && (
-          <View className="flex-row gap-2">
-            {shortfalls.length > 0 && (
-              <Button
-                label="Generate from BOQ"
-                size="sm"
-                variant="secondary"
-                loading={generateFromBoq.isPending}
-                onPress={() => void onGenerateFromBoq()}
-              />
-            )}
-            <Button label="New Indent" size="sm" onPress={openReqModal} />
-          </View>
+          <Button label="+ New Indent" size="sm" onPress={openReqModal} />
         )}
       </View>
 
+      {/* List */}
       {requisitions.length === 0 ? (
         <EmptyState
           title="No requisitions"
-          description="Start the procurement flow with a material indent."
-          action={
-            canCreate ? (
-              <Button label="Create Indent" onPress={openReqModal} />
-            ) : undefined
-          }
+          description={canCreate ? 'Tap "+ New Indent" to create a material indent.' : 'No requisitions yet.'}
         />
       ) : (
-        requisitions.map((req: Requisition) => {
-          const workflowHint = requisitionWorkflowHint(req, { canCreate, canApprove, canCreatePO });
-          return (
-          <Card key={req.id}>
-            <View className="flex-row justify-between items-start mb-1">
-              <Text className="text-sm font-semibold text-text">{req.reqNumber}</Text>
-              <Badge color={STATUS_COLOR[req.status] ?? 'neutral'} label={req.status} />
-            </View>
-            {sourceBadge(req) ? (
-              <Text className="text-[10px] text-primary font-semibold mb-1">{sourceBadge(req)}</Text>
-            ) : null}
-            <Text className="text-xs text-muted mb-2">
-              {req.lines.length} items • {formatDate(req.createdAt)}
-            </Text>
-            {workflowHint ? (
-              <Text className="text-[10px] text-muted mb-2">{workflowHint}</Text>
-            ) : null}
-            {req.lines.map((l: Requisition['lines'][number]) => {
-              const qty = parseFloat(l.quantity);
-              const rate = l.expectedRate ? parseFloat(l.expectedRate) : null;
-              const lineTotal = rate != null ? qty * rate : null;
-              return (
-                <View key={l.id} className="mb-1">
-                  <Text className="text-xs text-text">
-                    • {l.resource?.name ?? 'Material'} - {qty} {l.unit}
-                    {lineTotal != null ? ` · est. Rs ${lineTotal.toFixed(0)}` : ''}
-                  </Text>
-                  {l.boqItem ? (
-                    <Text className="text-[10px] text-muted ml-2">
-                      BOQ {l.boqItem.itemCode} - {l.boqItem.description}
-                    </Text>
-                  ) : null}
-                  {l.rateSource ? (
-                    <Text className="text-[10px] text-primary ml-2">
-                      Rate Rs {rate ?? '-'} ({RATE_SOURCE_LABEL[l.rateSource] ?? l.rateSource})
-                    </Text>
-                  ) : null}
-                </View>
+        requisitions.map((req: Requisition) => (
+          <IndentCard
+            key={req.id}
+            req={req}
+            canCreate={canCreate}
+            canApprove={canApprove}
+            canCreatePO={canCreatePO}
+            canCreateBill={canCreateBill}
+            materials={materials}
+            allReqs={allReqs}
+            projectId={projectId}
+            router={router}
+            onSubmit={() => submitReq.mutate(req.id, { onError: (e: Error) => void alertAsync('Error', e.message) })}
+            onDelete={async () => {
+              const ok = await confirmAsync('Delete indent?', `Delete ${req.reqNumber}? This cannot be undone.`);
+              if (!ok) return;
+              deleteReq.mutate(req.id, { onError: (e: Error) => void alertAsync('Error', e.message) });
+            }}
+            onApprove={() => approveReq.mutate(req.id, { onError: (e: Error) => void alertAsync('Error', e.message) })}
+            onCreatePO={() => {
+              const rates: Record<string, string> = {};
+              req.lines.forEach((line: Requisition['lines'][number]) => {
+                rates[line.id] = line.expectedRate ? String(parseFloat(line.expectedRate)) : '';
+              });
+              setPoNumber(suggestPoNumber(req, allReqs));
+              setVendorName('');
+              setPoLineRates(rates);
+              setPoModal(req);
+            }}
+            onRecordGRN={(po) => {
+              const boqByResource = new Map(
+                req.lines.filter((l) => l.boqItem).map((l) => [l.resourceId, l.boqItem]),
               );
-            })}
-            {req.purchaseOrders?.map((po: PurchaseOrderSummary) => (
-              <View key={po.id} className="mt-2 pt-2 border-t border-border">
-                <Text className="text-xs text-muted">
-                  PO {po.poNumber} ({po.status}) · {po.lines.length} item{po.lines.length === 1 ? '' : 's'}
-                </Text>
-                {po.goodsReceipts?.map((grn) => (
-                  <View key={grn.id} className="mt-1 rounded-md bg-success/10 px-2 py-1">
-                    <Text className="text-xs font-semibold text-success">
-                      ✓ {grn.grnNumber} · received {formatDate(grn.receivedDate)}
-                    </Text>
-                    {grn.lines.map((line, idx) => (
-                      <Text key={`${grn.id}-${idx}`} className="text-[10px] text-muted ml-1">
-                        {parseFloat(line.quantity)} {line.unit} received
-                      </Text>
-                    ))}
-                  </View>
-                ))}
-                {canCreate && po.status !== 'CANCELLED' && !(po.goodsReceipts?.length ?? 0) && (
-                  <View className="mt-1">
-                    <Button
-                      label="Record GRN"
-                      size="sm"
-                      variant="secondary"
-                      onPress={() => {
-                        const modalLines = buildGrnModalLines(po, req.lines);
-                        const qtys: Record<string, string> = {};
-                        modalLines.forEach((l) => {
-                          qtys[l.lineId] = String(l.poQty);
-                        });
-                        setGrnNumber(suggestGrnNumber(po.poNumber));
-                        setGrnNotes('');
-                        setGrnLineQtys(qtys);
-                        setGrnModal({
-                          poId: po.id,
-                          poNumber: po.poNumber,
-                          lines: modalLines,
-                        });
-                      }}
-                    />
-                  </View>
-                )}
-                {canCreateBill && (po.goodsReceipts?.length ?? 0) > 0 && (
-                  <View className="mt-1">
-                    <Button
-                      label="Create Bill"
-                      size="sm"
-                      variant="secondary"
-                      onPress={() => {
-                        const returnTo = encodeURIComponent(projectTabHref(projectId, 'procurement'));
-                        const vendor = encodeURIComponent(vendorNameForPo(req) || 'Vendor');
-                        const billNum = encodeURIComponent(`BILL-${po.poNumber.replace(/^PO-/, '')}`);
-                        router.push(
-                          `/accounting/create-bill?projectId=${projectId}&vendorName=${vendor}&category=MATERIAL&suggestedBillNumber=${billNum}&returnTo=${returnTo}` as never,
-                        );
-                      }}
-                    />
-                  </View>
-                )}
-              </View>
-            ))}
-            <View className={`mt-2 gap-2 ${isDesktop ? 'flex-row' : ''}`}>
-              {canCreate && (req.status === 'DRAFT' || req.status === 'REJECTED') && (
-                <Button
-                  label="Submit"
-                  size="sm"
-                  variant="secondary"
-                  onPress={() =>
-                    submitReq.mutate(req.id, {
-                      onError: (e: Error) => void alertAsync('Error', e.message),
-                    })
-                  }
-                />
-              )}
-              {canApprove && req.status === 'SUBMITTED' && (
-                <Button
-                  label="Approve"
-                  size="sm"
-                  onPress={() =>
-                    approveReq.mutate(req.id, {
-                      onError: (e: Error) => void alertAsync('Error', e.message),
-                    })
-                  }
-                />
-              )}
-              {canCreatePO && req.status === 'APPROVED' && !req.purchaseOrders?.length && (
-                <Button
-                  label="Create PO"
-                  size="sm"
-                  onPress={() => {
-                    const rates: Record<string, string> = {};
-                    req.lines.forEach((line: Requisition['lines'][number]) => {
-                      rates[line.id] = line.expectedRate
-                        ? String(parseFloat(line.expectedRate))
-                        : '';
-                    });
-                    setPoNumber(suggestPoNumber(req, requisitions));
-                    setVendorName('');
-                    setPoLineRates(rates);
-                    setPoModal(req);
-                  }}
-                />
-              )}
-            </View>
-          </Card>
-          );
-        })
+              const modalLines = po.lines.map((line) => ({
+                lineId: line.id,
+                resourceId: line.resourceId,
+                resourceName: line.resource.name,
+                unit: line.unit || line.resource.unit,
+                poQty: parseFloat(line.quantity) || 0,
+                boqItem: boqByResource.get(line.resourceId) ?? null,
+              }));
+              const qtys: Record<string, string> = {};
+              modalLines.forEach((l) => { qtys[l.lineId] = String(l.poQty); });
+              setGrnNumber(suggestGrnNumber(po.poNumber));
+              setGrnNotes('');
+              setGrnLineQtys(qtys);
+              setGrnModal({ poId: po.id, poNumber: po.poNumber, lines: modalLines });
+            }}
+          />
+        ))
       )}
 
-      {/* Site stock summary */}
-      <Text className="text-sm font-bold text-text mt-2">Site stock</Text>
-      <Text className="text-xs text-muted mb-1">
-        On hand = received (GRN) minus issued (daily reports with &quot;Deduct from site stock&quot;).
-      </Text>
-      {stockSummaryQ.isLoading ? (
-        <LoadingSkeleton className="h-24 rounded-xl" />
-      ) : stockSummary.length === 0 ? (
-        <EmptyState
-          title="No stock"
-          description="Stock appears after GRN receipts. Issued increases when daily reports deduct site stock."
-        />
-      ) : (
-        <Card>
-          {isDesktop ? (
-            <View className="flex-row border-b border-border pb-2 mb-2">
-              <Text className="text-xs font-semibold text-muted flex-[2]">Material</Text>
-              <Text className="text-xs font-semibold text-muted flex-1 text-right">Received</Text>
-              <Text className="text-xs font-semibold text-muted flex-1 text-right">Issued</Text>
-              <Text className="text-xs font-semibold text-muted flex-1 text-right">On hand</Text>
-            </View>
-          ) : null}
-          {stockSummary.map((row: StockSummaryRow) => (
-            <Pressable
-              key={row.resourceId}
-              onPress={() => setStockHistoryResource(row)}
-              className="py-2 border-b border-border/50 active:bg-surface"
-            >
-              {isDesktop ? (
-                <View className="flex-row items-center">
-                  <Text className="text-sm text-text flex-[2]" numberOfLines={1}>
-                    {row.name}
-                  </Text>
-                  <Text className="text-sm text-muted flex-1 text-right">
-                    {row.received} {row.unit}
-                  </Text>
-                  <Text className="text-sm text-muted flex-1 text-right">
-                    {row.issued} {row.unit}
-                  </Text>
-                  <Text className="text-sm font-semibold text-text flex-1 text-right">
-                    {row.balance} {row.unit}
-                  </Text>
-                </View>
-              ) : (
-                <View>
-                  <Text className="text-sm font-semibold text-text">{row.name}</Text>
-                  <View className="flex-row flex-wrap gap-x-3 mt-0.5">
-                    <Text className="text-xs text-muted">Rcvd {row.received} {row.unit}</Text>
-                    <Text className="text-xs text-muted">Issued {row.issued} {row.unit}</Text>
-                    <Text className="text-xs font-semibold text-primary">
-                      On hand {row.balance} {row.unit}
-                    </Text>
-                  </View>
-                </View>
-              )}
-              <Text className="text-[10px] text-primary mt-0.5">Tap for movement history</Text>
-            </Pressable>
-          ))}
-        </Card>
-      )}
-
-      <AdaptiveSheet
-        visible={!!stockHistoryResource}
-        onClose={() => setStockHistoryResource(null)}
-        title={stockHistoryResource ? `${stockHistoryResource.name} - movements` : 'Movements'}
-        size="md"
-      >
-        {stockHistoryResource ? (
-          <View className="gap-2 pb-4">
-            <View className="flex-row flex-wrap gap-3 mb-2">
-              <Text className="text-xs text-muted">
-                Received: {stockHistoryResource.received} {stockHistoryResource.unit}
-              </Text>
-              <Text className="text-xs text-muted">
-                Issued: {stockHistoryResource.issued} {stockHistoryResource.unit}
-              </Text>
-              <Text className="text-xs font-semibold text-text">
-                On hand: {stockHistoryResource.balance} {stockHistoryResource.unit}
-              </Text>
-            </View>
-            {movementsQ.isLoading ? (
-              <LoadingSkeleton className="h-32 rounded-xl" />
-            ) : (movementsQ.data ?? []).length === 0 ? (
-              <Text className="text-sm text-muted">No movements recorded yet.</Text>
-            ) : (
-              (movementsQ.data ?? []).map((m: StockMovementRow) => (
-                <View
-                  key={m.id}
-                  className="flex-row items-center justify-between py-2 border-b border-border/50"
-                >
-                  <View className="flex-1 mr-2">
-                    <View className="flex-row items-center gap-2">
-                      <Badge
-                        label={m.type}
-                        color={m.type === 'IN' ? 'success' : m.type === 'OUT' ? 'warning' : 'neutral'}
-                      />
-                      <Text className="text-sm font-semibold text-text">
-                        {m.quantity} {m.unit}
-                      </Text>
-                    </View>
-                    {m.referenceLabel ? (
-                      <Text className="text-xs text-primary mt-0.5">{m.referenceLabel}</Text>
-                    ) : null}
-                    <Text className="text-[10px] text-muted mt-0.5">
-                      {formatDate(m.createdAt)}
-                      {m.locationName ? ` · ${m.locationName}` : ''}
-                    </Text>
-                  </View>
-                </View>
-              ))
-            )}
-          </View>
-        ) : null}
-      </AdaptiveSheet>
-
+      {/* New Indent Modal */}
       <AdaptiveSheet
         visible={reqModal}
-        onClose={() => {
-          setReqModal(false);
-          resetReqForm();
-        }}
+        onClose={() => { setReqModal(false); resetReqForm(); }}
         title="New Indent"
         size="lg"
         footer={<Button label="Create" loading={createReq.isPending} onPress={onCreateReq} />}
       >
-        <Input label="Req Number" value={reqNumber} onChangeText={setReqNumber} placeholder="IND-001" />
+        <Text className="text-xs text-muted">
+          Req Number will be auto-generated (e.g. IND-2026-0001) on save.
+        </Text>
         <Input label="Notes" value={reqNotes} onChangeText={setReqNotes} multiline />
         <Text className="text-sm font-bold text-text">Line items</Text>
-        <Text className="text-xs text-muted -mt-2">
-          Add one or more materials. Each line can optionally link to a BOQ row for traceability.
-        </Text>
-        {linkableBoqItems.length === 0 ? (
-          <Text className="text-xs text-muted">
-            No BOQ on this project yet - you can still add materials, or convert an estimate to BOQ
-            first.
-          </Text>
-        ) : null}
         {draftLines.map((line, idx) => (
           <IndentDraftLineCard
             key={line.id}
@@ -737,11 +502,23 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
             index={idx}
             line={line}
             materials={materials}
-            boqItems={linkableBoqItems}
+            boqItems={boqItems}
             shortfalls={shortfalls}
             canRemove={draftLines.length > 1}
             onChange={(updated) => updateDraftLine(line.id, updated)}
             onRemove={() => removeDraftLine(line.id)}
+            stockByResource={stockByResource}
+            // Auto-explode composite BOQ items (with rate analysis) into
+            // separate material lines. Each material gets its own line card
+            // with editable quantity and rate.
+            onExplode={(explodedLines) => {
+              setDraftLines((prev) => {
+                // Replace the current line with the exploded lines,
+                // keeping a fresh empty line at the end for adding more.
+                const filtered = prev.filter((l) => l.id !== line.id);
+                return [...filtered, ...explodedLines, emptyIndentLine()];
+              });
+            }}
           />
         ))}
         <Pressable onPress={() => setDraftLines((prev) => [...prev, emptyIndentLine()])}>
@@ -749,20 +526,16 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
         </Pressable>
         <View className="rounded-lg bg-primary/10 p-3 flex-row justify-between items-center">
           <Text className="text-sm font-semibold text-text">
-            {draftLineCount} material{draftLineCount === 1 ? '' : 's'} · est. total
+            {draftLineCount} item{draftLineCount === 1 ? '' : 's'} · est. total
           </Text>
           <Text className="text-base font-bold text-primary">Rs {draftTotal.toFixed(0)}</Text>
         </View>
       </AdaptiveSheet>
 
+      {/* PO Modal */}
       <AdaptiveSheet
         visible={!!poModal}
-        onClose={() => {
-          setPoModal(null);
-          setPoNumber('');
-          setVendorName('');
-          setPoLineRates({});
-        }}
+        onClose={() => { setPoModal(null); setPoNumber(''); setVendorName(''); setPoLineRates({}); }}
         title="Create Purchase Order"
         size="lg"
         footer={<Button label="Create PO" loading={createPO.isPending} onPress={onCreatePO} />}
@@ -773,18 +546,14 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
           <View key={l.id} className="py-2 border-b border-border/60">
             <Text className="text-sm font-medium text-text">{l.resource?.name ?? 'Material'}</Text>
             {l.boqItem ? (
-              <Text className="text-[10px] text-muted mb-1">
-                BOQ {l.boqItem.itemCode} - {l.boqItem.description}
-              </Text>
+              <Text className="text-[10px] text-muted mb-1">BOQ {l.boqItem.itemCode} · {l.boqItem.description}</Text>
             ) : null}
             <Text className="text-xs text-muted mb-1">
               Qty {parseFloat(l.quantity)} {l.unit}
-              {l.rateSource
-                ? ` · indent rate from ${RATE_SOURCE_LABEL[l.rateSource] ?? l.rateSource}`
-                : ''}
+              {l.rateSource ? ` · rate from ${RATE_SOURCE_LABEL[l.rateSource] ?? l.rateSource}` : ''}
             </Text>
             <Input
-              label="PO rate (₹)"
+              label="PO unit rate (₹)"
               value={poLineRates[l.id] ?? ''}
               onChangeText={(v) => setPoLineRates((prev) => ({ ...prev, [l.id]: v }))}
               keyboardType="numeric"
@@ -794,22 +563,14 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
         ))}
       </AdaptiveSheet>
 
+      {/* GRN Modal */}
       <AdaptiveSheet
         visible={!!grnModal}
-        onClose={() => {
-          setGrnModal(null);
-          setGrnNumber('');
-          setGrnNotes('');
-          setGrnLineQtys({});
-        }}
+        onClose={() => { setGrnModal(null); setGrnNumber(''); setGrnNotes(''); setGrnLineQtys({}); }}
         title={grnModal ? `Record GRN for ${grnModal.poNumber}` : 'Record GRN'}
         size="lg"
         footer={<Button label="Record GRN" loading={createGRN.isPending} onPress={onCreateGRN} />}
       >
-        <Text className="text-xs text-muted -mt-1 mb-2">
-          Enter quantities received against this PO. Stock updates on save; BOQ executed qty is updated
-          separately via measurements or DPR.
-        </Text>
         <Input label="GRN Number" value={grnNumber} onChangeText={setGrnNumber} placeholder="GRN-002" />
         <Input label="Notes (optional)" value={grnNotes} onChangeText={setGrnNotes} multiline />
         <Text className="text-sm font-bold text-text mt-2">PO line items</Text>
@@ -817,13 +578,9 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
           <View key={line.lineId} className="py-2 border-b border-border/60">
             <Text className="text-sm font-medium text-text">{line.resourceName}</Text>
             {line.boqItem ? (
-              <Text className="text-[10px] text-muted mb-1">
-                BOQ {line.boqItem.itemCode} - {line.boqItem.description}
-              </Text>
+              <Text className="text-[10px] text-muted mb-1">BOQ {line.boqItem.itemCode} · {line.boqItem.description}</Text>
             ) : null}
-            <Text className="text-xs text-muted mb-1">
-              Ordered {line.poQty} {line.unit}
-            </Text>
+            <Text className="text-xs text-muted mb-1">Ordered {line.poQty} {line.unit}</Text>
             <Input
               label={`Qty received (${line.unit})`}
               value={grnLineQtys[line.lineId] ?? ''}
@@ -834,6 +591,322 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
           </View>
         ))}
       </AdaptiveSheet>
+    </View>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Indent Card                                                         */
+/* ------------------------------------------------------------------ */
+
+function IndentCard({
+  req,
+  canCreate,
+  canApprove,
+  canCreatePO,
+  canCreateBill,
+  materials,
+  allReqs,
+  projectId,
+  router,
+  onSubmit,
+  onDelete,
+  onApprove,
+  onCreatePO,
+  onRecordGRN,
+}: {
+  req: Requisition;
+  canCreate: boolean;
+  canApprove: boolean;
+  canCreatePO: boolean;
+  canCreateBill: boolean;
+  materials: Resource[];
+  allReqs: Requisition[];
+  projectId: string;
+  router: ReturnType<typeof useRouter>;
+  onSubmit: () => void;
+  onDelete: () => void;
+  onApprove: () => void;
+  onCreatePO: () => void;
+  onRecordGRN: (po: PurchaseOrderSummary) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const hasPOs = (req.purchaseOrders?.length ?? 0) > 0;
+  const hasGRNs = req.purchaseOrders?.some((po) => (po.goodsReceipts?.length ?? 0) > 0) ?? false;
+
+  return (
+    <Card>
+      {/* Header row */}
+      <Pressable onPress={() => setExpanded(!expanded)} className="active:opacity-80">
+        <View className="flex-row justify-between items-start mb-1">
+          <View className="flex-1 pr-2">
+            <Text className="text-sm font-semibold text-text">{req.reqNumber}</Text>
+            {sourceBadge(req) ? (
+              <Text className="text-[10px] text-primary font-semibold">{sourceBadge(req)}</Text>
+            ) : null}
+            <Text className="text-xs text-muted">
+              {req.lines.length} items · {formatDate(req.createdAt)}
+            </Text>
+          </View>
+          <View className="items-end gap-1">
+            <Badge color={STATUS_COLOR[req.status] ?? 'neutral'} label={req.status} />
+            <Text className="text-[10px] text-muted">{expanded ? '▲' : '▼'}</Text>
+          </View>
+        </View>
+      </Pressable>
+
+      {/* Expanded content */}
+      {expanded && (
+        <View className="mt-2 pt-2 border-t border-border gap-1">
+          {req.lines.map((l: Requisition['lines'][number]) => {
+            const qty = parseFloat(l.quantity);
+            const rate = l.expectedRate ? parseFloat(l.expectedRate) : null;
+            const lineTotal = rate != null ? qty * rate : null;
+            return (
+              <View key={l.id}>
+                <Text className="text-xs text-text">
+                  · {l.resource?.name ?? 'Material'} — {qty} {l.unit}
+                  {lineTotal != null ? ` · Rs ${lineTotal.toFixed(0)}` : ''}
+                </Text>
+                {l.boqItem ? (
+                  <Text className="text-[10px] text-muted ml-2">
+                    BOQ {l.boqItem.itemCode} · {l.boqItem.description}
+                  </Text>
+                ) : null}
+              </View>
+            );
+          })}
+
+          {/* POs */}
+          {req.purchaseOrders?.map((po: PurchaseOrderSummary) => (
+            <View key={po.id} className="mt-2 p-2 rounded-lg bg-surface border border-border/50">
+              <View className="flex-row justify-between items-center mb-1">
+                <Text className="text-xs font-semibold text-text">PO {po.poNumber}</Text>
+                <Badge label={po.status} color="neutral" />
+              </View>
+              <Text className="text-[10px] text-muted">
+                {po.lines.length} item{po.lines.length === 1 ? '' : 's'}
+              </Text>
+
+              {/* GRNs */}
+              {po.goodsReceipts?.map((grn) => (
+                <View key={grn.id} className="mt-1 rounded-md bg-success/10 px-2 py-1">
+                  <Text className="text-xs font-semibold text-success">
+                    ✓ {grn.grnNumber} · {formatDate(grn.receivedDate)}
+                  </Text>
+                  {grn.lines.map((line, idx) => (
+                    <Text key={`${grn.id}-${idx}`} className="text-[10px] text-muted ml-1">
+                      {parseFloat(line.quantity)} {line.unit} received
+                    </Text>
+                  ))}
+                </View>
+              ))}
+
+              {/* Actions per PO */}
+              <View className="flex-row gap-2 mt-1.5 flex-wrap">
+                {canCreate && po.status !== 'CANCELLED' && !(po.goodsReceipts?.length ?? 0) && (
+                  <Button label="Record GRN" size="sm" variant="secondary" onPress={() => onRecordGRN(po)} />
+                )}
+                {canCreateBill && (po.goodsReceipts?.length ?? 0) > 0 && (
+                  <Button
+                    label="Create Bill"
+                    size="sm"
+                    variant="secondary"
+                    onPress={() => {
+                      const returnTo = encodeURIComponent(projectTabHref(projectId, 'procurement'));
+                      const vendor = req.purchaseOrders?.[0]?.poNumber
+                        ? `Vendor (${req.purchaseOrders[0].poNumber})` : 'Vendor';
+                      const billNum = `BILL-${po.poNumber.replace(/^PO-/, '')}`;
+                      router.push(
+                        `/accounting/create-bill?projectId=${projectId}&vendorName=${encodeURIComponent(vendor)}&category=MATERIAL&suggestedBillNumber=${encodeURIComponent(billNum)}&returnTo=${returnTo}` as never,
+                      );
+                    }}
+                  />
+                )}
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Action buttons */}
+      <View className="flex-row gap-2 mt-2 flex-wrap">
+        {canCreate && (req.status === 'DRAFT' || req.status === 'REJECTED') && (
+          <Button label="Submit" size="sm" variant="secondary" onPress={onSubmit} />
+        )}
+        {canCreate && req.status === 'DRAFT' && !hasPOs && (
+          <Button label="Delete" size="sm" variant="ghost" onPress={onDelete} />
+        )}
+        {canApprove && req.status === 'SUBMITTED' && (
+          <Button label="Approve" size="sm" onPress={onApprove} />
+        )}
+        {canCreatePO && req.status === 'APPROVED' && !hasPOs && (
+          <Button label="Create PO" size="sm" onPress={onCreatePO} />
+        )}
+      </View>
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Stock Section                                                       */
+/* ------------------------------------------------------------------ */
+
+function StockSection({ projectId }: { projectId: string }) {
+  const { isDesktop } = useViewport();
+  const stockSummaryQ = useStockSummary(projectId);
+  const [stockHistoryResource, setStockHistoryResource] = useState<StockSummaryRow | null>(null);
+  const movementsQ = useStockMovements(projectId, stockHistoryResource?.resourceId);
+
+  const stockSummary = stockSummaryQ.data ?? [];
+
+  if (stockSummaryQ.isLoading) return <LoadingSkeleton className="h-24 rounded-xl" />;
+
+  return (
+    <View className="gap-3">
+      <Text className="text-sm font-bold text-text">Site Stock</Text>
+      <Text className="text-xs text-muted">
+        On hand = received (GRN) minus issued (daily reports). Tap a material for history.
+      </Text>
+
+      {stockSummary.length === 0 ? (
+        <EmptyState
+          title="No stock"
+          description="Stock appears after GRN receipts."
+        />
+      ) : (
+        <Card>
+          {stockSummary.map((row: StockSummaryRow) => (
+            <Pressable
+              key={row.resourceId}
+              onPress={() => setStockHistoryResource(row)}
+              className="py-2 border-b border-border/50 active:bg-surface"
+            >
+              <View className="flex-row justify-between items-center mb-0.5">
+                <Text className="text-sm font-semibold text-text">{row.name}</Text>
+                <Text className="text-sm font-bold text-primary">
+                  {row.balance} {row.unit}
+                </Text>
+              </View>
+              <View className="flex-row gap-3">
+                <Text className="text-xs text-muted">Rcvd {row.received} {row.unit}</Text>
+                <Text className="text-xs text-muted">Issued {row.issued} {row.unit}</Text>
+              </View>
+            </Pressable>
+          ))}
+        </Card>
+      )}
+
+      {/* Movement history sheet */}
+      <AdaptiveSheet
+        visible={!!stockHistoryResource}
+        onClose={() => setStockHistoryResource(null)}
+        title={stockHistoryResource ? `${stockHistoryResource.name} — movements` : 'Movements'}
+        size="md"
+      >
+        {stockHistoryResource ? (
+          <View className="gap-2 pb-4">
+            <View className="flex-row flex-wrap gap-3 mb-2">
+              <Text className="text-xs text-muted">Received: {stockHistoryResource.received} {stockHistoryResource.unit}</Text>
+              <Text className="text-xs text-muted">Issued: {stockHistoryResource.issued} {stockHistoryResource.unit}</Text>
+              <Text className="text-xs font-semibold text-text">On hand: {stockHistoryResource.balance} {stockHistoryResource.unit}</Text>
+            </View>
+            {movementsQ.isLoading ? (
+              <LoadingSkeleton className="h-32 rounded-xl" />
+            ) : (movementsQ.data ?? []).length === 0 ? (
+              <Text className="text-sm text-muted">No movements recorded yet.</Text>
+            ) : (
+              (movementsQ.data ?? []).map((m: StockMovementRow) => (
+                <View key={m.id} className="py-2 border-b border-border/50">
+                  <View className="flex-row items-center gap-2">
+                    <Badge label={m.type} color={m.type === 'IN' ? 'success' : m.type === 'OUT' ? 'warning' : 'neutral'} />
+                    <Text className="text-sm font-semibold text-text">{m.quantity} {m.unit}</Text>
+                  </View>
+                  {m.referenceLabel ? <Text className="text-xs text-primary mt-0.5">{m.referenceLabel}</Text> : null}
+                  <Text className="text-[10px] text-muted mt-0.5">
+                    {formatDate(m.createdAt)}{m.locationName ? ` · ${m.locationName}` : ''}
+                  </Text>
+                </View>
+              ))
+            )}
+          </View>
+        ) : null}
+      </AdaptiveSheet>
+    </View>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Shortfalls Section                                                  */
+/* ------------------------------------------------------------------ */
+
+function ShortfallsSection({ projectId, canCreate }: { projectId: string; canCreate: boolean }) {
+  const shortfallsQ = useBoqShortfalls(projectId, true);
+  const generateFromBoq = useGenerateIndentsFromBoq(projectId);
+  const shortfalls = shortfallsQ.data ?? [];
+
+  const onGenerate = async () => {
+    if (shortfalls.length === 0) {
+      void alertAsync('No shortfalls', 'All MATERIAL BOQ lines are covered by stock and open indents.');
+      return;
+    }
+    const ok = await confirmAsync(
+      'Generate indents from BOQ',
+      `Create ${shortfalls.length} draft indent(s) for BOQ material shortfalls?`,
+    );
+    if (!ok) return;
+    generateFromBoq.mutate(undefined, {
+      onSuccess: (result) => {
+        void alertAsync(
+          'Indents created',
+          result.created > 0
+            ? `Created ${result.created} draft indent(s): ${result.reqNumbers.join(', ')}`
+            : 'No new indents needed.',
+        );
+      },
+      onError: (e: Error) => void alertAsync('Error', e.message),
+    });
+  };
+
+  if (shortfallsQ.isLoading) return <LoadingSkeleton className="h-32 rounded-xl" />;
+
+  return (
+    <View className="gap-3">
+      <View className="flex-row justify-between items-center">
+        <Text className="text-sm font-bold text-text">BOQ Material Shortfalls</Text>
+        {canCreate && shortfalls.length > 0 && (
+          <Button
+            label="Generate Indents"
+            size="sm"
+            loading={generateFromBoq.isPending}
+            onPress={() => void onGenerate()}
+          />
+        )}
+      </View>
+
+      <Text className="text-xs text-muted">
+        Materials needed for BOQ execution that aren't covered by stock or open indents.
+      </Text>
+
+      {shortfalls.length === 0 ? (
+        <EmptyState
+          title="No shortfalls"
+          description="All BOQ materials are covered by stock and open indents."
+        />
+      ) : (
+        shortfalls.map((s, idx) => (
+          <Card key={idx}>
+            <View className="flex-row justify-between items-start">
+              <View className="flex-1 pr-2">
+                <Text className="text-sm font-semibold text-text">{s.itemCode}</Text>
+                <Text className="text-xs text-muted" numberOfLines={1}>{s.description}</Text>
+              </View>
+              <Badge label={`Shortfall: ${s.shortfall} ${s.unit ?? ''}`} color="warning" />
+            </View>
+          </Card>
+        ))
+      )}
     </View>
   );
 }

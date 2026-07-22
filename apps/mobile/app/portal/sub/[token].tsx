@@ -7,7 +7,7 @@ import { View, Text, ScrollView, ActivityIndicator, TextInput } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { Card, Badge, EmptyState, Button, Input } from '@/components/ui';
-import { useSubPortalData } from '@/services/expansion.queries';
+import { useSubPortalData, type SubPortalData } from '@/services/expansion.queries';
 import { formatINR, formatDate } from '@/utils/format';
 import { API_BASE_URL } from '@/constants';
 import { alertAsync } from '@/utils/confirm';
@@ -126,7 +126,7 @@ export default function SubPortalScreen() {
         {data.payments && data.payments.length > 0 && (
           <Card>
             <Text className="text-sm font-bold text-text mb-2">Payments</Text>
-            {data.payments.map((p) => (
+            {data.payments.map((p: NonNullable<SubPortalData['payments']>[number]) => (
               <View key={p.id} className="flex-row justify-between py-1">
                 <Text className="text-xs text-text">{p.billNumber}</Text>
                 <Text className="text-xs text-muted">

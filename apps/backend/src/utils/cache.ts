@@ -66,13 +66,27 @@ export async function invalidatePattern(pattern: string): Promise<void> {
   try {
     // Lazy import to avoid circular deps in test env
     const { redis } = await import('../lib/redis');
-    const stream = redis.scanStream({ match: pattern, count: 100 });
+    // ioredis does NOT auto-prepend keyPrefix to SCAN match patterns (unlike
+    // GET/SET/DEL), but all stored keys carry the configured keyPrefix
+    // (e.g. "buildflow:"). We must include it here or the pattern matches
+    // nothing and invalidations silently no-op.
+    const prefix = (redis.options.keyPrefix ?? '') as string;
+    const fullPattern = `${prefix}${pattern}`;
+    const stream = redis.scanStream({ match: fullPattern, count: 100 });
     const keys: string[] = [];
     for await (const chunk of stream) {
       keys.push(...(chunk as string[]));
     }
     if (keys.length > 0) {
-      await redis.del(...keys);
+      // IMPORTANT: ioredis scanStream returns keys WITH the keyPrefix already
+      // included (e.g. "buildflow:cache:..."). But redis.del() ALSO prepends
+      // the keyPrefix. So we must STRIP the prefix from each key before
+      // passing to del(), otherwise ioredis double-prefixes them and the
+      // delete silently no-ops.
+      const strippedKeys = prefix
+        ? keys.map((k) => (k.startsWith(prefix) ? k.slice(prefix.length) : k))
+        : keys;
+      await redis.del(...strippedKeys);
     }
   } catch (err) {
     logger.warn('Cache pattern invalidation failed', { pattern, error: (err as Error).message });

@@ -14,7 +14,7 @@ import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { useViewport } from '@/hooks/useViewport';
 import { confirmAsync, alertAsync } from '@/utils/confirm';
 import { SummaryBreakdownCard } from '@/components/ui';
-import { useEstimate, useEstimateMutations, useExportEstimate, type EstimateSection, type EstimateItem } from '@/services/estimate.queries';
+import { useEstimate, useEstimateMutations, useExportEstimate, useSubEstimates, useCreateSubEstimate, type EstimateSection, type EstimateItem, type SubEstimateRow } from '@/services/estimate.queries';
 import { useProject } from '@/services/project.queries';
 import { useAuthStore } from '@/stores/auth.store';
 import { formatINR, formatDate } from '@/utils/format';
@@ -26,6 +26,89 @@ const STATUS_COLORS: Record<string, string> = {
   REJECTED: 'danger',
   SUPERSEDED: 'neutral',
 };
+
+/**
+ * Sub-estimates section — shows child estimates (additional scope) with an
+ * "Add Sub-Estimate" button. Each sub-estimate is a full estimate that can be
+ * independently edited, approved, and converted to BOQ.
+ */
+function SubEstimatesSection({ parentEstimateId }: { parentEstimateId: string }) {
+  const router = useRouter();
+  const { data: subEstimates } = useSubEstimates(parentEstimateId);
+  const createSubEst = useCreateSubEstimate(parentEstimateId);
+  const [showAdd, setShowAdd] = useState(false);
+  const [name, setName] = useState('');
+  const [notes, setNotes] = useState('');
+
+  async function handleCreate() {
+    if (!name.trim()) return;
+    try {
+      const result = await createSubEst.mutateAsync({ name: name.trim(), notes: notes.trim() || undefined });
+      setName(''); setNotes(''); setShowAdd(false);
+      router.push(`/(app)/estimation/${result.id}`);
+    } catch {
+      // mutation error state handles it
+    }
+  }
+
+  return (
+    <View className="gap-2">
+      <View className="flex-row justify-between items-center">
+        <Text className="text-sm font-bold text-text">Sub-Estimates (Additional Scope)</Text>
+        <Button label="+ Add Sub-Estimate" size="sm" variant="secondary" onPress={() => setShowAdd(!showAdd)} />
+      </View>
+
+      <Text className="text-xs text-muted">
+        Add a sub-estimate when extra construction scope is needed mid-project (e.g. boundary wall, gate, landscaping).
+      </Text>
+
+      {showAdd && (
+        <Card>
+          <Text className="text-sm font-semibold text-text mb-2">New Sub-Estimate</Text>
+          <TextInput
+            value={name}
+            onChangeText={setName}
+            placeholder="e.g. Boundary Wall & Gate"
+            placeholderTextColor="#94A3B8"
+            className="border border-border rounded-lg px-3 py-2 text-sm text-text mb-2"
+          />
+          <TextInput
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="Notes (optional)"
+            placeholderTextColor="#94A3B8"
+            multiline
+            className="border border-border rounded-lg px-3 py-2 text-sm text-text mb-2 min-h-[60px]"
+          />
+          <View className="flex-row gap-2">
+            <Button label="Create" size="sm" onPress={handleCreate} loading={createSubEst.isPending} />
+            <Button label="Cancel" size="sm" variant="ghost" onPress={() => setShowAdd(false)} />
+          </View>
+        </Card>
+      )}
+
+      {(subEstimates ?? []).map((sub: SubEstimateRow) => (
+        <Card key={sub.id} onPress={() => router.push(`/(app)/estimation/${sub.id}`)}>
+          <View className="flex-row justify-between items-start mb-1">
+            <View className="flex-1 pr-2">
+              <Text className="text-sm font-semibold text-text">{sub.name}</Text>
+              <Text className="text-xs text-text-muted">{formatDate(sub.createdAt)}</Text>
+            </View>
+            <Badge color={(STATUS_COLORS[sub.status] ?? 'neutral') as 'neutral'} label={sub.status} />
+          </View>
+          <View className="flex-row justify-between items-center pt-2 mt-1 border-t border-border">
+            <Text className="text-xs text-text-muted">Grand Total</Text>
+            <Text className="text-sm font-bold text-primary">{formatINR(sub.grandTotal)}</Text>
+          </View>
+        </Card>
+      ))}
+
+      {(subEstimates?.length ?? 0) === 0 && !showAdd && (
+        <Text className="text-xs text-muted italic">No sub-estimates yet. Tap "+ Add Sub-Estimate" to add additional scope.</Text>
+      )}
+    </View>
+  );
+}
 
 export default function EstimateDetailScreen() {
   const { id, fromProposal } = useLocalSearchParams<{ id: string; fromProposal?: string }>();
@@ -64,7 +147,7 @@ export default function EstimateDetailScreen() {
 
   const s = estimate.summary;
   const isOwner = user?.role === 'OWNER';
-  const canEdit = (user?.role === 'OWNER' || user?.role === 'PM') && estimate.status === 'DRAFT';
+  const canEdit = (user?.role === 'OWNER' || user?.role === 'PM') && (estimate.status === 'DRAFT' || estimate.status === 'REJECTED');
   const canApprove = isOwner && estimate.status === 'REVIEWED';
   const isTemporaryProject = projectQ.data?.isTemporary === true;
   const canConvert = isOwner && estimate.status === 'APPROVED' && !isTemporaryProject;
@@ -244,6 +327,9 @@ export default function EstimateDetailScreen() {
             </Card>
           )}
 
+          {/* Sub-Estimates section — only on parent estimates, not on sub-estimates */}
+          {!estimate.parentId && <SubEstimatesSection parentEstimateId={id} />}
+
           {/* Line items detail */}
           <Text className="text-sm font-bold text-text mt-2">Detailed Line Items</Text>
           {estimate.sections.map((sec: EstimateSection) => (
@@ -321,19 +407,25 @@ export default function EstimateDetailScreen() {
               loading={mut.convertToBoq.isPending}
             />
           )}
-          <Button
-            label="Duplicate"
-            variant="ghost"
-            size="sm"
-            onPress={async () => {
-              try {
-                await mut.duplicate.mutateAsync();
-                dismissTo(DISMISS.estimateTab(estimate.projectId));
-              } catch (e) {
-                await alertAsync('Duplicate failed', e instanceof Error ? e.message : '');
-              }
-            }}
-          />
+          {/* Duplicate only makes sense for parent estimates (creates a new
+              top-level version). Sub-estimates represent additional scope and
+              duplicating them would promote them to top-level, which is
+              confusing. Use "+ Add Sub-Estimate" instead. */}
+          {!estimate.parentId && (
+            <Button
+              label="Duplicate"
+              variant="ghost"
+              size="sm"
+              onPress={async () => {
+                try {
+                  await mut.duplicate.mutateAsync();
+                  dismissTo(DISMISS.estimateTab(estimate.projectId));
+                } catch (e) {
+                  await alertAsync('Duplicate failed', e instanceof Error ? e.message : '');
+                }
+              }}
+            />
+          )}
           <Button
             label="Export Excel"
             variant="secondary"

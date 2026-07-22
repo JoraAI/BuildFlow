@@ -86,11 +86,12 @@ export const RATE_ANALYSES: RaTemplate[] = [
       { resourceName: '20mm Aggregate', quantityPerUnit: 0.84, unit: 'cum', rate: 1400, type: CostType.MATERIAL },
       { resourceName: 'TMT Steel Fe500 16mm', quantityPerUnit: 60, unit: 'kg', rate: 72, type: CostType.MATERIAL },
       { resourceName: 'Binding Wire 18G', quantityPerUnit: 0.8, unit: 'kg', rate: 68, type: CostType.MATERIAL },
+      { resourceName: 'Cover Blocks (PVC) 25mm', quantityPerUnit: 4, unit: 'piece', rate: 3, type: CostType.MATERIAL },
       { resourceName: 'Mason Grade 1 (Mistri)', quantityPerUnit: 0.6, unit: 'day', rate: 750, type: CostType.LABOUR },
       { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 2.0, unit: 'day', rate: 450, type: CostType.LABOUR },
       { resourceName: 'Concrete Mixer 200L', quantityPerUnit: 0.25, unit: 'day', rate: 1800, type: CostType.EQUIPMENT },
       { resourceName: 'Needle Vibrator 40mm', quantityPerUnit: 0.4, unit: 'day', rate: 700, type: CostType.EQUIPMENT },
-      { miscName: 'Shuttering', quantityPerUnit: 1, unit: 'ls', rate: 700, type: CostType.MISC },
+      { resourceName: 'Shuttering', quantityPerUnit: 1, unit: 'ls', rate: 700, type: CostType.MISC },
     ],
   },
   {
@@ -110,8 +111,8 @@ export const RATE_ANALYSES: RaTemplate[] = [
       { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 2.8, unit: 'day', rate: 450, type: CostType.LABOUR },
       { resourceName: 'Concrete Mixer 350L', quantityPerUnit: 0.25, unit: 'day', rate: 2500, type: CostType.EQUIPMENT },
       { resourceName: 'Needle Vibrator 60mm', quantityPerUnit: 0.5, unit: 'day', rate: 800, type: CostType.EQUIPMENT },
-      { miscName: 'Shuttering & Formwork', quantityPerUnit: 1, unit: 'ls', rate: 1100, type: CostType.MISC },
-      { miscName: 'Electricity & Water', quantityPerUnit: 1, unit: 'ls', rate: 55, type: CostType.MISC },
+      { resourceName: 'Shuttering & Formwork', quantityPerUnit: 1, unit: 'ls', rate: 1100, type: CostType.MISC },
+      { resourceName: 'Electricity & Water', quantityPerUnit: 1, unit: 'ls', rate: 55, type: CostType.MISC },
     ],
   },
   {
@@ -129,7 +130,7 @@ export const RATE_ANALYSES: RaTemplate[] = [
       { resourceName: 'Mason Grade 1 (Mistri)', quantityPerUnit: 1.0, unit: 'day', rate: 750, type: CostType.LABOUR },
       { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 3.0, unit: 'day', rate: 450, type: CostType.LABOUR },
       { resourceName: 'Concrete Mixer 350L', quantityPerUnit: 0.3, unit: 'day', rate: 2500, type: CostType.EQUIPMENT },
-      { miscName: 'Shuttering', quantityPerUnit: 1, unit: 'ls', rate: 1200, type: CostType.MISC },
+      { resourceName: 'Shuttering', quantityPerUnit: 1, unit: 'ls', rate: 1200, type: CostType.MISC },
     ],
   },
   {
@@ -146,7 +147,7 @@ export const RATE_ANALYSES: RaTemplate[] = [
       { resourceName: 'Superplasticizer (PCE Based)', quantityPerUnit: 3.0, unit: 'litre', rate: 135, type: CostType.MATERIAL },
       { resourceName: 'Mason Grade 1 (Mistri)', quantityPerUnit: 1.0, unit: 'day', rate: 750, type: CostType.LABOUR },
       { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 3.2, unit: 'day', rate: 450, type: CostType.LABOUR },
-      { miscName: 'Shuttering', quantityPerUnit: 1, unit: 'ls', rate: 1300, type: CostType.MISC },
+      { resourceName: 'Shuttering', quantityPerUnit: 1, unit: 'ls', rate: 1300, type: CostType.MISC },
     ],
   },
   {
@@ -416,7 +417,7 @@ export const RATE_ANALYSES: RaTemplate[] = [
     description: '3mm epoxy flooring with primer + self-leveling topcoat',
     components: [
       { resourceName: 'Epoxy Flooring 3mm', quantityPerUnit: 0.12, unit: 'sqft', rate: 120, type: CostType.MATERIAL },
-      { miscName: 'Epoxy Primer', quantityPerUnit: 0.05, unit: 'kg', rate: 450, type: CostType.MATERIAL },
+      { resourceName: 'Epoxy Primer', quantityPerUnit: 0.05, unit: 'kg', rate: 450, type: CostType.MATERIAL },
       { resourceName: 'Painter (Skilled)', quantityPerUnit: 0.03, unit: 'day', rate: 700, type: CostType.LABOUR },
       { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 0.02, unit: 'day', rate: 450, type: CostType.LABOUR },
     ],
@@ -428,7 +429,7 @@ export const RATE_ANALYSES: RaTemplate[] = [
     components: [
       { resourceName: 'OPC Cement 53 Grade', quantityPerUnit: 1.5, unit: 'bag', rate: 420, type: CostType.MATERIAL },
       { resourceName: '12.5mm Aggregate', quantityPerUnit: 0.02, unit: 'cum', rate: 1450, type: CostType.MATERIAL },
-      { miscName: 'Colour Oxide (Red/Green)', quantityPerUnit: 0.5, unit: 'kg', rate: 85, type: CostType.MATERIAL },
+      { resourceName: 'Colour Oxide (Red/Green)', quantityPerUnit: 0.5, unit: 'kg', rate: 85, type: CostType.MATERIAL },
       { resourceName: 'Mason Grade 1 (Mistri)', quantityPerUnit: 0.15, unit: 'day', rate: 750, type: CostType.LABOUR },
       { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 0.15, unit: 'day', rate: 450, type: CostType.LABOUR },
     ],
@@ -444,7 +445,7 @@ export const RATE_ANALYSES: RaTemplate[] = [
     components: [
       { resourceName: 'APP Waterproofing Membrane 4mm', quantityPerUnit: 1.1, unit: 'sqm', rate: 280, type: CostType.MATERIAL },
       { resourceName: 'Membrane Primer (Bituminous)', quantityPerUnit: 0.25, unit: 'litre', rate: 120, type: CostType.MATERIAL },
-      { miscName: 'LPG Gas for Torch', quantityPerUnit: 0.05, unit: 'cylinder', rate: 1500, type: CostType.MISC },
+      { resourceName: 'LPG Gas for Torch', quantityPerUnit: 0.05, unit: 'cylinder', rate: 1500, type: CostType.MISC },
       { resourceName: 'Waterproofing Specialist', quantityPerUnit: 0.05, unit: 'day', rate: 1000, type: CostType.LABOUR },
       { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 0.08, unit: 'day', rate: 450, type: CostType.LABOUR },
     ],
@@ -466,7 +467,7 @@ export const RATE_ANALYSES: RaTemplate[] = [
     description: 'Cementitious crystalline waterproofing coating on negative side',
     components: [
       { resourceName: 'Crystalline Waterproofing', quantityPerUnit: 1.5, unit: 'kg', rate: 220, type: CostType.MATERIAL },
-      { miscName: 'Water for Mixing', quantityPerUnit: 0.5, unit: 'litre', rate: 5, type: CostType.MISC },
+      { resourceName: 'Water for Mixing', quantityPerUnit: 0.5, unit: 'litre', rate: 5, type: CostType.MISC },
       { resourceName: 'Waterproofing Specialist', quantityPerUnit: 0.05, unit: 'day', rate: 1000, type: CostType.LABOUR },
       { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 0.05, unit: 'day', rate: 450, type: CostType.LABOUR },
     ],
@@ -538,7 +539,7 @@ export const RATE_ANALYSES: RaTemplate[] = [
     components: [
       { resourceName: 'Excavator 20T (PC200)', quantityPerUnit: 0.025, unit: 'day', rate: 28000, type: CostType.EQUIPMENT },
       { resourceName: 'Breaker / Demolition Hammer', quantityPerUnit: 0.05, unit: 'day', rate: 800, type: CostType.EQUIPMENT },
-      { miscName: 'Explosives (Controlled Blasting)', quantityPerUnit: 1, unit: 'ls', rate: 200, type: CostType.MISC },
+      { resourceName: 'Explosives (Controlled Blasting)', quantityPerUnit: 1, unit: 'ls', rate: 200, type: CostType.MISC },
       { resourceName: 'JCB / Excavator Operator', quantityPerUnit: 0.025, unit: 'day', rate: 1500, type: CostType.LABOUR },
       { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 0.35, unit: 'day', rate: 450, type: CostType.LABOUR },
     ],
@@ -648,7 +649,7 @@ export const RATE_ANALYSES: RaTemplate[] = [
     unit: 'sqm',
     description: 'Dense Bituminous Macadam 75mm binder course',
     components: [
-      { miscName: 'DBM Mix Material (per ton)', quantityPerUnit: 0.18, unit: 'ton', rate: 8500, type: CostType.MATERIAL },
+      { resourceName: 'DBM Mix Material (per ton)', quantityPerUnit: 0.18, unit: 'ton', rate: 8500, type: CostType.MATERIAL },
       { resourceName: 'Paver Finisher', quantityPerUnit: 0.001, unit: 'day', rate: 35000, type: CostType.EQUIPMENT },
       { resourceName: 'Hot Mix Plant 60-90 TPH', quantityPerUnit: 0.001, unit: 'day', rate: 25000, type: CostType.EQUIPMENT },
       { resourceName: 'Vibratory Roller 10T', quantityPerUnit: 0.002, unit: 'day', rate: 8000, type: CostType.EQUIPMENT },
@@ -660,7 +661,7 @@ export const RATE_ANALYSES: RaTemplate[] = [
     unit: 'sqm',
     description: 'Bituminous Concrete (BC) 40mm wearing course',
     components: [
-      { miscName: 'BC Mix Material (per ton)', quantityPerUnit: 0.10, unit: 'ton', rate: 9500, type: CostType.MATERIAL },
+      { resourceName: 'BC Mix Material (per ton)', quantityPerUnit: 0.10, unit: 'ton', rate: 9500, type: CostType.MATERIAL },
       { resourceName: 'Paver Finisher', quantityPerUnit: 0.001, unit: 'day', rate: 35000, type: CostType.EQUIPMENT },
       { resourceName: 'Hot Mix Plant 60-90 TPH', quantityPerUnit: 0.001, unit: 'day', rate: 25000, type: CostType.EQUIPMENT },
       { resourceName: 'Vibratory Roller 10T', quantityPerUnit: 0.002, unit: 'day', rate: 8000, type: CostType.EQUIPMENT },
@@ -702,7 +703,7 @@ export const RATE_ANALYSES: RaTemplate[] = [
       { resourceName: 'TMT Steel Fe500 20mm', quantityPerUnit: 100, unit: 'kg', rate: 72, type: CostType.MATERIAL },
       { resourceName: 'Mason Grade 1 (Mistri)', quantityPerUnit: 0.5, unit: 'day', rate: 750, type: CostType.LABOUR },
       { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 1.5, unit: 'day', rate: 450, type: CostType.LABOUR },
-      { miscName: 'Shuttering (SCC Pressure)', quantityPerUnit: 1, unit: 'ls', rate: 1400, type: CostType.MISC },
+      { resourceName: 'Shuttering (SCC Pressure)', quantityPerUnit: 1, unit: 'ls', rate: 1400, type: CostType.MISC },
     ],
   },
   {
@@ -806,9 +807,10 @@ export const RATE_ANALYSES: RaTemplate[] = [
   {
     name: 'Neeru Finish (Cement Slurry) 3mm',
     unit: 'sqm',
-    description: 'Neeru finishing coat (cement+marble dust) for smooth finish',
+    description: 'Neeru finishing coat (white cement + lime + marble dust) for smooth finish',
     components: [
       { resourceName: 'White Cement', quantityPerUnit: 0.1, unit: 'bag', rate: 850, type: CostType.MATERIAL },
+      { resourceName: 'Lime (Hydrated)', quantityPerUnit: 0.3, unit: 'kg', rate: 9, type: CostType.MATERIAL },
       { resourceName: 'Marble Chips (Terrazzo)', quantityPerUnit: 1.5, unit: 'kg', rate: 12, type: CostType.MATERIAL },
       { resourceName: 'Mason Grade 2', quantityPerUnit: 0.10, unit: 'day', rate: 650, type: CostType.LABOUR },
     ],
@@ -868,7 +870,7 @@ export const RATE_ANALYSES: RaTemplate[] = [
     components: [
       { resourceName: 'Wooden Laminate Flooring 8mm', quantityPerUnit: 1.1, unit: 'sqft', rate: 85, type: CostType.MATERIAL },
       { resourceName: 'Acoustic Underlay 5mm (Floor)', quantityPerUnit: 0.11, unit: 'sqm', rate: 280, type: CostType.MATERIAL },
-      { miscName: 'Laminate Accessories (T-Molding)', quantityPerUnit: 0.05, unit: 'rmt', rate: 180, type: CostType.MATERIAL },
+      { resourceName: 'Laminate Accessories (T-Molding)', quantityPerUnit: 0.05, unit: 'rmt', rate: 180, type: CostType.MATERIAL },
       { resourceName: 'Carpenter (Skilled)', quantityPerUnit: 0.03, unit: 'day', rate: 800, type: CostType.LABOUR },
     ],
   },
@@ -880,7 +882,7 @@ export const RATE_ANALYSES: RaTemplate[] = [
       { resourceName: 'OPC Cement 53 Grade', quantityPerUnit: 1.2, unit: 'bag', rate: 420, type: CostType.MATERIAL },
       { resourceName: 'Marble Chips (Terrazzo)', quantityPerUnit: 12, unit: 'kg', rate: 12, type: CostType.MATERIAL },
       { resourceName: 'River Sand (Fine)', quantityPerUnit: 0.02, unit: 'cum', rate: 1800, type: CostType.MATERIAL },
-      { miscName: 'Brass Divider Strip', quantityPerUnit: 0.5, unit: 'rmt', rate: 85, type: CostType.MATERIAL },
+      { resourceName: 'Brass Divider Strip', quantityPerUnit: 0.5, unit: 'rmt', rate: 85, type: CostType.MATERIAL },
       { resourceName: 'Mason Grade 1 (Mistri)', quantityPerUnit: 0.15, unit: 'day', rate: 750, type: CostType.LABOUR },
       { resourceName: 'Marble Polisher', quantityPerUnit: 0.05, unit: 'day', rate: 800, type: CostType.EQUIPMENT },
     ],
@@ -930,7 +932,7 @@ export const RATE_ANALYSES: RaTemplate[] = [
     description: '12mm engineered wood flooring with glue-down installation',
     components: [
       { resourceName: 'Engineered Wood Flooring 12mm', quantityPerUnit: 1.1, unit: 'sqft', rate: 180, type: CostType.MATERIAL },
-      { miscName: 'Wood Flooring Adhesive', quantityPerUnit: 0.1, unit: 'kg', rate: 280, type: CostType.MATERIAL },
+      { resourceName: 'Wood Flooring Adhesive', quantityPerUnit: 0.1, unit: 'kg', rate: 280, type: CostType.MATERIAL },
       { resourceName: 'Carpenter (Skilled)', quantityPerUnit: 0.04, unit: 'day', rate: 800, type: CostType.LABOUR },
     ],
   },
@@ -977,7 +979,7 @@ export const RATE_ANALYSES: RaTemplate[] = [
     description: 'EPDM membrane waterproofing system for flat roofs',
     components: [
       { resourceName: 'EPDM Membrane 1.5mm', quantityPerUnit: 1.1, unit: 'sqm', rate: 380, type: CostType.MATERIAL },
-      { miscName: 'EPDM Bonding Adhesive', quantityPerUnit: 0.15, unit: 'litre', rate: 380, type: CostType.MATERIAL },
+      { resourceName: 'EPDM Bonding Adhesive', quantityPerUnit: 0.15, unit: 'litre', rate: 380, type: CostType.MATERIAL },
       { resourceName: 'Waterproofing Specialist', quantityPerUnit: 0.05, unit: 'day', rate: 1000, type: CostType.LABOUR },
       { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 0.06, unit: 'day', rate: 450, type: CostType.LABOUR },
     ],
@@ -1017,7 +1019,7 @@ export const RATE_ANALYSES: RaTemplate[] = [
     unit: 'rmt',
     description: 'Driven precast RCC pile 300x300mm with diesel hammer',
     components: [
-      { miscName: 'Precast RCC Pile 300x300', quantityPerUnit: 1, unit: 'rmt', rate: 2800, type: CostType.MATERIAL },
+      { resourceName: 'Precast RCC Pile 300x300', quantityPerUnit: 1, unit: 'rmt', rate: 2800, type: CostType.MATERIAL },
       { resourceName: 'Diesel Pile Hammer (D30)', quantityPerUnit: 0.01, unit: 'day', rate: 18000, type: CostType.EQUIPMENT },
       { resourceName: 'Mobile Crane 25T', quantityPerUnit: 0.01, unit: 'day', rate: 18000, type: CostType.EQUIPMENT },
       { resourceName: 'Crane Operator', quantityPerUnit: 0.01, unit: 'day', rate: 1200, type: CostType.LABOUR },
@@ -1041,7 +1043,7 @@ export const RATE_ANALYSES: RaTemplate[] = [
     unit: 'sqm',
     description: 'Driven steel sheet pile for cofferdams and shoring',
     components: [
-      { miscName: 'Steel Sheet Pile Section', quantityPerUnit: 120, unit: 'kg', rate: 85, type: CostType.MATERIAL },
+      { resourceName: 'Steel Sheet Pile Section', quantityPerUnit: 120, unit: 'kg', rate: 85, type: CostType.MATERIAL },
       { resourceName: 'Hydraulic Pile Hammer (Driven)', quantityPerUnit: 0.008, unit: 'day', rate: 35000, type: CostType.EQUIPMENT },
       { resourceName: 'Mobile Crane 50T', quantityPerUnit: 0.008, unit: 'day', rate: 35000, type: CostType.EQUIPMENT },
       { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 0.20, unit: 'day', rate: 450, type: CostType.LABOUR },
@@ -1125,7 +1127,7 @@ export const RATE_ANALYSES: RaTemplate[] = [
     description: 'Pre-construction anti-termite soil treatment',
     components: [
       { resourceName: 'Anti-termite Compound', quantityPerUnit: 0.08, unit: 'litre', rate: 320, type: CostType.MATERIAL },
-      { miscName: 'Water for Dilution', quantityPerUnit: 2, unit: 'litre', rate: 5, type: CostType.MISC },
+      { resourceName: 'Water for Dilution', quantityPerUnit: 2, unit: 'litre', rate: 5, type: CostType.MISC },
       { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 0.02, unit: 'day', rate: 450, type: CostType.LABOUR },
     ],
   },
@@ -1157,7 +1159,7 @@ export const RATE_ANALYSES: RaTemplate[] = [
     description: 'Pipe-type earth pit with copper plate and charcoal',
     components: [
       { resourceName: 'Copper Earthing Plate 600x600x3mm', quantityPerUnit: 1, unit: 'piece', rate: 1800, type: CostType.MATERIAL },
-      { miscName: 'Charcoal & Salt Mix', quantityPerUnit: 25, unit: 'kg', rate: 12, type: CostType.MATERIAL },
+      { resourceName: 'Charcoal & Salt Mix', quantityPerUnit: 25, unit: 'kg', rate: 12, type: CostType.MATERIAL },
       { resourceName: 'GI Earthing Strip 25x4mm', quantityPerUnit: 3, unit: 'metre', rate: 65, type: CostType.MATERIAL },
       { resourceName: 'Electrician', quantityPerUnit: 0.5, unit: 'day', rate: 850, type: CostType.LABOUR },
       { resourceName: 'Unskilled Labour (Male)', quantityPerUnit: 1, unit: 'day', rate: 450, type: CostType.LABOUR },
@@ -1170,7 +1172,7 @@ export const RATE_ANALYSES: RaTemplate[] = [
     components: [
       { resourceName: 'Aluminium Window Section', quantityPerUnit: 3.5, unit: 'kg', rate: 285, type: CostType.MATERIAL },
       { resourceName: 'Toughened Glass 12mm', quantityPerUnit: 10, unit: 'sqft', rate: 195, type: CostType.MATERIAL },
-      { miscName: 'Door Hardware Set', quantityPerUnit: 0.1, unit: 'set', rate: 3500, type: CostType.MATERIAL },
+      { resourceName: 'Door Hardware Set', quantityPerUnit: 0.1, unit: 'set', rate: 3500, type: CostType.MATERIAL },
       { resourceName: 'Glazier (Glass Fitter)', quantityPerUnit: 0.15, unit: 'day', rate: 750, type: CostType.LABOUR },
     ],
   },
@@ -1180,7 +1182,7 @@ export const RATE_ANALYSES: RaTemplate[] = [
     description: 'Metal stud gypsum board partition both sides',
     components: [
       { resourceName: 'Gypsum Board 12.5mm', quantityPerUnit: 2.2, unit: 'sqm', rate: 180, type: CostType.MATERIAL },
-      { miscName: 'GI Stud & Track Set', quantityPerUnit: 2.5, unit: 'rmt', rate: 180, type: CostType.MATERIAL },
+      { resourceName: 'GI Stud & Track Set', quantityPerUnit: 2.5, unit: 'rmt', rate: 180, type: CostType.MATERIAL },
       { resourceName: 'Jointing Tape (Fiber Mesh)', quantityPerUnit: 2, unit: 'rmt', rate: 8, type: CostType.MATERIAL },
       { resourceName: 'Carpenter (Skilled)', quantityPerUnit: 0.10, unit: 'day', rate: 800, type: CostType.LABOUR },
     ],

@@ -3,6 +3,8 @@
  */
 import { NextFunction, Request, Response } from 'express';
 import * as proposalService from '../services/proposal.service';
+import { extractTenderItems } from '../services/tender-extract.service';
+import { storeEncryptedFile } from '../lib/storage';
 import { ok, okList, created, buildMeta } from '../utils/response';
 
 function ipOf(req: Request): string | undefined {
@@ -77,6 +79,33 @@ export async function deleteProposal(req: Request, res: Response, next: NextFunc
     const { companyId, id: userId, role } = req.user!;
     await proposalService.deleteProposal(companyId, userId, role, req.params.id, ipOf(req));
     ok(res, { success: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Upload a client tender document (PDF/Excel), extract BOQ line items via AI,
+ * and return draft items for review. The file is stored encrypted; extraction
+ * happens server-side (text → LLM → structured items + soft-matched resources).
+ */
+export async function importTender(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { companyId } = req.user!;
+    const proposalId = req.params.id;
+
+    // Store the uploaded file (encrypted) for audit/​re-extraction.
+    const plaintext = Buffer.from(req.body.fileContent, 'base64');
+    const { url } = await storeEncryptedFile(companyId, {
+      companyId,
+      entityType: 'tender',
+      projectId: proposalId,
+      originalName: req.body.filename,
+    }, plaintext);
+
+    // Extract draft items via the LLM pipeline.
+    const result = await extractTenderItems(companyId, req.body);
+    ok(res, { ...result, fileUrl: url });
   } catch (err) {
     next(err);
   }

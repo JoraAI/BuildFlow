@@ -132,3 +132,37 @@ export function useDeleteProposal() {
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// Tender AI import — upload a client tender (PDF/Excel), extract BOQ items
+// ---------------------------------------------------------------------------
+
+export interface TenderExtractedItem {
+  description: string;
+  unit: string;
+  quantity: number;
+  rate: number;
+  amount?: number;
+  type: 'MATERIAL' | 'LABOUR' | 'EQUIPMENT' | 'SUBCONTRACTOR' | 'MISC';
+  section?: string;
+  resourceId?: string | null;
+  rateAnalysisId?: string | null;
+  confidence?: number;
+}
+
+export interface TenderImportResult {
+  items: TenderExtractedItem[];
+  notes?: string;
+  sourceTextLength: number;
+  fileUrl: string;
+}
+
+export function useImportTender(proposalId: string) {
+  return useMutation({
+    mutationFn: (input: { fileContent: string; filename: string; contentType: string; projectTypeHint?: string }) =>
+      apiFetch<TenderImportResult>(`/proposals/${proposalId}/import-tender`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+  });
+}

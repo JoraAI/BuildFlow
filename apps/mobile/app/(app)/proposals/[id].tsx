@@ -3,6 +3,7 @@
  */
 import React, { useState, useCallback } from 'react';
 import { View, Text, ScrollView, RefreshControl, Pressable } from 'react-native';
+import { useMutation } from '@tanstack/react-query';
 import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -27,12 +28,16 @@ import {
   usePromoteProposal,
   useDeleteProposal,
   useUpdateProposal,
+  useImportTender,
+  type TenderImportResult,
 } from '@/services/proposal.queries';
-import { useProjectEstimates, type EstimateListRow } from '@/services/estimate.queries';
+import { useProjectEstimates, useCreateEstimate, type EstimateListRow } from '@/services/estimate.queries';
+import { apiFetch, ApiError } from '@/lib/api-client';
+import * as DocumentPicker from 'expo-document-picker';
+import { Buffer as MobileBuffer } from 'buffer';
 import { useAuthStore } from '@/stores/auth.store';
 import { PROPOSAL_STATUS_META, ProposalStatus } from '@buildflow/shared';
 import { formatINR, formatDate } from '@/utils/format';
-import { ApiError } from '@/lib/api-client';
 
 type Tab = 'estimate' | 'summary';
 
@@ -341,6 +346,89 @@ function EstimateSection({
 }) {
   const router = useRouter();
   const fromProposal = `&fromProposal=${proposalId}`;
+  const importMut = useImportTender(proposalId);
+  const createEst = useCreateEstimate(projectId);
+  const [tenderResult, setTenderResult] = useState<TenderImportResult | null>(null);
+
+  // Create an estimate from the extracted tender items, then add all items.
+  const createEstimateFromTender = useMutation({
+    mutationFn: async () => {
+      if (!tenderResult || tenderResult.items.length === 0) throw new Error('No tender items');
+      // 1. Create the estimate
+      const estName = `Tender Import (${tenderResult.items.length} items)`;
+      const est = await apiFetch<{ id: string }>(`/projects/${projectId}/estimates`, {
+        method: 'POST',
+        body: JSON.stringify({ name: estName }),
+      });
+      // 2. Group items by section
+      const sectionMap = new Map<string, typeof tenderResult.items>();
+      for (const item of tenderResult.items) {
+        const sec = item.section || 'General';
+        if (!sectionMap.has(sec)) sectionMap.set(sec, []);
+        sectionMap.get(sec)!.push(item);
+      }
+      // 3. Create sections + items
+      let secIdx = 0;
+      for (const [secName, items] of sectionMap) {
+        const section = await apiFetch<{ id: string }>(`/estimates/${est.id}/sections`, {
+          method: 'POST',
+          body: JSON.stringify({ name: secName, orderIndex: secIdx++ }),
+        });
+        for (const item of items) {
+          await apiFetch<{ id: string }>(`/estimates/${est.id}/sections/${section.id}/items`, {
+            method: 'POST',
+            body: JSON.stringify({
+              description: item.description,
+              unit: item.unit,
+              quantity: item.quantity,
+              rate: item.rate,
+              type: item.type,
+              resourceId: item.resourceId ?? undefined,
+              rateAnalysisId: item.rateAnalysisId ?? undefined,
+            }),
+          });
+        }
+      }
+      return est;
+    },
+    onSuccess: (est: { id: string }) => {
+      setTenderResult(null);
+      router.push(`/(app)/estimation/${est.id}`);
+    },
+    onError: (e: Error) => {
+      void alertAsync('Failed', e.message);
+    },
+  });
+
+  function handleCreateEstimateFromTender() {
+    createEstimateFromTender.mutate();
+  }
+
+  async function handleImportTender() {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      const file = result.assets[0];
+      const response = await fetch(file.uri);
+      const blob = await response.blob();
+      const arrayBuffer = await blob.arrayBuffer();
+      const base64 = MobileBuffer.from(arrayBuffer).toString('base64');
+      const res = await importMut.mutateAsync({
+        fileContent: base64,
+        filename: file.name,
+        contentType: file.mimeType ?? 'application/octet-stream',
+      });
+      setTenderResult(res);
+      if (res.items.length === 0) {
+        await alertAsync('No items extracted', res.notes ?? 'Try a different file or add items manually.');
+      }
+    } catch (e) {
+      await alertAsync('Import failed', e instanceof Error ? e.message : 'Unknown error');
+    }
+  }
 
   if (isLoading) return <LoadingSkeleton className="h-48 rounded-xl" />;
 
@@ -394,6 +482,38 @@ function EstimateSection({
             />
           )}
         </View>
+      )}
+
+      {tenderResult && tenderResult.items.length > 0 && (
+        <Card>
+          <View className="flex-row justify-between items-center mb-1">
+            <Text className="text-sm font-bold text-text">Extracted Items ({tenderResult.items.length})</Text>
+            <Button
+              label="Create Estimate →"
+              size="sm"
+              loading={createEstimateFromTender.isPending}
+              onPress={handleCreateEstimateFromTender}
+            />
+          </View>
+          {tenderResult.notes && (
+            <Text className="text-xs text-text-muted mb-2">{tenderResult.notes}</Text>
+          )}
+          <Text className="text-xs text-text-muted mb-1">
+            Tap "Create Estimate" to auto-create an estimate with all items grouped by section.
+          </Text>
+          {tenderResult.items.map((item, idx) => (
+            <View key={idx} className="flex-row justify-between border-t border-border py-1.5">
+              <View className="flex-1 pr-2">
+                <Text className="text-sm text-text" numberOfLines={2}>{item.description}</Text>
+                <Text className="text-xs text-text-muted">
+                  {item.quantity} {item.unit} @ {formatINR(item.rate)}
+                  {item.section ? ` · ${item.section}` : ''}
+                </Text>
+              </View>
+              <Text className="text-sm font-semibold text-text">{formatINR(item.amount ?? item.quantity * item.rate)}</Text>
+            </View>
+          ))}
+        </Card>
       )}
       {estimates.map((e: EstimateListRow) => (
         <Card

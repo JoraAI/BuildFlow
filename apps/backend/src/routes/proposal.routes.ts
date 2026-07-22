@@ -11,6 +11,7 @@ import {
   proposalQuerySchema,
   proposalIdParamsSchema,
   promoteProposalSchema,
+  tenderUploadSchema,
 } from '@buildflow/shared';
 import { Role } from '@buildflow/shared';
 
@@ -41,4 +42,11 @@ proposalRouter.delete(
   requireRole(Role.OWNER),
   validate({ params: proposalIdParamsSchema }),
   proposalController.deleteProposal,
+);
+
+// Tender AI import — upload a client tender (PDF/Excel), extract BOQ items via LLM.
+proposalRouter.post(
+  '/:id/import-tender',
+  validate({ params: proposalIdParamsSchema, body: tenderUploadSchema }),
+  proposalController.importTender,
 );

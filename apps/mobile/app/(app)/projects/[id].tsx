@@ -14,7 +14,7 @@ import {
   useProject,
   useProjectSummary,
 } from '@/services/project.queries';
-import { useProjectEstimates, type EstimateListRow } from '@/services/estimate.queries';
+import { useProjectEstimates, useSubEstimates, useCreateSubEstimate, type EstimateListRow, type SubEstimateRow } from '@/services/estimate.queries';
 import { VariationsTab } from '@/components/projects/VariationsTab';
 import { ProcurementTab } from '@/components/projects/ProcurementTab';
 import { SubcontractsTab } from '@/components/projects/SubcontractsTab';
@@ -53,15 +53,32 @@ export default function ProjectDetailScreen() {
   const id = Array.isArray(idParam) ? idParam[0] : idParam;
   const tabFromUrl = Array.isArray(tabParam) ? tabParam[0] : tabParam;
   const { isDesktop } = useViewport();
-  const [tab, setTab] = useState<Tab>('overview');
+  // Persist the active tab in the URL so it survives a page refresh.
+  // On first load, read the ?tab= param. On tab change, update the URL.
+  // This ensures F5/refresh keeps the user on the same tab.
+  const initialTab: Tab =
+    tabFromUrl && TABS.some((t) => t.value === tabFromUrl) ? (tabFromUrl as Tab) : 'overview';
+  const [tab, setTabState] = useState<Tab>(initialTab);
+  const router = useRouter();
   const { data: project, isLoading, refetch, isFetching } = useProject(id);
   const summaryQ = useProjectSummary(id);
 
-  // Reset tab when project changes; honour ?tab= for deep links (e.g. after BOQ conversion).
+  // When the URL ?tab= changes externally (deep link / back button), sync state.
   useEffect(() => {
-    const valid = tabFromUrl && TABS.some((t) => t.value === tabFromUrl);
-    setTab(valid ? (tabFromUrl as Tab) : 'overview');
-  }, [id, tabFromUrl]);
+    if (tabFromUrl && TABS.some((t) => t.value === tabFromUrl)) {
+      setTabState(tabFromUrl as Tab);
+    } else if (!tabFromUrl && tab !== 'overview') {
+      // URL has no tab param but state does — keep state, but update URL
+      router.setParams({ tab });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabFromUrl]);
+
+  // Wrapper that updates both state AND the URL
+  const setTab = (next: Tab) => {
+    setTabState(next);
+    router.setParams({ tab: next });
+  };
 
   if (isLoading) {
     const body = (
@@ -413,10 +430,102 @@ const ESTIMATE_STATUS_COLOR: Record<string, string> = {
   SUPERSEDED: 'neutral',
 };
 
+/**
+ * Estimate card with sub-estimates shown inline.
+ */
+function EstimateCardWithSubs({ estimate }: { estimate: EstimateListRow }) {
+  const router = useRouter();
+  const { data: subEstimates } = useSubEstimates(estimate.id);
+  const createSub = useCreateSubEstimate(estimate.id);
+  const [showAddSub, setShowAddSub] = useState(false);
+  const [subName, setSubName] = useState('');
+
+  async function handleAddSub() {
+    if (!subName.trim()) return;
+    try {
+      const result = await createSub.mutateAsync({ name: subName.trim() });
+      setSubName(''); setShowAddSub(false);
+      router.push(`/(app)/estimation/${result.id}`);
+    } catch {
+      // error handled by mutation
+    }
+  }
+
+  return (
+    <View className="gap-1">
+      <Card
+        onPress={() => router.push(`/(app)/estimation/${estimate.id}`)}
+        className={estimate.status === 'APPROVED' ? 'border-2 border-accent' : undefined}
+      >
+        <View className="flex-row justify-between items-start mb-1">
+          <View className="flex-1 pr-2">
+            <Text className="text-sm font-semibold text-text">v{estimate.version}.0 - {estimate.name}</Text>
+            <Text className="text-xs text-text-muted">{formatDate(estimate.createdAt)}</Text>
+          </View>
+          <Badge color={(ESTIMATE_STATUS_COLOR[estimate.status] ?? 'neutral') as 'neutral'} label={estimate.status} />
+        </View>
+        <View className="flex-row justify-between items-center pt-2 mt-1 border-t border-border">
+          <Text className="text-xs text-text-muted">Grand Total</Text>
+          <Text className="text-base font-bold text-primary">{formatINR(Number(estimate.grandTotal))}</Text>
+        </View>
+      </Card>
+
+      {/* Sub-estimates for this estimate */}
+      {(subEstimates?.length ?? 0) > 0 && (
+        <View className="ml-4 gap-1">
+          {subEstimates!.map((sub: SubEstimateRow) => (
+            <Card
+              key={sub.id}
+              onPress={() => router.push(`/(app)/estimation/${sub.id}`)}
+              className="py-2"
+            >
+              <View className="flex-row justify-between items-center">
+                <View className="flex-1 pr-2">
+                  <Text className="text-xs font-semibold text-text">↳ {sub.name}</Text>
+                  <Text className="text-xs text-text-muted">{formatDate(sub.createdAt)}</Text>
+                </View>
+                <View className="items-end gap-1">
+                  <Badge color={(ESTIMATE_STATUS_COLOR[sub.status] ?? 'neutral') as 'neutral'} label={sub.status} />
+                  <Text className="text-xs font-bold text-primary">{formatINR(sub.grandTotal)}</Text>
+                </View>
+              </View>
+            </Card>
+          ))}
+        </View>
+      )}
+
+      {/* Add sub-estimate */}
+      <View className="ml-4">
+        {showAddSub ? (
+          <Card className="py-2">
+            <Text className="text-xs font-semibold text-text-muted mb-1">New Sub-Estimate for v{estimate.version}</Text>
+            <View className="flex-row gap-2">
+              <Input
+                value={subName}
+                onChangeText={setSubName}
+                placeholder="e.g. Boundary Wall"
+              />
+              <Button label="Add" size="sm" onPress={handleAddSub} loading={createSub.isPending} />
+              <Button label="✕" size="sm" variant="ghost" onPress={() => { setShowAddSub(false); setSubName(''); }} />
+            </View>
+          </Card>
+        ) : (
+          <Pressable onPress={() => setShowAddSub(true)} className="py-1">
+            <Text className="text-xs text-primary font-medium">+ Add Sub-Estimate</Text>
+          </Pressable>
+        )}
+      </View>
+    </View>
+  );
+}
+
 function EstimateTab({ projectId }: { projectId: string }) {
   const router = useRouter();
   const { data, isLoading, isError, refetch } = useProjectEstimates(projectId);
-  const estimates = data ?? [];
+  // Safety net: filter out any sub-estimates (parentId != null) in case the
+  // backend hasn't been restarted yet with the parentId: null filter.
+  // Sub-estimates are shown nested under their parent via useSubEstimates().
+  const estimates = (data ?? []).filter((e) => !e.parentId);
 
   if (isLoading) return <LoadingSkeleton className="h-48 rounded-xl" />;
 
@@ -453,6 +562,10 @@ function EstimateTab({ projectId }: { projectId: string }) {
         />
       </View>
 
+      <Text className="text-xs text-muted">
+        Each estimate can have sub-estimates for additional scope (e.g. boundary wall, gate). Tap "+ Add Sub-Estimate" on any estimate.
+      </Text>
+
       {estimates.length >= 2 && (
         <Button
           label="Compare Versions"
@@ -463,23 +576,7 @@ function EstimateTab({ projectId }: { projectId: string }) {
       )}
 
       {estimates.map((e: EstimateListRow) => (
-        <Card
-          key={e.id}
-          onPress={() => router.push(`/(app)/estimation/${e.id}`)}
-          className={e.status === 'APPROVED' ? 'border-2 border-accent' : undefined}
-        >
-          <View className="flex-row justify-between items-start mb-1">
-            <View className="flex-1 pr-2">
-              <Text className="text-sm font-semibold text-text">v{e.version}.0 - {e.name}</Text>
-              <Text className="text-xs text-text-muted">{formatDate(e.createdAt)}</Text>
-            </View>
-            <Badge color={(ESTIMATE_STATUS_COLOR[e.status] ?? 'neutral') as 'neutral'} label={e.status} />
-          </View>
-          <View className="flex-row justify-between items-center pt-2 mt-1 border-t border-border">
-            <Text className="text-xs text-text-muted">Grand Total</Text>
-            <Text className="text-base font-bold text-primary">{formatINR(Number(e.grandTotal))}</Text>
-          </View>
-        </Card>
+        <EstimateCardWithSubs key={e.id} estimate={e} />
       ))}
     </View>
   );

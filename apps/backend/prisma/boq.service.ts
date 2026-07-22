@@ -22,7 +22,7 @@ export async function listBoq(companyId: string, projectId: string) {
     prisma.bOQItem.findMany({
       where: { projectId, isSuperseded: false },
       include: {
-        estimateItem: { select: { resourceId: true } },
+        estimateItem: { select: { resourceId: true, rateAnalysisId: true } },
       },
       orderBy: [{ category: 'asc' }, { itemCode: 'asc' }],
     }),
@@ -55,6 +55,7 @@ export async function listBoq(companyId: string, projectId: string) {
     return {
       ...rest,
       resourceId: estimateItem?.resourceId ?? null,
+      rateAnalysisId: estimateItem?.rateAnalysisId ?? null,
       sanctionedQty,
       executedQty,
       procuredQty,
@@ -92,8 +93,8 @@ export async function listBoq(companyId: string, projectId: string) {
 
   const total = itemsWithStock.reduce((sum, i) => sum + Number(i.amount), 0);
   const grouped = groupByCategory(itemsWithStock);
-  -
-  return { items: itemsWithStock, grouped, sectionGrouped, total };
+
+  return { items: itemsWithStock, grouped, total };
 }
 
 function groupByCategory(items: Array<{ category: string | null; amount: Prisma.Decimal }>) {
@@ -295,38 +296,77 @@ export async function convertEstimateToBoq(
 
   const projectId = estimate.projectId;
 
-  // Archive existing BOQ and release estimate-item links (unique constraint)
-  await prisma.bOQItem.updateMany({
-    where: { projectId },
-    data: { estimateItemId: null },
-  });
-  const archived = await prisma.bOQItem.updateMany({
-    where: { projectId, isSuperseded: false },
-    data: { isSuperseded: true },
-  });
+  // Sub-estimates (parentId != null) represent additional scope. Their items
+  // should be APPENDED to the existing BOQ, not replace it. Only top-level
+  // estimates archive and rebuild the BOQ from scratch.
+  const isSubEstimate = !!estimate.parentId;
 
-  // Create new BOQ items from estimate items
+  let archived: { count: number };
+  if (isSubEstimate) {
+    // Append mode: do NOT archive existing BOQ items. Only release
+    // estimate-item links for items that belong to THIS estimate (in case
+    // of re-conversion of the same sub-estimate).
+    await prisma.bOQItem.updateMany({
+      where: {
+        projectId,
+        estimateItemId: { in: estimate.items.map((i) => i.id) },
+      },
+      data: { estimateItemId: null },
+    });
+    // Remove previously converted BOQ items from THIS sub-estimate (if any)
+    const oldSubBoq = await prisma.bOQItem.updateMany({
+      where: {
+        projectId,
+        isSuperseded: false,
+        estimateItemId: { in: estimate.items.map((i) => i.id) },
+      },
+      data: { isSuperseded: true },
+    });
+    archived = { count: oldSubBoq.count };
+  } else {
+    // Full rebuild mode: archive ALL existing BOQ items
+    await prisma.bOQItem.updateMany({
+      where: { projectId },
+      data: { estimateItemId: null },
+    });
+    archived = await prisma.bOQItem.updateMany({
+      where: { projectId, isSuperseded: false },
+      data: { isSuperseded: true },
+    });
+  }
+
+  // Create new BOQ items from estimate items (prefixed for sub-estimates)
+  const itemCodePrefix = isSubEstimate ? `SUB-${estimate.name.slice(0, 10).toUpperCase().replace(/\s+/g, '-')}` : '';
   const boqData = estimate.items.map((item) => ({
     projectId,
     wbsId: item.wbsItemId,
-    itemCode: item.itemCode ?? `EST-${item.id.slice(-6)}`,
+    itemCode: item.itemCode ?? (isSubEstimate ? `${itemCodePrefix}-${item.id.slice(-6)}` : `EST-${item.id.slice(-6)}`),
     description: item.description,
     unit: item.unit,
     quantity: Number(item.quantity),
     rate: Number(item.rate),
     amount: Number(item.quantity) * Number(item.rate),
-    category: item.type,
+    category: isSubEstimate ? `${item.type}/${estimate.name}` : item.type,
     estimateItemId: item.id,
     isSuperseded: false,
   }));
 
   const created = await prisma.bOQItem.createMany({ data: boqData });
 
-  // Set project budget = estimate grand total
-  await prisma.project.update({
-    where: { id: projectId },
-    data: { budget: estimate.grandTotal },
-  });
+  // Update project budget:
+  // - Top-level estimate: set budget = estimate grand total (full rebuild)
+  // - Sub-estimate: ADD the sub-estimate's total to the existing budget
+  if (isSubEstimate) {
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { budget: { increment: estimate.grandTotal } },
+    });
+  } else {
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { budget: estimate.grandTotal },
+    });
+  }
 
   const newBoqItems = await prisma.bOQItem.findMany({
     where: { projectId, isSuperseded: false, estimateItemId: { not: null } },

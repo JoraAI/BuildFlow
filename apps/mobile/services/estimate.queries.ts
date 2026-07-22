@@ -38,12 +38,13 @@ export interface PriceHistoryPoint {
 export interface RateAnalysisComponent {
   id: string;
   resourceId: string | null;
+  resourceName?: string | null;
   resource?: { name: string; unit: string } | null;
   miscName: string | null;
-  quantityPerUnit: string;
+  quantityPerUnit: number | string;
   unit: string;
-  rate: string;
-  amount: string;
+  rate: number | string;
+  amount: number | string;
   type: 'MATERIAL' | 'LABOUR' | 'EQUIPMENT' | 'MISC';
 }
 
@@ -105,6 +106,7 @@ export interface EstimateSummary {
 export interface Estimate {
   id: string;
   projectId: string;
+  parentId?: string | null;
   name: string;
   version: number;
   status: 'DRAFT' | 'REVIEWED' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED';
@@ -126,6 +128,7 @@ export interface EstimateListRow {
   name: string;
   version: number;
   status: Estimate['status'];
+  parentId?: string | null;
   grandTotal: string;
   createdAt: string;
 }
@@ -329,6 +332,75 @@ export function useDeleteResource() {
   });
 }
 
+// ─── Bulk operations ───────────────────────────────────────────────
+
+export interface BulkUpsertResult {
+  created: number;
+  updated: number;
+  unchanged: number;
+  createdIds: string[];
+  updatedIds: string[];
+}
+
+export function useBulkUpsertResources() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (resources: Array<{
+      name: string;
+      type: 'LABOUR' | 'MATERIAL' | 'EQUIPMENT' | 'SUBCONTRACTOR';
+      unit: string;
+      rate: number;
+      gstRate?: number;
+      hsnSacCode?: string;
+      brandOrSpec?: string;
+      category?: string;
+    }>) =>
+      apiFetch<BulkUpsertResult>('/resources/bulk-upsert', {
+        method: 'POST',
+        body: JSON.stringify({ resources }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: materialKeys.all });
+      qc.invalidateQueries({ queryKey: ['resources'] });
+    },
+  });
+}
+
+export interface BulkPriceChange {
+  resourceId: string;
+  name: string;
+  oldRate: number;
+  newRate: number;
+}
+
+export interface BulkPriceUpdateResult {
+  applied: number;
+  scheduled: number;
+  notFound: string[];
+  changes: BulkPriceChange[];
+}
+
+export function useBulkPriceUpdate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      mode: 'absolute' | 'percent';
+      effectiveDate: string;
+      notes?: string;
+      items: Array<{ resourceId: string; value: number }>;
+    }) =>
+      apiFetch<BulkPriceUpdateResult>('/resources/bulk-price', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: materialKeys.all });
+      qc.invalidateQueries({ queryKey: ['resources'] });
+      qc.invalidateQueries({ queryKey: ['rate-analysis'] });
+    },
+  });
+}
+
 export function usePriceHistory(resourceId: string) {
   return useQuery({
     queryKey: ['resources', resourceId, 'price-history'] as const,
@@ -364,7 +436,7 @@ export function useRateAnalyses() {
       // Sort alphabetically by name as a safety net
       return data.sort((a, b) => a.name.localeCompare(b.name));
     },
-    staleTime: 60 * 60 * 1000,
+    staleTime: 30 * 1000,
   });
 }
 
@@ -402,6 +474,102 @@ export function useCreateEstimate(projectId: string) {
     mutationFn: (body: { name: string; notes?: string; overheadPct?: number; contingencyPct?: number; profitMarginPct?: number }) =>
       apiFetch<Estimate>(`/projects/${projectId}/estimates`, { method: 'POST', body: JSON.stringify(body) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['projects', projectId, 'estimates'] }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Sub-items (children of a parent estimate item)
+// ---------------------------------------------------------------------------
+
+export interface SubEstimateItem {
+  id: string;
+  description: string;
+  unit: string;
+  quantity: string;
+  rate: string;
+  amount: string;
+  type: string;
+  resourceId: string | null;
+  notes: string | null;
+  parentId: string | null;
+}
+
+export function useSubItems(parentItemId: string) {
+  return useQuery({
+    queryKey: ['estimate-items', parentItemId, 'sub-items'] as const,
+    queryFn: () => apiFetch<SubEstimateItem[]>(`/estimate-items/${parentItemId}/sub-items`),
+    enabled: !!parentItemId,
+  });
+}
+
+export function useCreateSubItem(parentItemId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      description: string;
+      unit: string;
+      quantity: number;
+      rate: number;
+      type: EstimateItem['type'];
+      resourceId?: string;
+      notes?: string;
+    }) =>
+      apiFetch<{ id: string }>(`/estimate-items/${parentItemId}/sub-items`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['estimate-items', parentItemId, 'sub-items'] });
+    },
+  });
+}
+
+export function useDeleteSubItem(parentItemId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (subItemId: string) =>
+      apiFetch<{ success: boolean }>(`/estimate-items/${parentItemId}/sub-items/${subItemId}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['estimate-items', parentItemId, 'sub-items'] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Sub-estimates (child estimates for additional scope)
+// ---------------------------------------------------------------------------
+
+export interface SubEstimateRow {
+  id: string;
+  name: string;
+  version: number;
+  status: string;
+  grandTotal: number;
+  createdAt: string;
+  approvedAt: string | null;
+}
+
+export function useSubEstimates(parentEstimateId: string) {
+  return useQuery({
+    queryKey: ['estimates', parentEstimateId, 'sub-estimates'] as const,
+    queryFn: () => apiFetch<SubEstimateRow[]>(`/estimates/${parentEstimateId}/sub-estimates`),
+    enabled: !!parentEstimateId,
+  });
+}
+
+export function useCreateSubEstimate(parentEstimateId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { name: string; notes?: string }) =>
+      apiFetch<{ id: string }>(`/estimates/${parentEstimateId}/sub-estimates`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['estimates', parentEstimateId, 'sub-estimates'] });
+    },
   });
 }
 
@@ -480,6 +648,10 @@ export function useEstimateMutations(estimateId: string) {
         invalidate();
         qc.invalidateQueries({ queryKey: ['proposals'] });
         qc.invalidateQueries({ queryKey: ['projects', data.projectId, 'estimates'] });
+        // Invalidate ALL sub-estimate caches — approving a new version
+        // supersedes old parent estimates AND cascades to their sub-estimates.
+        // Without this, stale "APPROVED" status shows for superseded sub-estimates.
+        qc.invalidateQueries({ queryKey: ['estimates'] });
       },
     }),
     reject: useMutation({
@@ -549,7 +721,18 @@ export function useDuplicateRateAnalysis() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => apiFetch<RateAnalysis>(`/rate-analysis/${id}/duplicate`, { method: 'POST' }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['rate-analysis'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['rate-analysis'], refetchType: 'active' }),
+  });
+}
+
+export function useDeleteRateAnalysis() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; force?: boolean }) =>
+      apiFetch<{ id: string }>(`/rate-analysis/${input.id}${input.force ? '?force=true' : ''}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['rate-analysis'], refetchType: 'active' }),
   });
 }
 

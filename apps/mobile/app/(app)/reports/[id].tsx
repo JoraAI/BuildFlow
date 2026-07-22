@@ -106,12 +106,17 @@ export default function ReportDetailScreen() {
             <View className="px-4 pb-3">
               <Card className="p-4">
                 <Text className="text-sm font-semibold text-text mb-2">Schedule Updates</Text>
-                {report.taskUpdates.map((tu) => (
-                  <View key={tu.id} className="flex-row justify-between py-1.5 border-b border-border">
-                    <Text className="text-sm text-text flex-1">{tu.task.name}</Text>
-                    <Text className="text-sm text-muted">{tu.progressPct}%</Text>
-                  </View>
-                ))}
+                {report.taskUpdates.map(
+                  (tu: NonNullable<ReportListItem['taskUpdates']>[number]) => (
+                    <View
+                      key={tu.id}
+                      className="flex-row justify-between py-1.5 border-b border-border"
+                    >
+                      <Text className="text-sm text-text flex-1">{tu.task.name}</Text>
+                      <Text className="text-sm text-muted">{tu.progressPct}%</Text>
+                    </View>
+                  ),
+                )}
               </Card>
             </View>
           )}

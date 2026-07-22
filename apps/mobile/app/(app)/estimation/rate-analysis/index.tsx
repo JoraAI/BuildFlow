@@ -3,7 +3,7 @@
  * Search + filter chips + cards with total rate, component summary, actions.
  */
 import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, RefreshControl, TextInput, Pressable } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, TextInput, Pressable, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card, Badge, FAB, LoadingSkeleton, EmptyState, Button } from '@/components/ui';
@@ -11,7 +11,13 @@ import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 import { dismissTo, navigateAppBack, DISMISS } from '@/utils/navigation';
-import { useRateAnalyses, useDuplicateRateAnalysis, type RateAnalysis } from '@/services/estimate.queries';
+import {
+  useRateAnalyses,
+  useDuplicateRateAnalysis,
+  useDeleteRateAnalysis,
+  type RateAnalysis,
+} from '@/services/estimate.queries';
+import { confirmAsync } from '@/utils/confirm';
 import { formatINR, formatDate } from '@/utils/format';
 import { useAuthStore } from '@/stores/auth.store';
 
@@ -44,8 +50,54 @@ export default function RateAnalysisLibraryScreen() {
   const user = useAuthStore((s) => s.user);
   const { data, isLoading, refetch, isFetching } = useRateAnalyses();
   const duplicate = useDuplicateRateAnalysis();
+  const deleteMutation = useDeleteRateAnalysis();
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
+
+  const handleDuplicate = (id: string) => {
+    setDuplicatingId(id);
+    duplicate.mutate(id, {
+      onSettled: () => setDuplicatingId(null),
+      onError: () =>
+        Alert.alert('Duplicate failed', 'Could not duplicate this rate analysis. Please try again.'),
+    });
+  };
+
+  const performDelete = (id: string, force: boolean) => {
+    setDeletingId(id);
+    deleteMutation.mutate(
+      { id, force },
+      {
+        onSettled: () => setDeletingId(null),
+        onError: (err: unknown) => {
+          // 409 = rate analysis is in use; ask the user to force delete
+          const status = (err as { status?: number }).status;
+          if (status === 409) {
+            Alert.alert(
+              'Rate analysis in use',
+              'This rate analysis is linked to estimate item(s). Deleting it will unlink them (their rate will not auto-update anymore). Delete anyway?',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete anyway', style: 'destructive', onPress: () => performDelete(id, true) },
+              ],
+            );
+          } else {
+            Alert.alert('Delete failed', 'Could not delete this rate analysis. Please try again.');
+          }
+        },
+      },
+    );
+  };
+
+  const handleDelete = async (id: string, name: string) => {
+    const ok = await confirmAsync(
+      'Delete rate analysis',
+      `Delete "${name}"? This cannot be undone.`,
+    );
+    if (ok) performDelete(id, false);
+  };
 
   const canManage = user?.role === 'OWNER' || user?.role === 'PM';
 
@@ -141,13 +193,22 @@ export default function RateAnalysisLibraryScreen() {
                 <View className="flex-row gap-2">
                   <Button label="View" size="sm" variant="secondary" onPress={() => router.push(`/(app)/estimation/rate-analysis/${ra.id}`)} />
                   {canManage && (
-                    <Button
-                      label="Duplicate"
-                      size="sm"
-                      variant="ghost"
-                      loading={duplicate.isPending}
-                      onPress={() => duplicate.mutate(ra.id)}
-                    />
+                    <>
+                      <Button
+                        label="Duplicate"
+                        size="sm"
+                        variant="ghost"
+                        loading={duplicatingId === ra.id}
+                        onPress={() => handleDuplicate(ra.id)}
+                      />
+                      <Button
+                        label="Delete"
+                        size="sm"
+                        variant="ghost"
+                        loading={deletingId === ra.id}
+                        onPress={() => handleDelete(ra.id, ra.name)}
+                      />
+                    </>
                   )}
                 </View>
               </Card>

@@ -20,6 +20,8 @@ import type {
   ResourceQueryInput,
   CreatePriceHistoryInput,
   ResourceImageUploadInput,
+  BulkUpsertResourcesInput,
+  BulkPriceUpdateInput,
 } from '@buildflow/shared';
 import {
   compareDateOnly,
@@ -464,4 +466,212 @@ export async function importResources(
   });
 
   return { imported: created.length, ids: created };
+}
+
+/* ------------------------------------------------------------------ */
+/* Bulk Upsert & Bulk Price Update                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Bulk upsert resources by (companyId, name, type).
+ * - Existing matches are updated (rate + all provided fields).
+ * - Non-matches are created (and seeded with an initial price history row).
+ * - Returns { created, updated, unchanged } counts + ids.
+ */
+export async function bulkUpsertResources(
+  companyId: string,
+  userId: string,
+  rows: BulkUpsertResourcesInput['resources'],
+  ipAddress?: string,
+) {
+  const created: string[] = [];
+  const updated: string[] = [];
+  const unchanged: string[] = [];
+
+  for (const row of rows) {
+    const existing = await prisma.resource.findFirst({
+      where: { companyId, name: row.name, type: row.type, isDeleted: false },
+    });
+
+    if (existing) {
+      const rateChanged = row.rate !== Number(existing.rate);
+      await prisma.resource.update({
+        where: { id: existing.id },
+        data: {
+          name: row.name,
+          type: row.type,
+          unit: row.unit,
+          rate: row.rate,
+          gstRate: row.gstRate ?? Number(existing.gstRate),
+          hsnSacCode: row.hsnSacCode ?? existing.hsnSacCode,
+          brandOrSpec: row.brandOrSpec ?? existing.brandOrSpec,
+          category: row.category ?? existing.category,
+          imageUrl: row.imageUrl ?? existing.imageUrl,
+          ...(rateChanged && { lastRateUpdatedAt: new Date() }),
+        },
+      });
+      if (rateChanged) {
+        await flagStaleRateAnalyses(existing.id);
+        updated.push(existing.id);
+      } else {
+        unchanged.push(existing.id);
+      }
+    } else {
+      const resource = await prisma.resource.create({
+        data: {
+          companyId,
+          name: row.name,
+          type: row.type,
+          unit: row.unit,
+          rate: row.rate,
+          gstRate: row.gstRate ?? 0,
+          hsnSacCode: row.hsnSacCode ?? null,
+          brandOrSpec: row.brandOrSpec ?? null,
+          category: row.category ?? null,
+          imageUrl: row.imageUrl ?? null,
+          lastRateUpdatedAt: new Date(),
+        },
+      });
+      await prisma.materialPriceHistory.create({
+        data: {
+          resourceId: resource.id,
+          companyId,
+          rate: resource.rate,
+          effectiveDate: new Date(),
+          notes: 'Bulk upsert — initial rate',
+          recordedBy: userId,
+        },
+      });
+      created.push(resource.id);
+    }
+  }
+
+  await invalidatePattern(`cache:${companyId}:resources:*`);
+  await invalidatePattern(`cache:${companyId}:rate-analysis:*`);
+
+  await recordAudit({
+    companyId,
+    userId,
+    action: 'CUSTOM',
+    entityType: 'resource_batch_upsert',
+    entityId: companyId,
+    newValue: { created: created.length, updated: updated.length, unchanged: unchanged.length },
+    ipAddress,
+  });
+
+  return {
+    created: created.length,
+    updated: updated.length,
+    unchanged: unchanged.length,
+    createdIds: created,
+    updatedIds: updated,
+  };
+}
+
+/**
+ * Bulk price update for resources (by id). Each change logs a
+ * MaterialPriceHistory row and flags dependent rate analyses as stale.
+ * `mode` = 'absolute' sets the new rate directly; 'percent' applies a relative
+ * change (value may be negative for discounts).
+ */
+export async function bulkPriceUpdate(
+  companyId: string,
+  userId: string,
+  input: BulkPriceUpdateInput,
+  ipAddress?: string,
+) {
+  const effectiveDate = parseDateOnlyToDate(input.effectiveDate);
+  const effectiveDateOnly = input.effectiveDate;
+  const today = todayDateOnly();
+  const isImmediate = compareDateOnly(effectiveDateOnly, today) <= 0;
+
+  // Load all target resources in one shot.
+  const ids = input.items.map((i: BulkPriceUpdateInput['items'][number]) => i.resourceId);
+  const resources = await prisma.resource.findMany({
+    where: { id: { in: ids }, companyId, isDeleted: false },
+    select: { id: true, name: true, rate: true },
+  });
+  const byId = new Map(resources.map((r) => [r.id, r]));
+
+  const applied: Array<{ resourceId: string; name: string; oldRate: number; newRate: number }> = [];
+  const notFound: string[] = [];
+
+  for (const item of input.items) {
+    const resource = byId.get(item.resourceId);
+    if (!resource) {
+      notFound.push(item.resourceId);
+      continue;
+    }
+    const oldRate = Number(resource.rate);
+    const newRate =
+      input.mode === 'percent'
+        ? round2(oldRate * (1 + item.value / 100))
+        : round2(item.value);
+
+    if (newRate < 0) {
+      throw ApiError.validation([
+        {
+          field: 'value',
+          message: `Rate for "${resource.name}" would become negative (${newRate})`,
+        },
+      ]);
+    }
+    if (newRate === oldRate) continue; // no-op
+
+    await prisma.materialPriceHistory.create({
+      data: {
+        resourceId: resource.id,
+        companyId,
+        rate: newRate,
+        effectiveDate,
+        notes: input.notes ?? `Bulk price update (${input.mode})`,
+        recordedBy: userId,
+      },
+    });
+
+    if (isImmediate) {
+      await prisma.resource.update({
+        where: { id: resource.id },
+        data: { rate: newRate, lastRateUpdatedAt: effectiveDate },
+      });
+      await flagStaleRateAnalyses(resource.id);
+    }
+    applied.push({ resourceId: resource.id, name: resource.name, oldRate, newRate });
+  }
+
+  await invalidatePattern(`cache:${companyId}:resources:*`);
+  if (isImmediate) {
+    await invalidatePattern(`cache:${companyId}:rate-analysis:*`);
+  }
+
+  await recordAudit({
+    companyId,
+    userId,
+    action: 'UPDATE',
+    entityType: 'resource_price_batch',
+    entityId: companyId,
+    newValue: {
+      mode: input.mode,
+      count: applied.length,
+      changes: applied.map((a) => ({
+        resourceId: a.resourceId,
+        name: a.name,
+        oldRate: a.oldRate,
+        newRate: a.newRate,
+      })),
+      ...(notFound.length > 0 ? { notFound } : {}),
+    },
+    ipAddress,
+  });
+
+  return {
+    applied: applied.length,
+    scheduled: isImmediate ? 0 : applied.length,
+    notFound,
+    changes: applied,
+  };
+}
+
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
 }

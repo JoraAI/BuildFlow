@@ -25,6 +25,7 @@ type CType = 'MATERIAL' | 'LABOUR' | 'EQUIPMENT' | 'MISC';
 interface DraftComp {
   id: string;
   resourceId?: string;
+  resourceName?: string;
   miscName?: string;
   quantityPerUnit: string;
   unit: string;
@@ -70,6 +71,7 @@ export default function RateAnalysisEditorScreen() {
         existing.components.map((c: RateAnalysisComponent) => ({
           id: c.id,
           resourceId: c.resourceId ?? undefined,
+          resourceName: c.resource?.name ?? undefined,
           miscName: c.miscName ?? undefined,
           quantityPerUnit: String(c.quantityPerUnit),
           unit: c.unit,
@@ -215,7 +217,9 @@ export default function RateAnalysisEditorScreen() {
                         className="border border-border rounded px-2 py-1.5"
                       >
                         <Text className={`text-sm ${c.resourceId ? 'text-text' : 'text-text-muted'}`}>
-                          {c.resourceId ? resources.find((r: Resource) => r.id === c.resourceId)?.name : 'Select resource...'}
+                          {c.resourceId
+                            ? (resources.find((r: Resource) => r.id === c.resourceId)?.name ?? c.resourceName ?? 'Select resource...')
+                            : 'Select resource...'}
                         </Text>
                       </Pressable>
                     )}
@@ -228,7 +232,7 @@ export default function RateAnalysisEditorScreen() {
                               <Pressable
                                 key={r.id}
                                 onPress={() => {
-                                  updateComp(c.id, { resourceId: r.id, unit: r.unit, rate: String(r.rate) });
+                                  updateComp(c.id, { resourceId: r.id, resourceName: r.name, unit: r.unit, rate: String(r.rate) });
                                   setPickerFor(null);
                                 }}
                                 className="px-2 py-2 border-b border-border"

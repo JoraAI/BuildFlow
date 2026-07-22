@@ -79,10 +79,6 @@ export default function CreateBillScreen() {
       setFormError('Please choose a project for this bill.');
       return;
     }
-    if (!billNumber.trim()) {
-      setFormError('Please enter the vendor bill number.');
-      return;
-    }
     if (!vendorName.trim()) {
       setFormError('Please enter the vendor name.');
       return;
@@ -95,7 +91,6 @@ export default function CreateBillScreen() {
     createBill.mutate(
       {
         projectId,
-        billNumber: billNumber.trim(),
         vendorName: vendorName.trim(),
         vendorGstin: vendorGstin.trim() || undefined,
         billDate,

@@ -51,6 +51,29 @@ const envSchema = z.object({
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
   S3_PRESIGN_EXPIRY_SECONDS: z.coerce.number().int().min(60).max(3600).default(900), // 15 min
 
+  // ── Encrypted File Storage abstraction ───────────────────────────
+  // Provider: 'local' | 's3' | 'drive'. Switching is a one-line env change.
+  // Encrypted bytes are stored at the provider; ciphertext is provider-agnostic.
+  FILE_STORAGE_PROVIDER: z.enum(['local', 's3', 'drive']).default('local'),
+
+  // Master key for AES-256-GCM field/file encryption. Must be 32 bytes
+  // base64-encoded (generate with: openssl rand -base64 32). Per-company
+  // data keys are HKDF-derived from this master so rotation is centralized.
+  // When omitted in non-production, a deterministic dev key is used.
+  FILE_ENCRYPTION_MASTER_KEY: z
+    .preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+
+  // Local storage (dev / tests)
+  FILE_STORAGE_LOCAL_DIR: z.string().default('./.filestore'),
+
+  // Google Drive storage (cheap encrypted file store, swappable to S3/R2/etc later)
+  DRIVE_CLIENT_EMAIL: z
+    .preprocess((v) => (v === '' ? undefined : v), z.string().email().optional()),
+  DRIVE_PRIVATE_KEY: z
+    .preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  DRIVE_ROOT_FOLDER_ID: z
+    .preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+
   // Tally Prime export (optional ledger name mapping JSON)
   TALLY_LEDGER_MAP: z.string().optional(),
 

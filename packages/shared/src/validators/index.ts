@@ -17,3 +17,4 @@ export * from './portal';
 export * from './material-rate';
 export * from './rate-region';
 export * from './project-material-rate';
+export * from './tender-import';

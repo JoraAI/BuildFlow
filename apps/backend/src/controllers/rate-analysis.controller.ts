@@ -42,7 +42,8 @@ export async function update(req: Request, res: Response) {
 }
 
 export async function remove(req: Request, res: Response) {
-  await svc.deleteRateAnalysis(req.user!.companyId, req.user!.id, req.params.id, req.ip);
+  const force = req.query.force === 'true';
+  await svc.deleteRateAnalysis(req.user!.companyId, req.user!.id, req.params.id, req.ip, force);
   ok(res, { id: req.params.id });
 }
 

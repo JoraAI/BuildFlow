@@ -328,6 +328,20 @@ describe('Procurement (integration)', () => {
     expect(outMov!.referenceLabel).toMatch(/Daily report/);
   });
 
+  it('blocks indent approval for roles without procurement.approve_indent', async () => {
+    // STORE_INCHARGE has procurement.create_indent but NOT procurement.approve_indent
+    // The route guard `requirePermission('procurement.approve_indent')` fires before
+    // the controller, so we expect 403 even with a dummy requisition id.
+    const storeToken = await loginAs('store@reddyconst.com');
+    const dummyReqId = '00000000-0000-0000-0000-000000000000';
+    const res = await authPost(
+      storeToken,
+      `/api/projects/${projectId}/procurement/requisitions/${dummyReqId}/approve`,
+    );
+    expect(res.status).toBe(403);
+    expect(res.body.error?.message).toMatch(/permission/i);
+  });
+
   it('material procurement on Trail does not auto-certify subcontract WO', async () => {
     const trailId = await getProjectId(token, 'TRAIL');
 

@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
+import { nextSequentialNumber } from '../lib/id-generator';
 import { assertProjectAccess } from '../middleware/project-access.middleware';
 import { getProject } from './project.service';
 import type {
@@ -156,7 +157,9 @@ export async function createRequisition(
     data: {
       projectId,
       companyId,
-      reqNumber: input.reqNumber,
+      // Always auto-generate reqNumber — it must not be client-editable.
+      // Format: IND-{YYYY}-{NNNN} (scoped per company + year).
+      reqNumber: await nextSequentialNumber(companyId, 'indent'),
       notes: input.notes,
       requestedBy: userId,
       lines: { create: lineCreates },
@@ -165,6 +168,30 @@ export async function createRequisition(
       lines: { include: { resource: { select: { id: true, name: true } } } },
     },
   });
+}
+
+export async function deleteRequisition(
+  companyId: string,
+  userId: string,
+  role: string,
+  projectId: string,
+  requisitionId: string,
+) {
+  await assertProjectAccess(companyId, userId, role as never, projectId, ['OWNER', 'PM', 'SUPERVISOR']);
+  const req = await prisma.materialRequisition.findFirst({
+    where: { id: requisitionId, projectId, companyId },
+    include: { purchaseOrders: { select: { id: true } } },
+  });
+  if (!req) throw ApiError.notFound('Requisition not found');
+  // Safety: only allow deleting DRAFT requisitions with no POs
+  if (req.status !== 'DRAFT') {
+    throw ApiError.badRequest('Only draft requisitions can be deleted');
+  }
+  if (req.purchaseOrders.length > 0) {
+    throw ApiError.badRequest('Cannot delete requisition with purchase orders');
+  }
+  await prisma.materialRequisition.delete({ where: { id: requisitionId } });
+  return { success: true };
 }
 
 export async function submitRequisition(
@@ -196,9 +223,8 @@ export async function approveRequisition(
   projectId: string,
   requisitionId: string,
 ) {
-  if (role !== 'OWNER' && role !== 'PM') {
-    throw ApiError.forbidden('Only owner or PM can approve requisitions');
-  }
+  // Route-level guard `requirePermission('procurement.approve_indent')` enforces
+  // who may call this. The company can customize that per role in Settings.
   const req = await prisma.materialRequisition.findFirst({
     where: { id: requisitionId, projectId, companyId },
   });

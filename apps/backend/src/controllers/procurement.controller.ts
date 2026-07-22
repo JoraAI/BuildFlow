@@ -33,6 +33,18 @@ export async function createRequisition(req: Request, res: Response) {
   return created(res, data);
 }
 
+export async function deleteRequisition(req: Request, res: Response) {
+  const { companyId, id: userId, role } = req.user!;
+  const data = await procurementService.deleteRequisition(
+    companyId,
+    userId,
+    role,
+    req.params.id,
+    req.params.requisitionId,
+  );
+  return ok(res, data);
+}
+
 export async function submitRequisition(req: Request, res: Response) {
   const { companyId, id: userId, role } = req.user!;
   const data = await procurementService.submitRequisition(

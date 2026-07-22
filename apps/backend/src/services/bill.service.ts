@@ -2,10 +2,12 @@
  * BuildFlow - Bill (vendor invoice) service.
  */
 import { Decimal } from '@prisma/client/runtime/library';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
 import { invalidateCache, cacheKeys } from '../utils/cache';
 import { round2 } from './gst.service';
+import { nextSequentialNumber } from '../lib/id-generator';
 import type { CreateBillInput, UpdateBillInput, RecordPaymentInput } from '@buildflow/shared';
 
 function toNum(d: Decimal | null | undefined): number {
@@ -96,6 +98,78 @@ export async function getBill(companyId: string, id: string) {
   return serializeBill(bill);
 }
 
+/**
+ * Build a JSON snapshot of the linked entities (PO / WO / measurement) at bill
+ * creation time, so the bill's basis is preserved even if those records change
+ * later. Stored on `Bill.billSnapshot`.
+ */
+async function buildBillSnapshot(opts: {
+  purchaseOrderId?: string | null;
+  workOrderId?: string | null;
+  measurementId?: string | null;
+}): Promise<Prisma.JsonObject | null> {
+  if (!opts.purchaseOrderId && !opts.workOrderId && !opts.measurementId) return null;
+
+  const snapshot: Prisma.JsonObject = { capturedAt: new Date().toISOString() };
+
+  if (opts.purchaseOrderId) {
+    const po = await prisma.purchaseOrder.findUnique({
+      where: { id: opts.purchaseOrderId },
+      select: { poNumber: true, vendorName: true, totalAmount: true, status: true },
+    });
+    if (po) {
+      snapshot.purchaseOrder = {
+        poNumber: po.poNumber,
+        vendorName: po.vendorName,
+        totalAmount: Number(po.totalAmount),
+        status: po.status,
+      };
+    }
+  }
+  if (opts.workOrderId) {
+    const wo = await prisma.subcontractWorkOrder.findUnique({
+      where: { id: opts.workOrderId },
+      select: {
+        woNumber: true,
+        scope: true,
+        contractValue: true,
+        retentionPct: true,
+        status: true,
+        subcontractor: { select: { name: true, gstin: true, defaultTdsRate: true } },
+      },
+    });
+    if (wo) {
+      snapshot.workOrder = {
+        woNumber: wo.woNumber,
+        scope: wo.scope,
+        contractValue: Number(wo.contractValue),
+        retentionPct: Number(wo.retentionPct),
+        status: wo.status,
+        subcontractor: {
+          name: wo.subcontractor.name,
+          gstin: wo.subcontractor.gstin,
+          defaultTdsRate: Number(wo.subcontractor.defaultTdsRate),
+        },
+      };
+    }
+  }
+  if (opts.measurementId) {
+    const m = await prisma.subcontractMeasurement.findUnique({
+      where: { id: opts.measurementId },
+      select: { periodLabel: true, totalAmount: true, status: true },
+    });
+    if (m) {
+      snapshot.measurement = {
+        periodLabel: m.periodLabel,
+        totalAmount: Number(m.totalAmount),
+        status: m.status,
+      };
+    }
+  }
+
+  return Object.keys(snapshot).length > 1 ? snapshot : null;
+}
+
 export async function createBill(companyId: string, _userId: string, input: CreateBillInput) {
   const project = await prisma.project.findFirst({
     where: { id: input.projectId, companyId },
@@ -104,11 +178,19 @@ export async function createBill(companyId: string, _userId: string, input: Crea
 
   const total = round2(input.subtotal + input.gstAmount - input.tdsAmount);
 
+  // Capture a snapshot of any linked entities at creation time (audit trail).
+  // Manual bills usually don't have PO/WO links, but if they do we preserve them.
+  const snapshot = await buildBillSnapshot({
+    purchaseOrderId: (input as CreateBillInput & { purchaseOrderId?: string }).purchaseOrderId,
+    workOrderId: (input as CreateBillInput & { workOrderId?: string }).workOrderId,
+    measurementId: (input as CreateBillInput & { measurementId?: string }).measurementId,
+  });
+
   const bill = await prisma.bill.create({
     data: {
       projectId: input.projectId,
       companyId,
-      billNumber: input.billNumber,
+      billNumber: input.billNumber || await nextSequentialNumber(companyId, 'bill'),
       vendorName: input.vendorName,
       vendorGstin: input.vendorGstin,
       billDate: input.billDate,
@@ -119,9 +201,11 @@ export async function createBill(companyId: string, _userId: string, input: Crea
       tdsAmount: input.tdsAmount,
       total,
       category: input.category,
+      ...(snapshot ? { billSnapshot: snapshot } : {}),
     },
     include: { project: { select: { id: true, name: true } } },
   });
+
   return serializeBill(bill);
 }
 

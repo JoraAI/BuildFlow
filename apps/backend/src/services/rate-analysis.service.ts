@@ -157,7 +157,23 @@ export async function getRateAnalysis(companyId: string, id: string) {
     },
   });
   if (!r) throw ApiError.notFound('Rate analysis not found');
-  return r;
+  // Serialize components — convert Prisma Decimal to number and include the
+  // `type` field so the frontend can filter by MATERIAL/EQUIPMENT/LABOUR.
+  return {
+    ...r,
+    totalRate: Number(r.totalRate),
+    components: r.components.map((c) => ({
+      id: c.id,
+      resourceId: c.resourceId,
+      resourceName: c.resource?.name ?? null,
+      miscName: c.miscName,
+      quantityPerUnit: Number(c.quantityPerUnit),
+      unit: c.unit,
+      rate: Number(c.rate),
+      amount: Number(c.amount),
+      type: c.type,
+    })),
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -251,8 +267,27 @@ export async function deleteRateAnalysis(
   userId: string,
   id: string,
   ipAddress?: string,
+  force = false,
 ) {
   await getRateAnalysis(companyId, id);
+
+  // Guard: prevent silent unlinking of estimate items unless force=true.
+  // The FK is onDelete: SetNull, so deletion wouldn't crash, but estimate
+  // items would silently lose their rate analysis link. Surface this to the
+  // caller with a 409 so they can confirm intent.
+  if (!force) {
+    const inUseCount = await prisma.estimateItem.count({
+      where: { rateAnalysisId: id },
+    });
+    if (inUseCount > 0) {
+      throw new ApiError(
+        'CONFLICT',
+        `This rate analysis is linked to ${inUseCount} estimate item(s). Deleting it will unlink them (their rate will not auto-update anymore). Pass force=true to confirm.`,
+        { details: [{ message: `inUseCount: ${inUseCount}` }] },
+      );
+    }
+  }
+
   await prisma.rateAnalysis.delete({ where: { id } });
   await invalidatePattern(`cache:${companyId}:rate-analysis:*`);
   await invalidateCache(cacheKeys.rateAnalysis(companyId, id));

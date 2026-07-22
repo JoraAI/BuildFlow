@@ -12,6 +12,8 @@ import {
   resourceIdParamsSchema,
   createPriceHistorySchema,
   importResourcesSchema,
+  bulkUpsertResourcesSchema,
+  bulkPriceUpdateSchema,
   resourceImageUploadSchema,
 } from '@buildflow/shared';
 import { Role } from '@buildflow/shared';
@@ -31,6 +33,18 @@ resourceRouter.post(
   resourceController.createResourceImageUploadUrl,
 );
 resourceRouter.post('/import', canManageResources, validate({ body: importResourcesSchema }), resourceController.importResources);
+resourceRouter.post(
+  '/bulk-upsert',
+  canManageResources,
+  validate({ body: bulkUpsertResourcesSchema }),
+  resourceController.bulkUpsertResources,
+);
+resourceRouter.post(
+  '/bulk-price',
+  canManageResources,
+  validate({ body: bulkPriceUpdateSchema }),
+  resourceController.bulkPriceUpdate,
+);
 
 resourceRouter.get('/:id', validate({ params: resourceIdParamsSchema }), resourceController.getResource);
 resourceRouter.put(

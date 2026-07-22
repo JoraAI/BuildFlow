@@ -8,6 +8,8 @@ export { LoadingSkeleton } from './LoadingSkeleton';
 export { FAB } from './FAB';
 export { Avatar, CompanyLogo } from './Avatar';
 export { SearchBar } from './SearchBar';
+export { Select } from './Select';
+export type { SelectOption } from './Select';
 export { DateField } from './DateField';
 export type { DateFieldProps } from './DateField';
 export { NumberInput } from './NumberInput';

@@ -71,3 +71,46 @@ export const importResourcesSchema = z.object({
   resources: z.array(createResourceSchema).min(1, 'At least one resource is required').max(1000),
 });
 export type ImportResourcesInput = z.infer<typeof importResourcesSchema>;
+
+/**
+ * Bulk upsert: each row is matched by (name, type) within the company. If a
+ * matching resource exists, it is updated; otherwise a new one is created.
+ * Returns { created, updated, ids }.
+ */
+export const bulkUpsertResourcesSchema = z.object({
+  resources: z
+    .array(createResourceSchema)
+    .min(1, 'At least one resource is required')
+    .max(500, 'A single bulk upsert supports up to 500 resources'),
+});
+export type BulkUpsertResourcesInput = z.infer<typeof bulkUpsertResourcesSchema>;
+
+/**
+ * Bulk price update: set the master rate for each resource (by id) and log a
+ * MaterialPriceHistory row per change. The `mode` controls how `value` is
+ * interpreted:
+ *   - 'absolute'  → new rate = value
+ *   - 'percent'   → new rate = current * (1 + value/100)   (value may be negative)
+ */
+export const bulkPriceUpdateModeSchema = z.enum(['absolute', 'percent']);
+export type BulkPriceUpdateMode = z.infer<typeof bulkPriceUpdateModeSchema>;
+
+export const bulkPriceUpdateItemSchema = z.object({
+  resourceId: z.string().uuid(),
+  value: z.number().finite(),
+});
+export type BulkPriceUpdateItem = z.infer<typeof bulkPriceUpdateItemSchema>;
+
+export const bulkPriceUpdateSchema = z.object({
+  mode: bulkPriceUpdateModeSchema,
+  effectiveDate: dateSchema.refine(
+    (d) => isDateOnOrAfter(d, todayDateOnly()),
+    'Effective date cannot be in the past',
+  ),
+  notes: z.string().max(500).optional(),
+  items: z
+    .array(bulkPriceUpdateItemSchema)
+    .min(1, 'At least one price update is required')
+    .max(500, 'A single bulk price update supports up to 500 resources'),
+});
+export type BulkPriceUpdateInput = z.infer<typeof bulkPriceUpdateSchema>;

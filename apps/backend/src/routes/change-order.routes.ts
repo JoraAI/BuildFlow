@@ -50,3 +50,20 @@ changeOrderRouter.post(
   validate({ params: changeOrderIdParamsSchema, body: rejectChangeOrderSchema }),
   changeOrderController.reject,
 );
+
+// Variation BOQ picker — list eligible items + bulk-attach as variation lines
+changeOrderRouter.get(
+  '/:id/change-orders/:changeOrderId/eligible-boq',
+  requireRole(Role.OWNER, Role.PM),
+  validate({ params: changeOrderIdParamsSchema }),
+  changeOrderController.listEligibleBoq,
+);
+changeOrderRouter.post(
+  '/:id/change-orders/:changeOrderId/add-boq-lines',
+  requireRole(Role.OWNER, Role.PM),
+  validate({
+    params: changeOrderIdParamsSchema,
+    body: z.object({ boqItemIds: z.array(z.string().uuid()).min(1).max(100) }),
+  }),
+  changeOrderController.addBoqLines,
+);

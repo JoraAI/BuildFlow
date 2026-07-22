@@ -159,6 +159,10 @@ function resolveProcurementLinks(
 ): { resourceId: string | null; rateAnalysisId: string | null } {
   const rid = resourceId ?? null;
   const raid = rateAnalysisId ?? null;
+  // Keep BOTH if provided — resourceId links to the catalog material,
+  // rateAnalysisId links to the composite rate analysis. Both are needed:
+  // resourceId for procurement/stock, rateAnalysisId for component explosion.
+  if (rid && raid) return { resourceId: rid, rateAnalysisId: raid };
   if (rid) return { resourceId: rid, rateAnalysisId: null };
   if (raid) return { resourceId: null, rateAnalysisId: raid };
   return { resourceId: null, rateAnalysisId: null };
@@ -223,6 +227,7 @@ export async function getEstimateWithSummary(companyId: string, estimateId: stri
   return {
     id: estimate.id,
     projectId: estimate.projectId,
+    parentId: estimate.parentId,
     name: estimate.name,
     version: estimate.version,
     status: estimate.status,
@@ -244,8 +249,12 @@ export async function getEstimateWithSummary(companyId: string, estimateId: stri
 
 export async function listEstimates(companyId: string, projectId: string) {
   await getProject(companyId, projectId);
+  // Only return top-level estimates (exclude sub-estimates which have parentId).
+  // Sub-estimates are listed separately via listSubEstimates() and rendered
+  // nested under their parent. Without this filter, sub-estimates would appear
+  // both as standalone cards AND nested — causing confusing duplicates.
   const estimates = await prisma.estimate.findMany({
-    where: { projectId, companyId },
+    where: { projectId, companyId, parentId: null },
     orderBy: { version: 'desc' },
     include: { createdByUser: { select: { name: true } } },
   });
@@ -272,6 +281,7 @@ export async function listEstimates(companyId: string, projectId: string) {
       name: e.name,
       version: e.version,
       status: e.status,
+      parentId: e.parentId,
       grandTotal: summary.grandTotal,
       createdAt: e.createdAt.toISOString(),
       createdByName: e.createdByUser.name,
@@ -709,15 +719,43 @@ export async function approveEstimate(
     },
   });
 
-  // Supersede previous approved versions
-  await prisma.estimate.updateMany({
-    where: {
-      projectId: estimate.projectId,
-      status: EstimateStatus.APPROVED,
-      id: { not: estimateId },
-    },
-    data: { status: EstimateStatus.SUPERSEDED },
-  });
+  // Supersede previous approved versions — but ONLY when approving a
+  // top-level estimate. Sub-estimates (parentId != null) represent
+  // additional scope and must NOT supersede the parent or other versions.
+  if (!estimate.parentId) {
+    // Step 1: Supersede previous approved top-level versions
+    await prisma.estimate.updateMany({
+      where: {
+        projectId: estimate.projectId,
+        parentId: null,
+        status: EstimateStatus.APPROVED,
+        id: { not: estimateId },
+      },
+      data: { status: EstimateStatus.SUPERSEDED },
+    });
+
+    // Step 2: Cascade — supersede ALL sub-estimates whose parents are now
+    // SUPERSEDED. Sub-estimates belong to their parent version; when the
+    // parent is replaced by a new version, its sub-estimates become obsolete.
+    // We query the superseded parent IDs first, then update their children.
+    // This avoids Prisma relation-filter issues in updateMany.
+    const supersededParents = await prisma.estimate.findMany({
+      where: {
+        projectId: estimate.projectId,
+        status: EstimateStatus.SUPERSEDED,
+      },
+      select: { id: true },
+    });
+    if (supersededParents.length > 0) {
+      await prisma.estimate.updateMany({
+        where: {
+          parentId: { in: supersededParents.map((p) => p.id) },
+          status: { notIn: [EstimateStatus.SUPERSEDED] },
+        },
+        data: { status: EstimateStatus.SUPERSEDED },
+      });
+    }
+  }
 
   await recordAudit({
     companyId,
@@ -867,6 +905,86 @@ export async function duplicateEstimate(
   return getEstimateWithSummary(companyId, dup.id);
 }
 
+/**
+ * Create a sub-estimate (additional scope) under a parent estimate.
+ * Inherits projectId from the parent. Starts in DRAFT status.
+ */
+export async function createSubEstimate(
+  companyId: string,
+  userId: string,
+  parentId: string,
+  input: { name: string; notes?: string },
+  ipAddress?: string,
+) {
+  const parent = await prisma.estimate.findFirst({
+    where: { id: parentId, companyId },
+    select: { id: true, projectId: true, companyId: true, status: true },
+  });
+  if (!parent) throw ApiError.notFound('Parent estimate not found');
+
+  // Reactivate the parent estimate if it was superseded
+  if (parent.status === EstimateStatus.SUPERSEDED) {
+    await prisma.estimate.update({
+      where: { id: parentId },
+      data: { status: EstimateStatus.APPROVED },
+    });
+  }
+
+  const estimate = await prisma.estimate.create({
+    data: {
+      projectId: parent.projectId,
+      companyId,
+      parentId,
+      name: input.name,
+      version: 1,
+      status: EstimateStatus.DRAFT,
+      notes: input.notes ?? null,
+      createdBy: userId,
+    },
+  });
+
+  await recordAudit({
+    companyId,
+    userId,
+    action: 'CREATE',
+    entityType: 'sub_estimate',
+    entityId: estimate.id,
+    newValue: { name: estimate.name, parentId },
+    ipAddress,
+  });
+
+  return estimate;
+}
+
+/**
+ * List sub-estimates (children) of a parent estimate with their grand totals.
+ */
+export async function listSubEstimates(companyId: string, parentId: string) {
+  const children = await prisma.estimate.findMany({
+    where: { parentId, companyId },
+    orderBy: { createdAt: 'asc' },
+    select: {
+      id: true,
+      name: true,
+      version: true,
+      status: true,
+      grandTotal: true,
+      createdAt: true,
+      approvedAt: true,
+    },
+  });
+
+  return children.map((e) => ({
+    id: e.id,
+    name: e.name,
+    version: e.version,
+    status: e.status,
+    grandTotal: Number(e.grandTotal),
+    createdAt: e.createdAt.toISOString(),
+    approvedAt: e.approvedAt?.toISOString() ?? null,
+  }));
+}
+
 /* ------------------------------------------------------------------ */
 /* Compare two estimates                                               */
 /* ------------------------------------------------------------------ */
@@ -927,6 +1045,123 @@ export async function compareEstimates(
     grandChangePct,
     summary: `Version ${b.version} is Rs ${Math.abs(grandDiff).toLocaleString('en-IN')} (${Math.abs(grandChangePct)}%) ${grandDiff > 0 ? 'higher' : 'lower'} than Version ${a.version}`,
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* Sub-items (child estimate items under a parent)                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * After creating/updating/deleting a sub-item, recompute the parent item's
+ * amount as the sum of its children's amounts and persist it. The parent's
+ * qty/rate are informational; the amount drives the summary.
+ */
+async function rollupParentAmount(parentId: string) {
+  const children = await prisma.estimateItem.findMany({
+    where: { parentId },
+    select: { amount: true },
+  });
+  const total = round2(children.reduce((s, c) => s + Number(c.amount), 0));
+  await prisma.estimateItem.update({
+    where: { id: parentId },
+    data: { amount: total },
+  });
+}
+
+export async function createSubItem(
+  companyId: string,
+  userId: string,
+  parentId: string,
+  input: Omit<CreateEstimateItemInput, 'sectionId'>,
+  ipAddress?: string,
+) {
+  const parent = await prisma.estimateItem.findFirst({
+    where: { id: parentId, estimate: { companyId } },
+  });
+  if (!parent) throw ApiError.notFound('Parent estimate item not found');
+
+  await getEstimateForEditing(companyId, parent.estimateId);
+
+  const amount = round2(input.quantity * input.rate);
+  const links = resolveProcurementLinks(input.resourceId, input.rateAnalysisId);
+
+  const item = await prisma.estimateItem.create({
+    data: {
+      estimateId: parent.estimateId,
+      sectionId: parent.sectionId,
+      parentId,
+      description: input.description,
+      unit: input.unit,
+      quantity: input.quantity,
+      rate: input.rate,
+      amount,
+      type: input.type,
+      resourceId: links.resourceId,
+      rateAnalysisId: links.rateAnalysisId,
+      wbsItemId: input.wbsItemId ?? null,
+      itemCode: input.itemCode ?? null,
+      notes: input.notes ?? null,
+    },
+  });
+
+  await rollupParentAmount(parentId);
+
+  await recordAudit({
+    companyId,
+    userId,
+    action: 'CREATE',
+    entityType: 'estimate_sub_item',
+    entityId: item.id,
+    newValue: { description: item.description, amount, parentId },
+    ipAddress,
+  });
+
+  return item;
+}
+
+export async function listSubItems(companyId: string, parentId: string) {
+  const parent = await prisma.estimateItem.findFirst({
+    where: { id: parentId, estimate: { companyId } },
+    select: { id: true },
+  });
+  if (!parent) throw ApiError.notFound('Parent estimate item not found');
+
+  return prisma.estimateItem.findMany({
+    where: { parentId },
+    orderBy: { createdAt: 'asc' },
+    include: {
+      resource: { select: { name: true, gstRate: true } },
+      rateAnalysis: { select: { name: true } },
+    },
+  });
+}
+
+export async function deleteSubItem(
+  companyId: string,
+  userId: string,
+  subItemId: string,
+  ipAddress?: string,
+) {
+  const item = await prisma.estimateItem.findFirst({
+    where: { id: subItemId, estimate: { companyId } },
+  });
+  if (!item) throw ApiError.notFound('Estimate item not found');
+  if (!item.parentId) throw ApiError.badRequest('Item is not a sub-item');
+
+  await getEstimateForEditing(companyId, item.estimateId);
+
+  const parentId = item.parentId;
+  await prisma.estimateItem.delete({ where: { id: subItemId } });
+  await rollupParentAmount(parentId);
+
+  await recordAudit({
+    companyId,
+    userId,
+    action: 'DELETE',
+    entityType: 'estimate_sub_item',
+    entityId: subItemId,
+    ipAddress,
+  });
 }
 
 /* ------------------------------------------------------------------ */

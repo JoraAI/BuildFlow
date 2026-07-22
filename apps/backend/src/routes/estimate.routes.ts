@@ -119,6 +119,35 @@ estimateRouter.delete(
   estimateController.deleteItem,
 );
 
+// Sub-items (children of a parent estimate item)
+estimateRouter.get(
+  '/estimate-items/:itemId/sub-items',
+  validate({ params: estimateItemParamsSchema }),
+  estimateController.listSubItems,
+);
+estimateRouter.post(
+  '/estimate-items/:itemId/sub-items',
+  validate({ params: estimateItemParamsSchema, body: createEstimateItemSchema }),
+  estimateController.createSubItem,
+);
+estimateRouter.delete(
+  '/estimate-items/:itemId/sub-items/:subItemId',
+  validate({ params: z.object({ itemId: z.string().uuid(), subItemId: z.string().uuid() }) }),
+  estimateController.deleteSubItem,
+);
+
+// Sub-estimates (child estimates for additional scope)
+estimateRouter.get(
+  '/estimates/:id/sub-estimates',
+  validate({ params: estimateIdParamsSchema }),
+  estimateController.listSubEstimates,
+);
+estimateRouter.post(
+  '/estimates/:id/sub-estimates',
+  validate({ params: estimateIdParamsSchema, body: z.object({ name: z.string().min(1).max(200), notes: z.string().max(2000).optional() }) }),
+  estimateController.createSubEstimate,
+);
+
 // Workflow
 estimateRouter.post(
   '/estimates/:id/submit',

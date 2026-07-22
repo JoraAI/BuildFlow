@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { Decimal } from '@prisma/client/runtime/library';
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
@@ -302,6 +303,115 @@ export async function approveChangeOrder(
   });
 
   return serializeChangeOrder(approved);
+}
+
+/**
+ * List BOQ items eligible to be picked for a variation (not superseded, with
+ * optional search). Used by the mobile "variation BOQ picker" UI.
+ */
+export async function listEligibleBoqItems(
+  companyId: string,
+  userId: string,
+  role: string,
+  projectId: string,
+  search?: string,
+) {
+  await assertProjectAccess(companyId, userId, role as never, projectId);
+  const where: { projectId: string; isSuperseded: boolean; OR?: Array<Record<string, unknown>> } = {
+    projectId,
+    isSuperseded: false,
+  };
+  if (search?.trim()) {
+    const s = search.trim();
+    where.OR = [
+      { description: { contains: s, mode: 'insensitive' } },
+      { itemCode: { contains: s, mode: 'insensitive' } },
+      { category: { contains: s, mode: 'insensitive' } },
+    ];
+  }
+  return prisma.bOQItem.findMany({
+    where,
+    select: {
+      id: true,
+      itemCode: true,
+      description: true,
+      unit: true,
+      quantity: true,
+      rate: true,
+      amount: true,
+      category: true,
+      section: true,
+    },
+    orderBy: [{ section: 'asc' }, { itemCode: 'asc' }],
+    take: 200,
+  });
+}
+
+const addBoqLinesSchema = z.object({
+  boqItemIds: z.array(z.string().uuid()).min(1).max(100),
+});
+type AddBoqLinesInput = z.infer<typeof addBoqLinesSchema>;
+
+/**
+ * Bulk-attach BOQ items to an existing (draft) change order as variation lines.
+ * Each BOQ item's description/unit/rate is pre-filled; the caller sets the qty
+ * delta per line afterwards. Lines are only added if the change order is still
+ * in DRAFT or REJECTED status (editable).
+ */
+export async function addBoqLinesToChangeOrder(
+  companyId: string,
+  userId: string,
+  role: string,
+  id: string,
+  input: AddBoqLinesInput,
+) {
+  const co = await prisma.changeOrder.findFirst({
+    where: { id, companyId },
+    include: { lines: { select: { boqItemId: true } } },
+  });
+  if (!co) throw ApiError.notFound('Change order not found');
+  await assertProjectAccess(companyId, userId, role as never, co.projectId, ['OWNER', 'PM']);
+  if (co.status !== 'DRAFT' && co.status !== 'REJECTED') {
+    throw ApiError.badRequest('BOQ items can only be added to draft variations');
+  }
+
+  // Don't re-add items already linked to this change order.
+  const existingBoqIds = new Set(co.lines.filter((l) => l.boqItemId).map((l) => l.boqItemId));
+  const newIds = input.boqItemIds.filter((bid: string) => !existingBoqIds.has(bid));
+  if (newIds.length === 0) {
+    return serializeChangeOrder(
+      (await prisma.changeOrder.findUnique({
+        where: { id },
+        include: changeOrderInclude,
+      })) as ChangeOrderRecord,
+    );
+  }
+
+  const boqItems = await prisma.bOQItem.findMany({
+    where: { id: { in: newIds }, projectId: co.projectId, isSuperseded: false },
+  });
+  if (boqItems.length !== newIds.length) {
+    throw ApiError.badRequest('One or more BOQ items not found on this project');
+  }
+
+  const lines = boqItems.map((item) => ({
+    boqItemId: item.id,
+    resourceId: null,
+    description: item.description,
+    unit: item.unit,
+    qtyDelta: 0, // default; user edits after attaching
+    rate: Number(item.rate),
+    amount: 0,
+  }));
+
+  await prisma.changeOrderLine.createMany({ data: lines.map((l) => ({ ...l, changeOrderId: id })) });
+  // costImpact unchanged because qtyDelta defaults to 0.
+
+  const updated = await prisma.changeOrder.findUnique({
+    where: { id },
+    include: changeOrderInclude,
+  });
+  return serializeChangeOrder(updated as ChangeOrderRecord);
 }
 
 export async function rejectChangeOrder(

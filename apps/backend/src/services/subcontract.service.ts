@@ -735,6 +735,27 @@ export async function approveMeasurement(
           category: 'SUBCONTRACTOR',
           workOrderId: wo.id,
           measurementId: approved.id,
+          billSnapshot: {
+            capturedAt: new Date().toISOString(),
+            workOrder: {
+              woNumber: wo.woNumber,
+              scope: wo.scope,
+              contractValue: Number(wo.contractValue),
+              retentionPct: Number(wo.retentionPct),
+              status: wo.status,
+              subcontractor: {
+                name: wo.subcontractor.name,
+                gstin: wo.subcontractor.gstin,
+                defaultTdsRate: Number(wo.subcontractor.defaultTdsRate),
+              },
+            },
+            measurement: {
+              periodLabel: approved.periodLabel,
+              totalAmount: Number(approved.totalAmount),
+              status: approved.status,
+            },
+            breakdown,
+          },
         },
       });
     }

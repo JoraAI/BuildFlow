@@ -11,7 +11,7 @@ export const requisitionLineSchema = z.object({
 });
 
 export const createRequisitionSchema = z.object({
-  reqNumber: z.string().min(1).max(50),
+  reqNumber: z.string().min(1).max(50).optional(),
   notes: z.string().max(2000).optional(),
   lines: z.array(requisitionLineSchema).min(1),
 });

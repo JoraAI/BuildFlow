@@ -99,3 +99,28 @@ export async function importResources(req: Request, res: Response, next: NextFun
     next(err);
   }
 }
+
+export async function bulkUpsertResources(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { companyId, id: userId } = req.user!;
+    const result = await resourceService.bulkUpsertResources(
+      companyId,
+      userId,
+      req.body.resources,
+      ipOf(req),
+    );
+    ok(res, result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function bulkPriceUpdate(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { companyId, id: userId } = req.user!;
+    const result = await resourceService.bulkPriceUpdate(companyId, userId, req.body, ipOf(req));
+    ok(res, result);
+  } catch (err) {
+    next(err);
+  }
+}

@@ -17,17 +17,13 @@ import { logger } from '../config/logger';
 import { resolveLlmConfig } from './integration.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import { getEstimateVsActual } from './financial-report.service';
+import { getRolePermissions } from '../lib/permissions';
+import { buildPermissionAwarePrompt } from '@buildflow/shared';
 
 function num(d: Decimal | number | null | undefined): number {
   if (d === null || d === undefined) return 0;
   return typeof d === 'number' ? d : Number(d);
 }
-
-const SYSTEM_PROMPT = `You are BuildFlow Assistant, an expert civil-engineering project & finance AI for Indian construction firms.
-You explain GST/TDS, interpret Gantt schedules, discuss estimates vs actuals, and help with BOQ, resources and cost control.
-Be concise, practical, and field-friendly. Answer in English or Hinglish matching the user's language.
-Use only the provided project context to answer questions about specific projects. If data is missing, say so.
-Never invent financial numbers. Quote the context figures verbatim when discussing money.`;
 
 /** Build a compact context block for the LLM from company + optional project. */
 export async function buildContext(companyId: string, projectId?: string): Promise<string> {
@@ -150,6 +146,20 @@ export async function handleChatMessage(
   // 2. Build context
   const context = await buildContext(companyId, projectId);
 
+  // 2b. Resolve the caller's permissions and build a permission-aware
+  // system prompt. This ensures the LLM only recommends actions the user
+  // is authorized to perform.
+  const user = await prisma.user.findFirstOrThrow({
+    where: { id: userId, companyId },
+    select: { role: true },
+  });
+  const company = await prisma.company.findFirstOrThrow({
+    where: { id: companyId },
+    select: { name: true },
+  });
+  const permissions = await getRolePermissions(companyId, user.role);
+  const permissionPrompt = buildPermissionAwarePrompt(permissions, user.role, company.name);
+
   // 3. Fetch last ~8 messages for conversational continuity
   const history = await prisma.chatMessage.findMany({
     where: { companyId, ...(projectId ? { projectId } : {}) },
@@ -158,7 +168,10 @@ export async function handleChatMessage(
     select: { message: true, isBot: true },
   });
   const llmMessages: LlmMessage[] = [
-    { role: 'system', content: `${SYSTEM_PROMPT}\n\n--- CONTEXT ---\n${context}` },
+    {
+      role: 'system',
+      content: `${permissionPrompt}\n\n--- PROJECT CONTEXT ---\n${context}`,
+    },
     ...history.reverse().map<LlmMessage & { role: 'user' | 'assistant' }>((h) => ({
       role: h.isBot ? 'assistant' : 'user',
       content: h.message,

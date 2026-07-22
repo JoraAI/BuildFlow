@@ -450,6 +450,18 @@ export function useCreateRequisition(projectId: string) {
   });
 }
 
+export function useDeleteRequisition(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (requisitionId: string) =>
+      apiFetch<{ success: boolean }>(
+        `/projects/${projectId}/procurement/requisitions/${requisitionId}`,
+        { method: 'DELETE' },
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: expansionKeys.requisitions(projectId) }),
+  });
+}
+
 export function useSubmitRequisition(projectId: string) {
   const qc = useQueryClient();
   return useMutation({

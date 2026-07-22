@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,6 +37,7 @@ import {
 import { formatINR, formatDate } from '@/utils/format';
 import { todayDateOnly } from '@/utils/date-field';
 import { alertAsync, confirmAsync } from '@/utils/confirm';
+import { navigateAppBack, DISMISS } from '@/utils/navigation';
 import { ApiError } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth.store';
 import {
@@ -107,6 +109,7 @@ function useMaterialTrend(material: Resource, loadHistory: boolean) {
 
 export default function MaterialPriceTrackerScreen() {
   const { isDesktop } = useViewport();
+  const { from } = useLocalSearchParams<{ from?: string }>();
   const user = useAuthStore((s) => s.user);
   const canManage = user?.role === 'OWNER' || user?.role === 'PM';
   const [search, setSearch] = useState('');
@@ -246,7 +249,11 @@ export default function MaterialPriceTrackerScreen() {
   ) : (
     <Card className="overflow-hidden p-0 border border-border">
       {isDesktop && <MaterialListHeader />}
-      <ScrollView ref={listScrollRef} nestedScrollEnabled={isDesktop}>
+      <ScrollView
+        ref={listScrollRef}
+        nestedScrollEnabled={isDesktop}
+        style={isDesktop ? { maxHeight: 600 } : undefined}
+      >
         {materials.map((m: Resource, idx: number) => (
           <MaterialListRow
             key={m.id}
@@ -293,6 +300,19 @@ export default function MaterialPriceTrackerScreen() {
         maxWidth="default"
         refreshing={isFetching}
         onRefresh={refetch}
+        onBack={() =>
+          navigateAppBack(
+            from === 'estimation'
+              ? DISMISS.estimation
+              : from === 'proposals'
+                ? DISMISS.proposals
+                : from === 'projects'
+                  ? DISMISS.projects
+                  : from === 'dashboard'
+                    ? DISMISS.dashboard
+                    : DISMISS.settings,
+          )
+        }
         actions={
           canManage && isDesktop ? (
             <Button
@@ -715,40 +735,6 @@ function PriceHistoryPanel({
         </Card>
       ) : null}
 
-      {showForm && canManage && (
-        <Card>
-          <Text className="text-sm font-semibold text-text mb-3">Record New Market Rate</Text>
-          <View className={isDesktop ? 'max-w-md gap-1' : ''}>
-            <DateField
-              label="Effective date"
-              value={effectiveDate}
-              onChange={setEffectiveDate}
-              minimumDate={todayDateOnly()}
-              helper="Today applies immediately. A future date schedules the rate."
-            />
-            <Input
-              label={`Rate (per ${res?.unit ?? 'unit'})`}
-              value={newRate}
-              onChangeText={setNewRate}
-              keyboardType="decimal-pad"
-              placeholder={res?.rate ?? '0'}
-            />
-            <Input
-              label="Notes (optional)"
-              value={notes}
-              onChangeText={setNotes}
-              placeholder="Market source, supplier, etc."
-              multiline
-            />
-            {formError ? <Text className="text-sm text-danger mb-2">{formError}</Text> : null}
-            <View className="flex-row gap-2 mt-1">
-              <Button label="Save" size="sm" onPress={handleSave} loading={addMut.isPending} />
-              <Button label="Cancel" size="sm" variant="ghost" onPress={() => setShowForm(false)} />
-            </View>
-          </View>
-        </Card>
-      )}
-
       <Text className="text-sm font-bold text-text">History</Text>
       {history
         .slice()
@@ -800,6 +786,47 @@ function PriceHistoryPanel({
     />
   );
 
+  const rateFormModal = canManage ? (
+    <Modal visible={showForm} transparent animationType="fade" onRequestClose={() => setShowForm(false)}>
+      <View className="flex-1 justify-center bg-black/40 px-4">
+        <Card className="max-w-md w-full self-center">
+          <Text className="text-lg font-bold text-text mb-1">Update Rate</Text>
+          <Text className="text-sm text-muted mb-4">
+            {res?.name} — current: {formatINR(parseFloat(res?.rate ?? '0'))}/{res?.unit}
+          </Text>
+          <View className="gap-2">
+            <DateField
+              label="Effective date"
+              value={effectiveDate}
+              onChange={setEffectiveDate}
+              minimumDate={todayDateOnly()}
+              helper="Today applies immediately. A future date schedules the rate."
+            />
+            <Input
+              label={`New rate (per ${res?.unit ?? 'unit'})`}
+              value={newRate}
+              onChangeText={setNewRate}
+              keyboardType="decimal-pad"
+              placeholder={res?.rate ?? '0'}
+            />
+            <Input
+              label="Notes (optional)"
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="Market source, supplier, etc."
+              multiline
+            />
+            {formError ? <Text className="text-sm text-danger">{formError}</Text> : null}
+            <View className="flex-row gap-2 mt-2">
+              <Button label="Cancel" variant="secondary" className="flex-1" onPress={() => setShowForm(false)} />
+              <Button label="Save" className="flex-1" onPress={handleSave} loading={addMut.isPending} />
+            </View>
+          </View>
+        </Card>
+      </View>
+    </Modal>
+  ) : null;
+
   if (embedded) {
     return (
       <>
@@ -808,6 +835,7 @@ function PriceHistoryPanel({
           {body}
         </Card>
         {editModal}
+        {rateFormModal}
       </>
     );
   }
@@ -819,6 +847,7 @@ function PriceHistoryPanel({
         {body}
       </SafeAreaView>
       {editModal}
+      {rateFormModal}
     </>
   );
 }

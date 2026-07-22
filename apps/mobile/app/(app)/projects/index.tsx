@@ -185,11 +185,16 @@ function ProjectCard({ item, onPress }: { item: ProjectListItem; onPress: () => 
       </View>
 
       <View className="flex-row items-center gap-2">
-        <View className="flex-1">
-          <ProgressBar value={0} color="#1E3A5F" />
-        </View>
         {item._count?.tasks !== undefined && (
-          <Text className="text-xs text-muted">{item._count.tasks} tasks</Text>
+          <Text className="text-xs text-muted">{item._count.tasks} task{item._count.tasks === 1 ? '' : 's'}</Text>
+        )}
+        {item._count?.tasks !== undefined && (
+          <View className="flex-1">
+            <ProgressBar
+              value={item.status === 'COMPLETED' ? 100 : item.status === 'IN_PROGRESS' ? 50 : item.status === 'PLANNING' ? 10 : 0}
+              color={item.status === 'COMPLETED' ? '#10B981' : item.status === 'IN_PROGRESS' ? '#F59E0B' : '#1E3A5F'}
+            />
+          </View>
         )}
       </View>
 

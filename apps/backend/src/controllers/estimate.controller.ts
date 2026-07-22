@@ -117,6 +117,31 @@ export async function deleteItem(req: Request, res: Response) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Sub-items (children of a parent estimate item)                      */
+/* ------------------------------------------------------------------ */
+
+export async function listSubItems(req: Request, res: Response) {
+  const data = await svc.listSubItems(req.user!.companyId, req.params.itemId);
+  ok(res, data);
+}
+
+export async function createSubItem(req: Request, res: Response) {
+  const data = await svc.createSubItem(
+    req.user!.companyId,
+    req.user!.id,
+    req.params.itemId,
+    req.body,
+    req.ip,
+  );
+  created(res, data);
+}
+
+export async function deleteSubItem(req: Request, res: Response) {
+  await svc.deleteSubItem(req.user!.companyId, req.user!.id, req.params.subItemId, req.ip);
+  ok(res, { id: req.params.subItemId });
+}
+
+/* ------------------------------------------------------------------ */
 /* Workflow                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -158,6 +183,22 @@ export async function duplicate(req: Request, res: Response) {
     req.user!.companyId,
     req.user!.id,
     req.params.id,
+    req.ip,
+  );
+  created(res, data);
+}
+
+export async function listSubEstimates(req: Request, res: Response) {
+  const data = await svc.listSubEstimates(req.user!.companyId, req.params.id);
+  ok(res, data);
+}
+
+export async function createSubEstimate(req: Request, res: Response) {
+  const data = await svc.createSubEstimate(
+    req.user!.companyId,
+    req.user!.id,
+    req.params.id,
+    req.body,
     req.ip,
   );
   created(res, data);

@@ -17,6 +17,8 @@ export interface BoqItem {
   section?: string | null;
   /** Catalog material from linked estimate item, when set. */
   resourceId?: string | null;
+  /** Rate analysis from linked estimate item (for composite BOQ items). */
+  rateAnalysisId?: string | null;
   sanctionedQty?: number;
   executedQty?: number;
   procuredQty?: number;
@@ -77,7 +79,9 @@ export interface ResourceUtilRow {
 export function useBoq(projectId: string) {
   return useQuery({
     queryKey: ['projects', projectId, 'boq'] as const,
-    queryFn: () => apiFetch<BoqListResponse>(`/projects/${projectId}/boq`),
+    // Cache-busting timestamp prevents stale HTTP 304 responses from
+    // hiding newly-added fields (like rateAnalysisId).
+    queryFn: () => apiFetch<BoqListResponse>(`/projects/${projectId}/boq?_t=${Date.now()}`),
     enabled: !!projectId,
   });
 }

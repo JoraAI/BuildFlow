@@ -67,3 +67,35 @@ export async function reject(req: Request, res: Response) {
   );
   return ok(res, data);
 }
+
+/**
+ * List BOQ items eligible for a variation picker (not superseded, optional search).
+ * Route: GET /api/projects/:id/change-orders/:changeOrderId/eligible-boq?search=
+ */
+export async function listEligibleBoq(req: Request, res: Response) {
+  const { companyId, id: userId, role } = req.user!;
+  const data = await changeOrderService.listEligibleBoqItems(
+    companyId,
+    userId,
+    role,
+    req.params.id,
+    typeof req.query.search === 'string' ? req.query.search : undefined,
+  );
+  return ok(res, data);
+}
+
+/**
+ * Bulk-attach BOQ items as variation lines to a draft change order.
+ * Route: POST /api/projects/:id/change-orders/:changeOrderId/add-boq-lines
+ */
+export async function addBoqLines(req: Request, res: Response) {
+  const { companyId, id: userId, role } = req.user!;
+  const data = await changeOrderService.addBoqLinesToChangeOrder(
+    companyId,
+    userId,
+    role,
+    req.params.changeOrderId,
+    req.body,
+  );
+  return ok(res, data);
+}

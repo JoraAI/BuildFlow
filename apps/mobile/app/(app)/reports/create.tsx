@@ -2,11 +2,14 @@
  * BuildFlow - Create Daily Report wizard (4 steps).
  *
  * Step 1: Basic info (date, weather, workers, site status)
- * Step 2: Work done (multi-line text)
- * Step 3: Materials used (resource picker + quantity rows)
+ * Step 2: Work done (multi-line text + optional task progress)
+ * Step 3: Materials used (resource picker + quantity rows with
+ *         searchable Task / BOQ dropdowns)
  * Step 4: Photos & issues (camera/gallery + issues text + submit)
+ *
+ * Responsive: full-width on mobile, max-width container on tablet/web.
  */
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -21,17 +24,32 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { Card, Button, DateField } from '@/components/ui';
+import {
+  Card,
+  Button,
+  DateField,
+  Input,
+  Select,
+  Badge,
+  ProgressBar,
+  type SelectOption,
+} from '@/components/ui';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { dismissTo, DISMISS } from '@/utils/navigation';
 import { todayDateOnly } from '@/utils/date-field';
 import { alertAsync } from '@/utils/confirm';
 import { useAppStore } from '@/stores/app.store';
-import { useProjects, useTasks, type ProjectListItem, type TaskRow } from '@/services/project.queries';
+import { useViewport } from '@/hooks/useViewport';
+import {
+  useProjects,
+  useTasks,
+  type ProjectListItem,
+  type TaskRow,
+} from '@/services/project.queries';
 import { apiFetch } from '@/lib/api-client';
 import type { ResolvedMaterialRate } from '@buildflow/shared';
-import { MaterialPicker } from '@/components/materials/MaterialPicker';
-import { useMaterials, type Resource } from '@/services/estimate.queries';
+import { MaterialPicker, type ProjectMaterial } from '@/components/materials/MaterialPicker';
+import { type Resource } from '@/services/estimate.queries';
 import { useBoq, type BoqItem } from '@/services/boq.queries';
 import { useCreateReport, useUploadReportPhoto } from '@/services/report.queries';
 import { useStockSummary } from '@/services/expansion.queries';
@@ -41,6 +59,7 @@ interface MaterialRow {
   resourceId: string;
   resourceName: string;
   unit: string;
+  type: 'MATERIAL' | 'LABOUR' | 'EQUIPMENT' | 'SUBCONTRACTOR';
   rate: number;
   rateSource?: string;
   quantityUsed: string;
@@ -49,9 +68,17 @@ interface MaterialRow {
   postToBoqMeasurement?: boolean;
 }
 
+const RESOURCE_TYPE_BADGE: Record<MaterialRow['type'], { label: string; color: 'neutral' | 'primary' | 'success' | 'warning' | 'danger' }> = {
+  MATERIAL: { label: 'Material', color: 'primary' },
+  LABOUR: { label: 'Labour', color: 'success' },
+  EQUIPMENT: { label: 'Equipment', color: 'warning' },
+  SUBCONTRACTOR: { label: 'Subcontract', color: 'neutral' },
+};
+
 interface TaskProgressDraft {
   taskId: string;
   taskName: string;
+  status: string;
   progressPct: string;
   selected: boolean;
 }
@@ -76,8 +103,80 @@ const SITE_STATUSES: { label: string; value: SiteStatus; color: string }[] = [
   { label: 'Blocked', value: 'BLOCKED', color: 'bg-danger' },
 ];
 
+/** Human-readable label + badge colour for a task status enum value. */
+function statusMeta(status: string): { label: string; color: 'success' | 'warning' | 'danger' | 'primary' | 'neutral' } {
+  switch (status) {
+    case 'COMPLETED':
+      return { label: 'Completed', color: 'success' };
+    case 'IN_PROGRESS':
+      return { label: 'In Progress', color: 'primary' };
+    case 'DELAYED':
+      return { label: 'Delayed', color: 'warning' };
+    case 'ON_HOLD':
+      return { label: 'On Hold', color: 'neutral' };
+    case 'NOT_STARTED':
+    default:
+      return { label: 'Not Started', color: 'neutral' };
+  }
+}
+
+/** Map a list of tasks to SelectOption[] grouped by status. */
+function tasksToOptions(tasks: TaskRow[]): SelectOption[] {
+  return tasks.map((t) => {
+    const meta = statusMeta(t.status);
+    return {
+      value: t.id,
+      title: t.name,
+      subtitle: [meta.label, t.assignee?.name].filter(Boolean).join(' · '),
+      meta: `${t.progressPct}%`,
+      groupKey: meta.label,
+      tone: meta.color === 'neutral' ? 'muted' : meta.color,
+    };
+  });
+}
+
+const RESOURCE_TYPE_LABELS: Record<string, string> = {
+  MATERIAL: 'Material',
+  LABOUR: 'Labour',
+  EQUIPMENT: 'Equipment',
+  SUBCONTRACTOR: 'Subcontract',
+  MISC: 'Misc',
+};
+
+/** Map a list of BOQ items to SelectOption[] grouped by section.
+ *
+ * All BOQ lines are shown (a resource can legitimately link to a rate-analysis
+ * work item like "Emulsion paint" or a labour line). When `resourceId` is
+ * provided, BOQ lines whose linked estimate item references that catalog
+ * resource are sorted to the top so the best match is surfaced first — without
+ * hiding everything else. */
+function boqToOptions(items: BoqItem[], resourceId?: string): SelectOption[] {
+  const toOption = (b: BoqItem): SelectOption => {
+    const qtyNum = parseFloat(b.quantity);
+    const executed = b.executedQty ?? 0;
+    const balance = b.balanceQty ?? Math.max(0, qtyNum - executed);
+    const typeLabel = RESOURCE_TYPE_LABELS[b.category ?? 'MATERIAL'] ?? b.category ?? '';
+    return {
+      value: b.id,
+      title: b.description || b.itemCode,
+      subtitle: [b.itemCode, b.section, typeLabel].filter(Boolean).join(' · '),
+      meta: balance > 0 ? `${balance} ${b.unit} left` : `${b.unit}`,
+      groupKey: b.section ?? 'Ungrouped',
+      tone: balance > 0 ? 'success' : 'muted',
+    };
+  };
+
+  if (!resourceId) return items.map(toOption);
+
+  // Prioritize: matching lines first, then the rest.
+  const matched = items.filter((b) => b.resourceId === resourceId).map(toOption);
+  const others = items.filter((b) => b.resourceId !== resourceId).map(toOption);
+  return [...matched, ...others];
+}
+
 export default function CreateReportScreen() {
   const router = useRouter();
+  const { isDesktop } = useViewport();
   const { projectId: routeProjectId, reset: resetKey } = useLocalSearchParams<{
     projectId?: string | string[];
     reset?: string | string[];
@@ -93,7 +192,6 @@ export default function CreateReportScreen() {
   const isProjectLocked = Boolean(routeId);
 
   const [selectedProjectId, setSelectedProjectId] = useState('');
-  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [formError, setFormError] = useState<string | null>(null);
@@ -106,6 +204,7 @@ export default function CreateReportScreen() {
 
   // Step 2
   const [workDone, setWorkDone] = useState('');
+  const [taskSearch, setTaskSearch] = useState('');
   const [taskDrafts, setTaskDrafts] = useState<TaskProgressDraft[]>([]);
 
   // Step 3
@@ -116,25 +215,22 @@ export default function CreateReportScreen() {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [issues, setIssues] = useState('');
 
-  const resetForm = useCallback(
-    (projectIdForForm: string) => {
-      setStep(1);
-      setFormError(null);
-      setReportDate(todayDateOnly());
-      setWeather(null);
-      setWorkersCount('');
-      setSiteStatus(null);
-      setWorkDone('');
-      setMaterials([]);
-      setDeductStock(true);
-      setPhotos([]);
-      setIssues('');
-      setTaskDrafts([]);
-      setProjectPickerOpen(false);
-      setSelectedProjectId(projectIdForForm);
-    },
-    [],
-  );
+  const resetForm = useCallback((projectIdForForm: string) => {
+    setStep(1);
+    setFormError(null);
+    setReportDate(todayDateOnly());
+    setWeather(null);
+    setWorkersCount('');
+    setSiteStatus(null);
+    setWorkDone('');
+    setTaskSearch('');
+    setMaterials([]);
+    setDeductStock(true);
+    setPhotos([]);
+    setIssues('');
+    setTaskDrafts([]);
+    setSelectedProjectId(projectIdForForm);
+  }, []);
 
   // Fresh form every time user opens create (reset token in URL from navigation)
   const lastResetRef = useRef<string | null>(null);
@@ -156,9 +252,6 @@ export default function CreateReportScreen() {
   }, [resetToken, routeId, projects, activeProjectId, resetForm, setActiveProject]);
 
   const projectId = isProjectLocked ? routeId! : selectedProjectId;
-  const projectName =
-    projects?.find((p: ProjectListItem) => p.id === projectId)?.name ??
-    (projectsLoading ? 'Loading…' : 'Select project');
 
   const createMut = useCreateReport(projectId);
   const uploadMut = useUploadReportPhoto();
@@ -172,6 +265,7 @@ export default function CreateReportScreen() {
         projectTasks.map((t: TaskRow) => ({
           taskId: t.id,
           taskName: t.name,
+          status: t.status,
           progressPct: String(t.progressPct),
           selected: false,
         })),
@@ -181,13 +275,28 @@ export default function CreateReportScreen() {
     }
   }, [projectTasks]);
 
-  const handleProjectSelect = (pId: string) => {
+  const projectOptions: SelectOption[] = useMemo(
+    () =>
+      (projects ?? []).map((p: ProjectListItem) => ({
+        value: p.id,
+        title: p.name,
+        subtitle: [p.code, p.status].filter(Boolean).join(' · '),
+        meta: p.clientName,
+      })),
+    [projects],
+  );
+
+  const projectName =
+    projects?.find((p: ProjectListItem) => p.id === projectId)?.name ??
+    (projectsLoading ? 'Loading…' : 'Select project');
+
+  const handleProjectSelect = (pId: string | undefined) => {
+    if (!pId) return;
     setFormError(null);
     setSelectedProjectId(pId);
     setActiveProject(pId);
     setMaterials([]);
     setTaskDrafts([]);
-    setProjectPickerOpen(false);
   };
 
   const canNext = () => {
@@ -216,7 +325,7 @@ export default function CreateReportScreen() {
 
     if (deductStock && usageLines.length > 0 && stockSummary) {
       for (const line of usageLines) {
-        const row = stockSummary.find((s) => s.resourceId === line.resourceId);
+        const row = stockSummary.find((s: { resourceId: string; balance: number }) => s.resourceId === line.resourceId);
         const onHand = row?.balance ?? 0;
         const name = materials.find((m) => m.resourceId === line.resourceId)?.resourceName ?? 'Material';
         const unit = materials.find((m) => m.resourceId === line.resourceId)?.unit ?? '';
@@ -268,9 +377,7 @@ export default function CreateReportScreen() {
       }
 
       const stockNote =
-        created.stockDeductionApplied && usageLines.length
-          ? ' Site stock was updated.'
-          : '';
+        created.stockDeductionApplied && usageLines.length ? ' Site stock was updated.' : '';
       const photoNote =
         photoUploadFailures > 0
           ? ` ${photoUploadFailures} photo(s) were not uploaded - file storage is not configured on this server.`
@@ -336,6 +443,16 @@ export default function CreateReportScreen() {
 
   const isSubmitting = createMut.isPending || uploadMut.isPending;
 
+  // Filtered task drafts for Step 2 (searchable)
+  const filteredTaskDrafts = useMemo(() => {
+    const q = taskSearch.trim().toLowerCase();
+    if (!q) return taskDrafts;
+    return taskDrafts.filter((t) => t.taskName.toLowerCase().includes(q));
+  }, [taskDrafts, taskSearch]);
+
+  // Responsive wrapper width on tablet/web
+  const stepWrapper = isDesktop ? 'w-full max-w-2xl mx-auto' : 'w-full';
+
   return (
     <SafeAreaView className="flex-1 bg-surface">
       <KeyboardAvoidingView
@@ -357,11 +474,7 @@ export default function CreateReportScreen() {
                   s <= step ? 'bg-primary' : 'bg-border'
                 }`}
               >
-                <Text
-                  className={`text-xs font-bold ${
-                    s <= step ? 'text-white' : 'text-muted'
-                  }`}
-                >
+                <Text className={`text-xs font-bold ${s <= step ? 'text-white' : 'text-muted'}`}>
                   {s}
                 </Text>
               </View>
@@ -373,257 +486,265 @@ export default function CreateReportScreen() {
         </View>
 
         <ScrollView className="flex-1 px-4 pb-4">
-          {/* STEP 1: Basic Info */}
-          {step === 1 && (
-            <View className="space-y-4">
-              <Card className="p-4">
-                <Text className="text-sm font-semibold text-text mb-2">Project</Text>
-                {isProjectLocked ? (
-                  <View className="border border-border rounded-md px-3 py-2.5 bg-surface">
-                    <Text className="text-sm text-text">{projectName}</Text>
-                    {projectId ? (
-                      <Text className="text-xs text-muted mt-0.5">
-                        {projects?.find((p) => p.id === projectId)?.code ?? ''}
-                      </Text>
-                    ) : null}
-                  </View>
-                ) : (
-                  <>
-                    <Pressable
-                      onPress={() => setProjectPickerOpen((v) => !v)}
-                      className="flex-row items-center justify-between border border-border rounded-md px-3 py-2.5"
-                    >
-                      <View className="flex-1">
+          <View className={stepWrapper}>
+            {/* STEP 1: Basic Info */}
+            {step === 1 && (
+              <View className="space-y-4">
+                <Card className="p-4">
+                  {isProjectLocked ? (
+                    <View>
+                      <Text className="text-sm font-semibold text-text mb-1.5">Project</Text>
+                      <View className="border border-border rounded-md px-3 py-2.5 bg-surface">
                         <Text className="text-sm text-text">{projectName}</Text>
                         {projectId ? (
                           <Text className="text-xs text-muted mt-0.5">
-                            {projects?.find((p) => p.id === projectId)?.code ?? ''}
+                            {projects?.find((p: ProjectListItem) => p.id === projectId)?.code ?? ''}
                           </Text>
                         ) : null}
                       </View>
-                      <Text className="text-xs text-muted">▾</Text>
-                    </Pressable>
-                    {projectPickerOpen && (
-                      <View className="mt-2 border border-border rounded-md overflow-hidden">
-                        {projects?.map((p: ProjectListItem) => (
-                          <Pressable
-                            key={p.id}
-                            onPress={() => handleProjectSelect(p.id)}
-                            className="px-3 py-2.5 border-b border-border"
-                          >
-                            <Text
-                              className={`text-sm ${p.id === projectId ? 'text-primary font-semibold' : 'text-text'}`}
-                            >
-                              {p.name}
-                            </Text>
-                            <Text className="text-xs text-muted">{p.code}</Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    )}
-                  </>
-                )}
-              </Card>
+                    </View>
+                  ) : (
+                    <Select
+                      label="Project"
+                      value={projectId}
+                      options={projectOptions}
+                      onChange={handleProjectSelect}
+                      placeholder={projectsLoading ? 'Loading…' : 'Select project'}
+                      title="Select project"
+                      searchPlaceholder="Search projects…"
+                      clearable={false}
+                    />
+                  )}
+                </Card>
 
-              <Card className="p-4">
-                <DateField label="Report Date" value={reportDate} onChange={setReportDate} />
-              </Card>
+                <Card className="p-4">
+                  <DateField label="Report Date" value={reportDate} onChange={setReportDate} />
+                </Card>
 
-              <Card className="p-4">
-                <Text className="text-sm font-semibold text-text mb-2">Weather</Text>
-                <View className="flex-row flex-wrap gap-2">
-                  {WEATHERS.map((w) => (
-                    <Pressable
-                      key={w.value}
-                      onPress={() => setWeather(w.value)}
-                      className={`px-3 py-2 rounded-md flex-row items-center gap-1.5 ${
-                        weather === w.value ? 'bg-primary' : 'bg-surface border border-border'
-                      }`}
-                    >
-                      <Text className="text-base">{w.icon}</Text>
-                      <Text
-                        className={`text-xs ${weather === w.value ? 'text-white' : 'text-text'}`}
-                      >
-                        {w.label}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </Card>
-
-              <Card className="p-4">
-                <Text className="text-sm font-semibold text-text mb-2">Site Status</Text>
-                <View className="flex-row gap-2">
-                  {SITE_STATUSES.map((s) => (
-                    <Pressable
-                      key={s.value}
-                      onPress={() => setSiteStatus(s.value)}
-                      className={`flex-1 px-3 py-2.5 rounded-md items-center ${
-                        siteStatus === s.value ? s.color : 'bg-surface border border-border'
-                      }`}
-                    >
-                      <Text
-                        className={`text-xs font-semibold ${
-                          siteStatus === s.value ? 'text-white' : 'text-text'
+                <Card className="p-4">
+                  <Text className="text-sm font-semibold text-text mb-2">Weather</Text>
+                  <View className="flex-row flex-wrap gap-2">
+                    {WEATHERS.map((w) => (
+                      <Pressable
+                        key={w.value}
+                        onPress={() => setWeather(w.value)}
+                        className={`px-3 py-2 rounded-md flex-row items-center gap-1.5 ${
+                          weather === w.value ? 'bg-primary' : 'bg-surface border border-border'
                         }`}
                       >
-                        {s.label}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </Card>
-
-              <Card className="p-4">
-                <Text className="text-sm font-semibold text-text mb-2">Workers Count</Text>
-                <TextInput
-                  value={workersCount}
-                  onChangeText={(v) => setWorkersCount(v.replace(/[^0-9]/g, ''))}
-                  placeholder="e.g. 45"
-                  keyboardType="numeric"
-                  className="border border-border rounded-md px-3 py-2 text-text"
-                />
-              </Card>
-            </View>
-          )}
-
-          {/* STEP 2: Work Done */}
-          {step === 2 && (
-            <View className="space-y-4">
-              <Card className="p-4">
-                <Text className="text-sm font-semibold text-text mb-2">Work Done Today</Text>
-                <TextInput
-                  value={workDone}
-                  onChangeText={setWorkDone}
-                  placeholder="Describe the work completed today..."
-                  multiline
-                  numberOfLines={8}
-                  textAlignVertical="top"
-                  className="border border-border rounded-md px-3 py-2 text-text min-h-[160px]"
-                />
-              </Card>
-              {taskDrafts.length > 0 && (
-                <Card className="p-4">
-                  <Text className="text-sm font-semibold text-text mb-1">
-                    Update schedule progress (optional)
-                  </Text>
-                  <Text className="text-xs text-muted mb-3">
-                    Select tasks to update progress % when this report is submitted.
-                  </Text>
-                  {taskDrafts.map((t) => (
-                    <View key={t.taskId} className="mb-3 pb-3 border-b border-border">
-                      <Pressable
-                        onPress={() =>
-                          setTaskDrafts((prev) =>
-                            prev.map((x) =>
-                              x.taskId === t.taskId ? { ...x, selected: !x.selected } : x,
-                            ),
-                          )
-                        }
-                        className="flex-row items-center gap-2 mb-2"
-                      >
-                        <View
-                          className={`w-5 h-5 rounded border ${
-                            t.selected ? 'bg-primary border-primary' : 'border-border'
-                          }`}
-                        />
-                        <Text className="text-sm text-text flex-1">{t.taskName}</Text>
+                        <Text className="text-base">{w.icon}</Text>
+                        <Text className={`text-xs ${weather === w.value ? 'text-white' : 'text-text'}`}>
+                          {w.label}
+                        </Text>
                       </Pressable>
-                      {t.selected && (
-                        <TextInput
-                          value={t.progressPct}
-                          onChangeText={(v) =>
-                            setTaskDrafts((prev) =>
-                              prev.map((x) =>
-                                x.taskId === t.taskId
-                                  ? { ...x, progressPct: v.replace(/[^0-9]/g, '') }
-                                  : x,
-                              ),
-                            )
-                          }
-                          placeholder="Progress %"
-                          keyboardType="numeric"
-                          className="border border-border rounded-md px-3 py-2 text-text"
-                        />
-                      )}
-                    </View>
-                  ))}
-                </Card>
-              )}
-            </View>
-          )}
-
-          {/* STEP 3: Materials Used */}
-          {step === 3 && (
-            <MaterialsStep
-              projectId={projectId}
-              materials={materials}
-              setMaterials={setMaterials}
-              tasks={projectTasks ?? []}
-              boqItems={projectBoq?.items ?? []}
-              deductStock={deductStock}
-              setDeductStock={setDeductStock}
-              stockSummary={stockSummary ?? []}
-            />
-          )}
-
-          {/* STEP 4: Photos & Issues */}
-          {step === 4 && (
-            <View className="space-y-4">
-              <Card className="p-4">
-                <View className="flex-row items-center justify-between mb-2">
-                  <Text className="text-sm font-semibold text-text">Photos ({photos.length}/10)</Text>
-                  <View className="flex-row gap-2">
-                    <Pressable
-                      onPress={takePhoto}
-                      className="px-3 py-1.5 rounded-md bg-primary"
-                    >
-                      <Text className="text-xs text-white font-semibold">Camera</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={pickPhotos}
-                      className="px-3 py-1.5 rounded-md bg-accent"
-                    >
-                      <Text className="text-xs text-white font-semibold">Gallery</Text>
-                    </Pressable>
-                  </View>
-                </View>
-                {photos.length > 0 ? (
-                  <View className="flex-row flex-wrap gap-2">
-                    {photos.map((p, idx) => (
-                      <View key={idx} className="relative">
-                        <Image
-                          source={{ uri: p.uri }}
-                          className="w-24 h-24 rounded-md"
-                        />
-                        <Pressable
-                          onPress={() => setPhotos((prev) => prev.filter((_, i) => i !== idx))}
-                          className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-danger items-center justify-center"
-                        >
-                          <Text className="text-white text-xs font-bold">✕</Text>
-                        </Pressable>
-                      </View>
                     ))}
                   </View>
-                ) : (
-                  <Text className="text-xs text-muted">No photos added yet.</Text>
-                )}
-              </Card>
+                </Card>
 
-              <Card className="p-4">
-                <Text className="text-sm font-semibold text-text mb-2">Issues / Blockers</Text>
-                <TextInput
-                  value={issues}
-                  onChangeText={setIssues}
-                  placeholder="Any issues, delays, or blockers?"
-                  multiline
-                  numberOfLines={4}
-                  textAlignVertical="top"
-                  className="border border-border rounded-md px-3 py-2 text-text min-h-[100px]"
-                />
-              </Card>
-            </View>
-          )}
+                <Card className="p-4">
+                  <Text className="text-sm font-semibold text-text mb-2">Site Status</Text>
+                  <View className="flex-row gap-2">
+                    {SITE_STATUSES.map((s) => (
+                      <Pressable
+                        key={s.value}
+                        onPress={() => setSiteStatus(s.value)}
+                        className={`flex-1 px-3 py-2.5 rounded-md items-center ${
+                          siteStatus === s.value ? s.color : 'bg-surface border border-border'
+                        }`}
+                      >
+                        <Text
+                          className={`text-xs font-semibold ${
+                            siteStatus === s.value ? 'text-white' : 'text-text'
+                          }`}
+                        >
+                          {s.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </Card>
+
+                <Card className="p-4">
+                  <Input
+                    label="Workers Count"
+                    value={workersCount}
+                    onChangeText={(v) => setWorkersCount(v.replace(/[^0-9]/g, ''))}
+                    keyboardType="numeric"
+                    fullWidth
+                    placeholder="e.g. 45"
+                    helper="Total workers on site today."
+                  />
+                </Card>
+              </View>
+            )}
+
+            {/* STEP 2: Work Done + Task Progress */}
+            {step === 2 && (
+              <View className="space-y-4">
+                <Card className="p-4">
+                  <Input
+                    label="Work Done Today"
+                    value={workDone}
+                    onChangeText={setWorkDone}
+                    placeholder="Describe the work completed today..."
+                    multiline
+                    fullWidth
+                  />
+                </Card>
+
+                {taskDrafts.length > 0 && (
+                  <Card className="p-4">
+                    <Text className="text-sm font-semibold text-text mb-1">
+                      Update schedule progress (optional)
+                    </Text>
+                    <Text className="text-xs text-muted mb-3">
+                      Select tasks to update progress % when this report is submitted.
+                    </Text>
+
+                    {taskDrafts.length > 6 && (
+                      <View className="mb-3">
+                        <Input
+                          value={taskSearch}
+                          onChangeText={setTaskSearch}
+                          placeholder="Search tasks…"
+                          fullWidth
+                        />
+                      </View>
+                    )}
+
+                    <View className="gap-2">
+                      {filteredTaskDrafts.length === 0 ? (
+                        <Text className="text-xs text-muted text-center py-4">
+                          No tasks match “{taskSearch}”.
+                        </Text>
+                      ) : (
+                        filteredTaskDrafts.map((t) => {
+                          const meta = statusMeta(t.status);
+                          const pct = Math.min(100, Math.max(0, parseInt(t.progressPct, 10) || 0));
+                          return (
+                            <Pressable
+                              key={t.taskId}
+                              onPress={() =>
+                                setTaskDrafts((prev) =>
+                                  prev.map((x) =>
+                                    x.taskId === t.taskId ? { ...x, selected: !x.selected } : x,
+                                  ),
+                                )
+                              }
+                              className={`rounded-lg border p-3 ${
+                                t.selected ? 'border-primary bg-primary/5' : 'border-border bg-card'
+                              }`}
+                            >
+                              <View className="flex-row items-center gap-2 mb-2">
+                                <View
+                                  className={`w-5 h-5 rounded border items-center justify-center ${
+                                    t.selected ? 'bg-primary border-primary' : 'border-border'
+                                  }`}
+                                >
+                                  {t.selected ? <Text className="text-white text-[10px]">✓</Text> : null}
+                                </View>
+                                <Text className="text-sm text-text flex-1 font-medium" numberOfLines={2}>
+                                  {t.taskName}
+                                </Text>
+                                <Badge label={meta.label} color={meta.color} />
+                              </View>
+                              <View className="flex-row items-center gap-2 mb-2">
+                                <ProgressBar value={pct} height={6} className="flex-1" />
+                                <Text className="text-xs text-muted w-9 text-right">{pct}%</Text>
+                              </View>
+                              {t.selected && (
+                                <View className="mt-1">
+                                  <Text className="text-xs text-muted mb-1">New progress %</Text>
+                                  <TextInput
+                                    value={t.progressPct}
+                                    onChangeText={(v) =>
+                                      setTaskDrafts((prev) =>
+                                        prev.map((x) =>
+                                          x.taskId === t.taskId
+                                            ? { ...x, progressPct: v.replace(/[^0-9]/g, '') }
+                                            : x,
+                                        ),
+                                      )
+                                    }
+                                    placeholder="Progress %"
+                                    keyboardType="numeric"
+                                    className="border border-border rounded-md px-3 py-2 text-text"
+                                  />
+                                </View>
+                              )}
+                            </Pressable>
+                          );
+                        })
+                      )}
+                    </View>
+                  </Card>
+                )}
+              </View>
+            )}
+
+            {/* STEP 3: Materials Used */}
+            {step === 3 && (
+              <MaterialsStep
+                projectId={projectId}
+                materials={materials}
+                setMaterials={setMaterials}
+                tasks={projectTasks ?? []}
+                boqItems={projectBoq?.items ?? []}
+                deductStock={deductStock}
+                setDeductStock={setDeductStock}
+                stockSummary={stockSummary ?? []}
+              />
+            )}
+
+            {/* STEP 4: Photos & Issues */}
+            {step === 4 && (
+              <View className="space-y-4">
+                <Card className="p-4">
+                  <View className="flex-row items-center justify-between mb-2">
+                    <Text className="text-sm font-semibold text-text">
+                      Photos ({photos.length}/10)
+                    </Text>
+                    <View className="flex-row gap-2">
+                      <Pressable onPress={takePhoto} className="px-3 py-1.5 rounded-md bg-primary">
+                        <Text className="text-xs text-white font-semibold">Camera</Text>
+                      </Pressable>
+                      <Pressable onPress={pickPhotos} className="px-3 py-1.5 rounded-md bg-accent">
+                        <Text className="text-xs text-white font-semibold">Gallery</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                  {photos.length > 0 ? (
+                    <View className="flex-row flex-wrap gap-2">
+                      {photos.map((p, idx) => (
+                        <View key={idx} className="relative">
+                          <Image source={{ uri: p.uri }} className="w-24 h-24 rounded-md" />
+                          <Pressable
+                            onPress={() => setPhotos((prev) => prev.filter((_, i) => i !== idx))}
+                            className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-danger items-center justify-center"
+                          >
+                            <Text className="text-white text-xs font-bold">✕</Text>
+                          </Pressable>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text className="text-xs text-muted">No photos added yet.</Text>
+                  )}
+                </Card>
+
+                <Card className="p-4">
+                  <Input
+                    label="Issues / Blockers"
+                    value={issues}
+                    onChangeText={setIssues}
+                    placeholder="Any issues, delays, or blockers?"
+                    multiline
+                    fullWidth
+                  />
+                </Card>
+              </View>
+            )}
+          </View>
         </ScrollView>
 
         {/* Footer Nav */}
@@ -634,7 +755,11 @@ export default function CreateReportScreen() {
         ) : null}
         <View className="px-4 py-3 border-t border-border flex-row gap-2">
           {step > 1 && (
-            <Button label="Back" variant="secondary" onPress={() => setStep((s) => (s - 1) as typeof s)} />
+            <Button
+              label="Back"
+              variant="secondary"
+              onPress={() => setStep((s) => (s - 1) as typeof s)}
+            />
           )}
           {step < 4 ? (
             <View className="flex-1">
@@ -679,11 +804,42 @@ function MaterialsStep({
   boqItems: BoqItem[];
   deductStock: boolean;
   setDeductStock: (v: boolean) => void;
-  stockSummary: Array<{ resourceId: string; balance: number }>;
+  stockSummary: Array<{ resourceId: string; name: string; unit: string; balance: number }>;
 }) {
-  useMaterials({ limit: 200 });
+  const { isDesktop } = useViewport();
   const [showPicker, setShowPicker] = useState(false);
   const qtyRefs = React.useRef<Record<string, TextInput | null>>({});
+
+  const taskOptions = useMemo(() => tasksToOptions(tasks), [tasks]);
+
+  // Project-relevant materials: union of (a) on-hand stock at the site store
+  // and (b) materials linked to BOQ lines. Surfaced first in the picker so a
+  // supervisor sees what's actually committed to this project before digging
+  // into the full catalog (aligns with Procore / Fieldwire behaviour).
+  const projectMaterials = useMemo<ProjectMaterial[]>(() => {
+    const map = new Map<string, ProjectMaterial>();
+    for (const s of stockSummary) {
+      const boq = boqItems.find((b) => b.resourceId === s.resourceId);
+      map.set(s.resourceId, {
+        id: s.resourceId,
+        name: s.name,
+        unit: s.unit,
+        balance: s.balance,
+        category: boq?.section,
+      });
+    }
+    for (const b of boqItems) {
+      if (b.resourceId && !map.has(b.resourceId)) {
+        map.set(b.resourceId, {
+          id: b.resourceId,
+          name: b.description || b.itemCode,
+          unit: b.unit,
+          category: b.section,
+        });
+      }
+    }
+    return Array.from(map.values());
+  }, [stockSummary, boqItems]);
 
   const fetchResolvedRate = async (resourceId: string, boqItemId?: string) => {
     if (!projectId) return null;
@@ -704,15 +860,20 @@ function MaterialsStep({
       return;
     }
     const resolved = await fetchResolvedRate(res.id);
+    // Auto-suggest the BOQ material line linked to this catalog resource
+    // (if any) so the supervisor doesn't have to find it manually.
+    const suggestedBoqItem = boqItems.find((b) => b.resourceId === res.id);
     setMaterials((prev) => [
       ...prev,
       {
         resourceId: res.id,
         resourceName: res.name,
         unit: res.unit,
+        type: res.type,
         rate: resolved?.rate ?? parseFloat(res.rate),
         rateSource: resolved?.source,
         quantityUsed: '',
+        boqItemId: suggestedBoqItem?.id,
       },
     ]);
     setShowPicker(false);
@@ -769,18 +930,22 @@ function MaterialsStep({
           </Text>
         </Pressable>
         <View className="flex-row items-center justify-between mb-2">
-          <Text className="text-sm font-semibold text-text">Materials Used</Text>
-          <Pressable onPress={() => setShowPicker((v) => !v)} className="px-3 py-1.5 rounded-md bg-primary">
-            <Text className="text-xs text-white font-semibold">+ Add material</Text>
+          <Text className="text-sm font-semibold text-text">Resources Used</Text>
+          <Pressable
+            onPress={() => setShowPicker((v) => !v)}
+            className="px-3 py-1.5 rounded-md bg-primary"
+          >
+            <Text className="text-xs text-white font-semibold">+ Add resource</Text>
           </Pressable>
         </View>
 
         {showPicker && (
           <View className="mb-3 border border-border rounded-md overflow-hidden p-3">
             <Text className="text-xs font-semibold text-muted mb-2">
-              Tap a material to add it, then enter quantity
+              Tap a resource to add it, then enter quantity. Materials, labour, equipment & subcontractors are all supported.
             </Text>
             <MaterialPicker
+              projectMaterials={projectMaterials}
               onSelect={(r) => {
                 void addMaterial(r);
               }}
@@ -790,154 +955,142 @@ function MaterialsStep({
         )}
 
         {materials.length === 0 ? (
-          <Text className="text-xs text-muted">No materials added. Tap "+ Add material" to pick from your library.</Text>
+          <Text className="text-xs text-muted">
+            No resources added. Tap "+ Add resource" to pick materials, labour, equipment or subcontractors.
+          </Text>
         ) : (
           materials.map((m) => {
-            const onHand = stockSummary.find((s) => s.resourceId === m.resourceId)?.balance;
+            const isMaterial = m.type === 'MATERIAL';
+            const onHand = stockSummary.find((s: { resourceId: string; balance: number }) => s.resourceId === m.resourceId)?.balance;
             const qty = m.quantityUsed ? parseFloat(m.quantityUsed) : 0;
-            const overStock = deductStock && onHand !== undefined && qty > onHand;
-            const noStock = deductStock && onHand === 0;
+            // Stock validation only applies to materials (labour/equipment/subcontractors aren't stocked via GRN).
+            const overStock = deductStock && isMaterial && onHand !== undefined && qty > onHand;
+            const noStock = deductStock && isMaterial && onHand === 0;
+            const typeBadge = RESOURCE_TYPE_BADGE[m.type];
             return (
-            <View key={m.resourceId} className="py-2 border-b border-border">
-              <View className="flex-row items-center gap-2">
-                <View className="flex-1" pointerEvents="none">
-                  <Text className="text-sm font-medium text-text">{m.resourceName}</Text>
-                  <Text className="text-xs text-muted">{m.unit}</Text>
-                  {deductStock && onHand !== undefined && (
-                    <Text
-                      className={`text-xs mt-0.5 ${noStock || overStock ? 'text-danger font-medium' : 'text-muted'}`}
-                    >
-                      On hand: {onHand} {m.unit}
-                      {noStock ? ' - receive via GRN first' : ''}
-                      {overStock && !noStock ? ' - exceeds on hand' : ''}
-                    </Text>
-                  )}
-                </View>
-                <View className="items-end">
-                  <Text className="text-[10px] text-muted mb-0.5 uppercase tracking-wide">Qty</Text>
-                  <TextInput
-                    ref={(el) => {
-                      qtyRefs.current[m.resourceId] = el;
-                    }}
-                    value={m.quantityUsed}
-                    onChangeText={(v) => updateQty(m.resourceId, v.replace(/[^0-9.]/g, ''))}
-                    placeholder="0"
-                    keyboardType="decimal-pad"
-                    selectTextOnFocus
-                    className="w-24 border border-primary/40 rounded-md px-2 py-1.5 text-text text-center bg-white"
-                  />
-                </View>
-                {m.quantityUsed ? (
-                  <View className="w-16 items-end" pointerEvents="none">
-                    <Text className="text-xs text-muted text-right">
-                      Rs {(parseFloat(m.quantityUsed) * m.rate).toFixed(0)}
-                    </Text>
-                    {m.rateSource ? (
-                      <Text className="text-[9px] text-primary text-right">{m.rateSource}</Text>
-                    ) : null}
+              <View key={m.resourceId} className="py-3 border-b border-border">
+                {/* Top row: resource info + qty + cost + remove */}
+                <View className="flex-row items-start gap-2">
+                  <View className="flex-1">
+                    <View className="flex-row items-center gap-2">
+                      <Text className="text-sm font-medium text-text flex-1" numberOfLines={1}>{m.resourceName}</Text>
+                      <Badge label={typeBadge.label} color={typeBadge.color} />
+                    </View>
+                    <Text className="text-xs text-muted">{m.unit}</Text>
+                    {isMaterial && deductStock && onHand !== undefined && (
+                      <Text
+                        className={`text-xs mt-0.5 ${
+                          noStock || overStock ? 'text-danger font-medium' : 'text-muted'
+                        }`}
+                      >
+                        On hand: {onHand} {m.unit}
+                        {noStock ? ' - receive via GRN first' : ''}
+                        {overStock && !noStock ? ' - exceeds on hand' : ''}
+                      </Text>
+                    )}
                   </View>
-                ) : (
-                  <View className="w-16" />
-                )}
-                <Pressable
-                  onPress={() => removeMaterial(m.resourceId)}
-                  hitSlop={8}
-                  className="w-8 h-8 items-center justify-center rounded-full active:bg-danger/10"
-                >
-                  <Text className="text-danger text-base font-bold">×</Text>
-                </Pressable>
-              </View>
-              {(tasks.length > 0 || boqItems.length > 0) && (
-                <View className="mt-2 gap-1">
-                  {tasks.length > 0 && (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                      <View className="flex-row gap-1">
-                        <Pressable
-                          onPress={() => updateLink(m.resourceId, 'taskId', undefined)}
-                          className={`px-2 py-1 rounded-full border ${
-                            !m.taskId ? 'bg-primary border-primary' : 'border-border'
-                          }`}
-                        >
-                          <Text className={`text-[10px] ${!m.taskId ? 'text-white' : 'text-muted'}`}>
-                            No task
-                          </Text>
-                        </Pressable>
-                        {tasks.map((t) => (
-                          <Pressable
-                            key={t.id}
-                            onPress={() => updateLink(m.resourceId, 'taskId', t.id)}
-                            className={`px-2 py-1 rounded-full border ${
-                              m.taskId === t.id ? 'bg-primary border-primary' : 'border-border'
-                            }`}
-                          >
-                            <Text
-                              className={`text-[10px] ${
-                                m.taskId === t.id ? 'text-white' : 'text-muted'
-                              }`}
-                              numberOfLines={1}
-                            >
-                              {t.name}
-                            </Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    </ScrollView>
+
+                  <View className="items-end">
+                    <Text className="text-[10px] text-muted mb-0.5 uppercase tracking-wide">
+                      Qty
+                    </Text>
+                    <TextInput
+                      ref={(el) => {
+                        qtyRefs.current[m.resourceId] = el;
+                      }}
+                      value={m.quantityUsed}
+                      onChangeText={(v) => updateQty(m.resourceId, v.replace(/[^0-9.]/g, ''))}
+                      placeholder="0"
+                      keyboardType="decimal-pad"
+                      selectTextOnFocus
+                      className="w-24 border border-primary/40 rounded-md px-2 py-1.5 text-text text-center bg-white"
+                    />
+                  </View>
+
+                  {m.quantityUsed ? (
+                    <View className="w-16 items-end">
+                      <Text className="text-xs text-muted text-right">
+                        Rs {(parseFloat(m.quantityUsed) * m.rate).toFixed(0)}
+                      </Text>
+                      {m.rateSource ? (
+                        <Text className="text-[9px] text-primary text-right">{m.rateSource}</Text>
+                      ) : null}
+                    </View>
+                  ) : (
+                    <View className="w-16" />
                   )}
-                  {boqItems.length > 0 && (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                      <View className="flex-row gap-1">
-                        <Pressable
-                          onPress={() => updateLink(m.resourceId, 'boqItemId', undefined)}
-                          className={`px-2 py-1 rounded-full border ${
-                            !m.boqItemId ? 'bg-accent border-accent' : 'border-border'
-                          }`}
-                        >
-                          <Text className={`text-[10px] ${!m.boqItemId ? 'text-white' : 'text-muted'}`}>
-                            No BOQ
-                          </Text>
-                        </Pressable>
-                        {boqItems.slice(0, 12).map((b) => (
-                          <Pressable
-                            key={b.id}
-                            onPress={() => updateLink(m.resourceId, 'boqItemId', b.id)}
-                            className={`px-2 py-1 rounded-full border ${
-                              m.boqItemId === b.id ? 'bg-accent border-accent' : 'border-border'
-                            }`}
-                          >
-                            <Text
-                              className={`text-[10px] ${
-                                m.boqItemId === b.id ? 'text-white' : 'text-muted'
-                              }`}
-                            >
-                              {b.itemCode}
-                            </Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    </ScrollView>
-                  )}
-                  {m.boqItemId ? (
-                    <Pressable
-                      onPress={() =>
-                        setMaterials((prev) =>
-                          prev.map((row) =>
-                            row.resourceId === m.resourceId
-                              ? { ...row, postToBoqMeasurement: !row.postToBoqMeasurement }
-                              : row,
-                          ),
-                        )
-                      }
-                      className="flex-row items-center gap-2 mt-1"
-                    >
-                      <View
-                        className={`w-4 h-4 rounded border ${m.postToBoqMeasurement ? 'bg-primary border-primary' : 'border-border'}`}
-                      />
-                      <Text className="text-xs text-muted">Post qty to BOQ measurement book on submit</Text>
-                    </Pressable>
-                  ) : null}
+
+                  <Pressable
+                    onPress={() => removeMaterial(m.resourceId)}
+                    hitSlop={8}
+                    className="w-8 h-8 items-center justify-center rounded-full active:bg-danger/10"
+                  >
+                    <Text className="text-danger text-base font-bold">×</Text>
+                  </Pressable>
                 </View>
-              )}
-            </View>
+
+                {/* Link row: task + BOQ dropdowns (responsive) */}
+                {(tasks.length > 0 || boqItems.length > 0) && (
+                  <View
+                    className={`mt-3 gap-2 ${isDesktop ? 'flex-row' : 'flex-col'}`}
+                  >
+                    {tasks.length > 0 && (
+                      <View className={isDesktop ? 'flex-1' : ''}>
+                        <Select
+                          label="Link to task"
+                          value={m.taskId}
+                          options={taskOptions}
+                          onChange={(v) => updateLink(m.resourceId, 'taskId', v)}
+                          placeholder="No task"
+                          title="Select a task"
+                          searchPlaceholder="Search tasks…"
+                          clearable
+                          compact
+                        />
+                      </View>
+                    )}
+                    {boqItems.length > 0 && (
+                      <View className={isDesktop ? 'flex-1' : ''}>
+                        <Select
+                          label="Link to BOQ item"
+                          value={m.boqItemId}
+                          options={boqToOptions(boqItems, m.resourceId)}
+                          onChange={(v) => updateLink(m.resourceId, 'boqItemId', v)}
+                          placeholder="No BOQ item"
+                          title="Select a BOQ item"
+                          searchPlaceholder="Search BOQ items…"
+                          clearable
+                          compact
+                        />
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {m.boqItemId ? (
+                  <Pressable
+                    onPress={() =>
+                      setMaterials((prev) =>
+                        prev.map((row) =>
+                          row.resourceId === m.resourceId
+                            ? { ...row, postToBoqMeasurement: !row.postToBoqMeasurement }
+                            : row,
+                        ),
+                      )
+                    }
+                    className="flex-row items-center gap-2 mt-2"
+                  >
+                    <View
+                      className={`w-4 h-4 rounded border ${
+                        m.postToBoqMeasurement ? 'bg-primary border-primary' : 'border-border'
+                      }`}
+                    />
+                    <Text className="text-xs text-muted">
+                      Post qty to BOQ measurement book on submit
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
             );
           })
         )}
@@ -946,7 +1099,10 @@ function MaterialsStep({
           <Text className="text-sm font-semibold text-text mt-2">
             Est. Cost: Rs{' '}
             {materials
-              .reduce((sum, m) => sum + (m.quantityUsed ? parseFloat(m.quantityUsed) * m.rate : 0), 0)
+              .reduce(
+                (sum, m) => sum + (m.quantityUsed ? parseFloat(m.quantityUsed) * m.rate : 0),
+                0,
+              )
               .toFixed(0)}
           </Text>
         )}

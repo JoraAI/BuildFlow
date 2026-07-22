@@ -5,6 +5,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
 import { calculateGST, round2 } from './gst.service';
+import { nextSequentialNumber } from '../lib/id-generator';
 import type {
   CreateInvoiceInput,
   UpdateInvoiceInput,
@@ -228,7 +229,7 @@ export async function createInvoice(companyId: string, _userId: string, input: C
     data: {
       projectId: input.projectId,
       companyId,
-      invoiceNumber: input.invoiceNumber,
+      invoiceNumber: input.invoiceNumber || await nextSequentialNumber(companyId, 'invoice'),
       clientName: input.clientName,
       clientGstin: input.clientGstin,
       invoiceDate: input.invoiceDate,

@@ -69,7 +69,7 @@ export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
 
 export const createBillSchema = z.object({
   projectId: z.string().uuid(),
-  billNumber: z.string().min(1).max(50),
+  billNumber: z.string().min(1).max(50).optional(),
   vendorName: z.string().min(1).max(200),
   vendorGstin: z.string().max(15).optional(),
   vendorState: z.string().max(40).optional(),
