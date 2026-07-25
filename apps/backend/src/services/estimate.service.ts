@@ -65,6 +65,9 @@ export interface SectionWithItems {
     type: string;
     resourceId: string | null;
     resourceName: string | null;
+    rateAnalysisId: string | null;
+    rateAnalysisName: string | null;
+    wbsItemId: string | null;
     itemCode: string | null;
     notes: string | null;
   }>;
@@ -179,7 +182,10 @@ export async function getEstimateWithSummary(companyId: string, estimateId: stri
       sections: { orderBy: { orderIndex: 'asc' } },
       items: {
         orderBy: { createdAt: 'asc' },
-        include: { resource: { select: { name: true, gstRate: true } } },
+        include: {
+          resource: { select: { name: true, gstRate: true } },
+          rateAnalysis: { select: { name: true } },
+        },
       },
       createdByUser: { select: { name: true } },
       approvedByUser: { select: { name: true } },
@@ -200,6 +206,9 @@ export async function getEstimateWithSummary(companyId: string, estimateId: stri
         type: i.type,
         resourceId: i.resourceId,
         resourceName: i.resource?.name ?? null,
+        rateAnalysisId: i.rateAnalysisId,
+        rateAnalysisName: i.rateAnalysis?.name ?? null,
+        wbsItemId: i.wbsItemId,
         itemCode: i.itemCode,
         notes: i.notes,
       }));
@@ -648,6 +657,32 @@ export async function submitForReview(
     throw ApiError.badRequest('Cannot submit an estimate with no line items');
   }
 
+  // Hard validation: every MATERIAL line must have a procurement link
+  // (catalog resourceId OR rateAnalysisId). Without one, the item cannot
+  // be exploded into procurement indents when converted to BOQ — silently
+  // dropping material demand. Block submission and surface the offenders.
+  const materialItems = await prisma.estimateItem.findMany({
+    where: { estimateId, type: 'MATERIAL' },
+    select: { description: true, resourceId: true, rateAnalysisId: true },
+  });
+  const unlinkedMaterials = materialItems.filter(
+    (i) => !i.resourceId && !i.rateAnalysisId,
+  );
+  if (unlinkedMaterials.length > 0) {
+    const preview = unlinkedMaterials
+      .slice(0, 5)
+      .map((i) => `• ${i.description}`)
+      .join('\n');
+    const extra =
+      unlinkedMaterials.length > 5
+        ? `\n…and ${unlinkedMaterials.length - 5} more`
+        : '';
+    throw ApiError.badRequest(
+      `${unlinkedMaterials.length} MATERIAL item(s) are not linked to a catalog material or rate analysis. ` +
+        `Link each item before submitting so procurement indents can be generated:\n${preview}${extra}`,
+    );
+  }
+
   await persistComputedTotals(companyId, estimateId);
 
   const updated = await prisma.estimate.update({
@@ -885,6 +920,8 @@ export async function duplicateEstimate(
           amount: item.amount,
           type: item.type as never,
           resourceId: item.resourceId,
+          rateAnalysisId: item.rateAnalysisId,
+          wbsItemId: item.wbsItemId,
           itemCode: item.itemCode,
           notes: item.notes,
         },

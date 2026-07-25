@@ -15,25 +15,25 @@ export const UTILITY_TEMPLATES: EstimateTemplate[] = [
         items: [
           { itemCode: 'WT-P-001', description: 'Excavation for raft foundation', unit: 'cum', quantity: 85, rate: 320, type: 'MATERIAL', rateAnalysisName: 'Excavation in Ordinary Soil' },
           { itemCode: 'WT-P-002', description: 'PCC M15 (100mm) blinding', unit: 'cum', quantity: 12, rate: 5200, type: 'MATERIAL', rateAnalysisName: 'PCC M15 (1:2:4)' },
-          { itemCode: 'WT-P-003', description: 'RCC M30 raft foundation', unit: 'cum', quantity: 38, rate: 9500, type: 'MATERIAL' },
+          { itemCode: 'WT-P-003', description: 'RCC M30 raft foundation', unit: 'cum', quantity: 38, rate: 9500, type: 'MATERIAL', rateAnalysisName: 'RCC M30 (Columns, Beams & Slabs)' },
           { itemCode: 'WT-P-004', description: 'Foundation reinforcement', unit: 'kg', quantity: 5700, rate: 73, type: 'MATERIAL', resourceName: 'TMT Steel Fe500 20mm' },
         ],
       },
       {
         name: '2. Staging Columns & Beams',
         items: [
-          { itemCode: 'WT-ST-001', description: 'RCC M30 staging columns (8 nos)', unit: 'cum', quantity: 22, rate: 10500, type: 'MATERIAL' },
-          { itemCode: 'WT-ST-002', description: 'RCC M30 brace beams', unit: 'cum', quantity: 15, rate: 10500, type: 'MATERIAL' },
+          { itemCode: 'WT-ST-001', description: 'RCC M30 staging columns (8 nos)', unit: 'cum', quantity: 22, rate: 10500, type: 'MATERIAL', rateAnalysisName: 'RCC M30 (Columns, Beams & Slabs)' },
+          { itemCode: 'WT-ST-002', description: 'RCC M30 brace beams', unit: 'cum', quantity: 15, rate: 10500, type: 'MATERIAL', rateAnalysisName: 'RCC M30 (Columns, Beams & Slabs)' },
           { itemCode: 'WT-ST-003', description: 'Column reinforcement', unit: 'kg', quantity: 5500, rate: 73, type: 'MATERIAL', resourceName: 'TMT Steel Fe500 16mm' },
-          { itemCode: 'WT-ST-004', description: 'Shuttering for columns & beams', unit: 'sqm', quantity: 280, rate: 450, type: 'MATERIAL' },
+          { itemCode: 'WT-ST-004', description: 'Shuttering for columns & beams', unit: 'sqm', quantity: 280, rate: 450, type: 'MATERIAL', resourceName: 'Shuttering Plywood 18mm Waterproof' },
         ],
       },
       {
         name: '3. Tank Bowl (Bottom Dome, Walls, Top Dome)',
         items: [
-          { itemCode: 'WT-BW-001', description: 'RCC M30 bottom dome (150mm)', unit: 'cum', quantity: 18, rate: 11000, type: 'MATERIAL' },
-          { itemCode: 'WT-BW-002', description: 'RCC M30 cylindrical walls (200mm)', unit: 'cum', quantity: 28, rate: 11000, type: 'MATERIAL' },
-          { itemCode: 'WT-BW-003', description: 'RCC M30 top dome (100mm)', unit: 'cum', quantity: 12, rate: 11000, type: 'MATERIAL' },
+          { itemCode: 'WT-BW-001', description: 'RCC M30 bottom dome (150mm)', unit: 'cum', quantity: 18, rate: 11000, type: 'MATERIAL', rateAnalysisName: 'RCC M30 (Columns, Beams & Slabs)' },
+          { itemCode: 'WT-BW-002', description: 'RCC M30 cylindrical walls (200mm)', unit: 'cum', quantity: 28, rate: 11000, type: 'MATERIAL', rateAnalysisName: 'RCC M30 (Columns, Beams & Slabs)' },
+          { itemCode: 'WT-BW-003', description: 'RCC M30 top dome (100mm)', unit: 'cum', quantity: 12, rate: 11000, type: 'MATERIAL', rateAnalysisName: 'RCC M30 (Columns, Beams & Slabs)' },
           { itemCode: 'WT-BW-004', description: 'Tank reinforcement (all)', unit: 'kg', quantity: 12000, rate: 73, type: 'MATERIAL', resourceName: 'TMT Steel Fe500 16mm' },
           { itemCode: 'WT-BW-005', description: 'OPC cement for tank', unit: 'bag', quantity: 950, rate: 420, type: 'MATERIAL', resourceName: 'OPC Cement 53 Grade' },
           { itemCode: 'WT-BW-006', description: 'Superplasticizer (PCE)', unit: 'litre', quantity: 150, rate: 135, type: 'MATERIAL', resourceName: 'Superplasticizer (PCE Based)' },
@@ -55,7 +55,7 @@ export const UTILITY_TEMPLATES: EstimateTemplate[] = [
           { itemCode: 'WT-PP-002', description: 'Outlet pipe GI 80mm', unit: 'metre', quantity: 20, rate: 450, type: 'MATERIAL', resourceName: 'GI Pipe 80mm (Class B)' },
           { itemCode: 'WT-PP-003', description: 'Overflow pipe GI 100mm', unit: 'metre', quantity: 12, rate: 620, type: 'MATERIAL', resourceName: 'GI Pipe 100mm (Class B)' },
           { itemCode: 'WT-PP-004', description: 'Sluice valve 80mm', unit: 'nos', quantity: 3, rate: 3200, type: 'MATERIAL', resourceName: 'Sluice Valve 80mm (CI)' },
-          { itemCode: 'WT-PP-005', description: 'Float valve 80mm', unit: 'nos', quantity: 1, rate: 4500, type: 'MATERIAL' },
+          { itemCode: 'WT-PP-005', description: 'Float valve 80mm', unit: 'nos', quantity: 1, rate: 4500, type: 'MATERIAL', resourceName: 'Float Valve 80mm (Brass)' },
           { itemCode: 'WT-PP-006', description: 'Water level indicator', unit: 'nos', quantity: 1, rate: 12000, type: 'SUBCONTRACTOR' },
           { itemCode: 'WT-PP-007', description: 'MS access ladder (galvanized)', unit: 'nos', quantity: 1, rate: 18000, type: 'SUBCONTRACTOR' },
         ],
@@ -89,8 +89,8 @@ export const UTILITY_TEMPLATES: EstimateTemplate[] = [
         name: '2. RCC Pool Shell',
         items: [
           { itemCode: 'SP-RCC-001', description: 'PCC M15 (75mm) base', unit: 'cum', quantity: 28, rate: 5200, type: 'MATERIAL', rateAnalysisName: 'PCC M15 (1:2:4)' },
-          { itemCode: 'SP-RCC-002', description: 'RCC M30 pool walls (250mm)', unit: 'cum', quantity: 85, rate: 11000, type: 'MATERIAL' },
-          { itemCode: 'SP-RCC-003', description: 'RCC M30 pool floor (200mm)', unit: 'cum', quantity: 75, rate: 11000, type: 'MATERIAL' },
+          { itemCode: 'SP-RCC-002', description: 'RCC M30 pool walls (250mm)', unit: 'cum', quantity: 85, rate: 11000, type: 'MATERIAL', rateAnalysisName: 'RCC M30 (Columns, Beams & Slabs)' },
+          { itemCode: 'SP-RCC-003', description: 'RCC M30 pool floor (200mm)', unit: 'cum', quantity: 75, rate: 11000, type: 'MATERIAL', rateAnalysisName: 'RCC M30 (Columns, Beams & Slabs)' },
           { itemCode: 'SP-RCC-004', description: 'Pool reinforcement (8mm mesh)', unit: 'kg', quantity: 14000, rate: 75, type: 'MATERIAL', resourceName: 'TMT Steel Fe500 8mm' },
           { itemCode: 'SP-RCC-005', description: 'OPC cement for pool', unit: 'bag', quantity: 1450, rate: 420, type: 'MATERIAL', resourceName: 'OPC Cement 53 Grade' },
           { itemCode: 'SP-RCC-006', description: 'Superplasticizer (PCE)', unit: 'litre', quantity: 200, rate: 135, type: 'MATERIAL', resourceName: 'Superplasticizer (PCE Based)' },
@@ -109,7 +109,7 @@ export const UTILITY_TEMPLATES: EstimateTemplate[] = [
         items: [
           { itemCode: 'SP-TL-001', description: 'Glass mosaic tile (pool interior)', unit: 'sqft', quantity: 4200, rate: 85, type: 'MATERIAL', resourceName: 'Glass Mosaic Tile' },
           { itemCode: 'SP-TL-002', description: 'Tile adhesive (waterproof)', unit: 'bag', quantity: 120, rate: 420, type: 'MATERIAL', resourceName: 'Tile Adhesive (Premium)' },
-          { itemCode: 'SP-TL-003', description: 'Epoxy tile grout', unit: 'kg', quantity: 150, rate: 450, type: 'MATERIAL' },
+          { itemCode: 'SP-TL-003', description: 'Epoxy tile grout', unit: 'kg', quantity: 150, rate: 450, type: 'MATERIAL', resourceName: 'Epoxy Tile Grout (Pool Grade)' },
         ],
       },
       {
@@ -135,9 +135,9 @@ export const UTILITY_TEMPLATES: EstimateTemplate[] = [
       {
         name: '7. Pool Deck',
         items: [
-          { itemCode: 'SP-DK-001', description: 'RCC deck slab (surround)', unit: 'cum', quantity: 35, rate: 9500, type: 'MATERIAL' },
+          { itemCode: 'SP-DK-001', description: 'RCC deck slab (surround)', unit: 'cum', quantity: 35, rate: 9500, type: 'MATERIAL', rateAnalysisName: 'RCC Deck Slab M35' },
           { itemCode: 'SP-DK-002', description: 'Anti-skid deck tile 300x300', unit: 'sqft', quantity: 1800, rate: 42, type: 'MATERIAL', resourceName: 'Anti-skid Tile 300x300' },
-          { itemCode: 'SP-DK-003', description: 'Deck drainage channel', unit: 'rmt', quantity: 50, rate: 850, type: 'MATERIAL' },
+          { itemCode: 'SP-DK-003', description: 'Deck drainage channel', unit: 'rmt', quantity: 50, rate: 850, type: 'MATERIAL', resourceName: 'Deck Drainage Channel (SS)' },
         ],
       },
     ],
@@ -153,8 +153,8 @@ export const UTILITY_TEMPLATES: EstimateTemplate[] = [
         items: [
           { itemCode: 'ST-P-001', description: 'Excavation for STP tanks', unit: 'cum', quantity: 280, rate: 280, type: 'MATERIAL', rateAnalysisName: 'Excavation in Ordinary Soil' },
           { itemCode: 'ST-P-002', description: 'PCC M15 base (150mm)', unit: 'cum', quantity: 22, rate: 5200, type: 'MATERIAL', rateAnalysisName: 'PCC M15 (1:2:4)' },
-          { itemCode: 'ST-P-003', description: 'RCC M30 tank walls (200mm)', unit: 'cum', quantity: 85, rate: 11000, type: 'MATERIAL' },
-          { itemCode: 'ST-P-004', description: 'RCC M30 tank base slab', unit: 'cum', quantity: 38, rate: 9500, type: 'MATERIAL' },
+          { itemCode: 'ST-P-003', description: 'RCC M30 tank walls (200mm)', unit: 'cum', quantity: 85, rate: 11000, type: 'MATERIAL', rateAnalysisName: 'RCC M30 (Columns, Beams & Slabs)' },
+          { itemCode: 'ST-P-004', description: 'RCC M30 tank base slab', unit: 'cum', quantity: 38, rate: 9500, type: 'MATERIAL', rateAnalysisName: 'RCC M30 (Columns, Beams & Slabs)' },
           { itemCode: 'ST-P-005', description: 'Tank reinforcement', unit: 'kg', quantity: 14000, rate: 73, type: 'MATERIAL', resourceName: 'TMT Steel Fe500 12mm' },
           { itemCode: 'ST-P-006', description: 'PVC waterstop at joints', unit: 'rmt', quantity: 85, rate: 280, type: 'MATERIAL', resourceName: 'PVC Waterstop 230mm' },
         ],
@@ -219,7 +219,7 @@ export const UTILITY_TEMPLATES: EstimateTemplate[] = [
         name: '2. Mounting Structure',
         items: [
           { itemCode: 'SO-MS-001', description: 'GI mounting structure (hot-dipped)', unit: 'ton', quantity: 6.5, rate: 120000, type: 'MATERIAL', resourceName: 'Solar Panel Mounting Structure (GI)' },
-          { itemCode: 'SO-MS-002', description: 'Roof penetration sealing kits', unit: 'nos', quantity: 250, rate: 180, type: 'MATERIAL' },
+          { itemCode: 'SO-MS-002', description: 'Roof penetration sealing kits', unit: 'nos', quantity: 250, rate: 180, type: 'MATERIAL', resourceName: 'Roof Penetration Sealing Kit' },
           { itemCode: 'SO-MS-003', description: 'Anchor bolts M12 (chemical)', unit: 'nos', quantity: 500, rate: 22, type: 'MATERIAL', resourceName: 'Anchor Bolt M12 x 100mm (Chemical)' },
         ],
       },
@@ -227,8 +227,8 @@ export const UTILITY_TEMPLATES: EstimateTemplate[] = [
         name: '3. Inverters',
         items: [
           { itemCode: 'SO-IV-001', description: 'Solar inverter 50KVA (2 nos)', unit: 'nos', quantity: 2, rate: 450000, type: 'MATERIAL', resourceName: 'Solar Inverter 10KVA' },
-          { itemCode: 'SO-IV-002', description: 'AC distribution box', unit: 'nos', quantity: 2, rate: 45000, type: 'MATERIAL' },
-          { itemCode: 'SO-IV-003', description: 'DC distribution box', unit: 'nos', quantity: 2, rate: 35000, type: 'MATERIAL' },
+          { itemCode: 'SO-IV-002', description: 'AC distribution box', unit: 'nos', quantity: 2, rate: 45000, type: 'MATERIAL', resourceName: 'AC Distribution Box (Surface) IP54' },
+          { itemCode: 'SO-IV-003', description: 'DC distribution box', unit: 'nos', quantity: 2, rate: 35000, type: 'MATERIAL', resourceName: 'DC Distribution Box (Surface) IP54' },
         ],
       },
       {

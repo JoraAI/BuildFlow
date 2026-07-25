@@ -784,6 +784,7 @@ export const CATALOG_DATA: CatalogItem[] = [
   // ════════════════════════════════════════════════════════════════
   { name: 'Anchor Bolt M16 x 150mm (Chemical)', type: ResourceType.MATERIAL, unit: 'nos', rate: 85, gstRate: 18, hsn: '7318', category: 'Fasteners' },
   { name: 'Anchor Bolt M20 x 200mm (Chemical)', type: ResourceType.MATERIAL, unit: 'nos', rate: 120, gstRate: 18, hsn: '7318', category: 'Fasteners' },
+  { name: 'Anchor Bolt M12 x 100mm (Chemical)', type: ResourceType.MATERIAL, unit: 'nos', rate: 35, gstRate: 18, hsn: '7318', category: 'Fasteners' },
   { name: 'Anchor Bolt M12 x 100mm (Mechanical)', type: ResourceType.MATERIAL, unit: 'nos', rate: 28, gstRate: 18, hsn: '7318', category: 'Fasteners' },
   { name: 'Expansion Bolt M10 (Sleeve)', type: ResourceType.MATERIAL, unit: 'nos', rate: 15, gstRate: 18, hsn: '7318', category: 'Fasteners' },
   { name: 'Expansion Bolt M12 (Sleeve)', type: ResourceType.MATERIAL, unit: 'nos', rate: 22, gstRate: 18, hsn: '7318', category: 'Fasteners' },
@@ -1347,4 +1348,61 @@ export const CATALOG_DATA: CatalogItem[] = [
   { name: 'MS Round Pipe 40mm (Medium)', type: ResourceType.MATERIAL, unit: 'rmt', rate: 220, gstRate: 18, hsn: '7306', category: 'Steel' },
   { name: 'MS Sheet 1.6mm', type: ResourceType.MATERIAL, unit: 'kg', rate: 78, gstRate: 18, hsn: '7208', category: 'Steel' },
   { name: 'MS Sheet 3mm', type: ResourceType.MATERIAL, unit: 'kg', rate: 76, gstRate: 18, hsn: '7208', category: 'Steel' },
+
+  // ════════════════════════════════════════════════════════════════
+  // 67. INFRASTRUCTURE & ROAD SAFETY MATERIALS
+  // ════════════════════════════════════════════════════════════════
+  { name: 'W-Beam Crash Barrier (Galvanized) 3mm', type: ResourceType.MATERIAL, unit: 'rmt', rate: 850, gstRate: 18, hsn: '7314', category: 'Road Safety', brandOrSpec: '2-wave guardrail' },
+  { name: 'Crash Barrier Post (MS) 140x70mm', type: ResourceType.MATERIAL, unit: 'nos', rate: 650, gstRate: 18, hsn: '7216', category: 'Road Safety' },
+  { name: 'RCC Hume Pipe NP3 600mm', type: ResourceType.MATERIAL, unit: 'rmt', rate: 1800, gstRate: 5, hsn: '6810', category: 'Infrastructure' },
+  { name: 'RCC Hume Pipe NP3 900mm', type: ResourceType.MATERIAL, unit: 'rmt', rate: 3500, gstRate: 5, hsn: '6810', category: 'Infrastructure' },
+  { name: 'RCC Hume Pipe NP3 300mm', type: ResourceType.MATERIAL, unit: 'rmt', rate: 850, gstRate: 5, hsn: '6810', category: 'Infrastructure' },
+  { name: 'Expansion Joint Filler Board (Bituminous) 12mm', type: ResourceType.MATERIAL, unit: 'sqm', rate: 180, gstRate: 18, hsn: '6807', category: 'Infrastructure' },
+  { name: 'Z-Purlin (Galvanized) 200x50x20x2mm', type: ResourceType.MATERIAL, unit: 'rmt', rate: 320, gstRate: 18, hsn: '7216', category: 'Steel' },
+  { name: 'GI Gutter 300mm (Pre-Coated)', type: ResourceType.MATERIAL, unit: 'rmt', rate: 450, gstRate: 18, hsn: '7210', category: 'Roofing' },
+  { name: 'EOT Crane Rail Clamps', type: ResourceType.MATERIAL, unit: 'nos', rate: 850, gstRate: 18, hsn: '7302', category: 'Industrial' },
+  { name: 'Octagonal Steel Lighting Pole 9m', type: ResourceType.MATERIAL, unit: 'nos', rate: 18000, gstRate: 18, hsn: '7308', category: 'Road Safety' },
+  { name: 'Energy Dissipater Block (Concrete)', type: ResourceType.MATERIAL, unit: 'nos', rate: 180, gstRate: 5, hsn: '6810', category: 'Infrastructure' },
+  { name: 'Stone Pitching (Rubble)', type: ResourceType.MATERIAL, unit: 'cum', rate: 1200, gstRate: 5, hsn: '2517', category: 'Aggregates' },
+  { name: 'Approach Embankment Fill (Soil)', type: ResourceType.MATERIAL, unit: 'cum', rate: 250, gstRate: 0, category: 'Aggregates' },
+
+  // ════════════════════════════════════════════════════════════════
+  // 68. ELECTRICAL INFRASTRUCTURE
+  // ════════════════════════════════════════════════════════════════
+  { name: 'Fire Alarm Panel (Addressable) 4 Zone', type: ResourceType.MATERIAL, unit: 'nos', rate: 22000, gstRate: 18, hsn: '8531', category: 'Fire Safety' },
+  { name: 'AC Distribution Box (Surface) IP54', type: ResourceType.MATERIAL, unit: 'nos', rate: 4500, gstRate: 18, hsn: '8537', category: 'Electrical' },
+  { name: 'DC Distribution Box (Surface) IP54', type: ResourceType.MATERIAL, unit: 'nos', rate: 5500, gstRate: 18, hsn: '8537', category: 'Electrical' },
+  { name: 'Roof Penetration Sealing Kit', type: ResourceType.MATERIAL, unit: 'set', rate: 850, gstRate: 18, hsn: '3907', category: 'Solar' },
+  { name: 'Oxygen Pipeline (Copper) 15mm Type L', type: ResourceType.MATERIAL, unit: 'rmt', rate: 320, gstRate: 18, hsn: '7411', category: 'HVAC' },
+  { name: 'Vacuum Pipeline (Copper) 22mm Type L', type: ResourceType.MATERIAL, unit: 'rmt', rate: 450, gstRate: 18, hsn: '7411', category: 'HVAC' },
+  { name: 'Nitrous Oxide Pipeline (Copper) 18mm Type L', type: ResourceType.MATERIAL, unit: 'rmt', rate: 380, gstRate: 18, hsn: '7411', category: 'HVAC' },
+
+  // ════════════════════════════════════════════════════════════════
+  // 69. SWIMMING POOL & WATERPROOFING EXTRAS
+  // ════════════════════════════════════════════════════════════════
+  { name: 'Float Valve 80mm (Brass)', type: ResourceType.MATERIAL, unit: 'nos', rate: 850, gstRate: 18, hsn: '8481', category: 'Plumbing' },
+  { name: 'Epoxy Tile Grout (Pool Grade)', type: ResourceType.MATERIAL, unit: 'kg', rate: 280, gstRate: 18, hsn: '3214', category: 'Pool' },
+  { name: 'Deck Drainage Channel (SS)', type: ResourceType.MATERIAL, unit: 'rmt', rate: 1200, gstRate: 18, hsn: '7323', category: 'Pool' },
+
+  // ════════════════════════════════════════════════════════════════
+  // 70. BITUMINOUS MIX MATERIALS
+  // ════════════════════════════════════════════════════════════════
+  { name: 'DBM Mix Material (per ton)', type: ResourceType.MATERIAL, unit: 'ton', rate: 8500, gstRate: 18, hsn: '2713', category: 'Road Materials' },
+  { name: 'BC Mix Material (per ton)', type: ResourceType.MATERIAL, unit: 'ton', rate: 9500, gstRate: 18, hsn: '2713', category: 'Road Materials' },
+  { name: 'Bentonite Clay Powder (Piling Grade) Bulk', type: ResourceType.MATERIAL, unit: 'kg', rate: 16, gstRate: 5, hsn: '2508', category: 'Infrastructure' },
+  { name: 'Grout for Micro-Pile (Non-Shrink)', type: ResourceType.MATERIAL, unit: 'kg', rate: 17, gstRate: 18, hsn: '3824', category: 'Infrastructure' },
+  { name: 'Micro-Pile Centralizer (Spacer)', type: ResourceType.MATERIAL, unit: 'piece', rate: 85, gstRate: 18, hsn: '7308', category: 'Infrastructure' },
+  { name: 'Steel Sheet Pile Section', type: ResourceType.MATERIAL, unit: 'kg', rate: 85, gstRate: 18, hsn: '7308', category: 'Steel' },
+  { name: 'Precast RCC Pile 300x300', type: ResourceType.MATERIAL, unit: 'rmt', rate: 2800, gstRate: 5, hsn: '6810', category: 'Infrastructure' },
+  { name: 'Rotary Piling Rig 22T (Bored)', type: ResourceType.EQUIPMENT, unit: 'day', rate: 85000, gstRate: 18, hsn: '8430', category: 'Equipment Hire' },
+  { name: 'Diesel Pile Hammer (D30)', type: ResourceType.EQUIPMENT, unit: 'day', rate: 18000, gstRate: 18, hsn: '8430', category: 'Equipment Hire' },
+  { name: 'Hydraulic Pile Hammer (Driven)', type: ResourceType.EQUIPMENT, unit: 'day', rate: 35000, gstRate: 18, hsn: '8430', category: 'Equipment Hire' },
+  { name: 'Micro-Pile Pressure Grouting Pump', type: ResourceType.EQUIPMENT, unit: 'day', rate: 4500, gstRate: 18, hsn: '8413', category: 'Equipment Hire' },
+  { name: 'Switch Box (Modular) 3 Module', type: ResourceType.MATERIAL, unit: 'piece', rate: 45, gstRate: 18, hsn: '8536', category: 'Electrical' },
+  { name: 'Socket 3-Pin 6A Modular', type: ResourceType.MATERIAL, unit: 'piece', rate: 45, gstRate: 18, hsn: '8536', category: 'Electrical' },
+  { name: 'Wood Sealer (NC)', type: ResourceType.MATERIAL, unit: 'litre', rate: 380, gstRate: 18, hsn: '3210', category: 'Paints' },
+  { name: 'Charcoal & Salt Mix', type: ResourceType.MATERIAL, unit: 'kg', rate: 12, gstRate: 5, hsn: '3802', category: 'Electrical' },
+  { name: 'GI Stud & Track Set', type: ResourceType.MATERIAL, unit: 'rmt', rate: 180, gstRate: 18, hsn: '7308', category: 'Flooring' },
+  { name: 'Door Hardware Set', type: ResourceType.MATERIAL, unit: 'set', rate: 3500, gstRate: 18, hsn: '8302', category: 'Doors' },
+  { name: 'Curing Mats (Hessian)', type: ResourceType.MATERIAL, unit: 'sqm', rate: 35, gstRate: 5, hsn: '6305', category: 'Consumables' },
 ];

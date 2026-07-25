@@ -37,6 +37,16 @@ const processQueue = (token: string | null) => {
   failedQueue = [];
 };
 
+/**
+ * Auth endpoints that should NEVER trigger a token refresh cycle.
+ * `/auth/me` is intentionally excluded — it's a protected endpoint that
+ * must be retryable with a refreshed token (otherwise tab duplication /
+ * page reload with an expired access token causes premature sign-out).
+ * `/auth/accept-invite` also needs refresh for the same reason.
+ */
+const NO_REFRESH_PATHS = ['/auth/login', '/auth/refresh', '/auth/logout', '/auth/register', '/auth/forgot', '/auth/reset'];
+const shouldSkipRefresh = (path: string) => NO_REFRESH_PATHS.some((p) => path.includes(p));
+
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const accessToken = await SecureStore.getItemAsync(SECURE_STORE_KEYS.ACCESS_TOKEN);
   const headers: Record<string, string> = {
@@ -57,8 +67,9 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   }
   const body: ApiResponse<T> = await res.json().catch(() => ({ success: false, data: null as T }));
 
-  if (res.status === 401 && !path.includes('/auth/')) {
-    // Try refresh once
+  if (res.status === 401 && !shouldSkipRefresh(path)) {
+    // Try refresh once (also applies to /auth/me — otherwise tab duplication
+    // with an expired access token causes a premature sign-out).
     if (!isRefreshing) {
       isRefreshing = true;
       try {
@@ -156,7 +167,7 @@ async function fetchWithAuthRetry(path: string, init: RequestInit = {}): Promise
     );
   }
 
-  if (res.status === 401 && !path.includes('/auth/')) {
+  if (res.status === 401 && !shouldSkipRefresh(path)) {
     if (!isRefreshing) {
       isRefreshing = true;
       try {

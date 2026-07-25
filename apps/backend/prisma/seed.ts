@@ -234,6 +234,20 @@ async function main(): Promise<void> {
   // eslint-disable-next-line no-console
   console.log(`   Seeded ${resourceCount} catalog resources`);
 
+  // Flush resource list cache so the newly seeded items appear immediately
+  // (the API caches resource lists for 1 hour; seed runs outside the API
+  // lifecycle so auto-invalidation never fires).
+  try {
+    const { invalidatePattern } = await import('../src/utils/cache');
+    await invalidatePattern(`cache:${company.id}:resources:*`);
+    await invalidatePattern(`cache:${company.id}:rate-analysis:*`);
+    // eslint-disable-next-line no-console
+    console.log('   Flushed Redis cache for resources + rate analyses');
+  } catch {
+    // eslint-disable-next-line no-console
+    console.log('   (Redis not available — cache will expire via TTL)');
+  }
+
   // ----------------------------------------------------------------
   // Daily report helper (defined here so it can close over `resources`)
   // ----------------------------------------------------------------
@@ -327,9 +341,12 @@ async function main(): Promise<void> {
         totalRate: total,
         components: {
           create: components.map((c) => ({
-            resourceId: c.resourceName ? (resources[c.resourceName]?.id ?? null) : null,
-            // Preserve the material name as miscName fallback if resource lookup fails
-            miscName: c.miscName ?? (c.resourceName && !resources[c.resourceName]?.id ? c.resourceName : null),
+            // MISC items must NEVER link to catalog resources — they are standalone labels.
+            // Always store the name as miscName so the mobile MISC section displays it.
+            resourceId: c.type === 'MISC' ? null : (c.resourceName ? (resources[c.resourceName]?.id ?? null) : null),
+            miscName: c.type === 'MISC'
+              ? (c.miscName ?? c.resourceName ?? null)
+              : (c.miscName ?? (c.resourceName && !resources[c.resourceName]?.id ? c.resourceName : null)),
             quantityPerUnit: c.quantityPerUnit,
             unit: c.unit,
             rate: c.rate,
@@ -349,6 +366,16 @@ async function main(): Promise<void> {
   }
   // eslint-disable-next-line no-console
   console.log(`   Seeded ${raDataCount} composite rate analyses from data file`);
+
+  // Flush RA list cache so new RAs appear immediately after re-seed.
+  try {
+    const { invalidatePattern } = await import('../src/utils/cache');
+    await invalidatePattern(`cache:${company.id}:rate-analysis:*`);
+    // eslint-disable-next-line no-console
+    console.log('   Flushed Redis cache for rate analyses (post-seed)');
+  } catch {
+    // Redis not available
+  }
 
   // Look up the emulsion paint RA for estimate item linking (from data file)
   const emulsionPaintRa = await prisma.rateAnalysis.findFirst({
@@ -1478,26 +1505,7 @@ async function main(): Promise<void> {
   console.log('   Platform admin: admin@buildflow.com /', PLATFORM_ADMIN_PASSWORD);
 }
 
-async function flushCache() {
-  try {
-    // Best-effort cache flush so the API serves fresh data after re-seed.
-    // Uses the same Redis client pattern as the app.
-    const redisUrl = process.env.REDIS_URL || process.env.REDIS_HOST;
-    if (!redisUrl) return;
-    const { createClient } = await import('redis');
-    const client = createClient({ url: typeof redisUrl === 'string' ? redisUrl : undefined });
-    await client.connect();
-    await client.flushAll();
-    await client.quit();
-    // eslint-disable-next-line no-console
-    console.log('   Flushed Redis cache');
-  } catch {
-    // Non-fatal - cache will expire naturally
-  }
-}
-
 main()
-  .then(() => flushCache())
   .catch((e) => {
     // eslint-disable-next-line no-console
     console.error('Seed failed:', e);

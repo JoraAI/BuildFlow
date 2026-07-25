@@ -7,6 +7,21 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 import { goBackToSettings } from '@/utils/navigation';
+import { Pressable, Text } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+
+/** Compact back button for desktop PageHeader actions. */
+function BackButton({ onPress, label }: { onPress: () => void; label: string }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className="flex-row items-center gap-1 px-3 py-1.5 rounded-lg bg-surface border border-border active:opacity-70"
+    >
+      <Ionicons name="arrow-back" size={16} color="#475569" />
+      <Text className="text-sm font-medium text-muted">{label}</Text>
+    </Pressable>
+  );
+}
 
 /**
  * Shared layout for Settings index and nested settings pages.
@@ -39,10 +54,28 @@ export function SettingsPageLayout({
   const handleBack = onBack ?? goBackToSettings;
 
   if (isDesktop) {
+    // On desktop, PageHeader doesn't render a back button natively.
+    // We prepend one to the actions area when onBack is provided.
+    const backButton = onBack ? (
+      <BackButton onPress={handleBack} label={backLabel} />
+    ) : null;
     return (
       <SafeAreaView className="flex-1 bg-surface" edges={[]}>
         <ScreenContainer scrollable constrained>
-          <PageHeader title={title} subtitle={subtitle} actions={actions} />
+          <PageHeader
+            title={title}
+            subtitle={subtitle}
+            actions={
+              backButton ? (
+                <View className="flex-row items-center gap-2">
+                  {backButton}
+                  {actions}
+                </View>
+              ) : (
+                actions
+              )
+            }
+          />
           <View className={contentMax}>{children}</View>
         </ScreenContainer>
       </SafeAreaView>

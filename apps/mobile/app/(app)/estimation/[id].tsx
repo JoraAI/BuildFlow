@@ -14,7 +14,7 @@ import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { useViewport } from '@/hooks/useViewport';
 import { confirmAsync, alertAsync } from '@/utils/confirm';
 import { SummaryBreakdownCard } from '@/components/ui';
-import { useEstimate, useEstimateMutations, useExportEstimate, useSubEstimates, useCreateSubEstimate, type EstimateSection, type EstimateItem, type SubEstimateRow } from '@/services/estimate.queries';
+import { useEstimate, useEstimateMutations, useExportEstimate, useSubEstimates, useCreateSubEstimate, useRateAnalysis, useMaterials, type EstimateSection, type EstimateItem, type SubEstimateRow } from '@/services/estimate.queries';
 import { useProject } from '@/services/project.queries';
 import { useAuthStore } from '@/stores/auth.store';
 import { formatINR, formatDate } from '@/utils/format';
@@ -106,6 +106,81 @@ function SubEstimatesSection({ parentEstimateId }: { parentEstimateId: string })
       {(subEstimates?.length ?? 0) === 0 && !showAdd && (
         <Text className="text-xs text-muted italic">No sub-estimates yet. Tap "+ Add Sub-Estimate" to add additional scope.</Text>
       )}
+    </View>
+  );
+}
+
+/**
+ * Line item with expandable rate-analysis component breakdown.
+ * Shows the linked RA name and lets the user expand to see components.
+ */
+function LineItemWithBreakdown({ item }: { item: EstimateItem }) {
+  const [expanded, setExpanded] = useState(false);
+  const { data: raDetail } = useRateAnalysis(item.rateAnalysisId ?? '');
+  const { data: materialsData } = useMaterials({ limit: 300 });
+  const materials = materialsData?.data ?? [];
+  const linkedMaterial = item.resourceId ? materials.find((m) => m.id === item.resourceId) : undefined;
+  const hasRA = !!item.rateAnalysisId;
+  const hasMaterial = !!item.resourceId || !!linkedMaterial;
+
+  return (
+    <View className="border-t border-border py-2">
+      <View className="flex-row justify-between">
+        <Text className="text-sm text-text flex-1 mr-2" numberOfLines={2}>{item.description}</Text>
+        <Text className="text-sm font-semibold text-text">{formatINR(parseFloat(item.amount))}</Text>
+      </View>
+      <View className="flex-row gap-3 mt-0.5 flex-wrap">
+        <Text className="text-xs text-text-muted">{parseFloat(item.quantity)} {item.unit}</Text>
+        <Text className="text-xs text-text-muted">@ {formatINR(parseFloat(item.rate))}</Text>
+        <Badge label={item.type} color="neutral" />
+        {hasRA ? (
+          <View className="flex-row items-center gap-1">
+            <Text className="text-[10px] text-accent">📦 {raDetail?.name ?? 'Rate Analysis'}</Text>
+          </View>
+        ) : null}
+        {hasMaterial ? (
+          <Text className="text-[10px] text-primary">
+            🏷️ {linkedMaterial?.name ?? 'Material'}
+          </Text>
+        ) : null}
+      </View>
+      {/* Expandable RA component breakdown */}
+      {hasRA && raDetail ? (
+        <View className="mt-1.5">
+          <Pressable
+            onPress={() => setExpanded((v) => !v)}
+            className="flex-row items-center gap-1"
+          >
+            <Text className="text-[10px] text-primary font-medium">
+              {expanded ? '▲ Hide' : '▼ Show'} components ({raDetail.components.length})
+            </Text>
+          </Pressable>
+          {expanded ? (
+            <View className="mt-1.5 gap-1 pl-2 border-l-2 border-accent/20">
+              {raDetail.components.map((c, ci) => {
+                const qty = (parseFloat(String(c.quantityPerUnit)) || 0) * parseFloat(item.quantity);
+                const resName = c.resourceName ?? c.miscName ?? 'Unknown';
+                return (
+                  <View key={ci} className="flex-row justify-between">
+                    <Text className="text-[10px] text-text-muted flex-1 mr-2" numberOfLines={1}>
+                      • {resName}
+                    </Text>
+                    <Text className="text-[10px] text-text">
+                      {qty.toFixed(2)} {c.unit} @ {formatINR(parseFloat(String(c.rate)))}
+                    </Text>
+                  </View>
+                );
+              })}
+              <View className="flex-row justify-between pt-1 mt-0.5 border-t border-accent/10">
+                <Text className="text-[10px] font-semibold text-text-muted">Components total</Text>
+                <Text className="text-[10px] font-semibold text-text">
+                  {formatINR(parseFloat(String(raDetail.totalRate)) * parseFloat(item.quantity))}
+                </Text>
+              </View>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -336,17 +411,7 @@ export default function EstimateDetailScreen() {
             <Card key={sec.id}>
               <Text className="text-sm font-semibold text-primary mb-2">{sec.name}</Text>
               {sec.items.map((it: EstimateItem) => (
-                <View key={it.id} className="border-t border-border py-2">
-                  <View className="flex-row justify-between">
-                    <Text className="text-sm text-text flex-1 mr-2" numberOfLines={2}>{it.description}</Text>
-                    <Text className="text-sm font-semibold text-text">{formatINR(parseFloat(it.amount))}</Text>
-                  </View>
-                  <View className="flex-row gap-3 mt-0.5">
-                    <Text className="text-xs text-text-muted">{parseFloat(it.quantity)} {it.unit}</Text>
-                    <Text className="text-xs text-text-muted">@ {formatINR(parseFloat(it.rate))}</Text>
-                    <Badge label={it.type} color="neutral" />
-                  </View>
-                </View>
+                <LineItemWithBreakdown key={it.id} item={it} />
               ))}
             </Card>
           ))}

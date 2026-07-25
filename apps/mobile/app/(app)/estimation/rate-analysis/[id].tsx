@@ -9,6 +9,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card } from '@/components/ui';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
+import { ActionBar } from '@/components/layout/ActionBar';
+import { useViewport } from '@/hooks/useViewport';
 import { dismissTo, DISMISS } from '@/utils/navigation';
 import { alertAsync } from '@/utils/confirm';
 import {
@@ -44,6 +46,7 @@ const SECTIONS: { label: string; type: CType }[] = [
 export default function RateAnalysisEditorScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
+  const { isDesktop } = useViewport();
   const isEdit = !!id && id !== 'new';
 
   const { data: resourcesData } = useResources();
@@ -71,7 +74,7 @@ export default function RateAnalysisEditorScreen() {
         existing.components.map((c: RateAnalysisComponent) => ({
           id: c.id,
           resourceId: c.resourceId ?? undefined,
-          resourceName: c.resource?.name ?? undefined,
+          resourceName: c.resourceName ?? undefined,
           miscName: c.miscName ?? undefined,
           quantityPerUnit: String(c.quantityPerUnit),
           unit: c.unit,
@@ -156,7 +159,10 @@ export default function RateAnalysisEditorScreen() {
           onCancel={() => dismissTo(DISMISS.rateAnalysis)}
         />
 
-        <ScrollView className="flex-1" contentContainerClassName="p-4 gap-4 pb-32">
+        <ScrollView
+          className="flex-1"
+          contentContainerClassName={isDesktop ? 'px-8 py-4 gap-4 pb-4' : 'p-4 gap-4 pb-4'}
+        >
           {formError ? (
             <View className="px-3 py-2 rounded-lg bg-danger/10 border border-danger/30">
               <Text className="text-sm text-danger">{formError}</Text>
@@ -293,31 +299,80 @@ export default function RateAnalysisEditorScreen() {
           })}
         </ScrollView>
 
-        {/* Live total box */}
-        <View className="absolute bottom-0 left-0 right-0 bg-card border-t border-border p-4">
-          <View className="flex-row justify-between mb-0.5">
-            <Text className="text-xs text-text-muted">Materials</Text>
-            <Text className="text-xs text-text">{formatINR(totals.material)}</Text>
+        {/* Total summary footer (flex child, not absolute) */}
+        <View className="border-t border-border bg-card">
+          <View className={isDesktop ? 'px-8 py-3' : 'px-4 py-3'}>
+            {isDesktop ? (
+              // Desktop: single horizontal row of breakdown + total
+              <View className="flex-row justify-between items-center mb-3">
+                <View className="flex-row gap-6">
+                  <View>
+                    <Text className="text-[10px] text-text-muted">Materials</Text>
+                    <Text className="text-sm text-text">{formatINR(totals.material)}</Text>
+                  </View>
+                  <View>
+                    <Text className="text-[10px] text-text-muted">Labour</Text>
+                    <Text className="text-sm text-text">{formatINR(totals.labour)}</Text>
+                  </View>
+                  <View>
+                    <Text className="text-[10px] text-text-muted">Equipment</Text>
+                    <Text className="text-sm text-text">{formatINR(totals.equipment)}</Text>
+                  </View>
+                  <View>
+                    <Text className="text-[10px] text-text-muted">Misc</Text>
+                    <Text className="text-sm text-text">{formatINR(totals.misc)}</Text>
+                  </View>
+                </View>
+                <View className="items-end">
+                  <Text className="text-base font-bold text-text">TOTAL RATE</Text>
+                  <Text className="text-lg font-bold text-primary">
+                    {formatINR(totals.total)}/{unit || 'unit'}
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              // Mobile: 2x2 grid breakdown + total row
+              <>
+                <View className="flex-row mb-2">
+                  <View className="flex-1 pr-2">
+                    <View className="flex-row justify-between">
+                      <Text className="text-xs text-text-muted">Materials</Text>
+                      <Text className="text-xs text-text">{formatINR(totals.material)}</Text>
+                    </View>
+                  </View>
+                  <View className="flex-1 pl-2">
+                    <View className="flex-row justify-between">
+                      <Text className="text-xs text-text-muted">Labour</Text>
+                      <Text className="text-xs text-text">{formatINR(totals.labour)}</Text>
+                    </View>
+                  </View>
+                </View>
+                <View className="flex-row mb-2">
+                  <View className="flex-1 pr-2">
+                    <View className="flex-row justify-between">
+                      <Text className="text-xs text-text-muted">Equipment</Text>
+                      <Text className="text-xs text-text">{formatINR(totals.equipment)}</Text>
+                    </View>
+                  </View>
+                  <View className="flex-1 pl-2">
+                    <View className="flex-row justify-between">
+                      <Text className="text-xs text-text-muted">Misc</Text>
+                      <Text className="text-xs text-text">{formatINR(totals.misc)}</Text>
+                    </View>
+                  </View>
+                </View>
+                <View className="flex-row justify-between items-center pt-2 border-t border-border mb-3">
+                  <Text className="text-base font-bold text-text">TOTAL RATE</Text>
+                  <Text className="text-lg font-bold text-primary">
+                    {formatINR(totals.total)}/{unit || 'unit'}
+                  </Text>
+                </View>
+              </>
+            )}
           </View>
-          <View className="flex-row justify-between mb-0.5">
-            <Text className="text-xs text-text-muted">Labour</Text>
-            <Text className="text-xs text-text">{formatINR(totals.labour)}</Text>
-          </View>
-          <View className="flex-row justify-between mb-0.5">
-            <Text className="text-xs text-text-muted">Equipment</Text>
-            <Text className="text-xs text-text">{formatINR(totals.equipment)}</Text>
-          </View>
-          <View className="flex-row justify-between mb-2">
-            <Text className="text-xs text-text-muted">Miscellaneous</Text>
-            <Text className="text-xs text-text">{formatINR(totals.misc)}</Text>
-          </View>
-          <View className="flex-row justify-between items-center pt-2 border-t border-border mb-3">
-            <Text className="text-base font-bold text-text">TOTAL RATE</Text>
-            <Text className="text-lg font-bold text-primary">
-              {formatINR(totals.total)}/{unit || 'unit'}
-            </Text>
-          </View>
-          <Button label={isEdit ? 'Update' : 'Save'} onPress={handleSave} loading={saving} fullWidth />
+          <ActionBar>
+            <Button label={isEdit ? 'Update' : 'Save'} onPress={handleSave} loading={saving} size="sm" />
+          </ActionBar>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

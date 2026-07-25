@@ -339,7 +339,8 @@ export function IndentDraftLineCard({
           setPendingExplodeBoqId(boq.id);
         } else {
           // Simple material or plain line — explode immediately.
-        // Use BOQ description as the material name when no catalog resource is linked.
+          // Resolve the material name from the catalog if the BOQ has a resourceId.
+          const linkedMat = boq.resourceId ? materials.find((m) => m.id === boq.resourceId) : undefined;
           const explodedLine: IndentDraftLine = {
             id: Math.random().toString(36).slice(2),
             resourceId: boq.resourceId ?? '',
@@ -353,6 +354,9 @@ export function IndentDraftLineCard({
             components: [],
             isExploded: true,
             boqDescription: `${boq.itemCode} · ${boq.description}`,
+            // Show the catalog material name when available; fall back to BOQ description.
+            resourceName: linkedMat?.name ?? boq.description,
+            resourceUnit: linkedMat?.unit ?? boq.unit,
           };
           onExplode([explodedLine]);
         }

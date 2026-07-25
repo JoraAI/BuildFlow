@@ -214,7 +214,9 @@ export interface BoqShortfallPreview extends BoqMaterialDemand {
 /** Load remaining material demand from active BOQ MATERIAL lines (catalog or rate-analysis BOM). */
 export async function fetchBoqMaterialDemands(projectId: string): Promise<BoqMaterialDemand[]> {
   const items = await prisma.bOQItem.findMany({
-    where: { projectId, isSuperseded: false, category: 'MATERIAL' },
+    // Use startsWith so sub-estimate categories like "MATERIAL/Extra Scope"
+    // are also included. Top-level estimates use the bare "MATERIAL" category.
+    where: { projectId, isSuperseded: false, category: { startsWith: 'MATERIAL' } },
     include: {
       estimateItem: {
         select: { resourceId: true, rateAnalysisId: true, type: true },

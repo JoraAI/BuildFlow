@@ -25,7 +25,7 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
           { itemCode: 'HS-P-006', description: 'OPC cement 53 grade', unit: 'bag', quantity: 85, rate: 420, type: 'MATERIAL', resourceName: 'OPC Cement 53 Grade' },
           { itemCode: 'HS-P-007', description: 'River sand', unit: 'cum', quantity: 6, rate: 1800, type: 'MATERIAL', resourceName: 'River Sand (Fine)' },
           { itemCode: 'HS-P-008', description: '20mm aggregate', unit: 'cum', quantity: 6, rate: 1400, type: 'MATERIAL', resourceName: '20mm Aggregate' },
-          { itemCode: 'HS-P-009', description: 'Plinth beam RCC M20', unit: 'cum', quantity: 8, rate: 7500, type: 'MATERIAL' },
+          { itemCode: 'HS-P-009', description: 'Plinth beam RCC M20', unit: 'cum', quantity: 8, rate: 7500, type: 'MATERIAL' , rateAnalysisName: 'RCC M20 Slabs & Beams' },
           { itemCode: 'HS-P-010', description: 'Plinth beam reinforcement', unit: 'kg', quantity: 480, rate: 72, type: 'MATERIAL', resourceName: 'TMT Steel Fe500 12mm' },
           { itemCode: 'HS-P-011', description: 'Termite treatment (foundation)', unit: 'sqm', quantity: 100, rate: 85, type: 'MATERIAL', rateAnalysisName: 'Anti-Termite Treatment (Pre-Construction)' },
         ],
@@ -37,7 +37,7 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
           { itemCode: 'HS-W-002', description: 'Red clay bricks Class A', unit: 'piece', quantity: 6500, rate: 9, type: 'MATERIAL', resourceName: 'Red Clay Brick Class A 230x115x75' },
           { itemCode: 'HS-W-003', description: 'OPC cement for masonry', unit: 'bag', quantity: 150, rate: 420, type: 'MATERIAL', resourceName: 'OPC Cement 53 Grade' },
           { itemCode: 'HS-W-004', description: 'River sand for masonry mortar', unit: 'cum', quantity: 9, rate: 1800, type: 'MATERIAL', resourceName: 'River Sand (Fine)' },
-          { itemCode: 'HS-W-005', description: 'Lintel beam RCC M20 over openings', unit: 'cum', quantity: 3, rate: 7500, type: 'MATERIAL' },
+          { itemCode: 'HS-W-005', description: 'Lintel beam RCC M20 over openings', unit: 'cum', quantity: 3, rate: 7500, type: 'MATERIAL' , rateAnalysisName: 'RCC M20 Slabs & Beams' },
           { itemCode: 'HS-W-006', description: 'Lintel reinforcement', unit: 'kg', quantity: 180, rate: 72, type: 'MATERIAL', resourceName: 'TMT Steel Fe500 12mm' },
           { itemCode: 'HS-W-007', description: 'Mason (Grade 1)', unit: 'day', quantity: 35, rate: 750, type: 'LABOUR', resourceName: 'Mason Grade 1 (Mistri)' },
           { itemCode: 'HS-W-008', description: 'Unskilled labour', unit: 'day', quantity: 70, rate: 450, type: 'LABOUR', resourceName: 'Unskilled Labour (Male)' },
@@ -46,7 +46,7 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
       {
         name: '3. RCC Roof Slab',
         items: [
-          { itemCode: 'HS-R-001', description: 'RCC M25 roof slab (125mm)', unit: 'cum', quantity: 12, rate: 8200, type: 'MATERIAL' },
+          { itemCode: 'HS-R-001', description: 'RCC M25 roof slab (125mm)', unit: 'cum', quantity: 12, rate: 8200, type: 'MATERIAL', rateAnalysisName: 'RCC M25 (Foundation & Slab)' },
           { itemCode: 'HS-R-002', description: 'Roof slab reinforcement (8mm + 10mm)', unit: 'kg', quantity: 1080, rate: 74, type: 'MATERIAL', resourceName: 'TMT Steel Fe500 10mm' },
           { itemCode: 'HS-R-003', description: 'OPC cement for slab', unit: 'bag', quantity: 95, rate: 420, type: 'MATERIAL', resourceName: 'OPC Cement 53 Grade' },
           { itemCode: 'HS-R-004', description: 'Shuttering plywood 18mm', unit: 'sqft', quantity: 1100, rate: 62, type: 'MATERIAL', resourceName: 'Shuttering Plywood 18mm Waterproof' },
@@ -150,8 +150,8 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
       {
         name: '11. External Development',
         items: [
-          { itemCode: 'HS-EX-001', description: 'Compound wall (brick 230mm)', unit: 'sqm', quantity: 45, rate: 1800, type: 'MATERIAL' },
-          { itemCode: 'HS-EX-002', description: 'Compound wall foundation', unit: 'cum', quantity: 8, rate: 4500, type: 'MATERIAL' },
+          { itemCode: 'HS-EX-001', description: 'Compound wall (brick 230mm)', unit: 'sqm', quantity: 45, rate: 1800, type: 'MATERIAL', rateAnalysisName: 'Brick Masonry 230mm CM 1:6' },
+          { itemCode: 'HS-EX-002', description: 'Compound wall foundation', unit: 'cum', quantity: 8, rate: 4500, type: 'MATERIAL', rateAnalysisName: 'RCC Footings & Tie Beams M30' },
           { itemCode: 'HS-EX-003', description: 'MS gate 3.5x1.5m', unit: 'nos', quantity: 1, rate: 25000, type: 'SUBCONTRACTOR' },
           { itemCode: 'HS-EX-004', description: 'Precast septic tank 2000L', unit: 'nos', quantity: 1, rate: 28000, type: 'MATERIAL', resourceName: 'Precast Septic Tank 2000L' },
           { itemCode: 'HS-EX-005', description: 'RCC sump pit 5000L', unit: 'nos', quantity: 1, rate: 18000, type: 'SUBCONTRACTOR' },
@@ -184,12 +184,12 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
       {
         name: '1. Foundation (Piling + Raft)',
         items: [
-          { itemCode: 'HR-P-001', description: 'Bored cast-in-situ pile 900mm dia x 25m', unit: 'rmt', quantity: 1500, rate: 6500, type: 'MATERIAL' },
+          { itemCode: 'HR-P-001', description: 'Bored cast-in-situ pile 900mm dia x 25m', unit: 'rmt', quantity: 1500, rate: 6500, type: 'MATERIAL', rateAnalysisName: 'Bored Cast-In-Situ Pile 600mm (per rmt)' },
           { itemCode: 'HR-P-002', description: 'Rotary piling rig 35T', unit: 'day', quantity: 120, rate: 145000, type: 'EQUIPMENT', resourceName: 'Rotary Piling Rig 35T (Bored)' },
           { itemCode: 'HR-P-003', description: 'Pile reinforcement (TMT Fe500)', unit: 'kg', quantity: 90000, rate: 73, type: 'MATERIAL', resourceName: 'TMT Steel Fe500 16mm' },
-          { itemCode: 'HR-P-004', description: 'Pile concrete M30 (tremie)', unit: 'cum', quantity: 950, rate: 8500, type: 'MATERIAL' },
+          { itemCode: 'HR-P-004', description: 'Pile concrete M30 (tremie)', unit: 'cum', quantity: 950, rate: 8500, type: 'MATERIAL', rateAnalysisName: 'Tremie Concrete M30 (Piling)' },
           { itemCode: 'HR-P-005', description: 'Bentonite clay (piling grade)', unit: 'ton', quantity: 45, rate: 16000, type: 'MATERIAL', resourceName: 'Bentonite Clay Powder (Piling Grade) Bulk' },
-          { itemCode: 'HR-P-006', description: 'Pile cap RCC M35 (3m thick raft)', unit: 'cum', quantity: 850, rate: 11000, type: 'MATERIAL' },
+          { itemCode: 'HR-P-006', description: 'Pile cap RCC M35 (3m thick raft)', unit: 'cum', quantity: 850, rate: 11000, type: 'MATERIAL', rateAnalysisName: 'RCC M35 (Heavy Structural)' },
           { itemCode: 'HR-P-007', description: 'Raft reinforcement (25mm + 32mm)', unit: 'kg', quantity: 140000, rate: 74, type: 'MATERIAL', resourceName: 'TMT Steel Fe500 25mm' },
           { itemCode: 'HR-P-008', description: 'Superplasticizer (PCE)', unit: 'litre', quantity: 2500, rate: 135, type: 'MATERIAL', resourceName: 'Superplasticizer (PCE Based)' },
         ],
@@ -199,7 +199,7 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
         items: [
           { itemCode: 'HR-BM-001', description: 'Basement excavation (rock)', unit: 'cum', quantity: 18000, rate: 650, type: 'MATERIAL', rateAnalysisName: 'Excavation in Hard Rock (Chiselling)' },
           { itemCode: 'HR-BM-002', description: 'Excavator 20T for basement', unit: 'day', quantity: 150, rate: 28000, type: 'EQUIPMENT', resourceName: 'Excavator 20T (PC200)' },
-          { itemCode: 'HR-BM-003', description: 'Diaphragm wall RCC M40 (600mm)', unit: 'cum', quantity: 1200, rate: 15000, type: 'MATERIAL' },
+          { itemCode: 'HR-BM-003', description: 'Diaphragm wall RCC M40 (600mm)', unit: 'cum', quantity: 1200, rate: 15000, type: 'MATERIAL', rateAnalysisName: 'RCC M40 (High-Rise & Pile Caps)' },
           { itemCode: 'HR-BM-004', description: 'Diaphragm wall reinforcement', unit: 'kg', quantity: 180000, rate: 73, type: 'MATERIAL', resourceName: 'TMT Steel Fe500 20mm' },
           { itemCode: 'HR-BM-005', description: 'Basement waterproofing (membrane)', unit: 'sqm', quantity: 4500, rate: 650, type: 'MATERIAL', rateAnalysisName: 'Self-Adhesive Membrane Waterproofing' },
           { itemCode: 'HR-BM-006', description: 'Dewatering (24/7 pumps)', unit: 'month', quantity: 8, rate: 180000, type: 'SUBCONTRACTOR' },
@@ -208,9 +208,9 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
       {
         name: '3. Superstructure (RCC Frame)',
         items: [
-          { itemCode: 'HR-SS-001', description: 'RCC M40 columns (shear walls)', unit: 'cum', quantity: 1800, rate: 12500, type: 'MATERIAL' },
-          { itemCode: 'HR-SS-002', description: 'RCC M35 beams', unit: 'cum', quantity: 2400, rate: 12000, type: 'MATERIAL' },
-          { itemCode: 'HR-SS-003', description: 'Post-tensioned slab RCC M40', unit: 'cum', quantity: 3200, rate: 13500, type: 'MATERIAL' },
+          { itemCode: 'HR-SS-001', description: 'RCC M40 columns (shear walls)', unit: 'cum', quantity: 1800, rate: 12500, type: 'MATERIAL', rateAnalysisName: 'RCC M40 (High-Rise & Pile Caps)' },
+          { itemCode: 'HR-SS-002', description: 'RCC M35 beams', unit: 'cum', quantity: 2400, rate: 12000, type: 'MATERIAL', rateAnalysisName: 'RCC M35 (Heavy Structural)' },
+          { itemCode: 'HR-SS-003', description: 'Post-tensioned slab RCC M40', unit: 'cum', quantity: 3200, rate: 13500, type: 'MATERIAL', rateAnalysisName: 'RCC M40 (High-Rise & Pile Caps)' },
           { itemCode: 'HR-SS-004', description: 'Reinforcement steel (all sizes)', unit: 'kg', quantity: 850000, rate: 73, type: 'MATERIAL', resourceName: 'TMT Steel Fe500 16mm' },
           { itemCode: 'HR-SS-005', description: 'Prestressing strands 15.2mm', unit: 'kg', quantity: 65000, rate: 155, type: 'MATERIAL', resourceName: 'Prestressing Strand 15.2mm (7-Wire) 1860 MPa' },
           { itemCode: 'HR-SS-006', description: 'Concrete pump 42m boom', unit: 'day', quantity: 250, rate: 25000, type: 'EQUIPMENT', resourceName: 'Concrete Pump 42m Boom' },
@@ -297,16 +297,16 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
         items: [
           { itemCode: 'CO-P-001', description: 'Excavation for foundation', unit: 'cum', quantity: 1800, rate: 320, type: 'MATERIAL', rateAnalysisName: 'Excavation in Ordinary Soil' },
           { itemCode: 'CO-P-002', description: 'PCC M15 (100mm) base', unit: 'cum', quantity: 85, rate: 5200, type: 'MATERIAL', rateAnalysisName: 'PCC M15 (1:2:4)' },
-          { itemCode: 'CO-P-003', description: 'RCC M30 footings & tie beams', unit: 'cum', quantity: 450, rate: 9500, type: 'MATERIAL' },
+          { itemCode: 'CO-P-003', description: 'RCC M30 footings & tie beams', unit: 'cum', quantity: 450, rate: 9500, type: 'MATERIAL', rateAnalysisName: 'RCC M30 (Columns, Beams & Slabs)' },
           { itemCode: 'CO-P-004', description: 'Reinforcement steel Fe500', unit: 'kg', quantity: 67500, rate: 73, type: 'MATERIAL', resourceName: 'TMT Steel Fe500 20mm' },
         ],
       },
       {
         name: '2. Superstructure',
         items: [
-          { itemCode: 'CO-SS-001', description: 'RCC M30 columns', unit: 'cum', quantity: 320, rate: 11000, type: 'MATERIAL' },
-          { itemCode: 'CO-SS-002', description: 'RCC M30 beams', unit: 'cum', quantity: 480, rate: 10500, type: 'MATERIAL' },
-          { itemCode: 'CO-SS-003', description: 'RCC M30 slab (125mm)', unit: 'cum', quantity: 380, rate: 9500, type: 'MATERIAL' },
+          { itemCode: 'CO-SS-001', description: 'RCC M30 columns', unit: 'cum', quantity: 320, rate: 11000, type: 'MATERIAL', rateAnalysisName: 'RCC M30 (Columns, Beams & Slabs)' },
+          { itemCode: 'CO-SS-002', description: 'RCC M30 beams', unit: 'cum', quantity: 480, rate: 10500, type: 'MATERIAL', rateAnalysisName: 'RCC M30 (Columns, Beams & Slabs)' },
+          { itemCode: 'CO-SS-003', description: 'RCC M30 slab (125mm)', unit: 'cum', quantity: 380, rate: 9500, type: 'MATERIAL', rateAnalysisName: 'RCC M30 (Columns, Beams & Slabs)' },
           { itemCode: 'CO-SS-004', description: 'Reinforcement steel (all)', unit: 'kg', quantity: 142500, rate: 73, type: 'MATERIAL', resourceName: 'TMT Steel Fe500 16mm' },
           { itemCode: 'CO-SS-005', description: 'Concrete pump hire', unit: 'day', quantity: 45, rate: 25000, type: 'EQUIPMENT', resourceName: 'Concrete Pump 42m Boom' },
           { itemCode: 'CO-SS-006', description: 'Tower crane 5T', unit: 'month', quantity: 12, rate: 285000, type: 'EQUIPMENT', resourceName: 'Tower Crane 5T' },
@@ -347,7 +347,7 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
           { itemCode: 'CO-LF-001', description: 'Passenger elevator 13 person (3 nos)', unit: 'nos', quantity: 3, rate: 1200000, type: 'MATERIAL', resourceName: 'Passenger Elevator 13 Person (Supply+Install)' },
           { itemCode: 'CO-LF-002', description: 'Service elevator 2T', unit: 'nos', quantity: 1, rate: 1850000, type: 'MATERIAL', resourceName: 'Goods Elevator 2T (Supply+Install)' },
           { itemCode: 'CO-LF-003', description: 'Fire sprinkler system', unit: 'sqm', quantity: 3200, rate: 850, type: 'SUBCONTRACTOR' },
-          { itemCode: 'CO-LF-004', description: 'Fire alarm panel (addressable)', unit: 'nos', quantity: 5, rate: 65000, type: 'MATERIAL' },
+          { itemCode: 'CO-LF-004', description: 'Fire alarm panel (addressable)', unit: 'nos', quantity: 5, rate: 65000, type: 'MATERIAL', resourceName: 'Fire Alarm Panel (Addressable) 4 Zone' },
           { itemCode: 'CO-LF-005', description: 'Fire pump 15HP (diesel)', unit: 'nos', quantity: 2, rate: 85000, type: 'MATERIAL', resourceName: 'Fire Pump 15HP (Diesel)' },
         ],
       },
@@ -377,7 +377,7 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
         items: [
           { itemCode: 'WH-P-001', description: 'Excavation for pedestals', unit: 'cum', quantity: 280, rate: 320, type: 'MATERIAL', rateAnalysisName: 'Excavation in Ordinary Soil' },
           { itemCode: 'WH-P-002', description: 'PCC M15 base', unit: 'cum', quantity: 35, rate: 5200, type: 'MATERIAL', rateAnalysisName: 'PCC M15 (1:2:4)' },
-          { itemCode: 'WH-P-003', description: 'RCC M30 pedestal foundations', unit: 'cum', quantity: 180, rate: 9500, type: 'MATERIAL' },
+          { itemCode: 'WH-P-003', description: 'RCC M30 pedestal foundations', unit: 'cum', quantity: 180, rate: 9500, type: 'MATERIAL', rateAnalysisName: 'RCC M30 (Columns, Beams & Slabs)' },
           { itemCode: 'WH-P-004', description: 'Foundation bolts M20 (chemical)', unit: 'nos', quantity: 240, rate: 120, type: 'MATERIAL', resourceName: 'Anchor Bolt M20 x 200mm (Chemical)' },
           { itemCode: 'WH-P-005', description: 'Reinforcement steel', unit: 'kg', quantity: 27000, rate: 73, type: 'MATERIAL', resourceName: 'TMT Steel Fe500 20mm' },
         ],
@@ -388,7 +388,7 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
           { itemCode: 'WH-ST-001', description: 'Built-up columns (welded section)', unit: 'ton', quantity: 85, rate: 95000, type: 'SUBCONTRACTOR' },
           { itemCode: 'WH-ST-002', description: 'Built-up rafters (tapered)', unit: 'ton', quantity: 120, rate: 95000, type: 'SUBCONTRACTOR' },
           { itemCode: 'WH-ST-003', description: 'MS plate 12mm for fabrication', unit: 'kg', quantity: 155000, rate: 79, type: 'MATERIAL', resourceName: 'MS Plate 12mm' },
-          { itemCode: 'WH-ST-004', description: 'Z-purlins & eave struts', unit: 'ton', quantity: 28, rate: 85000, type: 'MATERIAL' },
+          { itemCode: 'WH-ST-004', description: 'Z-purlins & eave struts', unit: 'ton', quantity: 28, rate: 85000, type: 'MATERIAL', resourceName: 'Z-Purlin (Galvanized) 200x50x20x2mm' },
           { itemCode: 'WH-ST-005', description: 'Bracing rods (MS round)', unit: 'kg', quantity: 8500, rate: 68, type: 'MATERIAL', resourceName: 'Mild Steel Round Bar 16mm' },
           { itemCode: 'WH-ST-006', description: 'Mobile crane 50T (erection)', unit: 'day', quantity: 25, rate: 35000, type: 'EQUIPMENT', resourceName: 'Mobile Crane 50T' },
           { itemCode: 'WH-ST-007', description: 'Welding rod E7018', unit: 'kg', quantity: 450, rate: 280, type: 'MATERIAL', resourceName: 'Welding Rod E7018 3.15mm' },
@@ -405,7 +405,7 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
           { itemCode: 'WH-RF-004', description: 'Ridge cap GI', unit: 'rmt', quantity: 120, rate: 180, type: 'MATERIAL', resourceName: 'Ridge Cap GI' },
           { itemCode: 'WH-RF-005', description: 'Polycarbonate skylight (5%)', unit: 'sqm', quantity: 260, rate: 550, type: 'MATERIAL', resourceName: 'Sky-light Panel Polycarbonate' },
           { itemCode: 'WH-RF-006', description: 'Turbo ventilators', unit: 'nos', quantity: 30, rate: 1800, type: 'MATERIAL', resourceName: 'Turbo Ventilator' },
-          { itemCode: 'WH-RF-007', description: 'GI gutter 300mm', unit: 'rmt', quantity: 250, rate: 450, type: 'MATERIAL' },
+          { itemCode: 'WH-RF-007', description: 'GI gutter 300mm', unit: 'rmt', quantity: 250, rate: 450, type: 'MATERIAL', resourceName: 'GI Gutter 300mm (Pre-Coated)' },
         ],
       },
       {
@@ -422,14 +422,14 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
         items: [
           { itemCode: 'WH-LD-001', description: 'Hydraulic dock leveler', unit: 'nos', quantity: 8, rate: 85000, type: 'MATERIAL', resourceName: 'Loading Dock Leveler (Hydraulic)' },
           { itemCode: 'WH-LD-002', description: 'Dock bumper (rubber)', unit: 'nos', quantity: 16, rate: 850, type: 'MATERIAL', resourceName: 'Loading Dock Bumper (Rubber)' },
-          { itemCode: 'WH-LD-003', description: 'Industrial rolling shutter motorized', unit: 'nos', quantity: 8, rate: 85000, type: 'MATERIAL' },
+          { itemCode: 'WH-LD-003', description: 'Industrial rolling shutter motorized', unit: 'nos', quantity: 8, rate: 85000, type: 'MATERIAL', resourceName: 'Industrial Rolling Shutter Motor 1HP' },
         ],
       },
       {
         name: '6. EOT Crane Rails',
         items: [
           { itemCode: 'WH-CR-001', description: 'EOT crane rail 25kg/m', unit: 'rmt', quantity: 200, rate: 2800, type: 'MATERIAL', resourceName: 'EOT Crane Rail 25kg/m' },
-          { itemCode: 'WH-CR-002', description: 'Crane rail clamps', unit: 'nos', quantity: 150, rate: 850, type: 'MATERIAL' },
+          { itemCode: 'WH-CR-002', description: 'Crane rail clamps', unit: 'nos', quantity: 150, rate: 850, type: 'MATERIAL', resourceName: 'EOT Crane Rail Clamps' },
         ],
       },
       {
@@ -457,9 +457,9 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
         name: '1. Foundation & Structure',
         items: [
           { itemCode: 'HP-P-001', description: 'Excavation & earthwork', unit: 'cum', quantity: 3500, rate: 320, type: 'MATERIAL', rateAnalysisName: 'Excavation in Ordinary Soil' },
-          { itemCode: 'HP-P-002', description: 'RCC M35 footings', unit: 'cum', quantity: 650, rate: 12000, type: 'MATERIAL' },
-          { itemCode: 'HP-P-003', description: 'RCC M35 columns', unit: 'cum', quantity: 450, rate: 12500, type: 'MATERIAL' },
-          { itemCode: 'HP-P-004', description: 'RCC M35 beams & slabs', unit: 'cum', quantity: 1200, rate: 12000, type: 'MATERIAL' },
+          { itemCode: 'HP-P-002', description: 'RCC M35 footings', unit: 'cum', quantity: 650, rate: 12000, type: 'MATERIAL', rateAnalysisName: 'RCC M35 (Heavy Structural)' },
+          { itemCode: 'HP-P-003', description: 'RCC M35 columns', unit: 'cum', quantity: 450, rate: 12500, type: 'MATERIAL', rateAnalysisName: 'RCC M35 (Heavy Structural)' },
+          { itemCode: 'HP-P-004', description: 'RCC M35 beams & slabs', unit: 'cum', quantity: 1200, rate: 12000, type: 'MATERIAL', rateAnalysisName: 'RCC M35 (Heavy Structural)' },
           { itemCode: 'HP-P-005', description: 'Reinforcement steel Fe500', unit: 'kg', quantity: 285000, rate: 73, type: 'MATERIAL', resourceName: 'TMT Steel Fe500 16mm' },
           { itemCode: 'HP-P-006', description: 'AAC block walls', unit: 'sqm', quantity: 8500, rate: 950, type: 'MATERIAL', rateAnalysisName: 'AAC Block Masonry 200mm' },
         ],
@@ -478,10 +478,10 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
       {
         name: '3. Medical Gas Pipeline',
         items: [
-          { itemCode: 'HP-MG-001', description: 'Oxygen pipeline (copper)', unit: 'rmt', quantity: 2800, rate: 450, type: 'MATERIAL' },
+          { itemCode: 'HP-MG-001', description: 'Oxygen pipeline (copper)', unit: 'rmt', quantity: 2800, rate: 450, type: 'MATERIAL', resourceName: 'Oxygen Pipeline (Copper) 15mm Type L' },
           { itemCode: 'HP-MG-002', description: 'Medical gas outlets (bedhead)', unit: 'nos', quantity: 300, rate: 8500, type: 'SUBCONTRACTOR' },
-          { itemCode: 'HP-MG-003', description: 'Vacuum pipeline', unit: 'rmt', quantity: 1800, rate: 380, type: 'MATERIAL' },
-          { itemCode: 'HP-MG-004', description: 'Nitrous oxide pipeline', unit: 'rmt', quantity: 850, rate: 450, type: 'MATERIAL' },
+          { itemCode: 'HP-MG-003', description: 'Vacuum pipeline', unit: 'rmt', quantity: 1800, rate: 380, type: 'MATERIAL', resourceName: 'Vacuum Pipeline (Copper) 22mm Type L' },
+          { itemCode: 'HP-MG-004', description: 'Nitrous oxide pipeline', unit: 'rmt', quantity: 850, rate: 450, type: 'MATERIAL', resourceName: 'Nitrous Oxide Pipeline (Copper) 18mm Type L' },
           { itemCode: 'HP-MG-005', description: 'Manifold room setup', unit: 'ls', quantity: 1, rate: 1200000, type: 'SUBCONTRACTOR' },
         ],
       },

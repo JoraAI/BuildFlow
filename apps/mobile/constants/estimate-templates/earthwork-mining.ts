@@ -25,7 +25,7 @@ export const EARTHWORK_TEMPLATES: EstimateTemplate[] = [
       {
         name: '2. Topsoil Stripping',
         items: [
-          { itemCode: 'EW-TS-001', description: 'Topsoil stripping (200mm)', unit: 'cum', quantity: 1000, rate: 180, type: 'MATERIAL' },
+          { itemCode: 'EW-TS-001', description: 'Topsoil stripping (200mm)', unit: 'cum', quantity: 1000, rate: 180, type: 'MATERIAL', resourceName: 'Red Earth' },
           { itemCode: 'EW-TS-002', description: 'Bulldozer D6R for stripping', unit: 'day', quantity: 5, rate: 22000, type: 'EQUIPMENT', resourceName: 'Bull Dozer D6R' },
           { itemCode: 'EW-TS-003', description: 'Tipper for topsoil hauling', unit: 'trip', quantity: 85, rate: 1800, type: 'EQUIPMENT', resourceName: 'Tipper / Dumper 10 cum (Local)' },
           { itemCode: 'EW-TS-004', description: 'Topsoil stockpiling area prep', unit: 'ls', quantity: 1, rate: 45000, type: 'MISC' },
@@ -59,9 +59,9 @@ export const EARTHWORK_TEMPLATES: EstimateTemplate[] = [
           { itemCode: 'EW-SC-002', description: 'Jaw crusher 200 TPH hire', unit: 'day', quantity: 15, rate: 45000, type: 'EQUIPMENT' },
           { itemCode: 'EW-SC-003', description: 'Conveyor belts', unit: 'day', quantity: 25, rate: 8500, type: 'EQUIPMENT' },
           { itemCode: 'EW-SC-004', description: 'Wheel loader 1.5 cum', unit: 'day', quantity: 25, rate: 15000, type: 'EQUIPMENT' },
-          { itemCode: 'EW-SC-005', description: 'Screened gravel 40mm', unit: 'cum', quantity: 3000, rate: 280, type: 'MATERIAL' },
-          { itemCode: 'EW-SC-006', description: 'Screened gravel 20mm', unit: 'cum', quantity: 2500, rate: 300, type: 'MATERIAL' },
-          { itemCode: 'EW-SC-007', description: 'Crushed aggregate 12.5mm', unit: 'cum', quantity: 1800, rate: 850, type: 'MATERIAL' },
+          { itemCode: 'EW-SC-005', description: 'Screened gravel 40mm', unit: 'cum', quantity: 3000, rate: 280, type: 'MATERIAL', resourceName: '40mm Aggregate' },
+          { itemCode: 'EW-SC-006', description: 'Screened gravel 20mm', unit: 'cum', quantity: 2500, rate: 300, type: 'MATERIAL', resourceName: '20mm Aggregate' },
+          { itemCode: 'EW-SC-007', description: 'Crushed aggregate 12.5mm', unit: 'cum', quantity: 1800, rate: 850, type: 'MATERIAL', resourceName: '12.5mm Aggregate' },
         ],
       },
       {
@@ -78,7 +78,7 @@ export const EARTHWORK_TEMPLATES: EstimateTemplate[] = [
         items: [
           { itemCode: 'EW-DW-001', description: 'Dewatering pump 10HP', unit: 'day', quantity: 60, rate: 1200, type: 'EQUIPMENT', resourceName: 'Dewatering Pump 10HP' },
           { itemCode: 'EW-DW-002', description: 'Diesel for dewatering', unit: 'litre', quantity: 1800, rate: 88, type: 'MATERIAL', resourceName: 'Diesel (HSD)' },
-          { itemCode: 'EW-DW-003', description: 'Dust suppression (water spray)', unit: 'kL', quantity: 850, rate: 150, type: 'MATERIAL' },
+          { itemCode: 'EW-DW-003', description: 'Dust suppression (water spray)', unit: 'kL', quantity: 850, rate: 150, type: 'MATERIAL', resourceName: 'Water (Tanker Supply)' },
           { itemCode: 'EW-DW-004', description: 'Environmental monitoring', unit: 'month', quantity: 2, rate: 85000, type: 'SUBCONTRACTOR' },
         ],
       },

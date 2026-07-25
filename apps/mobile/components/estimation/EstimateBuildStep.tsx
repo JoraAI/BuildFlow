@@ -43,6 +43,16 @@ function resolveTemplateItemLinks(
   const rateAnalysisId = item.rateAnalysisName
     ? rateAnalyses.find((r) => r.name === item.rateAnalysisName)?.id
     : undefined;
+  // Debug: trace RA link resolution
+  if (item.rateAnalysisName) {
+    const matched = rateAnalyses.find((r) => r.name === item.rateAnalysisName);
+    console.log('[resolveTemplateItemLinks]', {
+      itemDesc: item.description,
+      rateAnalysisName: item.rateAnalysisName,
+      matched: matched ? `${matched.id} (${matched.name})` : 'NOT FOUND',
+      rateAnalysesCount: rateAnalyses.length,
+    });
+  }
   return { resourceId, rateAnalysisId };
 }
 
@@ -173,6 +183,36 @@ export function EstimateBuildStep({
   const sections = estimate?.sections ?? [];
 
   async function applyTemplate(template: EstimateTemplate) {
+    // Rate analyses MUST be loaded before applying a template so that
+    // rateAnalysisName → rateAnalysisId links resolve correctly.
+    // Without this, BOQ items created from the estimate won't have RA links,
+    // and procurement can't explode them into material lines.
+    if (rateAnalyses.length === 0) {
+      await alertAsync(
+        'Rate analyses loading',
+        'The rate analysis library is still loading. Please wait a moment and try again.',
+      );
+      return;
+    }
+    const hasRaItems = template.sections.some((s) =>
+      s.items.some((i) => i.rateAnalysisName),
+    );
+    if (hasRaItems) {
+      const missingRas = new Set<string>();
+      for (const sec of template.sections) {
+        for (const item of sec.items) {
+          if (item.rateAnalysisName && !rateAnalyses.find((r) => r.name === item.rateAnalysisName)) {
+            missingRas.add(item.rateAnalysisName);
+          }
+        }
+      }
+      if (missingRas.size > 0) {
+        await alertAsync(
+          'Missing rate analyses',
+          `${missingRas.size} rate analysis template(s) not found in your library. Items will be added without RA links.`,
+        );
+      }
+    }
     if (sections.length > 0) {
       const ok = await confirmAsync(
         'Load template?',
@@ -182,10 +222,21 @@ export function EstimateBuildStep({
     }
     setLoadingTemplate(true);
     try {
+      console.log('[applyTemplate] START', {
+        templateName: template.name,
+        rateAnalysesCount: rateAnalyses.length,
+        materialsCount: materials.length,
+      });
       for (const section of template.sections) {
         const created = await mut.addSection.mutateAsync({ name: section.name });
         for (const item of section.items) {
           const links = resolveTemplateItemLinks(item, materials, rateAnalyses);
+          console.log('[applyTemplate] adding item', {
+            desc: item.description,
+            rateAnalysisName: item.rateAnalysisName,
+            resolvedRateAnalysisId: links.rateAnalysisId ?? '(none)',
+            resolvedResourceId: links.resourceId ?? '(none)',
+          });
           await mut.addItem.mutateAsync({
             sectionId: created.id,
             description: item.description,

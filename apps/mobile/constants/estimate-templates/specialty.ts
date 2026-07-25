@@ -28,7 +28,7 @@ export const SPECIALTY_TEMPLATES: EstimateTemplate[] = [
       {
         name: '2. Structural Repair',
         items: [
-          { itemCode: 'RN-SR-001', description: 'Column jacketing RCC M30', unit: 'cum', quantity: 6, rate: 15000, type: 'MATERIAL' },
+          { itemCode: 'RN-SR-001', description: 'Column jacketing RCC M30', unit: 'cum', quantity: 6, rate: 15000, type: 'MATERIAL', rateAnalysisName: 'RCC M30 (Columns, Beams & Slabs)' },
           { itemCode: 'RN-SR-002', description: 'Column jacketing reinforcement', unit: 'kg', quantity: 480, rate: 73, type: 'MATERIAL', resourceName: 'TMT Steel Fe500 16mm' },
           { itemCode: 'RN-SR-003', description: 'Epoxy injection (crack repair)', unit: 'rmt', quantity: 250, rate: 850, type: 'MATERIAL', resourceName: 'Epoxy Adhesive (Structural)' },
           { itemCode: 'RN-SR-004', description: 'Non-shrink grout (column base)', unit: 'bag', quantity: 45, rate: 950, type: 'MATERIAL', resourceName: 'Non-Shrink Grout (Cementitious)' },
@@ -140,7 +140,7 @@ export const SPECIALTY_TEMPLATES: EstimateTemplate[] = [
         name: '6. Lighting & Features',
         items: [
           { itemCode: 'LS-LT-001', description: 'Garden bollard lights LED', unit: 'nos', quantity: 18, rate: 3500, type: 'SUBCONTRACTOR' },
-          { itemCode: 'LS-LT-002', description: 'Underground electrical cable', unit: 'rmt', quantity: 280, rate: 280, type: 'MATERIAL' },
+          { itemCode: 'LS-LT-002', description: 'Underground electrical cable', unit: 'rmt', quantity: 280, rate: 280, type: 'MATERIAL', resourceName: 'Aluminium Cable 4 Core 25 sqmm Armoured' },
           { itemCode: 'LS-LT-003', description: 'Water feature (fountain)', unit: 'nos', quantity: 1, rate: 185000, type: 'SUBCONTRACTOR' },
           { itemCode: 'LS-LT-004', description: 'Seating benches (outdoor)', unit: 'nos', quantity: 8, rate: 8500, type: 'SUBCONTRACTOR' },
           { itemCode: 'LS-LT-005', description: 'Children play area equipment', unit: 'ls', quantity: 1, rate: 250000, type: 'SUBCONTRACTOR' },
