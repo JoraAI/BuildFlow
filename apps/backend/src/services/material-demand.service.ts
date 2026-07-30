@@ -33,6 +33,9 @@ async function getOpenRequisitionQty(
   projectId: string,
   resourceId: string,
 ): Promise<number> {
+  // FIX (EST-M1): Exclude requisitions that are fully received (their POs have
+  // GRNs covering the full requisition quantity). Previously all DRAFT/
+  // SUBMITTED/APPROVED requisitions counted, even if fully fulfilled via GRN.
   const lines = await prisma.materialRequisitionLine.findMany({
     where: {
       resourceId,
@@ -42,8 +45,49 @@ async function getOpenRequisitionQty(
         status: { in: ['DRAFT', 'SUBMITTED', 'APPROVED'] },
       },
     },
+    include: {
+      requisition: {
+        select: {
+          purchaseOrders: {
+            select: {
+              lines: {
+                where: { resourceId },
+                select: { quantity: true },
+              },
+              goodsReceipts: {
+                select: {
+                  lines: {
+                    where: { resourceId },
+                    select: { quantity: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
   });
-  return lines.reduce((s, l) => s + Number(l.quantity), 0);
+
+  let total = 0;
+  for (const line of lines) {
+    const reqQty = Number(line.quantity);
+    // Sum received qty across all POs linked to this requisition
+    let receivedQty = 0;
+    for (const po of line.requisition.purchaseOrders) {
+      for (const grn of po.goodsReceipts) {
+        for (const grnLine of grn.lines) {
+          receivedQty += Number(grnLine.quantity);
+        }
+      }
+    }
+    // Only count the unfulfilled portion of this requisition line
+    if (receivedQty < reqQty) {
+      total += reqQty - receivedQty;
+    }
+    // If fully received (receivedQty >= reqQty), skip — this requisition is fulfilled
+  }
+  return round3(total);
 }
 
 async function nextAutoReqNumber(companyId: string): Promise<string> {
@@ -63,11 +107,13 @@ export async function materialDemandsForEstimateItem(
     description?: string;
   },
   boqItemId?: string,
+  companyId?: string, // FIX (EST-H2): required for tenant-scoped safety-net match
 ): Promise<MaterialDemandLine[]> {
   if (item.type !== CostType.MATERIAL && item.type !== 'MATERIAL') return [];
 
   const scopeQty = Number(item.quantity);
-  if (scopeQty <= 0) return [];
+  // FIX (EST-L6): reject NaN/non-finite quantities.
+  if (!Number.isFinite(scopeQty) || scopeQty <= 0) return [];
 
   // 1. Direct catalog resource link
   if (item.resourceId) {
@@ -99,11 +145,21 @@ export async function materialDemandsForEstimateItem(
   }
 
   // 3. Safety-net: MATERIAL item with no procurement link.
-  //    Try to find a catalog resource by description match so indents are still generated.
-  if (!item.resourceId && !item.rateAnalysisId && item.description) {
+  //    FIX (EST-H2): scope by companyId (was cross-tenant), keep the type
+  //    MATERIAL filter, and correct the match direction: find a resource whose
+  //    NAME is contained in the item description (not the inverse, which rarely
+  //    matched because descriptions are long sentences).
+  if (!item.resourceId && !item.rateAnalysisId && item.description && companyId) {
+    // FIX (EST-H2): tenant-scoped + corrected match direction (description
+    // contains resource name). Use `OR` with individual contains filters.
+    const tokens = item.description.split(/\s+/).filter((t) => t.length >= 3);
     const match = await prisma.resource.findFirst({
-      where: { name: { contains: item.description, mode: 'insensitive' } },
-      select: { id: true },
+      where: {
+        companyId,
+        type: CostType.MATERIAL,
+        OR: tokens.map((t) => ({ name: { contains: t, mode: 'insensitive' as const } })),
+      },
+      select: { id: true, name: true },
     });
     if (match) {
       return [
@@ -212,7 +268,10 @@ export interface BoqShortfallPreview extends BoqMaterialDemand {
 }
 
 /** Load remaining material demand from active BOQ MATERIAL lines (catalog or rate-analysis BOM). */
-export async function fetchBoqMaterialDemands(projectId: string): Promise<BoqMaterialDemand[]> {
+export async function fetchBoqMaterialDemands(
+  projectId: string,
+  companyId?: string,
+): Promise<BoqMaterialDemand[]> {
   const items = await prisma.bOQItem.findMany({
     // Use startsWith so sub-estimate categories like "MATERIAL/Extra Scope"
     // are also included. Top-level estimates use the bare "MATERIAL" category.
@@ -241,6 +300,7 @@ export async function fetchBoqMaterialDemands(projectId: string): Promise<BoqMat
         description: item.description,
       },
       item.id,
+      companyId, // FIX (EST-H2): pass companyId for tenant-scoped match
     );
 
     for (const d of demands) {
@@ -284,9 +344,13 @@ export async function previewBoqShortfalls(
   companyId: string,
   projectId: string,
 ): Promise<BoqShortfallPreview[]> {
-  const demands = await fetchBoqMaterialDemands(projectId);
+  const demands = await fetchBoqMaterialDemands(projectId, companyId);
   if (demands.length === 0) return [];
 
+  // FIX (EST-H1): Compute stock and open-requisition quantities ONCE per
+  // resource, then distribute across all demand lines referencing that
+  // resource. Previously each demand line independently credited the full
+  // stock, so a resource used by N BOQ lines was credited N× stock.
   const resourceIds = [...new Set(demands.map((d) => d.resourceId))];
   const resources = await prisma.resource.findMany({
     where: { id: { in: resourceIds }, companyId },
@@ -294,17 +358,38 @@ export async function previewBoqShortfalls(
   });
   const resourceNameById = new Map(resources.map((r) => [r.id, r.name]));
 
+  // Aggregate total demand per resource
+  const totalDemandByResource = new Map<string, number>();
+  for (const d of demands) {
+    totalDemandByResource.set(d.resourceId, round3((totalDemandByResource.get(d.resourceId) ?? 0) + d.quantity));
+  }
+
+  // Compute net shortfall per resource (stock credited only once)
+  const shortfallByResource = new Map<string, number>();
+  for (const resourceId of resourceIds) {
+    const stockQty = await getStockQty(companyId, projectId, resourceId);
+    const openRequisitionQty = await getOpenRequisitionQty(companyId, projectId, resourceId);
+    const totalDemand = totalDemandByResource.get(resourceId) ?? 0;
+    const resourceShortfall = round3(totalDemand - stockQty - openRequisitionQty);
+    shortfallByResource.set(resourceId, resourceShortfall);
+  }
+
+  // Build preview rows — each demand line shows its proportional shortfall
   const previews: BoqShortfallPreview[] = [];
   for (const demand of demands) {
-    const stockQty = await getStockQty(companyId, projectId, demand.resourceId);
-    const openRequisitionQty = await getOpenRequisitionQty(companyId, projectId, demand.resourceId);
-    const shortfall = round3(demand.quantity - stockQty - openRequisitionQty);
+    const resourceShortfall = shortfallByResource.get(demand.resourceId) ?? 0;
+    if (resourceShortfall <= 0) continue;
+    const totalDemand = totalDemandByResource.get(demand.resourceId) ?? demand.quantity;
+    // Pro-rate the shortfall across demand lines
+    const proportion = totalDemand > 0 ? demand.quantity / totalDemand : 1;
+    const lineShortfall = round3(resourceShortfall * proportion);
+    if (lineShortfall <= 0) continue;
     previews.push({
       ...demand,
       resourceName: resourceNameById.get(demand.resourceId) ?? 'Material',
-      stockQty,
-      openRequisitionQty,
-      shortfall,
+      stockQty: await getStockQty(companyId, projectId, demand.resourceId),
+      openRequisitionQty: await getOpenRequisitionQty(companyId, projectId, demand.resourceId),
+      shortfall: lineShortfall,
     });
   }
 
@@ -313,6 +398,7 @@ export async function previewBoqShortfalls(
 
 /** Build material demand lines from approved estimate items (MATERIAL + optional rate-analysis BOM). */
 export async function buildMaterialDemandsFromEstimateItems(
+  companyId: string,
   items: Array<{
     id: string;
     type: string;
@@ -327,7 +413,7 @@ export async function buildMaterialDemandsFromEstimateItems(
   const lines: MaterialDemandLine[] = [];
   for (const item of items) {
     const boqItemId = boqByEstimateItemId.get(item.id);
-    const demands = await materialDemandsForEstimateItem(item, boqItemId);
+    const demands = await materialDemandsForEstimateItem(item, boqItemId, companyId);
     lines.push(...demands);
   }
   return lines;

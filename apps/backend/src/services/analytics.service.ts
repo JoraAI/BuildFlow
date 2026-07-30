@@ -93,7 +93,7 @@ async function loadOwnerDashboard(companyId: string): Promise<AnalyticsDashboard
       where: { companyId, isDeleted: false, isTemporary: false },
       include: {
         tasks: { select: { progressPct: true } },
-        estimates: { where: { status: 'APPROVED' }, select: { grandTotal: true }, take: 1 },
+        estimates: { where: { status: 'APPROVED', parentId: null }, select: { grandTotal: true }, orderBy: { approvedAt: 'desc' }, take: 1 },
       },
     }),
     prisma.invoice.findMany({

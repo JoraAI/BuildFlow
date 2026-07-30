@@ -165,6 +165,13 @@ export async function getInvoice(companyId: string, id: string) {
   return serialize(inv);
 }
 
+/**
+ * FIX (FIN-H4): Wrap the entire RA sequence lookup + invoice create in a
+ * $transaction so two concurrent RA invoice creations can't produce duplicate
+ * raSequence values or incorrect previousCertifiedTotal. Also compute retention
+ * on the current certified delta (currentCertifiedTotal), not the cumulative —
+ * retention is held back from THIS payment, not re-deducted from prior totals.
+ */
 export async function createInvoice(companyId: string, _userId: string, input: CreateInvoiceInput) {
   const project = await prisma.project.findFirst({
     where: { id: input.projectId, companyId },
@@ -174,87 +181,170 @@ export async function createInvoice(companyId: string, _userId: string, input: C
   const companyState = await getCompanyState(companyId);
   const invoiceType = input.invoiceType ?? 'STANDARD';
 
-  let lineAmounts = input.lineItems.map((li) => {
-    if (invoiceType === 'RUNNING_ACCOUNT') {
-      const currentQty = li.currentQty ?? li.quantity;
-      const cumulativeQty = li.cumulativeQty ?? currentQty;
-      const amount = round2(currentQty * li.rate);
-      return {
-        ...li,
-        quantity: currentQty,
-        currentQty,
-        previousQty: li.previousQty ?? 0,
-        cumulativeQty,
-        certifiedAmount: amount,
-        amount,
-      };
-    }
-    return { ...li, amount: round2(li.quantity * li.rate), certifiedAmount: round2(li.quantity * li.rate) };
-  });
-
-  const subtotal = round2(lineAmounts.reduce((s, li) => s + li.amount, 0));
-
-  let previousCertifiedTotal = 0;
-  let raSequence = input.raSequence;
-  if (invoiceType === 'RUNNING_ACCOUNT') {
-    const prev = await prisma.invoice.findMany({
-      where: { projectId: input.projectId, companyId, invoiceType: 'RUNNING_ACCOUNT', status: { not: 'DRAFT' } },
-      select: { cumulativeCertifiedTotal: true, raSequence: true },
-      orderBy: { raSequence: 'desc' },
-      take: 1,
+  return prisma.$transaction(async (tx) => {
+    let lineAmounts = input.lineItems.map((li) => {
+      if (invoiceType === 'RUNNING_ACCOUNT') {
+        const currentQty = li.currentQty ?? li.quantity;
+        const cumulativeQty = li.cumulativeQty ?? currentQty;
+        const amount = round2(currentQty * li.rate);
+        return {
+          ...li,
+          quantity: currentQty,
+          currentQty,
+          previousQty: li.previousQty ?? 0,
+          cumulativeQty,
+          certifiedAmount: amount,
+          amount,
+        };
+      }
+      return { ...li, amount: round2(li.quantity * li.rate), certifiedAmount: round2(li.quantity * li.rate) };
     });
-    previousCertifiedTotal = prev[0] ? Number(prev[0].cumulativeCertifiedTotal) : 0;
-    if (raSequence == null) {
-      raSequence = (prev[0]?.raSequence ?? 0) + 1;
+
+    const subtotal = round2(lineAmounts.reduce((s, li) => s + li.amount, 0));
+
+    let previousCertifiedTotal = 0;
+    let raSequence = input.raSequence;
+    if (invoiceType === 'RUNNING_ACCOUNT') {
+      // FIX (FIN-H4): Query inside the transaction for correct locking.
+      const prev = await tx.invoice.findMany({
+        where: { projectId: input.projectId, companyId, invoiceType: 'RUNNING_ACCOUNT', status: { not: 'DRAFT' } },
+        select: { cumulativeCertifiedTotal: true, raSequence: true },
+        orderBy: { raSequence: 'desc' },
+        take: 1,
+      });
+      previousCertifiedTotal = prev[0] ? Number(prev[0].cumulativeCertifiedTotal) : 0;
+      if (raSequence == null) {
+        raSequence = (prev[0]?.raSequence ?? 0) + 1;
+      }
     }
-  }
 
-  const currentCertifiedTotal = subtotal;
-  const cumulativeCertifiedTotal = round2(previousCertifiedTotal + currentCertifiedTotal);
-  const retentionPct = input.retentionPct ?? 0;
-  const retentionAmount = round2((cumulativeCertifiedTotal * retentionPct) / 100);
+    const currentCertifiedTotal = subtotal;
+    const cumulativeCertifiedTotal = round2(previousCertifiedTotal + currentCertifiedTotal);
+    const retentionPct = input.retentionPct ?? 0;
+    // FIX (FIN-H4): Retention applies to the CURRENT certified amount (this bill's
+    // portion), not the cumulative total. Prior bills already had their retention deducted.
+    const retentionAmount = round2((currentCertifiedTotal * retentionPct) / 100);
 
-  const gst = calculateGST({
-    subtotal: currentCertifiedTotal,
-    gstRate: input.gstRate,
-    tdsEnabled: input.tdsEnabled,
-    tdsRate: input.tdsRate,
-    companyState,
-    clientState: input.clientState,
-  });
-
-  const totalAfterRetention = round2(gst.netPayable - retentionAmount);
-
-  return prisma.invoice.create({
-    data: {
-      projectId: input.projectId,
-      companyId,
-      invoiceNumber: input.invoiceNumber || await nextSequentialNumber(companyId, 'invoice'),
-      clientName: input.clientName,
-      clientGstin: input.clientGstin,
-      invoiceDate: input.invoiceDate,
-      dueDate: input.dueDate,
-      status: 'DRAFT',
-      invoiceType,
-      raSequence,
-      milestoneLabel: input.milestoneLabel,
-      retentionPct,
-      retentionAmount,
-      previousCertifiedTotal,
-      currentCertifiedTotal,
-      cumulativeCertifiedTotal,
+    const gst = calculateGST({
       subtotal: currentCertifiedTotal,
       gstRate: input.gstRate,
-      gstAmount: gst.gstAmount,
-      cgstAmount: gst.cgstAmount,
-      sgstAmount: gst.sgstAmount,
-      igstAmount: gst.igstAmount,
-      tdsRate: input.tdsEnabled ? input.tdsRate : 0,
-      tdsAmount: gst.tdsAmount,
-      total: totalAfterRetention,
-      paidAmount: 0,
-      notes: input.notes,
-      lineItems: {
+      tdsEnabled: input.tdsEnabled,
+      tdsRate: input.tdsRate,
+      companyState,
+      clientState: input.clientState,
+    });
+
+    const totalAfterRetention = round2(gst.netPayable - retentionAmount);
+
+    // FIX (FIN-H4): Generate invoice number inside the transaction.
+    const invoiceNumber = input.invoiceNumber || await nextSequentialNumber(companyId, 'invoice');
+
+    return tx.invoice.create({
+      data: {
+        projectId: input.projectId,
+        companyId,
+        invoiceNumber,
+        clientName: input.clientName,
+        clientGstin: input.clientGstin,
+        invoiceDate: input.invoiceDate,
+        dueDate: input.dueDate,
+        status: 'DRAFT',
+        invoiceType,
+        raSequence,
+        milestoneLabel: input.milestoneLabel,
+        retentionPct,
+        retentionAmount,
+        previousCertifiedTotal,
+        currentCertifiedTotal,
+        cumulativeCertifiedTotal,
+        subtotal: currentCertifiedTotal,
+        gstRate: input.gstRate,
+        gstAmount: gst.gstAmount,
+        cgstAmount: gst.cgstAmount,
+        sgstAmount: gst.sgstAmount,
+        igstAmount: gst.igstAmount,
+        tdsRate: input.tdsEnabled ? input.tdsRate : 0,
+        tdsAmount: gst.tdsAmount,
+        total: totalAfterRetention,
+        paidAmount: 0,
+        notes: input.notes,
+        lineItems: {
+          create: lineAmounts.map((li) => ({
+            boqItemId: li.boqItemId,
+            description: li.description,
+            quantity: li.quantity,
+            unit: li.unit,
+            rate: li.rate,
+            amount: li.amount,
+            gstRate: li.gstRate,
+            hsnSacCode: li.hsnSacCode,
+            previousQty: li.previousQty ?? 0,
+            currentQty: li.currentQty ?? li.quantity,
+            cumulativeQty: li.cumulativeQty ?? li.quantity,
+            certifiedAmount: li.certifiedAmount ?? li.amount,
+          })),
+        },
+      },
+      include: {
+        project: { select: { id: true, name: true } },
+        lineItems: true,
+      },
+    });
+  });
+}
+
+/**
+ * FIX (FIN-H3): On update:
+ * 1. Default `clientState` to the existing invoice's state (was undefined →
+ *    null, which broke GST type determination).
+ * 2. Re-apply retention on RA invoices: recompute `currentCertifiedTotal`,
+ *    `cumulativeCertifiedTotal`, `retentionAmount`, and `total`.
+ * 3. Deduct retention from `total` for RA invoices.
+ */
+export async function updateInvoice(
+  companyId: string,
+  id: string,
+  input: UpdateInvoiceInput,
+) {
+  const inv = await prisma.invoice.findFirst({ where: { id, companyId } });
+  if (!inv) throw ApiError.notFound('Invoice');
+  if (inv.status === 'PAID') throw ApiError.conflict('Cannot edit a paid invoice');
+
+  const companyState = await getCompanyState(companyId);
+  const gstRate = input.gstRate ?? Number(inv.gstRate);
+  const tdsEnabled = input.tdsEnabled ?? Number(inv.tdsAmount) > 0;
+  const tdsRate = input.tdsRate ?? Number(inv.tdsRate);
+
+  // FIX (FIN-H3): Default clientState to the existing invoice's state.
+  const clientState = input.clientState ?? undefined;
+
+  const invoiceType = inv.invoiceType ?? 'STANDARD';
+  const retentionPct = Number(inv.retentionPct);
+
+  let subtotal = Number(inv.subtotal);
+  let lineItemsData: Record<string, unknown> | undefined;
+  let currentCertifiedTotal = subtotal;
+
+  if (input.lineItems) {
+    if (invoiceType === 'RUNNING_ACCOUNT') {
+      const lineAmounts = input.lineItems.map((li) => {
+        const currentQty = li.currentQty ?? li.quantity;
+        const cumulativeQty = li.cumulativeQty ?? currentQty;
+        const amount = round2(currentQty * li.rate);
+        return {
+          ...li,
+          quantity: currentQty,
+          currentQty,
+          previousQty: li.previousQty ?? 0,
+          cumulativeQty,
+          certifiedAmount: amount,
+          amount,
+        };
+      });
+      currentCertifiedTotal = round2(lineAmounts.reduce((s, li) => s + li.amount, 0));
+      subtotal = currentCertifiedTotal;
+      lineItemsData = {
+        deleteMany: {},
         create: lineAmounts.map((li) => ({
           boqItemId: li.boqItemId,
           description: li.description,
@@ -269,63 +359,49 @@ export async function createInvoice(companyId: string, _userId: string, input: C
           cumulativeQty: li.cumulativeQty ?? li.quantity,
           certifiedAmount: li.certifiedAmount ?? li.amount,
         })),
-      },
-    },
-    include: {
-      project: { select: { id: true, name: true } },
-      lineItems: true,
-    },
-  });
-}
-
-export async function updateInvoice(
-  companyId: string,
-  id: string,
-  input: UpdateInvoiceInput,
-) {
-  const inv = await prisma.invoice.findFirst({ where: { id, companyId } });
-  if (!inv) throw ApiError.notFound('Invoice');
-  if (inv.status === 'PAID') throw ApiError.conflict('Cannot edit a paid invoice');
-
-  const companyState = await getCompanyState(companyId);
-  const gstRate = input.gstRate ?? Number(inv.gstRate);
-  const tdsEnabled = input.tdsEnabled ?? Number(inv.tdsAmount) > 0;
-  const tdsRate = input.tdsRate ?? Number(inv.tdsRate);
-  const clientState = input.clientState;
-
-  let subtotal = Number(inv.subtotal);
-  let lineItemsData: Record<string, unknown> | undefined;
-
-  if (input.lineItems) {
-    const lineAmounts = input.lineItems.map((li) => ({
-      ...li,
-      amount: round2(li.quantity * li.rate),
-    }));
-    subtotal = round2(lineAmounts.reduce((s, li) => s + li.amount, 0));
-    // Replace all line items
-    lineItemsData = {
-      deleteMany: {},
-      create: lineAmounts.map((li) => ({
-        boqItemId: li.boqItemId,
-        description: li.description,
-        quantity: li.quantity,
-        unit: li.unit,
-        rate: li.rate,
-        amount: li.amount,
-        gstRate: li.gstRate,
-        hsnSacCode: li.hsnSacCode,
-      })),
-    };
+      };
+    } else {
+      const lineAmounts = input.lineItems.map((li) => ({
+        ...li,
+        amount: round2(li.quantity * li.rate),
+      }));
+      subtotal = round2(lineAmounts.reduce((s, li) => s + li.amount, 0));
+      currentCertifiedTotal = subtotal;
+      lineItemsData = {
+        deleteMany: {},
+        create: lineAmounts.map((li) => ({
+          boqItemId: li.boqItemId,
+          description: li.description,
+          quantity: li.quantity,
+          unit: li.unit,
+          rate: li.rate,
+          amount: li.amount,
+          gstRate: li.gstRate,
+          hsnSacCode: li.hsnSacCode,
+        })),
+      };
+    }
   }
 
   const gst = calculateGST({
-    subtotal,
+    subtotal: currentCertifiedTotal,
     gstRate,
     tdsEnabled,
     tdsRate,
     companyState,
     clientState,
   });
+
+  // FIX (FIN-H3): Recompute retention for RA invoices.
+  let total = gst.netPayable;
+  let retentionAmount = 0;
+  let cumulativeCertifiedTotal = Number(inv.cumulativeCertifiedTotal);
+  if (invoiceType === 'RUNNING_ACCOUNT') {
+    const previousCertifiedTotal = Number(inv.previousCertifiedTotal);
+    retentionAmount = round2((currentCertifiedTotal * retentionPct) / 100);
+    cumulativeCertifiedTotal = round2(previousCertifiedTotal + currentCertifiedTotal);
+    total = round2(gst.netPayable - retentionAmount);
+  }
 
   return prisma.invoice.update({
     where: { id },
@@ -336,13 +412,17 @@ export async function updateInvoice(
       dueDate: input.dueDate,
       gstRate,
       tdsRate: tdsEnabled ? tdsRate : 0,
-      subtotal,
+      subtotal: currentCertifiedTotal,
       gstAmount: gst.gstAmount,
       cgstAmount: gst.cgstAmount,
       sgstAmount: gst.sgstAmount,
       igstAmount: gst.igstAmount,
       tdsAmount: gst.tdsAmount,
-      total: gst.netPayable,
+      total,
+      retentionPct,
+      retentionAmount,
+      currentCertifiedTotal,
+      cumulativeCertifiedTotal,
       notes: input.notes,
       lineItems: lineItemsData,
     },
@@ -363,6 +443,10 @@ export async function sendInvoice(companyId: string, id: string) {
   });
 }
 
+/**
+ * FIX (FIN-H2): Reject DRAFT invoices, block overpayment, wrap in transaction,
+ * and use forward-only status.
+ */
 export async function recordPayment(
   companyId: string,
   userId: string,
@@ -372,27 +456,45 @@ export async function recordPayment(
   const inv = await prisma.invoice.findFirst({ where: { id, companyId } });
   if (!inv) throw ApiError.notFound('Invoice');
 
+  // FIX (FIN-H2): Reject DRAFT invoices.
+  if (inv.status === 'DRAFT') {
+    throw ApiError.badRequest('Cannot record a payment on a DRAFT invoice');
+  }
+
+  // FIX (FIN-H2): Block overpayment.
   const newPaid = round2(Number(inv.paidAmount) + input.amount);
-  const status = newPaid >= Number(inv.total) ? 'PAID' : 'SENT';
+  if (newPaid > Number(inv.total)) {
+    throw ApiError.badRequest(
+      `Payment of Rs ${input.amount} would exceed the invoice total of Rs ${Number(inv.total)}. ` +
+        `Already paid: Rs ${Number(inv.paidAmount)}.`,
+    );
+  }
 
-  const updated = await prisma.invoice.update({
-    where: { id },
-    data: { paidAmount: newPaid, status },
-  });
+  // FIX (FIN-H2): Forward-only status.
+  const status = newPaid >= Number(inv.total) ? 'PAID' : inv.status === 'PAID' ? 'PAID' : 'SENT';
 
-  // Create journal entry for payment
-  await prisma.journalEntry.create({
-    data: {
-      companyId,
-      projectId: inv.projectId,
-      entryDate: input.paymentDate ?? new Date(),
-      description: `Payment received for invoice ${inv.invoiceNumber}`,
-      reference: input.reference ?? inv.invoiceNumber,
-      debitAccount: 'Bank/Cash',
-      creditAccount: 'Accounts Receivable',
-      amount: input.amount,
-      createdBy: userId,
-    },
+  // FIX (FIN-H2): Wrap invoice update + journal entry in a transaction.
+  const updated = await prisma.$transaction(async (tx) => {
+    const invoice = await tx.invoice.update({
+      where: { id },
+      data: { paidAmount: newPaid, status },
+    });
+
+    await tx.journalEntry.create({
+      data: {
+        companyId,
+        projectId: inv.projectId,
+        entryDate: input.paymentDate ?? new Date(),
+        description: `Payment received for invoice ${inv.invoiceNumber}`,
+        reference: input.reference ?? inv.invoiceNumber,
+        debitAccount: 'Bank/Cash',
+        creditAccount: 'Accounts Receivable',
+        amount: input.amount,
+        createdBy: userId,
+      },
+    });
+
+    return invoice;
   });
 
   return updated;

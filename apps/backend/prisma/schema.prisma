@@ -252,6 +252,7 @@ model Company {
   proposals           Proposal[]
   rateRegions         RateRegion[]
   rolePermissions     CompanyRolePermission[]
+  documentCounters    DocumentCounter[]
 
   @@map("companies")
 }
@@ -640,6 +641,8 @@ model Estimate {
   @@index([companyId])
   @@index([parentId])
   @@index([status])
+  // FIX (DAT-3.6): Composite index for tenant+status queries.
+  @@index([companyId, status])
   @@map("estimates")
 }
 
@@ -942,7 +945,7 @@ model Invoice {
   id            String        @id @default(uuid()) @db.Uuid
   projectId     String        @map("project_id") @db.Uuid
   companyId     String        @map("company_id") @db.Uuid
-  invoiceNumber String        @unique @map("invoice_number")
+  invoiceNumber String        @map("invoice_number")
   clientName    String        @map("client_name")
   clientGstin   String?       @map("client_gstin")
   invoiceDate   DateTime      @map("invoice_date") @db.Date
@@ -972,10 +975,13 @@ model Invoice {
   company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   lineItems InvoiceLineItem[]
 
+  @@unique([companyId, invoiceNumber])
   @@index([projectId])
   @@index([companyId])
   @@index([status])
   @@index([invoiceType])
+  // FIX (DAT-3.6): Composite index for tenant+status queries.
+  @@index([companyId, status])
   @@map("invoices")
 }
 
@@ -1003,6 +1009,8 @@ model InvoiceLineItem {
   boqItem BOQItem? @relation(fields: [boqItemId], references: [id])
 
   @@index([invoiceId])
+  // FIX (DAT-3.6): Add index for BOQ item lookups.
+  @@index([boqItemId])
   @@map("invoice_line_items")
 }
 
@@ -1049,6 +1057,8 @@ model Bill {
   @@unique([companyId, billNumber])
   @@index([projectId])
   @@index([status])
+  // FIX (DAT-3.6): Composite index for tenant+status queries.
+  @@index([companyId, status])
   @@map("bills")
 }
 
@@ -1459,6 +1469,9 @@ model StockMovement {
   resource Resource      @relation(fields: [resourceId], references: [id])
 
   @@index([locationId])
+  // FIX (DAT-3.6): Add indexes for resource and reference lookups.
+  @@index([resourceId])
+  @@index([referenceId])
   @@map("stock_movements")
 }
 
@@ -1692,4 +1705,26 @@ model PlatformAuditLog {
   @@index([adminId])
   @@index([companyId])
   @@map("platform_audit_logs")
+}
+
+// ------------------------------------------------------------------
+// Document Counter (race-safe, per-company, per-year sequential numbers)
+// FIX: SEC-M14 / FIN-H1 / DAT-1.2 — replaces count()-based numbering.
+// ------------------------------------------------------------------
+
+model DocumentCounter {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  /// 'indent' | 'bill' | 'invoice' | 'po' | 'grn'
+  type      String
+  year      Int
+  lastSeq   Int      @default(0) @map("last_seq")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, type, year])
+  @@index([companyId])
+  @@map("document_counters")
 }

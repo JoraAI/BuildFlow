@@ -222,8 +222,14 @@ export async function getEstimateWithSummary(companyId: string, estimateId: stri
     };
   });
 
+  // FIX (EST-C1): Only include top-level items (parentId === null) in the
+  // summary computation. Parent items already have their amount rolled up
+  // from children via rollupParentAmount, so including both parent + children
+  // would double-count. Sub-items are displayed nested under their parent
+  // but must NOT contribute independently to totals.
+  const topLevelItems = estimate.items.filter((i) => !i.parentId);
   const summary = computeSummary(
-    estimate.items.map((i) => ({
+    topLevelItems.map((i) => ({
       type: i.type,
       amount: Number(i.amount),
       resourceGstRate: i.resource ? Number(i.resource.gstRate) : 0,
@@ -275,8 +281,10 @@ export async function listEstimates(companyId: string, projectId: string) {
 
   return estimates.map((e) => {
     const estItems = items.filter((i) => i.estimateId === e.id);
+    // FIX (EST-C1): Only include top-level items (parentId === null).
+    const topLevelEstItems = estItems.filter((i) => !i.parentId);
     const summary = computeSummary(
-      estItems.map((i) => ({
+      topLevelEstItems.map((i) => ({
         type: i.type,
         amount: Number(i.amount),
         resourceGstRate: i.resource ? Number(i.resource.gstRate) : 0,
@@ -567,6 +575,12 @@ export async function updateItem(
   if (!item) throw ApiError.notFound('Estimate item not found');
 
   await getEstimateForEditing(companyId, item.estimateId);
+  // FIX (EST-M4): Validate sectionId belongs to this estimate.
+  if (input.sectionId !== undefined && input.sectionId !== item.sectionId) {
+    const section = await prisma.estimateSection.findFirst({ where: { id: input.sectionId, estimateId: item.estimateId } });
+    if (!section) throw ApiError.badRequest("Section does not belong to this estimate");
+  }
+
 
   const quantity = input.quantity ?? Number(item.quantity);
   const rate = input.rate ?? Number(item.rate);
@@ -744,53 +758,56 @@ export async function approveEstimate(
 
   await persistComputedTotals(companyId, estimateId);
 
-  const updated = await prisma.estimate.update({
-    where: { id: estimateId },
-    data: {
-      status: EstimateStatus.APPROVED,
-      approvedBy: userId,
-      approvedAt: new Date(),
-      rejectionReason: null,
-    },
-  });
-
-  // Supersede previous approved versions — but ONLY when approving a
-  // top-level estimate. Sub-estimates (parentId != null) represent
-  // additional scope and must NOT supersede the parent or other versions.
-  if (!estimate.parentId) {
-    // Step 1: Supersede previous approved top-level versions
-    await prisma.estimate.updateMany({
-      where: {
-        projectId: estimate.projectId,
-        parentId: null,
+  // FIX (EST-M2): Wrap the approval + supersede in a single $transaction with
+  // a guarded updateMany so concurrent approvals can't double-apply.
+  const updated = await prisma.$transaction(async (tx) => {
+    // Guarded update: only transition if status is still REVIEWED.
+    const result = await tx.estimate.updateMany({
+      where: { id: estimateId, status: EstimateStatus.REVIEWED },
+      data: {
         status: EstimateStatus.APPROVED,
-        id: { not: estimateId },
+        approvedBy: userId,
+        approvedAt: new Date(),
+        rejectionReason: null,
       },
-      data: { status: EstimateStatus.SUPERSEDED },
     });
+    if (result.count === 0) {
+      throw ApiError.conflict('This estimate was modified by another user. Please refresh and try again.');
+    }
 
-    // Step 2: Cascade — supersede ALL sub-estimates whose parents are now
-    // SUPERSEDED. Sub-estimates belong to their parent version; when the
-    // parent is replaced by a new version, its sub-estimates become obsolete.
-    // We query the superseded parent IDs first, then update their children.
-    // This avoids Prisma relation-filter issues in updateMany.
-    const supersededParents = await prisma.estimate.findMany({
-      where: {
-        projectId: estimate.projectId,
-        status: EstimateStatus.SUPERSEDED,
-      },
-      select: { id: true },
-    });
-    if (supersededParents.length > 0) {
-      await prisma.estimate.updateMany({
+    // Supersede previous approved versions — but ONLY for top-level estimates.
+    if (!estimate.parentId) {
+      await tx.estimate.updateMany({
         where: {
-          parentId: { in: supersededParents.map((p) => p.id) },
-          status: { notIn: [EstimateStatus.SUPERSEDED] },
+          projectId: estimate.projectId,
+          parentId: null,
+          status: EstimateStatus.APPROVED,
+          id: { not: estimateId },
         },
         data: { status: EstimateStatus.SUPERSEDED },
       });
+
+      // Cascade: supersede sub-estimates of now-superseded parents.
+      const supersededParents = await tx.estimate.findMany({
+        where: {
+          projectId: estimate.projectId,
+          status: EstimateStatus.SUPERSEDED,
+        },
+        select: { id: true },
+      });
+      if (supersededParents.length > 0) {
+        await tx.estimate.updateMany({
+          where: {
+            parentId: { in: supersededParents.map((p) => p.id) },
+            status: { notIn: [EstimateStatus.SUPERSEDED] },
+          },
+          data: { status: EstimateStatus.SUPERSEDED },
+        });
+      }
     }
-  }
+
+    return tx.estimate.findFirstOrThrow({ where: { id: estimateId } });
+  });
 
   await recordAudit({
     companyId,
@@ -870,6 +887,11 @@ export async function rejectEstimate(
   return updated;
 }
 
+/**
+ * FIX (EST-M3): Wrap the entire duplicate (estimate + sections + items) in a
+ * $transaction so a failure mid-way doesn't leave a partial estimate. Also
+ * preserves parentId so sub-estimate duplication keeps the parent link.
+ */
 export async function duplicateEstimate(
   companyId: string,
   userId: string,
@@ -884,50 +906,55 @@ export async function duplicateEstimate(
     select: { version: true },
   });
 
-  const dup = await prisma.estimate.create({
-    data: {
-      projectId: source.projectId,
-      companyId,
-      name: `${source.name} (Revision)`,
-      version: (maxVersion?.version ?? 0) + 1,
-      status: EstimateStatus.DRAFT,
-      overheadPct: source.summary.overheadPct,
-      contingencyPct: source.summary.contingencyPct,
-      profitMarginPct: source.summary.profitMarginPct,
-      notes: source.notes,
-      createdBy: userId,
-    },
-  });
-
-  for (const section of source.sections) {
-    const newSection = await prisma.estimateSection.create({
+  const dup = await prisma.$transaction(async (tx) => {
+    const created = await tx.estimate.create({
       data: {
-        estimateId: dup.id,
-        name: section.name,
-        description: section.description,
-        orderIndex: section.orderIndex,
+        projectId: source.projectId,
+        companyId,
+        parentId: source.parentId, // FIX (EST-M3): Preserve parentId
+        name: `${source.name} (Revision)`,
+        version: (maxVersion?.version ?? 0) + 1,
+        status: EstimateStatus.DRAFT,
+        overheadPct: source.summary.overheadPct,
+        contingencyPct: source.summary.contingencyPct,
+        profitMarginPct: source.summary.profitMarginPct,
+        notes: source.notes,
+        createdBy: userId,
       },
     });
-    for (const item of section.items) {
-      await prisma.estimateItem.create({
+
+    for (const section of source.sections) {
+      const newSection = await tx.estimateSection.create({
         data: {
-          estimateId: dup.id,
-          sectionId: newSection.id,
-          description: item.description,
-          unit: item.unit,
-          quantity: item.quantity,
-          rate: item.rate,
-          amount: item.amount,
-          type: item.type as never,
-          resourceId: item.resourceId,
-          rateAnalysisId: item.rateAnalysisId,
-          wbsItemId: item.wbsItemId,
-          itemCode: item.itemCode,
-          notes: item.notes,
+          estimateId: created.id,
+          name: section.name,
+          description: section.description,
+          orderIndex: section.orderIndex,
         },
       });
+      for (const item of section.items) {
+        await tx.estimateItem.create({
+          data: {
+            estimateId: created.id,
+            sectionId: newSection.id,
+            description: item.description,
+            unit: item.unit,
+            quantity: item.quantity,
+            rate: item.rate,
+            amount: item.amount,
+            type: item.type as never,
+            resourceId: item.resourceId,
+            rateAnalysisId: item.rateAnalysisId,
+            wbsItemId: item.wbsItemId,
+            itemCode: item.itemCode,
+            notes: item.notes,
+          },
+        });
+      }
     }
-  }
+
+    return created;
+  });
 
   await recordAudit({
     companyId,

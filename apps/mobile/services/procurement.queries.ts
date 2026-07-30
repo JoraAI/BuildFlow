@@ -22,7 +22,7 @@ export function useSignPO(projectId: string) {
     mutationFn: (poId: string) =>
       apiFetch<SignedDoc>(`/projects/${projectId}/procurement/po/${poId}/sign`, { method: 'POST' }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['projects', projectId, 'procurement'] });
+      qc.invalidateQueries({ queryKey: ['procurement', 'requisitions', projectId] }) // FIX (MOB-H8);
     },
   });
 }
@@ -33,7 +33,7 @@ export function useSignRequisition(projectId: string) {
     mutationFn: (requisitionId: string) =>
       apiFetch<SignedDoc>(`/projects/${projectId}/procurement/requisitions/${requisitionId}/sign`, { method: 'POST' }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['projects', projectId, 'procurement'] });
+      qc.invalidateQueries({ queryKey: ['procurement', 'requisitions', projectId] }) // FIX (MOB-H8);
     },
   });
 }

@@ -13,30 +13,42 @@
  * Signing is idempotent for a given document: signing again replaces the
  * previous signature (and is audit-logged).
  */
-import { createHash } from 'crypto';
+import { createHmac } from 'crypto';
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
 import { assertProjectAccess } from '../middleware/project-access.middleware';
 import { recordAudit } from '../utils/audit';
+import { env } from '../config/env';
+
+/**
+ * FIX (SEC-M12): Previously used bare `createHash('sha256')` — anyone who
+ * knew the hash algorithm could recompute a valid hash after editing a signed
+ * document. Now we use HMAC keyed with the server's JWT access secret, which
+ * an attacker cannot forge.
+ */
+function signatureHmac(message: string): string {
+  return createHmac('sha256', env.JWT_ACCESS_SECRET).update(message).digest('hex');
+}
 
 type Signable =
   | { kind: 'PO'; record: { id: string; poNumber: string; vendorName: string; totalAmount: unknown; projectId: string; companyId: string; lines: Array<{ resourceId: string; quantity: unknown; rate: unknown }> } }
   | { kind: 'REQUISITION'; record: { id: string; reqNumber: string; vendorName?: string; projectId: string; companyId: string; lines: Array<{ resourceId: string; quantity: unknown; expectedRate?: unknown }> } };
 
 function hashDocument(s: Signable): string {
-  const h = createHash('sha256');
+  let message: string;
   if (s.kind === 'PO') {
-    h.update(`PO|${s.record.poNumber}|${s.record.vendorName}|${s.record.totalAmount}`);
+    message = `PO|${s.record.poNumber}|${s.record.vendorName}|${s.record.totalAmount}`;
     for (const l of s.record.lines) {
-      h.update(`|${l.resourceId}:${l.quantity}:${l.rate}`);
+      message += `|${l.resourceId}:${l.quantity}:${l.rate}`;
     }
   } else {
-    h.update(`REQ|${s.record.reqNumber}`);
+    // FIX (SEC-M12): include vendorName in the requisition hash (was omitted).
+    message = `REQ|${s.record.reqNumber}|${s.record.vendorName ?? ''}`;
     for (const l of s.record.lines) {
-      h.update(`|${l.resourceId}:${l.quantity}:${l.expectedRate ?? ''}`);
+      message += `|${l.resourceId}:${l.quantity}:${l.expectedRate ?? ''}`;
     }
   }
-  return h.digest('hex');
+  return signatureHmac(message);
 }
 
 /**

@@ -112,12 +112,19 @@ function buildSalesVoucher(
   return lines.join('\n');
 }
 
-/** Build a single purchase voucher XML (one per bill). */
+/**
+ * Build a single purchase voucher XML (one per bill).
+ *
+ * FIX (FIN-H5, FIN-L5): Split bill GST into CGST/SGST vs IGST based on whether
+ * the vendor is in the same state as the company (intra-state) or a different
+ * state (inter-state). Previously all bill GST was mapped to IGST.
+ */
 function buildPurchaseVoucher(
   bill: {
     id: string;
     billNumber: string;
     vendorName: string;
+    vendorState?: string | null;
     billDate: Date;
     subtotal: Decimal;
     gstAmount: Decimal;
@@ -125,6 +132,7 @@ function buildPurchaseVoucher(
     total: Decimal;
   },
   m: TallyLedgerMap,
+  companyState: string,
 ): string {
   const party = bill.vendorName;
   const lines: string[] = [];
@@ -148,13 +156,32 @@ function buildPurchaseVoucher(
   lines.push(`      <AMOUNT>${fmtNum(bill.subtotal)}</AMOUNT>`);
   lines.push('    </ALLLEDGERENTRIES.LIST>');
 
-  // GST
+  // FIX (FIN-H5): Split GST into CGST/SGST (intra-state) vs IGST (inter-state).
   if (Number(bill.gstAmount) > 0) {
-    lines.push('    <ALLLEDGERENTRIES.LIST>');
-    lines.push(`      <LEDGERNAME>${esc(m.igst ?? 'IGST')}</LEDGERNAME>`);
-    lines.push(`      <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>`);
-    lines.push(`      <AMOUNT>${fmtNum(bill.gstAmount)}</AMOUNT>`);
-    lines.push('    </ALLLEDGERENTRIES.LIST>');
+    const isInterState =
+      bill.vendorState && companyState && bill.vendorState.toUpperCase() !== companyState.toUpperCase();
+    const gst = Number(bill.gstAmount);
+    if (isInterState) {
+      // IGST
+      lines.push('    <ALLLEDGERENTRIES.LIST>');
+      lines.push(`      <LEDGERNAME>${esc(m.igst ?? 'IGST')}</LEDGERNAME>`);
+      lines.push(`      <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>`);
+      lines.push(`      <AMOUNT>${fmtNum(gst)}</AMOUNT>`);
+      lines.push('    </ALLLEDGERENTRIES.LIST>');
+    } else {
+      // CGST + SGST (50/50 split)
+      const half = Number((gst / 2).toFixed(2));
+      lines.push('    <ALLLEDGERENTRIES.LIST>');
+      lines.push(`      <LEDGERNAME>${esc(m.cgst ?? 'CGST')}</LEDGERNAME>`);
+      lines.push(`      <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>`);
+      lines.push(`      <AMOUNT>${fmtNum(half)}</AMOUNT>`);
+      lines.push('    </ALLLEDGERENTRIES.LIST>');
+      lines.push('    <ALLLEDGERENTRIES.LIST>');
+      lines.push(`      <LEDGERNAME>${esc(m.sgst ?? 'SGST')}</LEDGERNAME>`);
+      lines.push(`      <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>`);
+      lines.push(`      <AMOUNT>${fmtNum(gst - half)}</AMOUNT>`);
+      lines.push('    </ALLLEDGERENTRIES.LIST>');
+    }
   }
   // TDS
   if (Number(bill.tdsAmount) > 0) {
@@ -172,6 +199,9 @@ function buildPurchaseVoucher(
 /** Export a project's invoices and bills as Tally Prime import XML. */
 export async function exportProjectTallyXML(companyId: string, projectId: string): Promise<string> {
   const m = await resolveTallyLedgerMap(companyId);
+  const company = await prisma.company.findUnique({ where: { id: companyId }, select: { state: true } });
+  const companyState = company?.state ?? '';
+
   const [invoices, bills] = await Promise.all([
     prisma.invoice.findMany({
       where: { companyId, projectId, status: { in: ['SENT', 'PAID', 'OVERDUE'] } },
@@ -194,7 +224,7 @@ export async function exportProjectTallyXML(companyId: string, projectId: string
   parts.push('      </REQUESTDESC>');
   parts.push('      <REQUESTDATA>');
   for (const inv of invoices) parts.push(buildSalesVoucher(inv, m));
-  for (const bill of bills) parts.push(buildPurchaseVoucher(bill, m));
+  for (const bill of bills) parts.push(buildPurchaseVoucher(bill, m, companyState));
   parts.push('      </REQUESTDATA>');
   parts.push('    </IMPORTDATA>');
   parts.push('  </BODY>');

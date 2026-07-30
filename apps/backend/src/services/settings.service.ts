@@ -166,10 +166,12 @@ export async function listUsers(companyId: string): Promise<UserRow[]> {
 }
 
 export async function getUserAuditStats(userId: string, companyId: string) {
+  // FIX (SEC-M15): add companyId to the lastActive lookup — previously filtered
+  // by userId only, so a caller could learn another tenant's user's last-activity.
   const [actionCount, lastActive] = await Promise.all([
     prisma.auditLog.count({ where: { userId, companyId } }),
     prisma.auditLog.findFirst({
-      where: { userId },
+      where: { userId, companyId },
       orderBy: { createdAt: 'desc' },
       select: { createdAt: true },
     }),
@@ -180,13 +182,35 @@ export async function getUserAuditStats(userId: string, companyId: string) {
 export interface UserUpdateInput {
   name?: string;
   phone?: string;
-  role?: 'OWNER' | 'PM' | 'SUPERVISOR' | 'ACCOUNTANT';
+  role?: string;
   isActive?: boolean;
 }
 
-export async function updateUser(userId: string, companyId: string, data: UserUpdateInput) {
+export async function updateUser(
+  targetUserId: string,
+  companyId: string,
+  data: UserUpdateInput,
+  callerUserId?: string,
+) {
+  // FIX (SEC-H8): forbid assigning the OWNER role via this endpoint (privilege
+  // escalation), and block self-role-changes.
+  const existing = await prisma.user.findFirstOrThrow({ where: { id: targetUserId, companyId } });
+
+  // Block self-role changes.
+  if (data.role && callerUserId === targetUserId) {
+    throw new ApiError('FORBIDDEN', 'You cannot change your own role');
+  }
+
+  // Forbid assigning OWNER — only company creation can create an OWNER.
+  if (data.role === 'OWNER') {
+    throw new ApiError('FORBIDDEN', 'Cannot assign the OWNER role via this endpoint');
+  }
+  if (data.role === 'SITE_SUPERVISOR') {
+    // Normalize legacy SUPERVISOR to SITE_SUPERVISOR
+    data.role = 'SUPERVISOR';
+  }
+
   // Prevent a user from deactivating themselves or removing their own OWNER role.
-  const existing = await prisma.user.findFirstOrThrow({ where: { id: userId, companyId } });
   if (data.role && existing.role === 'OWNER' && data.role !== 'OWNER') {
     throw new ApiError('FORBIDDEN', 'Cannot demote an OWNER role');
   }
@@ -194,8 +218,8 @@ export async function updateUser(userId: string, companyId: string, data: UserUp
     throw new ApiError('FORBIDDEN', 'Cannot deactivate an OWNER');
   }
   return prisma.user.update({
-    where: { id: userId },
-    data,
+    where: { id: targetUserId },
+    data: { ...data, role: data.role as never },
     select: { id: true, name: true, email: true, phone: true, role: true, isActive: true },
   });
 }

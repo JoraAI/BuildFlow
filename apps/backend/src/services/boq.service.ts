@@ -329,19 +329,29 @@ export async function convertEstimateToBoq(
   // estimates archive and rebuild the BOQ from scratch.
   const isSubEstimate = !!estimate.parentId;
 
+  // FIX (EST-C2): Archive existing BOQ lines BEFORE nulling estimateItemId.
+  // Previously the code nulled estimateItemId first, then tried to filter by
+  // it — so the archive step matched nothing and left duplicate lines.
   let archived: { count: number };
+  let previousSubEstimateBudget = 0; // FIX (EST-C3): track old total for budget correction
+
   if (isSubEstimate) {
-    // Append mode: do NOT archive existing BOQ items. Only release
-    // estimate-item links for items that belong to THIS estimate (in case
-    // of re-conversion of the same sub-estimate).
-    await prisma.bOQItem.updateMany({
+    // Append mode: capture the old total BEFORE archiving, so we can correct
+    // the budget (subtract old, add new) instead of double-incrementing.
+    const existingSubItems = await prisma.bOQItem.findMany({
       where: {
         projectId,
+        isSuperseded: false,
         estimateItemId: { in: estimate.items.map((i) => i.id) },
       },
-      data: { estimateItemId: null },
+      select: { amount: true },
     });
-    // Remove previously converted BOQ items from THIS sub-estimate (if any)
+    previousSubEstimateBudget = existingSubItems.reduce(
+      (s, i) => s + Number(i.amount),
+      0,
+    );
+
+    // Archive the previously-converted BOQ items from this sub-estimate
     archived = await prisma.bOQItem.updateMany({
       where: {
         projectId,
@@ -350,21 +360,33 @@ export async function convertEstimateToBoq(
       },
       data: { isSuperseded: true },
     });
-  } else {
-    // Full rebuild mode: archive ALL existing BOQ items
+    // NOW null the estimateItemId links (after archiving, so the filter worked)
     await prisma.bOQItem.updateMany({
-      where: { projectId },
+      where: {
+        projectId,
+        estimateItemId: { in: estimate.items.map((i) => i.id) },
+      },
       data: { estimateItemId: null },
     });
+  } else {
+    // Full rebuild mode: archive ALL existing BOQ items, THEN null links
     archived = await prisma.bOQItem.updateMany({
       where: { projectId, isSuperseded: false },
       data: { isSuperseded: true },
+    });
+    await prisma.bOQItem.updateMany({
+      where: { projectId },
+      data: { estimateItemId: null },
     });
   }
 
   // Create new BOQ items from estimate items (prefixed for sub-estimates)
   const itemCodePrefix = isSubEstimate ? `SUB-${estimate.name.slice(0, 10).toUpperCase().replace(/\s+/g, '-')}` : '';
-  const boqData = estimate.items.map((item) => ({
+  // FIX (EST-C1): Only convert top-level items (parentId === null) — parent
+  // items already have their amount rolled up from sub-items, so converting
+  // both would create duplicate BOQ lines and inflate the budget.
+  const topLevelEstimateItems = estimate.items.filter((i) => !i.parentId);
+  const boqData = topLevelEstimateItems.map((item) => ({
     projectId,
     wbsId: item.wbsItemId,
     itemCode: item.itemCode ?? (isSubEstimate ? `${itemCodePrefix}-${item.id.slice(-6)}` : `EST-${item.id.slice(-6)}`),
@@ -383,11 +405,13 @@ export async function convertEstimateToBoq(
 
   // Update project budget:
   // - Top-level estimate: set budget = estimate grand total (full rebuild)
-  // - Sub-estimate: ADD the sub-estimate's total to the existing budget
+  // - Sub-estimate: ADD the delta (new - old) to avoid double-incrementing
+  //   on re-conversion (FIX EST-C3).
   if (isSubEstimate) {
+    const delta = Number(estimate.grandTotal) - previousSubEstimateBudget;
     await prisma.project.update({
       where: { id: projectId },
-      data: { budget: { increment: estimate.grandTotal } },
+      data: { budget: { increment: delta } },
     });
   } else {
     await prisma.project.update({
@@ -406,6 +430,7 @@ export async function convertEstimateToBoq(
   }
 
   const materialDemands = await buildMaterialDemandsFromEstimateItems(
+    companyId,
     estimate.items.map((i) => ({
       id: i.id,
       type: i.type,

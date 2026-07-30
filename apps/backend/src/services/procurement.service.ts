@@ -113,7 +113,7 @@ export async function generateIndentsFromBoq(
 ) {
   await assertProjectAccess(companyId, userId, role as never, projectId, ['OWNER', 'PM', 'SUPERVISOR']);
 
-  const demands = await fetchBoqMaterialDemands(projectId);
+  const demands = await fetchBoqMaterialDemands(projectId, companyId);
   const lines = demands.map(({ itemCode: _c, description: _d, ...line }) => line);
   return createDraftIndentsFromDemand(
     companyId,
@@ -302,6 +302,48 @@ export async function createGRN(
     include: { lines: true, requisition: { include: { lines: true } } },
   });
   if (!po) throw ApiError.notFound('Purchase order not found');
+
+  // FIX (EST-H3): Require PO status to be APPROVED before receiving goods.
+  if (po.status !== 'APPROVED') {
+    throw ApiError.badRequest(
+      `Cannot create GRN against a PO with status "${po.status}". The PO must be APPROVED first.`,
+    );
+  }
+
+  // FIX (EST-H3): Validate each GRN line against the PO — the resource must be
+  // on the PO, and the cumulative received quantity must not exceed the PO
+  // line quantity (prevent over-receiving).
+  const poLineByResource = new Map(po.lines.map((l) => [l.resourceId, l]));
+
+  // Fetch cumulative received quantities from existing GRNs
+  const existingGrns = await prisma.goodsReceiptNote.findMany({
+    where: { purchaseOrderId: po.id },
+    include: { lines: { select: { resourceId: true, quantity: true } } },
+  });
+  const cumulativeReceived = new Map<string, number>();
+  for (const g of existingGrns) {
+    for (const l of g.lines) {
+      cumulativeReceived.set(l.resourceId, (cumulativeReceived.get(l.resourceId) ?? 0) + Number(l.quantity));
+    }
+  }
+
+  for (const grnLine of input.lines) {
+    const poLine = poLineByResource.get(grnLine.resourceId);
+    if (!poLine) {
+      throw ApiError.badRequest(
+        `Resource ${grnLine.resourceId} is not on this purchase order. Cannot receive items not ordered.`,
+      );
+    }
+    const alreadyReceived = cumulativeReceived.get(grnLine.resourceId) ?? 0;
+    const newTotal = alreadyReceived + grnLine.quantity;
+    if (newTotal > Number(poLine.quantity)) {
+      throw ApiError.badRequest(
+        `Over-receiving detected: PO line for this resource is ${Number(poLine.quantity)} ${poLine.unit}, ` +
+          `already received ${alreadyReceived}, attempting to receive ${grnLine.quantity} ` +
+          `(total ${newTotal}). Maximum remaining: ${Number(poLine.quantity) - alreadyReceived}.`,
+      );
+    }
+  }
 
   return prisma.$transaction(async (tx) => {
     const grn = await tx.goodsReceiptNote.create({

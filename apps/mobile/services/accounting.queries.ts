@@ -377,7 +377,8 @@ export function useGstReport(from?: string, to?: string) {
         totalIgst: number;
         totalTax: number;
         totalInvoiceValue: number;
-      }>('/company/financials/gst-report'),
+      // FIX (MOB-H9): Pass from/to as query params so the date range applies.
+      }>(`/company/financials/gst-report${from || to ? `?from=${from ?? ''}&to=${to ?? ''}` : ''}`),
   });
 }
 
@@ -398,6 +399,7 @@ export function useTdsReport(from?: string, to?: string) {
         }>;
         totalAmountPaid: number;
         totalTdsDeducted: number;
-      }>('/company/financials/tds-report'),
+      // FIX (MOB-H9): Pass from/to as query params so the date range applies.
+      }>(`/company/financials/tds-report${from || to ? `?from=${from ?? ''}&to=${to ?? ''}` : ''}`),
   });
 }

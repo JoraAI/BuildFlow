@@ -85,8 +85,17 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
           }
           return retryBody.data;
         }
-      } catch {
+      } catch (refreshErr) {
+        // FIX (MOB-C1): Flush the queue BEFORE logging out so queued requests
+        // reject instead of hanging forever.
         isRefreshing = false;
+        processQueue(null);
+        // FIX (MOB-C2): Only logout if the error is actually a refresh failure
+        // (token expired). If refresh succeeded but the retry itself returned
+        // an ApiError (403/422/500), rethrow that error — don't force-logout.
+        if (refreshErr instanceof ApiError && refreshErr.status !== 401) {
+          throw refreshErr;
+        }
         await useAuthStore.getState().logout();
         throw new ApiError('SESSION_EXPIRED', 'Session expired. Please login again.', 401);
       }
@@ -115,7 +124,10 @@ export interface ApiListMeta {
   totalPages: number;
 }
 
-/** Paginated list fetch - returns data + meta (apiFetch strips meta). */
+/**
+ * FIX (MOB-H3): Give apiFetchList the same refresh/retry path as apiFetch so
+ * paginated list screens survive an expired access token.
+ */
 export async function apiFetchList<T>(
   path: string,
   init: RequestInit = {},
@@ -127,7 +139,26 @@ export async function apiFetchList<T>(
   };
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
-  const res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+  } catch {
+    throw new ApiError('NETWORK_ERROR', 'Unable to connect. Check your internet connection.', 0);
+  }
+
+  // FIX (MOB-H3): If 401, retry once with refresh (same as apiFetch).
+  if (res.status === 401 && !shouldSkipRefresh(path)) {
+    const newToken = await refreshAccessToken();
+    if (newToken) {
+      headers.Authorization = `Bearer ${newToken}`;
+      try {
+        res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+      } catch {
+        throw new ApiError('NETWORK_ERROR', 'Unable to connect. Check your internet connection.', 0);
+      }
+    }
+  }
+
   const body: ApiResponse<T[]> = await res.json().catch(() => ({
     success: false,
     data: [] as T[],
@@ -180,8 +211,13 @@ async function fetchWithAuthRetry(path: string, init: RequestInit = {}): Promise
         }
         await useAuthStore.getState().logout();
         throw new ApiError('SESSION_EXPIRED', 'Session expired. Please login again.', 401);
-      } catch {
+      } catch (refreshErr) {
+        // FIX (MOB-C1): Flush the queue BEFORE logging out.
         isRefreshing = false;
+        processQueue(null);
+        if (refreshErr instanceof ApiError && refreshErr.status !== 401) {
+          throw refreshErr;
+        }
         await useAuthStore.getState().logout();
         throw new ApiError('SESSION_EXPIRED', 'Session expired. Please login again.', 401);
       }
@@ -294,5 +330,9 @@ export async function refreshAccessToken(): Promise<string | null> {
   const body = await res.json();
   if (!body.success) return null;
   await SecureStore.setItemAsync(SECURE_STORE_KEYS.ACCESS_TOKEN, body.data.accessToken);
+  // FIX (MOB-H4): Persist rotated refresh token if the backend returns one.
+  if (body.data.refreshToken) {
+    await SecureStore.setItemAsync(SECURE_STORE_KEYS.REFRESH_TOKEN, body.data.refreshToken);
+  }
   return body.data.accessToken;
 }

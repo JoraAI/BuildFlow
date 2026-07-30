@@ -333,6 +333,7 @@ export async function resolveRazorpayConfig(companyId: string): Promise<Razorpay
     return {
       keyId: String(s.keyId),
       keySecret: String(s.keySecret),
+      // SECURITY (SEC-H7): webhook secret MUST be per-company; never fall back to platform.
       webhookSecret: s.webhookSecret ? String(s.webhookSecret) : undefined,
     };
   }
@@ -340,7 +341,11 @@ export async function resolveRazorpayConfig(companyId: string): Promise<Razorpay
     return {
       keyId: env.RAZORPAY_KEY_ID!,
       keySecret: env.RAZORPAY_KEY_SECRET!,
-      webhookSecret: env.RAZORPAY_WEBHOOK_SECRET,
+      // SECURITY (SEC-H7): do NOT return the platform webhook secret here.
+      // The platform secret is reserved for SaaS billing webhooks only.
+      // Tenant invoice webhook verification requires a per-company secret;
+      // see payment.service.verifyWebhookSignature.
+      webhookSecret: undefined,
     };
   }
   return null;

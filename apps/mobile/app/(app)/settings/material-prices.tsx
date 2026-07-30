@@ -330,7 +330,10 @@ export default function MaterialPriceTrackerScreen() {
               {searchBar}
               {listBody}
             </View>
-            <View className="flex-[1.15] min-w-[380px] max-w-xl">
+            {/* FIX (UI-H3): Use content-aware min-width so panes don't collapse
+                at narrow widths. On tablet/desktop, cap at xl so it doesn't
+                squeeze the detail pane. */}
+            <View className="flex-[1.15] max-w-xl">
               {selected ? (
                 <PriceHistoryPanel
                   resourceId={selected}

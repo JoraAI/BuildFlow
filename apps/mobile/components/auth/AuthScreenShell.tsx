@@ -34,10 +34,12 @@ export function AuthScreenShell({
   formSubtitle?: string;
   footer?: React.ReactNode;
 }) {
-  const { isDesktop } = useViewport();
+  const { isDesktop, isWideDesktop } = useViewport();
   const panelWidth = formWidth === 'wide' ? 'w-[640px]' : 'w-[480px]';
 
-  if (isDesktop) {
+  // FIX (UI-H7): Only show the split hero layout on wide desktop (≥1024px).
+  // On tablet (768-1024px), the hero panel becomes a broken sliver.
+  if (isDesktop && isWideDesktop) {
     return (
       <View className="flex-1 flex-row bg-surface min-h-screen">
         <View className="flex-1 relative min-w-0">

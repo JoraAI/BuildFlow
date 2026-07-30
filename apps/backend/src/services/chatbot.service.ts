@@ -25,8 +25,14 @@ function num(d: Decimal | number | null | undefined): number {
   return typeof d === 'number' ? d : Number(d);
 }
 
-/** Build a compact context block for the LLM from company + optional project. */
-export async function buildContext(companyId: string, projectId?: string): Promise<string> {
+/**
+ * Build a compact context block for the LLM from company + optional project.
+ *
+ * FIX (FIN-M7): enforce that the caller's userId is a member of the project
+ * before including project-scoped data, so context isn't leaked to users who
+ * aren't on the project.
+ */
+export async function buildContext(companyId: string, projectId?: string, userId?: string): Promise<string> {
   const company = await prisma.company.findFirstOrThrow({
     where: { id: companyId },
     select: { name: true, state: true, gstin: true },
@@ -40,6 +46,18 @@ export async function buildContext(companyId: string, projectId?: string): Promi
       select: { id: true, name: true, status: true, budget: true, startDate: true, endDate: true },
     });
     if (!project) return lines.join('\n');
+
+    // FIX (FIN-M7): enforce project membership so context isn't leaked.
+    if (userId) {
+      const isMember = await prisma.projectMember.findFirst({
+        where: { projectId, userId },
+        select: { id: true },
+      });
+      if (!isMember) {
+        // Not a member — skip project-scoped context.
+        return lines.join('\n');
+      }
+    }
     lines.push(`Project: ${project.name} | Status: ${project.status} | Budget: Rs ${num(project.budget).toLocaleString('en-IN')}`);
 
     const ea = await getEstimateVsActual(companyId, projectId).catch(() => null);
@@ -143,8 +161,8 @@ export async function handleChatMessage(
     },
   });
 
-  // 2. Build context
-  const context = await buildContext(companyId, projectId);
+  // 2. Build context (FIX FIN-M7: pass userId for project-membership check)
+  const context = await buildContext(companyId, projectId, userId);
 
   // 2b. Resolve the caller's permissions and build a permission-aware
   // system prompt. This ensures the LLM only recommends actions the user
@@ -160,9 +178,10 @@ export async function handleChatMessage(
   const permissions = await getRolePermissions(companyId, user.role);
   const permissionPrompt = buildPermissionAwarePrompt(permissions, user.role, company.name);
 
-  // 3. Fetch last ~8 messages for conversational continuity
+  // 3. Fetch last ~8 messages for conversational continuity.
+  //    FIX (FIN-M7): scope by senderId so users don't see each other's chats.
   const history = await prisma.chatMessage.findMany({
-    where: { companyId, ...(projectId ? { projectId } : {}) },
+    where: { companyId, senderId: userId, ...(projectId ? { projectId } : {}) },
     orderBy: { createdAt: 'desc' },
     take: 8,
     select: { message: true, isBot: true },

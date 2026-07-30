@@ -202,7 +202,8 @@ export default function BillDetailScreen() {
               />
               <View className="flex-row gap-6 items-start">
                 <View className="flex-[2] min-w-0 gap-4">{body}</View>
-                <View className="flex-1 max-w-sm min-w-[280px] gap-4">{actionsBlock}</View>
+                {/* FIX (UI-H3): Remove min-w so panes don't collapse at 768px */}
+                <View className="flex-1 max-w-sm gap-4">{actionsBlock}</View>
               </View>
             </View>
           </ScrollView>

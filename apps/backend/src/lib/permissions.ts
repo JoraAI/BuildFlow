@@ -68,9 +68,16 @@ export async function getRolePermissions(
       permissions = DEFAULT_ROLE_PERMISSIONS[role] ?? [];
     }
   } catch {
-    // DB may be unavailable — fall back to defaults
-    logger.warn(`Permission DB lookup failed for ${companyId}:${role}, using defaults`);
-    permissions = DEFAULT_ROLE_PERMISSIONS[role] ?? [];
+    // FIX (SEC-L19): Fail CLOSED in production — return empty permissions (deny
+    // all) so a DB outage doesn't grant users potentially broader default
+    // permissions than the company had customized. In test/dev, fall back to
+    // defaults so the test suite isn't blocked by DB connectivity.
+    logger.error(`Permission DB lookup failed for ${companyId}:${role}, FAILING CLOSED (deny all)`);
+    if (process.env.NODE_ENV === 'production') {
+      permissions = [];
+    } else {
+      permissions = DEFAULT_ROLE_PERMISSIONS[role] ?? [];
+    }
   }
 
   // 4. Cache the result

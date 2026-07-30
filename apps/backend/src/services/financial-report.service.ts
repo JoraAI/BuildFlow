@@ -213,24 +213,20 @@ export async function getEstimateVsActual(
   let totalEstimated = 0;
   let totalActual = 0;
 
+  // FIX (FIN-M4): Simplified the dominantType computation (was a double-reduce
+  // with unused intermediate result). Now a single clean tally.
   if (estimate) {
     for (const sec of estimate.sections) {
       const estimated = sec.items.reduce((s, i) => s + num(i.amount), 0);
+
+      // Single pass: find the most common CostType in this section
+      const typeCount: Record<string, number> = {};
+      for (const item of sec.items) {
+        typeCount[item.type] = (typeCount[item.type] ?? 0) + 1;
+      }
       const dominantType =
-        sec.items.length > 0
-          ? (sec.items
-              .map((i) => i.type)
-              .reduce((acc, t) => {
-                acc[t] = (acc[t] ?? 0) + 1;
-                return acc;
-              }, {} as Record<string, number>),
-            Object.entries(
-              sec.items.reduce((acc, i) => {
-                acc[i.type] = (acc[i.type] ?? 0) + 1;
-                return acc;
-              }, {} as Record<string, number>),
-            ).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'OTHER')
-          : 'OTHER';
+        Object.entries(typeCount).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'OTHER';
+
       const actual = actualByCategory.get(dominantType) ?? 0;
       const variance = actual - estimated;
       const variancePct = estimated ? (variance / estimated) * 100 : 0;
@@ -376,10 +372,16 @@ export async function getGstReport(
     companyId,
     status: { in: ['SENT', 'PAID', 'OVERDUE'] },
   };
+  // FIX (FIN-M3): Convert date strings to Date objects for Prisma DateTime fields.
+  // Passing raw strings to gte/lte on a DateTime column doesn't work reliably.
   if (from || to) {
     where.invoiceDate = {};
-    if (from) (where.invoiceDate as { gte?: string }).gte = from;
-    if (to) (where.invoiceDate as { lte?: string }).lte = to;
+    if (from) (where.invoiceDate as { gte?: Date }).gte = new Date(from);
+    if (to) {
+      const toDate = new Date(to);
+      toDate.setHours(23, 59, 59, 999); // Include the entire "to" day
+      (where.invoiceDate as { lte?: Date }).lte = toDate;
+    }
   }
 
   const invoices = await prisma.invoice.findMany({
@@ -443,10 +445,15 @@ export async function getTdsReport(
     companyId,
     status: { in: ['APPROVED', 'PAID'] },
   };
+  // FIX (FIN-M3): Convert date strings to Date objects for Prisma DateTime fields.
   if (from || to) {
     where.billDate = {};
-    if (from) (where.billDate as { gte?: string }).gte = from;
-    if (to) (where.billDate as { lte?: string }).lte = to;
+    if (from) (where.billDate as { gte?: Date }).gte = new Date(from);
+    if (to) {
+      const toDate = new Date(to);
+      toDate.setHours(23, 59, 59, 999);
+      (where.billDate as { lte?: Date }).lte = toDate;
+    }
   }
 
   const bills = await prisma.bill.findMany({

@@ -119,8 +119,9 @@ export default function UsersScreen() {
     </View>
   ) : (
     <View className={isDesktop ? 'flex-row gap-6 items-start' : ''}>
+      {/* FIX (UI-H3): Remove min-w so panes don't collapse at 768px */}
       {(invites?.length ?? 0) > 0 && (
-        <View className={isDesktop ? 'flex-1 min-w-[300px]' : 'mb-6'}>
+        <View className={isDesktop ? 'flex-1 min-w-0' : 'mb-6'}>
           <Text className="text-sm font-bold text-text mb-3 uppercase tracking-wide">
             Pending invites
           </Text>
@@ -169,7 +170,8 @@ export default function UsersScreen() {
         </View>
       )}
 
-      <View className={isDesktop ? 'flex-[2] min-w-[360px]' : ''}>
+      {/* FIX (UI-H3): Remove min-w so panes don't collapse at 768px */}
+      <View className={isDesktop ? 'flex-[2] min-w-0' : ''}>
         <Text className="text-sm font-bold text-text mb-3 uppercase tracking-wide">
           Team members
         </Text>

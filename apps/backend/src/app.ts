@@ -40,6 +40,11 @@ import { proposalRouter } from './routes/proposal.routes';
 
 const app = express();
 
+// FIX (SEC-H3): trust the first proxy hop so `req.ip` resolves the real client
+// IP from X-Forwarded-For safely (Express validates the hop count). Without
+// this, req.ip is always the proxy and the rate limiter can't discriminate IPs.
+app.set('trust proxy', 1);
+
 // --- Security & infra middleware ---
 app.disable('x-powered-by');
 app.use(helmet());

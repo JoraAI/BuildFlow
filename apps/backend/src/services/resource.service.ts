@@ -178,6 +178,8 @@ export async function updateResource(
 
   // If rate changed, archive old rate to price history (handled separately by
   // price-history endpoint; here we just update the master).
+  // FIX (EST-H7): Write a MaterialPriceHistory row when rate changes so
+  // syncEffectiveResourceRate doesn't silently revert manual edits.
   const rateChanged = input.rate !== undefined && input.rate !== Number(existing.rate);
 
   const updated = await prisma.resource.update({
@@ -196,8 +198,20 @@ export async function updateResource(
     },
   });
 
-  // If rate changed, flag dependent rate analyses as stale
+  // FIX (EST-H7): Record the new rate in price history.
   if (rateChanged) {
+    await prisma.materialPriceHistory.create({
+      data: {
+        resourceId: id,
+        companyId,
+        rate: input.rate!,
+        effectiveDate: new Date(),
+        notes: 'Rate updated via resource edit',
+        recordedBy: userId,
+      },
+    });
+
+    // Flag dependent rate analyses as stale
     const affected = await prisma.rateAnalysisComponent.findMany({
       where: { resourceId: id },
       select: { rateAnalysisId: true },

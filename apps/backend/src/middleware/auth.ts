@@ -31,8 +31,14 @@ const BILLING_EXEMPT_PREFIXES = [
   '/api/webhooks/',
 ];
 
-function isBillingExemptPath(path: string): boolean {
-  return BILLING_EXEMPT_PREFIXES.some((p) => path.startsWith(p));
+/**
+ * FIX (SEC-M11): Match on `req.originalUrl` instead of `req.path`, because
+ * `req.path` is the router-relative path (without the `/api` mount prefix)
+ * and never matches the absolute prefixes like `/api/settings/billing`.
+ * This locked expired tenants out of the renewal screens.
+ */
+function isBillingExemptPath(originalUrl: string): boolean {
+  return BILLING_EXEMPT_PREFIXES.some((p) => originalUrl.startsWith(p));
 }
 
 /** True if the company's subscription should block API access. */
@@ -85,7 +91,7 @@ export async function authenticateToken(
     } as Express.Request['user'];
 
     // Subscription enforcement (skipped in test env + on billing-exempt routes).
-    if (env.NODE_ENV !== 'test' && !isBillingExemptPath(req.path)) {
+    if (env.NODE_ENV !== 'test' && !isBillingExemptPath(req.originalUrl)) {
       const company = await prisma.company.findUnique({
         where: { id: decoded.companyId },
         select: { subscriptionStatus: true, trialEndsAt: true },
@@ -113,8 +119,15 @@ export async function optionalAuth(
   const token = extractBearerToken(req);
   if (!token) return next();
   try {
+    // FIX (SEC-M10): require type === 'access' — previously a refresh token
+    // was accepted wherever optionalAuth granted access.
     const decoded = verifyAccessToken(token);
-    if (!(await isTokenBlacklisted(decoded.tid)) && decoded.companyId && decoded.role) {
+    if (
+      decoded.type === 'access' &&
+      !(await isTokenBlacklisted(decoded.tid)) &&
+      decoded.companyId &&
+      decoded.role
+    ) {
       req.user = {
         id: decoded.sub,
         companyId: decoded.companyId,

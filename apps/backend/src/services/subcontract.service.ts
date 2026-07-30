@@ -357,7 +357,9 @@ export async function createWorkOrderFromBoq(
     throw ApiError.badRequest('One or more BOQ items not found on this project');
   }
 
-  const invalid = items.filter((i) => i.category !== 'SUBCONTRACTOR');
+  // FIX (EST-M10): Use startsWith to match SUBCONTRACTOR categories (e.g.
+  // "SUBCONTRACTOR_EARTHWORK") in addition to the base "SUBCONTRACTOR".
+  const invalid = items.filter((i) => !i.category || !i.category.startsWith('SUBCONTRACTOR'));
   if (invalid.length > 0) {
     throw ApiError.badRequest('Only SUBCONTRACTOR BOQ items can be converted to work orders');
   }
@@ -605,10 +607,62 @@ export async function createMeasurement(
 
   const wo = await prisma.subcontractWorkOrder.findFirst({
     where: { id: workOrderId, projectId },
+    include: {
+      contractLines: true,
+      measurements: {
+        where: { status: 'APPROVED' },
+        include: { lines: true },
+      },
+    },
   });
   if (!wo) throw ApiError.notFound('Work order not found');
   if (wo.status !== 'ACTIVE') {
     throw ApiError.badRequest('Measurements can only be added to active work orders');
+  }
+
+  // FIX (EST-M11): Validate measurement lines against contract balance and rate.
+  // For lines linked to a work order line, ensure:
+  // 1. The work order line exists and belongs to this WO
+  // 2. The rate matches the contract rate
+  // 3. The cumulative certified quantity doesn't exceed the contract quantity
+  const woLineById = new Map(wo.contractLines.map((cl) => [cl.id, cl]));
+  const certifiedByLine = new Map<string, number>();
+  for (const m of wo.measurements) {
+    for (const line of m.lines) {
+      if (line.workOrderLineId) {
+        certifiedByLine.set(
+          line.workOrderLineId,
+          (certifiedByLine.get(line.workOrderLineId) ?? 0) + num(line.quantity),
+        );
+      }
+    }
+  }
+
+  for (const inputLine of input.lines) {
+    if (inputLine.workOrderLineId) {
+      const contractLine = woLineById.get(inputLine.workOrderLineId);
+      if (!contractLine) {
+        throw ApiError.badRequest('Measurement line references a work order line that does not exist');
+      }
+      // Validate rate matches contract rate
+      if (inputLine.rate !== num(contractLine.rate)) {
+        throw ApiError.badRequest(
+          `Rate mismatch: contract rate for "${contractLine.description}" is ${num(contractLine.rate)}, ` +
+            `measurement uses ${inputLine.rate}. Rates must match the work order contract.`,
+        );
+      }
+      // Validate cumulative quantity doesn't exceed contract quantity
+      const alreadyCertified = certifiedByLine.get(inputLine.workOrderLineId) ?? 0;
+      const newTotal = alreadyCertified + inputLine.quantity;
+      const contractQty = num(contractLine.contractQty);
+      if (newTotal > contractQty + 0.01) {
+        throw ApiError.badRequest(
+          `Over-measurement for "${contractLine.description}": contract qty is ${contractQty} ${contractLine.unit}, ` +
+            `already certified ${alreadyCertified}, this measurement adds ${inputLine.quantity} (total ${newTotal}). ` +
+            `Maximum remaining: ${round2(contractQty - alreadyCertified)}.`,
+        );
+      }
+    }
   }
 
   const lines = mapMeasurementLines(input.lines);
@@ -763,7 +817,16 @@ export async function approveMeasurement(
     return { measurement: approved, bill };
   });
 
-  await postApprovedMeasurementToBoq(companyId, userId, measurementId, ipAddress);
+  // FIX (EST-M12): Move BOQ posting into a non-fatal post-transaction step.
+  // The measurement approval itself has already committed inside the $transaction
+  // above. If BOQ posting fails here (e.g. a BOQ item was deleted), we don't
+  // want to roll back the approval. The posting is idempotent (it only posts
+  // lines where boqMeasurementPosted is false), so a retry on next access or
+  // manual re-run will pick up any unposted lines.
+  await postApprovedMeasurementToBoq(companyId, userId, measurementId, ipAddress).catch((err) => {
+    // Log but don't throw — the measurement is approved, BOQ can be reconciled.
+    console.error(`[EST-M12] BOQ posting failed for measurement ${measurementId}:`, err);
+  });
 
   return result;
 }

@@ -9,6 +9,7 @@ import type { BoqShortfall } from '@/services/expansion.queries';
 export interface IndentComponent {
   resourceId: string;
   miscName: string | null;
+  resourceName?: string | null;
   unit: string;
   perUnitQty: number;
   totalQty: number;
@@ -272,6 +273,7 @@ export function IndentDraftLineCard({
     const newComponents: IndentComponent[] = raDetailQ.data.components.map((c: RateAnalysisComponent) => ({
       resourceId: c.resourceId ?? '',
       miscName: c.miscName,
+      resourceName: c.resourceName,
       unit: c.unit,
       perUnitQty: parseFloat(String(c.quantityPerUnit)),
       totalQty: parseFloat(String(c.quantityPerUnit)) * lineQty,
@@ -283,7 +285,9 @@ export function IndentDraftLineCard({
     if (existing !== updated) {
       onChange({ ...line, components: newComponents });
     }
-  }, [raDetailQ.data]);
+    // FIX (MOB-H10): Add pendingExplodeBoqId to deps so re-picking a cached
+    // composite BOQ item still triggers the explosion effect.
+  }, [raDetailQ.data, pendingExplodeBoqId]);
 
   // Recalculate component totals when line qty changes
   useEffect(() => {
@@ -586,7 +590,7 @@ export function IndentDraftLineCard({
               </Text>
               {line.components.map((comp, ci) => {
                 const resName = comp.resourceId
-                  ? materials.find((m) => m.id === comp.resourceId)?.name ?? comp.resourceId
+                  ? materials.find((m) => m.id === comp.resourceId)?.name ?? comp.resourceName ?? comp.resourceId
                   : comp.miscName ?? 'Misc';
                 return (
                   <View key={ci} className="flex-row items-center gap-2 py-1 border-t border-accent/10">

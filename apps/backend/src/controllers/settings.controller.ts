@@ -100,6 +100,7 @@ export async function updateUserRole(req: Request, res: Response) {
     req.params.userId,
     req.user!.companyId,
     req.body,
+    req.user!.id, // FIX (SEC-H8): pass caller id for self-role-change guard
   );
   res.locals.audit = { entityId: user.id, newValue: user };
   return ok(res, user);

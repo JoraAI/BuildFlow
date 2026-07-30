@@ -270,7 +270,7 @@ export function EstimateBuildStep({
     <View className="flex-1">
       <ScrollView
         className="flex-1"
-        contentContainerClassName={isDesktop ? 'px-8 py-4 gap-3 pb-40' : 'p-4 gap-3 pb-40'}
+        contentContainerClassName={isDesktop ? 'px-8 py-4 gap-3 pb-40 max-w-6xl w-full self-center' : 'p-4 gap-3 pb-40'}
       >
         {/* Template picker */}
         <Card>

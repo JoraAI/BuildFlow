@@ -287,7 +287,9 @@ function IndentsSection({
   };
 
   const onCreateReq = () => {
-    const validLines = draftLines.filter((l) => l.resourceId);
+    // FIX (MOB-H11): Include BOQ-only lines (no resourceId but has boqItemId)
+    // so they aren't silently dropped. The user sees N lines but only N-1 save.
+    const validLines = draftLines.filter((l) => l.resourceId || l.boqItemId);
     if (validLines.length === 0) {
       void alertAsync('Required', 'Add at least one line with a material selected.');
       return;

@@ -1,7 +1,12 @@
 /**
  * BuildFlow - Razorpay payment service (tenant invoice collection).
  *
- * Credentials resolve per company via integration.service with platform fallback.
+ * SECURITY (SEC-H7/FIN-C2): Webhook verification requires a PER-COMPANY
+ * webhook secret — there is no platform fallback for tenant invoice payments.
+ * `handlePaymentCaptured` is scoped to the verified `companyId`, requires an
+ * explicit captured amount from the payload (never defaults to invoice.total),
+ * dedupes on the Razorpay payment id for idempotency, and only transitions
+ * invoice status forward.
  */
 import crypto from 'crypto';
 import Razorpay from 'razorpay';
@@ -88,13 +93,25 @@ export async function createPaymentLink(
   };
 }
 
+/**
+ * Verify the per-company Razorpay webhook HMAC signature.
+ *
+ * SECURITY (SEC-H7): A per-company `webhookSecret` is REQUIRED. We do NOT fall
+ * back to the platform secret for tenant invoice payments — otherwise one
+ * tenant could settle another's invoices.
+ */
 export async function verifyWebhookSignature(
   companyId: string,
   rawBody: string,
   signature: string,
 ): Promise<boolean> {
   const cfg = await resolveRazorpayConfig(companyId);
-  if (!cfg?.webhookSecret) return false;
+  // Require an explicit per-company webhook secret. No platform fallback.
+  if (!cfg?.webhookSecret) {
+    // Distinguish company-has-no-secret from a genuine signature mismatch for logs.
+    logger.warn('Razorpay webhook rejected: no per-company webhook secret', { companyId });
+    return false;
+  }
   const expected = crypto.createHmac('sha256', cfg.webhookSecret).update(rawBody).digest('hex');
   try {
     return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
@@ -122,40 +139,88 @@ interface RazorpayPaymentLinkPayload {
   };
 }
 
-export async function handlePaymentCaptured(rawBody: string): Promise<{ handled: boolean; invoiceId?: string }> {
+/**
+ * Handle a verified `payment.captured` webhook.
+ *
+ * @param companyId The company resolved from the verified webhook path/secret.
+ * @param rawBody   The raw webhook body (already signature-verified).
+ *
+ * Security invariants enforced here (FIN-C2):
+ *  - Invoice is looked up by `id` AND `companyId` (the verified company).
+ *  - An explicit captured amount from the payload is REQUIRED; we never default
+ *    to `invoice.total`.
+ *  - Idempotency: we dedupe on the Razorpay payment id so replays can't inflate
+ *    `paidAmount`.
+ *  - Status only moves forward (e.g. PARTIAL → PAID), never backward.
+ */
+export async function handlePaymentCaptured(
+  companyId: string,
+  rawBody: string,
+): Promise<{ handled: boolean; invoiceId?: string }> {
   const parsed = JSON.parse(rawBody) as RazorpayPaymentLinkPayload;
+  const paymentId = parsed.payload?.payment?.entity?.id;
   const referenceId =
     parsed.payload?.payment_link?.entity?.reference_id ??
     parsed.payload?.payment?.entity?.notes?.invoice_id;
   if (!referenceId) return { handled: false };
 
+  // Scope the invoice to the VERIFIED company.
   const invoice = await prisma.invoice.findFirst({
-    where: { id: referenceId },
+    where: { id: referenceId, companyId },
     include: { company: { select: { id: true } } },
   });
   if (!invoice) return { handled: false };
 
-  if (invoice.status === 'PAID') return { handled: true, invoiceId: invoice.id };
+  // Idempotency: if we've already recorded this Razorpay payment id, stop.
+  if (paymentId) {
+    const already = await prisma.journalEntry.findFirst({
+      where: { companyId: invoice.companyId, reference: paymentId },
+      select: { id: true },
+    });
+    if (already) return { handled: true, invoiceId: invoice.id };
+  }
 
-  const capturedPaise = parsed.payload?.payment?.entity?.amount ?? num(invoice.total) * 100;
+  // SECURITY (FIN-C2): require an explicit captured amount — never default to total.
+  const capturedPaise = parsed.payload?.payment?.entity?.amount;
+  if (capturedPaise === undefined || capturedPaise === null || !Number.isFinite(capturedPaise)) {
+    logger.warn('Razorpay webhook rejected: missing/invalid captured amount', {
+      invoiceId: invoice.id,
+      paymentId,
+    });
+    return { handled: false };
+  }
   const captured = capturedPaise / 100;
+  if (captured <= 0) {
+    logger.warn('Razorpay webhook rejected: non-positive captured amount', {
+      invoiceId: invoice.id,
+      paymentId,
+      capturedPaise,
+    });
+    return { handled: false };
+  }
+
+  // Only transition status forward, and guard against overpayment.
+  const invoiceTotal = num(invoice.total);
+  const newPaid = Math.min(num(invoice.paidAmount) + captured, invoiceTotal);
+  const newStatus = newPaid >= invoiceTotal ? 'PAID' : invoice.status === 'PAID' ? 'PAID' : invoice.status;
 
   await prisma.$transaction(async (tx) => {
-    const newPaid = num(invoice.paidAmount) + captured;
-    await tx.invoice.update({
-      where: { id: invoice.id },
-      data: {
-        paidAmount: newPaid,
-        status: newPaid >= num(invoice.total) ? 'PAID' : invoice.status,
-      },
+    // Guarded update: only apply if the invoice is not already fully PAID.
+    const updated = await tx.invoice.updateMany({
+      where: { id: invoice.id, status: { not: 'PAID' } },
+      data: { paidAmount: newPaid, status: newStatus },
     });
+    if (updated.count === 0) {
+      // Already PAID — treat as already-handled (idempotent).
+      return;
+    }
     await tx.journalEntry.create({
       data: {
         companyId: invoice.companyId,
         projectId: invoice.projectId,
         entryDate: new Date(),
         description: `Payment captured via Razorpay for ${invoice.invoiceNumber}`,
-        reference: parsed.payload?.payment?.entity?.id ?? 'razorpay',
+        reference: paymentId ?? 'razorpay',
         debitAccount: 'Bank',
         creditAccount: 'Sales',
         amount: captured,

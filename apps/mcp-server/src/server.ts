@@ -10,7 +10,8 @@
  * identity. All subsequent tool calls inherit this identity.
  *
  * Usage:
- *   BUILDFLOW_TOKEN=<jwt> DATABASE_URL=<url> JWT_SECRET=<secret> \
+ *   BUILDFLOW_TOKEN=<jwt> DATABASE_URL=<url> JWT_ACCESS_SECRET=<secret> \
+ *     REDIS_URL=<url> \
  *     pnpm --filter @buildflow/mcp-server start
  *
  * Or via stdio (Claude Desktop config):
@@ -20,9 +21,10 @@
  *         "command": "node",
  *         "args": ["/path/to/mcp-server/dist/server.js"],
  *         "env": {
- *           "BUILDFLOW_TOKEN": "<your-jwt>",
+ *           "BUILDFLOW_TOKEN": "<your-access-jwt>",
  *           "DATABASE_URL": "<your-db-url>",
- *           "JWT_SECRET": "<your-jwt-secret>"
+ *           "JWT_ACCESS_SECRET": "<your-access-secret>",
+ *           "REDIS_URL": "<your-redis-url>"
  *         }
  *       }
  *     }
@@ -35,10 +37,11 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types';
-import { resolveIdentity } from './identity';
+import { resolveIdentity, refreshIdentity } from './identity';
 import { tools, PermissionDeniedError } from './tools';
-import { prisma } from './prisma';
+import { prisma, companyALS } from './prisma';
 import { buildPermissionAwarePrompt, getAllowedTools } from '@buildflow/shared';
+import { disconnectRedis } from './redis';
 
 async function main() {
   // ── Resolve identity from BUILDFLOW_TOKEN ──────────────────────────
@@ -68,6 +71,21 @@ async function main() {
     identity.role,
     identity.companyName,
   );
+
+  // ── Periodic re-validation of the token (FIX SEC-H5) ───────────────
+  // Re-check the blacklist + user-active status every 5 minutes.
+  let currentIdentity = identity;
+  const REVALIDATE_INTERVAL_MS = 5 * 60 * 1000;
+  setInterval(async () => {
+    const refreshed = await refreshIdentity(currentIdentity);
+    if (!refreshed) {
+      console.error('[buildflow-mcp] Token revoked or user deactivated. Shutting down.');
+      await prisma.$disconnect();
+      await disconnectRedis();
+      process.exit(1);
+    }
+    currentIdentity = refreshed;
+  }, REVALIDATE_INTERVAL_MS);
 
   // ── Create the MCP server ─────────────────────────────────────────
   const server = new Server(
@@ -111,7 +129,12 @@ async function main() {
     }
 
     try {
-      const result = await tool.handler(identity, args ?? {});
+      // FIX (SEC-H6): wrap every tool call in the company ALS context so the
+      // Prisma tenant-scoping middleware enforces companyId isolation.
+      const result = await companyALS.run(
+        { companyId: currentIdentity.companyId },
+        () => tool.handler(currentIdentity, args ?? {}),
+      );
       return {
         content: [
           {
@@ -140,6 +163,7 @@ async function main() {
   // ── Graceful shutdown ─────────────────────────────────────────────
   process.on('SIGINT', async () => {
     console.error('[buildflow-mcp] Shutting down...');
+    await disconnectRedis();
     await prisma.$disconnect();
     process.exit(0);
   });

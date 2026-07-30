@@ -10,6 +10,7 @@ import { PrismaClient, Role, ProjectType, ProjectStatus, ResourceType, InvoiceSt
 import bcrypt from 'bcryptjs';
 import { CATALOG_DATA, type CatalogItem } from './catalog-data';
 import { RATE_ANALYSES } from './rate-analysis-data';
+import { disconnectRedis } from '../src/lib/redis';
 
 const prisma = new PrismaClient();
 
@@ -78,7 +79,23 @@ const COMPANY_LOGO =
 async function main(): Promise<void> {
   // ----------------------------------------------------------------
   // Reset - truncate all tables for a clean, idempotent seed run
+  //
+  // FIX (DAT-3.1): Refuse to TRUNCATE unless NODE_ENV !== 'production'
+  // AND an explicit SEED_ALLOW_TRUNCATE=1 is set. This prevents accidental
+  // data loss in production. The misleading "idempotent-ish" comment is
+  // corrected: the seed TRUNCATES (not upserts) — it's a full reset.
   // ----------------------------------------------------------------
+  if (process.env.NODE_ENV === 'production' && process.env.SEED_ALLOW_TRUNCATE !== '1') {
+    throw new Error(
+      'Seed refuses to TRUNCATE in production. Set SEED_ALLOW_TRUNCATE=1 to override.',
+    );
+  }
+  if (process.env.SEED_ALLOW_TRUNCATE !== '1' && process.env.NODE_ENV !== 'test' && process.env.NODE_ENV !== 'development') {
+    throw new Error(
+      'Seed refuses to TRUNCATE without SEED_ALLOW_TRUNCATE=1. Set it explicitly to confirm data wipe.',
+    );
+  }
+
   const tables = await prisma.$queryRaw<{ tablename: string }[]>`
     SELECT tablename FROM pg_tables
     WHERE schemaname = 'public' AND tablename != '_prisma_migrations'
@@ -1512,5 +1529,8 @@ main()
     process.exit(1);
   })
   .finally(async () => {
+    // FIX (DAT-1.1): Disconnect Redis too — otherwise the open ioredis
+    // connection keeps the process alive and the seed never exits.
+    await disconnectRedis();
     await prisma.$disconnect();
   });

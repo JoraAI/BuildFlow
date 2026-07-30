@@ -113,7 +113,23 @@ export const useAuthStore = create<AuthState>((set) => ({
               isLoading: false,
             });
             return;
-          } catch {
+          } catch (err) {
+            // FIX (MOB-H5): If the error is a NETWORK_ERROR (status 0), keep the
+            // cached user and tokens and continue in a degraded/offline mode.
+            // This is essential for field use in dead zones — the user should
+            // NOT be logged out just because they're offline.
+            const isNetworkError =
+              err instanceof Error && (err.message.includes('NETWORK_ERROR') || (err as { status?: number }).status === 0);
+            if (isNetworkError) {
+              set({
+                accessToken: token,
+                user: parsed,
+                isAuthenticated: true,
+                isLoading: false,
+              });
+              return;
+            }
+            // Genuine auth failure (401 after refresh attempt) — log out.
             queryClient.clear();
             await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.ACCESS_TOKEN);
             await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.REFRESH_TOKEN);

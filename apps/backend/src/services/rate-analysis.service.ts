@@ -44,13 +44,15 @@ function breakdownByType(components: Array<{ type: CostType; amount: number }>) 
   return bd;
 }
 
+/**
+ * FIX (EST-H8): Wrap the delete-then-recreate of components AND the total
+ * update in a single $transaction so a failure mid-way doesn't leave the
+ * rate analysis with zero components but a stale total.
+ */
 async function persistComponents(
   rateAnalysisId: string,
   components: CreateRateAnalysisComponentInput[],
 ): Promise<{ amounts: number[]; total: number }> {
-  // Delete old, insert new (full replace)
-  await prisma.rateAnalysisComponent.deleteMany({ where: { rateAnalysisId } });
-
   const data = components.map((c) => {
     const amount = computeComponentAmount(c);
     return {
@@ -65,9 +67,16 @@ async function persistComponents(
     };
   });
 
-  await prisma.rateAnalysisComponent.createMany({ data });
+  const total = computeTotal(data.map((d) => ({ amount: d.amount })));
+
+  await prisma.$transaction([
+    prisma.rateAnalysisComponent.deleteMany({ where: { rateAnalysisId } }),
+    prisma.rateAnalysisComponent.createMany({ data }),
+    prisma.rateAnalysis.update({ where: { id: rateAnalysisId }, data: { totalRate: total, stale: false } }),
+  ]);
+
   const amounts = data.map((d) => d.amount);
-  return { amounts, total: computeTotal(data.map((d) => ({ amount: d.amount }))) };
+  return { amounts, total };
 }
 
 /* ------------------------------------------------------------------ */

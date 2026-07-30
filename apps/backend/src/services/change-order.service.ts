@@ -202,6 +202,17 @@ export async function approveChangeOrder(
   const materialDemands: MaterialDemandLine[] = [];
 
   await prisma.$transaction(async (tx) => {
+    // FIX (EST-H5): Guard the approval with a conditional updateMany so that
+    // two concurrent approvals can't both pass the read-check and double-apply
+    // the BOQ/budget changes. If count === 0, another request already approved.
+    const guard = await tx.changeOrder.updateMany({
+      where: { id, companyId, status: 'SUBMITTED' },
+      data: { status: 'APPROVED', approvedBy: userId, approvedAt: new Date(), rejectionReason: null },
+    });
+    if (guard.count === 0) {
+      throw ApiError.conflict('This variation has already been processed or is no longer in SUBMITTED status');
+    }
+
     for (const line of co.lines) {
       if (line.boqItemId) {
         const boq = await tx.bOQItem.findFirst({ where: { id: line.boqItemId, projectId: co.projectId } });
@@ -264,10 +275,7 @@ export async function approveChangeOrder(
       data: { budget: { increment: co.costImpact } },
     });
 
-    await tx.changeOrder.update({
-      where: { id },
-      data: { status: 'APPROVED', approvedBy: userId, approvedAt: new Date(), rejectionReason: null },
-    });
+    // Status was already set to APPROVED by the guarded updateMany above.
   });
 
   if (materialDemands.length > 0) {

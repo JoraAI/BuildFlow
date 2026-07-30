@@ -1,0 +1,39 @@
+/**
+ * Mock for ioredis — prevents Redis connections during tests.
+ * Mapped via jest.config.js moduleNameMapper.
+ */
+function createMockRedis() {
+  const handlers = {};
+  return {
+    get: () => Promise.resolve(null),
+    set: () => Promise.resolve('OK'),
+    setex: () => Promise.resolve('OK'),
+    del: () => Promise.resolve(1),
+    quit: () => Promise.resolve('OK'),
+    disconnect: () => {},
+    on: (event, handler) => { handlers[event] = handler; },
+    emit: (event, ...args) => { handlers[event]?.(...args); },
+    ping: () => Promise.resolve('PONG'),
+    exists: () => Promise.resolve(0),
+    expire: () => Promise.resolve(1),
+    ttl: () => Promise.resolve(-1),
+    incr: () => Promise.resolve(1),
+    decr: () => Promise.resolve(0),
+    hget: () => Promise.resolve(null),
+    hset: () => Promise.resolve(1),
+    hgetall: () => Promise.resolve({}),
+    hdel: () => Promise.resolve(1),
+    sadd: () => Promise.resolve(1),
+    srem: () => Promise.resolve(1),
+    smembers: () => Promise.resolve([]),
+    zadd: () => Promise.resolve(1),
+    zrange: () => Promise.resolve([]),
+    zrem: () => Promise.resolve(1),
+    keys: () => Promise.resolve([]),
+    flushdb: () => Promise.resolve('OK'),
+  };
+}
+
+module.exports = function MockRedis() {
+  return createMockRedis();
+};

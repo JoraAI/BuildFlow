@@ -19,10 +19,11 @@ const router = Router();
 router.use(authenticateToken);
 
 // Project-scoped reports
-router.get('/projects/:id/financials/pl', ctrl.getProfitLoss);
-router.get('/projects/:id/financials/cashflow', ctrl.getCashFlow);
-router.get('/projects/:id/financials/estimate-vs-actual', ctrl.getEstimateVsActual);
-router.get('/projects/:id/financials/export-tally', ctrl.exportProjectTally);
+// FIX (FIN-M8): Gate financial routes with requireRole for OWNER, PM, ACCOUNTANT.
+router.get('/projects/:id/financials/pl', requireRole('OWNER', 'PM', 'ACCOUNTANT'), ctrl.getProfitLoss);
+router.get('/projects/:id/financials/cashflow', requireRole('OWNER', 'PM', 'ACCOUNTANT'), ctrl.getCashFlow);
+router.get('/projects/:id/financials/estimate-vs-actual', requireRole('OWNER', 'PM', 'ACCOUNTANT'), ctrl.getEstimateVsActual);
+router.get('/projects/:id/financials/export-tally', requireRole('OWNER', 'PM', 'ACCOUNTANT'), ctrl.exportProjectTally);
 
 // Company-wide reports
 router.get(

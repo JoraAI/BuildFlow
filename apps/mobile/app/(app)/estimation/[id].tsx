@@ -307,7 +307,7 @@ export default function EstimateDetailScreen() {
       />
       <OfflineBanner />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
-        <ScrollView contentContainerClassName={isDesktop ? 'px-8 py-6 gap-4 pb-8' : 'p-4 gap-4 pb-32'}>
+        <ScrollView contentContainerClassName={isDesktop ? 'px-8 py-6 gap-4 pb-8 max-w-6xl w-full self-center' : 'p-4 gap-4 pb-32'}>
           {/* Header */}
           <Card>
             <View className="flex-row justify-between items-start mb-2">

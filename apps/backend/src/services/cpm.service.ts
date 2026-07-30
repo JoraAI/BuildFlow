@@ -35,10 +35,14 @@ export interface CpmResult {
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
-/** Topological sort (Kahn's algorithm) respecting predecessor relationships. */
+/**
+ * Topological sort (Kahn's algorithm) respecting predecessor relationships.
+ *
+ * FIX (FIN-H7): Throws on cycle instead of silently breaking it.
+ */
 function topoSort(tasks: CpmTask[], deps: CpmDependency[]): string[] {
   const inDegree = new Map<string, number>();
-  const graph = new Map<string, string[]>(); // predecessor -> [successors]
+  const graph = new Map<string, string[]>();
   for (const t of tasks) {
     inDegree.set(t.id, 0);
     graph.set(t.id, []);
@@ -59,9 +63,11 @@ function topoSort(tasks: CpmTask[], deps: CpmDependency[]): string[] {
       if (nd === 0) queue.push(succ);
     }
   }
-  // Detect cycle - if not all nodes sorted, append remaining (breaks cycle gracefully)
   if (sorted.length < tasks.length) {
-    for (const t of tasks) if (!sorted.includes(t.id)) sorted.push(t.id);
+    const cyclic = tasks.filter((t) => !sorted.includes(t.id)).map((t) => t.id);
+    throw new Error(
+      `Cycle detected in task dependencies. Tasks involved: ${cyclic.join(', ')}.`,
+    );
   }
   return sorted;
 }
@@ -92,22 +98,27 @@ export function computeCriticalPath(tasks: CpmTask[], deps: CpmDependency[]): Cp
     const preds = predsOf.get(id) ?? [];
     let es = 0;
     for (const p of preds) {
-      const pDur = duration.get(p.predecessorId) ?? 1;
       const pEF = earlyFinish.get(p.predecessorId) ?? 0;
       const pES = earlyStart.get(p.predecessorId) ?? 0;
       switch (p.type) {
         case 'FS':
+          // FIX (FIN-H6): successor starts after predecessor finishes + lag.
           es = Math.max(es, pEF + p.lagDays);
           break;
         case 'SS':
+          // FIX (FIN-H6): successor starts after predecessor starts + lag.
           es = Math.max(es, pES + p.lagDays);
           break;
         case 'FF':
-          es = Math.max(es, pEF + p.lagDays - dur + pDur);
-          es = Math.max(es, pEF - pDur + p.lagDays);
+          // FIX (FIN-H6): successor must finish after predecessor finishes + lag.
+          // So: successor_earlyFinish >= pEF + lag → es >= pEF + lag - dur.
+          // The old formula incorrectly added `pDur`.
+          es = Math.max(es, pEF + p.lagDays - dur);
           break;
         case 'SF':
-          es = Math.max(es, pES - dur + p.lagDays);
+          // FIX (FIN-H6): successor finishes after predecessor starts + lag.
+          // So: successor_earlyFinish >= pES + lag → es >= pES + lag - dur.
+          es = Math.max(es, pES + p.lagDays - dur);
           break;
         default:
           es = Math.max(es, pEF + p.lagDays);

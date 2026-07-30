@@ -90,8 +90,10 @@ describe('RA invoices (integration)', () => {
       Number(inv.previousCertifiedTotal) + Number(inv.currentCertifiedTotal),
       0,
     );
+    // FIX (FIN-H4): Retention is on currentCertifiedTotal (this bill's portion),
+    // not cumulative. Prior bills already had their retention deducted.
     expect(Number(inv.retentionAmount)).toBeCloseTo(
-      (Number(inv.cumulativeCertifiedTotal) * 5) / 100,
+      (Number(inv.currentCertifiedTotal) * 5) / 100,
       0,
     );
   });
