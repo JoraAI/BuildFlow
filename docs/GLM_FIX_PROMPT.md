@@ -1,15 +1,14 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 5)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 6)
 
 > **You do not need any prior conversation or other documents.** This file is the
 > complete task brief. Read it top to bottom, then execute **Section 2** in order.
 > [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
 >
 > **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
-> **Last committed baseline:** `66a40eb` ("updates")  
-> **Your starting point:** a large **uncommitted** working tree. Rounds 3–4 closed
-> compile, migration, and test gates; **Round 5** is merge prep plus any remaining
-> optional hardening. Verify everything with §2.1 — do not assume fixes landed
-> until commands pass locally.
+> **Last committed baseline:** `0690200` (Round 5 — 3 commits ahead of `66a40eb`)  
+> **Your starting point:** working tree mostly clean; **one uncommitted test fix**
+> (resource-bulk IST date). Round 5 commits landed; verify gates and finish
+> optional hardening per §2.2.
 
 ---
 
@@ -67,46 +66,52 @@ BuildFlow spans the full project lifecycle:
 
 ---
 
-## 2. Round 5 — Standalone Work Order (execute in this order)
+## 2. Round 6 — Standalone Work Order (execute in this order)
 
-Round 4 closed money/workflow partials, Phase 5 smoke tests, state machines,
-tablet UI, and the skipped estimate-links test. **Your job now:** verify ship
-gates, **commit the uncommitted tree**, and optionally close the remaining low-
-priority gaps below — without re-breaking what already passes.
+Round 5 committed the Phase 5 tree in three commits (`91c6b4f` migrations,
+`1de2c8a` Phase 5 modules, `0690200` Round 4 fixes + docs). **Your job now:**
+commit the remaining test fix, verify ship gates, push if asked, and optionally
+close §2.2 gaps — without re-breaking §2.0a.
 
-### 2.0 Current state (verified 2026-08-02 after Round 4)
+### 2.0 Current state (verified 2026-08-02 after Round 5)
 
 | Check | Status |
 | ----- | ------ |
-| `npx tsc --noEmit -p apps/backend` | **PASS** |
-| `npx tsc --noEmit -p apps/mobile` | **PASS** |
-| `pnpm --filter @buildflow/backend test` ×2 | **20/20 suites, 98 pass, 0 skip**, idempotent |
-| `pnpm install --frozen-lockfile` | **PASS** (verify locally) |
+| Git | **3 commits** on `main` ahead of `origin/main`; working tree has **1 modified file** (see below) |
+| `tsc` backend + mobile | **PASS** |
+| `pnpm --filter @buildflow/backend test` ×2 | **20/20 suites, 98 pass, 0 skip** (after IST date fix) |
+| `pnpm install --frozen-lockfile` | **PASS** |
 | Stray `prisma/m` | **GONE** |
-| `/api/sync` | **UNMOUNTED** (correct — stub until schema + mobile client ready) |
+| `/api/sync` | **UNMOUNTED** ✓ |
 
-**Primary Round 5 task:** commit all untracked migration folders, Phase 5 source
-files, and modified files into one or more logical commits (see §2.2).
+**Round 5 — what GLM delivered (verified):**
+- ✓ Migrations + schema (`91c6b4f`)
+- ✓ Phase 5 backend modules + `phase5.test.ts` + `status-transition.ts` (`1de2c8a`)
+- ✓ Money/workflow/mobile/security fixes + docs (`0690200`)
+- ✓ Portal routes before estimate catch-all; estimate `asyncHandler`; sync unmounted
 
-### 2.0a Completed in Rounds 3–4 — do NOT re-break
+**Round 5 — gap found on verify:**
+- `resource-bulk.test.ts` used UTC `toISOString().slice(0,10)` for `effectiveDate`
+  but validators use `todayDateOnly()` (**Asia/Kolkata**) → 422 in bulk-price tests.
+  **Fix:** use `todayDateOnly()` from `@buildflow/shared` (already applied locally,
+  **needs commit**).
+
+### 2.0a Completed in Rounds 3–5 — do NOT re-break
 
 | Area | Fix (file / pattern) |
 | ---- | -------------------- |
-| **EST-C1** | `boq.service.ts` — material demand uses `topLevelEstimateItems` only (not all `estimate.items`) |
-| **EST-M8** | `estimate-export.service.ts` — sheet 3 loads RAs by `item.rateAnalysisId` |
-| **EST-M11** | `subcontract.service.ts` — `updateMeasurement` validates rate/qty/balance like create |
-| **FIN-H5 / R2-7** | `tally.service.ts` — retention ledger line; `normalizeStateCode()` via `INDIAN_STATES`; `TallyLedgerMap.retention` |
-| **FIN-M1** | `gst.service.ts` — `lineAmount`, `sumAmounts`, `netTotal`; used in invoice + bill services |
-| **FIN-M9** | `analytics.service.ts` — all-time `paidAmount` cash baseline; budget burn uses paid only |
-| **R2-6** | `procurement.service.ts` + `validators/procurement.ts` — PO lines match req by `boqItemId` |
-| **NR-34** | `lib/status-transition.ts` + guarded transitions in RFI/submittal/punch/petty-cash services |
-| **NR-49** | `accounting-export.service.ts` — CSV formula-injection prefix |
-| **NR-41/53/54/40** | `Select.tsx`, `AuthScreenShell.tsx`, `AppTopBar.tsx`, `ScreenContainer.tsx` |
-| **NR-35** | `offline-sync.service.ts` — attendance replay → `/checkin` + `/checkout` |
-| **Portal routing** | `app.ts` — public `/api/portal/*` registered **before** catch-all `/api` estimate router |
-| **estimate-links** | `estimate.routes.ts` — `/submit` wrapped in `asyncHandler`; skipped test re-enabled |
-| **Phase 5 tests** | `__tests__/integration/phase5.test.ts` — petty cash, punch, RFI, drawing, portal scope |
-| **Compile / tenant / counters** | Round 3 items in prior table — validate(), migrations, NR-32/33/45, etc. |
+| **EST-C1** | `boq.service.ts` — material demand uses `topLevelEstimateItems` only |
+| **EST-M8** | `estimate-export.service.ts` — RAs by `item.rateAnalysisId` |
+| **EST-M11** | `subcontract.service.ts` — `updateMeasurement` validation |
+| **FIN-H5 / R2-7** | `tally.service.ts` — retention ledger; `normalizeStateCode()` |
+| **FIN-M1 / FIN-M9** | `gst.service.ts` paise helpers; `analytics.service.ts` cash baseline |
+| **R2-6** | `procurement.service.ts` — PO lines by `boqItemId` |
+| **NR-34** | `lib/status-transition.ts` + guarded RFI/submittal/punch/petty-cash |
+| **NR-41/53/54/40/35/49** | Mobile UI + offline URLs + CSV injection |
+| **Portal routing** | `app.ts` — `/api/portal/*` before auth catch-all |
+| **Phase 5** | punch-list, petty-cash, drawings, RFI/submittal, portal-enhanced, etc. |
+| **Tests** | `phase5.test.ts`, estimate-links unskipped, 98 tests total |
+| **Tenant / security (R5)** | prisma write scoping, webhook HMAC, compression/auth, MCP scoping |
 
 ### 2.1 Ship gates — run before AND after every change
 
@@ -119,119 +124,68 @@ pnpm --filter @buildflow/backend test
 pnpm --filter @buildflow/backend test   # must match previous run
 pnpm install --frozen-lockfile
 
-# Test DB must have Phase 5 migrations (petty cash, etc.):
 DATABASE_URL="postgresql://buildflow:buildflow@localhost:5432/buildflow_test?schema=public" \
   pnpm --filter @buildflow/backend exec prisma migrate deploy
 ```
 
 **Regression on any gate = stop and fix before continuing.**
 
-### 2.2 Priority 1 — Commit the working tree (required)
+### 2.2 Priority 1 — Commit test fix + verify (required)
 
-The working tree contains ~40 untracked Phase 5 files and ~10 migration folders.
-**Do not merge without committing them.**
+1. Commit `apps/backend/src/__tests__/integration/resource-bulk.test.ts` — use
+   `todayDateOnly()` not UTC ISO for bulk-price `effectiveDate`.
+2. Re-run ship gates (§2.1).
+3. **Test date rule:** any test sending `effectiveDate` / date-only fields validated
+   against `todayDateOnly()` must use `todayDateOnly()` from `@buildflow/shared`,
+   not `new Date().toISOString().slice(0, 10)`.
 
-1. Run ship gates (§2.1).
-2. Stage and commit in logical groups (suggested):
-   - **Migrations:** all `apps/backend/prisma/migrations/20260731*` folders
-   - **Phase 5 backend:** punch-list, petty-cash, drawings, RFI/submittal, portal-
-     enhanced, accounting-export, labour, i18n, sync (source only; sync stays unmounted)
-   - **Round 4 fixes:** tally, procurement, analytics, gst/invoice/bill, status-
-     transition, app.ts portal order, mobile UI, tests, shared validators
-   - **Docs:** `docs/GLM_FIX_PROMPT.md`, `docs/AUDIT_FINDINGS.md` (if updated)
-3. **Never commit:** `.env`, `.env.test` secrets, credentials, `.filestore/`
-4. Re-run ship gates after commit.
+### 2.3 Priority 2 — Optional (only if gates stay green)
 
-### 2.3 Priority 2 — Optional hardening (only if time; skip if gates regress)
-
-| ID | File | Task |
-| -- | ---- | ---- |
-| **Phase 5 gaps** | `inventory-traceability`, `accounting-export`, `labour`, `i18n` | Add one integration smoke test each (copy `phase5.test.ts` pattern), or unmount stub routes |
-| **NR-36** | `drawing.service.ts` | Drawing acknowledgement endpoint — or document deferred in AUDIT_FINDINGS |
-| **Sync §8.1** | `sync.service.ts`, `app.ts` | Leave **unmounted** until `updatedAt` on Task/DailyReport + mobile replay client |
-| **DAT-3.8** | `package.json` test script | Remove `--forceExit` once no open-handle hangs remain |
-| **SEC-L17/21/22** | error handler, mobile download, compression | Low-priority security polish (§2.7 in appendix) |
+| ID | Task |
+| -- | ---- |
+| **Phase 5 gaps** | Integration smoke tests for inventory-traceability, accounting-export, labour, i18n (copy `phase5.test.ts`) |
+| **NR-36** | Drawing acknowledgement endpoint — or document deferred |
+| **Sync §8.1** | Leave **unmounted** until `updatedAt` + mobile replay client |
+| **DAT-3.8** | Remove `--forceExit` from jest script when stable |
+| **SEC-L17/21/22** | Low-priority security polish |
+| **Push** | `git push origin main` only when user asks |
 
 ### 2.4 Codebase patterns (keep following)
 
-#### A. Route validation (`validate` middleware)
-
-`apps/backend/src/middleware/validate.ts` expects `{ body?, query?, params? }` each
-a Zod schema. **Template:** `punch-list.routes.ts`, `drawing.routes.ts`.
-
-#### B. Public routes before catch-all `/api` routers
-
-Any **unauthenticated** route under `/api/*` must be mounted **before** routers that
-apply `authenticateToken` to the whole `/api` prefix (e.g. `estimateRouter`).
-**Bug fixed in Round 4:** portal links returned 401 when registered after estimate router.
-
-#### C. Prisma migrations
-
-Every schema model change needs `migrations/<timestamp>_<name>/migration.sql`.
-Never write SQL to `prisma/m` or extensionless route files.
-
-#### D. Document counters (`id-generator.ts`)
-
-Use `nextSequentialNumberTx(tx, …)` inside transactions. Types: `'invoice'`, `'rfi'`,
-`'submittal'`, `'petty-cash'`, etc.
-
-#### E. Status machines (`lib/status-transition.ts`)
-
-Whitelist transitions per entity; use guarded `updateMany({ where: { id, status } })`
-for answer/review endpoints. **Do not** allow arbitrary status via generic PUT.
-
-#### F. Viewport (`useViewport.ts`)
-
-`isPhone` <768 · `isTablet` 768–1023 · `isDesktop` ≥1024. Use `isTablet` for
-Select/sheets at 768+, not `isDesktop`.
-
-#### G. Money math (`gst.service.ts`)
-
-Use `lineAmount` / `sumAmounts` / `netTotal` for line items and bill totals; GST
-already uses paise in `calculateGST`.
+Same as Round 5: validate middleware, public routes before auth catch-all,
+migrations in folders, `nextSequentialNumberTx`, `status-transition.ts`, viewport
+tiers, `lineAmount`/`sumAmounts`/`netTotal` for money.
 
 ### 2.5 Anti-patterns — do not repeat
 
-| Anti-pattern | What went wrong before | Prevention |
-| ------------ | ---------------------- | ---------- |
-| Stray file | `prisma/m`, `hooks/use`, `reports-hub/index` | Edit live imported files only |
-| Wrapper `validate()` | Routes validated nothing | Flat `{ params, body }` map |
-| Half SDK bump | manifest 52, lockfile 51 | One SDK version end-to-end |
-| FIX comment, broken code | Truncated `STATE_NAME_TO_CODE` in tally | Run tsc + test after every fix |
-| Public route after auth router | Portal 401 "Missing authorization token" | Mount `/api/portal` before `/api` estimate router |
-| Ship stub routes | sync would 500 | Unmount until DoD met |
+| Anti-pattern | Prevention |
+| ------------ | ---------- |
+| UTC dates in tests vs IST validators | Use `todayDateOnly()` in tests |
+| Stray files (`prisma/m`, extensionless routes) | Edit live files only |
+| Public route after auth router | Mount `/api/portal` before `/api` estimate router |
+| Ship stub sync route | Keep `/api/sync` unmounted |
 
-### 2.6 Round-5 Definition of Done
+### 2.6 Round-6 Definition of Done
 
-- [ ] Ship gates pass (§2.1) on clean checkout of your commits
-- [ ] All untracked migrations + Phase 5 source committed (§2.2)
-- [ ] No stray files (`prisma/m`, extensionless hooks/routes)
-- [ ] Backend tests **20/20 suites, 98 pass, 0 skip**, idempotent ×2
-- [ ] `AUDIT_FINDINGS.md` Round-4 delta appended for items you touch (optional)
-- [ ] Sync remains **unmounted** unless §8.1 fully implemented
+- [x] Round 5 commits on `main` (migrations + Phase 5 + fixes)
+- [ ] `resource-bulk.test.ts` IST fix committed
+- [ ] Ship gates pass (§2.1) ×2 idempotent
+- [ ] Optional §2.3 items or documented deferrals
+- [ ] Sync remains **unmounted**
 
 ---
 
-### APPENDIX — Round 4 work order (completed; reference only)
+### APPENDIX — Round 5 work order (completed; reference only)
 
 <details>
-<summary>§2.3–2.9 Round 4 items (superseded by §2 above)</summary>
+<summary>Round 5 items (superseded by §2 above)</summary>
 
-Round 4 closed all items below. Do not re-open unless a gate regresses.
-
-**Money & workflow (done):** EST-C1, EST-M8, EST-M11, FIN-H5, FIN-M1, FIN-M9,
-R2-6, R2-7.
-
-**Phase 5 (done):** NR-34 state machines, `phase5.test.ts`, NR-49 CSV injection.
-**Still optional:** inventory/labour/i18n smoke tests, NR-36 drawing ack.
-
-**Mobile/tablet (done):** NR-41, NR-53, NR-54, NR-40, NR-35, MOB-C2 (retry rethrow).
-
-**Tests (done):** estimate-links unskipped; `asyncHandler` on `/estimates/:id/submit`.
+Round 5 closed: commit working tree, Phase 5 modules, money/workflow fixes.
+Verify found bulk-price test timezone bug (NR-55).
 
 </details>
 
-<!-- Legacy §2.3–2.9 blocks retained below for audit trail; Section 2 wins on conflict. -->
+<!-- Legacy sections below for audit trail; Section 2 wins on conflict. -->
 
 ## 3. Global Engineering Rules (apply to every change)
 
@@ -1105,7 +1059,7 @@ NR-2) and the Phase 5 enhancements.
 
 ---
 
-# Round 3 duplicate section — superseded by Section 2 (Round 5)
+# Round 3 duplicate section — superseded by Section 2 (Round 6)
 
 > **Execute Section 2 only.** Round 3 gates are closed. The R3.0–R3.7 subsections
 > below are kept for reference; if they conflict with Section 2, **Section 2 wins**.

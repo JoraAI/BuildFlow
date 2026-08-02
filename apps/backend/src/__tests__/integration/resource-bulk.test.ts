@@ -1,12 +1,7 @@
 /**
  * Resource bulk operations integration tests.
- *
- * Covers:
- *  - bulkUpsertResources: creates new + updates existing (by name+type)
- *  - bulkPriceUpdate: absolute mode updates rate + logs price history
- *  - bulkPriceUpdate: percent mode applies relative change
- *  - bulkPriceUpdate: reports notFound for unknown ids
  */
+import { todayDateOnly } from '@buildflow/shared';
 import { loginAs, authGet, authPost } from './test-helpers';
 
 const OWNER = 'owner@reddyconst.com';
@@ -66,7 +61,7 @@ describe('Resource bulk operations (integration)', () => {
     const resourceId = await getFirstMaterialId(token);
     const before = await getMaterial(token, resourceId);
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayDateOnly();
     const res = await authPost(token, '/api/resources/bulk-price', {
       mode: 'absolute',
       effectiveDate: today,
@@ -87,7 +82,7 @@ describe('Resource bulk operations (integration)', () => {
     const before = await getMaterial(token, resourceId);
     const expected = Math.round((before.rate * 1.1 + Number.EPSILON) * 100) / 100; // +10%
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayDateOnly();
     const res = await authPost(token, '/api/resources/bulk-price', {
       mode: 'percent',
       effectiveDate: today,
@@ -100,7 +95,7 @@ describe('Resource bulk operations (integration)', () => {
   });
 
   it('bulk-price reports notFound for unknown ids', async () => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayDateOnly();
     const res = await authPost(token, '/api/resources/bulk-price', {
       mode: 'absolute',
       effectiveDate: today,
