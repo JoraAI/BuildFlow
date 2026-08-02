@@ -1,0 +1,11 @@
+import { Router } from 'express';
+import * as ctrl from '../controllers/accounting-export.controller';
+import { authenticateToken, requireRole } from '../middleware/auth';
+import { Role } from '@buildflow/shared';
+export const accountingExportRouter = Router();
+accountingExportRouter.use(authenticateToken);
+const EXPORT_ROLE = requireRole(Role.OWNER, Role.ACCOUNTANT, Role.PM);
+accountingExportRouter.get('/journal-csv', EXPORT_ROLE, ctrl.exportJournal);
+accountingExportRouter.get('/sales-register-csv', EXPORT_ROLE, ctrl.exportSales);
+accountingExportRouter.get('/purchase-register-csv', EXPORT_ROLE, ctrl.exportPurchase);
+accountingExportRouter.get('/quickbooks-csv', EXPORT_ROLE, ctrl.exportQuickBooks);
