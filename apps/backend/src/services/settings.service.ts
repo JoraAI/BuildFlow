@@ -205,9 +205,11 @@ export async function updateUser(
   if (data.role === 'OWNER') {
     throw new ApiError('FORBIDDEN', 'Cannot assign the OWNER role via this endpoint');
   }
-  if (data.role === 'SITE_SUPERVISOR') {
-    // Normalize legacy SUPERVISOR to SITE_SUPERVISOR
-    data.role = 'SUPERVISOR';
+  // FIX (NR-16): Normalize the legacy SUPERVISOR enum value to the current
+  // SITE_SUPERVISOR (DAT-4.2 intent). The previous code was inverted — it
+  // mapped the NEW value back to the DEPRECATED one.
+  if (data.role === 'SUPERVISOR') {
+    data.role = 'SITE_SUPERVISOR';
   }
 
   // Prevent a user from deactivating themselves or removing their own OWNER role.

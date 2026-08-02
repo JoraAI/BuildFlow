@@ -254,9 +254,13 @@ async function loadProjectSummary(companyId: string, id: string) {
   ]);
 
   const taskCount = tasks.length;
+  // FIX (FIN-M5): Planned progress should be duration-weighted:
+  // Σ(dur × progress) / Σ(dur). The old formula used (100 - progressPct)
+  // which inverted the meaning and could exceed 100%.
+  const totalDuration = tasks.reduce((s, t) => s + t.durationDays, 0);
   const plannedProgress =
-    taskCount > 0
-      ? Math.round(tasks.reduce((s, t) => s + t.durationDays * (100 - t.progressPct), 0) / taskCount)
+    totalDuration > 0
+      ? Math.round(tasks.reduce((s, t) => s + t.durationDays * t.progressPct, 0) / totalDuration)
       : 0;
   const actualProgress =
     taskCount > 0

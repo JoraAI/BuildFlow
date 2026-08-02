@@ -123,7 +123,13 @@ export async function createReport(
 
   await getProject(companyId, projectId);
 
-  const reportDate = new Date(input.reportDate);
+  // FIX (FIN-M6): Normalize reportDate to date-only (midnight UTC) so the
+  // @@unique([projectId, reportDate]) constraint works correctly regardless
+  // of the time component in the input. Previously a report at 2025-01-15T10:30
+  // and one at 2025-01-15T14:00 would both pass the findFirst check but fail
+  // the unique constraint at the DB level with a confusing error.
+  const rawDate = new Date(input.reportDate);
+  const reportDate = new Date(Date.UTC(rawDate.getUTCFullYear(), rawDate.getUTCMonth(), rawDate.getUTCDate()));
 
   // Enforce one report per project per day
   const existing = await prisma.dailyReport.findFirst({

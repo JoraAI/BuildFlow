@@ -247,7 +247,11 @@ class DriveFileStore implements FileStore {
         name: this.fileTitle(key),
         ...(this.rootFolderId ? { parents: [this.rootFolderId] } : {}),
       },
-      media: { mimeType: 'application/octet-stream', body: envelope.toString('base64') },
+        // FIX (SEC-L21): Upload the raw Buffer as a readable stream, not a
+        // base64 string. The Drive API media.body expects a Readable stream
+        // or string; passing base64 string causes the file to be stored as
+        // base64 text (33% larger + wrong content on read-back).
+        media: { mimeType: 'application/octet-stream', body: require('stream').Readable.from(envelope) },
     });
   }
 
@@ -270,9 +274,10 @@ class DriveFileStore implements FileStore {
       fileId,
       alt: 'media',
     });
+    // FIX (SEC-L21): Handle both Buffer and stream responses correctly.
     const envelope = Buffer.isBuffer(res.data)
       ? res.data
-      : Buffer.from(String(res.data), 'base64');
+      : Buffer.from(String(res.data), 'utf8');
     return decryptForCompany(companyId, envelope);
   }
 

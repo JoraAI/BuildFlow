@@ -67,3 +67,22 @@ changeOrderRouter.post(
   }),
   changeOrderController.addBoqLines,
 );
+
+// FIX (EST-H6): Update a change-order line's qtyDelta/rate + recompute costImpact.
+changeOrderRouter.put(
+  '/:id/change-orders/:changeOrderId/lines/:lineId',
+  requireRole(Role.OWNER, Role.PM),
+  validate({
+    params: z.object({
+      id: idSchema,
+      changeOrderId: z.string().uuid(),
+      lineId: z.string().uuid(),
+    }),
+    body: z.object({
+      qtyDelta: z.coerce.number().optional(),
+      rate: z.coerce.number().nonnegative().optional(),
+      description: z.string().max(500).optional(),
+    }),
+  }),
+  changeOrderController.updateLine,
+);

@@ -1,11 +1,15 @@
-# BuildFlow — Fix & Enhancement Prompt for GLM-5.2
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 5)
 
-> **How to use this document.** Paste this entire file to GLM-5.2 as the task
-> brief. It is the authoritative work order. Every issue it references is
-> catalogued with file paths and line numbers in
-> [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md); read that file first, then execute the
-> phases below in order. IDs like `SEC-C1`, `FIN-H6`, `UI-C1`, `MOB-H7`,
-> `DAT-1.1` refer to entries in that register.
+> **You do not need any prior conversation or other documents.** This file is the
+> complete task brief. Read it top to bottom, then execute **Section 2** in order.
+> [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
+>
+> **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
+> **Last committed baseline:** `66a40eb` ("updates")  
+> **Your starting point:** a large **uncommitted** working tree. Rounds 3–4 closed
+> compile, migration, and test gates; **Round 5** is merge prep plus any remaining
+> optional hardening. Verify everything with §2.1 — do not assume fixes landed
+> until commands pass locally.
 
 ---
 
@@ -59,13 +63,177 @@ BuildFlow spans the full project lifecycle:
 4. **Usable on every device by non-technical site and office staff.** It must
    look professional and be easy to operate on a phone in the field, an iPad on
    site, and a desktop browser in the office.
-5. **Competitive feature depth.** It should match or beat peers (Procore,
-   Buildertrend, Fieldwire, Powerplay, SiteSetu) on the workflows Indian
-   construction firms actually need.
+5. **Competitive feature depth.** Match Indian construction SaaS expectations.
 
 ---
 
-## 2. Global Engineering Rules (apply to every phase)
+## 2. Round 5 — Standalone Work Order (execute in this order)
+
+Round 4 closed money/workflow partials, Phase 5 smoke tests, state machines,
+tablet UI, and the skipped estimate-links test. **Your job now:** verify ship
+gates, **commit the uncommitted tree**, and optionally close the remaining low-
+priority gaps below — without re-breaking what already passes.
+
+### 2.0 Current state (verified 2026-08-02 after Round 4)
+
+| Check | Status |
+| ----- | ------ |
+| `npx tsc --noEmit -p apps/backend` | **PASS** |
+| `npx tsc --noEmit -p apps/mobile` | **PASS** |
+| `pnpm --filter @buildflow/backend test` ×2 | **20/20 suites, 98 pass, 0 skip**, idempotent |
+| `pnpm install --frozen-lockfile` | **PASS** (verify locally) |
+| Stray `prisma/m` | **GONE** |
+| `/api/sync` | **UNMOUNTED** (correct — stub until schema + mobile client ready) |
+
+**Primary Round 5 task:** commit all untracked migration folders, Phase 5 source
+files, and modified files into one or more logical commits (see §2.2).
+
+### 2.0a Completed in Rounds 3–4 — do NOT re-break
+
+| Area | Fix (file / pattern) |
+| ---- | -------------------- |
+| **EST-C1** | `boq.service.ts` — material demand uses `topLevelEstimateItems` only (not all `estimate.items`) |
+| **EST-M8** | `estimate-export.service.ts` — sheet 3 loads RAs by `item.rateAnalysisId` |
+| **EST-M11** | `subcontract.service.ts` — `updateMeasurement` validates rate/qty/balance like create |
+| **FIN-H5 / R2-7** | `tally.service.ts` — retention ledger line; `normalizeStateCode()` via `INDIAN_STATES`; `TallyLedgerMap.retention` |
+| **FIN-M1** | `gst.service.ts` — `lineAmount`, `sumAmounts`, `netTotal`; used in invoice + bill services |
+| **FIN-M9** | `analytics.service.ts` — all-time `paidAmount` cash baseline; budget burn uses paid only |
+| **R2-6** | `procurement.service.ts` + `validators/procurement.ts` — PO lines match req by `boqItemId` |
+| **NR-34** | `lib/status-transition.ts` + guarded transitions in RFI/submittal/punch/petty-cash services |
+| **NR-49** | `accounting-export.service.ts` — CSV formula-injection prefix |
+| **NR-41/53/54/40** | `Select.tsx`, `AuthScreenShell.tsx`, `AppTopBar.tsx`, `ScreenContainer.tsx` |
+| **NR-35** | `offline-sync.service.ts` — attendance replay → `/checkin` + `/checkout` |
+| **Portal routing** | `app.ts` — public `/api/portal/*` registered **before** catch-all `/api` estimate router |
+| **estimate-links** | `estimate.routes.ts` — `/submit` wrapped in `asyncHandler`; skipped test re-enabled |
+| **Phase 5 tests** | `__tests__/integration/phase5.test.ts` — petty cash, punch, RFI, drawing, portal scope |
+| **Compile / tenant / counters** | Round 3 items in prior table — validate(), migrations, NR-32/33/45, etc. |
+
+### 2.1 Ship gates — run before AND after every change
+
+```bash
+cd /home/prasanna/work/BuildFlow
+
+npx tsc --noEmit -p apps/backend
+npx tsc --noEmit -p apps/mobile
+pnpm --filter @buildflow/backend test
+pnpm --filter @buildflow/backend test   # must match previous run
+pnpm install --frozen-lockfile
+
+# Test DB must have Phase 5 migrations (petty cash, etc.):
+DATABASE_URL="postgresql://buildflow:buildflow@localhost:5432/buildflow_test?schema=public" \
+  pnpm --filter @buildflow/backend exec prisma migrate deploy
+```
+
+**Regression on any gate = stop and fix before continuing.**
+
+### 2.2 Priority 1 — Commit the working tree (required)
+
+The working tree contains ~40 untracked Phase 5 files and ~10 migration folders.
+**Do not merge without committing them.**
+
+1. Run ship gates (§2.1).
+2. Stage and commit in logical groups (suggested):
+   - **Migrations:** all `apps/backend/prisma/migrations/20260731*` folders
+   - **Phase 5 backend:** punch-list, petty-cash, drawings, RFI/submittal, portal-
+     enhanced, accounting-export, labour, i18n, sync (source only; sync stays unmounted)
+   - **Round 4 fixes:** tally, procurement, analytics, gst/invoice/bill, status-
+     transition, app.ts portal order, mobile UI, tests, shared validators
+   - **Docs:** `docs/GLM_FIX_PROMPT.md`, `docs/AUDIT_FINDINGS.md` (if updated)
+3. **Never commit:** `.env`, `.env.test` secrets, credentials, `.filestore/`
+4. Re-run ship gates after commit.
+
+### 2.3 Priority 2 — Optional hardening (only if time; skip if gates regress)
+
+| ID | File | Task |
+| -- | ---- | ---- |
+| **Phase 5 gaps** | `inventory-traceability`, `accounting-export`, `labour`, `i18n` | Add one integration smoke test each (copy `phase5.test.ts` pattern), or unmount stub routes |
+| **NR-36** | `drawing.service.ts` | Drawing acknowledgement endpoint — or document deferred in AUDIT_FINDINGS |
+| **Sync §8.1** | `sync.service.ts`, `app.ts` | Leave **unmounted** until `updatedAt` on Task/DailyReport + mobile replay client |
+| **DAT-3.8** | `package.json` test script | Remove `--forceExit` once no open-handle hangs remain |
+| **SEC-L17/21/22** | error handler, mobile download, compression | Low-priority security polish (§2.7 in appendix) |
+
+### 2.4 Codebase patterns (keep following)
+
+#### A. Route validation (`validate` middleware)
+
+`apps/backend/src/middleware/validate.ts` expects `{ body?, query?, params? }` each
+a Zod schema. **Template:** `punch-list.routes.ts`, `drawing.routes.ts`.
+
+#### B. Public routes before catch-all `/api` routers
+
+Any **unauthenticated** route under `/api/*` must be mounted **before** routers that
+apply `authenticateToken` to the whole `/api` prefix (e.g. `estimateRouter`).
+**Bug fixed in Round 4:** portal links returned 401 when registered after estimate router.
+
+#### C. Prisma migrations
+
+Every schema model change needs `migrations/<timestamp>_<name>/migration.sql`.
+Never write SQL to `prisma/m` or extensionless route files.
+
+#### D. Document counters (`id-generator.ts`)
+
+Use `nextSequentialNumberTx(tx, …)` inside transactions. Types: `'invoice'`, `'rfi'`,
+`'submittal'`, `'petty-cash'`, etc.
+
+#### E. Status machines (`lib/status-transition.ts`)
+
+Whitelist transitions per entity; use guarded `updateMany({ where: { id, status } })`
+for answer/review endpoints. **Do not** allow arbitrary status via generic PUT.
+
+#### F. Viewport (`useViewport.ts`)
+
+`isPhone` <768 · `isTablet` 768–1023 · `isDesktop` ≥1024. Use `isTablet` for
+Select/sheets at 768+, not `isDesktop`.
+
+#### G. Money math (`gst.service.ts`)
+
+Use `lineAmount` / `sumAmounts` / `netTotal` for line items and bill totals; GST
+already uses paise in `calculateGST`.
+
+### 2.5 Anti-patterns — do not repeat
+
+| Anti-pattern | What went wrong before | Prevention |
+| ------------ | ---------------------- | ---------- |
+| Stray file | `prisma/m`, `hooks/use`, `reports-hub/index` | Edit live imported files only |
+| Wrapper `validate()` | Routes validated nothing | Flat `{ params, body }` map |
+| Half SDK bump | manifest 52, lockfile 51 | One SDK version end-to-end |
+| FIX comment, broken code | Truncated `STATE_NAME_TO_CODE` in tally | Run tsc + test after every fix |
+| Public route after auth router | Portal 401 "Missing authorization token" | Mount `/api/portal` before `/api` estimate router |
+| Ship stub routes | sync would 500 | Unmount until DoD met |
+
+### 2.6 Round-5 Definition of Done
+
+- [ ] Ship gates pass (§2.1) on clean checkout of your commits
+- [ ] All untracked migrations + Phase 5 source committed (§2.2)
+- [ ] No stray files (`prisma/m`, extensionless hooks/routes)
+- [ ] Backend tests **20/20 suites, 98 pass, 0 skip**, idempotent ×2
+- [ ] `AUDIT_FINDINGS.md` Round-4 delta appended for items you touch (optional)
+- [ ] Sync remains **unmounted** unless §8.1 fully implemented
+
+---
+
+### APPENDIX — Round 4 work order (completed; reference only)
+
+<details>
+<summary>§2.3–2.9 Round 4 items (superseded by §2 above)</summary>
+
+Round 4 closed all items below. Do not re-open unless a gate regresses.
+
+**Money & workflow (done):** EST-C1, EST-M8, EST-M11, FIN-H5, FIN-M1, FIN-M9,
+R2-6, R2-7.
+
+**Phase 5 (done):** NR-34 state machines, `phase5.test.ts`, NR-49 CSV injection.
+**Still optional:** inventory/labour/i18n smoke tests, NR-36 drawing ack.
+
+**Mobile/tablet (done):** NR-41, NR-53, NR-54, NR-40, NR-35, MOB-C2 (retry rethrow).
+
+**Tests (done):** estimate-links unskipped; `asyncHandler` on `/estimates/:id/submit`.
+
+</details>
+
+<!-- Legacy §2.3–2.9 blocks retained below for audit trail; Section 2 wins on conflict. -->
+
+## 3. Global Engineering Rules (apply to every change)
 
 Follow these rules on **all** changes. They encode the root-cause patterns behind
 the audit findings.
@@ -120,7 +288,12 @@ the audit findings.
 
 ---
 
-## 3. Phase 0 — Stop-the-Bleeding: Security & Data Integrity
+# APPENDIX — Historical work order (Phases 0–5, Rounds 1–2)
+
+> **Execute Section 2 only.** The sections below are the original Round-1 phased
+> plan. Most items are already fixed in the working tree; they remain for context.
+
+## 4. Phase 0 — Stop-the-Bleeding: Security & Data Integrity
 
 These are exploitable or data-destroying. Do this phase first, as a dedicated set
 of small PRs, before anything else.
@@ -212,7 +385,7 @@ load failure), `SEC-L20` (align body-size limit and error message),
 
 ---
 
-## 4. Phase 1 — Financial & Workflow Correctness
+## 5. Phase 1 — Financial & Workflow Correctness
 
 Fix the money and state-machine bugs. Each item needs a regression test asserting
 the corrected number/behavior.
@@ -339,7 +512,7 @@ the inverted tender match (`EST-M9`); and apply GST on the marked-up base
 
 ---
 
-## 5. Phase 2 — Mobile / Web App Reliability
+## 6. Phase 2 — Mobile / Web App Reliability
 
 These bugs cause spurious logouts, silent data loss, and stale screens. Fix the
 auth/session layer first (it explains most "randomly logged out" reports), then
@@ -439,7 +612,7 @@ and fix the `daysBetween` off-by-one (`MOB-L14`).
 
 ---
 
-## 6. Phase 3 — Responsive, Professional UI on Every Device (explicit user priority)
+## 7. Phase 3 — Responsive, Professional UI on Every Device (explicit user priority)
 
 The app must look genuinely professional and be comfortable to use on: small
 phones (~360px), large phones, iPad/tablet (portrait and landscape), and desktop
@@ -532,7 +705,7 @@ phone layout.
 
 ---
 
-## 7. Phase 4 — Data Layer, Tests & Repo Hygiene
+## 8. Phase 4 — Data Layer, Tests & Repo Hygiene
 
 Restore a working build/test pipeline and clean the repo. Without `DAT-1.1` the
 whole seed/reset/test loop hangs, so do it first.
@@ -607,7 +780,7 @@ justification.
 
 ---
 
-## 8. Phase 5 — Peer-Benchmarked Enhancements (be better than the competition)
+## 9. Phase 5 — Peer-Benchmarked Enhancements (be better than the competition)
 
 Benchmarks: **Procore** (enterprise RFIs/submittals/financials), **Buildertrend**
 (client portal, selections, accounting sync), **Fieldwire** (offline-first field
@@ -696,7 +869,7 @@ from Phase 4) and daily reports.
 
 ---
 
-## 9. Execution Protocol for GLM-5.2
+## 10. Execution Protocol for GLM-5.2
 
 1. **Read the evidence first.** Open [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) and
    confirm each referenced file/line still matches before changing it (the repo
@@ -729,7 +902,7 @@ from Phase 4) and daily reports.
 
 ---
 
-## 10. Definition of Done — Acceptance Checklist
+## 11. Definition of Done — Acceptance Checklist (Round 1)
 
 ### Security & tenancy
 - [ ] The legacy Razorpay webhook rejects unsigned/wrongly-signed payloads and
@@ -802,3 +975,310 @@ from Phase 4) and daily reports.
 *This prompt and its findings register were produced from a six-part audit of the
 BuildFlow repository. Treat the payment-webhook flaw as the highest priority; it
 was confirmed independently by two audits.*
+
+---
+
+# Round 2 — Remediation of the First Fix Pass
+
+You (GLM-5.2) already made a first pass (commit `66a40eb` + uncommitted edits). It
+was independently re-verified. The results and the exact residual/new issues are
+in the **"Remediation Review — Round 1"** section of
+[`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md). Good progress — the payment-webhook
+forgery, MCP auth, tenant write-scoping, invoice numbering, CPM FF formula, the
+seed hang, and the test suite are genuinely fixed. This round closes the rest.
+
+**Before writing any code, read the Round-1 review in full.** Then work in the
+priority order below. Do not re-touch the FIXED items.
+
+## R2.0 — Anti-patterns that caused the rework (read first, do not repeat)
+
+The first pass failed verification in recurring ways. These are now hard rules:
+
+1. **Edit the real file, not a new one.** The `useViewport` fix was written to a
+   new extensionless file `apps/mobile/hooks/use`; the live hook was never
+   changed. Never create a near-duplicate file — modify the module that is
+   actually imported, and confirm with a grep of its import sites.
+2. **Every Prisma schema change ships a migration in the same change.** The
+   `AuditLog @map("old_value")` edit had no migration and broke audit logging at
+   runtime. After any `schema.prisma` edit, generate the migration and run it
+   against a fresh DB before claiming done.
+3. **Do not reference fields/columns that don't exist.** The Tally bill split
+   reads `bill.vendorState`, which is not on the model. If a fix needs a new
+   field, add it to the schema (+ migration + query select) first.
+4. **A `// FIX(...)` comment must correspond to a real behavior change.** Do not
+   annotate no-ops (`clientState ?? undefined`) or mislabel one fix as another.
+   Comments that claim a DB CHECK constraint or a lock must point at code/SQL that
+   actually creates it.
+5. **Transactions must contain the read they guard.** TOCTOU guards (invoice
+   payment, GRN over-receive, RA sequence) must read the current value *inside*
+   the `$transaction` and use guarded/relative writes, not read-then-write across
+   the boundary.
+6. **Never swallow errors to make a test pass.** `.catch(console.error)` around
+   audit logging or BOQ posting hides broken behavior. Fix the cause; if a step
+   can legitimately fail, make it a tracked, retryable side-effect.
+7. **Regenerate and commit `pnpm-lock.yaml`** whenever `package.json` changes, and
+   verify `pnpm install --frozen-lockfile` succeeds.
+8. **Date migrations with today's date.** Do not backdate migration folder
+   timestamps below already-applied migrations; that corrupts history ordering.
+9. **Do not reduce coverage to get green.** Re-enable the `it.skip`-ed
+   link-integrity test and fix the underlying open-handle hang instead.
+
+## R2.1 — Fix the new regressions first (blockers)
+
+- **NR-1 (critical):** add a migration renaming `audit_logs."oldValue"` →
+  `old_value` (or revert the `@map`); verify `recordAudit` succeeds and the test
+  console is free of `old_value` Prisma errors.
+- **NR-3 (high):** run `pnpm install`, commit the updated lockfile, confirm
+  `--frozen-lockfile` passes; register `shims/react-native-netinfo.ts` in
+  `metro.config.js` or delete it; verify a native bundle resolves NetInfo.
+- **NR-2 (high):** move the width-driven hook body into
+  `apps/mobile/hooks/useViewport.ts`, delete `apps/mobile/hooks/use`, and confirm
+  the tablet/desktop layout now renders on a native iPad. This also unblocks the
+  UI-H3 tablet tier and the native side of UI-C2.
+- **NR-4 (high):** add `vendorState` to the `Bill` model (+ migration + query
+  select) or derive vendor state from `vendorGstin`, then split bill GST correctly
+  by state; add a test with an intra- and an inter-state vendor.
+- **NR-5 (high):** apply retention on `updateInvoice` for all invoice types, not
+  just RUNNING_ACCOUNT.
+- **NR-6..NR-13 (medium):** unit conversion instead of relabeling; stronger
+  description matching (drop stopwords/rank/threshold); copy item `parentId` in
+  `duplicateEstimate`; make measurement→BOQ posting transactional/reconciled;
+  route `apiFetchList` through the shared refresh mutex; read-inside-transaction
+  for invoice payment; real RA-sequence lock + tx-bound counter; accept or clearly
+  block BOQ-only requisition lines end to end.
+- **NR-14..NR-19 (low):** fix `amountInWords` powers (`1e9`/`1e11`); trim the MCP
+  scoping list to models with `companyId`; correct the inverted role
+  normalization; re-date the two backdated migrations; remove false CHECK-constraint
+  comments (and add the real CHECK if intended); delete dead exports; make CPM
+  cycle detection surface a clean 4xx and validate task predecessors (ties to
+  FIN-H7).
+
+## R2.2 — Complete the partial money/quantity fixes
+
+- **EST-C1:** also exclude sub-items from **section subtotals** (and therefore the
+  Excel/PDF export) and from **material-demand generation**
+  (`buildMaterialDemandsFromEstimateItems` is passed all items). Add a
+  parent+children test asserting section subtotal, export total, and generated
+  demand are each un-doubled.
+- **EST-C2:** compute the budget delta on a consistent basis (compare like with
+  like — grandTotal vs previously-applied grandTotal), so re-converting an
+  unchanged sub-estimate does not creep the budget.
+- **EST-C3:** wrap archive + link-null + `createMany` + budget update in one
+  `$transaction`.
+- **EST-H1:** apply the per-resource stock/open-indent distribution to
+  `createDraftIndentsFromDemand` (the path that actually creates indents), not
+  only to `previewBoqShortfalls`.
+- **EST-H7:** write a `MaterialPriceHistory` row in `bulkUpsertResources` too.
+- **FIN-H2/H4:** move reads inside the transaction; add
+  `@@unique([projectId, raSequence])` and use the tx-bound counter.
+- **FIN-H3:** persist a `clientState` on `Invoice` (+ migration) and default to it
+  (then company state) on update so intra-state invoices keep CGST/SGST.
+
+## R2.3 — Then the untouched highs and Decimal money
+
+- **EST-H4** (apportion GRN qty across req lines), **EST-H6** (line-`qtyDelta`
+  endpoint + `costImpact` recompute), **EST-M13** (role guards on BOQ/convert/
+  rate-analysis routes).
+- **FIN-H7** (task-side predecessor/cycle validation), **FIN-H8** (exclude
+  soft-deleted projects), **FIN-M1** (move invoice/bill/GST math to
+  `Decimal`/paise with reconciled rounding), **FIN-M3** (IST date handling).
+- Remaining FIN/EST mediums per the Round-1 tables.
+
+## R2.4 — Proceed to Phases 3–5 as originally specified
+
+Once R2.1–R2.3 are green (`pnpm typecheck`, `pnpm lint`, backend tests with **no
+skipped tests and no swallowed audit errors**, and a native + web smoke test),
+continue with the responsive-UI acceptance sweep (Section 6.7 — now unblocked by
+NR-2) and the Phase 5 enhancements.
+
+## R2.5 — Round-2 Definition of Done
+
+- [ ] All NR-\* regressions are closed; audit logging works; `--frozen-lockfile`
+      passes; a native iPad renders the tablet/desktop layout.
+- [ ] No `schema.prisma` change lacks a migration; migrations are dated correctly;
+      `prisma migrate reset` + seed + test run clean end to end.
+- [ ] No error is swallowed to pass a test; the previously skipped test runs.
+- [ ] Every partial from the Round-1 tables is either FIXED or has a written,
+      justified reason it is deferred.
+- [ ] The Round-1 review tables in [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) are
+      updated to reflect the new statuses.
+
+---
+
+# Round 3 duplicate section — superseded by Section 2 (Round 5)
+
+> **Execute Section 2 only.** Round 3 gates are closed. The R3.0–R3.7 subsections
+> below are kept for reference; if they conflict with Section 2, **Section 2 wins**.
+
+## R3.0 — Non-negotiable gates (do these first)
+
+1. **`npx tsc --noEmit -p apps/backend/tsconfig.json` must exit 0.** Current
+   failures are concentrated in Phase 5 files (see NR-20 in the findings doc).
+2. **`pnpm --filter @buildflow/backend test` must be 20/20 suites green, 0
+   failed, 0 skipped** (idempotent ×2).
+3. **Every `schema.prisma` model must have a proper migration** under
+   `prisma/migrations/<timestamp>/migration.sql`. Delete the stray
+   `apps/backend/prisma/m` file after moving its SQL. **Never commit `prisma/m`.**
+4. **`pnpm install --frozen-lockfile` at repo root with zero SDK mismatch**
+   between `apps/mobile/package.json` and `pnpm-lock.yaml` (NR-24).
+
+## R3.1 — Fix compile blockers (NR-20)
+
+| File / area | Problem | Fix |
+| ----------- | ------- | --- |
+| `drawing.routes.ts`, `rfi-submittal.routes.ts` | `validate({ params, body })` wrapper schemas | Pass `validate({ params: z.object(...), body: z.object(...) })` matching existing middleware in other routes — copy a working route as template. **This is NR-31 — currently a silent runtime bypass, not just a compile error.** |
+| `drawing.service.ts`, `rfi-submittal.service.ts` | `"UPLOAD"`, `"ANSWER"`, `"REVIEW"` not in `AuditAction` | Add enum values + migration, or use `CUSTOM` with a descriptive `actionLabel`. |
+| `sync.service.ts` | `DailyReport` has no `updatedAt`; query uses it | Either add `updatedAt @updatedAt` to syncable models (+ migration) **or** delta-sync on `createdAt` only and document the limitation. Do not `.catch(() => [])` to hide Prisma errors. |
+| `app.ts:73` | unused `req` | Remove or prefix with `_`. |
+| New services | unused imports | Remove or use them. |
+
+Run `tsc` after each fix until clean.
+
+## R3.2 — Fix petty cash migration (NR-21)
+
+1. Create `apps/backend/prisma/migrations/20260731100000_add_petty_cash/migration.sql`
+   with the SQL currently trapped in `apps/backend/prisma/m`.
+2. Verify it matches the `PettyCashEntry` model in `schema.prisma`.
+3. Delete `apps/backend/prisma/m`.
+4. Smoke-test `POST /api/petty-cash` after `prisma migrate deploy`.
+
+## R3.1b — Phase 5 security & correctness (NR-31 … NR-49)
+
+After compile fixes, address these before claiming Phase 5 "done":
+
+1. **NR-31:** Fix all 6 broken `validate()` calls; add tests proving invalid
+   status/enum values are rejected (RFI answer, submittal review, drawing version).
+2. **NR-32:** Dedicated `document_counter` types for RFI and submittal numbers —
+   never reuse `'invoice'`.
+3. **NR-33 / NR-47:** Add `assertProjectAccess` to inventory traceability; sum stock
+   across all project locations, not `findFirst`.
+4. **NR-34:** Implement status transition whitelists for RFI, Submittal, PunchItem,
+   PettyCashEntry (same pattern as change-order guarded `updateMany`).
+5. **NR-35:** Fix `offline-sync.service.ts` replay URLs to match real attendance
+   routes; add idempotency keys for punch/RFI queue items; surface failed replays in
+   UI instead of infinite retry.
+6. **NR-36:** Add `DrawingAcknowledgement` model + migration + acknowledge endpoint.
+7. **NR-37:** For each §8 feature marked PARTIAL/BROKEN in the findings matrix —
+   implement missing spec items **or unmount the route**. Do not ship stubs.
+8. **NR-38 / NR-46:** Sync requires schema migrations (`updatedAt` on Task +
+   DailyReport; fix DailyReport company scoping), honest delta filters, cursor
+   pagination, validated `since`, and a push path — or unmount `/api/sync`.
+9. **NR-43:** Add Phase 5 + SWO models and `DocumentCounter` to `TENANT_SCOPED_MODELS`
+   in **both** backend and MCP `prisma.ts` (lists must match).
+10. **NR-44:** Add missing unique index migration for `drawings.current_version_id`.
+11. **NR-45:** Remove `project.budget` from public portal-enhanced payload (or scope-gate).
+12. **NR-48:** Wire mobile `useTranslation()` to `constants/i18n.ts` or delete dead dict.
+13. **NR-49:** Accounting export — formula-injection neutralization, row caps, drop
+    false Excel claim or implement exceljs.
+
+## R3.3 — Close remaining Round-1/2 NOT-FIXED items (priority order)
+
+**Money & workflow (must fix before Phase 5 UI):**
+
+- **R2-1 / EST-H6:** fix `updateChangeOrderLine` — pass real `co.projectId` to
+  `assertProjectAccess`, not `''`.
+- **EST-C1:** also filter sub-items out of `buildMaterialDemandsFromEstimateItems`
+  call in `convertEstimateToBoq` (demand path still double-counts).
+- **FIN-H5 (retention):** Tally `buildSalesVoucher` must balance when retention
+  exists (party debit = credits + retention ledger line). R2-7: fix state-code
+  fallback when company has no GSTIN.
+- **R2-3:** add role guards to `estimate.routes.ts` (approve, convert-to-boq, mutations).
+- **R2-6:** allow PO creation for BOQ-only requisition lines (null `resourceId`).
+- **R2-11:** document RA partial unique index in schema or add a `// @@index` comment
+  block so `migrate dev` won't drop `invoices_projectid_rasequence_unique`.
+- **R2-13:** switch `createInvoice` to `nextSequentialNumberTx` inside the txn.
+- **EST-M11:** add rate/qty/balance validation to `updateMeasurement` (match create path).
+- **FIN-M1:** move invoice/bill line-item arithmetic to `Decimal`/paise end-to-end
+  (GST step already fixed in paise).
+- **EST-M8:** export "Rate Analysis Used" sheet from `item.rateAnalysisId`.
+- **FIN-M9:** fix analytics cash baseline filter.
+- **R2-12:** log or surface when incompatible-unit demand lines are skipped.
+
+**Already fixed in Round 2 (do not re-break):** FIN-H8, EST-H4, FIN-H2, FIN-H3,
+NR-5, EST-H7, FIN-M3, FIN-M6, EST-M14.
+
+**Security / data lows (when cheap):**
+
+- SEC-L16 (JWT min length in prod), SEC-L17 (generic errors), SEC-L20 (align body
+  limit message), NR-15 (trim MCP scoping list), NR-16 (fix role normalization).
+
+**Mobile:**
+
+- **NR-51:** `ProcurementTab.tsx` — `resourceId: l.resourceId || undefined` for BOQ-only lines.
+- **NR-52 / MOB-H6:** add `credentials:'include'` to `refreshAccessToken`; stop persisting
+  `"undefined"` refresh token on web.
+- MOB-C2: move post-refresh retry outside try/catch; guard `retryRes.json()`.
+- NR-24: revert Expo SDK 51 manifest **or** complete SDK 52 upgrade (half-bump incoherent
+  with SDK-51 deps like expo-router ~3.5).
+
+**UI (tablet/desktop):**
+
+- NR-41: align `Select.tsx` JS breakpoint with `md:` (768) or use `isTablet`.
+- NR-53: constrain auth form width at 1024–1279 (or lower hero threshold).
+- NR-54: safe-area inset on `AppTopBar` for native iPad desktop chrome.
+
+## R3.4 — Cross-device UI polish (768–1023 tablet band)
+
+Round 2 fixed UI-C1 (width-driven hook) and UI-H3 (flex master-detail). Round 3
+tablet follow-ups (re-verified):
+
+1. **NR-24:** revert SDK 51 manifest **or** regenerate lockfile for Expo 52 and
+   smoke-test native — `--frozen-lockfile` currently fails CI.
+2. **NR-39:** delete dead `app/(app)/reports-hub/index` (extensionless duplicate).
+3. **NR-25:** in `app/(app)/_layout.tsx`, consider sidebar or icon rail when
+   `isTablet` (768+) on web and native; add marketing nav fallback for 768–1023.
+4. **NR-40:** fix `ScreenContainer` bottom padding for tablet + FAB clearance.
+5. **NR-41 / UI-M8:** align `Select.tsx` centered picker with `isTablet` (768+),
+   matching `AdaptiveSheet`.
+6. **NR-42:** remove deprecated `columns` alias from `useViewport.ts`.
+7. Re-run acceptance sweep at **360 / 768 / 1024 / 1280 / 1920** on web; document
+   iPad portrait vs landscape.
+8. Optional: desktop **data-table** for BOQ/estimate lines (UI-M14).
+
+## R3.5 — Phase 5 features: complete or gate
+
+GLM added backend modules for punch list, RFIs/submittals, drawings, inventory
+traceability, labour, petty cash, portal-enhanced, sync, accounting export, and
+i18n. **Do not merge compile-broken stubs.**
+
+For each module, the Definition of Done is:
+
+- [ ] Compiles (`tsc` clean)
+- [ ] Migration matches schema
+- [ ] Routes behind `authenticateToken` + tenant scope + appropriate
+      `requireRole`/`requirePermission`
+- [ ] At least one integration test
+- [ ] Mobile screen (or explicit "backend-only, no mobile yet" in findings)
+
+If a module cannot meet this bar in Round 3, **remove it from `app.ts` mounts**
+and move files to a `feature/` branch folder — do not leave dead routes that 500.
+
+**Offline-first (§8.1):** fix `sync.service.ts` properly (NR-20, NR-38); wire mobile
+`offline-sync.service.ts` to show sync status and correct replay URLs (NR-35); do
+not claim offline-first until delta sync works and mobile queues replay.
+
+See the **Phase 5 per-module verdict table** in `AUDIT_FINDINGS.md` — punch list is
+the only module genuinely done; petty cash/drawings/accounting export are close;
+sync and i18n are not real implementations yet.
+
+## R3.6 — Round-3 Definition of Done
+
+- [ ] `tsc --noEmit` clean (backend + mobile if applicable) — **do not rely on jest
+      passing as a compile gate** (`isolatedModules` hides Phase 5 errors)
+- [ ] `pnpm --filter @buildflow/backend test`: 20/20 suites, 0 failed, 0 skipped;
+      idempotent across two consecutive runs (NR-55)
+- [ ] `prisma migrate reset` + seed + test pipeline exits cleanly
+- [ ] No stray files: `prisma/m`, extensionless hooks/routes (`hooks/use`,
+      `reports-hub/index`), migrations outside folder
+- [ ] `--frozen-lockfile` passes with no Expo SDK mismatch
+- [ ] Round-2 review tables in `AUDIT_FINDINGS.md` updated for every item touched
+- [ ] Tablet band (768–1023) manually verified on web; iPad landscape ≥1024 shows
+      sidebar
+- [ ] Phase 5: each mounted route either WORKING (with test) or unmounted
+
+## R3.7 — Anti-patterns (still apply — third strike)
+
+If GLM writes a migration to `prisma/m`, a hook to `hooks/use`, or a schema
+change without a migration folder again, **stop and fix the process** before
+continuing. Three occurrences of the same mistake means the prompt must be
+followed line-by-line with a checklist per PR.

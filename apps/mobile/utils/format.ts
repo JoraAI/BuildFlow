@@ -33,9 +33,13 @@ export function formatTime(date: string | Date | undefined | null): string {
 }
 
 export function daysBetween(start: string | Date, end: string | Date): number {
-  const s = typeof start === 'string' ? new Date(start) : start;
-  const e = typeof end === 'string' ? new Date(end) : end;
-  return Math.ceil((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24));
+  const s = typeof start === 'string' ? new Date(start) : new Date(start);
+  const e = typeof end === 'string' ? new Date(end) : new Date(end);
+  // FIX (MOB-L14): Normalize to date-only (midnight UTC) before diffing so
+  // time components don't cause off-by-one errors with Math.ceil.
+  s.setUTCHours(0, 0, 0, 0);
+  e.setUTCHours(0, 0, 0, 0);
+  return Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 export function getInitials(name: string): string {

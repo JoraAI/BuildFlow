@@ -741,3 +741,713 @@ tracked.
 
 The payment-webhook flaw (SEC-C1/C2 = FIN-C1/C2) is counted once per domain but
 is a single defect; fix it first.
+
+---
+
+# Remediation Review — Round 1 (GLM-5.2)
+
+> Verification of the changes GLM-5.2 made (commit `66a40eb` "updates" plus
+> uncommitted working-tree edits) against the register above. Baseline for the
+> diff was the audit commit `3c47058`. Each original finding was re-checked in the
+> current code; a companion set of **new regressions (NR-\*)** that GLM introduced
+> is listed after the status tables. The Round-2 work order in
+> [`GLM_FIX_PROMPT.md`](GLM_FIX_PROMPT.md) is driven by this review.
+
+## Headline
+
+- **Backend `tsc --noEmit` is clean; the test suite is green (91 passed / 1
+  skipped, was 12 failed / 75 passed); the seed no longer hangs.** Real, verified
+  progress.
+- **The payment-webhook forgery is genuinely fixed end-to-end** (raw-body decode →
+  per-company HMAC with `timingSafeEqual` → company-scoped lookup → required
+  amount → idempotent, capped, guarded transaction). This was the top priority and
+  it is closed.
+- **But several fixes are cosmetic** — correct-looking code and confident
+  `// FIX(...)` comments that do not take effect (UI-C1 written to a dead file,
+  FIN-H3 `clientState ?? undefined` no-op, FIN-H5 reads a nonexistent field).
+- **GLM introduced ~19 new issues**, including one **critical runtime regression**
+  (audit logging broken by an unmigrated schema `@map`) and one **high** build
+  breakage (lockfile not regenerated).
+
+## Status legend
+
+FIXED = verified correct · PARTIAL = fix present but incomplete or with a residual
+bug · NOT-FIXED = unchanged from baseline · REGRESSED = change made things worse.
+
+## Security (SEC) + payment
+
+| ID | Status | Note |
+| -- | ------ | ---- |
+| SEC-C1 / FIN-C1 | FIXED | Legacy webhook returns 401; tenant payments via per-company HMAC path. |
+| SEC-C2 | PARTIAL | Reads+writes now scoped for all `companyId` models, but `findFirstOrThrow`/`findUniqueOrThrow` (~28 sites) bypass the safety net. |
+| FIN-C2 | FIXED | Company-scoped lookup, required amount, idempotent guarded `$transaction`. |
+| SEC-H3, H4 | FIXED | `trust proxy` + `req.ip`; auth limiter fails closed. |
+| SEC-H5, H6 | FIXED | MCP verifies access token/`sub`/type/blacklist + periodic re-validate; scoping middleware added. (See NR-15.) |
+| SEC-H7 | FIXED | Platform webhook-secret fallback removed; per-company secret required. |
+| SEC-H8 | FIXED | OWNER assignment + self-role-change rejected. (See NR-16.) |
+| SEC-H9 | FIXED | `Buffer.toString('utf8')`. |
+| SEC-M10, M11, M12, M13, M15 | FIXED | token-type, `originalUrl`, HMAC signature, portal `next(err)`, audit `companyId`. |
+| SEC-M14 | FIXED | Atomic `documentCounter.upsert`. (See NR-17 backdated migration.) |
+| FIN-M7 | FIXED | Chat history scoped by `senderId`; membership check in `buildContext`. |
+| SEC-L18, L19 | FIXED | `env` dropped from health; permission lookup fails closed. |
+| SEC-L16, L17, L20, L21, L22 | NOT-FIXED | JWT strength, raw error msg, body-limit msg, drive base64, global compression. |
+
+## Estimation / Procurement (EST)
+
+| ID | Status | Note |
+| -- | ------ | ---- |
+| EST-C1 | PARTIAL | Summary/list/persisted totals + BOQ conversion filter `parentId:null`, but **section subtotals** (and Excel/PDF export) and **material-demand generation** still use all items → still double-count. |
+| EST-C2 | PARTIAL | Archive-before-null ordering fixed; **budget delta math wrong** (subtotal basis vs grandTotal basis) — see NR (EST budget). |
+| EST-C3 | NOT-FIXED | `convertEstimateToBoq` still has no `$transaction`. |
+| EST-H1 | PARTIAL | `previewBoqShortfalls` fixed; `createDraftIndentsFromDemand` (the path that actually creates indents) still double-deducts stock. |
+| EST-H2 | PARTIAL | `companyId` + `type` added, but new token-OR match over-matches stopwords (NR-7). |
+| EST-H3 | FIXED | PO must be APPROVED; over-receive capped (residual TOCTOU, NR). |
+| EST-H4 | NOT-FIXED | GRN qty still credited entirely to the first matching req line. |
+| EST-H5 | FIXED | Guarded `updateMany` inside the transaction. |
+| EST-H6 | NOT-FIXED | Still no endpoint to set line `qtyDelta`; lines stay 0. |
+| EST-H7 | PARTIAL | `updateResource` writes history; `bulkUpsertResources` still doesn't. |
+| EST-H8 | FIXED | delete+create+total wrapped in `$transaction`. |
+| EST-H9 | FIXED | Correct section-scoped route (one test `it.skip`-ed, coverage reduced). |
+| EST-M2, M4, M10 | FIXED | approve guard; `sectionId` validation; `startsWith('SUBCONTRACTOR')`. |
+| EST-M1, M3, M5, M11, M12 | PARTIAL | see per-item notes; M3 still flattens sub-items (NR-8); M12 now swallows errors (NR-9); M15 relabels units without converting (NR-6). |
+| EST-M6, M7, M8, M9, M13, M14, M15, M16 | NOT-FIXED | PO validation, proposal status, export RA links, tender match, route guards, negative-qty/CPM, unit conversion, GST base. |
+
+## Accounting / Finance (FIN)
+
+| ID | Status | Note |
+| -- | ------ | ---- |
+| FIN-H1 | FIXED | Tenant-scoped `invoiceNumber` + migration + atomic counter. |
+| FIN-H2 | PARTIAL | DRAFT/overpay guards + `$transaction`, but read/compute outside txn (TOCTOU, NR-11); OVERDUE→SENT regression. |
+| FIN-H3 | PARTIAL | RA recompute done; **CGST/SGST→IGST flip NOT fixed** (`clientState ?? undefined` no-op, no `clientState` column). Plus NR-5 (retention zeroed on non-RA). |
+| FIN-H4 | PARTIAL | Wrapped in `$transaction`, retention on current delta — but **no real lock**; RA sequence race remains; `nextSequentialNumber` on global client inside txn (NR-12). |
+| FIN-H5 | PARTIAL/REGRESSED | Retention balancing NOT done; bill split reads nonexistent `bill.vendorState` → every bill now CGST/SGST (NR-4). |
+| FIN-H6 | FIXED | FF forward pass corrected; forward/backward passes consistent. |
+| FIN-H7 | PARTIAL | `topoSort` throws on cycles, but `task.service` still doesn't validate predecessors/cycles → 500 on Gantt (NR-19). |
+| FIN-H8 | NOT-FIXED | Dashboard still counts soft-deleted projects. |
+| FIN-M2, M4, M9 | PARTIAL | date coercion (no validation/pagination); dead expr removed (mapping not done); ordered estimate fixed (cash baseline not). |
+| FIN-M8 | FIXED | `requireRole` on project financial routes. |
+| FIN-M1, M3, M5, M6, M10, M11, M12 | NOT-FIXED | Decimal money, IST timezone, planned-progress, daily-report txn, SaaS idempotency, REJECTED bills, report-schedule. |
+| FIN-L* | NOT-FIXED | incl. `amountInWords` still wrong ≥ 1,000 crore (NR-14). |
+
+## Mobile + Responsive UI (MOB / UI)
+
+| ID | Status | Note |
+| -- | ------ | ---- |
+| MOB-C1 | FIXED | Queue flushed on refresh failure. |
+| MOB-C2 | PARTIAL | Non-401 rethrown, but retry still in try/catch and `retryRes.json()` unguarded → non-JSON/network retry still wrong-logout. |
+| MOB-H3 | PARTIAL | Refreshes, but bypasses the shared mutex/queue (NR-10). |
+| MOB-H4, H5, H8, H9, H10 | FIXED | rotated token persisted; offline hydrate; correct invalidation key; GST/TDS params; explode deps. |
+| MOB-H6 | NOT-FIXED | Web tokens still in `localStorage`. |
+| MOB-H7 | PARTIAL | Wiring correct, but lockfile not regenerated + shim unwired → inert / native build breaks (NR-3). |
+| MOB-H11 | PARTIAL/REGRESSED | BOQ-only lines no longer silently dropped, but now fail the whole save at the zod validator (NR-13). |
+| MOB-H12 | FIXED (pending install) | `expo-document-picker ~12.0.2` in package.json, not yet in lockfile. |
+| MOB-M13, L14 | FIXED | template RA links corrected; `daysBetween` normalized. |
+| MOB-M19 | NOT-FIXED | Expo SDK/router still on 51 line. |
+| UI-C1 | REGRESSED | Fix written to dead file `apps/mobile/hooks/use`; real hook unchanged (NR-2). |
+| UI-C2 | FIXED | Estimation screens get a constrained `max-w-6xl w-full self-center` (blocked on UI-C1 for native). |
+| UI-H3 | PARTIAL | Fixed min-widths removed; no tablet-tier stacking (depends on UI-C1). |
+| UI-H6 | NOT-FIXED | Auth still `edges={['bottom']}`. |
+| UI-H7 | FIXED (bonus) | Hero panel gated to wide desktop. |
+| UI-L16 | FIXED | `h-30`/`h-50` → valid classes. |
+
+## Data / Schema / Tests (DAT)
+
+| ID | Status | Note |
+| -- | ------ | ---- |
+| DAT-1.1 | FIXED | `disconnectRedis()` in seed `finally`; pipeline exits. |
+| DAT-1.2 / FIN-H1 | FIXED | Composite unique + migration + `document_counters` table. |
+| DAT-2.2 | FIXED | 19/19 suites green (but audit-log errors swallowed — NR-1). |
+| DAT-2.5 | FIXED | Template patch script writes `rateAnalysisName` correctly. |
+| DAT-3.1 | FIXED | TRUNCATE guarded by env + `SEED_ALLOW_TRUNCATE`. |
+| DAT-3.4 | FIXED | `src/__` renamed to `resource-bulk.test.ts` (runs). |
+| DAT-3.5 | FIXED | `.filestore` untracked + gitignored. |
+| DAT-3.7 | FIXED | Partial unique index for open check-ins (migration). |
+| DAT-3.6 | PARTIAL | Indexes added; `SubcontractWorkOrder.companyId` + MR/GRN `Company` relation still missing. |
+| DAT-3.3 | PARTIAL | Stale `prisma/boq.service.ts` deleted; other one-off scripts remain. |
+| DAT-3.8 | PARTIAL | `override:true` + `_test` guard + globalTeardown; `--forceExit`, fake `db:test:reset`, turbo inputs remain. |
+| DAT-2.1 | NOT-FIXED | Company cascade vs RESTRICT FKs unchanged. |
+| DAT-2.4 | NOT-FIXED | Still 40 vulns. |
+| DAT-4.1 | REGRESSED | `@map("old_value")` with no migration → audit logging broken (NR-1). |
+| DAT-4.2, 4.5, 4.8, 4.9 | NOT-FIXED | (4.5 falsely annotated as CHECK-enforced — NR-18.) |
+| DAT-4.10 | FIXED | compose `version` removed. |
+
+---
+
+## New Regressions Introduced by GLM-5.2 (NR-\*)
+
+Ordered by severity. These did not exist at baseline `3c47058`.
+
+### Critical
+- **NR-1 — Audit logging is broken at runtime (schema drift).** The uncommitted
+  `oldValue Json? @map("old_value")` on `AuditLog` (`schema.prisma:~1147`) has **no
+  migration**; the DB column is still `"oldValue"`. The regenerated client queries
+  a nonexistent column, so every `recordAudit` throws — masked only because the
+  error is swallowed. Fix: add an `ALTER TABLE audit_logs RENAME COLUMN "oldValue"
+  TO old_value` migration, or revert the `@map`.
+
+### High
+- **NR-2 — UI-C1 fix is dead code.** The corrected width-driven `useViewport` was
+  written to `apps/mobile/hooks/use` (extensionless, committed, imported by
+  nothing); `apps/mobile/hooks/useViewport.ts` is unchanged and still
+  platform-gated. iPads still get the phone layout. Fix: move the content into
+  `useViewport.ts` and delete `hooks/use`.
+- **NR-3 — `pnpm-lock.yaml` not regenerated.** It still resolves
+  `expo-document-picker@57.0.1` and has no `@react-native-community/netinfo`
+  entry. `pnpm install --frozen-lockfile` (CI/EAS) fails, and the native NetInfo
+  `require` in `app/_layout.tsx` can't resolve → MOB-H7 inert, native bundle
+  breaks. The web NetInfo shim `shims/react-native-netinfo.ts` is also never
+  registered in `metro.config.js`. Fix: run `pnpm install`, commit the lockfile,
+  register or delete the shim.
+- **NR-4 — Tally bill GST split reads a nonexistent field.** `tally.service.ts`
+  branches on `bill.vendorState`, absent from the `Bill` model and the query, so
+  it is always `undefined` → **every** bill is now booked CGST/SGST regardless of
+  vendor state (newly wrong for inter-state vendors). Fix: add `vendorState` to
+  `Bill` (+ migration) and select it, or derive state from `vendorGstin`.
+- **NR-5 — `updateInvoice` zeroes retention on non-RA invoices.** The update path
+  recomputes retention only for `RUNNING_ACCOUNT`; editing any STANDARD invoice
+  that had retention writes `retentionAmount: 0` and inflates `total`. Fix: apply
+  retention on update for all invoice types, matching `createInvoice`.
+
+### Medium
+- **NR-6 — Unit "canonicalization" without conversion (EST-M15).**
+  `resolveCanonicalUnit` relabels a demand line's unit to the resource's unit
+  without converting the quantity (5 MT → "5 kg"). Regression vs baseline, which
+  carried the true unit. Fix: convert quantity or reject mismatched units.
+- **NR-7 — Description safety-net over-matches (EST-H2).** The new `OR` over every
+  ≥3-char word (including "and"/"for"/"the") with `findFirst` and no ordering can
+  auto-link the wrong material into procurement indents. Fix: token-score and
+  require a strong match, or drop stopwords and rank.
+- **NR-8 — `duplicateEstimate` double-count resurrected.** Item-level `parentId`
+  is still not copied (EST-M3), so children become top-level in the copy and the
+  new `parentId:null` summary filter double-counts the duplicate. Fix: copy
+  `parentId` relationships in the duplicate.
+- **NR-9 — `postApprovedMeasurementToBoq` failures now swallowed (EST-M12).**
+  Wrapped in `.catch(console.error)` with no reconciliation → BOQ `executedQty`
+  can silently drift from approved measurements. Fix: move inside the approval
+  transaction or add a reconciliation/retry.
+- **NR-10 — `apiFetchList` refresh bypasses the shared mutex.** Concurrent list
+  queries at token expiry fire parallel `/auth/refresh`; with rotation now
+  persisted (MOB-H4), the losing call submits a consumed token and can invalidate
+  the session. Fix: route through the shared `isRefreshing`/`failedQueue`.
+- **NR-11 — `recordPayment` overpay guard is TOCTOU.** The invoice read and
+  `newPaid` computation are outside the `$transaction`; concurrent payments both
+  pass and the absolute `paidAmount` write loses one. Also OVERDUE→SENT on partial
+  payment. Fix: read inside the transaction and use a relative increment with a
+  guarded update.
+- **NR-12 — FIN-H4 lock is illusory + numbering inside txn.** ReadCommitted with
+  no `@@unique([projectId, raSequence])` still races; `nextSequentialNumber` (global
+  client) is called inside the `$transaction`, so a rollback leaves numbering gaps
+  and it consumes a second pooled connection. Fix: add the unique constraint (or
+  `Serializable`/`FOR UPDATE`) and use the tx-bound counter variant.
+- **NR-13 — MOB-H11 now fails the whole save.** A draft with a BOQ-only line
+  (blank `resourceId`) is rejected wholesale by `requisitionLineSchema`
+  (`resourceId: z.string().uuid()`); previously 2 of 3 saved, now 0 of 3. Fix:
+  extend the backend to accept resource-less BOQ lines, or block just that line
+  with a clear message.
+
+### Low
+- **NR-14 — `amountInWords` arab/kharab powers off by 10×** (`gst.service.ts`):
+  uses `1e10`/`1e12` instead of `1e9`/`1e11`; wrong words for values ≥ ₹1,000
+  crore.
+- **NR-15 — MCP scoping list includes models without `companyId`**
+  (`RegionalMaterialRate`, `ProjectMaterialRate`, `Notification`, `ProjectMember`,
+  `StockBalance`, `StockMovement`) → latent `PrismaClientValidationError` for any
+  future tool touching them.
+- **NR-16 — Role normalization inverted:** maps `SITE_SUPERVISOR` → deprecated
+  `SUPERVISOR` (opposite of the comment and of DAT-4.2's intent).
+- **NR-17 — Backdated migration timestamps:** the two new migrations are dated
+  `20260711…`/`20260712…`, sorting before applied `20260720…` migrations (and
+  colliding with an existing `20260712000000_boq_sections` prefix) →
+  `prisma migrate dev` history divergence on existing DBs.
+- **NR-18 — False/misleading fix comments:** `schema.prisma` claims `progressPct`
+  is "0–100 enforced via DB CHECK" (no such constraint exists); several
+  `// FIX(...)` comments describe fixes the code doesn't perform (FIN-H3,
+  mislabeled FIN-M3/FIN-L5). These actively mislead future audits.
+- **NR-19 — Assorted:** dead exports (`nextSequentialNumberTx`); GRN over-receive
+  TOCTOU; `topoSort` throws a plain `Error` → 500 on the Gantt endpoint while task
+  cycle creation is still allowed; `it.skip` disabled a link-integrity test
+  (coverage reduced); redundant ternaries and swallowed-semicolon comments
+  (cosmetic).
+
+## Revised priorities for Round 2
+
+1. **Regressions first:** NR-1 (audit-log migration) and NR-3 (lockfile) are
+   shipping-blockers; NR-2, NR-4, NR-5 are user-visible correctness/UX breaks.
+2. **Finish the partials that matter for money/quantities:** EST-C1 (section
+   subtotals + material demand), EST-C2 budget math, EST-C3 transaction, EST-H1
+   indent path, FIN-H3 (real `clientState`), FIN-H4 lock.
+3. **Then the untouched highs:** EST-H4, EST-H6, FIN-H7 (task side), FIN-H8,
+   FIN-M1 (Decimal money).
+4. **Process discipline** to stop the recurring failure modes — see the Round-2
+   section of [`GLM_FIX_PROMPT.md`](GLM_FIX_PROMPT.md).
+
+---
+
+# Remediation Review — Round 2 (GLM-5.2, second pass)
+
+> Re-verification of GLM's **second** fix pass (all changes **uncommitted** in the
+> working tree; last commit remains `66a40eb`). Compared against the Round-1
+> review above and the original register. Backend tests were run locally;
+> `tsc --noEmit` was run on `apps/backend`.
+
+## Headline
+
+- **Major progress on Round-1 regressions and partials.** NR-1 (audit-log
+  migration), NR-2/UI-C1 (width-driven `useViewport`), NR-5 (retention on
+  invoice update), NR-13 (optional `resourceId` on requisition lines), FIN-H3
+  (`clientState` column + persistence), FIN-H4 (RA sequence unique index),
+  EST-C2/C3 (transactional BOQ conversion + budget delta), EST-H1/H4/H7,
+  FIN-H2/H7/H8, and several UI items are **verified fixed** in the current code.
+- **EST/FIN caveats:** EST-H6 endpoint exists but **always 404s** (R2-1);
+  EST-C1 material-demand path still double-counts sub-items; FIN-H5 Tally retention
+  balancing still open despite NR-4 bill-GST fix.
+- **The backend does not compile.** GLM added Phase 5 features (RFIs,
+  submittals, drawings, sync, petty cash, etc.) with **~16 TypeScript errors**
+  — broken route validation, invalid `AuditAction` enum values, and
+  `sync.service.ts` querying `updatedAt` on models that have no such column.
+  **The app cannot ship until these are fixed.**
+- **Petty cash table will never be created.** The migration SQL was written to
+  the stray file `apps/backend/prisma/m` instead of
+  `migrations/<timestamp>/migration.sql` — the same anti-pattern as Round-1's
+  dead `hooks/use` file, despite explicit Round-2 rules against it.
+- **Tests: 90 passed, 1 failed, 1 skipped** on fresh run (18/19 suites); **non-idempotent**
+  — consecutive run can hit 2 failures (`daily-report.test.ts` 409). `tsc` was clean
+  after Round 1; now **16 errors** in Phase 5 files.
+- **Cross-device UI:** the viewport hook fix is real (native iPad ≥1024 gets
+  sidebar). Tablet tier (768–1023) uses bottom tabs + 2-column grids but no
+  dedicated tablet nav or master-detail stacking — usable but not fully polished.
+- **Lockfile:** `pnpm install --frozen-lockfile` **FAILS** — manifest bumped Expo
+  SDK 51→52 / RN 0.74→0.76 in `package.json` but lockfile still pins SDK 51 (NR-24).
+
+## Round-1 regression status (NR-1 … NR-19)
+
+| ID | Round-1 status | Round-2 status | Evidence |
+| -- | -------------- | -------------- | -------- |
+| NR-1 | REGRESSED | **FIXED** | Migration `20260730120000_rename_audit_log_oldvalue_to_old_value` renames `"oldValue"` → `old_value`. |
+| NR-2 / UI-C1 | REGRESSED | **FIXED** | `hooks/use` deleted; `useViewport.ts` is width-driven (`isDesktop >= 1024`). |
+| NR-3 | High | **PARTIAL** | NetInfo shim wired (`metro.config.js`, `app/_layout.tsx`); lockfile contains `@react-native-community/netinfo`. **But NR-24:** `--frozen-lockfile` fails — SDK 52 manifest vs SDK 51 lockfile. |
+| NR-4 | High | **FIXED** | `tally.service.ts` derives vendor state from `vendorGstin` via `stateFromGstin()` — no phantom `vendorState` field. |
+| NR-5 | High | **FIXED** | `invoice.service.ts:401-411` recomputes retention for all invoice types on update. |
+| NR-6 | Medium | **PARTIAL** | Stopwords dropped in description match (`material-demand.service.ts`); unit relabel-vs-convert needs re-check. |
+| NR-7 | Medium | **PARTIAL** | Stronger token matching added; verify no false positives in production data. |
+| NR-8 | Medium | **FIXED** | `duplicateEstimate` preserves item `parentId` and maps IDs (`estimate.service.ts:922-972`). |
+| NR-9 | Medium | **PARTIAL** | Needs re-check of `subcontract.service.ts` — may still swallow posting errors. |
+| NR-10 | Medium | **FIXED** | `apiFetchList` uses shared `isRefreshing`/`failedQueue` (`api-client.ts:133-170`). |
+| NR-11 | Medium | **FIXED** | Payment read + guarded increment inside `$transaction` (`invoice.service.ts:469-528`). |
+| NR-12 | Medium | **PARTIAL** | Partial unique index + RA read in txn; DRAFT invoices still counted by index but excluded from seeding query → P2002 + request hang (NR-23); `nextSequentialNumberTx` unused (R2-13). |
+| NR-13 | Medium | **PARTIAL** | Backend validator + migration done; **client still sends `resourceId: ''`** for BOQ-only lines → whole save 400s (`ProcurementTab.tsx:316`, NR-51). |
+| NR-14 | Low | **FIXED** | Arab/kharab divisors corrected (`gst.service.ts:104-122`). |
+| NR-15 | Low | **FIXED** | MCP scoping list trimmed; models without `companyId` removed. |
+| NR-16 | Low | **FIXED** | `settings.service.ts` maps legacy `SUPERVISOR` → `SITE_SUPERVISOR`. |
+| NR-17 | Low | **PARTIAL** | New migrations dated `20260730…` / `20260731…`; Round-1 backdated `20260711*` / duplicate-prefix `20260712*` folders remain. |
+| NR-18 | Low | **FIXED** | Migration `20260730120200` adds real CHECK constraints on `progress_pct`. |
+| NR-19 | Low | **PARTIAL** | CPM cycle → 400 fixed; `nextSequentialNumberTx` dead; estimate-links test still skipped. |
+
+## Original findings — Round-2 delta (high-signal only)
+
+| ID | Was (Round 1) | Now (Round 2) |
+| -- | ------------- | ------------- |
+| EST-C1 | PARTIAL | **PARTIAL** — section subtotals + BOQ conversion fixed; **material-demand path** still maps all `estimate.items` (sub-items included) → duplicate indent demand. |
+| EST-C2 | PARTIAL | **FIXED** — budget delta compares BOQ amounts old vs new inside `$transaction`. |
+| EST-C3 | NOT-FIXED | **FIXED** — `convertEstimateToBoq` wrapped in `$transaction`. Indent gen post-txn is awaited without catch (500 after commit). |
+| EST-H1 | PARTIAL | **FIXED** — stock/open-req pro-rated per resource in `createDraftIndentsFromDemand`. |
+| EST-H2/NR-7 | PARTIAL | **FIXED** — tenant-scoped token overlap matcher in material-demand. |
+| EST-H4 | NOT-FIXED | **FIXED** — GRN qty apportioned across requisition lines by outstanding BOQ qty. |
+| EST-H6 | NOT-FIXED | **REGRESSED** — `updateChangeOrderLine` exists but passes `''` as projectId to `assertProjectAccess` → every call 404s (R2-1). |
+| EST-H7 | NOT-FIXED | **FIXED** — `bulkUpsertResources` writes price-history on rate change. |
+| EST-M13 | NOT-FIXED | **PARTIAL** — BOQ/rate-analysis routes guarded; `estimate.routes.ts` has zero role guards — `approve` and `convert-to-boq` open to any member (R2-3). |
+| EST-M8 | NOT-FIXED | **NOT-FIXED** — export still ignores `item.rateAnalysisId`. |
+| EST-M11 | NOT-FIXED | **NOT-FIXED** — `updateMeasurement` still has no rate/qty validation. |
+| FIN-H2/NR-11 | PARTIAL | **FIXED** — payment read + guarded increment inside `$transaction`. |
+| FIN-H3 | PARTIAL | **FIXED** — `clientState` column + migration; persisted on create/update. |
+| FIN-H4/NR-12 | PARTIAL | **PARTIAL** — RA read inside txn + partial unique index in migration; still uses global `nextSequentialNumber` inside txn (R2-13); index not in `schema.prisma` (R2-11 drift risk). |
+| FIN-H5/NR-4 | PARTIAL/REGRESSED | **PARTIAL** — bill GST via `vendorGstin` fixed; **Tally sales retention balancing still open**; state-code fallback bug (R2-7). |
+| FIN-H7 | NOT-FIXED | **PARTIAL** — `createTask` validates predecessors + self-loops; CPM cycle → 400; `updateTask` has no predecessor validation; multi-edge cycles only caught at read time. |
+| FIN-H8 | NOT-FIXED | **FIXED** — dashboard excludes `isDeleted`/`isTemporary` projects. |
+| FIN-M1 | NOT-FIXED | **PARTIAL** — GST math in paise; line-item totals still float. |
+| FIN-M9 | NOT-FIXED | **NOT-FIXED** — analytics cash baseline still PAID+invoiceDate filter. |
+| MOB-C2 | PARTIAL | **PARTIAL** — non-401 rethrow; JSON parse on retry may still wrong-logout. |
+| MOB-H6 | NOT-FIXED | **PARTIAL** — httpOnly cookie backend wired, but `refreshAccessToken` omits `credentials:'include'`; web stores literal `"undefined"` in localStorage → session dies at first expiry cross-origin (NR-52). |
+| MOB-H11/NR-13 | PARTIAL | **PARTIAL** — backend chain complete; client `resourceId: ''` still rejects (NR-51). |
+| MOB-H7 | PARTIAL | **PARTIAL** — wired; SDK lockfile mismatch may block native builds. |
+| UI-C1 | REGRESSED | **FIXED** |
+| UI-C2 | FIXED | **FIXED** — estimation `max-w-6xl self-center` retained. |
+| UI-H4 | NOT-FIXED | **FIXED** — ActionBar horizontal scroll on phone. |
+| UI-H6 | NOT-FIXED | **FIXED** — `edges={['top', 'bottom']}` on auth mobile. |
+| UI-H3 | PARTIAL | **FIXED** — flex-based panes on invoice/bill/users/material-prices; stack below 1024. At 1024 with sidebar (~764px content) panes squeeze but don't overflow. |
+| UI-M8 | NOT-FIXED | **PARTIAL** — `AdaptiveSheet` centers at ≥768 ✓; `Select.tsx` md:/isDesktop mismatch at 768–1023 (NR-41). |
+| UI-M11 | NOT-FIXED | **FIXED** — `Button`/`Card` hover and focus-visible rings on web. |
+| UI-M12 | NOT-FIXED | **PARTIAL** — `Button` hitSlop gives ~52px effective target; visual min-height not enforced. |
+| UI-L16 | NOT-FIXED | **FIXED** — dashboard skeleton uses valid Tailwind heights. |
+| UI-L18 | NOT-FIXED | **FIXED** — `ScreenContainer` tiered `max-w-7xl/6xl/4xl` for desktop and tablet. |
+| DAT-3.3 | PARTIAL | **FIXED** — one-off scripts moved to `scripts/one-off/`; stale `prisma/boq.service.ts` gone. |
+| DAT-3.6 | PARTIAL | **PARTIAL** — `SubcontractWorkOrder.companyId` migration added; MR/GRN `Company` FK may remain. |
+
+Items still **NOT-FIXED** from Round 1 (unchanged or not re-touched): EST-M8,
+FIN-M9, FIN-M1 (line-item Decimal), SEC-L16–L22, DAT-2.1, DAT-2.4, MOB-M19
+(SDK alignment), MOB-H6 (localStorage refresh). **PARTIAL:** EST-M11 (create
+validates; `updateMeasurement` still unvalidated).
+
+### EST/FIN deep re-verification (R2-1 … R2-13)
+
+Dedicated EST+FIN audit on the uncommitted tree (two independent passes, merged).
+Confirms most money/quantity partials are genuinely fixed; `tsc` was clean after
+Round 1 but is broken again with 16 errors. Highlights one **regressed** fix and
+several follow-through gaps.
+
+| ID | Sev | Issue |
+| -- | --- | ----- |
+| R2-1 | High | **EST-H6 dead code** — `updateChangeOrderLine` passes `''` to `assertProjectAccess`; controller never forwards `req.params.id`; every `PUT …/lines/:lineId` 404s. Fix: fetch CO first, pass `co.projectId`. |
+| R2-2 | High | Same as **NR-21** — petty cash CREATE TABLE in stray `prisma/m`. |
+| R2-3 | Med | **EST-M13 guard bypass** — `estimate.routes.ts` has no role guards; `approve` and unguarded `POST /estimates/:id/convert-to-boq` bypass `BOQ_MUTATION_ROLES`. |
+| R2-4 | Med | **createGRN EST-M1 block is a no-op** — fulfilment check uses global `prisma` inside `$transaction`; sets `status: 'APPROVED'` when already APPROVED; dead `reqLineIds` (TS6133). Real mitigation is `getOpenRequisitionQty`. |
+| R2-5 | Low | **EST-M14 CPM call is read-only** — `approveChangeOrder` awaits `getGantt()` non-fatally; qty clamp ≥ 0 works. Cosmetic FIX comment overstates side effect. |
+| R2-6 | Med | **BOQ-only req lines un-orderable** — null `resourceId` lines save (NR-13) but `createPO` validation map ignores them. |
+| R2-7 | Low | **Tally state fallback** — `companyStateCode` compares 2-digit code to state *name* when no GSTIN → all bills IGST. |
+| R2-8 | Low | Client-supplied `poNumber` / `invoiceNumber` still accepted when provided. |
+| R2-9 | Low | Unit mixing upstream — shortfall math subtracts stock (resource units) from demand (demand units) before conversion; GRN/PO paths still compare raw qty with no unit validation. |
+| R2-10 | Low | Misleading FIX comments across several touched files. |
+| R2-11 | Med | **RA partial unique index schema drift** — `invoices_projectid_rasequence_unique` exists only in migration SQL, not `schema.prisma`; next `prisma migrate dev` may generate `DROP INDEX` and remove the FIN-H4 race guard. |
+| R2-12 | Low | **Incompatible-unit demand silently dropped** — `resolveCanonicalUnitAndQty` returns `null` and caller `continue`s with no log → under-ordering in auto-indents. |
+| R2-13 | Med | **NR-12 half-done** — `createInvoice` still calls global `nextSequentialNumber` inside `$transaction`; `nextSequentialNumberTx` remains unused; P2002 race → unhandled 500. |
+
+**EST/FIN scorecard (Round 2, reconciled):**
+
+| Verdict | Items |
+| ------- | ----- |
+| FIXED | EST-C2, EST-C3, EST-H1, EST-H2/NR-7, EST-H4, EST-H7, EST-M3/NR-8, EST-M9, EST-M14, EST-M16, FIN-H2/NR-11, FIN-H3, FIN-H8, FIN-M3, FIN-M5, FIN-M6, FIN-M10, FIN-M11, NR-5, NR-14 |
+| PARTIAL | EST-C1 (demand path), EST-M6, EST-M7, EST-M11, EST-M12/NR-9, EST-M13, EST-M15/NR-6, FIN-H4/NR-12, FIN-H5/NR-4, FIN-H7, FIN-M1, FIN-M12 |
+| NOT-FIXED | EST-M8, FIN-M9 |
+| REGRESSED | EST-H6 (R2-1) |
+
+### SEC/DAT deep re-verification (Round 2)
+
+| ID | Status | Notes |
+| -- | ------ | ----- |
+| SEC-C2 (OrThrow) | **NOT-FIXED** | `READ_ACTIONS` still lacks OrThrow variants; ~52 call sites bypass ALS tenant scoping. |
+| SEC-L16 | **PARTIAL** | `min(32)` on JWT secrets; no placeholder rejection in prod. |
+| SEC-L17 | **NOT-FIXED** | Raw `err.message` still returned to clients in non-prod; "fix" only redacts prod **server log** (hurts prod debuggability). |
+| SEC-L20 | **FIXED** | Body limit message now "max 1MB". |
+| SEC-L21 | **PARTIAL** | Upload streams Buffer ✓; download uses `String(res.data)` without `responseType: 'arraybuffer'` — binary ciphertext UTF-8 mangled. |
+| SEC-L22 | **NOT-FIXED** | `removeHeader('Content-Encoding')` before response is a no-op; compression still applies to auth routes. |
+| DAT-2.1 | **NOT-FIXED / worse** | Company→User Cascade vs RESTRICT FKs; Phase 5 models add ~6 more RESTRICT user FKs. |
+| DAT-2.4 | **PARTIAL** | 34 vulns (1 critical, 22 high) vs 40; pnpm overrides added but `body-parser` still resolves `<1.20.6`; most crit/high in Expo/mobile chain. |
+| DAT-3.3 | **FIXED** | One-offs in `scripts/one-off/`. |
+| DAT-3.6 | **PARTIAL** | SWO `companyId` migration done; MR/GRN still have `companyId` without Company relation. |
+| DAT-3.8 | **NOT-FIXED** | `--forceExit`, `db:test:reset` identical to `db:reset`, turbo test env unset. |
+| DAT-4.9 | **FIXED** | `.npmrc` `prefer-frozen-lockfile=true`. |
+
+**Migration ↔ schema consistency (verified):**
+
+| Model / change | Migration folder | Status |
+| -------------- | ---------------- | ------ |
+| Invoice.clientState + RA unique index | `20260730120100` | OK |
+| Requisition `resourceId` nullable | `20260731040000` | OK |
+| PunchItem | `20260731050000` | OK |
+| RFI + Submittal | `20260731060000` | OK |
+| Drawing + DrawingVersion | `20260731070000` | OK |
+| SubcontractWorkOrder.companyId | `20260731080000` | OK |
+| **PettyCashEntry** | **none — SQL in stray `prisma/m`** | **BROKEN (NR-21)** |
+
+No reverse drift (no migration creates a table absent from schema). **CI gap:** jest
+runs ts-jest in `isolatedModules` (transpile-only) mode — all 19 suites execute
+despite 16 `tsc` errors; `build`/`typecheck` in CI will still fail.
+
+---
+
+## New issues introduced in Round 2 (NR-20+)
+
+### Critical / shipping blockers
+
+- **NR-20 — Backend TypeScript does not compile (16 errors).** Phase 5 modules
+  break the build:
+  - `drawing.routes.ts` / `rfi-submittal.routes.ts`: `validate()` called with
+    `{ params, body }` wrapper schemas that don't match the middleware's
+    `Partial<{ body, query, params }>` shape (NR-31 — silent runtime bypass).
+  - `drawing.service.ts` / `rfi-submittal.service.ts`: audit actions `"UPLOAD"`,
+    `"ANSWER"`, `"REVIEW"` not in the `AuditAction` enum.
+  - `sync.service.ts`: queries `updatedAt` on `Task` and `DailyReport` — **neither
+    column exists**; also spreads `{ companyId }` on `DailyReport`, which has **no
+    `companyId` column** (NR-46). Requires schema migrations, not query edits alone.
+  - Trivial unused symbols: `app.ts` (`req`), `accounting-export.service.ts`
+    (`Decimal`), `labour.service.ts` (`ApiError`), `procurement.service.ts`
+    (`reqLineIds`).
+  **Fix:** correct validate usage, extend `AuditAction` enum (+ migration) or use
+  `CUSTOM`, add `updatedAt` (+ backfill) to syncable models and fix DailyReport
+  company scoping, run `tsc --noEmit` until clean.
+
+- **NR-21 — Petty cash migration in wrong path (`apps/backend/prisma/m`).**
+  Full `CREATE TABLE petty_cash_entries` SQL exists in an untracked extensionless
+  file; `PettyCashEntry` is declared in `schema.prisma` but **no proper migration
+  folder** exists. Runtime: `prisma migrate deploy` never creates the table; petty
+  cash API calls will 500. **Fix:** move SQL to
+  `migrations/20260731xxxxxx_add_petty_cash/migration.sql`, delete `prisma/m`.
+
+### High
+
+- **NR-22 — Phase 5 features are stubs with compile/runtime holes.** Punch list,
+  RFIs/submittals, drawings, inventory traceability, labour, portal-enhanced,
+  accounting export, i18n, and sync routes are wired in `app.ts`, but several
+  cannot run until NR-20/NR-21 are fixed. No corresponding **mobile UI** was added
+  for these modules — backend-only stubs.
+
+- **NR-23 — Test regression: `invoice-ra.test.ts` + RA sequence logic bug.** Suite
+  **18/19** on fresh run; root cause: partial unique index counts all non-null
+  `ra_sequence` rows, but seeding query excludes `status: DRAFT` — a DRAFT RA bill #1
+  makes bill #2 recompute `raSequence = 1` → P2002 at `invoice.service.ts:242`. Request
+  then **hangs** (30s jest timeout) instead of returning an error. Second consecutive
+  run can also fail `daily-report.test.ts` (409 duplicate) — suite is non-idempotent
+  (NR-55). Procurement tests may log P2002 on `po_number` when document_counters drift
+  from seeded numbers.
+
+- **NR-51 — NR-13 client not wired.** `ProcurementTab.tsx:316` sends
+  `resourceId: l.resourceId`; BOQ-only draft lines carry `resourceId: ''` which fails
+  `z.string().uuid().optional()`. Fix: `resourceId: l.resourceId || undefined`.
+
+- **NR-52 — MOB-H6 web refresh broken cross-origin.** `refreshAccessToken` omits
+  `credentials:'include'`; login no longer returns refreshToken on web so
+  `persistSession` stores literal `"undefined"` in localStorage. Web sessions die at
+  first access-token expiry unless API is same-origin.
+
+- **NR-53 — Auth full-bleed regression at 1024–1279.** `AuthScreenShell` hero split
+  now requires `isWideDesktop` (≥1280); fallback branch has no max-width — login forms
+  stretch edge-to-edge on iPad landscape / narrow desktop web.
+
+- **NR-54 — Native iPad desktop chrome ignores status bar.** `AppTopBar` fixed `h-16`
+  with no safe-area inset; sidebar/topbar now render on native iPad ≥1024 under the
+  status bar.
+
+- **NR-55 — Test suite non-idempotent.** Back-to-back runs can flip from 1 failed to
+  2 failed; `--forceExit` masks open handles (DAT-3.8).
+
+- **NR-24 — Expo SDK manifest vs lockfile drift (CI blocker).** `apps/mobile/package.json`
+  bumps `expo ~51→~52`, `react-native 0.74.2→0.76.5`, `react-native-web ~0.19.6→~0.19.13`,
+  but `pnpm-lock.yaml` still pins SDK 51. **`pnpm install --frozen-lockfile` fails**
+  with 3 specifier mismatches. A plain install triggers an untested major SDK upgrade.
+  **Fix:** either revert manifest to SDK 51 or regenerate lockfile and validate Expo 52
+  end-to-end (`expo install --check`, native build smoke test).
+
+### Medium (cross-device UI)
+
+- **NR-25 — Tablet tier (768–1023) nav gap.** With UI-C1 fixed, `isDesktop` is
+  false below 1024, so iPad portrait (768) gets bottom tabs only — no sidebar or
+  icon rail. Master-detail panes now flex/stack correctly (UI-H3 fixed), but
+  marketing pages hide About/Pricing links until ≥1024 (`MarketingNav.tsx`) with
+  no hamburger fallback.
+  **Fix:** consider sidebar or compact rail from `isTablet` (768+) on web/iPad.
+
+- **NR-26 — Tablet-tier polish gaps (768–1023).** UI-H3 master-detail is fixed,
+  but rough edges remain: `Select` pickers slide up like phones while forms use
+  centered dialogs (NR-41); `ResponsiveGridList` stays 1-column while
+  `ResponsiveGrid` goes 2-column at 768; inconsistent gutters when screens use
+  phone `p-4` inside `ScreenContainer`'s `px-6`; ActionBar pins first child
+  full-width on phone — on estimation that's the secondary "Edit" button (cosmetic).
+
+- **NR-27 — Phase 5 mobile/offline incomplete.** No mobile UI for sync status or
+  conflict resolution. Queue rough edges (NR-42): storage-key bump `v1→v2` silently
+  orphans un-synced v1 reports; replay destructuring strips a nonexistent `payload`
+  key; new op types have replay configs but zero producers. See also NR-35.
+
+### Low
+
+- **NR-28 — Estimate-links test still skipped** (`it.skip` line 119) — coverage
+  gap for submitForReview MATERIAL blocking.
+- **NR-29 — `--forceExit` still on jest**; DAT-3.8 partially addressed only.
+- **NR-30 — Stray untracked `apps/backend/prisma/m`** must not be committed.
+- **NR-39 — Tracked dead route file `app/(app)/reports-hub/index`** (extensionless,
+  ~18KB stale copy alongside `index.tsx`). Same anti-pattern as Round-1's `hooks/use`.
+  **Fix:** delete the extensionless file.
+- **NR-40 — Tablet FAB / tab-bar overlap.** `ScreenContainer` tablet branch uses
+  `pb-10` (40px) while `AssistantFab` + tab bar reserve ~150px. Last list items
+  can sit under the FAB on 768–1023. **Fix:** apply bottom padding when
+  `isTablet && !isDesktop`.
+- **NR-41 — Select half-state at 768–1023.** `Select.tsx:180-187` — Tailwind `md:`
+  classes fire at ≥768 while JS `isDesktop` (`max-w-lg`) fires at ≥1024 → full-width
+  vertically-centered slab on tablet tier.
+- **NR-42 — Deprecated `columns` alias in `useViewport.ts`** disagrees with
+  `gridColumns` (2-col at ≥1024 vs ≥768). No consumers — delete before use.
+
+### Critical / High — Phase 5 deep verification (Round 2 supplement)
+
+These were confirmed by a dedicated Phase 5 audit after the general Round-2
+review. They are **in addition to** NR-20/NR-21 above.
+
+- **NR-31 — Silent validation bypass on 6 Phase 5 mutation endpoints (runtime
+  security hole).** `drawing.routes.ts` and `rfi-submittal.routes.ts` pass whole
+  wrapper schemas like `z.object({ params, body })` into `validate()`, but the
+  middleware expects separate `{ params: schema, body: schema }`. At runtime
+  `.body` is `undefined`, so **no validation runs** on RFI update/answer,
+  submittal update/review, drawing update/add-version — arbitrary status strings
+  can be written, bypassing enums and any state machine. This is both a compile
+  error and a silent bypass. **Fix:** split schemas like every other route in the
+  codebase; add integration tests that reject invalid status values.
+
+- **NR-32 — RFI/Submittal numbers consume the invoice document counter.**
+  `rfi-submittal.service.ts` calls `nextSequentialNumber(companyId, 'invoice')`
+  and string-replaces `INV` → `RFI`/`SUB`. Every RFI/submittal creates a **gap in
+  the GST-sensitive invoice sequence** and RFIs/submittals share one counter.
+  **Fix:** add `'rfi'` and `'submittal'` (or `'rfi_submittal'`) types to
+  `document_counters` and generate numbers independently.
+
+- **NR-33 — Cross-tenant leak in inventory traceability.**
+  `inventory-traceability.service.ts` `getResourceTraceability` does not verify
+  `projectId` belongs to the caller's `companyId`; requisition-line queries filter
+  by `projectId` only. A user can pass another tenant's project UUID and read
+  requisition numbers/quantities/statuses. **Fix:** assert project membership or
+  add `companyId` to every query in the chain.
+
+- **NR-34 — No state machines on Phase 5 entities.** RFI, Submittal, PunchItem,
+  and PettyCashEntry accept arbitrary status transitions via generic updates (and
+  RFI/Submittal validation is bypassed per NR-31). e.g. CLOSED→OPEN, re-answering
+  a closed RFI, un-reconciling petty cash. **Fix:** whitelist transitions per
+  entity; use guarded `updateMany({ where: { id, status: EXPECTED } })`.
+
+- **NR-35 — Mobile offline replay targets wrong endpoints.** `offline-sync.service.ts`
+  replays attendance to `POST /projects/:id/attendance` and
+  `PUT /projects/:id/attendance/:id`, but real routes are check-in/check-out.
+  These ops 404 forever with no retry cap or dead-letter. `Idempotency-Key` is
+  only honored on daily-report/payment — punch/RFI replays can duplicate on retry.
+  **Fix:** align replay URLs with actual API; add idempotency to all queued
+  mutation types; implement conflict log (§8.1 spec).
+
+- **NR-36 — Drawing acknowledgement missing (§8.3 core feature).** No
+  `DrawingAcknowledgement` model, endpoint, or UI — only a drawing register with
+  versions. Superseded-revision locking also unenforced. **Fix:** add model +
+  migration + `POST /drawings/:id/acknowledge` + portal notification of who saw
+  Rev-C.
+
+- **NR-37 — Phase 5 spec shortfalls (thin wrappers vs audit requirements).**
+  - **8.5 Inventory:** read-only traceability only; no issue/return notes, stock
+    transfers, or BOQ consumption variance.
+  - **8.7 Accounting export:** CSV + QuickBooks only; no Zoho Books, Busy,
+    GSTR-1/GSTR-3B; no debit=credit balance check; header falsely claims Excel.
+  - **8.8 Labour:** analytics only with hardcoded ₹500 wage; no muster by
+    trade/gang, piece-rate vs day-rate, weekly payment register.
+  - **8.6 Portal:** list/revoke + token data only; no client selections/approvals
+    (sign-off) flow.
+  Either implement to spec or document as deferred and **unmount** incomplete routes.
+
+- **NR-38 — Sync is pull-only skeleton, not offline-first (even after compile fix).**
+  `sync.service.ts`: `boqItems` ignores `since` (full dump capped at 500 rows);
+  punch/RFI/submittal deltas capped at 200 with no cursor; `tasks` ignores
+  `projectIds`; `since` unvalidated; errors swallowed with `.catch(() => [])`.
+  **No push/upload endpoint** — mobile offline queue replays against regular routes,
+  and nothing in `apps/mobile` calls `/api/sync`. Schema blockers (NR-46): `Task` and
+  `DailyReport` need `updatedAt` migrations; `DailyReport` cannot be company-filtered
+  as written. **Fix:** schema migrations + honest delta filters + push path + mobile
+  client wiring, or unmount until real.
+
+- **NR-43 — Phase 5 models omitted from `TENANT_SCOPED_MODELS`.** `PunchItem`, `RFI`,
+  `Submittal`, `Drawing`, `PettyCashEntry`, and `SubcontractWorkOrder` (now has
+  `companyId`) were not added to the ALS auto-scoping set in `src/lib/prisma.ts`.
+  `DocumentCounter` is in the MCP list but **not** the backend list despite comments
+  requiring parity. Services scope explicitly (defense-in-depth gap, not a live leak
+  on spot-check). **Fix:** add all models with direct `companyId` to both lists.
+
+- **NR-44 — Drawings migration drift.** Migration `20260731070000` is missing the
+  unique index on `drawings.current_version_id` required by the schema's `@unique`
+  on `Drawing.currentVersionId`. The 1:1 back-relation is unenforced at DB level.
+  **Fix:** add `CREATE UNIQUE INDEX drawings_current_version_id_key …` migration.
+
+- **NR-45 — Portal enhanced leaks project budget.** Public route
+  `/api/portal/:token/enhanced` returns `project.budget` to every token holder
+  regardless of scopes. Existing `portal.service.ts` never exposes budget. **Fix:**
+  remove budget from public payload or gate behind an explicit scope.
+
+- **NR-46 — Sync schema prerequisites.** Beyond compile errors: `DailyReport` has
+  no `updatedAt` and no `companyId`; `Task` has no `updatedAt`. Delta sync cannot
+  work without migrations adding these columns (+ backfill strategy for `updatedAt`).
+
+- **NR-47 — Inventory `currentBalance` wrong for multi-location projects.**
+  `inventory-traceability.service.ts` uses `findFirst` on stock locations instead of
+  summing balances across all project locations.
+
+- **NR-48 — i18n is dead code on mobile.** Backend `/api/i18n` returns config
+  metadata only (no translations). `apps/mobile/constants/i18n.ts` has a 5-language
+  dictionary but **nothing imports it** — the referenced `useTranslation()` hook
+  does not exist. Role-dashboard config duplicated in backend and mobile (drift risk).
+
+- **NR-49 — Accounting export quality gaps.** Promised Excel workbook via exceljs not
+  implemented; `findMany` unbounded on large tenants; `csvEscape` does not neutralize
+  formula injection (`=`, `+`, `-`, `@` prefixes in vendor/client names execute in
+  Excel). Date query params unvalidated.
+
+### Phase 5 per-module verdict (Round 2 deep review)
+
+| Module | Verdict | Notes |
+| ------ | ------- | ----- |
+| Punch list | **WORKING** | Best of batch; validation wired correctly via `.shape.body` |
+| RFIs/submittals | **BROKEN** | Compile + NR-31 + NR-32 counter bug |
+| Drawings | **BROKEN** | Compile + NR-44 migration drift; design sound once fixed |
+| Inventory traceability | **LEAK** | Compiles; NR-33, NR-47 |
+| Labour | **BROKEN** (trivial) | Unused import; analytics only, IST timezone bug |
+| Petty cash | **BROKEN** (runtime) | Code good; NR-21 missing migration |
+| Portal enhanced | **BUGGY** | Compiles; NR-45 budget leak on public route |
+| Sync | **BROKEN** | NR-20, NR-38, NR-46; pull-only skeleton |
+| Accounting export | **BROKEN** (trivial) | Unused import; NR-49 quality gaps |
+| i18n | **STUB** | NR-48 dead mobile dictionary |
+
+### Phase 5 feature matrix (Round 2)
+
+| §8 Feature | Backend status | Mobile UI | Blockers |
+| ---------- | -------------- | --------- | -------- |
+| 8.1 Offline sync | **BROKEN** (schema + compile) | No `/api/sync` client; queue broken (NR-35) | NR-20, NR-38, NR-46 |
+| 8.2 RFIs/submittals | **BROKEN** (compile + counter) | None | NR-31, NR-32, NR-34, NR-43 |
+| 8.3 Drawings | **BROKEN** (compile + migration drift) | None | NR-31, NR-36, NR-44 |
+| 8.4 Punch list | **WORKING** | None | NR-34, NR-43 |
+| 8.5 Inventory traceability | **LEAK** + wrong balance | None | NR-33, NR-37, NR-47 |
+| 8.6 Portal enhanced | **BUGGY** (budget leak) | None | NR-37, NR-45 |
+| 8.7 Accounting export | CSV/QB; compile trivial | None | NR-37, NR-49 |
+| 8.8 Labour | Analytics stub; compile trivial | None | NR-37 |
+| 8.9 i18n + petty cash | i18n stub; petty cash **no table** | Dead i18n dict (NR-48) | NR-21, NR-48 |
+
+---
+
+## Cross-device UI consistency (Round 2 snapshot — re-verified)
+
+Dedicated UI re-verification confirmed Round-1 UI items are **genuinely fixed**;
+breakpoint model is coherent across 360→1920. Weakest band remains **768–1023**.
+
+| Width | App shell | Content / layout | Known rough edges |
+| ----- | --------- | ---------------- | ----------------- |
+| **360 / 414** | Bottom tabs + mobile header | Phone tier everywhere | Solid — ActionBar scroll, auth safe-area, ≥44px hit targets |
+| **768** (iPad portrait) | Bottom tabs, no sidebar | Centered dialogs, 2-col grids | Select slab (NR-41); ScreenContainer tablet tier bypassed on many screens; FAB overlap (NR-40) |
+| **1024** (iPad landscape) | Sidebar + top bar (NR-54: no safe-area) | Flex master-detail | Auth full-bleed until 1280 (NR-53); settings loses 2-col layout |
+| **1280** | Desktop shell | `max-w-7xl`, 3-col grids | Consistent |
+| **1920** | Desktop shell | Content capped at `max-w-7xl`, centered | No ultrawide stretch |
+
+**Verdict:** Usable on phone and wide desktop; native iPad landscape (≥1024) gets
+the real desktop shell. Tablet portrait / 768–1023 web is functional but not
+peer-grade until NR-25, NR-40, NR-41 are addressed.
+
+---
+
+## Tests & tooling (Round 2)
+
+| Check | Result |
+| ----- | ------ |
+| `pnpm --filter @buildflow/backend test` | **18–19/19 suites** — run 1: 89 pass/2 fail/1 skip; run 2: 90 pass/1 fail/1 skip (non-idempotent, NR-55). Jest compiles via `isolatedModules` despite 16 `tsc` errors. |
+| `tsc --noEmit -p apps/backend` | **FAIL** (16 errors in Phase 5 files) |
+| `pnpm install --frozen-lockfile` | **FAIL** — Expo SDK 52 manifest vs SDK 51 lockfile (NR-24) |
+| Audit log runtime | Migration present — should work once DB migrated |
+| Seed exit | Round-1 fix retained |
+
+---
+
+## Round-3 priorities (see [`GLM_FIX_PROMPT.md`](GLM_FIX_PROMPT.md))
+
+1. **Make the backend compile and migrate cleanly** (NR-20, NR-21) — nothing else
+   ships until `tsc` and `prisma migrate deploy` succeed.
+2. **Fix `invoice-ra.test.ts`** (NR-23: align DRAFT handling with unique index or fix
+   hang on P2002) and re-enable the skipped estimate-links test; fix test idempotency
+   (NR-55).
+3. **Align Expo lockfile** with manifest (NR-24) or revert SDK bump.
+4. **Finish remaining EST/FIN gaps:** R2-1 (EST-H6 projectId), EST-C1 demand
+   path, FIN-H5 Tally retention balance, R2-3/R2-11/R2-13 (guards, RA index drift,
+   `nextSequentialNumberTx`), R2-6 BOQ-only PO path, EST-M11 update validation.
+5. **Tablet-tier UI polish** (NR-25/26/40/41): optional sidebar rail at 768+,
+   Select sheet alignment, FAB bottom padding, delete dead `reports-hub/index` (NR-39).
+6. **Phase 5:** either complete each feature (schema + migration + auth + mobile
+   screen + test) or **remove/gate** incomplete modules — do not leave compile-
+   broken stubs in the tree. See **NR-31 … NR-49**, per-module verdict table, and
+   Phase 5 feature matrix above.

@@ -106,11 +106,17 @@ export function computeSummary(
     subtotal + overheadAmount + contingencyAmount + profitMarginAmount,
   );
 
-  // Weighted GST per item
+  // FIX (EST-M16): GST must be calculated on the MARKED-UP base (subtotal +
+  // overhead + contingency + profit), not just the raw item amount. In Indian
+  // construction contracts, GST is levied on the total value of supply after
+  // adding overheads and profit margins. Previously GST was computed only on
+  // `item.amount`, ignoring the markup — understating the GST liability.
+  const markupMultiplier = subtotal > 0 ? grandTotalBeforeGST / subtotal : 1;
   const gstAmount = round2(
     items.reduce((sum, item) => {
       const gstRate = item.resourceGstRate ?? 0;
-      return sum + (item.amount * gstRate) / 100;
+      const markedUpBase = item.amount * markupMultiplier;
+      return sum + (markedUpBase * gstRate) / 100;
     }, 0),
   );
 
@@ -194,8 +200,13 @@ export async function getEstimateWithSummary(companyId: string, estimateId: stri
   if (!estimate) throw ApiError.notFound('Estimate not found');
 
   const sections: SectionWithItems[] = estimate.sections.map((s) => {
+    // FIX (EST-C1): Exclude sub-items (parentId !== null) from the section's
+    // item list AND subtotal. Sub-items are displayed nested under their parent
+    // (via the parent-children relation), not as standalone section rows.
+    // Including them here double-counts: the parent's rolled-up amount already
+    // reflects its children, so summing both inflates section subtotals ~2x.
     const sectionItems = estimate.items
-      .filter((i) => i.sectionId === s.id)
+      .filter((i) => i.sectionId === s.id && !i.parentId)
       .map((i) => ({
         id: i.id,
         description: i.description,
@@ -906,6 +917,14 @@ export async function duplicateEstimate(
     select: { version: true },
   });
 
+  // FIX (NR-8): source.sections only contains top-level items (EST-C1 filter).
+  // Fetch ALL items (parents + children) directly from the DB so we can
+  // duplicate the full hierarchy and map parentId to the new item IDs.
+  const allSourceItems = await prisma.estimateItem.findMany({
+    where: { estimateId },
+    orderBy: [{ parentId: { sort: 'asc', nulls: 'first' } }, { createdAt: 'asc' }],
+  });
+
   const dup = await prisma.$transaction(async (tx) => {
     const created = await tx.estimate.create({
       data: {
@@ -923,6 +942,8 @@ export async function duplicateEstimate(
       },
     });
 
+    // Map old section IDs → new section IDs
+    const sectionIdMap = new Map<string, string>();
     for (const section of source.sections) {
       const newSection = await tx.estimateSection.create({
         data: {
@@ -932,25 +953,37 @@ export async function duplicateEstimate(
           orderIndex: section.orderIndex,
         },
       });
-      for (const item of section.items) {
-        await tx.estimateItem.create({
-          data: {
-            estimateId: created.id,
-            sectionId: newSection.id,
-            description: item.description,
-            unit: item.unit,
-            quantity: item.quantity,
-            rate: item.rate,
-            amount: item.amount,
-            type: item.type as never,
-            resourceId: item.resourceId,
-            rateAnalysisId: item.rateAnalysisId,
-            wbsItemId: item.wbsItemId,
-            itemCode: item.itemCode,
-            notes: item.notes,
-          },
-        });
-      }
+      sectionIdMap.set(section.id, newSection.id);
+    }
+
+    // FIX (NR-8): Map old item IDs → new item IDs so we can preserve the
+    // parent→child hierarchy. Items are ordered parents-first (nulls first)
+    // so a parent is always mapped before its children are created.
+    const itemIdMap = new Map<string, string>();
+    for (const item of allSourceItems) {
+      const newSectionId = sectionIdMap.get(item.sectionId) ?? [...sectionIdMap.values()][0];
+      // Map the parentId if this is a child item
+      const mappedParentId = item.parentId ? itemIdMap.get(item.parentId) ?? null : null;
+      const created2 = await tx.estimateItem.create({
+        data: {
+          estimateId: created.id,
+          sectionId: newSectionId,
+          // FIX (NR-8): Preserve the parent-child link via the mapped ID.
+          parentId: mappedParentId,
+          description: item.description,
+          unit: item.unit,
+          quantity: Number(item.quantity),
+          rate: Number(item.rate),
+          amount: Number(item.amount),
+          type: item.type as never,
+          resourceId: item.resourceId,
+          rateAnalysisId: item.rateAnalysisId,
+          wbsItemId: item.wbsItemId,
+          itemCode: item.itemCode,
+          notes: item.notes,
+        },
+      });
+      itemIdMap.set(item.id, created2.id);
     }
 
     return created;

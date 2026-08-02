@@ -28,8 +28,9 @@ import { Router } from 'express';
 import { z } from 'zod';
 import * as estimateController from '../controllers/estimate.controller';
 import * as boqController from '../controllers/boq.controller';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, requireRole } from '../middleware/auth';
 import { validate } from '../middleware/validate';
+import { asyncHandler } from '../utils/async-handler';
 import {
   createEstimateSchema,
   updateEstimateMetaSchema,
@@ -38,6 +39,7 @@ import {
   createEstimateItemSchema,
   updateEstimateItemSchema,
   rejectEstimateSchema,
+  Role,
 } from '@buildflow/shared';
 
 const projectIdParamsSchema = z.object({ projectId: z.string().uuid() });
@@ -55,6 +57,11 @@ const estimateCompareParamsSchema = z.object({
 export const estimateRouter = Router();
 
 estimateRouter.use(authenticateToken);
+
+// FIX (R2-3): Gate estimate workflow mutations behind requireRole, matching
+// boq.routes.ts. Previously approve / convert-to-boq had no role guard, so any
+// team member (incl. STORE_INCHARGE) could approve estimates or convert them.
+const ESTIMATE_MUTATION_ROLES = requireRole(Role.OWNER, Role.PM, Role.DPM, Role.ACCOUNTANT);
 
 // Project-scoped routes
 estimateRouter.get(
@@ -152,25 +159,29 @@ estimateRouter.post(
 estimateRouter.post(
   '/estimates/:id/submit',
   validate({ params: estimateIdParamsSchema }),
-  estimateController.submit,
+  asyncHandler(estimateController.submit),
 );
 estimateRouter.post(
   '/estimates/:id/approve',
+  ESTIMATE_MUTATION_ROLES,
   validate({ params: estimateIdParamsSchema }),
   estimateController.approve,
 );
 estimateRouter.post(
   '/estimates/:id/reject',
+  ESTIMATE_MUTATION_ROLES,
   validate({ params: estimateIdParamsSchema, body: rejectEstimateSchema }),
   estimateController.reject,
 );
 estimateRouter.post(
   '/estimates/:id/duplicate',
+  ESTIMATE_MUTATION_ROLES,
   validate({ params: estimateIdParamsSchema }),
   estimateController.duplicate,
 );
 estimateRouter.post(
   '/estimates/:id/convert-to-boq',
+  ESTIMATE_MUTATION_ROLES,
   validate({ params: estimateIdParamsSchema }),
   boqController.convertEstimateToBoq,
 );

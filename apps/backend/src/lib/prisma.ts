@@ -49,12 +49,26 @@ const TENANT_SCOPED_MODELS = new Set([
   'StockLocation',
   'Subcontractor',
   'ReportSchedule',
+  // FIX (§2.2C / NR-43): Phase 5 tenant-scoped models. SubcontractWorkOrder
+  // gained a direct companyId column via migration 20260731080000.
+  'PunchItem',
+  'RFI',
+  'Submittal',
+  'Drawing',
+  'PettyCashEntry',
+  'SubcontractWorkOrder',
+  'DocumentCounter',
 ]);
 
+// FIX (SEC-C2): include the *OrThrow read variants so they are scoped too.
+// Without these, `findUniqueOrThrow({ where: { id } })` could read a row from
+// another tenant.
 const READ_ACTIONS = new Set([
   'findUnique',
   'findFirst',
   'findMany',
+  'findUniqueOrThrow',
+  'findFirstOrThrow',
   'count',
   'aggregate',
   'groupBy',

@@ -99,3 +99,20 @@ export async function addBoqLines(req: Request, res: Response) {
   );
   return ok(res, data);
 }
+
+/**
+ * FIX (EST-H6): Update a change-order line's qtyDelta/rate and recompute costImpact.
+ * Route: PUT /api/projects/:id/change-orders/:changeOrderId/lines/:lineId
+ */
+export async function updateLine(req: Request, res: Response) {
+  const { companyId, id: userId, role } = req.user!;
+  const data = await changeOrderService.updateChangeOrderLine(
+    companyId,
+    userId,
+    role,
+    req.params.changeOrderId,
+    req.params.lineId,
+    req.body,
+  );
+  return ok(res, data);
+}

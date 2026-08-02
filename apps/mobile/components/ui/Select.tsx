@@ -86,7 +86,7 @@ export function Select({
   compact = false,
   helper,
 }: SelectProps) {
-  const { isDesktop } = useViewport();
+  const { isTablet } = useViewport();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -171,7 +171,7 @@ export function Select({
       <Modal
         visible={open}
         transparent
-        animationType={isDesktop ? 'fade' : 'slide'}
+        animationType={isTablet ? 'fade' : 'slide'}
         onRequestClose={() => setOpen(false)}
       >
         <Pressable className="flex-1 bg-black/40" onPress={() => setOpen(false)}>
@@ -182,9 +182,9 @@ export function Select({
             <Pressable
               onPress={(e) => e.stopPropagation()}
               className={`bg-card rounded-t-2xl md:rounded-2xl ${
-                isDesktop ? 'mx-auto w-full max-w-lg my-auto' : ''
+                isTablet ? 'mx-auto w-full max-w-lg my-auto' : ''
               }`}
-              style={isDesktop ? { maxHeight: '80%' } : { maxHeight: '85%' }}
+              style={isTablet ? { maxHeight: '80%' } : { maxHeight: '85%' }}
             >
               {/* Header */}
               <View className="px-4 pt-4 pb-2 border-b border-border">

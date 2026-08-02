@@ -329,109 +329,123 @@ export async function convertEstimateToBoq(
   // estimates archive and rebuild the BOQ from scratch.
   const isSubEstimate = !!estimate.parentId;
 
-  // FIX (EST-C2): Archive existing BOQ lines BEFORE nulling estimateItemId.
-  // Previously the code nulled estimateItemId first, then tried to filter by
-  // it — so the archive step matched nothing and left duplicate lines.
-  let archived: { count: number };
-  let previousSubEstimateBudget = 0; // FIX (EST-C3): track old total for budget correction
-
-  if (isSubEstimate) {
-    // Append mode: capture the old total BEFORE archiving, so we can correct
-    // the budget (subtract old, add new) instead of double-incrementing.
-    const existingSubItems = await prisma.bOQItem.findMany({
-      where: {
-        projectId,
-        isSuperseded: false,
-        estimateItemId: { in: estimate.items.map((i) => i.id) },
-      },
-      select: { amount: true },
-    });
-    previousSubEstimateBudget = existingSubItems.reduce(
-      (s, i) => s + Number(i.amount),
-      0,
-    );
-
-    // Archive the previously-converted BOQ items from this sub-estimate
-    archived = await prisma.bOQItem.updateMany({
-      where: {
-        projectId,
-        isSuperseded: false,
-        estimateItemId: { in: estimate.items.map((i) => i.id) },
-      },
-      data: { isSuperseded: true },
-    });
-    // NOW null the estimateItemId links (after archiving, so the filter worked)
-    await prisma.bOQItem.updateMany({
-      where: {
-        projectId,
-        estimateItemId: { in: estimate.items.map((i) => i.id) },
-      },
-      data: { estimateItemId: null },
-    });
-  } else {
-    // Full rebuild mode: archive ALL existing BOQ items, THEN null links
-    archived = await prisma.bOQItem.updateMany({
-      where: { projectId, isSuperseded: false },
-      data: { isSuperseded: true },
-    });
-    await prisma.bOQItem.updateMany({
-      where: { projectId },
-      data: { estimateItemId: null },
-    });
-  }
-
-  // Create new BOQ items from estimate items (prefixed for sub-estimates)
-  const itemCodePrefix = isSubEstimate ? `SUB-${estimate.name.slice(0, 10).toUpperCase().replace(/\s+/g, '-')}` : '';
-  // FIX (EST-C1): Only convert top-level items (parentId === null) — parent
-  // items already have their amount rolled up from sub-items, so converting
-  // both would create duplicate BOQ lines and inflate the budget.
+  // FIX (EST-C3): Wrap archive + null-links + createMany + budget update in a
+  // single $transaction so a mid-way failure (e.g. createMany throws) doesn't
+  // leave the BOQ archived with nothing created. Indent generation runs AFTER
+  // the transaction as a non-fatal side-effect (Global Rule 2).
   const topLevelEstimateItems = estimate.items.filter((i) => !i.parentId);
-  const boqData = topLevelEstimateItems.map((item) => ({
-    projectId,
-    wbsId: item.wbsItemId,
-    itemCode: item.itemCode ?? (isSubEstimate ? `${itemCodePrefix}-${item.id.slice(-6)}` : `EST-${item.id.slice(-6)}`),
-    description: item.description,
-    unit: item.unit,
-    quantity: Number(item.quantity),
-    rate: Number(item.rate),
-    amount: Number(item.quantity) * Number(item.rate),
-    category: isSubEstimate ? `${item.type}/${estimate.name}` : item.type,
-    section: item.section?.name ?? null,
-    estimateItemId: item.id,
-    isSuperseded: false,
-  }));
+  const itemCodePrefix = isSubEstimate ? `SUB-${estimate.name.slice(0, 10).toUpperCase().replace(/\s+/g, '-')}` : '';
 
-  const created = await prisma.bOQItem.createMany({ data: boqData });
+  const { archivedCount, createdCount, newBoqItemLinks } = await prisma.$transaction(async (tx) => {
+    // FIX (EST-C2): Archive existing BOQ lines BEFORE nulling estimateItemId.
+    // Capture the previous total of this sub-estimate's BOQ lines FIRST so the
+    // budget delta compares like-with-like (sum of BOQ item amounts, not
+    // estimate.grandTotal which includes overhead/profit/GST).
+    let previousSubEstimateBudget = 0;
+    if (isSubEstimate) {
+      const existingSubItems = await tx.bOQItem.findMany({
+        where: {
+          projectId,
+          isSuperseded: false,
+          estimateItemId: { in: topLevelEstimateItems.map((i) => i.id) },
+        },
+        select: { amount: true },
+      });
+      previousSubEstimateBudget = existingSubItems.reduce(
+        (s, i) => s + Number(i.amount),
+        0,
+      );
+    }
 
-  // Update project budget:
-  // - Top-level estimate: set budget = estimate grand total (full rebuild)
-  // - Sub-estimate: ADD the delta (new - old) to avoid double-incrementing
-  //   on re-conversion (FIX EST-C3).
-  if (isSubEstimate) {
-    const delta = Number(estimate.grandTotal) - previousSubEstimateBudget;
-    await prisma.project.update({
-      where: { id: projectId },
-      data: { budget: { increment: delta } },
+    // Archive
+    const archived = isSubEstimate
+      ? await tx.bOQItem.updateMany({
+          where: {
+            projectId,
+            isSuperseded: false,
+            estimateItemId: { in: topLevelEstimateItems.map((i) => i.id) },
+          },
+          data: { isSuperseded: true },
+        })
+      : await tx.bOQItem.updateMany({
+          where: { projectId, isSuperseded: false },
+          data: { isSuperseded: true },
+        });
+
+    // Null estimateItemId links (after archiving, so the filter still matches)
+    if (isSubEstimate) {
+      await tx.bOQItem.updateMany({
+        where: {
+          projectId,
+          estimateItemId: { in: topLevelEstimateItems.map((i) => i.id) },
+        },
+        data: { estimateItemId: null },
+      });
+    } else {
+      await tx.bOQItem.updateMany({
+        where: { projectId },
+        data: { estimateItemId: null },
+      });
+    }
+
+    // Create new BOQ items from top-level estimate items only (EST-C1)
+    const boqData = topLevelEstimateItems.map((item) => ({
+      projectId,
+      wbsId: item.wbsItemId,
+      itemCode: item.itemCode ?? (isSubEstimate ? `${itemCodePrefix}-${item.id.slice(-6)}` : `EST-${item.id.slice(-6)}`),
+      description: item.description,
+      unit: item.unit,
+      quantity: Number(item.quantity),
+      rate: Number(item.rate),
+      amount: Number(item.quantity) * Number(item.rate),
+      category: isSubEstimate ? `${item.type}/${estimate.name}` : item.type,
+      section: item.section?.name ?? null,
+      estimateItemId: item.id,
+      isSuperseded: false,
+    }));
+    const created = await tx.bOQItem.createMany({ data: boqData });
+
+    // Budget update — consistent basis (sum of new BOQ amounts vs old).
+    const newBoqTotal = boqData.reduce((s, b) => s + b.amount, 0);
+    if (isSubEstimate) {
+      // FIX (EST-C2): delta on a consistent basis (BOQ item sums), not
+      // grandTotal vs item-sums which double-counts overhead/profit/GST on
+      // every re-conversion.
+      const delta = newBoqTotal - previousSubEstimateBudget;
+      await tx.project.update({
+        where: { id: projectId },
+        data: { budget: { increment: delta } },
+      });
+    } else {
+      await tx.project.update({
+        where: { id: projectId },
+        data: { budget: estimate.grandTotal },
+      });
+    }
+
+    // Fetch the newly created links (inside the tx so they're visible)
+    const newBoqItems = await tx.bOQItem.findMany({
+      where: { projectId, isSuperseded: false, estimateItemId: { not: null } },
+      select: { id: true, estimateItemId: true },
     });
-  } else {
-    await prisma.project.update({
-      where: { id: projectId },
-      data: { budget: estimate.grandTotal },
-    });
-  }
+    const links = new Map<string, string>();
+    for (const b of newBoqItems) {
+      if (b.estimateItemId) links.set(b.estimateItemId, b.id);
+    }
 
-  const newBoqItems = await prisma.bOQItem.findMany({
-    where: { projectId, isSuperseded: false, estimateItemId: { not: null } },
-    select: { id: true, estimateItemId: true },
+    return { archivedCount: archived.count, createdCount: created.count, newBoqItemLinks: links };
   });
-  const boqByEstimateItemId = new Map<string, string>();
-  for (const b of newBoqItems) {
-    if (b.estimateItemId) boqByEstimateItemId.set(b.estimateItemId, b.id);
-  }
 
+  const archived = { count: archivedCount };
+  const created = { count: createdCount };
+  const boqByEstimateItemId = newBoqItemLinks;
+
+  // FIX (EST-C1): Use topLevelEstimateItems (parentId null) only — not ALL
+  // estimate.items. Sub-items are exploded from their parents' rate analyses,
+  // so passing them too double-counts material demand.
   const materialDemands = await buildMaterialDemandsFromEstimateItems(
     companyId,
-    estimate.items.map((i) => ({
+    topLevelEstimateItems.map((i) => ({
       id: i.id,
       type: i.type,
       resourceId: i.resourceId,

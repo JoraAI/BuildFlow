@@ -4,6 +4,7 @@
 import { CostType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { resolveRequisitionLineRate } from './material-rate.service';
+import { logger } from '../config/logger';
 
 export type DemandSourceType = 'ESTIMATE_CONVERT' | 'VARIATION' | 'BOQ_UPDATE' | 'MANUAL';
 
@@ -16,6 +17,59 @@ export interface MaterialDemandLine {
 
 function round3(n: number) {
   return Math.round(n * 1000) / 1000;
+}
+
+/**
+ * FIX (EST-M15/NR-6): Resolve a demand line's unit against the resource's
+ * canonical stock unit. NR-6 regression: previously this just relabeled the
+ * unit without converting the quantity (5 MT became "5 kg"), corrupting stock.
+ * Now we apply a small conversion factor for common Indian construction units,
+ * or reject (return null) if the units are incompatible — the caller skips
+ * the line rather than writing wrong quantities to StockBalance.
+ */
+const UNIT_CONVERSIONS: Record<string, number> = {
+  // key = `${fromUnit.toLowerCase()}->${toUnit.toLowerCase()}`
+  'kg->mt': 0.001,
+  'kg->ton': 0.001,
+  'kg->tonne': 0.001,
+  'mt->kg': 1000,
+  'ton->kg': 1000,
+  'tonne->kg': 1000,
+  'g->kg': 0.001,
+  'kg->g': 1000,
+  'l->kl': 0.001,
+  'kl->l': 1000,
+  'm->km': 0.001,
+  'km->m': 1000,
+  'sqm->sqft': 10.7639,
+  'sqft->sqm': 0.092903,
+  'cum->cft': 35.3147,
+  'cft->cum': 0.0283168,
+};
+
+export async function resolveCanonicalUnitAndQty(
+  companyId: string,
+  resourceId: string,
+  demandUnit: string,
+  demandQty: number,
+): Promise<{ unit: string; quantity: number } | null> {
+  const resource = await prisma.resource.findFirst({
+    where: { id: resourceId, companyId },
+    select: { unit: true },
+  });
+  if (!resource?.unit) return { unit: demandUnit, quantity: demandQty };
+  const resourceUnit = resource.unit;
+  if (resourceUnit.toLowerCase() === demandUnit.toLowerCase()) {
+    return { unit: resourceUnit, quantity: demandQty };
+  }
+  // Try a direct conversion factor.
+  const key = `${demandUnit.toLowerCase()}->${resourceUnit.toLowerCase()}`;
+  const factor = UNIT_CONVERSIONS[key];
+  if (factor !== undefined) {
+    return { unit: resourceUnit, quantity: round3(demandQty * factor) };
+  }
+  // NR-6: Cannot safely convert — reject rather than relabel.
+  return null;
 }
 
 async function getStockQty(companyId: string, projectId: string, resourceId: string): Promise<number> {
@@ -145,31 +199,51 @@ export async function materialDemandsForEstimateItem(
   }
 
   // 3. Safety-net: MATERIAL item with no procurement link.
-  //    FIX (EST-H2): scope by companyId (was cross-tenant), keep the type
-  //    MATERIAL filter, and correct the match direction: find a resource whose
-  //    NAME is contained in the item description (not the inverse, which rarely
-  //    matched because descriptions are long sentences).
+  //    FIX (EST-H2/NR-7): scope by companyId (was cross-tenant), keep the type
+  //    MATERIAL filter, correct the match direction, and require a STRONG match.
+  //    NR-7 regression: the previous OR-over-every-≥3-char-word matched
+  //    stopwords ("and", "for", "the") and auto-linked the wrong material.
+  //    Now we drop stopwords, require a token that overlaps the resource name,
+  //    and rank candidates by overlap score, requiring score >= 1.
   if (!item.resourceId && !item.rateAnalysisId && item.description && companyId) {
-    // FIX (EST-H2): tenant-scoped + corrected match direction (description
-    // contains resource name). Use `OR` with individual contains filters.
-    const tokens = item.description.split(/\s+/).filter((t) => t.length >= 3);
-    const match = await prisma.resource.findFirst({
-      where: {
-        companyId,
-        type: CostType.MATERIAL,
-        OR: tokens.map((t) => ({ name: { contains: t, mode: 'insensitive' as const } })),
-      },
-      select: { id: true, name: true },
-    });
-    if (match) {
-      return [
-        {
-          resourceId: match.id,
-          quantity: round3(scopeQty),
-          unit: item.unit,
-          boqItemId,
+    const STOPWORDS = new Set([
+      'the', 'and', 'for', 'with', 'from', 'into', 'per', 'each', 'incl',
+      'work', 'item', 'material', 'construction', 'including', 'etc',
+    ]);
+    const descTokens = item.description
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((t) => t.length >= 4 && !STOPWORDS.has(t));
+    if (descTokens.length > 0) {
+      const candidates = await prisma.resource.findMany({
+        where: {
+          companyId,
+          type: CostType.MATERIAL,
+          OR: descTokens.map((t) => ({ name: { contains: t, mode: 'insensitive' as const } })),
         },
-      ];
+        select: { id: true, name: true },
+      });
+      // Rank by token overlap with the resource name; require >= 1 overlap.
+      let best: { id: string; score: number } | null = null;
+      for (const c of candidates) {
+        const nameTokens = new Set(
+          c.name.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean),
+        );
+        const score = descTokens.filter((t) => nameTokens.has(t)).length;
+        if (score >= 1 && (!best || score > best.score)) {
+          best = { id: c.id, score };
+        }
+      }
+      if (best) {
+        return [
+          {
+            resourceId: best.id,
+            quantity: round3(scopeQty),
+            unit: item.unit,
+            boqItemId,
+          },
+        ];
+      }
     }
   }
 
@@ -210,20 +284,84 @@ export async function createDraftIndentsFromDemand(
     }
   }
 
-  const reqNumbers: string[] = [];
-  let created = 0;
+  // FIX (EST-L16): Group ALL shortfall lines into a SINGLE requisition
+  // instead of creating one per line. This matches the expected UX: one
+  // indent covering all shortfalls from a BOQ update / estimate convert.
+  const shortfallLines: Array<{
+    resourceId: string;
+    quantity: number;
+    unit: string;
+    boqItemId?: string;
+    expectedRate: number;
+    rateSource: string;
+  }> = [];
+
+  // FIX (EST-H1): Compute stock and open-requisition ONCE per resource and
+  // distribute across grouped demand lines, so a resource used by N BOQ lines
+  // isn't credited N× stock. Previously this loop deducted the full stock from
+  // each demand line independently → chronic under-ordering.
+  // Aggregate total demand per resource first.
+  const totalDemandByResource = new Map<string, number>();
+  for (const demand of grouped.values()) {
+    totalDemandByResource.set(
+      demand.resourceId,
+      round3((totalDemandByResource.get(demand.resourceId) ?? 0) + demand.quantity),
+    );
+  }
+  // Compute per-resource shortfall once.
+  const shortfallByResource = new Map<string, number>();
+  for (const [resourceId, totalDemand] of totalDemandByResource) {
+    const stock = await getStockQty(companyId, projectId, resourceId);
+    const openReq = await getOpenRequisitionQty(companyId, projectId, resourceId);
+    shortfallByResource.set(resourceId, round3(totalDemand - stock - openReq));
+  }
 
   for (const demand of grouped.values()) {
-    const stock = await getStockQty(companyId, projectId, demand.resourceId);
-    const openReq = await getOpenRequisitionQty(companyId, projectId, demand.resourceId);
-    const shortfall = round3(demand.quantity - stock - openReq);
+    const resourceShortfall = shortfallByResource.get(demand.resourceId) ?? 0;
+    if (resourceShortfall <= 0) continue;
+    const totalDemand = totalDemandByResource.get(demand.resourceId) ?? demand.quantity;
+    const proportion = totalDemand > 0 ? demand.quantity / totalDemand : 1;
+    const shortfall = round3(resourceShortfall * proportion);
     if (shortfall <= 0) continue;
 
-    const reqNumber = await nextAutoReqNumber(companyId);
     const { expectedRate, rateSource } = await resolveRequisitionLineRate(companyId, projectId, {
       resourceId: demand.resourceId,
       boqItemId: demand.boqItemId,
     });
+    // FIX (EST-M15/NR-6): Convert quantity + unit to the resource's canonical
+    // stock unit. If units are incompatible, skip rather than write wrong qty.
+    const converted = await resolveCanonicalUnitAndQty(
+      companyId,
+      demand.resourceId,
+      demand.unit,
+      shortfall,
+    );
+    // FIX (R2-12): Log when a demand line is silently skipped because its unit
+    // can't be converted to the resource's canonical stock unit. Previously
+    // these lines vanished with no trace, hiding data-quality issues.
+    if (!converted) {
+      logger.warn('Skipped material demand line: incompatible units (no conversion)', {
+        resourceId: demand.resourceId,
+        demandUnit: demand.unit,
+        shortfall,
+      });
+      continue;
+    }
+    shortfallLines.push({
+      resourceId: demand.resourceId,
+      quantity: converted.quantity,
+      unit: converted.unit,
+      boqItemId: demand.boqItemId,
+      expectedRate,
+      rateSource,
+    });
+  }
+
+  const reqNumbers: string[] = [];
+  let created = 0;
+
+  if (shortfallLines.length > 0) {
+    const reqNumber = await nextAutoReqNumber(companyId);
     await prisma.materialRequisition.create({
       data: {
         projectId,
@@ -235,21 +373,19 @@ export async function createDraftIndentsFromDemand(
         sourceRef,
         notes: `Auto-generated from ${sourceType.replace('_', ' ').toLowerCase()}: ${sourceRef}. Review before submit.`,
         lines: {
-          create: [
-            {
-              resourceId: demand.resourceId,
-              quantity: shortfall,
-              unit: demand.unit,
-              boqItemId: demand.boqItemId ?? null,
-              expectedRate,
-              rateSource,
-            },
-          ],
+          create: shortfallLines.map((l) => ({
+            resourceId: l.resourceId,
+            quantity: l.quantity,
+            unit: l.unit,
+            boqItemId: l.boqItemId ?? null,
+            expectedRate: l.expectedRate,
+            rateSource: l.rateSource,
+          })),
         },
       },
     });
     reqNumbers.push(reqNumber);
-    created += 1;
+    created = 1;
   }
 
   return { created, reqNumbers };

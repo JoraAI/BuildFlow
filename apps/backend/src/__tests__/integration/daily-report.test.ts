@@ -1,6 +1,7 @@
 /**
  * Daily report integration tests - project context, stock deduction strict mode.
  */
+import { prisma } from '../../lib/prisma';
 import { loginAs, authGet, authPost, getProjectId } from './test-helpers';
 
 const OWNER = 'owner@reddyconst.com';
@@ -20,7 +21,6 @@ describe('Daily reports (integration)', () => {
   let tpkId: string;
   let trailId: string;
   let paintId: string;
-
   beforeAll(async () => {
     token = await loginAs(OWNER);
     tpkId = await getProjectId(token, 'TPK-RENO');
@@ -28,8 +28,35 @@ describe('Daily reports (integration)', () => {
     paintId = await getPaintResourceId(token);
   });
 
+  afterAll(async () => {
+    // FIX (NR-55 / DAT-2.2): Delete reports created by this suite (identified
+    // by the 2040+ date range) so the next run starts from the same DB state.
+    // Without this, the @@unique([projectId, reportDate]) constraint collides
+    // on re-run. Uses Prisma directly because there's no DELETE route.
+    try {
+      await prisma.dailyReport.deleteMany({
+        where: { reportDate: { gte: new Date('2040-01-01') } },
+      });
+    } catch {
+      // Best-effort cleanup.
+    }
+  });
+
+  // FIX (NR-55): Generate dates far in the future (year 2040+) with a per-call
+  // incrementing day, and clean them up in afterAll. This avoids collisions
+  // with seed data and prior runs entirely.
+  let _dateSeq = 0;
+  function uniqueReportDate(_month = '01'): string {
+    _dateSeq += 1;
+    const day = ((_dateSeq - 1) % 28) + 1;
+    const month = (Math.floor((_dateSeq - 1) / 28) % 12) + 1;
+    // Start in 2040 to avoid any overlap with seed data (2025–2026).
+    const year = 2040 + Math.floor((_dateSeq - 1) / 336);
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+
   it('rejects deductStock when project has no site stock (422, report not saved)', async () => {
-    const reportDate = `2026-07-${String(Math.floor(Math.random() * 20) + 10).padStart(2, '0')}`;
+    const reportDate = uniqueReportDate('07');
     const res = await authPost(token, `/api/projects/${tpkId}/reports`, {
       reportDate,
       workDone: 'Paint test on archive project',
@@ -47,7 +74,7 @@ describe('Daily reports (integration)', () => {
   });
 
   it('allows report without stock deduction when deductStock is false', async () => {
-    const reportDate = `2026-08-${String(Math.floor(Math.random() * 20) + 10).padStart(2, '0')}`;
+    const reportDate = uniqueReportDate('08');
     const res = await authPost(token, `/api/projects/${tpkId}/reports`, {
       reportDate,
       workDone: 'Log usage only',
@@ -67,7 +94,7 @@ describe('Daily reports (integration)', () => {
     // skip deduction assertion but verify the report endpoint still works.
     if (!beforeRow || beforeRow.balance <= 0) {
       // Just verify the report creates without deductStock
-      const reportDate = `2026-09-${String(Math.floor(Math.random() * 20) + 10).padStart(2, '0')}`;
+      const reportDate = uniqueReportDate('09');
       const res = await authPost(token, `/api/projects/${trailId}/reports`, {
         reportDate,
         workDone: 'Paint corridor walls',
@@ -81,7 +108,7 @@ describe('Daily reports (integration)', () => {
 
     const balanceBefore = beforeRow.balance;
     const issueQty = Math.min(5, balanceBefore);
-    const reportDate = `2026-09-${String(Math.floor(Math.random() * 20) + 10).padStart(2, '0')}`;
+    const reportDate = uniqueReportDate('10');
     const res = await authPost(token, `/api/projects/${trailId}/reports`, {
       reportDate,
       workDone: 'Paint corridor walls',
@@ -110,7 +137,7 @@ describe('Daily reports (integration)', () => {
     const availableQty = row?.balance ?? 0;
     const overQty = availableQty + 1000;
 
-    const reportDate = `2026-10-${String(Math.floor(Math.random() * 20) + 10).padStart(2, '0')}`;
+    const reportDate = uniqueReportDate('11');
     const res = await authPost(token, `/api/projects/${trailId}/reports`, {
       reportDate,
       workDone: 'Over-issue attempt',

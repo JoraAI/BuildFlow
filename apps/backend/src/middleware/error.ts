@@ -97,7 +97,7 @@ export function errorHandler(
 
   // Body too large (file uploads)
   if (isPayloadTooLarge(err)) {
-    fail(res, ApiError.validation([{ field: 'file', message: 'File too large (max 10MB)' }]));
+    fail(res, ApiError.validation([{ field: 'file', message: 'File too large (max 1MB)' }]));
     return;
   }
 
@@ -109,7 +109,7 @@ export function errorHandler(
 
   // Unknown - log full detail, return generic 500
   logger.error('Unhandled error', {
-    error: err instanceof Error ? err.message : String(err),
+    error: env.NODE_ENV === "production" ? "Internal server error" : (err instanceof Error ? err.message : String(err)),
     stack: err instanceof Error ? err.stack : undefined,
     path: req.path,
     method: req.method,

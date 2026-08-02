@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, usePathname, useGlobalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/stores/auth.store';
@@ -10,6 +11,7 @@ import { CompanyLogo } from '@/components/ui/Avatar';
 import { ProjectSearchField } from '@/components/layout/ProjectSearchField';
 
 export function AppTopBar() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const pathname = usePathname();
   const params = useGlobalSearchParams<{ returnTo?: string }>();
@@ -29,8 +31,14 @@ export function AppTopBar() {
 
   return (
     <View
-      className="h-16 bg-card border-b border-border px-6 flex-row items-center justify-between shrink-0"
-      style={{ zIndex: 100, elevation: 8, overflow: 'visible' }}
+      className="bg-card border-b border-border px-6 flex-row items-center justify-between shrink-0"
+      style={{
+        zIndex: 100,
+        elevation: 8,
+        overflow: 'visible',
+        paddingTop: Platform.OS !== 'web' ? insets.top : 0,
+        minHeight: 64 + (Platform.OS !== 'web' ? insets.top : 0),
+      }}
     >
       <View className="flex-row items-center gap-4 flex-1 mr-4 min-w-0">
         <Pressable

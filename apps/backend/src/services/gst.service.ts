@@ -30,6 +30,24 @@ export function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
+/** Line amount from qty × rate in integer paise (FIN-M1). */
+export function lineAmount(qty: number, rate: number): number {
+  return Math.round(Number(qty) * Number(rate) * 100) / 100;
+}
+
+/** Sum pre-rounded line amounts without float drift. */
+export function sumAmounts(amounts: number[]): number {
+  const paise = amounts.reduce((s, a) => s + Math.round(a * 100), 0);
+  return paise / 100;
+}
+
+/** subtotal + gst − tds in paise (FIN-M1). */
+export function netTotal(subtotal: number, gstAmount: number, tdsAmount: number): number {
+  const paise =
+    Math.round(subtotal * 100) + Math.round(gstAmount * 100) - Math.round(tdsAmount * 100);
+  return paise / 100;
+}
+
 /**
  * Calculate GST breakdown for an invoice/bill.
  * If clientState is missing, defaults to inter-state (IGST).
@@ -38,30 +56,37 @@ export function calculateGST(input: GSTCalcInput): GSTBreakdown {
   const { subtotal, gstRate, tdsEnabled, tdsRate, companyState, clientState } = input;
   const isIntraState = !!(clientState && clientState.toUpperCase() === companyState.toUpperCase());
 
-  let cgstAmount = 0;
-  let sgstAmount = 0;
-  let igstAmount = 0;
+  // FIX (FIN-M1): Do money math in integer paise (cents) internally to avoid
+  // floating-point penny drift. Round only once, at the end. This ensures the
+  // sum of rounded line items reconciles to the rounded total.
+  const subtotalPaise = Math.round(subtotal * 100);
+
+  let cgstPaise = 0;
+  let sgstPaise = 0;
+  let igstPaise = 0;
 
   if (isIntraState) {
-    const half = gstRate / 2;
-    cgstAmount = round2((subtotal * half) / 100);
-    sgstAmount = round2((subtotal * half) / 100);
+    // CGST + SGST = gstRate% split evenly. Compute total GST first in paise,
+    // then split — avoids rounding twice.
+    const totalGstPaise = Math.round((subtotalPaise * gstRate) / 100);
+    cgstPaise = Math.round(totalGstPaise / 2);
+    sgstPaise = totalGstPaise - cgstPaise;
   } else {
-    igstAmount = round2((subtotal * gstRate) / 100);
+    igstPaise = Math.round((subtotalPaise * gstRate) / 100);
   }
 
-  const gstAmount = round2(cgstAmount + sgstAmount + igstAmount);
-  const tdsAmount = tdsEnabled ? round2((subtotal * tdsRate) / 100) : 0;
-  const netPayable = round2(subtotal + gstAmount - tdsAmount);
+  const gstAmountPaise = cgstPaise + sgstPaise + igstPaise;
+  const tdsAmountPaise = tdsEnabled ? Math.round((subtotalPaise * tdsRate) / 100) : 0;
+  const netPayablePaise = subtotalPaise + gstAmountPaise - tdsAmountPaise;
 
   return {
     subtotal: round2(subtotal),
-    cgstAmount,
-    sgstAmount,
-    igstAmount,
-    gstAmount,
-    tdsAmount,
-    netPayable,
+    cgstAmount: cgstPaise / 100,
+    sgstAmount: sgstPaise / 100,
+    igstAmount: igstPaise / 100,
+    gstAmount: gstAmountPaise / 100,
+    tdsAmount: tdsAmountPaise / 100,
+    netPayable: netPayablePaise / 100,
     isIntraState,
   };
 }
@@ -94,17 +119,30 @@ export function amountInWords(amount: number): string {
     return str;
   }
 
+  // FIX (NR-14/FIN-L8): Handle amounts ≥ 1 arab (100 crore) and ≥ 1 kharab
+  // correctly. The previous "fix" used 10^10/10^12 for arab/kharab — that's
+  // 10x too large, so values from 1,000 crore upward rendered wrong words
+  // (e.g. 1 arab = 10^9, not 10^10). Correct Indian grouping:
+  //   1 crore  = 10^7
+  //   1 arab   = 10^9   (= 100 crore)
+  //   1 kharab = 10^11  (= 100 arab = 10,000 crore)
   let num = n;
-  const crore = Math.floor(num / 10000000);
+  const kharab = Math.floor(num / 1e11); // 10^11
+  num %= 1e11;
+  const arab = Math.floor(num / 1e9); // 10^9
+  num %= 1e9;
+  const crore = Math.floor(num / 10000000); // 10^7
   num %= 10000000;
-  const lakh = Math.floor(num / 100000);
+  const lakh = Math.floor(num / 100000); // 10^5
   num %= 100000;
-  const thousand = Math.floor(num / 1000);
+  const thousand = Math.floor(num / 1000); // 10^3
   num %= 1000;
   const hundred = num;
 
   let words = '';
-  if (crore) words += `${twoDigits(crore)} Crore `;
+  if (kharab) words += `${threeDigits(kharab)} Kharab `;
+  if (arab) words += `${threeDigits(arab)} Arab `;
+  if (crore) words += `${threeDigits(crore)} Crore `;
   if (lakh) words += `${twoDigits(lakh)} Lakh `;
   if (thousand) words += `${twoDigits(thousand)} Thousand `;
   if (hundred) words += threeDigits(hundred);

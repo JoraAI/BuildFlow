@@ -7,6 +7,7 @@ import type { CreateChangeOrderInput } from '@buildflow/shared';
 import { assertProjectAccess } from '../middleware/project-access.middleware';
 import { createDraftIndentsFromDemand, type MaterialDemandLine } from './material-demand.service';
 import { notify } from './notification.service';
+import { logger } from '../config/logger';
 
 function round2(n: number) {
   return Math.round(n * 100) / 100;
@@ -217,7 +218,12 @@ export async function approveChangeOrder(
       if (line.boqItemId) {
         const boq = await tx.bOQItem.findFirst({ where: { id: line.boqItemId, projectId: co.projectId } });
         if (boq) {
-          const newQty = Number(boq.quantity) + Number(line.qtyDelta);
+          // FIX (EST-M14): Clamp resulting BOQ quantity to non-negative.
+          // A negative qtyDelta larger than the current quantity would produce
+          // a negative BOQ quantity, which is nonsensical and breaks downstream
+          // calculations (procurement, measurement book, invoicing).
+          const rawNewQty = Number(boq.quantity) + Number(line.qtyDelta);
+          const newQty = Math.max(0, rawNewQty);
           const newAmount = round2(newQty * Number(boq.rate));
           await tx.bOQItem.update({
             where: { id: boq.id },
@@ -287,6 +293,20 @@ export async function approveChangeOrder(
       'VARIATION',
       co.number,
     );
+  }
+
+  // FIX (EST-M14): After schedule impact is applied, recompute CPM (critical
+  // path method) for the project so downstream tasks' dates shift correctly.
+  // Previously only the linked task's dates changed; successor tasks were not
+  // re-scheduled, leading to stale Gantt charts.
+  if (co.linkedTaskId && co.scheduleImpactDays !== 0) {
+    try {
+      const { getGantt } = await import('./task.service');
+      await getGantt(companyId, co.projectId);
+    } catch (err) {
+      // Non-fatal: CPM recompute failure shouldn't block the approval
+      logger.warn('CPM recompute after change order failed (non-fatal)', { error: String(err) });
+    }
   }
 
   await recordAudit({
@@ -457,4 +477,68 @@ export async function rejectChangeOrder(
   });
 
   return serializeChangeOrder(updated);
+}
+
+/**
+ * FIX (EST-H6): Update a change-order line's qtyDelta and recompute costImpact.
+ * Previously, lines were created with qtyDelta: 0 and there was no endpoint to
+ * set a non-zero quantity, so costImpact was always 0 and approvals had no
+ * financial effect. This lets the PM set the delta per line; costImpact and
+ * the change order's total are recomputed atomically.
+ */
+export async function updateChangeOrderLine(
+  companyId: string,
+  userId: string,
+  role: string,
+  changeOrderId: string,
+  lineId: string,
+  input: { qtyDelta?: number; rate?: number; description?: string },
+) {
+  // FIX (R2-1): Previously passed '' as projectId to assertProjectAccess, which
+  // always 404'd. Fetch the change order FIRST, then pass its real projectId.
+  const co = await prisma.changeOrder.findFirst({
+    where: { id: changeOrderId, companyId },
+    include: { lines: true },
+  });
+  if (!co) throw ApiError.notFound('Change order not found');
+  await assertProjectAccess(companyId, userId, role as never, co.projectId, ['OWNER', 'PM']);
+  if (co.status !== 'DRAFT') {
+    throw ApiError.badRequest('Only DRAFT change orders can have their lines edited');
+  }
+
+  const line = co.lines.find((l) => l.id === lineId);
+  if (!line) throw ApiError.notFound('Change order line not found');
+
+  const qtyDelta = input.qtyDelta ?? Number(line.qtyDelta);
+  const rate = input.rate ?? Number(line.rate);
+  const amount = round2(qtyDelta * rate);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.changeOrderLine.update({
+      where: { id: lineId },
+      data: {
+        ...(input.qtyDelta !== undefined && { qtyDelta }),
+        ...(input.rate !== undefined && { rate }),
+        ...(input.description !== undefined && { description: input.description }),
+        amount,
+      },
+    });
+
+    // Recompute costImpact from ALL lines
+    const allLines = await tx.changeOrderLine.findMany({
+      where: { changeOrderId },
+      select: { amount: true },
+    });
+    const newCostImpact = round2(allLines.reduce((s, l) => s + Number(l.amount), 0));
+    await tx.changeOrder.update({
+      where: { id: changeOrderId },
+      data: { costImpact: newCostImpact },
+    });
+  });
+
+  const updated = await prisma.changeOrder.findFirst({
+    where: { id: changeOrderId, companyId },
+    include: changeOrderInclude,
+  });
+  return serializeChangeOrder(updated as ChangeOrderRecord);
 }

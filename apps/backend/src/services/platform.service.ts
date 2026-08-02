@@ -173,3 +173,60 @@ export async function seedPlatformAdmin(email: string, name: string, password: s
     create: { email, name, passwordHash },
   });
 }
+
+/**
+ * FIX (DAT-2.1): Company soft-delete policy.
+ *
+ * Rather than hard-cascading (which would lose financial records needed for
+ * GST/TDS compliance), we perform a "soft deactivation":
+ *   1. Set all users isActive = false
+ *   2. Set subscriptionStatus = CANCELLED
+ *   3. Mark all non-deleted projects as CANCELLED
+ *   4. Record a PlatformAuditLog entry
+ *
+ * This preserves the data trail while effectively locking out the tenant.
+ * The data can be purged later via a separate GDPR/compliance job if needed.
+ */
+export async function deactivateCompany(
+  adminId: string,
+  companyId: string,
+  reason: string,
+): Promise<{ deactivated: boolean; companyId: string }> {
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { id: true, name: true, subscriptionStatus: true },
+  });
+  if (!company) throw new Error('Company not found');
+
+  await prisma.$transaction(async (tx) => {
+    // 1. Deactivate all users
+    await tx.user.updateMany({
+      where: { companyId },
+      data: { isActive: false },
+    });
+
+    // 2. Cancel subscription
+    await tx.company.update({
+      where: { id: companyId },
+      data: { subscriptionStatus: 'CANCELLED' },
+    });
+
+    // 3. Cancel all active projects (soft-delete via status, not isDeleted)
+    await tx.project.updateMany({
+      where: { companyId, status: { in: ['PLANNING', 'IN_PROGRESS', 'ON_HOLD'] } },
+      data: { status: 'CANCELLED' },
+    });
+
+    // 4. Audit log
+    await tx.platformAuditLog.create({
+      data: {
+        adminId,
+        action: 'COMPANY_DEACTIVATED',
+        companyId,
+        newValue: { reason, deactivatedAt: new Date().toISOString() },
+      },
+    });
+  });
+
+  return { deactivated: true, companyId };
+}

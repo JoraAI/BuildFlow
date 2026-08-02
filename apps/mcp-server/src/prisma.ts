@@ -19,6 +19,13 @@ export const companyALS = new AsyncLocalStorage<CompanyStore>();
 /**
  * Tenant-scoped models — must match the backend's list. Any model with a
  * direct `companyId` column that is owned by a single tenant.
+ *
+ * FIX (NR-15): Removed models that do NOT have a direct `companyId` column.
+ * Scoping them would inject a nonexistent `companyId` filter and throw
+ * `PrismaClientValidationError` for any tool touching them. The removed models
+ * are tenant-isolated via a parent relation (e.g. StockBalance →
+ * StockLocation.companyId, ProjectMaterialRate → Project.companyId, etc.) and
+ * must be scoped explicitly in the tool by filtering on that parent.
  */
 const TENANT_SCOPED_MODELS = new Set([
   'User',
@@ -30,33 +37,38 @@ const TENANT_SCOPED_MODELS = new Set([
   'RateAnalysis',
   'MaterialPriceHistory',
   'RateRegion',
-  'RegionalMaterialRate',
-  'ProjectMaterialRate',
   'Invoice',
   'Bill',
   'JournalEntry',
   'ChatMessage',
-  'Notification',
   'AuditLog',
   'CompanyIntegration',
   'CompanyRolePermission',
   'SupportTicket',
-  'ProjectMember',
   'ChangeOrder',
   'MaterialRequisition',
   'PurchaseOrder',
   'GoodsReceiptNote',
   'StockLocation',
-  'StockBalance',
-  'StockMovement',
   'Subcontractor',
   'ReportSchedule',
+  'DocumentCounter',
+  // FIX (§2.2C / NR-43): Phase 5 models — list MUST match backend lib/prisma.ts.
+  'PunchItem',
+  'RFI',
+  'Submittal',
+  'Drawing',
+  'PettyCashEntry',
+  'SubcontractWorkOrder',
 ]);
 
+// FIX (SEC-C2): include the *OrThrow read variants so they are scoped too.
 const READ_ACTIONS = new Set([
   'findUnique',
   'findFirst',
   'findMany',
+  'findUniqueOrThrow',
+  'findFirstOrThrow',
   'count',
   'aggregate',
   'groupBy',

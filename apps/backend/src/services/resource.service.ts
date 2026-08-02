@@ -525,6 +525,20 @@ export async function bulkUpsertResources(
         },
       });
       if (rateChanged) {
+        // FIX (EST-H7): Write a MaterialPriceHistory row on rate change here too
+        // (matching createResource / updateResource). Without this, opening the
+        // price-history screen overwrites the bulk-updated rate with the latest
+        // history rate via syncEffectiveResourceRate.
+        await prisma.materialPriceHistory.create({
+          data: {
+            resourceId: existing.id,
+            companyId,
+            rate: row.rate,
+            effectiveDate: new Date(),
+            notes: 'Bulk upsert — rate updated',
+            recordedBy: userId,
+          },
+        });
         await flagStaleRateAnalyses(existing.id);
         updated.push(existing.id);
       } else {

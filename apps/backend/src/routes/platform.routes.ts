@@ -48,3 +48,5 @@ router.patch(
 );
 
 export default router;
+
+router.delete("/companies/:companyId", authenticatePlatformAdmin, ctrl.deactivateCompany);

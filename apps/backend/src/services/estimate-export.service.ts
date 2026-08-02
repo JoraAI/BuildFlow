@@ -233,16 +233,16 @@ export async function generateEstimateExcel(companyId: string, estimateId: strin
 
   /* ---- Sheet 3: Rate Analysis Used ---- */
   const ws3 = wb.addWorksheet('Rate Analysis Used', { views: [{ showGridLines: false }] });
-  // Collect rate analyses referenced via items with resourceId
-  const resourceIds = estimate.sections
+  // FIX (EST-M8): Collect rate analyses linked via item.rateAnalysisId (not resource lookup).
+  const raIds = estimate.sections
     .flatMap((sec) => sec.items)
-    .filter((it) => it.resourceId)
-    .map((it) => it.resourceId as string);
-  const uniqueResourceIds = [...new Set(resourceIds)];
+    .filter((it) => it.rateAnalysisId)
+    .map((it) => it.rateAnalysisId as string);
+  const uniqueRaIds = [...new Set(raIds)];
 
-  const rateAnalyses = uniqueResourceIds.length
+  const rateAnalyses = uniqueRaIds.length
     ? await prisma.rateAnalysis.findMany({
-        where: { companyId, components: { some: { resourceId: { in: uniqueResourceIds } } } },
+        where: { companyId, id: { in: uniqueRaIds } },
         include: {
           components: {
             include: { resource: { select: { name: true, unit: true, rate: true } } },
@@ -305,6 +305,12 @@ export async function generateEstimateExcel(companyId: string, estimateId: strin
     c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A5F' } };
   });
+
+  const resourceIds = estimate.sections
+    .flatMap((sec) => sec.items)
+    .filter((it) => it.resourceId)
+    .map((it) => it.resourceId as string);
+  const uniqueResourceIds = [...new Set(resourceIds)];
 
   const resources = uniqueResourceIds.length
     ? await prisma.resource.findMany({

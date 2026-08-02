@@ -210,7 +210,17 @@ export async function handleSaasRazorpayWebhook(rawBody: string): Promise<boolea
   const plan = notes.plan as SubscriptionPlan | undefined;
   if (!companyId || !plan || !ref?.startsWith('saas-')) return false;
 
+  // FIX (FIN-M10): Idempotency — check Redis before activating. A replayed
+  // webhook (Razorpay retries up to 5x) would re-activate the subscription
+  // and potentially duplicate the audit log + notifications.
+  const { redis } = await import('../lib/redis');
+  const idempKey = `saas:webhook:razorpay:${ref}`;
+  const alreadyHandled = await redis.get(idempKey);
+  if (alreadyHandled) return true; // already processed, return success
+
   await activateSubscription(companyId, plan, ref);
+  // Mark as handled for 7 days (subscription TTL)
+  await redis.set(idempKey, '1', 'EX', 7 * 24 * 60 * 60);
   return true;
 }
 
@@ -222,13 +232,27 @@ interface StripeEvent {
 export async function handleSaasStripeWebhook(rawBody: string): Promise<boolean> {
   const event = JSON.parse(rawBody) as StripeEvent;
   if (event.type !== 'checkout.session.completed') return false;
+
+  // FIX (FIN-M10): Check payment_status — Stripe fires checkout.session.completed
+  // even for unpaid sessions (e.g. deferred payment, Boleto, SEPA). Only activate
+  // when the session is actually paid.
+  const paymentStatus = event.data?.object?.payment_status;
+  if (paymentStatus !== 'paid') return false;
+
   const meta = event.data?.object?.metadata ?? {};
   const companyId = meta.companyId;
   const plan = meta.plan as SubscriptionPlan | undefined;
   const ref = meta.referenceId;
   if (!companyId || !plan || !ref) return false;
 
+  // FIX (FIN-M10): Idempotency — same Redis dedup as Razorpay.
+  const { redis } = await import('../lib/redis');
+  const idempKey = `saas:webhook:stripe:${ref}`;
+  const alreadyHandled = await redis.get(idempKey);
+  if (alreadyHandled) return true;
+
   await activateSubscription(companyId, plan, ref);
+  await redis.set(idempKey, '1', 'EX', 7 * 24 * 60 * 60);
   return true;
 }
 

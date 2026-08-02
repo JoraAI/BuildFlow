@@ -286,8 +286,10 @@ export interface CompanyDashboard {
 }
 
 export async function getCompanyDashboard(companyId: string): Promise<CompanyDashboard> {
+  // FIX (FIN-H8): Exclude soft-deleted (and proposal-temporary) projects from
+  // dashboard aggregates. Previously deleted projects still inflated totals.
   const projects = await prisma.project.findMany({
-    where: { companyId },
+    where: { companyId, isDeleted: false, isTemporary: false },
     select: {
       id: true,
       name: true,

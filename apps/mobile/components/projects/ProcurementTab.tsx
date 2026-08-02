@@ -312,8 +312,11 @@ function IndentsSection({
           // list (only loads 200). Use l.resourceId directly, with resourceUnit
           // fallback for the unit.
           const res = materials.find((r: Resource) => r.id === l.resourceId);
+          // FIX (NR-51): For BOQ-only lines (no catalog resource), send
+          // resourceId: undefined (not empty string) so Zod's optional().uuid()
+          // accepts it. Empty string fails UUID validation → 422 rejection.
           return {
-            resourceId: l.resourceId,
+            resourceId: l.resourceId || undefined,
             quantity: parseFloat(l.qty) || 1,
             unit: res?.unit || l.resourceUnit || 'unit',
             boqItemId: l.boqItemId || undefined,

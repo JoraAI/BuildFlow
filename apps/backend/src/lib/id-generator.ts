@@ -19,7 +19,18 @@
 import { prisma } from './prisma';
 import { Prisma } from '@prisma/client';
 
-type EntityType = 'indent' | 'bill' | 'invoice' | 'po' | 'grn';
+// FIX (NR-32): Dedicated counter types for RFIs and submittals — previously
+// these reused the 'invoice' counter and string-replaced the prefix, which
+// raced with invoice numbering and could collide.
+type EntityType =
+  | 'indent'
+  | 'bill'
+  | 'invoice'
+  | 'po'
+  | 'grn'
+  | 'petty-cash'
+  | 'rfi'
+  | 'submittal';
 
 const PREFIXES: Record<EntityType, string> = {
   indent: 'IND',
@@ -27,6 +38,9 @@ const PREFIXES: Record<EntityType, string> = {
   invoice: 'INV',
   po: 'PO',
   grn: 'GRN',
+  'petty-cash': 'PC',
+  rfi: 'RFI',
+  submittal: 'SUB',
 };
 
 /**

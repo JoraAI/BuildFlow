@@ -8,6 +8,7 @@
  * Supports FS / SS / FF / SF dependency types with lag days.
  */
 import type { DependencyType } from '@buildflow/shared';
+import { ApiError } from '../utils/errors';
 
 export interface CpmTask {
   id: string;
@@ -65,7 +66,10 @@ function topoSort(tasks: CpmTask[], deps: CpmDependency[]): string[] {
   }
   if (sorted.length < tasks.length) {
     const cyclic = tasks.filter((t) => !sorted.includes(t.id)).map((t) => t.id);
-    throw new Error(
+    // FIX (NR-19): Throw a clean ApiError so the Express error middleware
+    // returns a 400 instead of a 500. Previously this threw a plain Error →
+    // generic 500 on the Gantt endpoint.
+    throw ApiError.badRequest(
       `Cycle detected in task dependencies. Tasks involved: ${cyclic.join(', ')}.`,
     );
   }

@@ -24,25 +24,42 @@ export function ScreenContainer({
   scrollable = false,
   reserveAssistantFab = false,
 }: ScreenContainerProps) {
-  const { isDesktop, isWideDesktop } = useViewport();
+  const { isDesktop, isTablet, isWideDesktop } = useViewport();
 
-  const mobilePaddingBottom = reserveAssistantFab
+  const listPaddingBottom = reserveAssistantFab
     ? mobileListBottomPadding(reserveAssistantFab === 'withScreenFab')
-    : undefined;
+    : isTablet && !isDesktop
+      ? mobileListBottomPadding(false)
+      : undefined;
+
+  // FIX (UI-L18): Consistent max-width across desktop AND tablet tiers.
+  // Tablet (768-1023px) also gets padding + centered max-width so content
+  // doesn't stretch full-bleed on iPads in landscape.
+  const constrainedClass = constrained
+    ? isWideDesktop
+      ? 'max-w-7xl'
+      : isDesktop
+        ? 'max-w-6xl'
+        : isTablet
+          ? 'max-w-4xl'
+          : ''
+    : '';
+
+  const paddingClass = isDesktop ? 'px-8 py-6' : isTablet ? 'px-6 py-4' : '';
 
   const inner = (
     <View
-      className={`w-full ${scrollable ? '' : 'flex-1'} ${constrained && isDesktop ? (isWideDesktop ? 'max-w-7xl' : 'max-w-6xl') : ''} ${isDesktop ? 'px-8 py-6' : ''} ${className}`}
+      className={`w-full ${scrollable ? '' : 'flex-1'} ${constrainedClass} ${paddingClass} ${className}`}
     >
       {children}
     </View>
   );
 
-  if (!isDesktop) {
+  if (!isDesktop && !isTablet) {
     return (
       <View
         className={`flex-1 ${className}`}
-        style={mobilePaddingBottom ? { paddingBottom: mobilePaddingBottom } : undefined}
+        style={listPaddingBottom ? { paddingBottom: listPaddingBottom } : undefined}
       >
         {children}
       </View>
@@ -55,6 +72,7 @@ export function ScreenContainer({
         className="flex-1 bg-surface min-h-0"
         style={Platform.OS === 'web' ? ({ flex: 1, overflow: 'scroll' } as ViewStyle) : { flex: 1 }}
         contentContainerClassName="items-center pb-10 flex-grow"
+        contentContainerStyle={listPaddingBottom ? { paddingBottom: listPaddingBottom } : undefined}
         showsVerticalScrollIndicator
         keyboardShouldPersistTaps="handled"
       >
@@ -64,7 +82,10 @@ export function ScreenContainer({
   }
 
   return (
-    <View className="flex-1 bg-surface items-center">
+    <View
+      className="flex-1 bg-surface items-center"
+      style={listPaddingBottom ? { paddingBottom: listPaddingBottom } : undefined}
+    >
       {inner}
     </View>
   );

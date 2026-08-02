@@ -212,7 +212,8 @@ export async function getLastPoMaterialRate(
 }
 
 export interface RequisitionLineRateInput {
-  resourceId: string;
+  // FIX (NR-13): resourceId can be undefined for BOQ-only lines.
+  resourceId?: string;
   boqItemId?: string | null;
   expectedRate?: number;
   rateSource?: MaterialRateSource;
@@ -234,6 +235,12 @@ export async function resolveRequisitionLineRate(
       expectedRate: line.expectedRate,
       rateSource: line.rateSource ?? ('MANUAL' as MaterialRateSource),
     };
+  }
+  // FIX (NR-13): BOQ-only lines (no resourceId) can't resolve from the resource
+  // rate chain — return a zero default; the caller should require an explicit
+  // expectedRate for such lines.
+  if (!line.resourceId) {
+    return { expectedRate: 0, rateSource: 'CATALOG' as MaterialRateSource };
   }
   const resolved = await resolveMaterialRate(companyId, projectId, line.resourceId, {
     boqItemId: line.boqItemId ?? undefined,

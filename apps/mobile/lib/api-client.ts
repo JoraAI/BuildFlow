@@ -57,7 +57,12 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
 
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+    // FIX (MOB-H6): On web, include credentials so httpOnly cookies are sent.
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers,
+      ...(Platform.OS === 'web' ? { credentials: 'include' as RequestCredentials } : {}),
+    });
   } catch {
     throw new ApiError(
       'NETWORK_ERROR',
@@ -125,8 +130,12 @@ export interface ApiListMeta {
 }
 
 /**
- * FIX (MOB-H3): Give apiFetchList the same refresh/retry path as apiFetch so
- * paginated list screens survive an expired access token.
+ * FIX (MOB-H3/NR-10): Give apiFetchList the same refresh/retry path as apiFetch
+ * so paginated list screens survive an expired access token. NR-10: the refresh
+ * now goes through the SHARED isRefreshing/failedQueue mutex (previously
+ * apiFetchList called refreshAccessToken() directly, so concurrent list calls
+ * at token expiry fired parallel /auth/refresh requests — the loser submitted a
+ * consumed refresh token and could invalidate the session).
  */
 export async function apiFetchList<T>(
   path: string,
@@ -146,11 +155,34 @@ export async function apiFetchList<T>(
     throw new ApiError('NETWORK_ERROR', 'Unable to connect. Check your internet connection.', 0);
   }
 
-  // FIX (MOB-H3): If 401, retry once with refresh (same as apiFetch).
+  // FIX (NR-10): Route the 401 retry through the shared mutex instead of
+  // calling refreshAccessToken() directly.
   if (res.status === 401 && !shouldSkipRefresh(path)) {
-    const newToken = await refreshAccessToken();
-    if (newToken) {
-      headers.Authorization = `Bearer ${newToken}`;
+    let refreshedToken: string | null = null;
+    if (!isRefreshing) {
+      isRefreshing = true;
+      try {
+        refreshedToken = await refreshAccessToken();
+        isRefreshing = false;
+        processQueue(refreshedToken);
+      } catch (refreshErr) {
+        isRefreshing = false;
+        processQueue(null);
+        if (refreshErr instanceof ApiError && refreshErr.status !== 401) throw refreshErr;
+        await useAuthStore.getState().logout();
+        throw new ApiError('SESSION_EXPIRED', 'Session expired. Please login again.', 401);
+      }
+    } else {
+      // Queue this request behind the in-flight refresh.
+      refreshedToken = await new Promise<string | null>((resolve, reject) => {
+        failedQueue.push((token) => {
+          if (!token) return reject(new ApiError('SESSION_EXPIRED', 'Session expired', 401));
+          resolve(token);
+        });
+      });
+    }
+    if (refreshedToken) {
+      headers.Authorization = `Bearer ${refreshedToken}`;
       try {
         res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
       } catch {
@@ -320,11 +352,18 @@ function blobToBase64(blob: Blob): Promise<string> {
 
 export async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = await SecureStore.getItemAsync(SECURE_STORE_KEYS.REFRESH_TOKEN);
-  if (!refreshToken) return null;
+  // FIX (NR-52): Don't attempt refresh with a literal "undefined" string token
+  // (could be persisted if SecureStore wrote a bad value). Return null so the
+  // caller logs out cleanly instead of sending "undefined" to the backend.
+  if (!refreshToken || refreshToken === 'undefined') return null;
   const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refreshToken }),
+    // FIX (NR-52): On web, the refresh endpoint may be cross-origin in dev
+    // (e.g. web on :8081, API on :4000). Include credentials so the browser
+    // sends/receives any httpOnly refresh-token cookie if present.
+    credentials: 'include',
   });
   if (!res.ok) return null;
   const body = await res.json();

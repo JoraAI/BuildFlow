@@ -87,13 +87,20 @@ async function loadOwnerDashboard(companyId: string): Promise<AnalyticsDashboard
     outstandingInvoices,
     reports,
     approvedBills,
+    cashInInvoices,
+    cashOutBills,
     materials,
   ] = await Promise.all([
     prisma.project.findMany({
       where: { companyId, isDeleted: false, isTemporary: false },
       include: {
         tasks: { select: { progressPct: true } },
-        estimates: { where: { status: 'APPROVED', parentId: null }, select: { grandTotal: true }, orderBy: { approvedAt: 'desc' }, take: 1 },
+        estimates: {
+          where: { status: 'APPROVED', parentId: null },
+          select: { grandTotal: true },
+          orderBy: { approvedAt: 'desc' },
+          take: 1,
+        },
       },
     }),
     prisma.invoice.findMany({
@@ -111,6 +118,15 @@ async function loadOwnerDashboard(companyId: string): Promise<AnalyticsDashboard
     prisma.bill.findMany({
       where: { companyId, status: { in: ['APPROVED', 'PAID'] } },
       select: { projectId: true, total: true, paidAmount: true },
+    }),
+    // FIX (FIN-M9): All-time paid inflows for cash baseline (not 6-month invoiceDate window).
+    prisma.invoice.findMany({
+      where: { companyId, paidAmount: { gt: 0 } },
+      select: { paidAmount: true },
+    }),
+    prisma.bill.findMany({
+      where: { companyId, paidAmount: { gt: 0 } },
+      select: { paidAmount: true },
     }),
     prisma.resource.findMany({
       where: { companyId, type: 'MATERIAL', isActive: true },
@@ -248,9 +264,9 @@ async function loadOwnerDashboard(companyId: string): Promise<AnalyticsDashboard
     }
   }
 
-  // Current cash position (cumulative starting point)
-  const paidInflowTotal = paidInvoices.reduce((s, i) => s + num(i.paidAmount || i.total), 0);
-  const paidOutflowTotal = approvedBills.reduce((s, b) => s + num(b.paidAmount || b.total), 0);
+  // FIX (FIN-M9): Cash baseline uses all-time actual paid amounts only.
+  const paidInflowTotal = cashInInvoices.reduce((s, i) => s + num(i.paidAmount), 0);
+  const paidOutflowTotal = cashOutBills.reduce((s, b) => s + num(b.paidAmount), 0);
   let cumulative = Math.round(paidInflowTotal - paidOutflowTotal);
 
   // Generate weekly buckets (13 weeks ≈ 90 days) for cleaner display
@@ -281,7 +297,7 @@ async function loadOwnerDashboard(companyId: string): Promise<AnalyticsDashboard
   // ---- Budget burn gauges ----
   const spendByProject = new Map<string, number>();
   approvedBills.forEach((b) => {
-    spendByProject.set(b.projectId, (spendByProject.get(b.projectId) ?? 0) + num(b.paidAmount || b.total));
+    spendByProject.set(b.projectId, (spendByProject.get(b.projectId) ?? 0) + num(b.paidAmount));
   });
   const budgetBurn = projects
     .map((p) => {

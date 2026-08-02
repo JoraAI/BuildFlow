@@ -11,7 +11,24 @@ import { logger } from '../config/logger';
 export interface AuditEntry {
   companyId: string;
   userId: string;
-  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'LOGIN' | 'LOGOUT' | 'APPROVE' | 'REJECT' | 'SUBMIT' | 'SEND' | 'CUSTOM' | 'RESET';
+  // FIX (§2.3 #2): Add UPLOAD / ANSWER / REVIEW for Phase 5 modules (drawings,
+  // RFIs, submittals). AuditLog.action is a free-form String column, so these
+  // need no schema migration.
+  action:
+    | 'CREATE'
+    | 'UPDATE'
+    | 'DELETE'
+    | 'LOGIN'
+    | 'LOGOUT'
+    | 'APPROVE'
+    | 'REJECT'
+    | 'SUBMIT'
+    | 'SEND'
+    | 'CUSTOM'
+    | 'RESET'
+    | 'UPLOAD'
+    | 'ANSWER'
+    | 'REVIEW';
   entityType: string;
   entityId: string;
   oldValue?: unknown;

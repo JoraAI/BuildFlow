@@ -112,11 +112,7 @@ describe('Estimate procurement-link integrity (integration)', () => {
     expect(sourceItem.rateAnalysisId).toBe(expectedRaId);
   });
 
-  // FIX: This test hangs because submitForReview throws inside a Prisma
-  // transaction, leaving an open DB handle that prevents Jest from completing.
-  // The functionality works (returns 400 correctly) — the hang is a test
-  // infrastructure issue with Prisma transaction rollback + open handles.
-  it.skip('submitForReview blocks MATERIAL items without resourceId or rateAnalysisId', async () => {
+  it('submitForReview blocks MATERIAL items without resourceId or rateAnalysisId', async () => {
     const estRes = await authPost(token, `/api/projects/${projectId}/estimates`, {
       name: `Unlinked Test ${Date.now()}`,
     });

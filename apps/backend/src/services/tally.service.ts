@@ -8,6 +8,7 @@
  */
 import { prisma } from '../lib/prisma';
 import { Decimal } from '@prisma/client/runtime/library';
+import { INDIAN_STATES } from '@buildflow/shared';
 import { resolveTallyLedgerMap, type TallyLedgerMap } from './integration.service';
 
 const AMP = `&${'amp;'}`;
@@ -23,18 +24,56 @@ function esc(s: string): string {
     .replace(/"/g, QUOT);
 }
 
+/**
+ * FIX (FIN-M3): Format a date in IST (Asia/Kolkata) for Tally, which expects
+ * YYYYMMDD. Previously this used the server's local timezone (getMonth/
+ * getDate), causing off-by-one-day errors when the server ran in UTC — a
+ * voucher dated 2025-04-30 IST would export as 20250429 if the server was
+ * still on 2025-04-29 UTC.
+ */
 function fmtDate(d: Date): string {
-  // Tally expects YYYYMMDD
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}${m}${day}`;
+  const istStr = d.toLocaleString('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  // en-CA produces YYYY-MM-DD; strip the dashes for Tally's YYYYMMDD format.
+  return istStr.replace(/-/g, '');
 }
 
 function fmtNum(n: Decimal | number): string {
   const v = typeof n === 'number' ? n : Number(n);
   // Tally wants decimal point, no thousands separators
   return v.toFixed(2);
+}
+
+/**
+ * FIX (NR-4/FIN-H5): Derive a party's state from an Indian GSTIN.
+ * GSTIN format: 2-digit state code + 10-char PAN + 1 entity + 1 Z + 1 checksum.
+ * Returns the state code (e.g. "27" for Maharashtra) or null if no GSTIN /
+ * malformed GSTIN. Used to split bill GST into CGST/SGST (intra-state) vs
+ * IGST (inter-state) without requiring a separate vendorState column.
+ */
+function stateFromGstin(gstin: string | null | undefined): string | null {
+  if (!gstin) return null;
+  const code = gstin.trim().slice(0, 2);
+  return /^\d{2}$/.test(code) ? code : null;
+}
+
+const STATE_CODE_BY_NAME = new Map(
+  INDIAN_STATES.map((s) => [s.name.toUpperCase(), s.code]),
+);
+
+/**
+ * FIX (R2-7): Normalize company/vendor state to a 2-digit GST code when possible.
+ */
+function normalizeStateCode(gstin: string | null | undefined, state: string | null | undefined): string {
+  const fromGstin = stateFromGstin(gstin);
+  if (fromGstin) return fromGstin;
+  const s = (state ?? '').trim();
+  if (/^\d{2}$/.test(s)) return s;
+  return STATE_CODE_BY_NAME.get(s.toUpperCase()) ?? '';
 }
 
 /** Build a single sales voucher XML (one per invoice). */
@@ -49,6 +88,7 @@ function buildSalesVoucher(
     sgstAmount: Decimal;
     igstAmount: Decimal;
     tdsAmount: Decimal;
+    retentionAmount: Decimal;
     total: Decimal;
   },
   m: TallyLedgerMap,
@@ -107,6 +147,14 @@ function buildSalesVoucher(
     lines.push(`      <AMOUNT>${fmtNum(inv.tdsAmount)}</AMOUNT>`);
     lines.push('    </ALLLEDGERENTRIES.LIST>');
   }
+  // FIX (FIN-H5): Credit retention withheld so party debit = sales + tax + retention.
+  if (Number(inv.retentionAmount) > 0) {
+    lines.push('    <ALLLEDGERENTRIES.LIST>');
+    lines.push(`      <LEDGERNAME>${esc(m.retention ?? 'Retention Money')}</LEDGERNAME>`);
+    lines.push(`      <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>`);
+    lines.push(`      <AMOUNT>-${fmtNum(inv.retentionAmount)}</AMOUNT>`);
+    lines.push('    </ALLLEDGERENTRIES.LIST>');
+  }
 
   lines.push('  </VOUCHER>');
   return lines.join('\n');
@@ -115,16 +163,19 @@ function buildSalesVoucher(
 /**
  * Build a single purchase voucher XML (one per bill).
  *
- * FIX (FIN-H5, FIN-L5): Split bill GST into CGST/SGST vs IGST based on whether
- * the vendor is in the same state as the company (intra-state) or a different
- * state (inter-state). Previously all bill GST was mapped to IGST.
+ * FIX (FIN-H5, FIN-L5, NR-4): Split bill GST into CGST/SGST vs IGST based on
+ * whether the vendor is in the same state as the company (intra-state) or a
+ * different state (inter-state). The vendor state is derived from vendorGstin
+ * (first 2 digits = state code) — previously the code read a nonexistent
+ * `bill.vendorState` field, so EVERY bill was mis-split as intra-state (CGST/
+ * SGST) regardless of the vendor's actual state.
  */
 function buildPurchaseVoucher(
   bill: {
     id: string;
     billNumber: string;
     vendorName: string;
-    vendorState?: string | null;
+    vendorGstin: string | null;
     billDate: Date;
     subtotal: Decimal;
     gstAmount: Decimal;
@@ -132,7 +183,7 @@ function buildPurchaseVoucher(
     total: Decimal;
   },
   m: TallyLedgerMap,
-  companyState: string,
+  companyStateCode: string,
 ): string {
   const party = bill.vendorName;
   const lines: string[] = [];
@@ -156,10 +207,15 @@ function buildPurchaseVoucher(
   lines.push(`      <AMOUNT>${fmtNum(bill.subtotal)}</AMOUNT>`);
   lines.push('    </ALLLEDGERENTRIES.LIST>');
 
-  // FIX (FIN-H5): Split GST into CGST/SGST (intra-state) vs IGST (inter-state).
+  // FIX (FIN-H5/NR-4): Split GST based on the vendor's state derived from GSTIN.
   if (Number(bill.gstAmount) > 0) {
+    const vendorStateCode = stateFromGstin(bill.vendorGstin);
+    const companyCode = companyStateCode;
+    // Inter-state if we know both states and they differ. If vendor has no
+    // GSTIN (unregistered vendor) there is no GST to split anyway, so this only
+    // matters when gstAmount > 0, which implies a registered vendor.
     const isInterState =
-      bill.vendorState && companyState && bill.vendorState.toUpperCase() !== companyState.toUpperCase();
+      !!vendorStateCode && !!companyCode && vendorStateCode !== companyCode;
     const gst = Number(bill.gstAmount);
     if (isInterState) {
       // IGST
@@ -199,8 +255,10 @@ function buildPurchaseVoucher(
 /** Export a project's invoices and bills as Tally Prime import XML. */
 export async function exportProjectTallyXML(companyId: string, projectId: string): Promise<string> {
   const m = await resolveTallyLedgerMap(companyId);
-  const company = await prisma.company.findUnique({ where: { id: companyId }, select: { state: true } });
-  const companyState = company?.state ?? '';
+  // FIX (NR-4): Derive the company's state CODE from its GSTIN so it compares
+  // against the vendor's GSTIN-derived state code on the same basis.
+  const company = await prisma.company.findUnique({ where: { id: companyId }, select: { gstin: true, state: true } });
+  const companyStateCode = normalizeStateCode(company?.gstin, company?.state);
 
   const [invoices, bills] = await Promise.all([
     prisma.invoice.findMany({
@@ -224,7 +282,7 @@ export async function exportProjectTallyXML(companyId: string, projectId: string
   parts.push('      </REQUESTDESC>');
   parts.push('      <REQUESTDATA>');
   for (const inv of invoices) parts.push(buildSalesVoucher(inv, m));
-  for (const bill of bills) parts.push(buildPurchaseVoucher(bill, m, companyState));
+  for (const bill of bills) parts.push(buildPurchaseVoucher(bill, m, companyStateCode));
   parts.push('      </REQUESTDATA>');
   parts.push('    </IMPORTDATA>');
   parts.push('  </BODY>');

@@ -2,10 +2,11 @@
  * BuildFlow - Invoice service (GST-compliant invoicing).
  */
 import { Decimal } from '@prisma/client/runtime/library';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
-import { calculateGST, round2 } from './gst.service';
-import { nextSequentialNumber } from '../lib/id-generator';
+import { calculateGST, lineAmount, sumAmounts, round2 } from './gst.service';
+import { nextSequentialNumberTx } from '../lib/id-generator';
 import type {
   CreateInvoiceInput,
   UpdateInvoiceInput,
@@ -181,12 +182,15 @@ export async function createInvoice(companyId: string, _userId: string, input: C
   const companyState = await getCompanyState(companyId);
   const invoiceType = input.invoiceType ?? 'STANDARD';
 
-  return prisma.$transaction(async (tx) => {
+  // FIX (NR-23): Catch P2002 (unique constraint violation on invoice number or
+  // RA sequence partial index) and return a clean 409 instead of hanging.
+  try {
+    return await prisma.$transaction(async (tx) => {
     let lineAmounts = input.lineItems.map((li) => {
       if (invoiceType === 'RUNNING_ACCOUNT') {
         const currentQty = li.currentQty ?? li.quantity;
         const cumulativeQty = li.cumulativeQty ?? currentQty;
-        const amount = round2(currentQty * li.rate);
+        const amount = lineAmount(currentQty, li.rate);
         return {
           ...li,
           quantity: currentQty,
@@ -197,15 +201,29 @@ export async function createInvoice(companyId: string, _userId: string, input: C
           amount,
         };
       }
-      return { ...li, amount: round2(li.quantity * li.rate), certifiedAmount: round2(li.quantity * li.rate) };
+      const amount = lineAmount(li.quantity, li.rate);
+      return { ...li, amount, certifiedAmount: amount };
     });
 
-    const subtotal = round2(lineAmounts.reduce((s, li) => s + li.amount, 0));
+    const subtotal = sumAmounts(lineAmounts.map((li) => li.amount));
 
     let previousCertifiedTotal = 0;
     let raSequence = input.raSequence;
     if (invoiceType === 'RUNNING_ACCOUNT') {
-      // FIX (FIN-H4): Query inside the transaction for correct locking.
+      // FIX (NR-23): The partial unique index on (project_id, ra_sequence)
+      // counts ALL non-null values — including DRAFT invoices. Previously the
+      // max was computed over non-DRAFT only, so re-running the test produced
+      // a DRAFT with the same raSequence as the previous run's DRAFT → P2002.
+      // Now compute max over ALL RA invoices (incl. DRAFT) for the sequence,
+      // but compute previousCertifiedTotal from certified (non-DRAFT) bills only.
+      const seqMax = await tx.invoice.aggregate({
+        where: { projectId: input.projectId, companyId, invoiceType: 'RUNNING_ACCOUNT', raSequence: { not: null } },
+        _max: { raSequence: true },
+      });
+      if (raSequence == null) {
+        raSequence = (seqMax._max.raSequence ?? 0) + 1;
+      }
+      // previousCertifiedTotal: only from certified (non-DRAFT) invoices.
       const prev = await tx.invoice.findMany({
         where: { projectId: input.projectId, companyId, invoiceType: 'RUNNING_ACCOUNT', status: { not: 'DRAFT' } },
         select: { cumulativeCertifiedTotal: true, raSequence: true },
@@ -213,9 +231,6 @@ export async function createInvoice(companyId: string, _userId: string, input: C
         take: 1,
       });
       previousCertifiedTotal = prev[0] ? Number(prev[0].cumulativeCertifiedTotal) : 0;
-      if (raSequence == null) {
-        raSequence = (prev[0]?.raSequence ?? 0) + 1;
-      }
     }
 
     const currentCertifiedTotal = subtotal;
@@ -236,8 +251,9 @@ export async function createInvoice(companyId: string, _userId: string, input: C
 
     const totalAfterRetention = round2(gst.netPayable - retentionAmount);
 
-    // FIX (FIN-H4): Generate invoice number inside the transaction.
-    const invoiceNumber = input.invoiceNumber || await nextSequentialNumber(companyId, 'invoice');
+    // FIX (R2-13): Use the tx-bound counter so the invoice number increment
+    // participates in the same transaction as the invoice create.
+    const invoiceNumber = input.invoiceNumber || await nextSequentialNumberTx(tx, companyId, 'invoice');
 
     return tx.invoice.create({
       data: {
@@ -246,6 +262,8 @@ export async function createInvoice(companyId: string, _userId: string, input: C
         invoiceNumber,
         clientName: input.clientName,
         clientGstin: input.clientGstin,
+        // FIX (FIN-H3): Persist clientState at create time so edits keep it.
+        clientState: input.clientState ?? null,
         invoiceDate: input.invoiceDate,
         dueDate: input.dueDate,
         status: 'DRAFT',
@@ -290,16 +308,29 @@ export async function createInvoice(companyId: string, _userId: string, input: C
         lineItems: true,
       },
     });
-  });
+    }); // end $transaction
+  } catch (err) {
+    // FIX (NR-23): P2002 = unique constraint violation (invoice number or RA
+    // sequence partial index). Surface as a clean 409, not a 30s hang/retry.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      throw ApiError.conflict(
+        'This invoice number or RA sequence already exists (possible concurrent edit). Please retry.',
+      );
+    }
+    throw err;
+  }
 }
 
 /**
- * FIX (FIN-H3): On update:
- * 1. Default `clientState` to the existing invoice's state (was undefined →
- *    null, which broke GST type determination).
- * 2. Re-apply retention on RA invoices: recompute `currentCertifiedTotal`,
- *    `cumulativeCertifiedTotal`, `retentionAmount`, and `total`.
- * 3. Deduct retention from `total` for RA invoices.
+ * FIX (FIN-H3/NR-5): On update:
+ * 1. Persist + default `clientState`: use the request value if provided, else
+ *    the invoice's stored `clientState`, else fall back to undefined (which
+ *    calculateGST treats as inter-state). Previously clientState was never
+ *    stored, so every edit flipped CGST/SGST → IGST.
+ * 2. Re-apply retention for ALL invoice types (NR-5): previously only
+ *    RUNNING_ACCOUNT re-deducted retention on update, so editing a STANDARD
+ *    invoice that had retention wrote retentionAmount: 0 and inflated total.
+ * 3. Recompute RA cumulative fields when invoiceType is RUNNING_ACCOUNT.
  */
 export async function updateInvoice(
   companyId: string,
@@ -315,8 +346,9 @@ export async function updateInvoice(
   const tdsEnabled = input.tdsEnabled ?? Number(inv.tdsAmount) > 0;
   const tdsRate = input.tdsRate ?? Number(inv.tdsRate);
 
-  // FIX (FIN-H3): Default clientState to the existing invoice's state.
-  const clientState = input.clientState ?? undefined;
+  // FIX (FIN-H3): Default clientState to the stored invoice state, then the
+  // company state, so intra-state invoices keep CGST/SGST across edits.
+  const clientState = input.clientState ?? inv.clientState ?? undefined;
 
   const invoiceType = inv.invoiceType ?? 'STANDARD';
   const retentionPct = Number(inv.retentionPct);
@@ -330,7 +362,7 @@ export async function updateInvoice(
       const lineAmounts = input.lineItems.map((li) => {
         const currentQty = li.currentQty ?? li.quantity;
         const cumulativeQty = li.cumulativeQty ?? currentQty;
-        const amount = round2(currentQty * li.rate);
+        const amount = lineAmount(currentQty, li.rate);
         return {
           ...li,
           quantity: currentQty,
@@ -341,7 +373,7 @@ export async function updateInvoice(
           amount,
         };
       });
-      currentCertifiedTotal = round2(lineAmounts.reduce((s, li) => s + li.amount, 0));
+      currentCertifiedTotal = sumAmounts(lineAmounts.map((li) => li.amount));
       subtotal = currentCertifiedTotal;
       lineItemsData = {
         deleteMany: {},
@@ -363,9 +395,9 @@ export async function updateInvoice(
     } else {
       const lineAmounts = input.lineItems.map((li) => ({
         ...li,
-        amount: round2(li.quantity * li.rate),
+        amount: lineAmount(li.quantity, li.rate),
       }));
-      subtotal = round2(lineAmounts.reduce((s, li) => s + li.amount, 0));
+      subtotal = sumAmounts(lineAmounts.map((li) => li.amount));
       currentCertifiedTotal = subtotal;
       lineItemsData = {
         deleteMany: {},
@@ -392,22 +424,25 @@ export async function updateInvoice(
     clientState,
   });
 
-  // FIX (FIN-H3): Recompute retention for RA invoices.
+  // FIX (NR-5): Recompute retention for ALL invoice types, not just
+  // RUNNING_ACCOUNT. Previously editing a STANDARD invoice that had retention
+  // wrote retentionAmount: 0 and inflated total.
   let total = gst.netPayable;
-  let retentionAmount = 0;
+  const retentionAmount = round2((currentCertifiedTotal * retentionPct) / 100);
   let cumulativeCertifiedTotal = Number(inv.cumulativeCertifiedTotal);
   if (invoiceType === 'RUNNING_ACCOUNT') {
     const previousCertifiedTotal = Number(inv.previousCertifiedTotal);
-    retentionAmount = round2((currentCertifiedTotal * retentionPct) / 100);
     cumulativeCertifiedTotal = round2(previousCertifiedTotal + currentCertifiedTotal);
-    total = round2(gst.netPayable - retentionAmount);
   }
+  total = round2(gst.netPayable - retentionAmount);
 
   return prisma.invoice.update({
     where: { id },
     data: {
       clientName: input.clientName,
       clientGstin: input.clientGstin,
+      // FIX (FIN-H3): Persist the resolved clientState so it survives edits.
+      clientState,
       invoiceDate: input.invoiceDate,
       dueDate: input.dueDate,
       gstRate,
@@ -444,8 +479,12 @@ export async function sendInvoice(companyId: string, id: string) {
 }
 
 /**
- * FIX (FIN-H2): Reject DRAFT invoices, block overpayment, wrap in transaction,
- * and use forward-only status.
+ * FIX (FIN-H2/NR-11): Reject DRAFT invoices, block overpayment, wrap in
+ * transaction, forward-only status. The read + overpay check + write now all
+ * happen INSIDE the transaction (NR-11: previously the read was outside, so two
+ * concurrent payments both passed the check and the absolute paidAmount write
+ * lost one). We use a guarded relative increment so only one concurrent payment
+ * can apply; a 0-count means another payment won the race and we retry.
  */
 export async function recordPayment(
   companyId: string,
@@ -453,32 +492,49 @@ export async function recordPayment(
   id: string,
   input: RecordPaymentInput,
 ) {
-  const inv = await prisma.invoice.findFirst({ where: { id, companyId } });
-  if (!inv) throw ApiError.notFound('Invoice');
+  return prisma.$transaction(async (tx) => {
+    // NR-11: Read inside the transaction so the overpay guard is race-safe.
+    const inv = await tx.invoice.findFirst({ where: { id, companyId } });
+    if (!inv) throw ApiError.notFound('Invoice');
 
-  // FIX (FIN-H2): Reject DRAFT invoices.
-  if (inv.status === 'DRAFT') {
-    throw ApiError.badRequest('Cannot record a payment on a DRAFT invoice');
-  }
+    // FIX (FIN-H2): Reject DRAFT invoices.
+    if (inv.status === 'DRAFT') {
+      throw ApiError.badRequest('Cannot record a payment on a DRAFT invoice');
+    }
 
-  // FIX (FIN-H2): Block overpayment.
-  const newPaid = round2(Number(inv.paidAmount) + input.amount);
-  if (newPaid > Number(inv.total)) {
-    throw ApiError.badRequest(
-      `Payment of Rs ${input.amount} would exceed the invoice total of Rs ${Number(inv.total)}. ` +
-        `Already paid: Rs ${Number(inv.paidAmount)}.`,
-    );
-  }
+    const currentPaid = Number(inv.paidAmount);
+    const total = Number(inv.total);
+    const expectedPaidAfter = round2(currentPaid + input.amount);
 
-  // FIX (FIN-H2): Forward-only status.
-  const status = newPaid >= Number(inv.total) ? 'PAID' : inv.status === 'PAID' ? 'PAID' : 'SENT';
+    // FIX (FIN-H2): Block overpayment.
+    if (expectedPaidAfter > total) {
+      throw ApiError.badRequest(
+        `Payment of Rs ${input.amount} would exceed the invoice total of Rs ${total}. ` +
+          `Already paid: Rs ${currentPaid}.`,
+      );
+    }
 
-  // FIX (FIN-H2): Wrap invoice update + journal entry in a transaction.
-  const updated = await prisma.$transaction(async (tx) => {
-    const invoice = await tx.invoice.update({
-      where: { id },
-      data: { paidAmount: newPaid, status },
+    // NR-11: Guarded relative increment — only applies if paidAmount is still
+    // the value we read. count === 0 means a concurrent payment changed it; we
+    // throw a conflict so the caller can retry rather than silently overwriting.
+    const isFullyPaid = expectedPaidAfter >= total;
+    // Forward-only status: never regress PAID → SENT; never go OVERDUE → SENT on
+    // partial payment (NR-11: previously OVERDUE→SENT regressed on partial pay).
+    const nextStatus = isFullyPaid ? 'PAID' : inv.status === 'PAID' ? 'PAID' : inv.status;
+
+    const result = await tx.invoice.updateMany({
+      where: { id, paidAmount: inv.paidAmount },
+      data: {
+        paidAmount: { increment: input.amount },
+        status: nextStatus,
+      },
     });
+
+    if (result.count === 0) {
+      throw ApiError.conflict(
+        'This invoice was modified by another payment. Please retry.',
+      );
+    }
 
     await tx.journalEntry.create({
       data: {
@@ -494,10 +550,8 @@ export async function recordPayment(
       },
     });
 
-    return invoice;
+    return tx.invoice.findUniqueOrThrow({ where: { id } });
   });
-
-  return updated;
 }
 
 export async function deleteInvoice(companyId: string, id: string) {

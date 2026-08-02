@@ -6,7 +6,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
 import { invalidateCache, cacheKeys } from '../utils/cache';
-import { round2 } from './gst.service';
+import { round2, netTotal } from './gst.service';
 import { nextSequentialNumber } from '../lib/id-generator';
 import type { CreateBillInput, UpdateBillInput, RecordPaymentInput } from '@buildflow/shared';
 
@@ -176,7 +176,7 @@ export async function createBill(companyId: string, _userId: string, input: Crea
   });
   if (!project) throw ApiError.notFound('Project');
 
-  const total = round2(input.subtotal + input.gstAmount - input.tdsAmount);
+  const total = netTotal(input.subtotal, input.gstAmount, input.tdsAmount);
 
   // Capture a snapshot of any linked entities at creation time (audit trail).
   // Manual bills usually don't have PO/WO links, but if they do we preserve them.
@@ -221,7 +221,7 @@ export async function updateBill(
   const subtotal = input.subtotal ?? Number(bill.subtotal);
   const gstAmount = input.gstAmount ?? Number(bill.gstAmount);
   const tdsAmount = input.tdsAmount ?? Number(bill.tdsAmount);
-  const total = round2(subtotal + gstAmount - tdsAmount);
+  const total = netTotal(subtotal, gstAmount, tdsAmount);
 
   const updated = await prisma.bill.update({
     where: { id },
@@ -371,6 +371,9 @@ export async function getBillSummary(companyId: string, projectId?: string) {
   let totalPaid = 0;
 
   for (const b of bills) {
+    // FIX (FIN-M11): Exclude REJECTED bills from spend totals — they are not
+    // valid financial obligations.
+    if (b.status === 'REJECTED') continue;
     const total = Number(b.total);
     const paid = Number(b.paidAmount);
     const cat = b.category;

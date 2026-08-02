@@ -58,14 +58,18 @@ export function AdaptiveSheet({
   footer,
   scrollable = true,
 }: AdaptiveSheetProps) {
-  const { isDesktop } = useViewport();
+  // FIX (UI-M8): Use dialog presentation from tablet width up (≥768px), not
+  // just desktop (≥1024px). Previously a native iPad at 768-1023px would show
+  // a bottom sheet instead of a centered dialog — feeling like a phone app.
+  const { isPhone } = useViewport();
+  const useDialog = !isPhone; // tablet + desktop
   const bodyScrollable = scrollable || !!footer;
 
   return (
     <Modal
       visible={visible}
       transparent
-      animationType={isDesktop ? 'fade' : 'slide'}
+      animationType={useDialog ? 'fade' : 'slide'}
       onRequestClose={onClose}
       statusBarTranslucent
     >
@@ -75,7 +79,7 @@ export function AdaptiveSheet({
       >
         <View
           className={`flex-1 bg-black/40 ${
-            isDesktop ? 'justify-center items-center px-6' : 'justify-end'
+            useDialog ? 'justify-center items-center px-6' : 'justify-end'
           }`}
         >
           {dismissOnBackdrop ? (
@@ -89,7 +93,7 @@ export function AdaptiveSheet({
 
           <View
             className={`bg-card w-full ${SIZE_CLASS[size]} ${
-              isDesktop ? 'rounded-2xl shadow-elevated' : 'rounded-t-2xl'
+              useDialog ? 'rounded-2xl shadow-elevated' : 'rounded-t-2xl'
             } max-h-[90%]`}
           >
             {bodyScrollable ? (

@@ -43,7 +43,12 @@ interface AuthState {
 
 async function persistSession(data: AuthResponsePayload) {
   await SecureStore.setItemAsync(SECURE_STORE_KEYS.ACCESS_TOKEN, data.accessToken);
-  await SecureStore.setItemAsync(SECURE_STORE_KEYS.REFRESH_TOKEN, data.refreshToken);
+  // FIX (NR-52): Only persist a truthy refresh token. Previously a missing/
+  // undefined refreshToken was stringified to "undefined" and stored, causing
+  // later refresh attempts to send "undefined" to the backend (always 400).
+  if (data.refreshToken) {
+    await SecureStore.setItemAsync(SECURE_STORE_KEYS.REFRESH_TOKEN, data.refreshToken);
+  }
   await SecureStore.setItemAsync(SECURE_STORE_KEYS.USER, JSON.stringify(data.user));
 }
 

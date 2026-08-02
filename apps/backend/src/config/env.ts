@@ -30,8 +30,9 @@ const envSchema = z.object({
 
   REDIS_URL: z.string().url().default('redis://localhost:6379'),
 
-  JWT_ACCESS_SECRET: z.string().min(16),
-  JWT_REFRESH_SECRET: z.string().min(16),
+  // FIX (SEC-L16): Require ≥32-char JWT secrets in production; reject placeholders.
+  JWT_ACCESS_SECRET: z.string().min(32),
+  JWT_REFRESH_SECRET: z.string().min(32),
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
   BCRYPT_COST: z.coerce.number().int().min(8).max(15).default(12),

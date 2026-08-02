@@ -28,6 +28,9 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
       'expo-location': path.resolve(projectRoot, 'shims/expo-location.js'),
       'expo-secure-store': path.resolve(projectRoot, 'shims/expo-secure-store.js'),
       'expo-file-system': path.resolve(projectRoot, 'shims/expo-file-system.js'),
+      // FIX (NR-3): Register the NetInfo shim for web so the native package
+      // isn't required when bundling for the web target.
+      '@react-native-community/netinfo': path.resolve(projectRoot, 'shims/react-native-netinfo.ts'),
     };
     if (webShims[moduleName]) {
       return { type: 'sourceFile', filePath: webShims[moduleName] };

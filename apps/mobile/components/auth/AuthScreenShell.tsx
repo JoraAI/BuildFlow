@@ -87,14 +87,14 @@ export function AuthScreenShell({
   ) : null;
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={['bottom']}>
+    <SafeAreaView className="flex-1 bg-surface" edges={['top', 'bottom']}>
       {mobileHeader}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1"
       >
         <ScrollView
-          contentContainerClassName="px-6 py-6"
+          contentContainerClassName={`px-6 py-6${isDesktop && !isWideDesktop ? ' max-w-md w-full self-center' : ''}`}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator
         >

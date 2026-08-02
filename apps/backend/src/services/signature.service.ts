@@ -32,7 +32,7 @@ function signatureHmac(message: string): string {
 
 type Signable =
   | { kind: 'PO'; record: { id: string; poNumber: string; vendorName: string; totalAmount: unknown; projectId: string; companyId: string; lines: Array<{ resourceId: string; quantity: unknown; rate: unknown }> } }
-  | { kind: 'REQUISITION'; record: { id: string; reqNumber: string; vendorName?: string; projectId: string; companyId: string; lines: Array<{ resourceId: string; quantity: unknown; expectedRate?: unknown }> } };
+  | { kind: 'REQUISITION'; record: { id: string; reqNumber: string; vendorName?: string; projectId: string; companyId: string; lines: Array<{ resourceId: string | null; quantity: unknown; expectedRate?: unknown | null }> } };
 
 function hashDocument(s: Signable): string {
   let message: string;
@@ -131,7 +131,8 @@ export async function signRequisition(
       reqNumber: req.reqNumber,
       projectId: req.projectId,
       companyId: req.companyId,
-      lines: req.lines.map((l) => ({ resourceId: l.resourceId, quantity: l.quantity, expectedRate: l.expectedRate })),
+      // FIX (NR-13): resourceId can be null for BOQ-only lines; coalesce for hashing.
+      lines: req.lines.map((l) => ({ resourceId: l.resourceId ?? l.boqItemId ?? null, quantity: l.quantity, expectedRate: l.expectedRate })),
     },
   });
 

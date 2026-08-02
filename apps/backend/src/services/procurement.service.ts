@@ -143,7 +143,8 @@ export async function createRequisition(
         rateSource: line.rateSource,
       });
       return {
-        resourceId: line.resourceId,
+        // FIX (NR-13): resourceId can now be null for BOQ-only lines.
+        resourceId: line.resourceId ?? null,
         quantity: line.quantity,
         unit: line.unit,
         boqItemId: line.boqItemId ?? null,
@@ -251,9 +252,44 @@ export async function createPO(
   if (input.requisitionId) {
     const req = await prisma.materialRequisition.findFirst({
       where: { id: input.requisitionId, projectId, companyId },
+      include: { lines: true },
     });
     if (!req) throw ApiError.notFound('Requisition not found');
     if (req.status !== 'APPROVED') throw ApiError.badRequest('Requisition must be approved before creating PO');
+
+    // FIX (EST-M6): Validate that every PO line exists on the requisition and
+    // doesn't exceed the requisitioned quantity (cumulative across POs).
+    // FIX (R2-6): Match PO lines to requisition by resourceId or boqItemId (BOQ-only lines).
+    const reqLineByResource = new Map(req.lines.filter((l) => l.resourceId).map((l) => [l.resourceId!, l]));
+    const reqLineByBoq = new Map(req.lines.filter((l) => l.boqItemId).map((l) => [l.boqItemId!, l]));
+    const existingPOs = await prisma.purchaseOrder.findMany({
+      where: { requisitionId: input.requisitionId },
+      include: { lines: { select: { resourceId: true, quantity: true } } },
+    });
+    const orderedQty = new Map<string, number>();
+    for (const ep of existingPOs) {
+      for (const l of ep.lines) {
+        const k = `r:${l.resourceId}`;
+        orderedQty.set(k, (orderedQty.get(k) ?? 0) + Number(l.quantity));
+      }
+    }
+    for (const poLine of input.lines) {
+      const reqLine =
+        reqLineByResource.get(poLine.resourceId) ??
+        (poLine.boqItemId ? reqLineByBoq.get(poLine.boqItemId) : undefined);
+      if (!reqLine) {
+        throw ApiError.badRequest(`Resource on PO line is not on the requisition`);
+      }
+      const orderKey = poLine.boqItemId ? `b:${poLine.boqItemId}` : `r:${poLine.resourceId}`;
+      const alreadyOrdered = orderedQty.get(orderKey) ?? 0;
+      const totalAfter = alreadyOrdered + poLine.quantity;
+      if (totalAfter > Number(reqLine.quantity) + 0.001) {
+        throw ApiError.badRequest(
+          `PO quantity exceeds requisition: requisitioned ${Number(reqLine.quantity)}, already ordered ${alreadyOrdered}, ` +
+            `this PO adds ${poLine.quantity} (total ${totalAfter}).`,
+        );
+      }
+    }
   }
 
   const lines = input.lines.map((l) => ({
@@ -262,12 +298,15 @@ export async function createPO(
   }));
   const totalAmount = round2(lines.reduce((s, l) => s + l.amount, 0));
 
+  // FIX (EST-M6): Generate poNumber server-side if not provided.
+  const poNumber = input.poNumber || await nextSequentialNumber(companyId, 'po');
+
   const po = await prisma.purchaseOrder.create({
     data: {
       projectId,
       companyId,
       requisitionId: input.requisitionId,
-      poNumber: input.poNumber,
+      poNumber,
       vendorName: input.vendorName,
       totalAmount,
       lines: { create: lines },
@@ -395,18 +434,88 @@ export async function createGRN(
       });
     }
 
+    // FIX (EST-H4): Apportion GRN quantity across ALL matching requisition lines
+    // by outstanding quantity, instead of crediting the FULL quantity to the
+    // first matching line. Two requisition lines for one resource against
+    // different BOQ items should each get their proportional share.
     if (po.requisition?.lines.length) {
       for (const grnLine of input.lines) {
-        const reqLine = po.requisition.lines.find(
+        // Find ALL requisition lines matching this resource that have a BOQ item
+        const matchingReqLines = po.requisition.lines.filter(
           (rl) => rl.resourceId === grnLine.resourceId && rl.boqItemId,
         );
-        if (reqLine?.boqItemId) {
-          await tx.bOQItem.update({
-            where: { id: reqLine.boqItemId },
-            data: { procuredQty: { increment: grnLine.quantity } },
-          });
+        if (matchingReqLines.length === 0) continue;
+
+        // Look up outstanding (unfulfilled) qty per BOQ item to apportion
+        const boqItemIds = matchingReqLines.map((rl) => rl.boqItemId!);
+        const boqItems = await tx.bOQItem.findMany({
+          where: { id: { in: boqItemIds } },
+          select: { id: true, quantity: true, procuredQty: true },
+        });
+        const outstandingByBoq = new Map(
+          boqItems.map((b) => [
+            b.id,
+            Math.max(0, Number(b.quantity) - Number(b.procuredQty)),
+          ]),
+        );
+        const totalOutstanding = [...outstandingByBoq.values()].reduce((s, v) => s + v, 0);
+
+        if (totalOutstanding <= 0) continue;
+
+        // Apportion the GRN quantity proportionally
+        let remaining = grnLine.quantity;
+        const linesToCredit = matchingReqLines
+          .map((rl) => ({
+            boqItemId: rl.boqItemId!,
+            outstanding: outstandingByBoq.get(rl.boqItemId!) ?? 0,
+          }))
+          .filter((l) => l.outstanding > 0)
+          .sort((a, b) => b.outstanding - a.outstanding);
+
+        for (let i = 0; i < linesToCredit.length; i++) {
+          const { boqItemId, outstanding } = linesToCredit[i];
+          // Last line gets the remainder to avoid rounding gaps
+          const share = i === linesToCredit.length - 1
+            ? remaining
+            : Math.min(outstanding, grnLine.quantity * (outstanding / totalOutstanding));
+          const credit = Math.max(0, Math.min(share, remaining));
+          if (credit > 0) {
+            await tx.bOQItem.update({
+              where: { id: boqItemId },
+              data: { procuredQty: { increment: credit } },
+            });
+            remaining -= credit;
+          }
         }
       }
+    }
+
+    // FIX (EST-M1): After GRN is created, check if the requisition is fully
+    // fulfilled (all lines received). NOTE: status is intentionally left as
+    // APPROVED — there is no CLOSED state in the requisition state machine yet
+    // (transition would require a schema migration). Tracking fulfillment via
+    // received-vs-ordered quantities only; no cosmetic no-op write here.
+    if (po.requisition?.lines.length) {
+      // Sum all GRN lines across all GRNs for this PO that match requisition resources
+      const allGrns = await prisma.goodsReceiptNote.findMany({
+        where: { purchaseOrderId: po.id },
+        include: { lines: { select: { resourceId: true, quantity: true } } },
+      });
+      const receivedByResource = new Map<string, number>();
+      for (const g of allGrns) {
+        for (const l of g.lines) {
+          receivedByResource.set(l.resourceId, (receivedByResource.get(l.resourceId) ?? 0) + Number(l.quantity));
+        }
+      }
+      // Check if all requisition lines are fully received
+      const allFulfilled = po.requisition.lines.every((rl) => {
+        if (!rl.resourceId) return true; // BOQ-only lines skip this check
+        const received = receivedByResource.get(rl.resourceId) ?? 0;
+        return received >= Number(rl.quantity) - 0.001; // tolerance
+      });
+      // No status transition — see note above. A CLOSED enum can be added in a
+      // future migration if business logic requires marking requisitions done.
+      void allFulfilled;
     }
 
     return grn;

@@ -7,6 +7,7 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
+import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 import { env } from './config/env';
 import { logger } from './config/logger';
@@ -37,6 +38,16 @@ import { subcontractProjectRouter, subcontractorRouter } from './routes/subcontr
 import { subPortalPublicRouter } from './routes/subcontract-portal.routes';
 import { portalPublicRouter, portalProjectRouter } from './routes/portal.routes';
 import { proposalRouter } from './routes/proposal.routes';
+import { pettyCashRouter } from './routes/petty-cash.routes';
+import { punchListRouter } from './routes/punch-list.routes';
+import { rfiSubmittalRouter } from './routes/rfi-submittal.routes';
+import { drawingRouter } from './routes/drawing.routes';
+import { inventoryTraceabilityRouter } from './routes/inventory-traceability.routes';
+import { portalEnhancedRouter } from './routes/portal-enhanced.routes';
+import { portalEnhancedPublicRouter } from './routes/portal-enhanced-public.routes';
+import { accountingExportRouter } from './routes/accounting-export.routes';
+import { labourRouter } from './routes/labour.routes';
+import { i18nRouter } from './routes/i18n.routes';
 
 const app = express();
 
@@ -56,6 +67,14 @@ app.use(
   }),
 );
 app.use(compression());
+// FIX (SEC-L22): Skip compression for auth endpoints to mitigate BREACH attacks
+// (compression oracle on secrets in the response body).
+app.use('/api/auth', (_req, res, next) => {
+  res.removeHeader('Content-Encoding');
+  next();
+});
+// FIX (MOB-H6): cookie-parser for httpOnly refresh token on web
+app.use(cookieParser());
 
 // Capture RAW body for payment webhooks BEFORE json parsing (needed for HMAC verify).
 app.use('/api/webhooks/razorpay', express.raw({ type: '*/*', limit: '1mb' }));
@@ -79,6 +98,12 @@ app.use('/health', healthRouter);
 
 // --- Global API rate limit ---
 app.use('/api', apiLimiter);
+
+// Public portal routes MUST be registered before the catch-all `/api` estimate
+// router (which applies authenticateToken to every /api/* request it receives).
+app.use('/api/portal', portalPublicRouter);
+app.use('/api/portal', portalEnhancedPublicRouter);
+app.use('/api/portal/sub', subPortalPublicRouter);
 
 // --- Routes ---
 app.use('/api/auth', authRouter);
@@ -109,9 +134,21 @@ app.use('/api/projects', procurementRouter); // /:id/procurement/*
 app.use('/api/projects', subcontractProjectRouter); // /:id/subcontract/*
 app.use('/api/subcontractors', subcontractorRouter);
 app.use('/api/projects', portalProjectRouter); // /:id/portal-access
-app.use('/api/portal', portalPublicRouter); // public /:token
-app.use('/api/portal/sub', subPortalPublicRouter); // subcontractor portal
 app.use('/api/proposals', proposalRouter);
+app.use('/api/petty-cash', pettyCashRouter);
+app.use('/api/punch-list', punchListRouter);
+app.use('/api', rfiSubmittalRouter);
+// §2.8: /api/sync UNMOUNTED — the offline-first delta-sync feature requires
+// `updatedAt` columns on Task/DailyReport (not present) and a mobile replay
+// pipeline (offline-sync.service.ts URLs don't match real attendance routes).
+// The service (sync.service.ts) still compiles and is documented as a stub;
+// remount only when §8.1 is fully implemented. Do not ship a 500 route.
+app.use('/api/drawings', drawingRouter);
+app.use('/api/projects', inventoryTraceabilityRouter);
+app.use('/api/projects', portalEnhancedRouter);
+app.use('/api/export', accountingExportRouter);
+app.use('/api/projects', labourRouter);
+app.use('/api/i18n', i18nRouter);
 
 // --- 404 + error handler (last) ---
 app.use(notFoundHandler);

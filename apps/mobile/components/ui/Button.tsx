@@ -68,7 +68,11 @@ export function Button({
     <Pressable
       onPress={onPress}
       disabled={disabled || loading}
-      className={`rounded-lg flex-row items-center justify-center ${variants[variant]} ${sizes[size]} ${disabled ? 'opacity-50' : 'active:opacity-90'} ${fullWidth ? 'w-full' : ''} ${className}`}
+      // FIX (UI-M11): Add hover and focus-visible states for web so the app
+      // feels like a real web app and is keyboard-navigable. hitSlop ensures
+      // 44px minimum touch target on phones (UI-M12).
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      className={`rounded-lg flex-row items-center justify-center ${variants[variant]} ${sizes[size]} ${disabled ? 'opacity-50' : 'active:opacity-90'} ${Platform.OS === 'web' ? 'hover:opacity-95 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:outline-none transition-opacity' : ''} ${fullWidth ? 'w-full' : ''} ${className}`}
     >
       {loading ? (
         <ActivityIndicator color={loaderColors[variant]} />

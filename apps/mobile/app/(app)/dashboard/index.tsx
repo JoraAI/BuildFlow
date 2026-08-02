@@ -90,9 +90,9 @@ export default function DashboardScreen() {
   if (isLoading) {
     return (
       <ScrollView className="flex-1 bg-surface" contentContainerClassName="p-4">
-        <LoadingSkeleton className="h-30 w-full" />
+        <LoadingSkeleton className="h-24 w-full" />
         <View className="h-4" />
-        <LoadingSkeleton className="h-50 w-full" />
+        <LoadingSkeleton className="h-32 w-full" />
         <View className="h-4" />
         <LoadingSkeleton className="h-40 w-full" />
       </ScrollView>

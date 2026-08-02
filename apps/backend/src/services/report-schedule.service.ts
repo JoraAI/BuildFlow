@@ -49,7 +49,9 @@ export async function runDueReportSchedules(): Promise<number> {
 
     try {
       const recipientUsers = await prisma.user.findMany({
-        where: { email: { in: s.recipients }, isActive: true },
+        // FIX (FIN-M12): Scope recipients by company so one tenant's schedule
+        // can't notify users from another company.
+        where: { email: { in: s.recipients }, companyId: s.companyId, isActive: true },
         select: { id: true },
       });
       await Promise.all(

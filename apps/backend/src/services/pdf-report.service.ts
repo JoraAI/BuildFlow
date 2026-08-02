@@ -414,15 +414,57 @@ export async function reportEstimate(companyId: string, estimateId: string): Pro
     const widths = [220, 70, 70, 70, 90];
     let y = tableHeaders(doc, ['Description', 'Unit', 'Qty', 'Rate', 'Amount'], widths, doc.y);
     sec.items.forEach((it, i) => {
+      // FIX (EST-M8): Show rate analysis name in the description when linked.
+      const desc = it.rateAnalysisName
+        ? `${it.description} [RA: ${it.rateAnalysisName}]`
+        : it.description;
       y = tableRow(
         doc,
-        [it.description, it.unit, `${it.quantity}`, it.rate.toLocaleString('en-IN'), it.amount.toLocaleString('en-IN')],
+        [desc, it.unit, `${it.quantity}`, it.rate.toLocaleString('en-IN'), it.amount.toLocaleString('en-IN')],
         widths,
         y,
         i % 2 === 1,
       );
     });
     doc.moveDown(0.5);
+  }
+
+  // FIX (EST-M8): Append linked rate analyses with their component breakdowns
+  // so the exported estimate includes the full composition of composite items.
+  const linkedRAIds = estimate.sections
+    .flatMap((s) => s.items)
+    .filter((it) => it.rateAnalysisId)
+    .map((it) => it.rateAnalysisId as string);
+  if (linkedRAIds.length > 0) {
+    const rateAnalyses = await prisma.rateAnalysis.findMany({
+      where: { id: { in: linkedRAIds }, companyId },
+      include: {
+        components: {
+          include: { resource: { select: { name: true, unit: true } } },
+        },
+      },
+    });
+    doc.addPage();
+    doc.font('Helvetica-Bold').fontSize(12).fillColor(NAVY).text('Rate Analysis Annexure', MARGIN, MARGIN + 60);
+    doc.moveDown(1);
+    for (const ra of rateAnalyses) {
+      doc.y = ensureSpace(doc, 60);
+      doc.font('Helvetica-Bold').fontSize(10).fillColor(NAVY).text(`${ra.name} (Total: ${inr(Number(ra.totalRate))})`, MARGIN, doc.y);
+      doc.moveDown(0.2);
+      const raWidths = [220, 70, 70, 70, 90];
+      let raY = tableHeaders(doc, ['Component', 'Unit', 'Qty/Unit', 'Rate', 'Amount'], raWidths, doc.y);
+      ra.components.forEach((c, i) => {
+        const name = c.resource?.name ?? c.miscName ?? 'Misc';
+        raY = tableRow(
+          doc,
+          [name, c.unit, String(Number(c.quantityPerUnit)), Number(c.rate).toLocaleString('en-IN'), Number(c.amount).toLocaleString('en-IN')],
+          raWidths,
+          raY,
+          i % 2 === 1,
+        );
+      });
+      doc.moveDown(0.5);
+    }
   }
 
   doc.moveDown(1);

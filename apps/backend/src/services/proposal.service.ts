@@ -194,6 +194,26 @@ export async function updateProposal(
 ) {
   const existing = await getProposalOrThrow(companyId, id);
 
+  // FIX (EST-M7): Whitelist proposal status transitions to prevent invalid
+  // jumps (e.g. DRAFT → WON, LOST → SENT). Each status can only move forward.
+  const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+    DRAFT: ['IN_REVIEW', 'ARCHIVED'],
+    IN_REVIEW: ['APPROVED', 'REJECTED', 'ARCHIVED'],
+    APPROVED: ['SENT', 'ARCHIVED'],
+    SENT: ['WON', 'LOST', 'ARCHIVED'],
+    WON: ['ARCHIVED'],
+    LOST: ['ARCHIVED'],
+    ARCHIVED: ['DRAFT'],
+  };
+  if (input.status && input.status !== existing.status) {
+    const allowed = ALLOWED_TRANSITIONS[existing.status] ?? [];
+    if (!allowed.includes(input.status)) {
+      throw ApiError.badRequest(
+        `Invalid status transition: "${existing.status}" → "${input.status}". Allowed: ${allowed.join(', ') || 'none'}.`,
+      );
+    }
+  }
+
   const updated = await prisma.$transaction(async (tx) => {
     const proposal = await tx.proposal.update({
       where: { id },

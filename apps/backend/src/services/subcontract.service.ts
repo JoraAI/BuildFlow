@@ -3,6 +3,7 @@ import { ApiError } from '../utils/errors';
 import { assertProjectAccess } from '../middleware/project-access.middleware';
 import { recordBoqMeasurement } from './boq.service';
 import { recordBillPayment } from './bill.service';
+import { logger } from '../config/logger';
 import type {
   CreateSubcontractorInput,
   CreateWorkOrderInput,
@@ -320,6 +321,7 @@ export async function createWorkOrder(
   return prisma.subcontractWorkOrder.create({
     data: {
       projectId,
+      companyId,
       subcontractorId: input.subcontractorId,
       woNumber: input.woNumber,
       scope: input.scope,
@@ -382,6 +384,7 @@ export async function createWorkOrderFromBoq(
   return prisma.subcontractWorkOrder.create({
     data: {
       projectId,
+      companyId,
       subcontractorId: input.subcontractorId,
       woNumber: input.woNumber,
       scope,
@@ -694,6 +697,51 @@ export async function updateMeasurement(
     throw ApiError.badRequest('Only draft or rejected measurements can be edited');
   }
 
+  const wo = await prisma.subcontractWorkOrder.findFirst({
+    where: { id: existing.workOrderId, projectId },
+    include: {
+      contractLines: true,
+      measurements: {
+        where: { status: 'APPROVED', id: { not: measurementId } },
+        include: { lines: true },
+      },
+    },
+  });
+  if (!wo) throw ApiError.notFound('Work order not found');
+
+  const woLineById = new Map(wo.contractLines.map((cl) => [cl.id, cl]));
+  const certifiedByLine = new Map<string, number>();
+  for (const m of wo.measurements) {
+    for (const line of m.lines) {
+      if (line.workOrderLineId) {
+        certifiedByLine.set(
+          line.workOrderLineId,
+          (certifiedByLine.get(line.workOrderLineId) ?? 0) + num(line.quantity),
+        );
+      }
+    }
+  }
+  for (const inputLine of input.lines) {
+    if (inputLine.workOrderLineId) {
+      const contractLine = woLineById.get(inputLine.workOrderLineId);
+      if (!contractLine) {
+        throw ApiError.badRequest('Measurement line references a work order line that does not exist');
+      }
+      if (inputLine.rate !== num(contractLine.rate)) {
+        throw ApiError.badRequest(
+          `Rate mismatch: contract rate for "${contractLine.description}" is ${num(contractLine.rate)}, measurement uses ${inputLine.rate}.`,
+        );
+      }
+      const alreadyCertified = certifiedByLine.get(inputLine.workOrderLineId) ?? 0;
+      const newTotal = alreadyCertified + inputLine.quantity;
+      if (newTotal > num(contractLine.contractQty) + 0.01) {
+        throw ApiError.badRequest(
+          `Over-measurement for "${contractLine.description}": max remaining ${round2(num(contractLine.contractQty) - alreadyCertified)}.`,
+        );
+      }
+    }
+  }
+
   const lines = mapMeasurementLines(input.lines);
   const totalAmount = round2(lines.reduce((s, l) => s + l.amount, 0));
 
@@ -817,18 +865,28 @@ export async function approveMeasurement(
     return { measurement: approved, bill };
   });
 
-  // FIX (EST-M12): Move BOQ posting into a non-fatal post-transaction step.
-  // The measurement approval itself has already committed inside the $transaction
-  // above. If BOQ posting fails here (e.g. a BOQ item was deleted), we don't
-  // want to roll back the approval. The posting is idempotent (it only posts
-  // lines where boqMeasurementPosted is false), so a retry on next access or
-  // manual re-run will pick up any unposted lines.
-  await postApprovedMeasurementToBoq(companyId, userId, measurementId, ipAddress).catch((err) => {
-    // Log but don't throw — the measurement is approved, BOQ can be reconciled.
-    console.error(`[EST-M12] BOQ posting failed for measurement ${measurementId}:`, err);
-  });
+  // FIX (EST-M12/NR-9): Move BOQ posting into a non-fatal post-transaction
+  // step. The measurement approval itself has already committed inside the
+  // $transaction above. If BOQ posting fails here (e.g. a BOQ item was
+  // deleted), we don't want to roll back the approval. The posting is
+  // idempotent (it only posts lines where boqMeasurementPosted is false), so a
+  // retry on next access or manual re-run will pick up any unposted lines.
+  //
+  // NR-9: Don't silently swallow — log via the structured logger and surface a
+  // `postedToBoq: false` flag so the caller/UI can prompt reconciliation,
+  // rather than letting executedQty silently drift from approved measurements.
+  let postedToBoq = true;
+  try {
+    await postApprovedMeasurementToBoq(companyId, userId, measurementId, ipAddress);
+  } catch (err) {
+    postedToBoq = false;
+    logger.warn('BOQ posting failed for approved measurement — reconciliation needed', {
+      measurementId,
+      error: String(err),
+    });
+  }
 
-  return result;
+  return { ...result, postedToBoq };
 }
 
 export async function rejectMeasurement(

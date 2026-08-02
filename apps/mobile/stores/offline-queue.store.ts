@@ -1,19 +1,30 @@
 /**
  * BuildFlow - Offline mutation queue persisted in AsyncStorage.
+ *
+ * FIX (Phase 5 §8.1): Extended from daily-report-only to support all field
+ * operations: punch items, RFIs, attendance check-in/out, material usage.
+ * Each op carries an idempotencyKey so the backend can dedupe replays.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { CreateDailyReportInput } from '@buildflow/shared';
 
-const STORAGE_KEY = 'bf_offline_queue_v1';
+const STORAGE_KEY = 'bf_offline_queue_v2';
 
-export type OfflineOperationType = 'CREATE_DAILY_REPORT';
+export type OfflineOperationType =
+  | 'CREATE_DAILY_REPORT'
+  | 'CREATE_PUNCH_ITEM'
+  | 'UPDATE_PUNCH_ITEM'
+  | 'CREATE_RFI'
+  | 'ANSWER_RFI'
+  | 'CREATE_ATTENDANCE'
+  | 'UPDATE_ATTENDANCE';
 
 export interface OfflineOperation {
   id: string;
   type: OfflineOperationType;
   projectId: string;
   idempotencyKey: string;
-  payload: CreateDailyReportInput;
+  payload: CreateDailyReportInput | Record<string, unknown>;
   createdAt: string;
 }
 

@@ -91,7 +91,28 @@ export async function createTask(
   });
 
   // Add predecessors
+  // FIX (FIN-H7/NR-19): Validate each predecessor is a task in the SAME project
+  // (prevents cross-project / cross-tenant dependency edges) and is not the
+  // task itself (self-loop = trivial cycle). Cycle detection across the full
+  // graph runs at CPM compute time; this blocks the obvious bad edges at create.
   if (input.predecessors && input.predecessors.length > 0) {
+    const predIds = [...new Set(input.predecessors.map((p) => p.predecessorId))];
+    // Reject self-reference
+    if (predIds.includes(task.id)) {
+      throw ApiError.badRequest('A task cannot be its own predecessor (self-loop).');
+    }
+    // Verify all predecessors belong to the same project
+    const validPreds = await prisma.task.findMany({
+      where: { id: { in: predIds }, projectId },
+      select: { id: true },
+    });
+    const validPredIds = new Set(validPreds.map((t) => t.id));
+    const invalid = predIds.filter((id) => !validPredIds.has(id));
+    if (invalid.length > 0) {
+      throw ApiError.badRequest(
+        `Predecessor task(s) not found in this project: ${invalid.join(', ')}.`,
+      );
+    }
     await prisma.taskPredecessor.createMany({
       data: input.predecessors.map((p) => ({
         taskId: task.id,

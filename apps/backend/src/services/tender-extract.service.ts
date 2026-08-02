@@ -203,16 +203,18 @@ async function softMatchResource(
   companyId: string,
   description: string,
 ): Promise<string | null> {
-  const lower = description.toLowerCase();
-  const matches = await prisma.resource.findMany({
-    where: {
-      companyId,
-      isDeleted: false,
-      name: { contains: lower, mode: 'insensitive' },
-    },
+  // FIX (EST-M9): The match direction was inverted. It searched for resources
+  // whose NAME CONTAINS the description (e.g. a 50-char description would need
+  // to be a substring of a resource name — almost never true). The correct
+  // direction is: find resources whose NAME appears within the description.
+  // We fetch candidate resources and filter in JS since Prisma can't express
+  // "description contains name" as a WHERE clause.
+  const lowerDesc = description.toLowerCase();
+  const candidates = await prisma.resource.findMany({
+    where: { companyId, isDeleted: false },
     select: { id: true, name: true },
-    take: 5,
   });
+  const matches = candidates.filter((r) => lowerDesc.includes(r.name.toLowerCase()));
   if (matches.length === 1) return matches[0]!.id;
   return null;
 }
@@ -225,15 +227,13 @@ async function softMatchRateAnalysis(
   companyId: string,
   description: string,
 ): Promise<string | null> {
-  const lower = description.toLowerCase();
-  const matches = await prisma.rateAnalysis.findMany({
-    where: {
-      companyId,
-      name: { contains: lower, mode: 'insensitive' },
-    },
+  // FIX (EST-M9): Same inverted direction fix as softMatchResource.
+  const lowerDesc = description.toLowerCase();
+  const candidates = await prisma.rateAnalysis.findMany({
+    where: { companyId },
     select: { id: true, name: true },
-    take: 5,
   });
+  const matches = candidates.filter((r) => lowerDesc.includes(r.name.toLowerCase()));
   if (matches.length === 1) return matches[0]!.id;
   return null;
 }
