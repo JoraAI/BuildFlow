@@ -134,10 +134,22 @@ for (const file of files) {
     
     if (matched) continue;
     
-    // Try resource matches
-    for (const [regex, resName] of RES_MATCHES) {
+    // FIX (DAT-2.5): Handle entries where resName is null but raName is provided.
+    // Previously these wrote `resourceName: 'null'` — a string literal "null".
+    for (const entry of RES_MATCHES) {
+      const regex = entry[0];
+      const resName = entry[1];
+      const raName = entry[2]; // optional: 'RA:<name>' for rate analysis fallback
       if (regex.test(desc)) {
-        lines[i] = line.replace(/\s*\},?\s*$/, `, resourceName: '${resName}' },`);
+        if (resName) {
+          lines[i] = line.replace(/\s*\},?\s*$/, `, resourceName: '${resName}' },`);
+        } else if (raName) {
+          // Strip 'RA:' prefix and use as rateAnalysisName
+          const cleanRA = raName.replace(/^RA:/, '');
+          lines[i] = line.replace(/\s*\},?\s*$/, `, rateAnalysisName: '${cleanRA}' },`);
+        } else {
+          continue; // skip — no valid name
+        }
         filePatched++;
         matched = true;
         break;

@@ -253,6 +253,12 @@ model Company {
   rateRegions         RateRegion[]
   rolePermissions     CompanyRolePermission[]
   documentCounters    DocumentCounter[]
+  pettyCashEntries    PettyCashEntry[]
+  punchItems          PunchItem[]
+  rfis                RFI[]
+  submittals          Submittal[]
+  drawings            Drawing[]
+  subcontractWorkOrders SubcontractWorkOrder[]
 
   @@map("companies")
 }
@@ -296,6 +302,16 @@ id           String   @id @default(uuid()) @db.Uuid
   proposalsCreated     Proposal[] @relation("ProposalCreatedBy")
   boqMeasurementsRecorded BoqMeasurement[] @relation("BoqMeasurementRecordedBy")
   subcontractMaterialIssues SubcontractorMaterialIssue[] @relation("SubcontractMaterialIssuedBy")
+  pettyCashEntries     PettyCashEntry[] @relation("PettyCashRecordedBy")
+  punchItemsAssigned   PunchItem[] @relation("PunchItemAssignedTo")
+  punchItemsClosed     PunchItem[] @relation("PunchItemClosedBy")
+  punchItemsCreated    PunchItem[] @relation("PunchItemCreatedBy")
+  rfisRaised           RFI[] @relation("RFIRaisedBy")
+  drawingsCreated      Drawing[] @relation("DrawingCreatedBy")
+  drawingVersionsUploaded DrawingVersion[] @relation("DrawingVersionUploadedBy")
+  rfisAnswered         RFI[] @relation("RFIAnsweredBy")
+  submittalsSubmitted  Submittal[] @relation("SubmittalSubmittedBy")
+  submittalsReviewed   Submittal[] @relation("SubmittalReviewedBy")
 
   @@index([companyId])
   @@map("users")
@@ -376,6 +392,11 @@ model Project {
   subcontractorPortalAccess SubcontractorPortalAccess[]
   boqMeasurements      BoqMeasurement[]
   projectMaterialRates ProjectMaterialRate[]
+  pettyCashEntries     PettyCashEntry[] @relation("PettyCashProject")
+  punchItems           PunchItem[]
+  rfis                 RFI[]
+  drawings             Drawing[]
+  submittals           Submittal[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -453,7 +474,7 @@ model Task {
   startDate      DateTime? @map("start_date") @db.Date
   endDate        DateTime? @map("end_date") @db.Date
   durationDays   Int      @default(1) @map("duration_days")
-  progressPct    Int      @default(0) @map("progress_pct")
+  progressPct    Int      @default(0) @map("progress_pct") /// 0–100 enforced via DB CHECK constraint (migration 20260730120200)
   status         TaskStatus @default(NOT_STARTED)
   assignedTo     String?  @map("assigned_to") @db.Uuid
   constraintType TaskConstraintType? @map("constraint_type")
@@ -470,6 +491,9 @@ model Task {
   dailyReportTaskUpdates DailyReportTaskUpdate[]
   linkedChangeOrders ChangeOrder[]
   subcontractWorkOrders SubcontractWorkOrder[]
+  punchItems          PunchItem[]
+  rfis                RFI[]
+  submittals          Submittal[]
 
   @@index([projectId])
   @@index([wbsId])
@@ -885,7 +909,7 @@ model DailyReportTaskUpdate {
   id            String @id @default(uuid()) @db.Uuid
   dailyReportId String @map("daily_report_id") @db.Uuid
   taskId        String @map("task_id") @db.Uuid
-  progressPct   Int    @map("progress_pct")
+  progressPct   Int    @map("progress_pct") /// 0–100 enforced via DB CHECK constraint (migration 20260730120200)
 
   dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
   task        Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
@@ -948,6 +972,10 @@ model Invoice {
   invoiceNumber String        @map("invoice_number")
   clientName    String        @map("client_name")
   clientGstin   String?       @map("client_gstin")
+  // FIX (FIN-H3/NR-5): Persist the client's state so edits don't silently flip
+  // CGST/SGST → IGST (previously clientState was never stored, so on update it
+  // resolved to undefined → always inter-state).
+  clientState   String?       @map("client_state")
   invoiceDate   DateTime      @map("invoice_date") @db.Date
   dueDate       DateTime      @map("due_date") @db.Date
   status        InvoiceStatus @default(DRAFT)
@@ -980,6 +1008,14 @@ model Invoice {
   @@index([companyId])
   @@index([status])
   @@index([invoiceType])
+  // R2-11: The partial unique index on (project_id, ra_sequence) WHERE
+  // ra_sequence IS NOT NULL is created in migration 20260730120100. It is NOT
+  // declared here as a Prisma @@unique because Prisma cannot express partial
+  // unique indexes (filtered). Do NOT regenerate migrations for this model
+  // without preserving this index — it guards against duplicate RA sequences.
+  // Raw SQL to recreate if dropped:
+  //   CREATE UNIQUE INDEX "invoices_projectid_rasequence_unique"
+  //     ON "invoices" ("project_id", "ra_sequence") WHERE "ra_sequence" IS NOT NULL;
   // FIX (DAT-3.6): Composite index for tenant+status queries.
   @@index([companyId, status])
   @@map("invoices")
@@ -1144,7 +1180,7 @@ model AuditLog {
   action     String
   entityType String   @map("entity_type")
   entityId   String   @map("entity_id")
-  oldValue   Json?
+  oldValue   Json?    @map("old_value")
   newValue   Json?    @map("new_value")
   ipAddress  String?  @map("ip_address")
   createdAt  DateTime @default(now()) @map("created_at")
@@ -1331,7 +1367,8 @@ model MaterialRequisition {
 model MaterialRequisitionLine {
   id            String  @id @default(uuid()) @db.Uuid
   requisitionId String  @map("requisition_id") @db.Uuid
-  resourceId    String  @map("resource_id") @db.Uuid
+  // FIX (NR-13): Nullable so BOQ-only lines (no catalog resource) can be saved.
+  resourceId    String? @map("resource_id") @db.Uuid
   boqItemId     String? @map("boq_item_id") @db.Uuid
   quantity      Decimal @db.Decimal(12, 3)
   unit          String
@@ -1339,7 +1376,7 @@ model MaterialRequisitionLine {
   rateSource    String?  @map("rate_source")
 
   requisition MaterialRequisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
-  resource    Resource            @relation(fields: [resourceId], references: [id])
+  resource    Resource?           @relation(fields: [resourceId], references: [id])
 
   @@index([requisitionId])
   @@map("material_requisition_lines")
@@ -1499,6 +1536,7 @@ model Subcontractor {
 model SubcontractWorkOrder {
   id              String          @id @default(uuid()) @db.Uuid
   projectId       String          @map("project_id") @db.Uuid
+  companyId       String          @map("company_id") @db.Uuid
   subcontractorId String          @map("subcontractor_id") @db.Uuid
   boqItemId       String?         @map("boq_item_id") @db.Uuid
   taskId          String?         @map("task_id") @db.Uuid
@@ -1514,6 +1552,7 @@ model SubcontractWorkOrder {
   createdAt       DateTime        @default(now()) @map("created_at")
 
   project              Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  company              Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
   subcontractor        Subcontractor           @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
   boqItem              BOQItem?                @relation(fields: [boqItemId], references: [id], onDelete: SetNull)
   task                 Task?                   @relation(fields: [taskId], references: [id], onDelete: SetNull)
@@ -1708,6 +1747,151 @@ model PlatformAuditLog {
 }
 
 // ------------------------------------------------------------------
+// RFIs & Submittals (Phase 5 — §8.2)
+// Requests for Information and technical submittals with answer tracking,
+// document attachments, and approval workflow.
+// ------------------------------------------------------------------
+
+model RFI {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  projectId   String   @map("project_id") @db.Uuid
+  taskId      String?  @map("task_id") @db.Uuid
+  boqItemId   String?  @map("boq_item_id") @db.Uuid
+  rfiNumber   String   @map("rfi_number")
+  subject     String
+  question    String
+  answer      String?
+  status      String   @default("OPEN") // OPEN | ANSWERED | CLOSED | CANCELLED
+  priority    String   @default("NORMAL") // LOW | NORMAL | HIGH | URGENT
+  attachments String[] @default([])
+  raisedBy    String   @map("raised_by") @db.Uuid
+  answeredBy  String?  @map("answered_by") @db.Uuid
+  answeredAt  DateTime? @map("answered_at")
+  dueDate     DateTime? @map("due_date") @db.Date
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task      Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  raisedByUser  User @relation("RFIRaisedBy", fields: [raisedBy], references: [id])
+  answeredByUser User? @relation("RFIAnsweredBy", fields: [answeredBy], references: [id])
+
+  @@unique([companyId, rfiNumber])
+  @@index([companyId])
+  @@index([projectId])
+  @@index([status])
+  @@map("rfis")
+}
+
+model Submittal {
+  id           String   @id @default(uuid()) @db.Uuid
+  companyId    String   @map("company_id") @db.Uuid
+  projectId    String   @map("project_id") @db.Uuid
+  taskId       String?  @map("task_id") @db.Uuid
+  submittalNo  String   @map("submittal_no")
+  title        String
+  description  String?
+  type         String   @default("MATERIAL") // MATERIAL | SHOP_DRAWING | METHOD_STATEMENT | OTHER
+  status       String   @default("DRAFT") // DRAFT | SUBMITTED | APPROVED | REJECTED | REVISE
+  attachments  String[] @default([])
+  submittedBy  String   @map("submitted_by") @db.Uuid
+  reviewedBy   String?  @map("reviewed_by") @db.Uuid
+  reviewedAt   DateTime? @map("reviewed_at")
+  reviewNotes  String?  @map("review_notes")
+  dueDate      DateTime? @map("due_date") @db.Date
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  company      Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  project      Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task         Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  submittedByUser User @relation("SubmittalSubmittedBy", fields: [submittedBy], references: [id])
+  reviewedByUser  User? @relation("SubmittalReviewedBy", fields: [reviewedBy], references: [id])
+
+  @@unique([companyId, submittalNo])
+  @@index([companyId])
+  @@index([projectId])
+  @@index([status])
+  @@map("submittals")
+}
+
+// ------------------------------------------------------------------
+// Punch List / Snag List (Phase 5 — §8.4)
+// Plan/location-anchored snags with photo capture, assignee, priority, due
+// date, status (open → in-progress → ready-for-review → closed).
+// ------------------------------------------------------------------
+
+model PunchItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  projectId   String   @map("project_id") @db.Uuid
+  taskId      String?  @map("task_id") @db.Uuid
+  title       String
+  description String?
+  location    String?
+  priority    String   @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  status      String   @default("OPEN") // OPEN | IN_PROGRESS | READY_FOR_REVIEW | CLOSED
+  photos      String[] @default([])
+  assignedTo  String?  @map("assigned_to") @db.Uuid
+  dueDate     DateTime? @map("due_date") @db.Date
+  closedAt    DateTime? @map("closed_at")
+  closedBy    String?  @map("closed_by") @db.Uuid
+  createdBy   String   @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  company  Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task     Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  assignee User?   @relation("PunchItemAssignedTo", fields: [assignedTo], references: [id])
+  closer   User?   @relation("PunchItemClosedBy", fields: [closedBy], references: [id])
+  creator  User    @relation("PunchItemCreatedBy", fields: [createdBy], references: [id])
+
+  @@index([companyId])
+  @@index([projectId])
+  @@index([status])
+  @@index([companyId, status])
+  @@map("punch_items")
+}
+
+// ------------------------------------------------------------------
+// Petty Cash / Site Expenses (Phase 5 — §8.9)
+// Tracks small cash expenditures at site with receipt tracking and
+// categorized reconciliation. Each entry is company+project scoped.
+// ------------------------------------------------------------------
+
+model PettyCashEntry {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  projectId   String?  @map("project_id") @db.Uuid
+  entryNumber String   @map("entry_number")
+  description String
+  category    String   @default("OTHER")
+  amount      Decimal  @db.Decimal(14, 2)
+  expenseDate DateTime @map("expense_date") @db.Date
+  paidTo      String   @map("paid_to")
+  receiptUrl  String?  @map("receipt_url")
+  notes       String?
+  /// PENDING | RECONCILED | REJECTED
+  status      String   @default("PENDING")
+  recordedBy  String   @map("recorded_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  project  Project? @relation("PettyCashProject", fields: [projectId], references: [id], onDelete: SetNull)
+  recorder User     @relation("PettyCashRecordedBy", fields: [recordedBy], references: [id])
+
+  @@unique([companyId, entryNumber])
+  @@index([companyId])
+  @@index([projectId])
+  @@index([companyId, status])
+  @@map("petty_cash_entries")
+}
+
+// ------------------------------------------------------------------
 // Document Counter (race-safe, per-company, per-year sequential numbers)
 // FIX: SEC-M14 / FIN-H1 / DAT-1.2 — replaces count()-based numbering.
 // ------------------------------------------------------------------
@@ -1727,4 +1911,55 @@ model DocumentCounter {
   @@unique([companyId, type, year])
   @@index([companyId])
   @@map("document_counters")
+}
+
+// ------------------------------------------------------------------
+// Drawing & Document Version Control (Phase 5 — §8.3)
+// Version-tracked drawings with discipline, status workflow, and revision history.
+// ------------------------------------------------------------------
+
+model Drawing {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  projectId   String   @map("project_id") @db.Uuid
+  drawingNo   String   @map("drawing_no")
+  title       String
+  discipline  String   @default("CIVIL") // CIVIL | STRUCTURAL | MEP | ARCHITECTURAL | OTHER
+  category    String?
+  status      String   @default("DRAFT") // DRAFT | IN_REVIEW | APPROVED | SUPERSEDED
+  currentVersionId String? @unique @map("current_version_id") @db.Uuid
+  createdBy   String   @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  company       Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  project       Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  currentVersion DrawingVersion? @relation("DrawingCurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  versions      DrawingVersion[] @relation("DrawingVersions")
+  createdByUser User             @relation("DrawingCreatedBy", fields: [createdBy], references: [id])
+
+  @@unique([companyId, drawingNo])
+  @@index([companyId])
+  @@index([projectId])
+  @@index([status])
+  @@map("drawings")
+}
+
+model DrawingVersion {
+  id          String   @id @default(uuid()) @db.Uuid
+  drawingId   String   @map("drawing_id") @db.Uuid
+  versionLabel String  @map("version_label") // e.g. "Rev A", "Rev B"
+  fileUrl     String   @map("file_url")
+  thumbnailUrl String? @map("thumbnail_url")
+  uploadedBy  String   @map("uploaded_by") @db.Uuid
+  uploadedAt  DateTime @default(now()) @map("uploaded_at")
+  notes       String?
+
+  drawing        Drawing @relation("DrawingVersions", fields: [drawingId], references: [id], onDelete: Cascade)
+  currentForDrawing Drawing? @relation("DrawingCurrentVersion")
+  uploadedByUser User    @relation("DrawingVersionUploadedBy", fields: [uploadedBy], references: [id])
+
+  @@unique([drawingId, versionLabel])
+  @@index([drawingId])
+  @@map("drawing_versions")
 }

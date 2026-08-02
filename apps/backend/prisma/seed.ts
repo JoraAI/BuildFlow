@@ -728,6 +728,7 @@ async function main(): Promise<void> {
   const wo = await prisma.subcontractWorkOrder.create({
     data: {
       projectId: project1.id,
+      companyId: company.id,
       subcontractorId: subbie.id,
       woNumber: 'WO-001',
       scope: 'Earthwork sub-contract',
@@ -1220,6 +1221,7 @@ async function main(): Promise<void> {
   const woTrail = await prisma.subcontractWorkOrder.create({
     data: {
       projectId: project3.id,
+      companyId: company.id,
       subcontractorId: trailSubbie.id,
       boqItemId: boqCarpet.id,
       woNumber: 'WO-TRAIL-001',
