@@ -115,3 +115,41 @@ export const createJournalSchema = z.object({
   amount: z.coerce.number().positive(),
 });
 export type CreateJournalInput = z.infer<typeof createJournalSchema>;
+/* ------------------------------------------------------------------ */
+/* Bill extraction (PROC-B9)                                           */
+/* ------------------------------------------------------------------ */
+
+export const billUploadSchema = z.object({
+  fileContent: z.string().min(1),
+  filename: z.string().min(1),
+  contentType: z.string().default('application/octet-stream'),
+});
+export type BillUploadInput = z.infer<typeof billUploadSchema>;
+
+export const billExtractedDraftSchema = z.object({
+  vendorName: z.string().min(1).max(200),
+  vendorGstin: z.string().max(15).optional(),
+  billNumber: z.string().max(50).optional(),
+  billDate: z.string().optional(),
+  dueDate: z.string().optional(),
+  subtotal: z.coerce.number().nonnegative(),
+  gstAmount: z.coerce.number().nonnegative().default(0),
+  tdsAmount: z.coerce.number().nonnegative().default(0),
+  category: z.enum(['MATERIAL', 'LABOUR', 'EQUIPMENT', 'SUBCONTRACTOR', 'OTHER']).default('MATERIAL'),
+  poNumberHint: z.string().optional(),
+  confidence: z.number().min(0).max(1).default(0),
+  notes: z.string().optional(),
+  filename: z.string().optional(),
+});
+export type BillExtractedDraft = z.infer<typeof billExtractedDraftSchema>;
+
+export const billBulkExtractResultSchema = z.object({
+  drafts: z.array(billExtractedDraftSchema),
+  notes: z.string().optional(),
+});
+export type BillBulkExtractResult = z.infer<typeof billBulkExtractResultSchema>;
+
+export const billBulkCreateSchema = z.object({
+  bills: z.array(createBillSchema).min(1).max(50),
+});
+export type BillBulkCreateInput = z.infer<typeof billBulkCreateSchema>;

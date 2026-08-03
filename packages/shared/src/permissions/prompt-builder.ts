@@ -45,9 +45,11 @@ export const TOOL_CAPABILITIES: ToolCapability[] = [
   { id: 'create_estimate', description: 'Create a new estimate for a project', requires: 'estimate.create', module: 'Estimates' },
   { id: 'add_estimate_item', description: 'Add a line item (material/labour/equipment) to an estimate section', requires: 'estimate.create', module: 'Estimates' },
 
-  // Bills
+  // Bills (PROC-B11: Added extract/create capabilities)
   { id: 'list_bills', description: 'List vendor bills', requires: 'bill.view', module: 'Bills' },
   { id: 'approve_bill', description: 'Approve a pending vendor bill', requires: 'bill.approve', module: 'Bills' },
+  { id: 'extract_vendor_bill', description: 'Extract vendor bill data from an uploaded invoice PDF/image using AI', requires: 'bill.create', module: 'Bills' },
+  { id: 'create_vendor_bill', description: 'Create a vendor bill after user review of AI-extracted or manual data', requires: 'bill.create', module: 'Bills' },
 
   // Invoices
   { id: 'list_invoices', description: 'List client invoices', requires: 'invoice.view', module: 'Invoices' },

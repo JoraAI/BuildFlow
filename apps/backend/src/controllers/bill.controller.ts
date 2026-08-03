@@ -3,6 +3,7 @@
  */
 import type { Request, Response } from 'express';
 import * as billService from '../services/bill.service';
+import { extractBillFromFile, extractBillsFromFiles } from '../services/bill-extract.service';
 import { ok, created } from '../utils/response';
 import { recordAudit } from '../utils/audit';
 import { ApiError } from '../utils/errors';
@@ -137,4 +138,43 @@ export async function remove(req: Request, res: Response) {
 export async function summary(req: Request, res: Response) {
   const data = await billService.getBillSummary(req.user!.companyId, resolveProjectId(req));
   return ok(res, data);
+}
+// PROC-B9: Bill extraction (LLM) — returns draft for review, does NOT persist
+
+export async function extract(req: Request, res: Response) {
+  const { companyId } = req.user!;
+  const { fileContent, filename, contentType } = req.body;
+  if (!fileContent || !filename) throw ApiError.badRequest('fileContent and filename are required');
+  const result = await extractBillFromFile(companyId, { fileContent, filename, contentType });
+  return ok(res, result);
+}
+
+export async function extractBatch(req: Request, res: Response) {
+  const { companyId } = req.user!;
+  const { files } = req.body;
+  if (!Array.isArray(files) || files.length === 0) throw ApiError.badRequest('files array is required');
+  const result = await extractBillsFromFiles(companyId, files);
+  return ok(res, result);
+}
+
+export async function bulkCreate(req: Request, res: Response) {
+  const { companyId, id: userId } = req.user!;
+  const projectId = (req.body.projectId as string | undefined) ?? (req.params.id as string | undefined);
+  const { bills } = req.body;
+  if (!Array.isArray(bills) || bills.length === 0) throw ApiError.badRequest('bills array is required');
+  const createdBills = [];
+  for (const billInput of bills) {
+    const data = await billService.createBill(companyId, userId, { ...billInput, projectId });
+    await recordAudit({
+      companyId,
+      userId,
+      action: 'CREATE',
+      entityType: 'Bill',
+      entityId: data.id,
+      newValue: { billNumber: data.billNumber, total: data.total, source: 'BULK_IMPORT' },
+      ipAddress: req.ip,
+    });
+    createdBills.push(data);
+  }
+  return created(res, { created: createdBills.length, bills: createdBills });
 }

@@ -369,6 +369,11 @@ export async function listEligibleBoqItems(
       amount: true,
       category: true,
       section: true,
+      // VAR-B4: Include linkage metadata via estimateItem relation so mobile
+      // variation form can scope materials (resourceId/rateAnalysisId live on EstimateItem)
+      estimateItem: {
+        select: { resourceId: true, rateAnalysisId: true },
+      },
     },
     orderBy: [{ section: 'asc' }, { itemCode: 'asc' }],
     take: 200,

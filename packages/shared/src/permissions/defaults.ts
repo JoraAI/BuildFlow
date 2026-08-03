@@ -200,7 +200,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'invoice.record_payment',
     'bill.view',
     'bill.create',
-    'bill.approve',
     'bill.record_payment',
     'tally.export',
     'financials.view_amounts',
