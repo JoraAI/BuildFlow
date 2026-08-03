@@ -115,6 +115,9 @@ export interface BillInput {
   tdsRate?: number;
   tdsAmount?: number;
   category: Bill['category'];
+  // PROC-B3/B5: Link to PO and optional vendor invoice attachment
+  purchaseOrderId?: string;
+  attachmentUrl?: string;
 }
 
 // ---------------------------------------------------------------------------

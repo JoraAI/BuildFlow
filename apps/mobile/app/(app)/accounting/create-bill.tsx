@@ -1,6 +1,10 @@
 /**
- * BuildFlow - Create Bill
- * Route: /accounting/create-bill?projectId=<id>
+ * BuildFlow - Create Bill / Record vendor bill
+ * Route: /accounting/create-bill?projectId=<id>&purchaseOrderId=<id>&vendorName=...
+ *
+ * PROC-B1/B4: When opened from procurement (purchaseOrderId present), the title
+ * becomes "Record vendor bill", vendor details are pre-filled from the PO, and
+ * a PO context card is shown. The bill is linked to the PO via purchaseOrderId.
  */
 import React, { useState, useMemo } from 'react';
 import {
@@ -34,13 +38,19 @@ export default function CreateBillScreen() {
   const {
     projectId: preselected,
     vendorName: preVendor,
+    vendorGstin: preVendorGstin,
     category: preCategory,
+    purchaseOrderId: prePurchaseOrderId,
+    poNumber: prePoNumber,
     suggestedBillNumber,
     returnTo: returnToParam,
   } = useLocalSearchParams<{
     projectId?: string;
     vendorName?: string;
+    vendorGstin?: string;
     category?: string;
+    purchaseOrderId?: string;
+    poNumber?: string;
     suggestedBillNumber?: string;
     returnTo?: string;
   }>();
@@ -48,9 +58,9 @@ export default function CreateBillScreen() {
   const createBill = useCreateBill();
 
   const [projectId, setProjectId] = useState(preselected ?? '');
-  const [billNumber, setBillNumber] = useState(suggestedBillNumber ?? '');
+  const [billNumber, setBillNumber] = useState('');
   const [vendorName, setVendorName] = useState(preVendor ?? '');
-  const [vendorGstin, setVendorGstin] = useState('');
+  const [vendorGstin, setVendorGstin] = useState(preVendorGstin ?? '');
   const [billDate, setBillDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState('');
   const [subtotal, setSubtotal] = useState('0');
@@ -62,6 +72,10 @@ export default function CreateBillScreen() {
       : 'MATERIAL',
   );
   const [formError, setFormError] = useState<string | null>(null);
+
+  // PROC-B1: Dynamic title and save button based on PO context
+  const screenTitle = prePurchaseOrderId ? 'Record vendor bill' : 'New Bill';
+  const saveLabel = prePurchaseOrderId ? 'Save vendor bill' : 'Save bill';
 
   // Live TDS + total preview
   const preview = useMemo(() => {
@@ -100,6 +114,8 @@ export default function CreateBillScreen() {
         tdsRate: preview.tdsRate,
         tdsAmount: preview.tdsAmount,
         category,
+        // PROC-B3: Link bill to purchase order
+        purchaseOrderId: prePurchaseOrderId || undefined,
       },
       {
         onSuccess: async (bill) => {
@@ -119,6 +135,19 @@ export default function CreateBillScreen() {
       },
     );
   };
+
+  // PROC-B4: PO context card shown when opened from procurement
+  const poContextCard = prePurchaseOrderId ? (
+    <Card>
+      <View className="flex-row justify-between items-center mb-1">
+        <Text className="text-sm font-bold text-text">Linked Purchase Order</Text>
+        <Text className="text-xs font-semibold text-primary">{prePoNumber ?? 'PO'}</Text>
+      </View>
+      <Text className="text-xs text-muted">
+        Enter the amounts from the supplier's tax invoice. Vendor details are pre-filled from the PO.
+      </Text>
+    </Card>
+  ) : null;
 
   const summaryCard = (
     <Card>
@@ -140,6 +169,8 @@ export default function CreateBillScreen() {
 
   const formFields = (
     <>
+      {poContextCard}
+
       <Card>
         <Text className="text-sm font-bold text-text mb-2">Project</Text>
         {!preselected && projects ? (
@@ -166,10 +197,10 @@ export default function CreateBillScreen() {
         <Card className={isDesktop ? 'flex-1' : undefined}>
           <Text className="text-sm font-bold text-text mb-2">Bill Details</Text>
           <Input
-            label="Bill Number"
+            label="Supplier invoice no."
             value={billNumber}
             onChangeText={setBillNumber}
-            placeholder="BILL-2025-001"
+            placeholder="As printed on vendor's tax invoice"
           />
           <Input
             label="Vendor Name"
@@ -264,7 +295,7 @@ export default function CreateBillScreen() {
 
   const saveBar = (
     <Button
-      label="Save Bill"
+      label={saveLabel}
       variant="primary"
       onPress={onSave}
       loading={createBill.isPending}
@@ -281,7 +312,7 @@ export default function CreateBillScreen() {
       >
         {isDesktop ? (
           <ScreenContainer scrollable constrained>
-            <FormScreenHeader title="New Bill" onCancel={() => dismissTo(returnToParam ? decodeURIComponent(returnToParam) : DISMISS.accounting)} />
+            <FormScreenHeader title={screenTitle} onCancel={() => dismissTo(returnToParam ? decodeURIComponent(returnToParam) : DISMISS.accounting)} />
             <View className="flex-1 flex-row gap-6 items-start">
               <View className="flex-[2] gap-4">
                 {formFields}
@@ -295,7 +326,7 @@ export default function CreateBillScreen() {
           </ScreenContainer>
         ) : (
           <>
-            <FormScreenHeader title="New Bill" onCancel={() => dismissTo(returnToParam ? decodeURIComponent(returnToParam) : DISMISS.accounting)} />
+            <FormScreenHeader title={screenTitle} onCancel={() => dismissTo(returnToParam ? decodeURIComponent(returnToParam) : DISMISS.accounting)} />
             <ScrollView contentContainerClassName="px-4 pb-32 pt-2 gap-4">{formFields}</ScrollView>
             <View className="absolute bottom-0 left-0 right-0 bg-card border-t border-border p-4">
               {formErrorBanner}
