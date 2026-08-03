@@ -40,6 +40,7 @@ function serializeBill(b: {
   advanceRecoveryAmount: Decimal;
   workOrderId: string | null;
   measurementId: string | null;
+  purchaseOrderId: string | null;
   isRetentionRelease: boolean;
   project?: { id: string; name: string };
 }) {
@@ -181,10 +182,19 @@ export async function createBill(companyId: string, _userId: string, input: Crea
   // Capture a snapshot of any linked entities at creation time (audit trail).
   // Manual bills usually don't have PO/WO links, but if they do we preserve them.
   const snapshot = await buildBillSnapshot({
-    purchaseOrderId: (input as CreateBillInput & { purchaseOrderId?: string }).purchaseOrderId,
+    purchaseOrderId: input.purchaseOrderId,
     workOrderId: (input as CreateBillInput & { workOrderId?: string }).workOrderId,
     measurementId: (input as CreateBillInput & { measurementId?: string }).measurementId,
   });
+
+  // PROC-B3: Validate that the PO belongs to the same company + project.
+  if (input.purchaseOrderId) {
+    const po = await prisma.purchaseOrder.findFirst({
+      where: { id: input.purchaseOrderId, companyId, projectId: input.projectId },
+      select: { id: true },
+    });
+    if (!po) throw ApiError.notFound('Purchase order not found in this project');
+  }
 
   const bill = await prisma.bill.create({
     data: {
@@ -201,6 +211,10 @@ export async function createBill(companyId: string, _userId: string, input: Crea
       tdsAmount: input.tdsAmount,
       total,
       category: input.category,
+      // PROC-B3: Persist purchaseOrderId FK (was missing — snapshot had it but row didn't).
+      ...(input.purchaseOrderId ? { purchaseOrderId: input.purchaseOrderId } : {}),
+      // PROC-B5: Persist vendor invoice attachment URL.
+      ...(input.attachmentUrl ? { attachmentUrl: input.attachmentUrl } : {}),
       ...(snapshot ? { billSnapshot: snapshot } : {}),
     },
     include: { project: { select: { id: true, name: true } } },

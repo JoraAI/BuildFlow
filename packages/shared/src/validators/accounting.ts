@@ -80,6 +80,10 @@ export const createBillSchema = z.object({
   tdsAmount: z.coerce.number().nonnegative().default(0),
   category: z.enum(['MATERIAL', 'LABOUR', 'EQUIPMENT', 'SUBCONTRACTOR', 'OTHER']).default('OTHER'),
   notes: z.string().max(2000).optional(),
+  // PROC-B3: Link bill to purchase order for procurement workflow.
+  purchaseOrderId: z.string().uuid().optional(),
+  // PROC-B5: Vendor invoice attachment (PDF/image URL from storage).
+  attachmentUrl: z.string().max(2000).optional(),
 });
 export type CreateBillInput = z.infer<typeof createBillSchema>;
 

@@ -710,21 +710,30 @@ function IndentCard({
 
               {/* Actions per PO */}
               <View className="flex-row gap-2 mt-1.5 flex-wrap">
+                {/* PROC-B6: Show vendor bill status badge */}
+                {(po.bills?.length ?? 0) > 0 ? (
+                  <Badge
+                    label={`Vendor bill: ${po.bills![0]!.status}`}
+                    color="success"
+                  />
+                ) : (po.goodsReceipts?.length ?? 0) > 0 ? (
+                  <Badge label="Vendor bill pending" color="warning" />
+                ) : null}
                 {canCreate && po.status !== 'CANCELLED' && !(po.goodsReceipts?.length ?? 0) && (
                   <Button label="Record GRN" size="sm" variant="secondary" onPress={() => onRecordGRN(po)} />
                 )}
-                {canCreateBill && (po.goodsReceipts?.length ?? 0) > 0 && (
+                {/* PROC-B1: "Record vendor bill" (was "Create Bill") — only show if no bill yet */}
+                {canCreateBill && (po.goodsReceipts?.length ?? 0) > 0 && !(po.bills?.length) && (
                   <Button
-                    label="Create Bill"
+                    label="Record vendor bill"
                     size="sm"
                     variant="secondary"
                     onPress={() => {
                       const returnTo = encodeURIComponent(projectTabHref(projectId, 'procurement'));
-                      const vendor = req.purchaseOrders?.[0]?.poNumber
-                        ? `Vendor (${req.purchaseOrders[0].poNumber})` : 'Vendor';
-                      const billNum = `BILL-${po.poNumber.replace(/^PO-/, '')}`;
+                      const vendor = po.vendorName || 'Vendor';
+                      const vendorGstin = po.vendorGstin || '';
                       router.push(
-                        `/accounting/create-bill?projectId=${projectId}&vendorName=${encodeURIComponent(vendor)}&category=MATERIAL&suggestedBillNumber=${encodeURIComponent(billNum)}&returnTo=${returnTo}` as never,
+                        `/accounting/create-bill?projectId=${projectId}&purchaseOrderId=${po.id}&vendorName=${encodeURIComponent(vendor)}&vendorGstin=${encodeURIComponent(vendorGstin)}&category=MATERIAL&poNumber=${encodeURIComponent(po.poNumber)}&returnTo=${returnTo}` as never,
                       );
                     }}
                   />

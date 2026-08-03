@@ -69,6 +69,9 @@ export async function listRequisitions(
           id: true,
           poNumber: true,
           status: true,
+          vendorName: true,
+          vendorGstin: true,
+          totalAmount: true,
           lines: {
             include: { resource: { select: { id: true, name: true, unit: true } } },
           },
@@ -80,6 +83,17 @@ export async function listRequisitions(
               lines: { select: { resourceId: true, quantity: true, unit: true } },
             },
             orderBy: { receivedDate: 'desc' },
+          },
+          // PROC-B2: Include linked bills so the mobile PO card can show
+          // "Vendor bill pending" vs "Vendor bill recorded".
+          bills: {
+            select: {
+              id: true,
+              billNumber: true,
+              status: true,
+              total: true,
+              attachmentUrl: true,
+            },
           },
         },
       },

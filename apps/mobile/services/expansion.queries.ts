@@ -134,6 +134,16 @@ export interface PurchaseOrderSummary {
   id: string;
   poNumber: string;
   status: string;
+  vendorName?: string;
+  vendorGstin?: string;
+  totalAmount?: string;
+  bills?: Array<{
+    id: string;
+    billNumber: string;
+    status: string;
+    total: string;
+    attachmentUrl: string | null;
+  }>;
   lines: PurchaseOrderLine[];
   goodsReceipts?: GoodsReceiptSummary[];
 }
