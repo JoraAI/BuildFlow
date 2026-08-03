@@ -58,6 +58,8 @@ export default function ProposalDetailScreen() {
   const [tab, setTab] = useState<Tab>('estimate');
   const [showPromote, setShowPromote] = useState(false);
   const [promoteForm, setPromoteForm] = useState({ code: '', startDate: '', endDate: '' });
+  const [showReject, setShowReject] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
 
   const { data: proposal, isLoading, refetch, isFetching } = useProposal(id ?? '');
   const promoteMut = usePromoteProposal(id ?? '');
@@ -127,11 +129,18 @@ export default function ProposalDetailScreen() {
     dismissTo(DISMISS.proposals);
   }
 
-  async function handleMarkLost() {
-    const ok = await confirmAsync('Mark as lost?', 'This bid will be marked as lost.');
-    if (!ok) return;
+  function handleMarkLost() {
+    setRejectReason('');
+    setShowReject(true);
+  }
+
+  async function handleConfirmReject() {
     try {
-      await updateMut.mutateAsync({ status: ProposalStatus.LOST });
+      await updateMut.mutateAsync({
+        status: ProposalStatus.LOST,
+        rejectionReason: rejectReason.trim() || null,
+      });
+      setShowReject(false);
       await alertAsync('Marked as lost', 'Proposal archived as lost.');
       refetch();
     } catch (e) {
@@ -233,7 +242,13 @@ export default function ProposalDetailScreen() {
           )}
           {isOwner && ['APPROVED', 'SENT', 'IN_REVIEW'].includes(proposal.status) && (
             <View className="mt-2">
-              <Button label="Mark as Lost" variant="secondary" size="sm" onPress={handleMarkLost} />
+              <Button label="Reject / Mark Lost" variant="danger" size="sm" onPress={handleMarkLost} />
+            </View>
+          )}
+          {proposal.status === ProposalStatus.LOST && proposal.rejectionReason && (
+            <View className="mt-2 p-2 bg-danger/10 rounded-lg">
+              <Text className="text-xs font-semibold text-danger">Rejection Reason</Text>
+              <Text className="text-sm text-text mt-0.5">{proposal.rejectionReason}</Text>
             </View>
           )}
         </Card>
@@ -321,6 +336,40 @@ export default function ProposalDetailScreen() {
           label="End date (optional)"
           value={promoteForm.endDate}
           onChange={(v) => setPromoteForm((p) => ({ ...p, endDate: v }))}
+        />
+      </AdaptiveSheet>
+
+      {/* Rejection reason sheet */}
+      <AdaptiveSheet
+        visible={showReject}
+        onClose={() => setShowReject(false)}
+        title="Reject / Mark as Lost"
+        subtitle="This proposal will be archived as lost. Optionally add a reason."
+        size="sm"
+        footer={
+          <View className="flex-row gap-2">
+            <Button
+              label="Cancel"
+              variant="secondary"
+              className="flex-1"
+              onPress={() => setShowReject(false)}
+            />
+            <Button
+              label={updateMut.isPending ? 'Updating…' : 'Confirm'}
+              variant="danger"
+              className="flex-1"
+              onPress={handleConfirmReject}
+              disabled={updateMut.isPending}
+            />
+          </View>
+        }
+      >
+        <Input
+          label="Reason (optional)"
+          value={rejectReason}
+          onChangeText={setRejectReason}
+          placeholder="Why is this proposal being rejected?"
+          multiline
         />
       </AdaptiveSheet>
     </SafeAreaView>

@@ -196,11 +196,14 @@ export async function updateProposal(
 
   // FIX (EST-M7): Whitelist proposal status transitions to prevent invalid
   // jumps (e.g. DRAFT → WON, LOST → SENT). Each status can only move forward.
+  // FIX (PROPREJ-1): 'REJECTED' is an EstimateStatus, not a ProposalStatus —
+  // the proposal equivalent is 'LOST'. Also add LOST to APPROVED so a proposal
+  // that's approved internally can still be marked as lost if the bid fails.
   const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-    DRAFT: ['IN_REVIEW', 'ARCHIVED'],
-    IN_REVIEW: ['APPROVED', 'REJECTED', 'ARCHIVED'],
-    APPROVED: ['SENT', 'ARCHIVED'],
-    SENT: ['WON', 'LOST', 'ARCHIVED'],
+    DRAFT: ['IN_REVIEW', ProposalStatus.LOST, 'ARCHIVED'],
+    IN_REVIEW: ['APPROVED', ProposalStatus.LOST, 'ARCHIVED'],
+    APPROVED: ['SENT', ProposalStatus.LOST, 'ARCHIVED'],
+    SENT: ['WON', ProposalStatus.LOST, 'ARCHIVED'],
     WON: ['ARCHIVED'],
     LOST: ['ARCHIVED'],
     ARCHIVED: ['DRAFT'],
