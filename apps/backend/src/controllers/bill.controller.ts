@@ -164,7 +164,7 @@ export async function bulkCreate(req: Request, res: Response) {
   if (!Array.isArray(bills) || bills.length === 0) throw ApiError.badRequest('bills array is required');
   const createdBills = [];
   for (const billInput of bills) {
-    const data = await billService.createBill(companyId, userId, { ...billInput, projectId });
+    const data = await billService.createBill(companyId, userId, { ...billInput, billDate: new Date(billInput.billDate), tdsAmount: billInput.tdsAmount ?? 0, projectId });
     await recordAudit({
       companyId,
       userId,

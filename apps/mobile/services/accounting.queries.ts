@@ -406,3 +406,58 @@ export function useTdsReport(from?: string, to?: string) {
       }>(`/company/financials/tds-report${from || to ? `?from=${from ?? ''}&to=${to ?? ''}` : ''}`),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Bill extract hooks (PROC-B5/B9/B10)
+// ---------------------------------------------------------------------------
+
+export interface BillExtractDraft {
+  vendorName: string;
+  vendorGstin?: string;
+  billNumber?: string;
+  billDate?: string;
+  dueDate?: string;
+  subtotal: number;
+  gstAmount: number;
+  tdsAmount: number;
+  category: string;
+  poNumberHint?: string;
+  confidence: number;
+  notes?: string;
+  filename?: string;
+}
+
+export function useExtractBill(projectId: string) {
+  return useMutation({
+    mutationFn: (input: { fileContent: string; filename: string; contentType: string }) =>
+      apiFetch<{ draft: BillExtractDraft | null; notes: string }>(
+        `/projects/${projectId}/bills/extract`,
+        { method: 'POST', body: JSON.stringify(input) },
+      ),
+  });
+}
+
+export function useExtractBillBatch(projectId: string) {
+  return useMutation({
+    mutationFn: (files: Array<{ fileContent: string; filename: string; contentType: string }>) =>
+      apiFetch<{ drafts: BillExtractDraft[]; notes: string }>(
+        `/projects/${projectId}/bills/extract-batch`,
+        { method: 'POST', body: JSON.stringify({ files }) },
+      ),
+  });
+}
+
+export function useBulkCreateBills(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (bills: BillInput[]) =>
+      apiFetch<{ created: number; bills: Bill[] }>(
+        `/projects/${projectId}/bills/bulk-create`,
+        { method: 'POST', body: JSON.stringify({ bills }) },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['bills', 'list', projectId] });
+      qc.invalidateQueries({ queryKey: ['bills', 'summary', projectId] });
+    },
+  });
+}
