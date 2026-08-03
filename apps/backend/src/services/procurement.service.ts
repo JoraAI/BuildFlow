@@ -309,6 +309,11 @@ export async function createPO(
       poNumber,
       vendorName: input.vendorName,
       totalAmount,
+      // FIX (PROCGRN-1): PO is created from an already-approved requisition,
+      // so it starts as APPROVED — no separate PO approval step needed.
+      // Without this, the GRN endpoint rejects with "Cannot create GRN
+      // against a PO with status DRAFT" because the schema defaults to DRAFT.
+      status: 'APPROVED',
       lines: { create: lines },
     },
     include: { lines: { include: { resource: { select: { id: true, name: true } } } } },
