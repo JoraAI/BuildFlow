@@ -6,8 +6,9 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Card, Badge, LoadingSkeleton, EmptyState } from '@/components/ui';
+import { Button, Card, Badge, LoadingSkeleton, EmptyState, Input } from '@/components/ui';
 import { ActionBar } from '@/components/layout/ActionBar';
+import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { dismissTo, DISMISS } from '@/utils/navigation';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
@@ -416,30 +417,6 @@ export default function EstimateDetailScreen() {
             </Card>
           ))}
 
-          {/* Rejection form */}
-          {showReject && (
-            <Card>
-              <Text className="text-sm font-semibold text-text mb-1">Rejection Reason</Text>
-              <TextInput
-                value={rejectReason}
-                onChangeText={(v) => {
-                  setRejectReason(v);
-                  if (rejectError) setRejectError(null);
-                }}
-                placeholder="Explain why this estimate is rejected..."
-                placeholderTextColor="#94A3B8"
-                multiline
-                className="border border-border rounded-lg px-3 py-2.5 text-text min-h-[80px] mb-2"
-              />
-              {rejectError ? (
-                <Text className="text-sm text-danger mb-2">{rejectError}</Text>
-              ) : null}
-              <View className="flex-row gap-2">
-                <Button label="Confirm Reject" variant="danger" onPress={handleReject} loading={mut.reject.isPending} />
-                <Button label="Cancel" variant="ghost" onPress={() => setShowReject(false)} />
-              </View>
-            </Card>
-          )}
         </ScrollView>
 
         {/* Action footer */}
@@ -519,6 +496,52 @@ export default function EstimateDetailScreen() {
           />
         </ActionBar>
       </KeyboardAvoidingView>
+
+      {/* Rejection reason sheet — AdaptiveSheet overlay so it's always visible */}
+      <AdaptiveSheet
+        visible={showReject}
+        onClose={() => {
+          setShowReject(false);
+          setRejectError(null);
+        }}
+        title="Reject Estimate"
+        subtitle="Provide a reason for rejecting this estimate. The estimator will be notified."
+        size="sm"
+        footer={
+          <View className="flex-row gap-2">
+            <Button
+              label="Cancel"
+              variant="secondary"
+              className="flex-1"
+              onPress={() => {
+                setShowReject(false);
+                setRejectError(null);
+              }}
+            />
+            <Button
+              label={mut.reject.isPending ? 'Rejecting…' : 'Confirm Reject'}
+              variant="danger"
+              className="flex-1"
+              onPress={handleReject}
+              disabled={mut.reject.isPending}
+            />
+          </View>
+        }
+      >
+        <Input
+          label="Rejection reason"
+          value={rejectReason}
+          onChangeText={(v: string) => {
+            setRejectReason(v);
+            if (rejectError) setRejectError(null);
+          }}
+          placeholder="Explain why this estimate is rejected..."
+          multiline
+        />
+        {rejectError ? (
+          <Text className="text-sm text-danger mt-1">{rejectError}</Text>
+        ) : null}
+      </AdaptiveSheet>
     </SafeAreaView>
   );
 }
