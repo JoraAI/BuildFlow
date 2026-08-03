@@ -7,7 +7,7 @@
  * 3. User WITH bill.create can bulk-create bills from confirmed drafts.
  * 4. Audit log entry on AI-assisted bill create (source marker).
  */
-import { loginAs, authGet, authPost, getSeedProjectId } from './test-helpers';
+import { loginAs, authPost, getSeedProjectId } from './test-helpers';
 
 const OWNER = 'owner@reddyconst.com';
 const STORE = 'store@reddyconst.com';
