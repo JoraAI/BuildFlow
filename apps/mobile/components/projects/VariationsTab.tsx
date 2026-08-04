@@ -310,7 +310,18 @@ export function VariationsTab({ projectId }: { projectId: string }) {
   const renderCard = (co: ChangeOrder) => (
     <VariationCard key={co.id} co={co} projectId={projectId} canManage={canManage} canApprove={canApprove} isDesktop={isDesktop} submitPending={submitCo.isPending} approvePending={approveCo.isPending} rejectPending={rejectCo.isPending}
       onSubmit={() => submitCo.mutate(co.id, { onError: (e: Error) => void alertAsync('Error', e.message) })}
-      onApprove={() => approveCo.mutate(co.id, { onError: (e: Error) => void alertAsync('Error', e.message) })}
+      // R14-VO2: Approve success toast — BOQ updated, review shortfalls.
+      onApprove={() =>
+        approveCo.mutate(co.id, {
+          onSuccess: async () => {
+            await alertAsync(
+              'Variation approved',
+              'BOQ sanctioned qty updated. Review material shortfalls in Procurement if needed.',
+            );
+          },
+          onError: (e: Error) => void alertAsync('Error', e.message),
+        })
+      }
       onReject={() => onReject(co)} />
   );
 

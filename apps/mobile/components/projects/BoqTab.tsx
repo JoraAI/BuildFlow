@@ -173,6 +173,10 @@ export function BoqTab({ projectId }: BoqTabProps) {
           BOQ lines are billable scope. Link estimate MATERIAL lines to catalog resources or rate
           analyses so procurement and procured qty roll up correctly.
         </Text>
+        {/* R14-VO1: Helper clarifying variation provenance */}
+        <Text className="text-xs text-muted mt-1">
+          Sanctioned qty includes approved variations. Lines touched by a variation show a Via chip.
+        </Text>
         <View className="mt-2 pt-2 border-t border-border/60 gap-1">
           <Text className="text-[10px] font-semibold text-muted uppercase">Line metrics</Text>
           <Text className="text-[10px] text-muted">
@@ -244,6 +248,10 @@ export function BoqTab({ projectId }: BoqTabProps) {
                             label={formatCategoryLabel(item.category)}
                             color={categoryBadgeColor(item.category)}
                           />
+                          {/* R14-VO1: Via CO-xxx provenance chip */}
+                          {item.variationNumbers?.map((voNum) => (
+                            <Badge key={voNum} label={`Via ${voNum}`} color="accent" />
+                          ))}
                         </View>
                         <Text className="text-sm text-text" numberOfLines={2}>
                           {item.description}

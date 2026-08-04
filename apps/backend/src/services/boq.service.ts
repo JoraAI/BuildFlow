@@ -91,10 +91,56 @@ export async function listBoq(companyId: string, projectId: string) {
     stockQty: item.resourceId ? (stockByResource.get(item.resourceId) ?? 0) : undefined,
   }));
 
-  const total = itemsWithStock.reduce((sum, i) => sum + Number(i.amount), 0);
-  const grouped = groupByCategory(itemsWithStock);
-  const sectionGrouped = groupBySection(itemsWithStock);
-  return { items: itemsWithStock, grouped, sectionGrouped, total };
+  // R14-VO1: Resolve variation provenance — which approved change orders touched
+  // each BOQ line? A line is touched if a ChangeOrderLine references it by
+  // boqItemId, or if the BOQ line was created as new scope (itemCode = VO-{number}).
+  const boqItemIds = itemsWithStock.map((i) => i.id);
+  const [coLinesByBoq, variationCreatedItems] = await Promise.all([
+    prisma.changeOrderLine.findMany({
+      where: {
+        boqItemId: { in: boqItemIds },
+        changeOrder: { projectId, companyId, status: 'APPROVED' },
+      },
+      select: { boqItemId: true, changeOrder: { select: { number: true } } },
+    }),
+    // New-scope BOQ rows created by variations have itemCode = VO-{co.number}
+    prisma.changeOrder.findMany({
+      where: { projectId, companyId, status: 'APPROVED' },
+      select: { number: true },
+    }),
+  ]);
+
+  const variationByBoqId = new Map<string, Set<string>>();
+  for (const col of coLinesByBoq) {
+    if (!col.boqItemId) continue;
+    if (!variationByBoqId.has(col.boqItemId)) {
+      variationByBoqId.set(col.boqItemId, new Set());
+    }
+    variationByBoqId.get(col.boqItemId)!.add(col.changeOrder.number);
+  }
+
+  const itemsWithVariation = itemsWithStock.map((item) => {
+    const variationNumbers = new Set<string>();
+    // From ChangeOrderLine links
+    for (const num of variationByBoqId.get(item.id) ?? []) {
+      variationNumbers.add(num);
+    }
+    // From new-scope rows (itemCode = VO-{number})
+    for (const co of variationCreatedItems) {
+      if (item.itemCode === `VO-${co.number}`) {
+        variationNumbers.add(co.number);
+      }
+    }
+    return {
+      ...item,
+      variationNumbers: variationNumbers.size > 0 ? Array.from(variationNumbers) : undefined,
+    };
+  });
+
+  const total = itemsWithVariation.reduce((sum, i) => sum + Number(i.amount), 0);
+  const grouped = groupByCategory(itemsWithVariation);
+  const sectionGrouped = groupBySection(itemsWithVariation);
+  return { items: itemsWithVariation, grouped, sectionGrouped, total };
 }
 
 /** Group BOQ items by their `section` field (from estimate section name). */

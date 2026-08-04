@@ -1474,3 +1474,18 @@ peer-grade until NR-25, NR-40, NR-41 are addressed.
 | VAR-B4 | listEligibleBoqItems omitted RA/resource metadata | Added estimateItem relation select | `a644015` |
 | VAR-B5 | Full catalog shown when no BOQ linked | Collapsed ad-hoc catalog expander | `7dc4da5` |
 | VAR-B6 | No variation scoping test | Covered by VAR-B4 backend test + R9-B8 docs | `7dc4da5` |
+
+### EST-VO — Variation → BOQ → Estimate → Indent sync (Rounds 12–14)
+
+| ID | Finding | Fix | Status | Commit |
+| -- | ------- | --- | ------ | ------ |
+| EST-VO-1 | Estimate mutated on variation approve | **Fixed** — estimate frozen as baseline; revised scope derived via `getProjectScopeSummary` API + mobile banner | Fixed | `804f0a6` |
+| EST-VO-2 | BOQ line rate not updated when variation rate differs | **Partial** — budget delta applied; BOQ rate stays as original. Documented as R14-O1 (deferred) | Partial | `804f0a6` |
+| EST-VO-3 | Auto-indent qty mismatch on composite BOQ | **Fixed** — removed auto-indent on approve; single shortfall path via `fetchBoqMaterialDemands` (RA-explodes consistently) | Fixed | `804f0a6` |
+| EST-VO-4 | VARIATION BOQ rows invisible to shortfalls | **Fixed** — `fetchBoqMaterialDemands` includes `category: 'VARIATION'` + ChangeOrderLine fallback resource resolution | Fixed | `804f0a6` |
+| EST-VO-5 | No revised scope summary | **Fixed** — `GET /projects/:id/scope-summary` + Estimate screen `ScopeSummaryBanner` | Fixed | `804f0a6` |
+| EST-VO-6 | BOQ qty could go below executedQty | **Fixed** — `approveChangeOrder` rejects 422 if `rawNewQty < executedQty` | Fixed | `804f0a6` |
+| EST-VO-7 | No post-approve impact API | **Fixed** — `GET /projects/:id/change-orders/:coId/impact` returns boqChanges + budgetDelta + indentsCreated | Fixed | `804f0a6` |
+| EST-VO-8 | Approved variation cards showed no BOQ impact | **Fixed** — `ApprovedImpactSection` with qtyBefore→qtyAfter + View BOQ / Review shortfalls CTAs | Fixed | `2aa8d98` |
+| EST-VO-9 | BOQ lines had no variation provenance | **Fixed** — `variationNumbers[]` on list response + `Via CO-xxx` chip in BoqTab | Fixed | `2aa8d98`, R14 |
+| EST-VO-10 | No integration test for variation → BOQ → scope | **Fixed** — 2 tests: impact endpoint (qtyBefore→qtyAfter) + scope-summary | Fixed | `804f0a6` |
