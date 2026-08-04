@@ -44,7 +44,7 @@ export type ResourceImageUploadInput = z.infer<typeof resourceImageUploadSchema>
 
 export const resourceQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
+  limit: z.coerce.number().int().min(1).max(500).default(50),
   type: resourceTypeSchema.optional(),
   search: z.string().optional(),
   active: z.enum(['true', 'false']).optional(),

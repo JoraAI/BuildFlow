@@ -1,15 +1,14 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 19 — VAR-C6b shortfalls + polish)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Variation arc complete — optional Round 20+)
 
 > **You do not need any prior conversation or other documents.** This file is the
 > complete task brief. Read it top to bottom, then execute **Section 2** in order.
 > [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
 >
 > **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
-> **Last committed baseline:** `a251b25` (`main` ahead of `origin/main` by 7 commits)  
-> **Verified:** 2026-08-04 — Round 18 **mostly complete** (`a251b25`). RA/resource
-> persist through create → approve → BOQ list API. **One gap:** shortfall scanner
-> still ignores `BOQItem.rateAnalysisId` on VARIATION rows (VAR-C6b). Ship gate
-> **114/114 ×2**. Run §2.1 gates before/after.
+> **Last committed baseline:** `1145896` (`main` ahead of `origin/main` by 8 commits)  
+> **Verified:** 2026-08-04 — **Variation arc complete** (Rounds 12–19, `804f0a6`–`1145896`).
+> VAR-C1–C6b all done. Ship gate **115/115 ×2**. **No mandatory variation tasks**
+> remain — Section 2 lists optional next work only. Run §2.1 before any change.
 
 ---
 
@@ -67,50 +66,25 @@ BuildFlow spans the full project lifecycle:
 
 ---
 
-## 2. Round 19 — Shortfall scanner for RA-linked variation BOQ (VAR-C6b)
+## 2. Variation arc — complete (verified 2026-08-04, `1145896`)
 
-Rounds 16–18 landed the full variation line editor and RA persistence.
-**One functional gap remains:** `fetchBoqMaterialDemands` skips RA explosion for
-new-scope VARIATION BOQ rows that have `rateAnalysisId` on `BOQItem` directly.
+Rounds 12–19 closed the full **variation → BOQ → estimate visibility → shortfalls**
+flow plus the line editor UX (VAR-C). **Do not regress** any item in §2.0.
 
-**Do not** break Rounds 12–18 variation → BOQ → shortfalls flow.
-
-### 2.0 Rounds 16–18 verification status (`a251b25`)
+### 2.0 Final verification table (`804f0a6` → `1145896`)
 
 | ID | Task | Status | Evidence |
 | -- | ---- | ------ | -------- |
+| **VO-B / R12–14** | Approve → BOQ/budget; shortfalls; impact UI; Via CO chips | **Done** | `804f0a6`–`e686c21` |
 | **VAR-C1** | Explode no duplicate lines | **Done** | `f055465` |
 | **VAR-C2** | Remove line (min 1) | **Done** | `f055465` |
-| **VAR-C3a/b** | MaterialPicker + RateAnalysisPicker | **Done** | `dbac1aa` — `:482-537` |
+| **VAR-C3a/b** | MaterialPicker + RateAnalysisPicker | **Done** | `dbac1aa` |
 | **VAR-C4** | Adjust vs new scope copy + FlowHint | **Done** | `f055465` |
-| **VAR-C5** | Ship gate (no 409 flake) | **Done** | `dbac1aa` — random report date |
-| **VAR-C6** | Persist RA/resource create → approve → BOQ | **Done** | `a251b25` — migration `20260804180000`, `change-order.service.ts:246-261`, mobile `:321`, test `change-order.test.ts:144-184` |
-| **VAR-C6b** | Shortfalls RA-explode VARIATION BOQ rows | **Not done** | `material-demand.service.ts:443-463` only joins `ChangeOrderLine.resourceId`; ignores `item.rateAnalysisId` |
-| **Ship gate** | 114/114 ×2 + tsc ×2 | **Done** | Verified 2026-08-04 |
-
-**VAR-C6b repro:**
-
-1. Create + approve variation with **Rate Analysis** new-scope line (no material).
-2. BOQ list shows `rateAnalysisId` on `VO-{number}` row ✓
-3. Procurement → Shortfalls: **no material demand** from that RA (scanner `continue`s at `:463` without checking `item.rateAnalysisId`).
-
-**Fix pattern** — in `fetchBoqMaterialDemands`, for `!est && category === 'VARIATION'`:
-
-```ts
-const demands = await materialDemandsForEstimateItem({
-  type: 'MATERIAL',
-  resourceId: item.resourceId ?? null,
-  rateAnalysisId: item.rateAnalysisId ?? null,
-  quantity: remaining,
-  unit: item.unit,
-  description: item.description,
-}, item.id, companyId);
-// push demands into lines (same as estimate-linked path)
-```
-
-Add integration test: RA-linked variation → approve → `GET .../procurement/boq-shortfalls` returns exploded material lines.
-
-**Minor cleanup (optional R19-O1):** Remove dead `adhocExpandid` state in `VariationsTab.tsx:310`.
+| **VAR-C5** | Ship gate (no 409 flake) | **Done** | `dbac1aa` |
+| **VAR-C6** | RA/resource persist create → approve → BOQ | **Done** | `a251b25` |
+| **VAR-C6b** | Shortfalls RA-explode VARIATION BOQ rows | **Done** | `1145896` — `material-demand.service.ts:443-514`, test `:186-233` |
+| **R19-O1** | Remove dead `adhocExpandid` state | **Done** | `1145896` — `VariationsTab.tsx:310` |
+| **Ship gate** | 115/115 ×2 + tsc ×2 | **Done** | Verified 2026-08-04 |
 
 ### 2.0a Completed in Rounds 8–14 — do NOT re-break
 
@@ -174,33 +148,38 @@ DATABASE_URL="postgresql://buildflow:buildflow@localhost:5432/buildflow_test?sch
 
 **Regression on any gate = stop and fix before continuing.**
 
-### 2.2 Mandatory tasks — Round 19 (execute in order)
+**After pulling VAR-C6+ code (`a251b25`+), dev DB must apply migration
+`20260804180000_change_order_line_rate_analysis_id` or BOQ/variation APIs 500:**
 
-#### VAR-C6b — Shortfall scanner uses BOQItem RA/resource for VARIATION rows
+```bash
+cd /home/prasanna/work/BuildFlow/apps/backend
+pnpm exec prisma migrate deploy
+pnpm exec prisma generate
+# restart backend dev server
+```
 
-In `material-demand.service.ts` → `fetchBoqMaterialDemands` (`:443-463`):
+### 2.2 Optional next work (Round 20+ — pick when user directs)
 
-1. Replace the ChangeOrderLine description join fallback with direct use of
-   `item.resourceId` and `item.rateAnalysisId` on the BOQ row (set by VAR-C6 on approve).
-2. Call `materialDemandsForEstimateItem` for VARIATION rows without `estimateItem`
-   (same as estimate-linked path below).
-3. Keep existing behavior for material-linked variation lines (`resourceId` on BOQ).
+No mandatory tasks until the product owner chooses the next domain. Suggested
+optional items (do not scope-creep without explicit ask):
 
-**Regression test** in `change-order.test.ts` or `procurement.test.ts`:
+| ID | Task | Notes |
+| -- | ---- | ----- |
+| **VAR-C7** | Unit test for `explodeCompositeBoq` | Extract helper from `VariationsTab.tsx` |
+| **VAR-C8** | Draft edit for rejected variations | `updateChangeOrderLine` backend exists |
+| **EST-VO-2** | BOQ rate update when variation rate differs | Partial in audit — document or implement |
+| **R15-O1–O6** | Rate on BOQ approve, deep-link shortfalls, etc. | Polish |
+| **Phase 5 gaps** | Smoke tests: inventory-traceability, accounting-export, labour, i18n | See AUDIT_FINDINGS |
+| **NR-36** | Drawing acknowledgement endpoint | Phase 5 |
+| **Sync §8.1** | Remount `/api/sync` | Needs schema + mobile replay |
+| **DAT-3.8** | Remove `--forceExit` from jest | Test infra |
+| **SEC-L17/21/22** | Security polish | Low priority |
+| **Push** | `git push origin main` | Only when user asks |
 
-- Create + approve RA-linked variation → assert `boq-shortfalls` includes materials
-  from the RA components.
+### 2.3 Optional (defer unless user asks)
 
-**Ship gate:** `tsc` ×2 + backend tests **114/114** ×2 (must stay green).
-
-### 2.3 Optional (defer unless time)
-
-| ID | Task |
-| -- | ---- |
-| **R19-O1** | Remove dead `adhocExpandid` state from `VariationsTab.tsx` |
-| **VAR-C7** | Unit test for `explodeCompositeBoq` (extract to testable helper) |
-| **VAR-C8** | Draft edit for rejected variations (`updateChangeOrderLine` — backend exists) |
-| **R15-O1–O6** | Rate on BOQ approve, project scope chip, deep-link shortfalls, etc. |
+See §2.2 table. **Variation arc requires no further GLM rounds** unless regressions
+are found or the user requests VAR-C7/C8 or EST-VO-2.
 
 ### 2.4 Wording guide (use consistently)
 
@@ -253,19 +232,20 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 | Ship stub sync route | Keep `/api/sync` unmounted |
 | Re-breaking completed fixes | See §2.0c |
 
-### 2.7 Definition of Done (Round 19)
+### 2.7 Definition of Done (variation arc — all complete)
 
-**Rounds 12–18 (done — do not regress):**
+**Rounds 12–19:**
 
 - [x] Variation approve → BOQ/budget; shortfalls; impact UI; Via CO chips; revised scope
-- [x] VAR-C1–C5 — Line editor UX + ship gate (`f055465`, `dbac1aa`)
-- [x] VAR-C6 — RA/resource persist create → approve → BOQ list (`a251b25`)
-
-**Round 19 (must complete to close variation arc):**
-
-- [ ] VAR-C6b — `fetchBoqMaterialDemands` RA-explodes VARIATION BOQ rows via direct columns
-- [ ] Integration test: RA variation → shortfalls shows exploded materials
-- [ ] Ship gate stays **114/114** ×2
+- [x] VAR-C1 — Explode dedup (`f055465`)
+- [x] VAR-C2 — Remove line (`f055465`)
+- [x] VAR-C3 — MaterialPicker + RateAnalysisPicker (`dbac1aa`)
+- [x] VAR-C4 — Section copy + FlowHint (`f055465`)
+- [x] VAR-C5 — Ship gate stable (`dbac1aa`)
+- [x] VAR-C6 — RA/resource persist through approve → BOQ (`a251b25`)
+- [x] VAR-C6b — Shortfalls RA-explode VARIATION BOQ rows (`1145896`)
+- [x] R19-O1 — Dead state cleanup (`1145896`)
+- [x] Ship gate **115/115** ×2 + tsc ×2
 
 ### 2.8 Optional hardening (defer unless user asks)
 
@@ -285,8 +265,8 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 <details>
 <summary>Rounds 4–15 (superseded by §2 above)</summary>
 
-Rounds 8–14: variation sync (`804f0a6`–`e686c21`). Rounds 16–18: line editor +
-RA persistence (`f055465`–`a251b25`). Round 19: VAR-C6b shortfall scanner.
+Rounds 8–19: variation sync + line editor + RA shortfalls complete
+(`804f0a6`–`1145896`). No mandatory GLM work until user picks §2.2 item.
 
 </details>
 
