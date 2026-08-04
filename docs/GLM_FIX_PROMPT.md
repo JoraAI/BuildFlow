@@ -1,14 +1,14 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 14 — variation polish + docs)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 16 — variation line editor)
 
 > **You do not need any prior conversation or other documents.** This file is the
 > complete task brief. Read it top to bottom, then execute **Section 2** in order.
 > [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
 >
 > **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
-> **Last committed baseline:** `2aa8d98` (`main` ahead of `origin/main` by 3 commits)  
-> **Verified:** 2026-08-04 — Rounds 12–13 **substantially complete**. Round 14 is a
-> **small polish pass**: BOQ provenance chips, approve toast, AUDIT_FINDINGS docs.
-> Run §2.1 gates before/after. Do not redo §2.0a.
+> **Last committed baseline:** `e686c21` (`main` ahead of `origin/main` by 4 commits)  
+> **Verified:** 2026-08-04 — Rounds 12–14 variation sync **complete**. Round 16 fixes
+> **variation create UX bugs** (explode duplicates, no remove) and aligns line entry
+> with **estimate-style** catalog / RA pickers. Run §2.1 gates before/after.
 
 ---
 
@@ -66,48 +66,53 @@ BuildFlow spans the full project lifecycle:
 
 ---
 
-## 2. Round 14 — Variation Polish + Docs (verified 2026-08-04)
+## 2. Round 16 — Variation Line Editor (VAR-C) (verified 2026-08-04)
 
-Rounds 12–13 fixed the **variation → BOQ → estimate → indent** flow. Users can now
-see impact on approved cards, revised scope on Estimate, and shortfall guidance.
-Round 14 closes **remaining polish** only — do not rebuild backend variation logic.
+Users report two **P1 UX bugs** when creating a variation, plus a product ask to
+enter variation lines **like estimate items** (catalog material, rate analysis, types).
 
-### 2.0 Round 13 verification status
+**Do not** break Rounds 12–14 approve → BOQ → shortfalls flow.
 
-| ID | Task | Status | Evidence |
-| -- | ---- | ------ | -------- |
-| **R13-VO1** | Impact on approved cards + FlowHint + CTAs | **Done** | `VariationsTab.tsx:177-223`, `:320-326` |
-| **R13-VO1** | Approve success toast/sheet | **Not done** | Approve still generic `mutate` — no onSuccess alert |
-| **R13-VO2** | BOQ **Via CO-xxx** chips | **Not done** | Only `New scope (variation)` label in `BoqTab.tsx:59-61` |
-| **R13-VO2** | BOQ helper “includes variations” | **Partial** | Generic sanctioned/executed legend exists; no variation-specific line |
-| **R13-VO3** | Shortfalls helper text | **Done** | `ProcurementTab.tsx:904-907` |
-| **R13-VO4** | Cache invalidation | **Done** | `project-query-invalidation.ts:60-62` |
-| **R13-VO5** | Tests 113/113 | **Done** | Verified 2026-08-04 |
-| **R13-VO5** | AUDIT_FINDINGS EST-VO table | **Not done** | — |
-| **Round 12 core** | VO-B2–B4/B6, impact/scope APIs | **Done** | `804f0a6` — do not regress |
+### 2.0 Known bugs (repro)
 
-**Ship gates (2026-08-04):** `tsc` backend + mobile **PASS**; tests **113/113**.
+| ID | Bug | Root cause | File |
+| -- | --- | ---------- | ---- |
+| **VAR-C1** | **Split into N materials** adds duplicates on every click | Exploded lines keep `boqItemId` → `ExplodeButton` shows on each child | `VariationsTab.tsx:87-103`, `:400-404` |
+| **VAR-C2** | **No delete** on variation draft lines | Only `+ Add line`; no Remove | `VariationsTab.tsx:427` vs `EstimateBuildStep.tsx:490-497` |
+| **VAR-C3** | New scope limited to flat form | No line **type**, no full **RA picker** like estimate | `VariationsTab.tsx` vs `EstimateBuildStep.tsx` |
 
-### 2.0a Completed in Rounds 8–13 — do NOT re-break
+**Repro VAR-C1:**
 
-| Commit | What landed |
-| ------ | ----------- |
-| `58489eb` | Vendor bills, permissions, GRN hint (Round 10) |
-| `804f0a6` | Variation backend: shortfalls path, scope-summary, impact API, executedQty guard |
-| `2aa8d98` | Variation mobile: impact cards, FlowHint, shortfalls helper, cache invalidation |
-| `015f5ef` | Daily report task deselection fix |
-| **VAR-B** | BOQ-scoped variation materials + RA explode (`7dc4da5`) |
+1. New Variation → link line to composite BOQ (has `rateAnalysisId`).
+2. Enter qty Δ → tap **⚡ Split into 2 materials**.
+3. Tap Split again on either child → **4 lines**, then 6, …
+
+### 2.0a Completed in Rounds 8–14 — do NOT re-break
+
+| Area | What landed |
+| ---- | ----------- |
+| **804f0a6–e686c21** | Variation approve → BOQ/budget; shortfalls path; impact UI; Via CO chips |
+| **VAR-B1–B5** | BOQ-scoped materials, RA components, explode helper (`7dc4da5`) |
+| **58489eb** | Vendor bills, permissions (Round 10) |
 
 Preserved from Rounds 3–7 — see §2.0c legacy table below.
 
-### 2.0b Remaining gaps (Round 14 — small)
+### 2.0b Product model (follow for VAR-C4)
 
-1. **BOQ provenance chips** — linked BOQ lines changed by variation show no **Via CO-003**
-   chip (R13-VO2 never implemented beyond category label).
-2. **Approve success feedback** — Owner taps Approve with no immediate toast; impact
-   section appears only after card re-renders.
-3. **AUDIT_FINDINGS** — append **EST-VO-1–10** remediation table (Round 12–13 fixes).
-4. **Optional:** Project overview revised-scope chip; composite RA shortfall test.
+Two explicit paths when adding a variation line:
+
+| Intent | UI | On approve (existing backend) |
+| ------ | -- | ----------------------------- |
+| **Adjust existing BOQ qty** | Pick BOQ chip → qty Δ | `BOQItem.quantity += qtyDelta` when `boqItemId` set |
+| **Add new scope** | Line type + catalog **or** RA (estimate-style) | New `BOQItem` `category: 'VARIATION'` when no `boqItemId` and qty Δ > 0 |
+
+Optional toggle on **new scope** lines: **“Add new BOQ line on approve”** (default on when no BOQ link).
+
+**Reuse estimate patterns** — do not reinvent:
+
+- `components/estimation/EstimateBuildStep.tsx` — Remove, clear link, type badge
+- `components/estimation/RateAnalysisPicker.tsx` — RA selection
+- `components/materials/MaterialPicker.tsx` — catalog material
 
 ### 2.0c Completed in Rounds 3–7 — do NOT re-break
 
@@ -144,61 +149,74 @@ DATABASE_URL="postgresql://buildflow:buildflow@localhost:5432/buildflow_test?sch
 
 **Regression on any gate = stop and fix before continuing.**
 
-### 2.2 Mandatory tasks — Round 14
+### 2.2 Mandatory tasks — Round 16 (execute in order)
 
-**Skip (done in `2aa8d98` / `804f0a6`):** impact cards, FlowHint, shortfalls helper,
-cache invalidation, single shortfall path, scope-summary, estimate banner.
+#### VAR-C1 — Fix explode duplicate lines (bug fix)
 
-#### R14-VO1 — BOQ “Via CO-xxx” provenance (finish R13-VO2)
+In `explodeCompositeBoq` and/or explode handler (`VariationsTab.tsx:401-404`):
 
-1. **Backend (preferred):** In `boq.service.ts` `listBoq`, for each item join approved
-   `ChangeOrderLine` where `boqItemId = item.id` OR `itemCode = VO-{co.number}`.
-   Add `variationNumbers: string[]` to list response (e.g. `['CO-003']`).
-2. **`BoqTab.tsx`:** Render chip **Via CO-003** next to qty for lines with
-   `variationNumbers.length > 0`. Keep **New scope (variation)** for `category: 'VARIATION'`.
-3. Add one-line helper under BOQ header: *Sanctioned qty includes approved variations.*
+1. **Exploded child lines must NOT keep composite `boqItemId`.** Set
+   `boqItemId: undefined` on exploded material rows; keep `resourceId` for procurement.
+   Optionally set `explodedFromBoqId: boq.id` (local DraftLine field only) for display.
+2. **Show `ExplodeButton` only** when line is linked to composite BOQ (`rateAnalysisId`)
+   and line is **not** already an exploded child (`!line.explodedFromBoqId`).
+3. **Replace, don't stack:** explode replaces the single parent line once; hide Explode
+   on resulting rows.
+4. Confirm dialog optional: *"Replace this line with N material lines?"*
 
-Update `BoqItem` type in `boq.queries.ts` if adding fields.
+**Acceptance:** Split twice does **not** increase line count after first split.
 
-#### R14-VO2 — Approve success toast (finish R13-VO1)
+#### VAR-C2 — Remove line button (bug fix)
 
-In `VariationsTab.tsx` `onApprove` handler:
+Mirror `EstimateBuildStep.tsx` Remove pattern:
+
+- Each draft line gets **Remove** (red text or icon).
+- Keep at least **one** line in the form.
+- Use `confirmAsync` when removing a line with data.
+
+#### VAR-C3 — Line type + estimate-style pickers (UX parity)
+
+Extend `DraftLine`:
 
 ```ts
-approveCo.mutate(co.id, {
-  onSuccess: async () => {
-    await alertAsync(
-      'Variation approved',
-      'BOQ sanctioned qty updated. Review material shortfalls in Procurement if needed.',
-    );
-  },
-  onError: (e: Error) => void alertAsync('Error', e.message),
-});
+type: 'MATERIAL' | 'LABOUR' | 'EQUIPMENT' | 'SUBCONTRACTOR' | 'MISC';
+rateAnalysisId?: string;  // for new scope from RA
+addToBoqOnApprove?: boolean;  // default true when !boqItemId
+explodedFromBoqId?: string;  // local UI only
 ```
 
-Or fetch impact in `onSuccess` and show line count + budget delta.
+For lines **without** BOQ link (new scope):
 
-#### R14-VO3 — AUDIT_FINDINGS EST-VO table
+1. **Line type** chips (same as estimate).
+2. **MATERIAL:** `MaterialPicker` (catalog) — reuse existing component.
+3. **Any type with RA:** optional `RateAnalysisPicker` — pre-fill qty/rate from RA total.
+4. Helper: *"New scope — creates a BOQ line on approve unless linked to existing BOQ."*
 
-Append to `docs/AUDIT_FINDINGS.md` after Round 8–9 table:
+For lines **with** BOQ link: keep current BOQ chip + qty Δ (adjust existing).
 
-| ID | Finding | Fix | Commit |
-| EST-VO-1 | Estimate frozen after variation | scope-summary + revised-scope banner | `804f0a6` |
-| EST-VO-2 | Rate change ignored on BOQ line | Partial — budget only; document or fix in R14-O1 |
-| EST-VO-3 | Auto-indent qty mismatch | Removed auto-indent; shortfalls single path | `804f0a6` |
-| … (EST-VO-4 through EST-VO-10) | … | … | … |
+Do **not** mutate approved estimate lines — variation only.
 
-Mark each **Fixed** / **Partial** / **Deferred** accurately.
+#### VAR-C4 — Section copy + FlowHint update
 
-### 2.3 Optional (defer unless user asks)
+Add above line items in create modal:
+
+- **Adjust existing BOQ:** link a BOQ chip, enter qty Δ.
+- **Add new scope:** leave BOQ as "New", pick material or rate analysis.
+
+Append to FlowHint steps (do not remove R13 shortfalls guidance).
+
+#### VAR-C5 — Ship gate (if still failing)
+
+Fix `procurement.test.ts` flake (409 on daily report) — see R15-B1. Target **113/113** ×2.
+
+### 2.3 Optional (defer unless time)
 
 | ID | Task |
 | -- | ---- |
-| **R14-O1** | EST-VO-2: update `BOQItem.rate` on approve when line rate ≠ boq.rate |
-| **R14-O2** | Project overview `useProjectScopeSummary` chip |
-| **R14-O3** | Composite BOQ variation → shortfall RA explode integration test |
-| **R14-O4** | Negative qty warning on variation create (open indents not reduced) |
-| **R14-O5** | Deep-link Review shortfalls to `?tab=procurement&sub=shortfalls` if supported |
+| **VAR-C6** | Backend: persist `rateAnalysisId` on variation-created BOQ rows (schema if needed) |
+| **VAR-C7** | Unit test for `explodeCompositeBoq` (extract to testable helper) |
+| **VAR-C8** | Draft edit for rejected variations (`updateChangeOrderLine` — backend exists) |
+| **R15-O1–O6** | Rate on BOQ approve, project scope chip, deep-link shortfalls, etc. |
 
 ### 2.4 Wording guide (use consistently)
 
@@ -210,7 +228,10 @@ Mark each **Fixed** / **Partial** / **Deferred** accurately.
 | User-facing field | Bill Number (alone) | **Supplier invoice no.** (with helper: "As printed on vendor's tax invoice") |
 | GRN success toast | — | Keep "Site stock updated" — do not mention billing |
 | Variation approve success | "Estimate updated" | **BOQ updated** / **Revised scope** (estimate baseline unchanged) |
-| Variation → materials | Full catalog (when BOQ linked) | **Materials for this BOQ** / **RA components** (VAR-B — keep) |
+| Variation line — adjust BOQ | "New item" only | **Link BOQ** + qty Δ |
+| Variation line — new scope | Full catalog when BOQ linked | **New scope** + type + material/RA picker |
+| Split materials | Repeatable explode | **Split once** — replaces line; no duplicate Explode on children |
+| Remove variation line | (missing) | **Remove** (min 1 line) |
 | Post-approve next step | (silent) / auto-indents | **Review shortfalls** / **View BOQ** |
 | Shortfalls tab | — | Helper: *Uses current BOQ qty (includes approved variations)* |
 | Negative variation qty | — | Warn: *Open indents are not auto-reduced* (optional R13-O3) |
@@ -229,7 +250,10 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 | ------------ | ---------- |
 | Auto-create vendor bill on GRN | GRN = stock only; bill = separate user action |
 | Label "Create Bill" for supplier tax invoice | Use §2.4 wording |
-| Full material catalog when BOQ is linked | Scope to BOQ `resourceId` or RA MATERIAL components (VAR-B) |
+| Exploded lines keep `boqItemId` | Clear `boqItemId` on explode; keep `resourceId` (VAR-C1) |
+| Split into materials clickable repeatedly | One-shot replace; hide Explode on children |
+| Variation lines without Remove | Add Remove like estimate (VAR-C2) |
+| Full catalog when BOQ linked for qty adjust | BOQ-scoped materials / RA components only (VAR-B) |
 | Role-based bill gates on **mobile** | Use `usePermission('bill.create')` (R9-B1); backend already fixed |
 | LLM auto-creates bills without review | Extract → review UI → user confirms → create |
 | Chatbot creates bills for unauthorized users | `buildPermissionAwarePrompt` + API `403` |
@@ -245,21 +269,19 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 | Ship stub sync route | Keep `/api/sync` unmounted |
 | Re-breaking completed fixes | See §2.0c |
 
-### 2.7 Definition of Done (Round 14)
+### 2.7 Definition of Done (Round 16)
 
-**Rounds 12–13 (done — do not regress):**
+**Rounds 12–14 (done — do not regress):**
 
-- [x] Single shortfall indent path; VARIATION in shortfall scan
-- [x] scope-summary API + Estimate revised-scope banner
-- [x] Impact API + approved-card impact section + FlowHint + shortfalls helper
-- [x] Cache invalidation on approve; tests 113/113
+- [x] Variation approve → BOQ/budget; shortfalls; impact UI; Via CO chips; revised scope
 
-**Round 14 (must complete):**
+**Round 16 (must complete):**
 
-- [ ] R14-VO1 — BOQ **Via CO-xxx** chips + variation helper text
-- [ ] R14-VO2 — Approve success toast/alert
-- [ ] R14-VO3 — AUDIT_FINDINGS EST-VO-1–10 table
-- [ ] Ship gates pass ×2 idempotent
+- [ ] VAR-C1 — Explode does not duplicate lines on repeat click
+- [ ] VAR-C2 — Remove line on variation draft (min 1 line)
+- [ ] VAR-C3 — Line type + MaterialPicker / RateAnalysisPicker for new scope
+- [ ] VAR-C4 — Adjust vs new scope helper copy in modal + FlowHint
+- [ ] VAR-C5 — `tsc` ×2 + backend tests **113/113** ×2 (fix flake if needed)
 
 ### 2.8 Optional hardening (defer unless user asks)
 
@@ -277,9 +299,9 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 ### APPENDIX — Prior rounds (completed; reference only)
 
 <details>
-<summary>Rounds 4–13 (superseded by §2 above)</summary>
+<summary>Rounds 4–15 (superseded by §2 above)</summary>
 
-Round 8–13: vendor bills, variation sync (`804f0a6`), variation UX (`2aa8d98`).
+Rounds 8–14: variation sync complete (`804f0a6`–`e686c21`). Round 15: ship gate (optional if VAR-C5 done).
 
 </details>
 
