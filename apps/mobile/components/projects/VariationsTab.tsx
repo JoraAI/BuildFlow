@@ -29,11 +29,14 @@ import {
   useSubmitChangeOrder,
   useApproveChangeOrder,
   useRejectChangeOrder,
+  useChangeOrderImpact,
   useWorkOrders,
   type ChangeOrder,
   type ChangeOrderLine,
   type WorkOrder,
+  type ChangeOrderImpact,
 } from '@/services/expansion.queries';
+import { useRouter } from 'expo-router';
 import { useBoq, type BoqItem } from '@/services/boq.queries';
 import { useTasks, type TaskRow } from '@/services/project.queries';
 import {
@@ -167,7 +170,59 @@ function ExplodeButton({ boq, qtyDelta, onExplode }: { boq: BoqItem; qtyDelta: s
   );
 }
 
-function VariationCard({ co, canManage, canApprove, isDesktop, submitPending, approvePending, rejectPending, onSubmit, onApprove, onReject }: { co: ChangeOrder; canManage: boolean; canApprove: boolean; isDesktop: boolean; submitPending: boolean; approvePending: boolean; rejectPending: boolean; onSubmit: () => void; onApprove: () => void; onReject: () => void }) {
+/**
+ * R13-VO1: Approved variation impact section — shows BOQ before→after,
+ * budget delta, and next-step CTAs (View BOQ / Review shortfalls).
+ */
+function ApprovedImpactSection({ projectId, co }: { projectId: string; co: ChangeOrder }) {
+  const router = useRouter();
+  const { data: impact } = useChangeOrderImpact(projectId, co.id);
+  if (!impact) return null;
+
+  return (
+    <View className="mt-2 pt-2 border-t border-border gap-1.5">
+      <Text className="text-xs font-bold text-text">Impact on approve</Text>
+      {impact.boqChanges.length > 0 ? (
+        impact.boqChanges.map((change: ChangeOrderImpact['boqChanges'][number], idx: number) => (
+          <View key={idx} className="flex-row justify-between items-center">
+            <Text className="text-[10px] text-muted flex-1 mr-2" numberOfLines={1}>
+              {change.itemCode} · {change.description}
+            </Text>
+            <Text className="text-[10px] font-semibold text-text">
+              {change.qtyBefore} → {change.qtyAfter}
+            </Text>
+          </View>
+        ))
+      ) : (
+        <Text className="text-[10px] text-muted">No BOQ lines changed.</Text>
+      )}
+      <View className="flex-row justify-between items-center mt-1">
+        <Text className="text-[10px] text-muted">Budget</Text>
+        <Text className="text-[10px] font-semibold text-success">+ {formatINR(impact.budgetDelta)}</Text>
+      </View>
+      <View className="flex-row gap-2 mt-2">
+        <View className="flex-1">
+          <Button
+            label="View BOQ"
+            size="sm"
+            variant="secondary"
+            onPress={() => router.push(`/projects/${projectId}?tab=boq` as never)}
+          />
+        </View>
+        <View className="flex-1">
+          <Button
+            label="Review shortfalls"
+            size="sm"
+            variant="secondary"
+            onPress={() => router.push(`/projects/${projectId}?tab=procurement` as never)}
+          />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function VariationCard({ co, canManage, canApprove, isDesktop, submitPending, approvePending, rejectPending, onSubmit, onApprove, onReject, projectId }: { co: ChangeOrder; canManage: boolean; canApprove: boolean; isDesktop: boolean; submitPending: boolean; approvePending: boolean; rejectPending: boolean; onSubmit: () => void; onApprove: () => void; onReject: () => void; projectId: string }) {
   const orderLines = co.lines ?? [];
   return (
     <Card>
@@ -185,6 +240,8 @@ function VariationCard({ co, canManage, canApprove, isDesktop, submitPending, ap
         <Text className="flex-1 text-xs text-muted mr-2">{orderLines.length} lines • {co.scheduleImpactDays}d schedule</Text>
         <Text className="shrink-0 text-sm font-bold text-primary">{formatINR(co.costImpact)}</Text>
       </View>
+      {/* R13-VO1: Show impact + CTAs on approved variations */}
+      {co.status === 'APPROVED' && <ApprovedImpactSection projectId={projectId} co={co} />}
       {canManage && (co.status === 'DRAFT' || co.status === 'REJECTED') && (
         <View className="mt-2"><Button label="Submit for approval" size="sm" variant="secondary" fullWidth={!isDesktop} loading={submitPending} onPress={onSubmit} /></View>
       )}
@@ -251,7 +308,7 @@ export function VariationsTab({ projectId }: { projectId: string }) {
   const orders = data ?? [];
 
   const renderCard = (co: ChangeOrder) => (
-    <VariationCard key={co.id} co={co} canManage={canManage} canApprove={canApprove} isDesktop={isDesktop} submitPending={submitCo.isPending} approvePending={approveCo.isPending} rejectPending={rejectCo.isPending}
+    <VariationCard key={co.id} co={co} projectId={projectId} canManage={canManage} canApprove={canApprove} isDesktop={isDesktop} submitPending={submitCo.isPending} approvePending={approveCo.isPending} rejectPending={rejectCo.isPending}
       onSubmit={() => submitCo.mutate(co.id, { onError: (e: Error) => void alertAsync('Error', e.message) })}
       onApprove={() => approveCo.mutate(co.id, { onError: (e: Error) => void alertAsync('Error', e.message) })}
       onReject={() => onReject(co)} />
@@ -259,7 +316,14 @@ export function VariationsTab({ projectId }: { projectId: string }) {
 
   return (
     <View className="gap-3">
-      <FlowHintCard title="When to use variations" steps={['Use when the client agrees to extra scope or quantity after BOQ was approved', 'PM creates a variation → Owner approves → BOQ and budget update automatically', 'Link to a subcontract work order to bump contract value when scope is subcontracted']} defaultCollapsed />
+      {/* R13-VO1: Updated FlowHint — accurate baseline / shortfall guidance */}
+      <FlowHintCard title="When to use variations" steps={[
+        'Use when the client agrees to extra scope or quantity after BOQ was approved',
+        'PM creates a variation → Owner approves → BOQ sanctioned qty updates (budget too)',
+        'Approved estimate stays as original baseline — see Estimate tab for revised scope',
+        'Material needs are NOT auto-indented — review Procurement → Shortfalls after approve',
+        'Link to a subcontract work order to bump contract value when scope is subcontracted',
+      ]} defaultCollapsed />
       <View className="flex-row justify-between items-center">
         <Text className="text-sm font-bold text-text shrink">{orders.length} Variations</Text>
         {canManage && orders.length > 0 && (<View className="shrink-0 ml-2"><Button label="New Variation" size="sm" onPress={() => setModalOpen(true)} /></View>)}

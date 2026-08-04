@@ -889,16 +889,22 @@ function ShortfallsSection({ projectId, canCreate }: { projectId: string; canCre
 
   return (
     <View className="gap-3">
-      <View className="flex-row justify-between items-center">
-        <Text className="text-sm font-bold text-text">BOQ Material Shortfalls</Text>
-        {canCreate && shortfalls.length > 0 && (
-          <Button
-            label="Generate Indents"
-            size="sm"
-            loading={generateFromBoq.isPending}
-            onPress={() => void onGenerate()}
-          />
-        )}
+      <View>
+        <View className="flex-row justify-between items-center mb-1">
+          <Text className="text-sm font-bold text-text">BOQ Material Shortfalls</Text>
+          {canCreate && shortfalls.length > 0 && (
+            <Button
+              label="Generate Indents"
+              size="sm"
+              loading={generateFromBoq.isPending}
+              onPress={() => void onGenerate()}
+            />
+          )}
+        </View>
+        {/* R13-VO3: Clarify that shortfalls include approved variation quantities. */}
+        <Text className="text-xs text-muted mb-2">
+          Uses current BOQ qty (includes approved variations). Generate indents here after approving a variation.
+        </Text>
       </View>
 
       <Text className="text-xs text-muted">

@@ -1,13 +1,13 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 12 — variation → BOQ → indent sync)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 13 — finish variation UX wiring)
 
 > **You do not need any prior conversation or other documents.** This file is the
 > complete task brief. Read it top to bottom, then execute **Section 2** in order.
 > [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
 >
 > **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
-> **Last committed baseline:** `58489eb` (`main`)  
-> **Verified:** 2026-08-04 — Rounds 8–11 **done**. Round 12 fixes **variation /
-> change-order confusion**: estimate visibility, BOQ provenance, indent qty alignment.
+> **Last committed baseline:** `804f0a6` (`main` ahead of `origin/main` by 2 commits)  
+> **Verified:** 2026-08-04 — Round 12 **backend + core logic done** in `804f0a6`.
+> Round 13 wires **mobile UX** left from VO-B1/B5 and closes ship gate + docs.
 > Run §2.1 gates before/after. Do not redo §2.0a.
 
 ---
@@ -66,68 +66,51 @@ BuildFlow spans the full project lifecycle:
 
 ---
 
-## 2. Round 12 — Variation → BOQ → Estimate → Indent (verified 2026-08-04)
+## 2. Round 13 — Finish Variation UX Wiring (verified 2026-08-04)
 
-Users report confusion after adding a **variation** (change order) to an existing
-BOQ: they expect the **estimate**, **BOQ**, and **indents** to stay aligned. Today
-approve **does** update BOQ qty and project budget, but the **approved estimate is
-never mutated**, auto-indents use **wrong qty** vs BOQ shortfalls on RA/composite
-lines, and the UI does not show **what changed or where to go next**.
+Round 12 (`804f0a6`) fixed the **data path**: single shortfall indent path, VARIATION
+rows in shortfall scan, scope-summary API, executedQty guard, impact API. **Mobile
+still confusing** because `VariationsTab` does not show impact or next-step CTAs.
 
-**Product rule for this round (do not debate):**
+### 2.0 Round 12 verification status
 
-- **Approved estimate = frozen baseline** (do not rewrite estimate lines on approve).
-- Add a **read-only “Revised scope (incl. variations)”** total derived from
-  `approved estimate + sum(approved variation costImpact)`.
-- **BOQ = live sanctioned qty** (already updated on approve — preserve this).
-- **Indents = one consistent demand path** aligned with BOQ shortfall RA explode.
+| ID | Task | Status | Evidence |
+| -- | ---- | ------ | -------- |
+| **VO-B2** | Single indent path (no auto-indent on approve) | **Done** | `change-order.service.ts:257-294` |
+| **VO-B3** | VARIATION rows in shortfall scan | **Done** | `material-demand.service.ts:412-464` |
+| **VO-B4** | scope-summary API + Estimate banner | **Done** | `getProjectScopeSummary`; `estimation/[id].tsx` |
+| **VO-B6** | executedQty guard on BOQ reduction | **Done** | `change-order.service.ts:228-234` |
+| **VO-B7** | Integration tests (impact + scope) | **Partial** | `change-order.test.ts:101-156`; no RA composite test |
+| **VO-B1** | Impact API | **Done (backend)** | `GET …/change-orders/:id/impact` |
+| **VO-B1** | Mobile impact UI + FlowHint + approve CTA | **Not done** | `VariationsTab.tsx` — hooks exist, **unused** |
+| **VO-B5** | BOQ variation provenance | **Partial** | `BoqTab.tsx:59-61` label only; no **Via VO-xxx** chip |
+| **VO-B7** | AUDIT_FINDINGS EST-VO rows | **Not done** | — |
+| **Ship gates** | tsc backend + mobile | **PASS** | Verified 2026-08-04 |
+| **Ship gates** | backend tests | **112/113** | `procurement.test.ts` flake (409) |
 
-### 2.0 Current behaviour vs gaps
+### 2.0a Completed in Rounds 8–12 — do NOT re-break
 
-| Layer | On variation APPROVE | Gap |
-| ----- | -------------------- | --- |
-| **BOQ** | Linked line `quantity += qtyDelta`; new rows `category: 'VARIATION'` | UI doesn't show before→after or link back to VO |
-| **Project budget** | `budget += costImpact` | OK |
-| **Estimate** | **No write** | Users can't see revised scope on Estimate tab |
-| **Auto-indent** | `createDraftIndentsFromDemand` with **raw `qtyDelta`** | Wrong for RA/composite BOQ (shortfall path RA-explodes) |
-| **Shortfalls tab** | Uses live BOQ qty − executed, RA explode | OK but **excludes** `category: 'VARIATION'` rows |
-| **BOQ rate change** | Existing line keeps old `boq.rate`; only qty changes | Line `rate` affects budget only, not BOQ |
-
-**Key files:**
-
-| Area | Path |
-| ---- | ---- |
-| Approve side-effects | `apps/backend/src/services/change-order.service.ts` (~188–334) |
-| BOQ list / qty | `apps/backend/src/services/boq.service.ts` (~45–66) |
-| Material demand / shortfalls | `apps/backend/src/services/material-demand.service.ts` (~256–533) |
-| Estimate vs actual | `apps/backend/src/services/financial-report.service.ts` (~167–242) |
-| Mobile variations UI | `apps/mobile/components/projects/VariationsTab.tsx` |
-| Mobile procurement | `apps/mobile/components/projects/ProcurementTab.tsx` |
-| Invalidation on approve | `apps/mobile/lib/project-query-invalidation.ts` (`invalidateChangeOrderImpact`) |
-| Tests | `apps/backend/src/__tests__/integration/change-order.test.ts` |
-
-### 2.0a Completed in Rounds 8–11 — do NOT re-break
-
-| Area | What landed |
-| ---- | ----------- |
-| **PROC-B / vendor bills** | Record vendor bill, AI extract, permissions, GRN hint (`58489eb`) |
-| **VAR-B1–B5** | Variation material picker scoped to BOQ / RA components, explode composite |
-| **Change order core** | Create → submit → approve updates BOQ qty + budget + optional WO bump |
-| **Daily report picker** | `ProjectMaterial` type default (working tree — commit if uncommitted) |
+| Commit | What landed |
+| ------ | ----------- |
+| `58489eb` | Vendor bills, permissions, GRN hint (Round 10) |
+| `804f0a6` | VO-B2/B3/B4/B6 + impact/scope APIs + estimate revised-scope banner |
+| **VAR-B** | BOQ-scoped variation material picker + RA explode (`7dc4da5`) |
 
 Preserved from Rounds 3–7 — see §2.0c legacy table below.
 
-### 2.0b Remaining gaps (Round 12 work)
+### 2.0b Remaining gaps (Round 13)
 
-| ID | Issue |
-| -- | ----- |
-| **EST-VO-1** | Estimate never shows revised scope after variations |
-| **EST-VO-2** | Existing BOQ line rate change on variation ignored (qty-only update) — document or fix if line rate ≠ boq.rate |
-| **EST-VO-3** | Auto-indent on approve uses raw `qtyDelta`; shortfall uses RA explode — **qty mismatch** |
-| **EST-VO-4** | Qty clamp `Math.max(0, …)` can zero BOQ silently; should clamp to `>= executedQty` with warning |
-| **EST-VO-8** | `VARIATION` category BOQ rows excluded from shortfall scan (`startsWith 'MATERIAL'`) |
-| **EST-VO-9** | Post-approve: no visibility of auto-created draft indents or BOQ line changes |
-| **EST-VO-10** | Negative qty deltas reduce BOQ but never reduce/cancel open indents (document in UI) |
+1. **`useChangeOrderImpact` unused** — defined in `expansion.queries.ts:403` but
+   `VariationsTab.tsx` never calls it; approved cards show no BOQ before→after.
+2. **FlowHint still wrong** — line 262 still says *"BOQ and budget update automatically"*
+   without baseline / shortfalls guidance.
+3. **No post-approve CTA** — approve success should offer **View in BOQ** /
+   **Review material shortfalls** (Procurement tab).
+4. **BOQ tab** — no **Via {VO number}** on qty-changed lines (only category label).
+5. **Procurement Shortfalls** — no helper *"Uses current BOQ qty (includes variations)"*.
+6. **`scope-summary` cache** — not invalidated in `invalidateChangeOrderImpact`.
+7. **AUDIT_FINDINGS** — no EST-VO-* remediation table.
+8. **Flaky test** — `procurement.test.ts` daily report returns 409.
 
 ### 2.0c Completed in Rounds 3–7 — do NOT re-break
 
@@ -164,121 +147,60 @@ DATABASE_URL="postgresql://buildflow:buildflow@localhost:5432/buildflow_test?sch
 
 **Regression on any gate = stop and fix before continuing.**
 
-### 2.2 Mandatory tasks — Round 12
+### 2.2 Mandatory tasks — Round 13
 
-Execute in order. **Do not** re-implement VAR-B material picker scoping (already done).
+**Skip (already done in `804f0a6`):** VO-B2, B3, B4 backend, B6, impact/scope APIs.
+**Do not** re-add auto-indent on approve or remove VARIATION from shortfall scan.
 
-#### VO-B1 — Post-approve impact summary (mobile UX clarity)
+#### R13-VO1 — Wire impact UI on VariationsTab (finish VO-B1 mobile)
 
-**Problem:** After Owner approves, users don't know BOQ/indents changed.
+1. **`ApprovedVariationCard`** (or extend `VariationCard`) for `status === 'APPROVED'`:
+   - Call `useChangeOrderImpact(projectId, co.id)`.
+   - Show each `boqChanges` row: `{itemCode} {description}: {qtyBefore} → {qtyAfter}`.
+   - Show **Budget +₹{budgetDelta}**.
+2. **Update FlowHint** (`VariationsTab.tsx` ~262) steps to:
+   - *Approved estimate stays as original baseline (see Estimate tab for revised scope)*
+   - *BOQ sanctioned qty updates on approve*
+   - *Review material need in Procurement → Shortfalls (not auto-indented)*
+3. **On approve success** — sheet/toast:
+   - *"BOQ updated (N lines), budget +₹X"*
+   - Buttons: **View BOQ**, **Review shortfalls** (Procurement tab).
 
-1. Add backend **`GET /projects/:projectId/change-orders/:id/impact`** (or enrich
-   list/detail response) returning:
-   - `boqChanges: { boqItemId, itemCode, description, qtyBefore, qtyAfter, variationNumber }[]`
-   - `indentsCreated: { id, reqNumber, status }[]` (draft indents from this approve)
-   - `budgetDelta`, `scheduleImpactDays`
-2. **`VariationsTab.tsx`** — on `APPROVED` cards show:
-   - BOQ lines touched with **was → now qty**
-   - **Budget +₹X**
-   - Buttons: **View in BOQ** (deep-link project BOQ tab / item), **Review indents**
-     (Procurement tab filtered by source `VARIATION` + ref number)
-3. **Approve success** — alert/sheet: *"BOQ updated (N lines), budget +₹X, M draft indents
-   created"* with same action buttons.
-4. **Update FlowHint copy** — replace vague "BOQ and budget update automatically" with:
-   - *Approved estimate stays as original baseline*
-   - *BOQ sanctioned quantity updates on approve*
-   - *Draft material indents may be created — review in Procurement → Indents*
+Hooks exist: `useChangeOrderImpact`, `useApproveChangeOrder` in `expansion.queries.ts`.
 
-#### VO-B2 — Align indent demand with BOQ shortfall math (bug fix)
+#### R13-VO2 — BOQ “Via VO-xxx” provenance (finish VO-B5)
 
-**Problem:** `approveChangeOrder` pushes raw `line.qtyDelta` to
-`createDraftIndentsFromDemand` (`change-order.service.ts:248-295`). BOQ shortfalls use
-`fetchBoqMaterialDemands` with RA explode — quantities diverge on composite BOQ.
+Extend `GET /projects/:id/boq` with `variationNumbers?: string[]` per item (join approved
+`ChangeOrderLine` by `boqItemId` or `itemCode = VO-{number}`), **or** client-side from CO list.
 
-**Required (pick one approach — prefer A):**
+In **`BoqTab.tsx`**: chip **Via CO-003** on affected lines. Helper: *Sanctioned qty includes
+approved variations.*
 
-**A. Single path (recommended):** Remove auto-indent creation from `approveChangeOrder`.
-After approve, rely on **Shortfalls** tab only. Show post-approve CTA: *"Review material
-shortfalls"* (invalidate procurement queries — already in `invalidateChangeOrderImpact`).
+#### R13-VO3 — Procurement shortfalls clarity
 
-**B. Shared explode:** Extract a helper (reuse logic from `material-demand.service.ts`
-`fetchBoqMaterialDemands` / mobile `explodeCompositeBoq`) that, given a BOQ line +
-`qtyDelta`, returns `{ resourceId, quantity, unit }[]`. Call it from approve before
-`createDraftIndentsFromDemand`.
+In **`ProcurementTab.tsx`** Shortfalls section: muted helper *Uses current BOQ qty (includes
+approved variations). Generate indents here after approving a variation.*
 
-**Either way:** add integration test — composite BOQ + variation approve → indent/shortfall
-qty matches RA explode (e.g. +2 cum × 7 bags/cum = 14 bags cement).
+#### R13-VO4 — Cache invalidation
 
-#### VO-B3 — Include variation BOQ rows in shortfall scan
+In **`invalidateChangeOrderImpact`**: invalidate `['project-scope-summary', projectId]` and
+change-order-impact queries.
 
-**Problem:** New BOQ rows with `category: 'VARIATION'` are excluded because
-`fetchBoqMaterialDemands` filters `category: { startsWith: 'MATERIAL' }`.
+Optional: revised-scope chip on project overview via `useProjectScopeSummary`.
 
-Fix:
+#### R13-VO5 — Docs + ship gate
 
-- Include BOQ items where `category === 'VARIATION'` **and** line has `resourceId` via
-  linked estimate OR explicit resource on the variation-created row; **or**
-- When creating variation-only BOQ rows, set `category: 'MATERIAL'` if `resourceId` present
-  and add tag/metadata `sourceVariation: co.number` (prefer metadata field or itemCode prefix
-  `VO-{number}` already exists).
-
-Ensure **Procurement → Shortfalls** reflects approved variation qty for both linked and
-new-scope lines.
-
-#### VO-B4 — Revised scope on Estimate / Project (read-only, no estimate mutation)
-
-**Problem:** EST-VO-1 — users expect to see updated totals on Estimate after variations.
-
-1. Add **`GET /projects/:projectId/scope-summary`** (or extend project summary):
-   ```ts
-   {
-     originalEstimateTotal: number;   // latest APPROVED estimate grandTotal
-     approvedVariationTotal: number;  // sum costImpact where status APPROVED
-     revisedScopeTotal: number;       // original + variations
-     currentBoqTotal: number;         // sum live BOQ amounts (non-superseded)
-   }
-   ```
-2. **Estimate detail screen** (`apps/mobile/app/(app)/estimation/[id].tsx`) — banner when
-   project has approved variations:
-   *Original estimate ₹X · Approved variations +₹Y · Revised scope ₹Z · Current BOQ ₹W*
-3. **Project overview / financial strip** — same chips if space allows.
-
-**Do not** mutate `EstimateItem` rows on variation approve in this round.
-
-#### VO-B5 — BOQ tab variation provenance (mobile)
-
-On BOQ list (project BOQ tab / `useBoq` consumers):
-
-- Lines with qty changed by an approved variation: chip **Via {VO number}** (requires
-  tracking — add optional `lastVariationId` / audit log query, or compute from
-  `ChangeOrderLine.boqItemId` join for approved COs).
-- `category: 'VARIATION'` rows: distinct badge **New scope (variation)**.
-- Tooltip/helper: *Sanctioned qty includes approved variations.*
-
-#### VO-B6 — Qty clamp safety (backend)
-
-In `approveChangeOrder` when updating linked BOQ:
-
-- Replace `Math.max(0, rawNewQty)` with `Math.max(Number(boq.executedQty), rawNewQty)`
-  floored at 0; if `rawNewQty < executedQty`, throw `422` with message explaining
-  executed qty blocks reduction (or allow with explicit `force` flag — prefer throw).
-
-#### VO-B7 — Tests + docs
-
-1. Extend `change-order.test.ts`:
-   - Approve linked BOQ line → qty increases; shortfall demand increases.
-   - Composite BOQ + material line → indent qty matches RA explode (if VO-B2 path B).
-2. Append **EST-VO-*** remediation rows to `docs/AUDIT_FINDINGS.md` (fixed/partial).
+1. Append **EST-VO-1–10** table to `docs/AUDIT_FINDINGS.md`.
+2. Fix **`procurement.test.ts`** flake (409 on daily report). Target **113/113** ×2.
 
 ### 2.3 Optional (defer unless time)
 
 | ID | Task |
 | -- | ---- |
-| **VO-O1** | On approve, update `BOQItem.rate` when variation line rate differs (rate variations) |
-| **VO-O2** | Wire `updateChangeOrderLine` + draft edit in mobile (backend exists, unused) |
-| **VO-O3** | Negative variation → warn about open indents not auto-cancelled |
-| **VO-O4** | Financial report toggle "Include approved variations" |
-| **R11-O*** | Prior optional items (attachmentUrl, VAR-B6 test, etc.) |
+| **R13-O1** | Composite BOQ variation → shortfall RA explode integration test |
+| **R13-O2** | EST-VO-2: apply line rate to BOQ on approve when rate differs |
+| **R13-O3** | Warn on negative qty that open indents aren't auto-reduced |
+| **VO-O2–O4** | Draft edit mobile, financial report toggle, etc. |
 
 ### 2.4 Wording guide (use consistently)
 
@@ -291,9 +213,9 @@ In `approveChangeOrder` when updating linked BOQ:
 | GRN success toast | — | Keep "Site stock updated" — do not mention billing |
 | Variation approve success | "Estimate updated" | **BOQ updated** / **Revised scope** (estimate baseline unchanged) |
 | Variation → materials | Full catalog (when BOQ linked) | **Materials for this BOQ** / **RA components** (VAR-B — keep) |
-| Post-approve next step | (silent) | **Review indents** / **View in BOQ** |
+| Post-approve next step | (silent) / auto-indents | **Review shortfalls** / **View BOQ** |
 | Shortfalls tab | — | Helper: *Uses current BOQ qty (includes approved variations)* |
-| Negative variation qty | — | Warn: *Open indents are not auto-reduced* |
+| Negative variation qty | — | Warn: *Open indents are not auto-reduced* (optional R13-O3) |
 | Bill upload / AI | — | **Upload invoice** / **Extract with AI** / **Import vendor bills** |
 | Users without `bill.create` | Show disabled actions that 403 | Hide via `PermissionGate`; assistant refuses |
 
@@ -314,7 +236,8 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 | LLM auto-creates bills without review | Extract → review UI → user confirms → create |
 | Chatbot creates bills for unauthorized users | `buildPermissionAwarePrompt` + API `403` |
 | Duplicate RA explode logic ad hoc | Reuse `fetchBoqMaterialDemands` / shared helper for variation indents (VO-B2) |
-| Auto-indent raw qtyDelta on composite BOQ | RA explode or single shortfall path only |
+| Auto-indent raw qtyDelta on composite BOQ | **Removed** in VO-B2 — do not re-add |
+| Re-add auto-indent on variation approve | Single shortfall path only (VO-B2) |
 | Tell users "estimate updated" on variation | Estimate baseline frozen; show **revised scope** derived total |
 | `VARIATION` BOQ rows invisible to shortfalls | Include in `fetchBoqMaterialDemands` (VO-B3) |
 | `purchaseOrderId` in snapshot but not on row | Persist FK in `createBill` |
@@ -324,23 +247,23 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 | Ship stub sync route | Keep `/api/sync` unmounted |
 | Re-breaking completed fixes | See §2.0c |
 
-### 2.7 Definition of Done (Round 12)
+### 2.7 Definition of Done (Round 13)
 
-**Rounds 8–11 (done — do not regress):**
+**Round 12 (done — do not regress):**
 
-- [x] Vendor bill workflow, permissions, AI extract, variation material scoping (VAR-B)
-- [x] Change order approve → BOQ qty + budget (core path)
+- [x] VO-B2 — No auto-indent on approve; shortfalls single path
+- [x] VO-B3 — VARIATION rows in shortfall scan
+- [x] VO-B4 — scope-summary API + Estimate revised-scope banner
+- [x] VO-B6 — executedQty guard on BOQ reduction
+- [x] Impact API (`GET …/impact`) + change-order integration tests
 
-**Round 12 (must complete):**
+**Round 13 (must complete):**
 
-- [ ] VO-B1 — Post-approve impact UI + updated FlowHint + links to BOQ/Procurement
-- [ ] VO-B2 — Indent demand aligned with shortfall RA explode (single path or shared helper)
-- [ ] VO-B3 — Variation BOQ rows included in shortfall scan
-- [ ] VO-B4 — Revised scope summary API + Estimate/Project banner
-- [ ] VO-B5 — BOQ tab shows variation provenance
-- [ ] VO-B6 — BOQ qty clamp respects `executedQty`
-- [ ] VO-B7 — Integration tests + AUDIT_FINDINGS rows
-- [ ] Ship gates: `tsc` ×2 + backend tests **111/111** ×2 idempotent
+- [ ] R13-VO1 — VariationsTab impact UI, FlowHint, approve success CTAs
+- [ ] R13-VO2 — BOQ **Via VO-xxx** provenance chips
+- [ ] R13-VO3 — Procurement shortfalls helper text
+- [ ] R13-VO4 — Invalidate scope-summary + impact queries on approve
+- [ ] R13-VO5 — AUDIT_FINDINGS EST-VO rows + **113/113** tests ×2
 
 ### 2.8 Optional hardening (defer unless user asks)
 
@@ -358,10 +281,10 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 ### APPENDIX — Prior rounds (completed; reference only)
 
 <details>
-<summary>Rounds 4–11 (superseded by §2 above)</summary>
+<summary>Rounds 4–12 (superseded by §2 above)</summary>
 
-Round 8–11: vendor bills, permissions, GRN hint (`58489eb`).  
-Round 12: variation → BOQ → estimate visibility → indent alignment (§2).
+Round 8–11: vendor bills, permissions (`58489eb`).  
+Round 12 (`804f0a6`): variation backend sync — shortfalls, scope-summary, impact API.
 
 </details>
 

@@ -57,6 +57,9 @@ export function invalidateAnalyticsDashboard(qc: QueryClient) {
 /** Full side-effect bundle after variation approval. */
 export function invalidateChangeOrderImpact(qc: QueryClient, projectId: string) {
   qc.invalidateQueries({ queryKey: ['change-orders', projectId] });
+  // R13-VO4: Invalidate impact + scope-summary queries so the UI refreshes.
+  qc.invalidateQueries({ queryKey: ['change-order-impact', projectId] });
+  qc.invalidateQueries({ queryKey: ['project-scope-summary', projectId] });
   invalidateProjectCore(qc, projectId);
   invalidateProjectBoq(qc, projectId);
   invalidateProjectSchedule(qc, projectId);
