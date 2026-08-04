@@ -5,9 +5,14 @@ import { ApiError } from '../utils/errors';
 import { recordAudit } from '../utils/audit';
 import type { CreateChangeOrderInput } from '@buildflow/shared';
 import { assertProjectAccess } from '../middleware/project-access.middleware';
-import { createDraftIndentsFromDemand, type MaterialDemandLine } from './material-demand.service';
 import { notify } from './notification.service';
 import { logger } from '../config/logger';
+
+// VO-B2: MaterialDemandLine import removed — auto-indent creation on approve
+// was replaced by a single shortfall path. After approve, shortfalls are
+// computed from live BOQ qty (which now includes the variation delta) via
+// fetchBoqMaterialDemands. This avoids the qty mismatch where auto-indent
+// used raw qtyDelta but shortfalls RA-explode composite BOQ lines.
 
 function round2(n: number) {
   return Math.round(n * 100) / 100;
@@ -200,8 +205,6 @@ export async function approveChangeOrder(
   if (!co) throw ApiError.notFound('Change order not found');
   if (co.status !== 'SUBMITTED') throw ApiError.badRequest('Variation must be submitted first');
 
-  const materialDemands: MaterialDemandLine[] = [];
-
   await prisma.$transaction(async (tx) => {
     // FIX (EST-H5): Guard the approval with a conditional updateMany so that
     // two concurrent approvals can't both pass the read-check and double-apply
@@ -218,11 +221,17 @@ export async function approveChangeOrder(
       if (line.boqItemId) {
         const boq = await tx.bOQItem.findFirst({ where: { id: line.boqItemId, projectId: co.projectId } });
         if (boq) {
-          // FIX (EST-M14): Clamp resulting BOQ quantity to non-negative.
-          // A negative qtyDelta larger than the current quantity would produce
-          // a negative BOQ quantity, which is nonsensical and breaks downstream
-          // calculations (procurement, measurement book, invoicing).
+          // FIX (EST-M14 / VO-B6): Clamp resulting BOQ quantity to at least
+          // executedQty (can't reduce below what's already been measured/used)
+          // floored at 0. If the raw new qty would go below executedQty, reject
+          // with 422 — the variation must account for already-executed work.
           const rawNewQty = Number(boq.quantity) + Number(line.qtyDelta);
+          const executedQty = Number(boq.executedQty);
+          if (rawNewQty < executedQty) {
+            throw ApiError.badRequest(
+              `Variation would reduce BOQ qty to ${rawNewQty} but ${executedQty} has already been executed. Adjust the qty delta to at least ${executedQty}.`,
+            );
+          }
           const newQty = Math.max(0, rawNewQty);
           const newAmount = round2(newQty * Number(boq.rate));
           await tx.bOQItem.update({
@@ -245,14 +254,8 @@ export async function approveChangeOrder(
         });
       }
 
-      if (line.resourceId && Number(line.qtyDelta) > 0) {
-        materialDemands.push({
-          resourceId: line.resourceId,
-          quantity: Number(line.qtyDelta),
-          unit: line.unit,
-          boqItemId: line.boqItemId ?? undefined,
-        });
-      }
+      // VO-B2: Auto-indent creation removed — rely on single shortfall path
+      // (Shortfalls tab) which RA-explodes composite BOQ lines consistently.
     }
 
     if (co.linkedTaskId && co.scheduleImpactDays !== 0) {
@@ -284,16 +287,11 @@ export async function approveChangeOrder(
     // Status was already set to APPROVED by the guarded updateMany above.
   });
 
-  if (materialDemands.length > 0) {
-    await createDraftIndentsFromDemand(
-      companyId,
-      userId,
-      co.projectId,
-      materialDemands,
-      'VARIATION',
-      co.number,
-    );
-  }
+  // VO-B2: Auto-indent creation removed. After approve, the BOQ qty now
+  // includes the variation delta. The Shortfalls tab (fetchBoqMaterialDemands)
+  // is the single consistent demand path — it RA-explodes composite BOQ lines
+  // and correctly subtracts stock + open indents. Users review shortfalls and
+  // generate indents manually from Procurement → Shortfalls.
 
   // FIX (EST-M14): After schedule impact is applied, recompute CPM (critical
   // path method) for the project so downstream tasks' dates shift correctly.
@@ -331,6 +329,113 @@ export async function approveChangeOrder(
   });
 
   return serializeChangeOrder(approved);
+}
+
+/**
+ * VO-B4: Revised scope summary — original estimate + approved variations.
+ * Does NOT mutate estimate lines; derives a read-only revised total.
+ */
+export async function getProjectScopeSummary(companyId: string, projectId: string) {
+  // Latest APPROVED estimate grandTotal (frozen baseline)
+  const latestEstimate = await prisma.estimate.findFirst({
+    where: { projectId, companyId, status: 'APPROVED' },
+    orderBy: { version: 'desc' },
+    select: { grandTotal: true },
+  });
+  const originalEstimateTotal = latestEstimate ? Number(latestEstimate.grandTotal) : 0;
+
+  // Sum of approved variation costImpact
+  const approvedVariations = await prisma.changeOrder.aggregate({
+    where: { projectId, companyId, status: 'APPROVED' },
+    _sum: { costImpact: true },
+  });
+  const approvedVariationTotal = approvedVariations._sum.costImpact
+    ? Number(approvedVariations._sum.costImpact)
+    : 0;
+
+  // Current live BOQ total (non-superseded lines)
+  const boqAggregate = await prisma.bOQItem.aggregate({
+    where: { projectId, isSuperseded: false },
+    _sum: { amount: true },
+  });
+  const currentBoqTotal = boqAggregate._sum.amount ? Number(boqAggregate._sum.amount) : 0;
+
+  return {
+    originalEstimateTotal,
+    approvedVariationTotal,
+    revisedScopeTotal: originalEstimateTotal + approvedVariationTotal,
+    currentBoqTotal,
+  };
+}
+
+/**
+ * VO-B1: Post-approve impact summary — what the approve changed.
+ */
+export async function getChangeOrderImpact(companyId: string, changeOrderId: string) {
+  const co = await prisma.changeOrder.findFirst({
+    where: { id: changeOrderId, companyId },
+    include: { lines: true },
+  });
+  if (!co) throw ApiError.notFound('Change order not found');
+
+  // BOQ changes: find lines linked to this CO that have a boqItemId
+  const boqChanges: Array<{
+    boqItemId: string;
+    itemCode: string;
+    description: string;
+    qtyBefore: number;
+    qtyAfter: number;
+    variationNumber: string;
+  }> = [];
+
+  // New-scope BOQ rows created by this variation
+  const newScopeRows = await prisma.bOQItem.findMany({
+    where: { projectId: co.projectId, itemCode: `VO-${co.number}` },
+    select: { id: true, itemCode: true, description: true, quantity: true },
+  });
+  for (const row of newScopeRows) {
+    boqChanges.push({
+      boqItemId: row.id,
+      itemCode: row.itemCode,
+      description: row.description,
+      qtyBefore: 0,
+      qtyAfter: Number(row.quantity),
+      variationNumber: co.number,
+    });
+  }
+
+  // Linked BOQ line changes (qty delta applied)
+  for (const line of co.lines) {
+    if (line.boqItemId) {
+      const boq = await prisma.bOQItem.findFirst({
+        where: { id: line.boqItemId, projectId: co.projectId },
+        select: { id: true, itemCode: true, description: true, quantity: true },
+      });
+      if (boq) {
+        boqChanges.push({
+          boqItemId: boq.id,
+          itemCode: boq.itemCode,
+          description: boq.description,
+          qtyBefore: Number(boq.quantity) - Number(line.qtyDelta),
+          qtyAfter: Number(boq.quantity),
+          variationNumber: co.number,
+        });
+      }
+    }
+  }
+
+  // Draft indents from this variation (if any were created before VO-B2)
+  const indentsCreated = await prisma.materialRequisition.findMany({
+    where: { projectId: co.projectId, sourceType: 'VARIATION', sourceRef: co.number },
+    select: { id: true, reqNumber: true, status: true },
+  });
+
+  return {
+    boqChanges,
+    indentsCreated,
+    budgetDelta: Number(co.costImpact),
+    scheduleImpactDays: co.scheduleImpactDays,
+  };
 }
 
 /**

@@ -116,3 +116,23 @@ export async function updateLine(req: Request, res: Response) {
   );
   return ok(res, data);
 }
+
+/**
+ * VO-B1: Post-approve impact summary — BOQ changes + indents + budget delta.
+ * Route: GET /api/projects/:id/change-orders/:changeOrderId/impact
+ */
+export async function impact(req: Request, res: Response) {
+  const { companyId } = req.user!;
+  const data = await changeOrderService.getChangeOrderImpact(companyId, req.params.changeOrderId);
+  return ok(res, data);
+}
+
+/**
+ * VO-B4: Revised scope summary — original estimate + approved variations.
+ * Route: GET /api/projects/:id/scope-summary
+ */
+export async function scopeSummary(req: Request, res: Response) {
+  const { companyId } = req.user!;
+  const data = await changeOrderService.getProjectScopeSummary(companyId, req.params.id);
+  return ok(res, data);
+}

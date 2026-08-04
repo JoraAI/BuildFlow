@@ -56,6 +56,8 @@ function categoryBadgeColor(category: string | null): 'primary' | 'success' | 'w
 
 function formatCategoryLabel(category: string | null): string {
   if (!category) return 'OTHER';
+  // VO-B5: Friendlier label for variation-created BOQ rows.
+  if (category === 'VARIATION') return 'New scope (variation)';
   return category.replace(/_/g, ' ');
 }
 

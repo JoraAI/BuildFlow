@@ -97,4 +97,61 @@ describe('Change orders (integration)', () => {
     expect(Number(summaryAfter.body.data.contractValue)).toBe(contractBefore + costImpact);
     expect(Number(summaryAfter.body.data.variationTotal)).toBeGreaterThanOrEqual(costImpact);
   });
+
+  // VO-B1/B6/B7: Approve updates BOQ qty; impact endpoint returns changes.
+  it('approve increases linked BOQ qty and impact endpoint shows the change', async () => {
+    const boqRes = await authGet(token, `/api/projects/${projectId}/boq`);
+    expect(boqRes.status).toBe(200);
+    const boqItem = boqRes.body.data?.items?.find(
+      (b: { executedQty?: number }) => (b.executedQty ?? 0) === 0,
+    );
+    expect(boqItem).toBeTruthy();
+    const qtyBefore = Number(boqItem.quantity);
+
+    const createRes = await authPost(token, `/api/projects/${projectId}/change-orders`, {
+      number: `VO-IMPACT-${Date.now()}`,
+      title: 'Impact test variation',
+      reason: 'Integration test',
+      scheduleImpactDays: 0,
+      lines: [
+        {
+          boqItemId: boqItem.id,
+          description: 'Qty bump for impact test',
+          unit: boqItem.unit,
+          qtyDelta: 5,
+          rate: Number(boqItem.rate),
+        },
+      ],
+    });
+    expect(createRes.status).toBe(201);
+    const coId = createRes.body.data.id as string;
+
+    await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/submit`);
+    const approveRes = await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/approve`);
+    expect(approveRes.status).toBe(200);
+
+    // VO-B1: Impact endpoint
+    const impactRes = await authGet(token, `/api/projects/${projectId}/change-orders/${coId}/impact`);
+    expect(impactRes.status).toBe(200);
+    const impact = impactRes.body.data;
+    expect(impact.boqChanges.length).toBeGreaterThan(0);
+    const change = impact.boqChanges.find((c: { boqItemId: string }) => c.boqItemId === boqItem.id);
+    expect(change).toBeTruthy();
+    expect(change.qtyAfter).toBe(qtyBefore + 5);
+    expect(change.qtyBefore).toBe(qtyBefore);
+  });
+
+  // VO-B4: Scope summary endpoint returns correct totals.
+  it('scope-summary returns original estimate + approved variation totals', async () => {
+    const res = await authGet(token, `/api/projects/${projectId}/scope-summary`);
+    expect(res.status).toBe(200);
+    const summary = res.body.data;
+    expect(summary).toHaveProperty('originalEstimateTotal');
+    expect(summary).toHaveProperty('approvedVariationTotal');
+    expect(summary).toHaveProperty('revisedScopeTotal');
+    expect(summary).toHaveProperty('currentBoqTotal');
+    expect(summary.revisedScopeTotal).toBe(
+      summary.originalEstimateTotal + summary.approvedVariationTotal,
+    );
+  });
 });

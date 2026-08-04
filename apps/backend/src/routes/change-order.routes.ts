@@ -86,3 +86,17 @@ changeOrderRouter.put(
   }),
   changeOrderController.updateLine,
 );
+
+// VO-B1: Post-approve impact summary (BOQ changes, indents, budget delta)
+changeOrderRouter.get(
+  '/:id/change-orders/:changeOrderId/impact',
+  validate({ params: changeOrderIdParamsSchema }),
+  changeOrderController.impact,
+);
+
+// VO-B4: Revised scope summary (original estimate + approved variations)
+changeOrderRouter.get(
+  '/:id/scope-summary',
+  validate({ params: projectIdParams }),
+  changeOrderController.scopeSummary,
+);

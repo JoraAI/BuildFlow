@@ -19,6 +19,45 @@ import { useEstimate, useEstimateMutations, useExportEstimate, useSubEstimates, 
 import { useProject } from '@/services/project.queries';
 import { useAuthStore } from '@/stores/auth.store';
 import { formatINR, formatDate } from '@/utils/format';
+import { useProjectScopeSummary, type ProjectScopeSummary } from '@/services/expansion.queries';
+
+/**
+ * VO-B4: Revised scope banner — shows original estimate + approved variations
+ * as a read-only derived total. Does not mutate estimate lines.
+ */
+function ScopeSummaryBanner({ projectId }: { projectId: string }) {
+  const { data: scope } = useProjectScopeSummary(projectId);
+
+  // Only show when there are approved variations affecting the scope.
+  if (!scope || scope.approvedVariationTotal <= 0) return null;
+
+  return (
+    <Card className="border-primary/20 bg-primary/5">
+      <Text className="text-sm font-bold text-text mb-2">Revised Scope (incl. variations)</Text>
+      <View className="gap-1">
+        <View className="flex-row justify-between">
+          <Text className="text-xs text-text-muted">Original estimate</Text>
+          <Text className="text-xs text-text">{formatINR(scope.originalEstimateTotal)}</Text>
+        </View>
+        <View className="flex-row justify-between">
+          <Text className="text-xs text-text-muted">Approved variations</Text>
+          <Text className="text-xs text-success font-semibold">+ {formatINR(scope.approvedVariationTotal)}</Text>
+        </View>
+        <View className="flex-row justify-between pt-1 mt-0.5 border-t border-border">
+          <Text className="text-xs font-bold text-text">Revised scope</Text>
+          <Text className="text-xs font-bold text-primary">{formatINR(scope.revisedScopeTotal)}</Text>
+        </View>
+        <View className="flex-row justify-between">
+          <Text className="text-[10px] text-text-muted">Current BOQ</Text>
+          <Text className="text-[10px] text-text-muted">{formatINR(scope.currentBoqTotal)}</Text>
+        </View>
+      </View>
+      <Text className="text-[10px] text-text-muted italic mt-2">
+        Approved estimate stays as the original baseline. BOQ sanctioned quantity updates on variation approve.
+      </Text>
+    </Card>
+  );
+}
 
 const STATUS_COLORS: Record<string, string> = {
   DRAFT: 'neutral',
@@ -394,6 +433,9 @@ export default function EstimateDetailScreen() {
               <Text className="text-lg font-bold text-primary">{formatINR(s.grandTotal)}</Text>
             </View>
           </Card>
+
+          {/* VO-B4: Revised scope banner (read-only derived total) */}
+          {!estimate.parentId && <ScopeSummaryBanner projectId={estimate.projectId} />}
 
           {/* Notes */}
           {estimate.notes && (

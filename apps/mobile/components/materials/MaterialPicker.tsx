@@ -19,6 +19,7 @@ export interface ProjectMaterial {
   id: string;
   name: string;
   unit: string;
+  type?: 'MATERIAL' | 'LABOUR' | 'EQUIPMENT' | 'SUBCONTRACTOR';
   category?: string | null;
   /** Optional on-hand balance to surface inline. */
   balance?: number;
@@ -88,10 +89,22 @@ export function MaterialPicker({
     return null;
   }, [emptyLabel, isLoading, catalogMaterials.length, total, showProjectSection, showCatalogSection]);
 
-  const renderRow = (r: { id: string; name: string; unit: string; category?: string | null }, balance?: number) => (
+  const renderRow = (
+    r: { id: string; name: string; unit: string; type?: Resource['type']; category?: string | null },
+    balance?: number,
+  ) => (
     <Pressable
       key={r.id}
-      onPress={() => onSelect(r as Resource)}
+      onPress={() =>
+        onSelect({
+          id: r.id,
+          name: r.name,
+          unit: r.unit,
+          type: r.type ?? 'MATERIAL',
+          rate: '0',
+          category: r.category ?? null,
+        } as Resource)
+      }
       className={`flex-row items-center gap-3 p-2 rounded-lg border mb-1 ${
         selectedId === r.id ? 'border-primary bg-primary/5' : 'border-border bg-card'
       }`}

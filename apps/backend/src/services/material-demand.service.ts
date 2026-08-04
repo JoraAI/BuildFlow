@@ -409,9 +409,18 @@ export async function fetchBoqMaterialDemands(
   companyId?: string,
 ): Promise<BoqMaterialDemand[]> {
   const items = await prisma.bOQItem.findMany({
-    // Use startsWith so sub-estimate categories like "MATERIAL/Extra Scope"
-    // are also included. Top-level estimates use the bare "MATERIAL" category.
-    where: { projectId, isSuperseded: false, category: { startsWith: 'MATERIAL' } },
+    // FIX (VO-B3): Include VARIATION category rows (new-scope lines created on
+    // change order approve) alongside MATERIAL rows. Previously these were
+    // excluded by the startsWith('MATERIAL') filter, so approved variation
+    // quantity was invisible to the shortfall scan.
+    where: {
+      projectId,
+      isSuperseded: false,
+      OR: [
+        { category: { startsWith: 'MATERIAL' } },
+        { category: 'VARIATION' },
+      ],
+    },
     include: {
       estimateItem: {
         select: { resourceId: true, rateAnalysisId: true, type: true },
@@ -426,6 +435,34 @@ export async function fetchBoqMaterialDemands(
     if (remaining <= 0) continue;
 
     const est = item.estimateItem;
+
+    // FIX (VO-B3): For VARIATION rows without an estimateItem link (new-scope
+    // lines created on approve), the resource may still be resolvable via the
+    // ChangeOrderLine join. Fall back to a direct catalog resource lookup
+    // using the BOQ description if no estimate link or rateAnalysis exists.
+    if (!est && item.category === 'VARIATION') {
+      // Try to find a ChangeOrderLine that created this BOQ row with a resourceId.
+      const coLine = await prisma.changeOrderLine.findFirst({
+        where: {
+          description: item.description,
+          changeOrder: { projectId, status: 'APPROVED' },
+          resourceId: { not: null },
+        },
+        select: { resourceId: true },
+      });
+      if (coLine?.resourceId) {
+        lines.push({
+          resourceId: coLine.resourceId,
+          quantity: remaining,
+          unit: item.unit,
+          boqItemId: item.id,
+          itemCode: item.itemCode,
+          description: item.description,
+        });
+      }
+      continue;
+    }
+
     const demands = await materialDemandsForEstimateItem(
       {
         type: est?.type ?? 'MATERIAL',

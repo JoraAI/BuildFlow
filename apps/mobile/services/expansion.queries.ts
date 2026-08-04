@@ -376,6 +376,49 @@ export async function downloadSubcontractAbstractSheetPdf(projectId: string, wor
 }
 
 /* ------------------------------------------------------------------ */
+/* Change order impact / scope summary (VO-B1/B4)                      */
+/* ------------------------------------------------------------------ */
+
+export interface ChangeOrderImpact {
+  boqChanges: Array<{
+    boqItemId: string;
+    itemCode: string;
+    description: string;
+    qtyBefore: number;
+    qtyAfter: number;
+    variationNumber: string;
+  }>;
+  indentsCreated: Array<{ id: string; reqNumber: string; status: string }>;
+  budgetDelta: number;
+  scheduleImpactDays: number;
+}
+
+export interface ProjectScopeSummary {
+  originalEstimateTotal: number;
+  approvedVariationTotal: number;
+  revisedScopeTotal: number;
+  currentBoqTotal: number;
+}
+
+export function useChangeOrderImpact(projectId: string, changeOrderId: string | null) {
+  return useQuery({
+    queryKey: ['change-order-impact', projectId, changeOrderId] as const,
+    queryFn: () => apiFetch<ChangeOrderImpact>(
+      `/projects/${projectId}/change-orders/${changeOrderId}/impact`,
+    ),
+    enabled: !!projectId && !!changeOrderId,
+  });
+}
+
+export function useProjectScopeSummary(projectId: string) {
+  return useQuery({
+    queryKey: ['project-scope-summary', projectId] as const,
+    queryFn: () => apiFetch<ProjectScopeSummary>(`/projects/${projectId}/scope-summary`),
+    enabled: !!projectId,
+  });
+}
+
+/* ------------------------------------------------------------------ */
 /* Change orders                                                       */
 /* ------------------------------------------------------------------ */
 
