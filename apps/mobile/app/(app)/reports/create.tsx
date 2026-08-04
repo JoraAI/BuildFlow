@@ -622,36 +622,44 @@ export default function CreateReportScreen() {
                           const meta = statusMeta(t.status);
                           const pct = Math.min(100, Math.max(0, parseInt(t.progressPct, 10) || 0));
                           return (
-                            <Pressable
+                            // FIX: Card container is a View (not Pressable) so the
+                            // nested TextInput touch does not propagate to the toggle.
+                            <View
                               key={t.taskId}
-                              onPress={() =>
-                                setTaskDrafts((prev) =>
-                                  prev.map((x) =>
-                                    x.taskId === t.taskId ? { ...x, selected: !x.selected } : x,
-                                  ),
-                                )
-                              }
                               className={`rounded-lg border p-3 ${
                                 t.selected ? 'border-primary bg-primary/5' : 'border-border bg-card'
                               }`}
                             >
-                              <View className="flex-row items-center gap-2 mb-2">
-                                <View
-                                  className={`w-5 h-5 rounded border items-center justify-center ${
-                                    t.selected ? 'bg-primary border-primary' : 'border-border'
-                                  }`}
-                                >
-                                  {t.selected ? <Text className="text-white text-[10px]">✓</Text> : null}
+                              {/* Toggle area — only this part toggles selection */}
+                              <Pressable
+                                onPress={() =>
+                                  setTaskDrafts((prev) =>
+                                    prev.map((x) =>
+                                      x.taskId === t.taskId ? { ...x, selected: !x.selected } : x,
+                                    ),
+                                  )
+                                }
+                              >
+                                <View className="flex-row items-center gap-2 mb-2">
+                                  <View
+                                    className={`w-5 h-5 rounded border items-center justify-center ${
+                                      t.selected ? 'bg-primary border-primary' : 'border-border'
+                                    }`}
+                                  >
+                                    {t.selected ? <Text className="text-white text-[10px]">✓</Text> : null}
+                                  </View>
+                                  <Text className="text-sm text-text flex-1 font-medium" numberOfLines={2}>
+                                    {t.taskName}
+                                  </Text>
+                                  <Badge label={meta.label} color={meta.color} />
                                 </View>
-                                <Text className="text-sm text-text flex-1 font-medium" numberOfLines={2}>
-                                  {t.taskName}
-                                </Text>
-                                <Badge label={meta.label} color={meta.color} />
-                              </View>
-                              <View className="flex-row items-center gap-2 mb-2">
-                                <ProgressBar value={pct} height={6} className="flex-1" />
-                                <Text className="text-xs text-muted w-9 text-right">{pct}%</Text>
-                              </View>
+                                <View className="flex-row items-center gap-2 mb-2">
+                                  <ProgressBar value={pct} height={6} className="flex-1" />
+                                  <Text className="text-xs text-muted w-9 text-right">{pct}%</Text>
+                                </View>
+                              </Pressable>
+                              {/* Progress input — sibling of the toggle Pressable,
+                                  so tapping it cannot deselect the task */}
                               {t.selected && (
                                 <View className="mt-1">
                                   <Text className="text-xs text-muted mb-1">New progress %</Text>
@@ -672,7 +680,7 @@ export default function CreateReportScreen() {
                                   />
                                 </View>
                               )}
-                            </Pressable>
+                            </View>
                           );
                         })
                       )}
@@ -824,6 +832,7 @@ function MaterialsStep({
         id: s.resourceId,
         name: s.name,
         unit: s.unit,
+        type: 'MATERIAL',
         balance: s.balance,
         category: boq?.section,
       });
@@ -834,6 +843,7 @@ function MaterialsStep({
           id: b.resourceId,
           name: b.description || b.itemCode,
           unit: b.unit,
+          type: 'MATERIAL',
           category: b.section,
         });
       }
@@ -869,7 +879,7 @@ function MaterialsStep({
         resourceId: res.id,
         resourceName: res.name,
         unit: res.unit,
-        type: res.type,
+        type: (res.type ?? 'MATERIAL') as MaterialRow['type'],
         rate: resolved?.rate ?? parseFloat(res.rate),
         rateSource: resolved?.source,
         quantityUsed: '',
@@ -966,7 +976,7 @@ function MaterialsStep({
             // Stock validation only applies to materials (labour/equipment/subcontractors aren't stocked via GRN).
             const overStock = deductStock && isMaterial && onHand !== undefined && qty > onHand;
             const noStock = deductStock && isMaterial && onHand === 0;
-            const typeBadge = RESOURCE_TYPE_BADGE[m.type];
+            const typeBadge = RESOURCE_TYPE_BADGE[m.type] ?? RESOURCE_TYPE_BADGE.MATERIAL;
             return (
               <View key={m.resourceId} className="py-3 border-b border-border">
                 {/* Top row: resource info + qty + cost + remove */}
