@@ -318,7 +318,7 @@ export function VariationsTab({ projectId }: { projectId: string }) {
     createCo.mutate({
       number: number.trim(), title: title.trim(), reason: reason.trim() || undefined,
       scheduleImpactDays: parseInt(scheduleDays, 10) || 0, linkedTaskId: linkedTaskId || undefined, linkedWorkOrderId: linkedWorkOrderId || undefined,
-      lines: validLines.map((l) => ({ description: l.description.trim(), unit: l.unit.trim() || 'Nos', qtyDelta: parseFloat(l.qtyDelta) || 0, rate: parseFloat(l.rate) || 0, boqItemId: l.boqItemId || undefined, resourceId: l.resourceId || undefined })),
+      lines: validLines.map((l) => ({ description: l.description.trim(), unit: l.unit.trim() || 'Nos', qtyDelta: parseFloat(l.qtyDelta) || 0, rate: parseFloat(l.rate) || 0, boqItemId: l.boqItemId || undefined, resourceId: l.resourceId || undefined, rateAnalysisId: l.rateAnalysisId || undefined })),
     }, { onSuccess: () => { setModalOpen(false); resetForm(); }, onError: (e: Error) => void alertAsync('Error', e.message) });
   };
 

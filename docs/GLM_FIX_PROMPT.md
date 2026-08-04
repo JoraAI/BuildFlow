@@ -1,15 +1,15 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 17 — finish VAR-C3 + ship gate)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 18 — VAR-C6 backend wiring)
 
 > **You do not need any prior conversation or other documents.** This file is the
 > complete task brief. Read it top to bottom, then execute **Section 2** in order.
 > [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
 >
 > **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
-> **Last committed baseline:** `f055465` (`main` ahead of `origin/main` by 5 commits)  
-> **Verified:** 2026-08-04 — Round 16 **partial**. VAR-C1/C2/C4 **done** in `f055465`.
-> VAR-C3 **partial** (type chips + inline catalog only — no `MaterialPicker` /
-> `RateAnalysisPicker`). VAR-C5 **failing** (procurement test 409 flake). Run §2.1
-> gates before/after.
+> **Last committed baseline:** `dbac1aa` (`main` ahead of `origin/main` by 6 commits)  
+> **Verified:** 2026-08-04 — Rounds 16–17 **complete** (`f055465` + `dbac1aa`).
+> Variation line editor UX done; ship gate **113/113 ×2**. Remaining gap: **RA /
+> resource linkage lost** when creating variation from RateAnalysisPicker (VAR-C6).
+> Run §2.1 gates before/after.
 
 ---
 
@@ -67,37 +67,37 @@ BuildFlow spans the full project lifecycle:
 
 ---
 
-## 2. Round 17 — Finish VAR-C3 + ship gate (verified 2026-08-04)
+## 2. Round 18 — Persist RA / resource on variation lines (VAR-C6)
 
-Round 16 (`f055465`) fixed explode duplicates, remove line, and section copy.
-**Remaining:** wire **estimate-style pickers** for new-scope lines (VAR-C3) and fix
-the **procurement test flake** (VAR-C5).
+Rounds 16–17 landed the full variation line editor. **One functional gap remains:**
+when a user picks a **Rate Analysis** on a new-scope line, the UI sets
+`rateAnalysisId` locally but **`onCreate` does not send it** — and
+`ChangeOrderLine` / new `BOQItem` rows have no column to store it. Material
+picker works (sends `resourceId`); RA picker does not survive create → approve.
 
-**Do not** break Rounds 12–14 approve → BOQ → shortfalls flow.
+**Do not** break Rounds 12–17 variation → BOQ → shortfalls flow.
 
-### 2.0 Round 16 verification status (`f055465`)
+### 2.0 Rounds 16–17 verification status (`dbac1aa`)
 
 | ID | Task | Status | Evidence |
 | -- | ---- | ------ | -------- |
-| **VAR-C1** | Explode no duplicate lines | **Done** | `explodeCompositeBoq` clears `boqItemId`, sets `explodedFromBoqId`; `canExplode` guard `:416-417`, `:472-477` |
-| **VAR-C2** | Remove line (min 1) | **Done** | `removeLine` + confirm `:322-330`; UI `:424-428` |
-| **VAR-C3** | Line type + MaterialPicker / RateAnalysisPicker | **Partial** | Type chips `:441-452`; inline catalog scroll `:479-494` — **not** `MaterialPicker` / `RateAnalysisPicker`; `rateAnalysisId` never wired; `onCreate` omits `type` `:318` |
-| **VAR-C4** | Adjust vs new scope copy + FlowHint | **Done** | Info box `:405-411`; FlowHint step `:370` |
-| **VAR-C5** | Ship gate 113/113 ×2 | **Failing** | `procurement.test.ts:311` — daily report returns **409** (duplicate date), not in `[201, 422]` |
+| **VAR-C1** | Explode no duplicate lines | **Done** | `f055465` — `explodedFromBoqId`, no `boqItemId` on children |
+| **VAR-C2** | Remove line (min 1) | **Done** | `f055465` — `removeLine` + confirm |
+| **VAR-C3a** | `MaterialPicker` on new-scope MATERIAL | **Done** | `dbac1aa` — `:482-508`; clears RA on select |
+| **VAR-C3b** | `RateAnalysisPicker` + clear + rate pre-fill | **Done (UI)** | `dbac1aa` — `:510-537`; pre-fills rate, clears `resourceId` |
+| **VAR-C4** | Adjust vs new scope copy + FlowHint | **Done** | `f055465` |
+| **VAR-C5** | Ship gate 113/113 ×2 | **Done** | `dbac1aa` — random `uniqueDate` in `procurement.test.ts:307-317`; verified 113/113 ×2 |
+| **VAR-C6** | Backend persist RA / resource on approve | **Not done** | `onCreate` `:321` sends only `resourceId`; no `rateAnalysisId` in schema/API |
 
-**VAR-C3 gap detail (what Round 17 must finish):**
+**VAR-C6 repro (functional gap):**
 
-| Required (§2.0b) | Current (`f055465`) | Gap |
-| ---------------- | ------------------- | --- |
-| `MaterialPicker` for new-scope MATERIAL | Horizontal chip scroll from `useResources()` | Replace with `MaterialPicker` from `EstimateBuildStep.tsx:133-139` |
-| `RateAnalysisPicker` for new scope | Not present | Add picker; on select pre-fill rate from RA total (mirror estimate handlers) |
-| `rateAnalysisId` on draft line | Field on `DraftLine` only | Wire UI + include in create payload if backend supports (see VAR-C6) |
-| Line `type` persisted | UI chips only | Extend `changeOrderLineSchema` + approve BOQ create if product needs type on VARIATION rows |
+1. New Variation → leave BOQ as "New" → pick a **Rate Analysis** (not material).
+2. Create variation → approve.
+3. New `BOQItem` (`change-order.service.ts:243-254`) has **no** `rateAnalysisId` /
+   `resourceId` → Shortfalls cannot RA-explode the line.
 
-**Repro VAR-C5 flake:**
-
-1. Run `pnpm --filter @buildflow/backend test` twice.
-2. `procurement.test.ts` → *stock summary issued increases after daily report* fails with status **409** when `2025-04-25` report already exists (`daily-report.service.ts:136-140` unique on `[projectId, reportDate]`).
+**Minor cleanup (optional R18-O1):** `adhocExpandid` state at `VariationsTab.tsx:310`
+is unused after MaterialPicker migration — remove dead state + reset in `resetForm`.
 
 ### 2.0a Completed in Rounds 8–14 — do NOT re-break
 
@@ -161,54 +161,49 @@ DATABASE_URL="postgresql://buildflow:buildflow@localhost:5432/buildflow_test?sch
 
 **Regression on any gate = stop and fix before continuing.**
 
-### 2.2 Mandatory tasks — Round 17 (execute in order)
+### 2.2 Mandatory tasks — Round 18 (execute in order)
 
-#### VAR-C3a — Replace inline catalog with `MaterialPicker` (finish VAR-C3)
+#### VAR-C6 — Persist procurement links on variation lines (backend + mobile)
 
-In `VariationsTab.tsx`, for **new scope** lines (`isNewScope`):
+**Goal:** RA-selected and material-selected new-scope lines must survive
+create → approve so Shortfalls can RA-explode composite BOQ rows.
 
-1. Import and use `MaterialPicker` from `@/components/materials/MaterialPicker`
-   (copy pattern from `EstimateBuildStep.tsx:133-139`).
-2. Remove the ad-hoc horizontal chip scroll (`:479-494`) and `adhocExpanded` state
-   unless still needed for a compact fallback.
-3. On material select: auto-fill `description`, `unit`, and clear `rateAnalysisId`
-   (mutual exclusion like estimate).
+1. **Schema migration** — add to `ChangeOrderLine`:
+   - `rateAnalysisId String? @map("rate_analysis_id") @db.Uuid`
+   - FK to `RateAnalysis` (onDelete SetNull)
+   - Optionally add `resourceId` / `rateAnalysisId` directly on `BOQItem` for
+     variation-created rows **or** create a minimal `EstimateItem`-less link pattern
+     documented in commit (prefer direct columns on `BOQItem` if `boq.service.ts`
+     enrichment already expects them via `estimateItem` join).
 
-#### VAR-C3b — Add `RateAnalysisPicker` for new scope (finish VAR-C3)
+2. **Shared validator** — extend `changeOrderLineSchema` in
+   `packages/shared/src/validators/change-order.ts`:
+   ```ts
+   rateAnalysisId: z.string().uuid().optional(),
+   ```
+   Mutual exclusion: reject lines with both `resourceId` and `rateAnalysisId`.
 
-1. Import `RateAnalysisPicker` from `@/components/estimation/RateAnalysisPicker`.
-2. Show below line type chips for new-scope lines (all types, or hide for MISC if estimate does).
-3. On RA select: set `rateAnalysisId`, pre-fill `rate` from RA total rate, clear `resourceId`.
-4. Add **Clear link** when either picker is set (mirror `EstimateBuildStep.tsx:120-128`).
+3. **Backend create** — `createChangeOrder` persists `rateAnalysisId` on line rows.
 
-**Backend wiring (minimal — do in same PR if picker is useless without it):**
+4. **Backend approve** — when creating new `BOQItem` for unlinked lines
+   (`change-order.service.ts:243-254`), copy `resourceId` and/or `rateAnalysisId`
+   from the change-order line so `fetchBoqMaterialDemands` can explode materials.
 
-- If `changeOrderLineSchema` lacks `rateAnalysisId`, add optional field + persist on
-  `ChangeOrderLine` (migration) **or** resolve RA → `resourceId` client-side only for
-  MATERIAL composites (document choice in commit).
-- On approve, when creating new `BOQItem` (`change-order.service.ts:243-254`), set
-  `resourceId` / `rateAnalysisId` from the line if present (VAR-C6).
+5. **Mobile** — `onCreate` in `VariationsTab.tsx:321` includes `rateAnalysisId`:
+   ```ts
+   rateAnalysisId: l.rateAnalysisId || undefined,
+   ```
 
-#### VAR-C5 — Fix procurement test flake (ship gate)
+6. **Regression test** — integration test: create variation with RA-linked new-scope
+   line → approve → assert new BOQ row has `rateAnalysisId` (or resolves in list API).
 
-`procurement.test.ts:295-311` — test uses fixed `reportDate: '2025-04-25'`. Second run
-or parallel suite leaves an existing report → **409 Conflict**.
-
-**Fix (pick one, prefer isolation):**
-
-1. Use a **unique date per test** (`todayDateOnly()` + offset, or `uuid` suffix day), **or**
-2. Delete any existing report for that date in `beforeEach`, **or**
-3. Accept `409` only when asserting idempotency — but then skip stock assertions.
-
-Target: `pnpm --filter @buildflow/backend test` → **113/113** on **two consecutive runs**.
-
-Also run `npx tsc --noEmit` for backend + mobile (both must pass).
+**Ship gate:** `tsc` ×2 + backend tests **113/113** ×2 (must stay green).
 
 ### 2.3 Optional (defer unless time)
 
 | ID | Task |
 | -- | ---- |
-| **VAR-C6** | Backend: persist `rateAnalysisId` on variation-created BOQ rows (schema if needed) |
+| **R18-O1** | Remove dead `adhocExpandid` state from `VariationsTab.tsx` |
 | **VAR-C7** | Unit test for `explodeCompositeBoq` (extract to testable helper) |
 | **VAR-C8** | Draft edit for rejected variations (`updateChangeOrderLine` — backend exists) |
 | **R15-O1–O6** | Rate on BOQ approve, project scope chip, deep-link shortfalls, etc. |
@@ -264,20 +259,23 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 | Ship stub sync route | Keep `/api/sync` unmounted |
 | Re-breaking completed fixes | See §2.0c |
 
-### 2.7 Definition of Done (Round 17)
+### 2.7 Definition of Done (Round 18)
 
-**Rounds 12–14 + Round 16 partial (done — do not regress):**
+**Rounds 12–17 (done — do not regress):**
 
 - [x] Variation approve → BOQ/budget; shortfalls; impact UI; Via CO chips; revised scope
-- [x] VAR-C1 — Explode does not duplicate lines on repeat click (`f055465`)
-- [x] VAR-C2 — Remove line on variation draft (min 1 line) (`f055465`)
-- [x] VAR-C4 — Adjust vs new scope helper copy in modal + FlowHint (`f055465`)
+- [x] VAR-C1 — Explode does not duplicate lines (`f055465`)
+- [x] VAR-C2 — Remove line on variation draft (`f055465`)
+- [x] VAR-C3a — `MaterialPicker` on new-scope MATERIAL (`dbac1aa`)
+- [x] VAR-C3b — `RateAnalysisPicker` UI + clear-link + rate pre-fill (`dbac1aa`)
+- [x] VAR-C4 — Adjust vs new scope helper copy + FlowHint (`f055465`)
+- [x] VAR-C5 — `tsc` ×2 + backend tests **113/113** ×2 (`dbac1aa`)
 
-**Round 17 (must complete):**
+**Round 18 (must complete):**
 
-- [ ] VAR-C3a — `MaterialPicker` on new-scope MATERIAL lines (replace inline chips)
-- [ ] VAR-C3b — `RateAnalysisPicker` + clear-link + rate pre-fill on new scope
-- [ ] VAR-C5 — `tsc` ×2 + backend tests **113/113** ×2 (fix procurement 409 flake)
+- [ ] VAR-C6 — Persist `rateAnalysisId` / `resourceId` through create → approve → BOQ
+- [ ] Integration test for RA-linked variation → BOQ shortfall path
+- [ ] Ship gate stays **113/113** ×2
 
 ### 2.8 Optional hardening (defer unless user asks)
 
@@ -297,8 +295,8 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 <details>
 <summary>Rounds 4–15 (superseded by §2 above)</summary>
 
-Rounds 8–14: variation sync complete (`804f0a6`–`e686c21`). Round 16: VAR-C1/C2/C4
-(`f055465`). Round 17: finish VAR-C3 pickers + VAR-C5 ship gate.
+Rounds 8–14: variation sync complete (`804f0a6`–`e686c21`). Rounds 16–17: line editor
++ ship gate (`f055465`, `dbac1aa`). Round 18: VAR-C6 backend RA persistence.
 
 </details>
 

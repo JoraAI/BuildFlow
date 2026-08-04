@@ -54,8 +54,10 @@ export async function listBoq(companyId: string, projectId: string) {
     const billableQty = Math.max(0, executedQty - billedCumulativeQty);
     return {
       ...rest,
-      resourceId: estimateItem?.resourceId ?? null,
-      rateAnalysisId: estimateItem?.rateAnalysisId ?? null,
+      // VAR-C6: Prefer estimateItem's RA, fall back to BOQItem's direct RA
+      // (set on variation-created rows with no estimateItem link).
+      resourceId: estimateItem?.resourceId ?? item.resourceId ?? null,
+      rateAnalysisId: estimateItem?.rateAnalysisId ?? item.rateAnalysisId ?? null,
       sanctionedQty,
       executedQty,
       procuredQty,

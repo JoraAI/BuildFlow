@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const changeOrderLineSchema = z.object({
   boqItemId: z.string().uuid().optional(),
   resourceId: z.string().uuid().optional(),
+  rateAnalysisId: z.string().uuid().optional(),
   description: z.string().min(1).max(500),
   unit: z.string().min(1).max(20),
   qtyDelta: z.coerce.number(),

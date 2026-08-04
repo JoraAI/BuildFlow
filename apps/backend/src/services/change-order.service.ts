@@ -53,6 +53,7 @@ type ChangeOrderRecord = {
     changeOrderId: string;
     boqItemId: string | null;
     resourceId: string | null;
+    rateAnalysisId: string | null;
     description: string;
     unit: string;
     qtyDelta: Decimal;
@@ -89,6 +90,7 @@ function serializeChangeOrder(co: ChangeOrderRecord) {
       changeOrderId: line.changeOrderId,
       boqItemId: line.boqItemId,
       resourceId: line.resourceId,
+      rateAnalysisId: line.rateAnalysisId,
       description: line.description,
       unit: line.unit,
       qtyDelta: dec(line.qtyDelta),
@@ -130,6 +132,7 @@ export async function createChangeOrder(
   const lines = input.lines.map((l) => ({
     boqItemId: l.boqItemId,
     resourceId: l.resourceId,
+    rateAnalysisId: l.rateAnalysisId,
     description: l.description,
     unit: l.unit,
     qtyDelta: l.qtyDelta,
@@ -240,6 +243,9 @@ export async function approveChangeOrder(
           });
         }
       } else if (Number(line.qtyDelta) > 0) {
+        // VAR-C6: Create new BOQ line with resourceId + rateAnalysisId from
+        // the variation line. This enables the shortfall scanner to
+        // RA-explode composite BOQ rows created by variations.
         await tx.bOQItem.create({
           data: {
             projectId: co.projectId,
@@ -250,6 +256,8 @@ export async function approveChangeOrder(
             rate: line.rate,
             amount: line.amount,
             category: 'VARIATION',
+            resourceId: line.resourceId,
+            rateAnalysisId: line.rateAnalysisId,
           },
         });
       }

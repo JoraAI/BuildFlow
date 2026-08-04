@@ -141,6 +141,48 @@ describe('Change orders (integration)', () => {
     expect(change.qtyBefore).toBe(qtyBefore);
   });
 
+  // VAR-C6: Variation with RA-linked new-scope line → approve → BOQ has RA link.
+  it('creates new-scope BOQ row with rateAnalysisId on approve', async () => {
+    // Find a rate analysis to link
+    const raRes = await authGet(token, '/api/rate-analysis');
+    expect(raRes.status).toBe(200);
+    const ras = raRes.body.data as Array<{ id: string; name: string; totalRate: string }>;
+    expect(ras.length).toBeGreaterThan(0);
+    const ra = ras[0];
+
+    const createRes = await authPost(token, `/api/projects/${projectId}/change-orders`, {
+      number: `VO-RA-${Date.now()}`,
+      title: 'RA-linked new scope',
+      reason: 'Integration test',
+      scheduleImpactDays: 0,
+      lines: [
+        {
+          description: 'New scope from RA',
+          unit: 'Nos',
+          qtyDelta: 3,
+          rate: Number(ra.totalRate),
+          rateAnalysisId: ra.id,
+        },
+      ],
+    });
+    expect(createRes.status).toBe(201);
+    const coId = createRes.body.data.id as string;
+
+    // Verify rateAnalysisId persisted on the line
+    expect(createRes.body.data.lines[0].rateAnalysisId).toBe(ra.id);
+
+    await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/submit`);
+    const approveRes = await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/approve`);
+    expect(approveRes.status).toBe(200);
+
+    // Verify BOQ row has rateAnalysisId set
+    const boqRes = await authGet(token, `/api/projects/${projectId}/boq`);
+    const newBoqRow = (boqRes.body.data.items as Array<{ itemCode: string; rateAnalysisId?: string; resourceId?: string }>)
+      .find((b) => b.itemCode === `VO-${createRes.body.data.number}`);
+    expect(newBoqRow).toBeTruthy();
+    expect(newBoqRow!.rateAnalysisId).toBe(ra.id);
+  });
+
   // VO-B4: Scope summary endpoint returns correct totals.
   it('scope-summary returns original estimate + approved variation totals', async () => {
     const res = await authGet(token, `/api/projects/${projectId}/scope-summary`);
