@@ -196,6 +196,19 @@ export async function createBill(companyId: string, _userId: string, input: Crea
     if (!po) throw ApiError.notFound('Purchase order not found in this project');
   }
 
+  // R9-B6: Resolve poNumberHint → purchaseOrderId for AI/bulk-created bills.
+  // When AI extracts a PO number reference, link the bill to that PO.
+  if (!input.purchaseOrderId && (input as CreateBillInput & { poNumberHint?: string }).poNumberHint) {
+    const hint = (input as CreateBillInput & { poNumberHint?: string }).poNumberHint!.trim();
+    const matchedPo = await prisma.purchaseOrder.findFirst({
+      where: { poNumber: hint, companyId, projectId: input.projectId },
+      select: { id: true },
+    });
+    if (matchedPo) {
+      input.purchaseOrderId = matchedPo.id;
+    }
+  }
+
   const bill = await prisma.bill.create({
     data: {
       projectId: input.projectId,

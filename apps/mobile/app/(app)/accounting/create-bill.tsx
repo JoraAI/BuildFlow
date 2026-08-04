@@ -25,8 +25,9 @@ import { useViewport } from '@/hooks/useViewport';
 import { dismissTo, DISMISS } from '@/utils/navigation';
 import { alertAsync } from '@/utils/confirm';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
-import { useCreateBill } from '@/services/accounting.queries';
+import { useCreateBill, useExtractBill, type BillExtractDraft } from '@/services/accounting.queries';
 import { useProjects, type ProjectListItem } from '@/services/project.queries';
+import { usePermission } from '@/hooks/usePermission';
 import { formatINR } from '@/utils/format';
 
 const CATEGORIES = ['MATERIAL', 'LABOUR', 'EQUIPMENT', 'SUBCONTRACTOR', 'OTHER'] as const;
@@ -76,6 +77,55 @@ export default function CreateBillScreen() {
   // PROC-B1: Dynamic title and save button based on PO context
   const screenTitle = prePurchaseOrderId ? 'Record vendor bill' : 'New Bill';
   const saveLabel = prePurchaseOrderId ? 'Save vendor bill' : 'Save bill';
+
+  // R9-B2: AI extract
+  const canCreateBill = usePermission('bill.create' as never);
+  const extractBill = useExtractBill(projectId || preselected || '');
+  const [extracting, setExtracting] = useState(false);
+
+  const onExtractWithAI = async () => {
+    setExtracting(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { getDocumentAsync } = require('expo-document-picker');
+      const result = await getDocumentAsync({ multiple: false, type: ['application/pdf', 'image/*'] });
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+      const res = await fetch(asset.uri);
+      const blob = await res.blob();
+      const reader = new FileReader();
+      const base64: string = await new Promise((resolve, reject) => {
+        reader.onloadend = () => {
+          const str = reader.result as string;
+          const comma = str.indexOf(',');
+          resolve(comma >= 0 ? str.slice(comma + 1) : str);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      const extractResult = await extractBill.mutateAsync({
+        fileContent: base64,
+        filename: asset.name || 'invoice.pdf',
+        contentType: asset.mimeType || 'application/pdf',
+      });
+      if (extractResult.draft) {
+        const d: BillExtractDraft = extractResult.draft;
+        if (d.vendorName) setVendorName(d.vendorName);
+        if (d.vendorGstin) setVendorGstin(d.vendorGstin);
+        if (d.billNumber) setBillNumber(d.billNumber);
+        if (d.billDate) setBillDate(d.billDate);
+        if (d.subtotal) setSubtotal(String(d.subtotal));
+        if (d.gstAmount) setGstAmount(String(d.gstAmount));
+        void alertAsync('AI Extract', extractResult.notes || 'Review all fields before saving.');
+      } else {
+        void alertAsync('AI not available', extractResult.notes || 'Configure AI in Settings → Integrations. Enter manually.');
+      }
+    } catch (e) {
+      void alertAsync('Error', (e as Error).message);
+    } finally {
+      setExtracting(false);
+    }
+  };
 
   // Live TDS + total preview
   const preview = useMemo(() => {
@@ -170,6 +220,25 @@ export default function CreateBillScreen() {
   const formFields = (
     <>
       {poContextCard}
+
+      {/* R9-B2: Upload + Extract with AI */}
+      {canCreateBill && (
+        <Card>
+          <View className="flex-row items-center justify-between">
+            <View className="flex-1 pr-2">
+              <Text className="text-sm font-bold text-text">Upload Invoice</Text>
+              <Text className="text-xs text-muted">Upload supplier invoice PDF/image. Use AI to auto-extract fields.</Text>
+            </View>
+            <Button
+              label="🤖 Extract with AI"
+              size="sm"
+              variant="secondary"
+              loading={extracting}
+              onPress={() => void onExtractWithAI()}
+            />
+          </View>
+        </Card>
+      )}
 
       <Card>
         <Text className="text-sm font-bold text-text mb-2">Project</Text>
