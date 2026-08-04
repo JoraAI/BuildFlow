@@ -183,6 +183,55 @@ describe('Change orders (integration)', () => {
     expect(newBoqRow!.rateAnalysisId).toBe(ra.id);
   });
 
+  // VAR-C6b: RA-linked variation → approve → shortfalls show exploded materials.
+  it('shortfalls RA-explode variation BOQ rows with direct rateAnalysisId', async () => {
+    // Find a rate analysis with MATERIAL components
+    const raRes = await authGet(token, '/api/rate-analysis');
+    expect(raRes.status).toBe(200);
+    const ras = raRes.body.data as Array<{ id: string; name: string; totalRate: string }>;
+    // Find one with components
+    let raWithComponents: { id: string; totalRate: string } | null = null;
+    for (const ra of ras) {
+      const detailRes = await authGet(token, `/api/rate-analysis/${ra.id}`);
+      const components = detailRes.body.data?.components as Array<{ type: string; resourceId?: string }>;
+      if (components?.some((c) => c.type === 'MATERIAL' && c.resourceId)) {
+        raWithComponents = ra;
+        break;
+      }
+    }
+    if (!raWithComponents) return; // Skip if no RA with MATERIAL components in seed
+
+    const createRes = await authPost(token, `/api/projects/${projectId}/change-orders`, {
+      number: `VO-SF-${Date.now()}`,
+      title: 'Shortfall RA test',
+      reason: 'Integration test',
+      scheduleImpactDays: 0,
+      lines: [
+        {
+          description: 'New scope with RA',
+          unit: 'Nos',
+          qtyDelta: 5,
+          rate: Number(raWithComponents.totalRate),
+          rateAnalysisId: raWithComponents.id,
+        },
+      ],
+    });
+    expect(createRes.status).toBe(201);
+    const coId = createRes.body.data.id as string;
+
+    await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/submit`);
+    await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/approve`);
+
+    // Shortfalls should include demands from the RA-exploded BOQ row
+    const sfRes = await authGet(token, `/api/projects/${projectId}/procurement/boq-shortfalls`);
+    expect(sfRes.status).toBe(200);
+    const shortfalls = sfRes.body.data as Array<{ itemCode: string }>;
+    // The VO row should appear in shortfall demands (may or may not have a
+    // shortfall depending on stock, but the demand should be computed)
+    const voShortfalls = shortfalls.filter((s) => s.itemCode.startsWith('VO-'));
+    expect(voShortfalls.length).toBeGreaterThan(0);
+  });
+
   // VO-B4: Scope summary endpoint returns correct totals.
   it('scope-summary returns original estimate + approved variation totals', async () => {
     const res = await authGet(token, `/api/projects/${projectId}/scope-summary`);

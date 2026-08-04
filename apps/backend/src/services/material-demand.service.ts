@@ -436,20 +436,71 @@ export async function fetchBoqMaterialDemands(
 
     const est = item.estimateItem;
 
-    // FIX (VO-B3): For VARIATION rows without an estimateItem link (new-scope
-    // lines created on approve), the resource may still be resolvable via the
-    // ChangeOrderLine join. Fall back to a direct catalog resource lookup
-    // using the BOQ description if no estimate link or rateAnalysis exists.
+    // FIX (VO-B3 + VAR-C6b): For VARIATION rows without an estimateItem link,
+    // try to RA-explode using the direct BOQItem.rateAnalysisId (set in VAR-C6
+    // when a variation line has an RA pick). Fall back to ChangeOrderLine
+    // resourceId lookup, then safety-net description match.
     if (!est && item.category === 'VARIATION') {
-      // Try to find a ChangeOrderLine that created this BOQ row with a resourceId.
+      // VAR-C6b: First try direct BOQItem fields (resourceId / rateAnalysisId)
+      const demands = await materialDemandsForEstimateItem(
+        {
+          type: 'MATERIAL',
+          resourceId: item.resourceId ?? null,
+          rateAnalysisId: item.rateAnalysisId ?? null,
+          quantity: remaining,
+          unit: item.unit,
+          description: item.description,
+        },
+        item.id,
+        companyId,
+      );
+      if (demands.length > 0) {
+        for (const d of demands) {
+          if (d.quantity <= 0) continue;
+          lines.push({
+            ...d,
+            itemCode: item.itemCode,
+            description: item.description,
+          });
+        }
+        continue;
+      }
+
+      // Fall back to ChangeOrderLine resourceId (pre-VAR-C6 path)
       const coLine = await prisma.changeOrderLine.findFirst({
         where: {
           description: item.description,
           changeOrder: { projectId, status: 'APPROVED' },
           resourceId: { not: null },
         },
-        select: { resourceId: true },
+        select: { resourceId: true, rateAnalysisId: true },
       });
+      // Try RA explosion from ChangeOrderLine if direct BOQItem had no RA
+      if (coLine?.rateAnalysisId && !item.rateAnalysisId) {
+        const coDemands = await materialDemandsForEstimateItem(
+          {
+            type: 'MATERIAL',
+            resourceId: coLine.resourceId ?? null,
+            rateAnalysisId: coLine.rateAnalysisId,
+            quantity: remaining,
+            unit: item.unit,
+            description: item.description,
+          },
+          item.id,
+          companyId,
+        );
+        if (coDemands.length > 0) {
+          for (const d of coDemands) {
+            if (d.quantity <= 0) continue;
+            lines.push({
+              ...d,
+              itemCode: item.itemCode,
+              description: item.description,
+            });
+          }
+          continue;
+        }
+      }
       if (coLine?.resourceId) {
         lines.push({
           resourceId: coLine.resourceId,

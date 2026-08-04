@@ -307,9 +307,9 @@ export function VariationsTab({ projectId }: { projectId: string }) {
   const [linkedTaskId, setLinkedTaskId] = useState('');
   const [linkedWorkOrderId, setLinkedWorkOrderId] = useState('');
   const [lines, setLines] = useState<DraftLine[]>([emptyLine()]);
-  const [adhocExpandid, setAdhocExpanded] = useState<Record<string, boolean>>({});
+  // R19-O1: Removed dead adhocExpandid state (inline catalog replaced by MaterialPicker in R17)
   const draftTotal = useMemo(() => lines.reduce((sum, l) => sum + lineAmount(l.qtyDelta, l.rate), 0), [lines]);
-  const resetForm = () => { setNumber(''); setTitle(''); setReason(''); setScheduleDays('0'); setLinkedTaskId(''); setLinkedWorkOrderId(''); setLines([emptyLine()]); setAdhocExpanded({}); };
+  const resetForm = () => { setNumber(''); setTitle(''); setReason(''); setScheduleDays('0'); setLinkedTaskId(''); setLinkedWorkOrderId(''); setLines([emptyLine()]); };
 
   const onCreate = () => {
     if (!number.trim() || !title.trim()) { void alertAsync('Required', 'Variation number and title are required.'); return; }
