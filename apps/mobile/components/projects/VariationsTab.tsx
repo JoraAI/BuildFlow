@@ -47,9 +47,12 @@ import { useTasks, type TaskRow } from '@/services/project.queries';
 import {
   useResources,
   useRateAnalysis,
+  useRateAnalyses,
   type Resource,
   type RateAnalysis,
 } from '@/services/estimate.queries';
+import { MaterialPicker } from '@/components/materials/MaterialPicker';
+import { RateAnalysisPicker } from '@/components/estimation/RateAnalysisPicker';
 
 const STATUS_COLOR: Record<string, 'neutral' | 'warning' | 'success' | 'danger'> = {
   DRAFT: 'neutral',
@@ -476,23 +479,62 @@ export function VariationsTab({ projectId }: { projectId: string }) {
                   void alertAsync('Exploded', `${explodedLines.length} material lines created.`);
                 }} />
               ) : null}
-              {/* VAR-C3: Catalog material picker for new scope MATERIAL lines */}
-              {isNewScope && line.type === 'MATERIAL' ? (
-                adhocExpandid[line.id] ? (
-                  <View className="gap-1">
+              {/* VAR-C3a: MaterialPicker for new scope MATERIAL lines */}
+              {isNewScope && line.type === 'MATERIAL' && (
+                <View className="gap-1">
+                  <View className="flex-row justify-between items-center">
                     <Text className="text-xs text-muted">Catalog material</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-1">
-                      <Pressable onPress={() => setLines((prev) => prev.map((l) => (l.id === line.id ? { ...l, resourceId: undefined } : l)))} className={`px-2 py-1 rounded border ${!line.resourceId ? 'bg-accent border-accent' : 'border-border'}`}><Text className={`text-[10px] ${!line.resourceId ? 'text-white' : 'text-muted'}`}>None</Text></Pressable>
-                      {materialResources.map((r) => (<Pressable key={r.id} onPress={() => setLines((prev) => prev.map((l) => (l.id === line.id ? { ...l, resourceId: r.id, description: l.description || r.name, unit: r.unit || 'Nos' } : l)))} className={`px-2 py-1 rounded border max-w-[160px] ${line.resourceId === r.id ? 'bg-accent border-accent' : 'border-border'}`}><Text className={`text-[10px] ${line.resourceId === r.id ? 'text-white' : 'text-muted'}`} numberOfLines={1}>{r.name}</Text></Pressable>))}
-                    </ScrollView>
-                    <Pressable onPress={() => setAdhocExpanded((p) => ({ ...p, [line.id]: false }))}><Text className="text-[10px] text-muted">Hide catalog</Text></Pressable>
+                    {line.resourceId && (
+                      <Pressable onPress={() => setLines((prev) => prev.map((l) => (l.id === line.id ? { ...l, resourceId: undefined, rateAnalysisId: undefined } : l)))}>
+                        <Text className="text-[10px] text-danger">✕ Clear link</Text>
+                      </Pressable>
+                    )}
                   </View>
-                ) : (
-                  <Pressable onPress={() => setAdhocExpanded((p) => ({ ...p, [line.id]: true }))}>
-                    <Text className="text-[10px] text-accent">{line.resourceId ? `✓ ${materialResources.find((r) => r.id === line.resourceId)?.name ?? 'Material'}` : '+ Link catalog material'}</Text>
-                  </Pressable>
-                )
-              ) : null}
+                  <MaterialPicker
+                    selectedId={line.resourceId}
+                    onSelect={(r: Resource) =>
+                      setLines((prev) => prev.map((l) =>
+                        l.id === line.id ? {
+                          ...l,
+                          resourceId: r.id,
+                          description: l.description || r.name,
+                          unit: r.unit || 'Nos',
+                          rateAnalysisId: undefined,
+                        } : l,
+                      ))
+                    }
+                    maxHeight={180}
+                  />
+                </View>
+              )}
+              {/* VAR-C3b: RateAnalysisPicker for new scope (all types except MISC) */}
+              {isNewScope && line.type !== 'MISC' && (
+                <View className="gap-1">
+                  <View className="flex-row justify-between items-center">
+                    <Text className="text-xs text-muted">Rate analysis (optional)</Text>
+                    {line.rateAnalysisId && (
+                      <Pressable onPress={() => setLines((prev) => prev.map((l) => (l.id === line.id ? { ...l, rateAnalysisId: undefined } : l)))}>
+                        <Text className="text-[10px] text-danger">✕ Clear RA</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                  <RateAnalysisPicker
+                    selectedId={line.rateAnalysisId}
+                    onSelect={(ra: RateAnalysis) =>
+                      setLines((prev) => prev.map((l) =>
+                        l.id === line.id ? {
+                          ...l,
+                          rateAnalysisId: ra.id,
+                          description: l.description || ra.name,
+                          rate: String(parseFloat(String(ra.totalRate ?? ra.totalRate ?? '0')) || 0),
+                          resourceId: undefined,
+                        } : l,
+                      ))
+                    }
+                    maxHeight={180}
+                  />
+                </View>
+              )}
               {/* VAR-C3: New scope helper */}
               {isNewScope && (
                 <Text className="text-[10px] text-muted italic">New scope — creates a BOQ line on approve unless linked to existing BOQ.</Text>

@@ -301,8 +301,14 @@ describe('Procurement (integration)', () => {
     );
     const issuedBefore = beforeRow?.issued ?? 0;
     const issueQty = 3;
+    // VAR-C5: Use a unique date per test run to avoid 409 conflict on
+    // consecutive runs (the unique constraint on [projectId, reportDate]
+    // rejects a second report for the same date).
+    const uniqueDate = new Date(Date.now() - Math.floor(Math.random() * 365) * 86400000)
+      .toISOString()
+      .slice(0, 10);
     const reportRes = await authPost(token, `/api/projects/${projectId}/reports`, {
-      reportDate: '2025-04-25',
+      reportDate: uniqueDate,
       workDone: 'Used cement on site',
       deductStock: true,
       materialUsages: [{ resourceId: cementId, quantityUsed: issueQty }],
