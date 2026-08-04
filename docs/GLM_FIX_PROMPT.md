@@ -1,14 +1,14 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 6)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 11 — verify Round 10 + ship gates)
 
 > **You do not need any prior conversation or other documents.** This file is the
 > complete task brief. Read it top to bottom, then execute **Section 2** in order.
 > [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
 >
 > **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
-> **Last committed baseline:** `0690200` (Round 5 — 3 commits ahead of `66a40eb`)  
-> **Your starting point:** working tree mostly clean; **one uncommitted test fix**
-> (resource-bulk IST date). Round 5 commits landed; verify gates and finish
-> optional hardening per §2.2.
+> **Last committed baseline:** `589129d` (`main` ahead of `origin/main` by 8 commits)  
+> **Verified:** 2026-08-04 — Round 10 **complete in working tree** (uncommitted).
+> Round 11: **commit Round 10**, fix **1 flaky test**, optional polish only (§2.3).
+> Run §2.1 gates before/after. Do not redo §2.0a.
 
 ---
 
@@ -66,37 +66,42 @@ BuildFlow spans the full project lifecycle:
 
 ---
 
-## 2. Round 6 — Standalone Work Order (execute in this order)
+## 2. Round 11 — Verify Round 10 + Fix Ship Gate (verified 2026-08-04)
 
-Round 5 committed the Phase 5 tree in three commits (`91c6b4f` migrations,
-`1de2c8a` Phase 5 modules, `0690200` Round 4 fixes + docs). **Your job now:**
-commit the remaining test fix, verify ship gates, push if asked, and optionally
-close §2.2 gaps — without re-breaking §2.0a.
+Round 10 mobile wiring is **done in the working tree** (not yet committed). **Do not
+re-implement R10-B1–B5.** Round 11 commits that work and fixes the one failing test.
 
-### 2.0 Current state (verified 2026-08-02 after Round 5)
+### 2.0 Round 10 verification status
 
-| Check | Status |
-| ----- | ------ |
-| Git | **3 commits** on `main` ahead of `origin/main`; working tree has **1 modified file** (see below) |
-| `tsc` backend + mobile | **PASS** |
-| `pnpm --filter @buildflow/backend test` ×2 | **20/20 suites, 98 pass, 0 skip** (after IST date fix) |
-| `pnpm install --frozen-lockfile` | **PASS** |
-| Stray `prisma/m` | **GONE** |
-| `/api/sync` | **UNMOUNTED** ✓ |
+| ID | Task | Status | Evidence |
+| -- | ---- | ------ | -------- |
+| **R10-B1** | Import + New Bill from Accounting hub | **Done** | `accounting/index.tsx:57-86`, `:163-186` |
+| **R10-B2** | Mobile permission gates | **Done** | `bill/[id].tsx:55-56`; `InvoiceBillLists.tsx:179`; `create-bill.tsx:121-146` |
+| **R10-B3** | GRN suggested subtotal | **Done** | `create-bill.tsx:85-110`, `:272-294` — client-side from requisitions |
+| **R10-B4** | Attachment link + AI save metadata | **Done** | `bill/[id].tsx:354-375`; `create-bill.tsx:235-236`; `import-bills.tsx:130-132`; `createBillSchema` |
+| **R10-B5** | import-bills header/back nav | **Done** | `import-bills.tsx:78`, `:147` — `FormScreenHeader` |
+| **Ship gates** | tsc backend + mobile | **PASS** | Verified 2026-08-04 |
+| **Ship gates** | backend tests | **110/111** | `procurement.test.ts` flake — see §2.2 |
 
-**Round 5 — what GLM delivered (verified):**
-- ✓ Migrations + schema (`91c6b4f`)
-- ✓ Phase 5 backend modules + `phase5.test.ts` + `status-transition.ts` (`1de2c8a`)
-- ✓ Money/workflow/mobile/security fixes + docs (`0690200`)
-- ✓ Portal routes before estimate catch-all; estimate `asyncHandler`; sync unmounted
+### 2.0a Completed in Rounds 8–10 — do NOT re-break
 
-**Round 5 — gap found on verify:**
-- `resource-bulk.test.ts` used UTC `toISOString().slice(0,10)` for `effectiveDate`
-  but validators use `todayDateOnly()` (**Asia/Kolkata**) → 422 in bulk-price tests.
-  **Fix:** use `todayDateOnly()` from `@buildflow/shared` (already applied locally,
-  **needs commit**).
+| Commit / state | What landed |
+| -------------- | ----------- |
+| `b04b144`–`589129d` | Rounds 8–9: vendor bills, extract API, variations, AI extract button |
+| **Working tree** | Round 10: hub import link, permissions, GRN hint, attachment UI, schema `poNumberHint` |
 
-### 2.0a Completed in Rounds 3–5 — do NOT re-break
+Preserved from Rounds 3–7 — see §2.0c legacy table below.
+
+### 2.0b Remaining gaps (Round 11)
+
+1. **Uncommitted Round 10** — commit the 8 modified files (see §2.2 R11-B0).
+2. **Flaky procurement test** — `procurement.test.ts` daily-report test gets **409**
+   (stock/PO conflict) but only allows `[201, 422]`. Ship gate must be **111/111**.
+3. **Optional:** `attachmentUrl` not persisted when user extracts from PDF on
+   `create-bill.tsx` (extract reads file but save does not upload/store URL).
+4. **Optional:** VAR-B6 variation scoping test; R9-B7 assistant deep-link to import.
+
+### 2.0c Completed in Rounds 3–7 — do NOT re-break
 
 | Area | Fix (file / pattern) |
 | ---- | -------------------- |
@@ -108,10 +113,11 @@ close §2.2 gaps — without re-breaking §2.0a.
 | **R2-6** | `procurement.service.ts` — PO lines by `boqItemId` |
 | **NR-34** | `lib/status-transition.ts` + guarded RFI/submittal/punch/petty-cash |
 | **NR-41/53/54/40/35/49** | Mobile UI + offline URLs + CSV injection |
+| **NR-55** | `resource-bulk.test.ts` — `todayDateOnly()` not UTC ISO for bulk-price dates |
 | **Portal routing** | `app.ts` — `/api/portal/*` before auth catch-all |
 | **Phase 5** | punch-list, petty-cash, drawings, RFI/submittal, portal-enhanced, etc. |
 | **Tests** | `phase5.test.ts`, estimate-links unskipped, 98 tests total |
-| **Tenant / security (R5)** | prisma write scoping, webhook HMAC, compression/auth, MCP scoping |
+| **Tenant / security** | prisma write scoping, webhook HMAC, compression/auth, MCP scoping |
 
 ### 2.1 Ship gates — run before AND after every change
 
@@ -130,58 +136,121 @@ DATABASE_URL="postgresql://buildflow:buildflow@localhost:5432/buildflow_test?sch
 
 **Regression on any gate = stop and fix before continuing.**
 
-### 2.2 Priority 1 — Commit test fix + verify (required)
+### 2.2 Mandatory tasks — Round 11
 
-1. Commit `apps/backend/src/__tests__/integration/resource-bulk.test.ts` — use
-   `todayDateOnly()` not UTC ISO for bulk-price `effectiveDate`.
-2. Re-run ship gates (§2.1).
-3. **Test date rule:** any test sending `effectiveDate` / date-only fields validated
-   against `todayDateOnly()` must use `todayDateOnly()` from `@buildflow/shared`,
-   not `new Date().toISOString().slice(0, 10)`.
+**Skip (already done in working tree):** R10-B1–B5. Verify §2.0 table; do not redo.
 
-### 2.3 Priority 2 — Optional (only if gates stay green)
+#### R11-B0 — Commit Round 10 (do first)
+
+Stage and commit the Round 10 files (user may ask you to commit — follow git rules):
+
+- `apps/mobile/app/(app)/accounting/index.tsx`
+- `apps/mobile/app/(app)/accounting/create-bill.tsx`
+- `apps/mobile/app/(app)/accounting/import-bills.tsx`
+- `apps/mobile/app/(app)/accounting/bill/[id].tsx`
+- `apps/mobile/components/accounting/InvoiceBillLists.tsx`
+- `apps/mobile/services/accounting.queries.ts`
+- `apps/mobile/services/expansion.queries.ts`
+- `packages/shared/src/validators/accounting.ts`
+
+Suggested message: *Wire vendor bill permissions, bulk import hub, GRN hint, and AI save metadata.*
+
+#### R11-B1 — Fix procurement integration test flake (ship gate blocker)
+
+`procurement.test.ts` › *stock summary issued increases after daily report with deductStock*
+returns **409** when stock/PO state conflicts with prior tests. Fix one of:
+
+- Extend allowed statuses: `expect([201, 422, 409]).toContain(reportRes.status)` with
+  early return when 409; **or**
+- Use unique `reportDate` / isolated project fixture so deductStock cannot conflict; **or**
+- Reset stock state in `beforeEach` for that describe block.
+
+**Target:** `pnpm --filter @buildflow/backend test` → **23/23 suites, 111/111 pass** ×2.
+
+### 2.3 Optional polish (defer unless user asks)
 
 | ID | Task |
 | -- | ---- |
-| **Phase 5 gaps** | Integration smoke tests for inventory-traceability, accounting-export, labour, i18n (copy `phase5.test.ts`) |
-| **NR-36** | Drawing acknowledgement endpoint — or document deferred |
-| **Sync §8.1** | Leave **unmounted** until `updatedAt` + mobile replay client |
-| **DAT-3.8** | Remove `--forceExit` from jest script when stable |
-| **SEC-L17/21/22** | Low-priority security polish |
-| **Push** | `git push origin main` only when user asks |
+| **R11-O1** | Persist `attachmentUrl` on AI extract save (upload PDF to storage, pass URL on create) |
+| **R11-O2** | VAR-B6 — unit test for variation BOQ material scoping / `explodeCompositeBoq` |
+| **R11-O3** | Assistant deep-link to `/accounting/import-bills` when user asks to bulk import |
+| **R11-O4** | Open `bfstore://` attachments in-app instead of alert-only stub |
 
-### 2.4 Codebase patterns (keep following)
+### 2.4 Wording guide (use consistently)
 
-Same as Round 5: validate middleware, public routes before auth catch-all,
-migrations in folders, `nextSequentialNumberTx`, `status-transition.ts`, viewport
-tiers, `lineAmount`/`sumAmounts`/`netTotal` for money.
+| Context | Avoid | Use |
+| ------- | ----- | --- |
+| Material after GRN | Create Bill | **Record vendor bill** / **Register supplier invoice** |
+| Generic accounting entry | — | New bill / Record vendor bill |
+| Subcontract measurement approve | — | Keep internal "Generate payable" semantics in code; UI may say **"Approve & record payable"** if you touch it — do not conflate with tax invoice |
+| User-facing field | Bill Number (alone) | **Supplier invoice no.** (with helper: "As printed on vendor's tax invoice") |
+| GRN success toast | — | Keep "Site stock updated" — do not mention billing |
+| Variation material picker | Catalog material (full list) | **Materials for this BOQ** / **RA components** |
+| Variation with no BOQ | Show all materials | Hide until **"Add catalog material (no BOQ)"** expanded |
+| Bill upload / AI | — | **Upload invoice** / **Extract with AI** / **Import vendor bills** |
+| Users without `bill.create` | Show disabled actions that 403 | Hide via `PermissionGate`; assistant refuses |
 
-### 2.5 Anti-patterns — do not repeat
+### 2.5 Codebase patterns (keep following)
+
+Validate middleware; public routes before auth catch-all; migrations in folders;
+`nextSequentialNumberTx`; `status-transition.ts`; viewport tiers; paise money math;
+**tests use `todayDateOnly()`** for IST-validated date fields.
+
+### 2.6 Anti-patterns — do not repeat
 
 | Anti-pattern | Prevention |
 | ------------ | ---------- |
-| UTC dates in tests vs IST validators | Use `todayDateOnly()` in tests |
+| Auto-create vendor bill on GRN | GRN = stock only; bill = separate user action |
+| Label "Create Bill" for supplier tax invoice | Use §2.4 wording |
+| Full material catalog when BOQ is linked | Scope to BOQ `resourceId` or RA MATERIAL components (VAR-B) |
+| Role-based bill gates on **mobile** | Use `usePermission('bill.create')` (R9-B1); backend already fixed |
+| LLM auto-creates bills without review | Extract → review UI → user confirms → create |
+| Chatbot creates bills for unauthorized users | `buildPermissionAwarePrompt` + API `403` |
+| Duplicate RA explode logic ad hoc | Reuse / extract from `IndentDraftLineCard.tsx` |
+| `purchaseOrderId` in snapshot but not on row | Persist FK in `createBill` |
+| UTC dates in tests vs IST validators | Use `todayDateOnly()` in tests (NR-55) |
 | Stray files (`prisma/m`, extensionless routes) | Edit live files only |
 | Public route after auth router | Mount `/api/portal` before `/api` estimate router |
 | Ship stub sync route | Keep `/api/sync` unmounted |
+| Re-breaking completed fixes | See §2.0c |
 
-### 2.6 Round-6 Definition of Done
+### 2.7 Definition of Done (Round 11)
 
-- [x] Round 5 commits on `main` (migrations + Phase 5 + fixes)
-- [ ] `resource-bulk.test.ts` IST fix committed
-- [ ] Ship gates pass (§2.1) ×2 idempotent
-- [ ] Optional §2.3 items or documented deferrals
-- [ ] Sync remains **unmounted**
+**Rounds 8–10 (done — do not regress):**
+
+- [x] Vendor bill workflow, PO link, badges, extract API, variation materials
+- [x] R10-B1 — Import vendor bills reachable from Accounting hub
+- [x] R10-B2 — `usePermission` on bill create/approve/pay
+- [x] R10-B3 — GRN suggested subtotal on record-vendor-bill
+- [x] R10-B4 — Bill attachment link; `poNumberHint` + `notes` on AI save
+- [x] R10-B5 — import-bills header/back nav
+- [x] `tsc` backend + mobile PASS
+
+**Round 11 (must complete):**
+
+- [ ] R11-B0 — Round 10 changes committed
+- [ ] R11-B1 — All 111 backend tests pass ×2 idempotent
+
+### 2.8 Optional hardening (defer unless user asks)
+
+| ID | Task |
+| -- | ---- |
+| **Phase 5 gaps** | Smoke tests for inventory-traceability, accounting-export, labour, i18n |
+| **NR-36** | Drawing acknowledgement endpoint |
+| **Sync §8.1** | Remount `/api/sync` (needs `updatedAt` + mobile replay) |
+| **DAT-3.8** | Remove `--forceExit` from jest |
+| **SEC-L17/21/22** | Security polish |
+| **Push** | `git push origin main` — only when user asks |
 
 ---
 
-### APPENDIX — Round 5 work order (completed; reference only)
+### APPENDIX — Prior rounds (completed; reference only)
 
 <details>
-<summary>Round 5 items (superseded by §2 above)</summary>
+<summary>Rounds 4–10 (superseded by §2 above)</summary>
 
-Round 5 closed: commit working tree, Phase 5 modules, money/workflow fixes.
-Verify found bulk-price test timezone bug (NR-55).
+Round 8–10: vendor bills, AI extract, variation materials, mobile permission wiring
+(`b04b144`–`589129d` + uncommitted Round 10).
 
 </details>
 
@@ -1059,7 +1128,7 @@ NR-2) and the Phase 5 enhancements.
 
 ---
 
-# Round 3 duplicate section — superseded by Section 2 (Round 6)
+# Round 3 duplicate section — superseded by Section 2 (Round 7)
 
 > **Execute Section 2 only.** Round 3 gates are closed. The R3.0–R3.7 subsections
 > below are kept for reference; if they conflict with Section 2, **Section 2 wins**.

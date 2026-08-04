@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Card, Button, Input, DateField } from '@/components/ui';
+import { Card, Button, Input, DateField, EmptyState } from '@/components/ui';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { ActionBar } from '@/components/layout/ActionBar';
@@ -27,6 +27,7 @@ import { alertAsync } from '@/utils/confirm';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { useCreateBill, useExtractBill, type BillExtractDraft } from '@/services/accounting.queries';
 import { useProjects, type ProjectListItem } from '@/services/project.queries';
+import { useRequisitions } from '@/services/expansion.queries';
 import { usePermission } from '@/hooks/usePermission';
 import { formatINR } from '@/utils/format';
 
@@ -78,10 +79,71 @@ export default function CreateBillScreen() {
   const screenTitle = prePurchaseOrderId ? 'Record vendor bill' : 'New Bill';
   const saveLabel = prePurchaseOrderId ? 'Save vendor bill' : 'Save bill';
 
+  // R10-B2: Full permission guard — block screen, not just AI card.
+  const canCreateBill = usePermission('bill.create');
+
+  // R10-B3: GRN suggested subtotal from requisitions/PO payload.
+  const { data: requisitions } = useRequisitions(preselected || projectId || '');
+  const grnSuggestedSubtotal = useMemo(() => {
+    if (!prePurchaseOrderId || !requisitions) return null;
+    for (const req of requisitions) {
+      const po = req.purchaseOrders?.find((p) => p.id === prePurchaseOrderId);
+      if (!po) continue;
+      // Compute Σ(GRN received qty × PO line rate). PO lines carry rate in the
+      // requisition payload snapshot; GRN lines carry received qty per resource.
+      const rateByResource = new Map<string, number>();
+      for (const line of po.lines ?? []) {
+        const existing = rateByResource.get(line.resourceId) ?? 0;
+        rateByResource.set(line.resourceId, existing + (parseFloat(String(line.rate ?? 0)) || 0));
+      }
+      let sum = 0;
+      for (const grn of po.goodsReceipts ?? []) {
+        for (const gl of grn.lines) {
+          const rate = rateByResource.get(gl.resourceId) ?? 0;
+          const qty = parseFloat(String(gl.quantity ?? 0)) || 0;
+          sum += qty * rate;
+        }
+      }
+      return sum > 0 ? sum : null;
+    }
+    return null;
+  }, [prePurchaseOrderId, requisitions]);
+
+  // R10-B4: Track AI-extracted draft metadata to pass on save.
+  const [lastExtractPoHint, setLastExtractPoHint] = useState<string | null>(null);
+  const [lastWasExtract, setLastWasExtract] = useState(false);
+
   // R9-B2: AI extract
-  const canCreateBill = usePermission('bill.create' as never);
   const extractBill = useExtractBill(projectId || preselected || '');
   const [extracting, setExtracting] = useState(false);
+
+  // R10-B2: Block the whole screen without bill.create permission.
+  if (!canCreateBill) {
+    return (
+      <SafeAreaView className="flex-1 bg-surface" edges={isDesktop ? [] : ['bottom']}>
+        <OfflineBanner />
+        {isDesktop ? (
+          <ScreenContainer constrained>
+            <FormScreenHeader title="No access" onCancel={() => dismissTo(DISMISS.accounting)} />
+            <EmptyState
+              title="No permission"
+              description="You need bill.create permission to create vendor bills."
+            />
+          </ScreenContainer>
+        ) : (
+          <>
+            <FormScreenHeader title="No access" onCancel={() => dismissTo(DISMISS.accounting)} />
+            <View className="px-4 pt-4">
+              <EmptyState
+                title="No permission"
+                description="You need bill.create permission to create vendor bills."
+              />
+            </View>
+          </>
+        )}
+      </SafeAreaView>
+    );
+  }
 
   const onExtractWithAI = async () => {
     setExtracting(true);
@@ -116,6 +178,9 @@ export default function CreateBillScreen() {
         if (d.billDate) setBillDate(d.billDate);
         if (d.subtotal) setSubtotal(String(d.subtotal));
         if (d.gstAmount) setGstAmount(String(d.gstAmount));
+        // R10-B4: Track AI-extracted PO hint for save metadata.
+        setLastExtractPoHint(d.poNumberHint ?? null);
+        setLastWasExtract(true);
         void alertAsync('AI Extract', extractResult.notes || 'Review all fields before saving.');
       } else {
         void alertAsync('AI not available', extractResult.notes || 'Configure AI in Settings → Integrations. Enter manually.');
@@ -166,6 +231,9 @@ export default function CreateBillScreen() {
         category,
         // PROC-B3: Link bill to purchase order
         purchaseOrderId: prePurchaseOrderId || undefined,
+        // R10-B4: Pass AI metadata on save — notes flag + PO hint from extract draft.
+        notes: lastWasExtract ? 'source:AI_EXTRACT' : undefined,
+        poNumberHint: !prePurchaseOrderId && lastExtractPoHint ? lastExtractPoHint : undefined,
       },
       {
         onSuccess: async (bill) => {
@@ -187,6 +255,11 @@ export default function CreateBillScreen() {
   };
 
   // PROC-B4: PO context card shown when opened from procurement
+  // R10-B3: Add GRN suggested subtotal + one-tap fill + variance hint.
+  const grnVariancePct =
+    grnSuggestedSubtotal && preview.sub > 0
+      ? Math.abs((preview.sub - grnSuggestedSubtotal) / grnSuggestedSubtotal) * 100
+      : 0;
   const poContextCard = prePurchaseOrderId ? (
     <Card>
       <View className="flex-row justify-between items-center mb-1">
@@ -196,6 +269,29 @@ export default function CreateBillScreen() {
       <Text className="text-xs text-muted">
         Enter the amounts from the supplier's tax invoice. Vendor details are pre-filled from the PO.
       </Text>
+      {grnSuggestedSubtotal ? (
+        <View className="mt-3 pt-3 border-t border-border/60">
+          <View className="flex-row items-center justify-between mb-2">
+            <View className="flex-1 pr-2">
+              <Text className="text-xs font-semibold text-text">Suggested from GRN</Text>
+              <Text className="text-xs text-muted">
+                {formatINR(grnSuggestedSubtotal)} — received qty × PO line rates
+              </Text>
+            </View>
+            <Button
+              label="Fill subtotal"
+              size="sm"
+              variant="secondary"
+              onPress={() => setSubtotal(String(grnSuggestedSubtotal))}
+            />
+          </View>
+          {preview.sub > 0 && grnVariancePct > 1 && (
+            <Text className="text-xs text-warning">
+              Entered subtotal differs from GRN by {grnVariancePct.toFixed(1)}%. Verify before saving.
+            </Text>
+          )}
+        </View>
+      ) : null}
     </Card>
   ) : null;
 

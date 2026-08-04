@@ -118,6 +118,10 @@ export interface BillInput {
   // PROC-B3/B5: Link to PO and optional vendor invoice attachment
   purchaseOrderId?: string;
   attachmentUrl?: string;
+  // R10-B4: PO number hint from AI extract (service resolves to purchaseOrderId FK).
+  poNumberHint?: string;
+  // R10-B4: Optional notes; set to 'source:AI_EXTRACT' when last action was extract.
+  notes?: string;
 }
 
 // ---------------------------------------------------------------------------

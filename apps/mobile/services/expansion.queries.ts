@@ -120,6 +120,7 @@ export interface PurchaseOrderLine {
   resourceId: string;
   quantity: string;
   unit: string;
+  rate: string;
   resource: { id: string; name: string; unit: string };
 }
 

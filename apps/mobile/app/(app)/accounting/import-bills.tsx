@@ -6,12 +6,14 @@
  */
 import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ScreenContainer } from '@/components/layout/ScreenContainer';
+import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { Card, Badge, Button, Input, EmptyState } from '@/components/ui';
 import { usePermission } from '@/hooks/usePermission';
 import { useExtractBillBatch, useBulkCreateBills, type BillExtractDraft } from '@/services/accounting.queries';
 import { useProjects } from '@/services/project.queries';
+import { dismissTo, DISMISS } from '@/utils/navigation';
 import { alertAsync } from '@/utils/confirm';
 import { formatINR } from '@/utils/format';
 
@@ -60,7 +62,7 @@ interface ReviewRow {
 
 export default function ImportBillsScreen() {
   const router = useRouter();
-  const canCreate = usePermission('bill.create' as never);
+  const canCreate = usePermission('bill.create');
   const { data: projectsData } = useProjects();
   const projects = projectsData ?? [];
   const [projectId, setProjectId] = useState('');
@@ -72,9 +74,12 @@ export default function ImportBillsScreen() {
 
   if (!canCreate) {
     return (
-      <ScreenContainer>
-        <EmptyState title="No access" description="You need bill.create permission to import vendor bills." />
-      </ScreenContainer>
+      <SafeAreaView className="flex-1 bg-surface" edges={['bottom']}>
+        <FormScreenHeader title="Import vendor bills" onCancel={() => dismissTo(DISMISS.accounting)} />
+        <View className="px-4 pt-4">
+          <EmptyState title="No access" description="You need bill.create permission to import vendor bills." />
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -123,6 +128,8 @@ export default function ImportBillsScreen() {
       tdsAmount: 0,
       category: r.category as 'MATERIAL' | 'LABOUR' | 'EQUIPMENT' | 'SUBCONTRACTOR' | 'OTHER',
       notes: 'source:AI_EXTRACT',
+      // R10-B4: Pass AI-extracted PO hint per row (service resolves to FK).
+      poNumberHint: r.draft.poNumberHint,
       projectId,
     }));
     bulkCreate.mutate(bills, {
@@ -135,7 +142,10 @@ export default function ImportBillsScreen() {
   };
 
   return (
-    <ScreenContainer>
+    <SafeAreaView className="flex-1 bg-surface" edges={['bottom']}>
+      {/* R10-B5: Screen chrome with title + back navigation. */}
+      <FormScreenHeader title="Import vendor bills" onCancel={() => dismissTo(DISMISS.accounting)} />
+      <ScrollView contentContainerClassName="px-4 pb-8 pt-2 gap-3">
       {/* Project picker */}
       <Text className="text-sm font-semibold text-text mb-1">Project</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-2 mb-3">
@@ -248,6 +258,7 @@ export default function ImportBillsScreen() {
           fullWidth
         />
       )}
-    </ScreenContainer>
+      </ScrollView>
+    </SafeAreaView>
   );
 }

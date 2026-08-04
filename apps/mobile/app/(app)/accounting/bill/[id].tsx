@@ -12,9 +12,10 @@ import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { useViewport } from '@/hooks/useViewport';
-import { useAuthStore } from '@/stores/auth.store';
+import { usePermission } from '@/hooks/usePermission';
 import { navigateAppBack, parseReturnTo, DISMISS, projectTabHref } from '@/utils/navigation';
 import { alertAsync } from '@/utils/confirm';
+import { Linking } from 'react-native';
 import {
   useBill,
   useApproveBill,
@@ -50,9 +51,9 @@ const CATEGORY_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
 export default function BillDetailScreen() {
   const router = useRouter();
   const { isDesktop } = useViewport();
-  const user = useAuthStore((s) => s.user);
-  const canApprove = user?.role === 'OWNER' || user?.role === 'PM';
-  const canPay = user?.role === 'OWNER' || user?.role === 'PM' || user?.role === 'ACCOUNTANT';
+  // R10-B2: Replace role checks with granular permissions.
+  const canApprove = usePermission('bill.approve');
+  const canPay = usePermission('bill.record_payment');
 
   const { id, returnTo: returnToParam } = useLocalSearchParams<{ id: string; returnTo?: string }>();
   const returnTo = parseReturnTo(returnToParam);
@@ -345,6 +346,29 @@ function BillMetaCard({ bill, onOpenWorkOrder }: { bill: Bill; onOpenWorkOrder: 
             <View className="flex-row items-center gap-2">
               <Ionicons name="link-outline" size={18} color="#1E3A5F" />
               <Text className="text-sm font-medium text-primary">View linked work order</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#1E3A5F" />
+          </Pressable>
+        ) : null}
+        {/* R10-B4: Show "View supplier invoice" when attachment is present. */}
+        {bill.attachmentUrl ? (
+          <Pressable
+            onPress={() => {
+              const url = bill.attachmentUrl!;
+              // bfstore:// is the in-app storage scheme; otherwise open externally.
+              if (url.startsWith('bfstore://')) {
+                void alertAsync('Attachment', 'Open the supplier invoice from the file store.');
+              } else {
+                void Linking.openURL(url).catch(() =>
+                  void alertAsync('Error', 'Could not open attachment.'),
+                );
+              }
+            }}
+            className="flex-row items-center justify-between py-2 px-3 rounded-xl bg-primary/5 border border-primary/20 active:opacity-80"
+          >
+            <View className="flex-row items-center gap-2">
+              <Ionicons name="document-attach-outline" size={18} color="#1E3A5F" />
+              <Text className="text-sm font-medium text-primary">View supplier invoice</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color="#1E3A5F" />
           </Pressable>

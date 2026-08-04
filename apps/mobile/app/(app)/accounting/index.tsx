@@ -23,6 +23,7 @@ import { ResponsiveGrid } from '@/components/layout/ResponsiveGrid';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { useViewport } from '@/hooks/useViewport';
 import { useAuthStore } from '@/stores/auth.store';
+import { usePermission } from '@/hooks/usePermission';
 import { useCompanyDashboard, type CompanyDashboard } from '@/services/accounting.queries';
 import { useProjects, type ProjectListItem } from '@/services/project.queries';
 import { formatINR, formatINRCompact } from '@/utils/format';
@@ -34,6 +35,8 @@ export default function AccountingScreen() {
   const user = useAuthStore((s) => s.user);
   const { isDesktop } = useViewport();
   const isOwner = user?.role === 'OWNER';
+  // R10-B1: Gate bill creation with granular permission.
+  const canCreateBill = usePermission('bill.create');
   const [tab, setTab] = useState<Tab>('INVOICES');
   const [mobileProjectId, setMobileProjectId] = useState<string | null>(null);
   const { data: projects } = useProjects();
@@ -51,16 +54,35 @@ export default function AccountingScreen() {
     ...(isOwner ? [{ label: 'Dashboard', value: 'DASHBOARD' as Tab }] : []),
   ];
 
+  // R10-B1: Gate "New Bill" with bill.create; add "Import vendor bills" entry.
   const createAction =
-    tab === 'INVOICES' || tab === 'BILLS' ? (
+    tab === 'INVOICES' ? (
       <Button
-        label={tab === 'INVOICES' ? 'New Invoice' : 'New Bill'}
+        label="New Invoice"
         size="sm"
-        onPress={() =>
-          router.push(`/accounting/${tab === 'INVOICES' ? 'create-invoice' : 'create-bill'}`)
-        }
+        onPress={() => router.push('/accounting/create-invoice')}
         icon={<Ionicons name="add" size={18} color="#fff" />}
       />
+    ) : tab === 'BILLS' ? (
+      <View className="flex-row gap-2">
+        {canCreateBill && (
+          <Button
+            label="Import vendor bills"
+            size="sm"
+            variant="secondary"
+            onPress={() => router.push('/accounting/import-bills')}
+            icon={<Ionicons name="cloud-upload-outline" size={18} color="#1E3A5F" />}
+          />
+        )}
+        {canCreateBill && (
+          <Button
+            label="New Bill"
+            size="sm"
+            onPress={() => router.push('/accounting/create-bill')}
+            icon={<Ionicons name="add" size={18} color="#fff" />}
+          />
+        )}
+      </View>
     ) : null;
 
   const tabChips = (
@@ -122,20 +144,45 @@ export default function AccountingScreen() {
       <ScreenContainer scrollable>
         <View className="flex-row items-center justify-between pb-2">
           <MobileScreenHeader title="Accounting" subtitle="Invoices, bills, GST & TDS" />
-          {(tab === 'INVOICES' || tab === 'BILLS') && (
+          {/* R10-B1: Show actions only with permission; bills gate is bill.create. */}
+          {tab === 'INVOICES' && (
             <Pressable
-              onPress={() => {
-                const base =
-                  tab === 'INVOICES' ? '/accounting/create-invoice' : '/accounting/create-bill';
-                router.push(mobileProjectId ? `${base}?projectId=${mobileProjectId}` : base);
-              }}
+              onPress={() =>
+                router.push(
+                  mobileProjectId
+                    ? `/accounting/create-invoice?projectId=${mobileProjectId}`
+                    : '/accounting/create-invoice',
+                )
+              }
               className="flex-row items-center gap-1 px-3 py-2 rounded-lg bg-primary active:opacity-80"
             >
               <Ionicons name="add" size={16} color="#fff" />
-              <Text className="text-xs font-semibold text-white">
-                {tab === 'INVOICES' ? 'Invoice' : 'Bill'}
-              </Text>
+              <Text className="text-xs font-semibold text-white">Invoice</Text>
             </Pressable>
+          )}
+          {tab === 'BILLS' && canCreateBill && (
+            <View className="flex-row gap-2">
+              <Pressable
+                onPress={() => router.push('/accounting/import-bills')}
+                className="flex-row items-center gap-1 px-3 py-2 rounded-lg border border-border bg-card active:opacity-80"
+              >
+                <Ionicons name="cloud-upload-outline" size={16} color="#1E3A5F" />
+                <Text className="text-xs font-semibold text-primary">Import</Text>
+              </Pressable>
+              <Pressable
+                onPress={() =>
+                  router.push(
+                    mobileProjectId
+                      ? `/accounting/create-bill?projectId=${mobileProjectId}`
+                      : '/accounting/create-bill',
+                  )
+                }
+                className="flex-row items-center gap-1 px-3 py-2 rounded-lg bg-primary active:opacity-80"
+              >
+                <Ionicons name="add" size={16} color="#fff" />
+                <Text className="text-xs font-semibold text-white">Bill</Text>
+              </Pressable>
+            </View>
           )}
         </View>
         {tabChips}

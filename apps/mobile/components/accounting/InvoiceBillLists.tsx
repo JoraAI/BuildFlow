@@ -13,7 +13,7 @@ import { useRouter } from 'expo-router';
 import { Card, Badge, EmptyState, LoadingSkeleton, Button } from '@/components/ui';
 import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 import { useViewport } from '@/hooks/useViewport';
-import { useAuthStore } from '@/stores/auth.store';
+import { usePermission } from '@/hooks/usePermission';
 import {
   useInvoices,
   useBills,
@@ -175,8 +175,8 @@ export function ProjectBillsList({
   returnTo?: string;
 }) {
   const router = useRouter();
-  const user = useAuthStore((s) => s.user);
-  const canApprove = user?.role === 'OWNER' || user?.role === 'PM';
+  // R10-B2: Replace role check with granular permission.
+  const canApprove = usePermission('bill.approve');
   const { isDesktop } = useViewport();
   const { data: bills, isLoading, isFetching, refetch } = useBills(projectId);
   const approve = useApproveBill();
