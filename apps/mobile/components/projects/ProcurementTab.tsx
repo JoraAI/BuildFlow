@@ -12,6 +12,7 @@ import {
 } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
+import { usePermission } from '@/hooks/usePermission';
 import { formatDate } from '@/utils/format';
 import { projectTabHref } from '@/utils/navigation';
 import {
@@ -104,7 +105,8 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
   const canCreate = user?.role === 'OWNER' || user?.role === 'PM' || user?.role === 'SUPERVISOR';
   const canApprove = user?.role === 'OWNER' || user?.role === 'PM';
   const canCreatePO = user?.role === 'OWNER' || user?.role === 'PM' || user?.role === 'ACCOUNTANT';
-  const canCreateBill = user?.role === 'OWNER' || user?.role === 'PM' || user?.role === 'ACCOUNTANT';
+  // R9-B1: Use granular permission instead of role check
+  const canCreateBill = usePermission('bill.create' as never);
 
   const [subTab, setSubTab] = useState<SubTab>('indents');
 

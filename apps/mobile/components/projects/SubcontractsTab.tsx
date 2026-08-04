@@ -814,7 +814,7 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
                           );
                         })()}
                         <Button
-                          label="Create Bill"
+                          label="Record vendor bill"
                           size="sm"
                           variant="secondary"
                           onPress={() => {

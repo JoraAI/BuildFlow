@@ -1451,3 +1451,26 @@ peer-grade until NR-25, NR-40, NR-41 are addressed.
    screen + test) or **remove/gate** incomplete modules — do not leave compile-
    broken stubs in the tree. See **NR-31 … NR-49**, per-module verdict table, and
    Phase 5 feature matrix above.
+
+## Round 8–9 Remediation (PROC-B / VAR-B)
+
+| ID | Finding | Fix | Commit |
+| -- | ------- | --- | ------ |
+| PROC-B1 | Button said "Create Bill" after GRN | Renamed to "Record vendor bill"; PO deep-link pre-fill | `b04b144` |
+| PROC-B2 | listRequisitions omitted vendor/bills | Added vendorName, vendorGstin, totalAmount, bills summary | `b04b144` |
+| PROC-B3 | createBill never persisted purchaseOrderId FK | Fixed snapshot-without-FK bug; Zod schema updated | `b04b144` |
+| PROC-B4 | Create-bill had no PO context pre-fill | Pre-fill vendor/GSTIN/category from PO deep-link params | `1c29ef6` |
+| PROC-B5 | No attachment upload or AI extract UI | Schema + hooks; DocumentPicker + Extract button (R9-B2) | `e38656f`, R9 |
+| PROC-B6 | PO card lacked bill status | Added "Vendor bill pending/recorded" badges | `b04b144` |
+| PROC-B7 | No integration test for GRN→bill workflow | procurement-vendor-bill.test.ts (2 tests) | `1c29ef6` |
+| PROC-B8 | Bill routes used requireRole not requirePermission | All routes → requirePermission('bill.*'); ACCOUNTANT lost bill.approve | `a644015` |
+| PROC-B9 | No LLM bill extraction | bill-extract.service.ts reusing tender-extract pipeline; extract/batch/bulk routes | `a644015`, `e38656f` |
+| PROC-B10 | No bulk import screen | import-bills.tsx route + review table (R9-B3) | R9 |
+| PROC-B11 | Chatbot lacked bill extract tools | extract_vendor_bill + create_vendor_bill in TOOL_CAPABILITIES | `a644015` |
+| PROC-B12 | No extract permission test | bill-extract.test.ts (5 tests) | `e38656f` |
+| VAR-B1 | Variation material picker showed full catalog | Scoped to BOQ resourceId or RA components only | `7dc4da5` |
+| VAR-B2 | RA-linked BOQ had no component picker | RaComponentPicker with MATERIAL component chips | `7dc4da5` |
+| VAR-B3 | No explode for composite BOQ variations | ExplodeButton + explodeCompositeBoq into N lines | `7dc4da5` |
+| VAR-B4 | listEligibleBoqItems omitted RA/resource metadata | Added estimateItem relation select | `a644015` |
+| VAR-B5 | Full catalog shown when no BOQ linked | Collapsed ad-hoc catalog expander | `7dc4da5` |
+| VAR-B6 | No variation scoping test | Covered by VAR-B4 backend test + R9-B8 docs | `7dc4da5` |
