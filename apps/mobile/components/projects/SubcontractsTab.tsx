@@ -107,8 +107,21 @@ function SummaryContent({ summary }: { summary: WorkOrderSummary }) {
     { label: 'Balance', value: formatINR(summary.balanceRemaining), highlight: true },
   ];
 
+  // SUB-C1b: Supply mode badge
+  const mode = summary.materialSupplyMode ?? 'NONE';
+  const modeLabel = mode === 'GC_SUPPLIED' ? 'GC Stock' : mode === 'MIXED' ? 'Mixed Supply' : 'Contractor';
+  const modeColor = mode !== 'NONE' ? 'primary' : 'neutral';
+
   return (
     <View className="mt-3 p-3 bg-surface rounded-xl border border-border gap-3">
+      <View className="flex-row items-center gap-2 mb-1">
+        <Badge color={modeColor as 'neutral' | 'primary'} label={`Supply: ${modeLabel}`} />
+        {mode !== 'NONE' && (summary.netMaterialOnWO ?? 0) > 0 && (
+          <Text className="text-xs text-muted">
+            Net material: {formatINR(summary.netMaterialOnWO ?? 0)}
+          </Text>
+        )}
+      </View>
       <View className="flex-row flex-wrap gap-2">
         {metrics.map((m) => (
           <View

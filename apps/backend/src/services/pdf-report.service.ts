@@ -52,6 +52,7 @@ import { RATE_VARIANCE_ALERT_PCT } from '@buildflow/shared';
 import { getEstimateWithSummary } from './estimate.service';
 import { listMaterialRateVariance } from './material-rate-variance.service';
 import { getProject } from './project.service';
+import { resolveLogoDisplayUrl } from './settings.service';
 
 function num(d: Decimal | number | null | undefined): number {
   if (d === null || d === undefined) return 0;
@@ -210,6 +211,34 @@ function summaryLine(doc: PDFKit.PDFDocument, label: string, value: string, bold
 
 function fmtDate(d: Date | null | undefined): string {
   return d ? d.toISOString().slice(0, 10) : '-';
+}
+
+/**
+ * RPT-C1b: Load company for PDF with resolved logo URL + report settings.
+ * Centralizes the company query + logo resolution for all PDF generators.
+ */
+export async function loadCompanyForPdf(companyId: string) {
+  const company = await prisma.company.findFirstOrThrow({
+    where: { id: companyId },
+    select: {
+      name: true,
+      gstin: true,
+      address: true,
+      logoUrl: true,
+      reportSettings: true,
+    },
+  });
+  const logoDisplayUrl = await resolveLogoDisplayUrl(companyId, company.logoUrl);
+  const settings = (company.reportSettings as Record<string, unknown> | null) ?? {};
+  const accentColor = (settings.accentColor as string) ?? AMBER;
+  return {
+    name: company.name,
+    gstin: company.gstin,
+    address: company.address,
+    logoUrl: logoDisplayUrl,
+    reportSettings: settings,
+    accentColor,
+  };
 }
 
 // ===========================================================================
@@ -1187,6 +1216,37 @@ export async function reportSubcontractMeasurementBook(
       );
     });
     doc.moveDown(0.75);
+  }
+
+  // SUB-C3b: Material issues table when GC_SUPPLIED or MIXED
+  if ((woMode === 'GC_SUPPLIED' || woMode === 'MIXED') && wo.materialIssues.length > 0) {
+    doc.y = ensureSpace(doc, 80);
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(NAVY).text('Materials Issued from Site Stock', MARGIN, doc.y);
+    doc.moveDown(0.3);
+    const matWidths = [110, 50, 40, 50, 60, 50, 50];
+    let matY = tableHeaders(doc, ['Resource', 'Qty', 'Unit', 'Rate', 'Amount', 'Recovered', 'Net'], matWidths, doc.y);
+    wo.materialIssues.forEach((mi, i) => {
+      matY = tableRow(
+        doc,
+        [
+          mi.resource?.name ?? 'Unknown',
+          `${num(mi.quantity)}`,
+          mi.unit,
+          num(mi.rate).toLocaleString('en-IN'),
+          inr(num(mi.amount)),
+          `${num(mi.recoveredQty)}`,
+          `${num(mi.quantity) - num(mi.recoveredQty)}`,
+        ],
+        matWidths,
+        matY,
+        i % 2 === 1,
+      );
+    });
+    const issuedTotal = wo.materialIssues.reduce((s, mi) => s + num(mi.amount), 0);
+    const recoveredTotal = wo.materialIssues.reduce((s, mi) => s + num(mi.recoveredAmount), 0);
+    summaryLine(doc, 'Total Issued', inr(issuedTotal));
+    summaryLine(doc, 'Total Recovered', inr(recoveredTotal));
+    summaryLine(doc, 'Net Material on WO', inr(issuedTotal - recoveredTotal), true);
   }
 
   drawFooter(doc, company ?? undefined);

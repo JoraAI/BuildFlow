@@ -132,10 +132,12 @@ export async function updateReportSettings(companyId: string, settings: Record<s
     select: { reportSettings: true },
   });
   const existing = (company.reportSettings as Record<string, unknown>) ?? {};
+  // RPT-C2b: Store merged object directly (Prisma Json accepts objects)
   const merged = { ...existing, ...settings };
   await prisma.company.update({
     where: { id: companyId },
-    data: { reportSettings: JSON.stringify(merged) },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    data: { reportSettings: merged as any },
   });
   return merged;
 }
