@@ -1018,6 +1018,7 @@ export async function issueMaterialToWorkOrder(
       data: {
         workOrderId,
         resourceId: input.resourceId,
+        boqItemId: input.boqItemId ?? null,
         quantity: input.quantity,
         unit: input.unit,
         rate: input.rate,

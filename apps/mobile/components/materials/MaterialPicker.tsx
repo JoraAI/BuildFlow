@@ -11,6 +11,7 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { SearchBar } from '@/components/ui';
 import { useMaterials, type Resource } from '@/services/estimate.queries';
 import { MaterialThumbnail } from './MaterialThumbnail';
@@ -89,10 +90,13 @@ export function MaterialPicker({
     return null;
   }, [emptyLabel, isLoading, catalogMaterials.length, total, showProjectSection, showCatalogSection]);
 
+  // MOB-PICK1: Polished row with checkmark when selected
   const renderRow = (
     r: { id: string; name: string; unit: string; type?: Resource['type']; category?: string | null },
     balance?: number,
-  ) => (
+  ) => {
+    const isSelected = selectedId === r.id;
+    return (
     <Pressable
       key={r.id}
       onPress={() =>
@@ -105,13 +109,13 @@ export function MaterialPicker({
           category: r.category ?? null,
         } as Resource)
       }
-      className={`flex-row items-center gap-3 p-2 rounded-lg border mb-1 ${
-        selectedId === r.id ? 'border-primary bg-primary/5' : 'border-border bg-card'
+      className={`flex-row items-center gap-3 p-2.5 rounded-lg border mb-1 active:bg-surface ${
+        isSelected ? 'border-primary bg-primary/5' : 'border-border bg-card'
       }`}
     >
-      <MaterialThumbnail material={r as Resource} size={36} />
+      <MaterialThumbnail material={r as Resource} size={40} />
       <View className="flex-1 min-w-0">
-        <Text className="text-sm text-text" numberOfLines={1}>
+        <Text className={`text-sm ${isSelected ? 'font-semibold text-primary' : 'text-text'}`} numberOfLines={1}>
           {r.name}
         </Text>
         <Text className="text-xs text-muted">
@@ -126,8 +130,13 @@ export function MaterialPicker({
           </Text>
         </View>
       )}
+      {/* MOB-PICK1: Checkmark when selected */}
+      {isSelected && (
+        <Ionicons name="checkmark-circle" size={20} color="#1E3A5F" />
+      )}
     </Pressable>
-  );
+    );
+  };
 
   return (
     <View className="gap-2">

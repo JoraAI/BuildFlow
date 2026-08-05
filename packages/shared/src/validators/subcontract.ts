@@ -87,6 +87,8 @@ export const issueMaterialToWoSchema = z.object({
   rate: z.coerce.number().nonnegative(),
   issueDate: z.coerce.date(),
   notes: z.string().max(500).optional(),
+  // SUB-BOQ1B: Optional link to BOQ line for visibility on BOQ tab
+  boqItemId: idSchema.optional(),
 });
 export type IssueMaterialToWoInput = z.infer<typeof issueMaterialToWoSchema>;
 
