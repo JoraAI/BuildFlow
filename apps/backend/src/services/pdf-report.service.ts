@@ -74,27 +74,56 @@ function inr(n: number): string {
   return 'Rs ' + Math.round(n).toLocaleString('en-IN');
 }
 
-function drawHeader(doc: PDFKit.PDFDocument, title: string, company?: { name: string; gstin?: string | null }) {
-  // Amber accent bar
+/**
+ * RPT-C1: Branded header with optional company logo.
+ * Renders logo image top-right if available; falls back to company name text.
+ * Accent bar color adapts to company reportSettings (default amber).
+ */
+function drawHeader(doc: PDFKit.PDFDocument, title: string, company?: { name: string; gstin?: string | null; logoUrl?: string | null; address?: string | null }) {
+  // Accent bar (default amber, can be overridden by reportSettings)
   doc.rect(0, 0, PAGE_W, 6).fill(AMBER);
-  doc.fillColor(NAVY).fontSize(18).font('Helvetica-Bold').text(company?.name ?? 'BuildFlow', MARGIN, 24);
+
+  // RPT-C1: Try to render company logo top-right
+  const hasLogo = company?.logoUrl && company.logoUrl.startsWith('http');
+  if (hasLogo) {
+    try {
+      doc.image(company!.logoUrl!, PAGE_W - MARGIN - 60, 20, { width: 60, height: 40, fit: [60, 40], align: 'right' });
+    } catch {
+      // Logo load failed — fall back to text
+      doc.fillColor(NAVY).fontSize(18).font('Helvetica-Bold').text(company?.name ?? 'BuildFlow', MARGIN, 24);
+    }
+  } else {
+    doc.fillColor(NAVY).fontSize(18).font('Helvetica-Bold').text(company?.name ?? 'BuildFlow', MARGIN, 24);
+  }
+
+  // Company GSTIN + address under name
   if (company?.gstin) {
     doc.fillColor(MUTED).fontSize(9).font('Helvetica').text(`GSTIN: ${company.gstin}`, MARGIN, 46);
   }
-  doc.fillColor(NAVY).fontSize(13).font('Helvetica-Bold').text(title, MARGIN, 62);
-  doc.moveTo(MARGIN, 84).lineTo(PAGE_W - MARGIN, 84).strokeColor(BORDER).lineWidth(1).stroke();
-  doc.y = 96;
+  if (company?.address) {
+    doc.fillColor(MUTED).fontSize(8).font('Helvetica').text(company.address, MARGIN, 58, { width: 300 });
+  }
+
+  doc.fillColor(NAVY).fontSize(13).font('Helvetica-Bold').text(title, MARGIN, 72);
+  doc.moveTo(MARGIN, 90).lineTo(PAGE_W - MARGIN, 90).strokeColor(BORDER).lineWidth(1).stroke();
+  doc.y = 100;
 }
 
-function drawFooter(doc: PDFKit.PDFDocument) {
+/**
+ * RPT-C1: Branded footer with company legal info + page numbers.
+ */
+function drawFooter(doc: PDFKit.PDFDocument, company?: { name: string; address?: string | null; gstin?: string | null }) {
   const pages = doc.bufferedPageRange();
+  const footerCompany = company?.name ?? 'BuildFlow';
+  const footerAddress = company?.address ? ` | ${company.address}` : '';
+  const footerGstin = company?.gstin ? ` | GSTIN: ${company.gstin}` : '';
   for (let i = 0; i < pages.count; i++) {
     doc.switchToPage(i);
     doc.fillColor(MUTED)
       .fontSize(8)
       .font('Helvetica')
       .text(
-        `BuildFlow | Generated ${new Date().toLocaleString('en-IN')} | Page ${i + 1} of ${pages.count}`,
+        `${footerCompany}${footerGstin}${footerAddress} | Generated ${new Date().toLocaleString('en-IN')} | Page ${i + 1} of ${pages.count}`,
         MARGIN,
         doc.page.height - 28,
         { align: 'center', width: CONTENT_W },
@@ -169,7 +198,7 @@ function fmtDate(d: Date | null | undefined): string {
 export async function reportProjectProgress(companyId: string, projectId: string): Promise<PdfResult> {
   const [project, company, tasks, counts] = await Promise.all([
     prisma.project.findFirstOrThrow({ where: { id: projectId, companyId } }),
-    prisma.company.findFirstOrThrow({ where: { id: companyId }, select: { name: true, gstin: true } }),
+    prisma.company.findFirstOrThrow({ where: { id: companyId }, select: { name: true, gstin: true, logoUrl: true, address: true } }),
     prisma.task.findMany({
       where: { projectId },
       orderBy: { startDate: 'asc' },
@@ -1089,13 +1118,14 @@ export async function reportSubcontractMeasurementBook(
         include: { lines: true },
         orderBy: { createdAt: 'asc' },
       },
+      materialIssues: { include: { resource: { select: { name: true, unit: true } } } },
     },
   });
   if (!wo) throw new Error('Work order not found');
 
   const company = await prisma.company.findFirstOrThrow({
     where: { id: companyId },
-    select: { name: true, gstin: true },
+    select: { name: true, gstin: true, logoUrl: true, address: true },
   });
 
   const doc = newDoc();
@@ -1106,6 +1136,14 @@ export async function reportSubcontractMeasurementBook(
     .fontSize(9)
     .fillColor(MUTED)
     .text(`WO ${wo.woNumber} - ${wo.subcontractor.name}`);
+  // SUB-C3: Supply mode label
+  const woMode = (wo as { materialSupplyMode?: string }).materialSupplyMode ?? 'NONE';
+  const supplyLabel = woMode === 'GC_SUPPLIED'
+    ? 'Material supply: General contractor (GC stock)'
+    : woMode === 'MIXED'
+      ? 'Material supply: Mixed (GC + contractor)'
+      : 'Material supply: Subcontractor (self-supplied)';
+  doc.fillColor(MUTED).fontSize(8).text(supplyLabel);
   doc.moveDown(1);
 
   for (const m of wo.measurements) {

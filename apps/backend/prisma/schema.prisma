@@ -227,6 +227,7 @@ model Company {
   pan       String
   address   String?
   logoUrl   String?  @map("logo_url")
+  reportSettings Json? @map("report_settings")
   state     String
   createdAt DateTime @default(now()) @map("created_at")
 
