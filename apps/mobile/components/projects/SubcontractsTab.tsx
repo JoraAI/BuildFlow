@@ -801,6 +801,25 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
   const [subGstin, setSubGstin] = useState('');
   const [subPhone, setSubPhone] = useState('');
 
+  // SUB-C1b: Edit WO modal state
+  const [editModal, setEditModal] = useState(false);
+  const [editWOId, setEditWOId] = useState<string | null>(null);
+  const [editMaterialSupplyMode, setEditMaterialSupplyMode] = useState<'NONE' | 'GC_SUPPLIED' | 'MIXED'>('NONE');
+
+  const onSaveEdit = () => {
+    if (!editWOId) return;
+    updateWO.mutate(
+      { workOrderId: editWOId, materialSupplyMode: editMaterialSupplyMode },
+      {
+        onSuccess: () => {
+          setEditModal(false);
+          setEditWOId(null);
+        },
+        onError: (e: Error) => void alertAsync('Error', e.message),
+      },
+    );
+  };
+
   const expandedSummary = useWorkOrderSummary(projectId, expandedId ?? '', !!expandedId);
   const subcontractBoqItems = useMemo(
     () => (boq?.items ?? []).filter((i: BoqItem) => i.category === 'SUBCONTRACTOR'),
@@ -998,7 +1017,21 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
                 {canManage && (
                   <View className="flex-row flex-wrap gap-2 mt-2">
                     {wo.status === 'DRAFT' && (
-                      <Button label="Activate" size="sm" onPress={() => onUpdateStatus(wo, 'ACTIVE')} />
+                      <>
+                        <Button label="Activate" size="sm" onPress={() => onUpdateStatus(wo, 'ACTIVE')} />
+                        <Button
+                          label="Edit"
+                          size="sm"
+                          variant="secondary"
+                          onPress={() => {
+                            setEditWOId(wo.id);
+                            setEditMaterialSupplyMode(
+                              (expandedSummary.data?.materialSupplyMode as 'NONE' | 'GC_SUPPLIED' | 'MIXED') ?? 'NONE',
+                            );
+                            setEditModal(true);
+                          }}
+                        />
+                      </>
                     )}
                     {wo.status === 'ACTIVE' && (
                       <>
@@ -1019,6 +1052,18 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
                             </>
                           );
                         })()}
+                        <Button
+                          label="Edit supply"
+                          size="sm"
+                          variant="secondary"
+                          onPress={() => {
+                            setEditWOId(wo.id);
+                            setEditMaterialSupplyMode(
+                              (expandedSummary.data?.materialSupplyMode as 'NONE' | 'GC_SUPPLIED' | 'MIXED') ?? 'NONE',
+                            );
+                            setEditModal(true);
+                          }}
+                        />
                         <Button
                           label="Record vendor bill"
                           size="sm"
@@ -1207,6 +1252,36 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
         <Input label="Name" value={subName} onChangeText={setSubName} />
         <Input label="GSTIN" value={subGstin} onChangeText={setSubGstin} autoCapitalize="characters" />
         <Input label="Phone" value={subPhone} onChangeText={setSubPhone} keyboardType="phone-pad" />
+      </AdaptiveSheet>
+
+      {/* SUB-C1b: Edit WO modal */}
+      <AdaptiveSheet
+        visible={editModal}
+        onClose={() => { setEditModal(false); setEditWOId(null); }}
+        title="Edit Work Order"
+        size="md"
+        footer={<Button label="Save" loading={updateWO.isPending} onPress={onSaveEdit} />}
+      >
+        <Text className="text-sm font-semibold text-text mt-2">
+          Material supply mode
+        </Text>
+        <View className="flex-row gap-2 mt-1 mb-2">
+          {(['NONE', 'GC_SUPPLIED', 'MIXED'] as const).map((mode) => (
+            <Pressable
+              key={mode}
+              onPress={() => setEditMaterialSupplyMode(mode)}
+              className={`px-3 py-2 rounded-lg border flex-1 ${
+                editMaterialSupplyMode === mode ? 'border-primary bg-primary/5' : 'border-border'
+              }`}
+            >
+              <Text className={`text-xs font-semibold text-center ${
+                editMaterialSupplyMode === mode ? 'text-primary' : 'text-muted'
+              }`}>
+                {mode === 'NONE' ? 'No (Contractor)' : mode === 'GC_SUPPLIED' ? 'Yes (GC stock)' : 'Mixed'}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       </AdaptiveSheet>
     </View>
   );

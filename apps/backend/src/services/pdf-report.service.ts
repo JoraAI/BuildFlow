@@ -318,7 +318,7 @@ export async function reportDailyReport(companyId: string, reportId: string): Pr
     where: { id: reportId, project: { companyId } },
     include: { project: { select: { name: true, code: true } }, materialUsages: { include: { resource: true } } },
   });
-  const company = await prisma.company.findFirstOrThrow({ where: { id: companyId }, select: { name: true, gstin: true } });
+  const company = await loadCompanyForPdf(companyId);
   const reporter = await prisma.user.findFirstOrThrow({ where: { id: report.reportedBy }, select: { name: true } });
 
   const doc = newDoc();
@@ -375,7 +375,7 @@ export async function reportInvoice(companyId: string, invoiceId: string): Promi
     where: { id: invoiceId, companyId },
     include: { project: { select: { name: true } }, lineItems: true },
   });
-  const company = await prisma.company.findFirstOrThrow({ where: { id: companyId }, select: { name: true, gstin: true, address: true } });
+  const company = await loadCompanyForPdf(companyId);
 
   const doc = newDoc();
   const title =
@@ -475,7 +475,7 @@ export async function reportEstimate(companyId: string, estimateId: string): Pro
     where: { id: estimate.projectId, companyId },
     select: { name: true, code: true },
   });
-  const company = await prisma.company.findFirstOrThrow({ where: { id: companyId }, select: { name: true, gstin: true } });
+  const company = await loadCompanyForPdf(companyId);
   const summary = estimate.summary;
 
   const doc = newDoc();
