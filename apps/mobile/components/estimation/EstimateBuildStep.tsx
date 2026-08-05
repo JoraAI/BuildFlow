@@ -47,6 +47,7 @@ function resolveTemplateItemLinks(
 
 export function EstimateBuildStep({
   estimateId,
+  projectId,
   overheadPct,
   contingencyPct,
   profitPct,
@@ -54,6 +55,8 @@ export function EstimateBuildStep({
   onNext,
 }: {
   estimateId: string;
+  /** RATE-EST1: Threading projectId enables project-aware rate resolution in picker */
+  projectId?: string;
   overheadPct: number;
   contingencyPct: number;
   profitPct: number;
@@ -258,9 +261,10 @@ export function EstimateBuildStep({
                   mut={mut}
                   materials={materials}
                   rateAnalyses={rateAnalyses}
+                  projectId={projectId}
                 />
               ))}
-              <AddItemRow sectionId={sec.id} mut={mut} />
+              <AddItemRow sectionId={sec.id} mut={mut} projectId={projectId} />
             </Card>
           );
         })}
@@ -309,11 +313,13 @@ function EditableLineItem({
   mut,
   materials,
   rateAnalyses,
+  projectId,
 }: {
   item: EstimateItem;
   mut: ReturnType<typeof useEstimateMutations>;
   materials: Resource[];
   rateAnalyses: RateAnalysis[];
+  projectId?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [desc, setDesc] = useState(item.description);
@@ -427,6 +433,7 @@ function EditableLineItem({
           }}
           lineType={item.type}
           hasExistingDescription={Boolean(desc.trim())}
+          projectId={projectId}
           onApplyDefaults={({ description, unit, rate }) => {
             setDesc(description);
             setUnit(unit);
@@ -475,9 +482,11 @@ function EditableLineItem({
 function AddItemRow({
   sectionId,
   mut,
+  projectId,
 }: {
   sectionId: string;
   mut: ReturnType<typeof useEstimateMutations>;
+  projectId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [desc, setDesc] = useState('');
@@ -560,6 +569,7 @@ function AddItemRow({
           }}
           lineType={type}
           hasExistingDescription={Boolean(desc.trim())}
+          projectId={projectId}
           onApplyDefaults={({ description, unit, rate }) => {
             setDesc(description);
             setUnit(unit);

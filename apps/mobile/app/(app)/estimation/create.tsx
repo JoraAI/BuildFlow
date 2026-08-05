@@ -244,6 +244,7 @@ export default function CreateEstimateScreen() {
         {step === 2 && estimateId && (
           <EstimateBuildStep
             estimateId={estimateId}
+            projectId={projectId}
             overheadPct={parseFloat(overheadPct) || 0}
             contingencyPct={parseFloat(contingencyPct) || 0}
             profitPct={parseFloat(profitPct) || 0}

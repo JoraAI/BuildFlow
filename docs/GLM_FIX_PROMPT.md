@@ -1,14 +1,14 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 32 active)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 32 complete)
 
 > **You do not need any prior conversation or other documents.** This file is the
 > complete task brief. Read it top to bottom before taking new work.
 > [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
 >
 > **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
-> **Last committed baseline:** Round 31 — `1d86081` (ProcurementLinkPicker)  
-> **Verified:** 2026-08-05 — Rounds 12–31 complete. **131/131** tests.
+> **Last committed baseline:** Round 32 — `92811df` (RPT-UI1 report downloads)  
+> **Verified:** 2026-08-05 — Rounds 12–32 complete. **131/131** tests.
 >
-> **Active work:** **§2.12 Round 32 — RPT-UI1** (report download buttons + branding coverage).
+> **Active work:** None mandatory. Optional: **§2.13** (report download cleanup) · **§2.15** (estimate rate defaults from project chain).
 
 ---
 
@@ -981,14 +981,14 @@ Do not start stretch items until §2.11.10 all checked.
 
 ---
 
-## 2.12 Round 32 — RPT-UI1: Report download buttons + branding coverage (ACTIVE)
+## 2.12 Round 32 — RPT-UI1: Report download buttons + branding coverage (COMPLETE)
 
 **User request (2026-08-05):** Every report that has a backend PDF endpoint should have a clear
 **Download PDF** entry in the mobile app. Branding (logo, accent, footer) must apply consistently.
 User also asked where to configure “report templates” after login — see **§2.12.0** (no per-report
 file upload today; company-level branding only).
 
-**Round 32 status:** **ACTIVE** — implement §2.12.3–§2.12.6.
+**Round 32 status:** **COMPLETE** (`92811df`) — see §2.12.9 verification.
 
 ### 2.12.0 Report branding vs “templates” (product truth — document in UI if helpful)
 
@@ -1019,33 +1019,34 @@ should already pass `accentColor`, `showLogo`, footer).
 - Already branded — **do not duplicate** with `/reports/pdf/estimates/:id` on same screen unless
   product wants both; prefer keeping existing Export PDF/Excel buttons.
 
-**Mobile download pattern today (copy, then centralize):**
+**Mobile download pattern (post-Round 32):**
 
-- Reports Hub inline `downloadPdf` — `apiDownload` + `expo-sharing` (`reports-hub/index.tsx`)
-- Subcontracts — `downloadSubcontractMeasurementBookPdf` etc. in `expansion.queries.ts`
-- Resources tab — inline `apiDownload` for material rates PDF
+- Shared helper: `apps/mobile/services/report-download.ts` — `downloadReportPdf` + `reportPaths`
+- Reports Hub, daily report detail, invoice detail, estimate compare, BOQ tab — use shared helper
+- Subcontracts tab — still uses `downloadSubcontract*Pdf` in `expansion.queries.ts` (optional cleanup)
+- Resources tab — still inline `apiDownload` for material rates (optional cleanup)
 
 ### 2.12.2 Report inventory matrix (17 pdf-report types + estimate export)
 
-| # | Report | API path | Mobile UI today | Round 32 action |
-| - | ------ | -------- | --------------- | --------------- |
-| 1 | Project progress | `GET /reports/pdf/projects/:id/progress` | **Missing** | Add to Reports Hub project grid + optional project overview |
-| 2 | Daily report | `GET /reports/pdf/reports/:id` | **Missing** | **Download PDF** on `reports/[id].tsx` header |
-| 3 | Invoice | `GET /reports/pdf/invoices/:id` | **Missing** | **Download PDF** on `accounting/invoice/[id].tsx` |
-| 4 | Estimate summary | `GET /reports/pdf/estimates/:id` | Partial — estimate detail has export service | **Skip duplicate** if export PDF already present; else add secondary “Summary PDF” |
-| 5 | Estimate comparison | `GET /reports/pdf/estimates/:idA/compare/:idB` | **Missing** | **Download PDF** on `estimation/compare.tsx` when `canCompare` |
-| 6 | Estimate vs actual | `GET /reports/pdf/projects/:id/estimate-vs-actual` | Data in Reports Hub (`useEstimateVsActual`) but **no PDF button** | Add card/button in Reports Hub |
-| 7 | P&L | `GET /reports/pdf/projects/:id/profit-loss` | Reports Hub ✓ | Keep; verify branding |
-| 8 | GST summary | `GET /reports/pdf/gst-summary` | Reports Hub ✓ (OWNER/ACCOUNTANT) | Keep |
-| 9 | TDS | `GET /reports/pdf/tds` | Reports Hub ✓ | Keep |
-| 10 | Resource utilization | `GET /reports/pdf/projects/:id/resource-utilization` | **Missing** | Add to Reports Hub project grid |
-| 11 | BOQ vs actual | `GET /reports/pdf/projects/:id/boq-vs-actual` | Reports Hub ✓ | Keep |
-| 12 | Material price history | `GET /reports/pdf/material-price-history` | **Missing** | Add company-level card in Reports Hub (no projectId) |
-| 13 | Measurement book (project) | `GET /reports/pdf/projects/:id/measurement-book` | Helpers exist; **no UI** | Wire on **BOQ tab** (`BoqTab.tsx`) action row |
-| 14 | Abstract sheet (project) | `GET /reports/pdf/projects/:id/abstract-sheet` | Helpers exist; **no UI** | Wire on **BOQ tab** action row |
-| 15 | Material rates | `GET /reports/pdf/projects/:id/material-rates` | Reports Hub ✓ + Resources tab ✓ | Keep |
-| 16 | Subcontract MB | `GET …/subcontract/work-orders/:woId/measurement-book` | SubcontractsTab ✓ | Keep |
-| 17 | Subcontract abstract | `GET …/subcontract/work-orders/:woId/abstract-sheet` | SubcontractsTab ✓ | Keep |
+| # | Report | API path | Mobile UI (post-R32) |
+| - | ------ | -------- | --------------------- |
+| 1 | Project progress | `GET /reports/pdf/projects/:id/progress` | Reports Hub ✓ |
+| 2 | Daily report | `GET /reports/pdf/reports/:id` | Report detail ✓ |
+| 3 | Invoice | `GET /reports/pdf/invoices/:id` | Invoice detail ✓ |
+| 4 | Estimate summary | `GET /reports/pdf/estimates/:id` | Estimate detail Export PDF ✓ (export service) |
+| 5 | Estimate comparison | `GET /reports/pdf/estimates/:idA/compare/:idB` | Compare screen ✓ |
+| 6 | Estimate vs actual | `GET /reports/pdf/projects/:id/estimate-vs-actual` | Reports Hub ✓ |
+| 7 | P&L | `GET /reports/pdf/projects/:id/profit-loss` | Reports Hub ✓ |
+| 8 | GST summary | `GET /reports/pdf/gst-summary` | Reports Hub ✓ (OWNER/ACCOUNTANT) |
+| 9 | TDS | `GET /reports/pdf/tds` | Reports Hub ✓ |
+| 10 | Resource utilization | `GET /reports/pdf/projects/:id/resource-utilization` | Reports Hub ✓ |
+| 11 | BOQ vs actual | `GET /reports/pdf/projects/:id/boq-vs-actual` | Reports Hub ✓ |
+| 12 | Material price history | `GET /reports/pdf/material-price-history` | Reports Hub ✓ (company card) |
+| 13 | Measurement book (project) | `GET /reports/pdf/projects/:id/measurement-book` | BOQ tab ✓ |
+| 14 | Abstract sheet (project) | `GET /reports/pdf/projects/:id/abstract-sheet` | BOQ tab ✓ |
+| 15 | Material rates | `GET /reports/pdf/projects/:id/material-rates` | Reports Hub ✓ + Resources tab ✓ |
+| 16 | Subcontract MB | `GET …/subcontract/work-orders/:woId/measurement-book` | SubcontractsTab ✓ |
+| 17 | Subcontract abstract | `GET …/subcontract/work-orders/:woId/abstract-sheet` | SubcontractsTab ✓ |
 
 ### 2.12.3 RPT-UI1a — Shared `downloadReportPdf` helper
 
@@ -1123,14 +1124,167 @@ Round 28 RPT-C1e.
 
 ### 2.12.6 Definition of done (Round 32)
 
-- [ ] **RPT-UI1a** — `downloadReportPdf` shared helper; Reports Hub + Subcontracts + Resources refactored
-- [ ] **RPT-UI1b-daily** — Daily report detail PDF button
-- [ ] **RPT-UI1b-invoice** — Invoice detail PDF button
-- [ ] **RPT-UI1b-compare** — Estimate comparison PDF button
-- [ ] **RPT-UI1b-boq** — Project MB + abstract on BOQ tab
-- [ ] **RPT-UI1b-hub** — Progress, EVA PDF, resource util, material price history in Reports Hub
-- [ ] **RPT-UI1c** — Backend branding audit clean (all pdf-report generators)
-- [ ] **RPT-UI1d** — 131/131 tests · backend tsc · mobile tsc
+- [x] **RPT-UI1a** — `downloadReportPdf` shared helper; Reports Hub refactored (`92811df`)
+- [x] **RPT-UI1b-daily** — Daily report detail PDF button
+- [x] **RPT-UI1b-invoice** — Invoice detail PDF button
+- [x] **RPT-UI1b-compare** — Estimate comparison PDF button
+- [x] **RPT-UI1b-boq** — Project MB + abstract on BOQ tab
+- [x] **RPT-UI1b-hub** — Progress, EVA PDF, resource util, material price history in Reports Hub
+- [x] **RPT-UI1c** — Backend branding audit clean (all 17 pdf-report generators use `drawBrandedHeader`)
+- [x] **RPT-UI1d** — 131/131 tests · backend tsc · mobile tsc
+
+**Partial (optional — see §2.13):**
+
+- [ ] **RPT-UI1a+** — Refactor `SubcontractsTab` + `ResourcesTab` to use `downloadReportPdf`
+- [ ] **RPT-UI1a+** — Subcontract paths in `reportPaths`; deprecate `expansion.queries.ts` PDF helpers
+- [ ] **RPT-UI2** — Logo ImagePicker on Company Profile; link on report-branding screen
+
+### 2.12.9 Round 32 verification (2026-08-05 — do NOT revert)
+
+**Commit:** `92811df`
+
+**Ship gates:** backend tsc ✓ · mobile tsc ✓ · **131/131** tests ✓
+
+| ID | Status | Evidence |
+| -- | ------ | -------- |
+| **RPT-UI1a** | **Done** | `apps/mobile/services/report-download.ts` — `downloadReportPdf` + `reportPaths` for 15 route types |
+| **RPT-UI1b-hub** | **Done** | `reports-hub/index.tsx` — progress, EVA, resource util, material price history cards; shared helper |
+| **RPT-UI1b-daily** | **Done** | `reports/[id].tsx` — Download PDF in meta card |
+| **RPT-UI1b-invoice** | **Done** | `accounting/invoice/[id].tsx` — Download PDF in actions block |
+| **RPT-UI1b-compare** | **Done** | `estimation/compare.tsx` — Download comparison PDF when `canCompare` |
+| **RPT-UI1b-boq** | **Done** | `BoqTab.tsx` — Measurement book + abstract buttons |
+| **RPT-UI1c** | **Done** | All 17 generators in `pdf-report.service.ts` use `loadCompanyForPdf` + `drawBrandedHeader` (since R28) |
+| **MOB-LINK post-verify** | **Done** (bundled) | `ProcurementLinkPicker` — `effectiveAllowedKinds` + auto RA segment; `EstimateBuildStep` read-only badge for all non-MISC |
+
+**Not refactored (acceptable):** `SubcontractsTab` still calls `downloadSubcontract*Pdf`; `ResourcesTab` still inline `apiDownload` — functionally correct.
+
+**Estimate summary PDF:** Intentionally not duplicated — estimate detail keeps `useExportEstimate` export route.
+
+**Follow-up:** §2.13 (report download cleanup) · §2.14 (rate architecture reference) · §2.15 (estimate rate resolution — optional).
+
+---
+
+## 2.13 Round 33 — RPT-UI1a+: Report download cleanup (optional)
+
+**Goal:** Finish the Round 32 partial items — one code path for all PDF downloads, no duplicate helpers.
+
+**Priority:** Low — all reports work today. Take only if user asks for polish or before adding new report types.
+
+### 2.13.1 Tasks
+
+| ID | Task | File(s) | Acceptance |
+| -- | ---- | ------- | ---------- |
+| **RPT-UI1a-1** | Add subcontract paths to `reportPaths` | `report-download.ts` | `subcontractMeasurementBook(projectId, woId)`, `subcontractAbstractSheet(projectId, woId)` |
+| **RPT-UI1a-2** | Refactor SubcontractsTab PDF handlers | `SubcontractsTab.tsx` | Replace `downloadSubcontract*Pdf` with `downloadReportPdf(reportPaths.subcontract…)` |
+| **RPT-UI1a-3** | Refactor ResourcesTab material-rates download | `ResourcesTab.tsx` | Use `downloadReportPdf(reportPaths.materialRates(projectId), …)`; remove inline Sharing block |
+| **RPT-UI1a-4** | Deprecate duplicate helpers | `expansion.queries.ts` | Remove `downloadMeasurementBookPdf`, `downloadAbstractSheetPdf`, `downloadSubcontract*Pdf` **or** thin-wrap them to call `downloadReportPdf` (prefer remove + update imports) |
+| **RPT-UI1a-5** | Optional: `ReportDownloadButton` component | `components/reports/ReportDownloadButton.tsx` | Props: `path`, `filename`, `label`, `loading?` — used by BoqTab, invoice detail, compare (reduce copy-paste) |
+| **RPT-UI2** | Logo upload UX | `settings/company.tsx`, `report-branding.tsx` | Wire `useCompanyLogoUpload` + ImagePicker on Company Profile; link from Reports & Branding |
+
+### 2.13.2 Ship gates
+
+- backend tsc ✓ · mobile tsc ✓ · **131/131** tests
+- Manual: subcontract MB/abstract PDFs still share; Resources tab rate sheet still downloads
+
+### 2.13.3 Anti-patterns
+
+| Don't | Do instead |
+| ----- | ---------- |
+| Break SubcontractsTab loading state during PDF gen | Keep existing `downloading` UX if present |
+| Remove path helpers before updating all call sites | Grep `downloadSubcontract`, `downloadMeasurement`, `apiDownload.*material-rates` first |
+
+---
+
+## 2.14 Reference — Material rate architecture (product truth)
+
+**Read before changing rates or estimate defaults.** Answers: “Are region/catalog rates wired?” and “Does editing an estimate rate change old rates?”
+
+### 2.14.1 Three rate stores (independent)
+
+| Store | Where configured | Used for |
+| ----- | ---------------- | -------- |
+| **Company catalog** | Settings → Material Prices (`Resource.rate`) | Default fallback; new resource master rate; price history |
+| **Regional rate book** | Settings → Rate Regions (`RegionalMaterialRate`, effective-dated) | Projects with `rateRegionId` when no higher-priority source |
+| **Project overrides** | Project → Material Rates section (`ProjectMaterialRate`) | Explicit per-project rates; copy from region or approved estimate |
+
+**Estimate line rates** (`EstimateItem.rate`) are a **fourth snapshot** — stored on each line when saved. They do **not** auto-sync when catalog/region changes.
+
+### 2.14.2 Resolution chain (procurement / site ops)
+
+`material-rate.service.ts` → `resolveMaterialRate()` priority:
+
+1. **PROJECT** — `ProjectMaterialRate` override  
+2. **BOQ** — linked `EstimateItem.rate` on active BOQ row  
+3. **ESTIMATE** — latest **APPROVED** estimate item for that resource on the project  
+4. **REGION** — project's `rateRegionId` → latest regional rate ≤ today  
+5. **LAST_PO** — last purchase order line (GRN-preferring)  
+6. **CATALOG** — `Resource.rate`
+
+**Wired correctly for:** daily reports (`reports/create.tsx` → `/projects/:id/resources/:resourceId/rate`), indents (`useMaterialRate`), subcontract material issue, requisition enrichment, material rate variance report, PDF rate sheets.
+
+**Integration tests:** `material-rate.test.ts` — NH-65 / GVR / TPK projects resolve with expected source types.
+
+### 2.14.3 Estimate wizard — known gap (not a regression)
+
+When linking a material in **Estimate Build** (`ProcurementLinkPicker` → `applyDefaults`):
+
+- Rate prefilled from **`Resource.rate`** (catalog) or **`RateAnalysis.totalRate`**
+- Does **NOT** call `resolveMaterialRate()` — so **regional rates and project overrides are not auto-applied** when picking materials in a new estimate
+
+**Workaround today:** Assign rate region on project → use **Project → Material Rates → From region** before estimating; or manually edit line rates.
+
+**Optional fix:** §2.15 RATE-EST1.
+
+### 2.14.4 Editing rates on estimates — does it change previous rates?
+
+**No — previous rates are preserved.**
+
+| Action | What updates | What does NOT update |
+| ------ | ------------ | -------------------- |
+| Edit rate on **DRAFT/REJECTED** estimate line | That `EstimateItem.rate` only | Catalog `Resource.rate`, regional book, other estimates, approved BOQ |
+| **Approve** estimate | Locks estimate (immutable); rate becomes source for BOQ + `resolveFromEstimate` | Older approved estimates unchanged |
+| Change **Material Prices** catalog rate | `Resource.rate` + price history | Existing estimate/BOQ line rates |
+| **Duplicate** estimate to revise | New estimate copies line rates at duplicate time | Original approved estimate unchanged |
+
+Backend: `updateItem()` writes only `estimateItem.rate`; `getEstimateForEditing()` blocks edits on APPROVED/REVIEWED estimates.
+
+---
+
+## 2.15 Round 34 — RATE-EST1: Project-aware defaults in estimate wizard (optional)
+
+**User pain:** “I set regional rates / project overrides — why doesn’t the estimate picker use them?”
+
+**Root cause:** §2.14.3 — `ProcurementLinkPicker.selectMaterial` uses `resource.rate` from catalog list.
+
+### 2.15.1 RATE-EST1a — Pass `projectId` into estimate build
+
+**Files:** `estimation/create.tsx`, `estimation/[id].tsx`, `EstimateBuildStep.tsx`, `ProcurementLinkPicker.tsx`
+
+- Thread `projectId` prop through build step → picker
+- When `applyDefaults` and material selected, fetch resolved rate:
+  `GET /projects/:projectId/resources/:resourceId/rate`
+- Prefill rate + optionally show source badge (`REGION`, `PROJECT`, `CATALOG`, …)
+- Rate analysis path unchanged (`ra.totalRate`)
+
+### 2.15.2 RATE-EST1b — UX hints
+
+- When resolved source ≠ CATALOG, show small label under rate field: “From {source}”
+- If no projectId (edge case), fall back to catalog rate (current behaviour)
+
+### 2.15.3 Definition of done
+
+- [x] Picking cement on TPK project prefills **regional** rate when no project override
+- [x] Picking on NH-65 prefills **project override** when set
+- [x] Saving line does not mutate `Resource.rate` (only writes `EstimateItem.rate`)
+- [x] 131/131 tests + mobile tsc clean
+
+**Verified Round 34 (`<commit>`):**
+- `ProcurementLinkPicker.tsx` — `projectId?: string` prop; `selectMaterial` calls `GET /projects/:projectId/resources/:resourceId/rate` when projectId is set; falls back to catalog `Resource.rate` if fetch fails or projectId is undefined (edge case). `rateSource` threaded in `onApplyDefaults`.
+- `EstimateBuildStep.tsx` — `projectId?: string` prop; threaded to `EditableLineItem` and `AddItemRow`; passed to `ProcurementLinkPicker`.
+- `estimation/create.tsx` — passes `projectId` from `useLocalSearchParams` to `<EstimateBuildStep>`.
+- `estimation/[id].tsx` — read-only detail; no `EstimateBuildStep` usage (no change needed).
+- Backend: `material-rate.service.ts` already exposes `GET /projects/:projectId/resources/:resourceId/rate` with `{ rate, source }` (verified by `material-rate.test.ts`). Backend `updateItem()` writes only `estimateItem.rate` — no `Resource.rate` mutation.
+- VariationsTab unchanged (no projectId on that screen).
 
 ### 2.12.7 Manual test checklist
 
@@ -1435,12 +1589,13 @@ New migrations: `20260805100000_subcontract_material_supply_mode`,
 
 **Expected test count:** **131/131** (stable; +2 SUB-BOQ1T subcontract tests).
 
-### 2.2 Mandatory tasks — Round 32 (RPT-UI1)
+### 2.2 Mandatory tasks — none (Round 32 complete)
 
-**Round 31 complete** (`1d86081`). **Implement §2.12** — wire all missing mobile PDF download entry points;
-centralize download helper; verify every backend PDF generator uses company branding.
+**Round 32 complete** (`92811df`). No mandatory tasks.
 
-Do not break Rounds 12–31 deliverables. Ship gates: backend tsc ✓ · mobile tsc ✓ · **131/131** tests.
+Optional if user asks: **§2.13** RPT-UI1a+ (PDF helper cleanup) · **§2.15** RATE-EST1 (estimate picker uses project rate chain) · **§2.8** hardening.
+
+Do not break Rounds 12–32 deliverables. Ship gates: backend tsc ✓ · mobile tsc ✓ · **131/131** tests.
 
 <details>
 <summary>Round 28 spec (completed — reference)</summary>

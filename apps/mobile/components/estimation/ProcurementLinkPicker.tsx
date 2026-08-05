@@ -15,6 +15,7 @@ import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
 import { SearchBar } from '@/components/ui';
 import { useMaterials, useRateAnalyses, type Resource, type RateAnalysis } from '@/services/estimate.queries';
 import { MaterialThumbnail } from '@/components/materials/MaterialThumbnail';
+import { apiFetch } from '@/lib/api-client';
 import { formatINR } from '@/utils/format';
 
 export type ProcurementLinkKind = 'material' | 'rate_analysis';
@@ -33,15 +34,18 @@ export function ProcurementLinkPicker({
   hasExistingDescription = false,
   compact = false,
   disabled = false,
+  projectId,
 }: {
   value: ProcurementLinkValue;
   onChange: (next: ProcurementLinkValue) => void;
   allowedKinds?: ProcurementLinkKind[];
   lineType?: 'MATERIAL' | 'LABOUR' | 'EQUIPMENT' | 'SUBCONTRACTOR' | 'MISC';
-  onApplyDefaults?: (fields: { description: string; unit: string; rate: string }) => void;
+  onApplyDefaults?: (fields: { description: string; unit: string; rate: string; rateSource?: string }) => void;
   hasExistingDescription?: boolean;
   compact?: boolean;
   disabled?: boolean;
+  /** RATE-EST1: When provided, material rate resolved via /projects/:projectId/resources/:resourceId/rate */
+  projectId?: string;
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [segment, setSegment] = useState<ProcurementLinkKind>(
@@ -102,13 +106,30 @@ export function ProcurementLinkPicker({
   const showSegmented = effectiveAllowedKinds.length > 1;
 
   // Selection handlers (mutual exclusion)
-  function selectMaterial(resource: Resource, doApply: boolean) {
+  // RATE-EST1: When projectId is provided, resolve rate via
+  // /projects/:projectId/resources/:resourceId/rate so regional and project
+  // overrides are applied. Fall back to catalog rate if fetch fails.
+  async function selectMaterial(resource: Resource, doApply: boolean) {
     onChange({ resourceId: resource.id, rateAnalysisId: undefined });
     if (doApply && onApplyDefaults) {
+      let rate = String(parseFloat(resource.rate) || 0);
+      let rateSource: string | undefined = undefined;
+      if (projectId) {
+        try {
+          const resolved = await apiFetch<{ rate: string; source: string }>(
+            `/projects/${projectId}/resources/${resource.id}/rate`,
+          );
+          rate = resolved.rate || rate;
+          rateSource = resolved.source;
+        } catch {
+          // Fall back to catalog rate (current behaviour)
+        }
+      }
       onApplyDefaults({
         description: resource.name,
         unit: resource.unit,
-        rate: String(parseFloat(resource.rate) || 0),
+        rate,
+        rateSource,
       });
     }
     setSheetOpen(false);
