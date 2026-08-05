@@ -807,6 +807,7 @@ async function main(): Promise<void> {
       scheduleImpactDays: 3,
       linkedTaskId: t3.id,
       linkedWorkOrderId: wo.id,
+      estimateId: estimate1.id,
       createdBy: pm.id,
       lines: {
         create: [

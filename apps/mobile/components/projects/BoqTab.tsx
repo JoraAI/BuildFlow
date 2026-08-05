@@ -175,7 +175,7 @@ export function BoqTab({ projectId }: BoqTabProps) {
         </Text>
         {/* R14-VO1: Helper clarifying variation provenance */}
         <Text className="text-xs text-muted mt-1">
-          Sanctioned qty includes approved variations. Lines touched by a variation show a Via chip.
+          Sanctioned qty includes converted variations. Lines touched by a variation show a Via chip.
         </Text>
         <View className="mt-2 pt-2 border-t border-border/60 gap-1">
           <Text className="text-[10px] font-semibold text-muted uppercase">Line metrics</Text>

@@ -15,6 +15,7 @@ import {
   idSchema,
 } from '@buildflow/shared';
 import { Role } from '@buildflow/shared';
+import { asyncHandler } from '../utils/async-handler';
 
 const projectIdParams = z.object({ id: idSchema });
 
@@ -56,7 +57,7 @@ changeOrderRouter.post(
   '/:id/change-orders/:changeOrderId/convert-to-boq',
   requireRole(Role.OWNER, Role.PM),
   validate({ params: changeOrderIdParamsSchema }),
-  changeOrderController.convertToBoq,
+  asyncHandler(changeOrderController.convertToBoq),
 );
 
 // Variation BOQ picker — list eligible items + bulk-attach as variation lines

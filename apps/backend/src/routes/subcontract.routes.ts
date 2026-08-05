@@ -19,6 +19,8 @@ import {
   rejectMeasurementSchema,
   createSubcontractorPortalSchema,
   recordBillPaymentSchema,
+  issueMaterialToWoSchema,
+  recoverMaterialFromWoSchema,
   idSchema,
 } from '@buildflow/shared';
 import { Role } from '@buildflow/shared';
@@ -139,6 +141,25 @@ subcontractProjectRouter.post(
   }),
   asyncHandler(subcontractController.rejectMeasurement),
 );
+// SUB-C2: Material issue / return routes
+subcontractProjectRouter.post(
+  '/:id/subcontract/work-orders/:workOrderId/material-issues',
+  requireRole(Role.OWNER, Role.PM, Role.STORE_INCHARGE),
+  validate({ params: workOrderParams, body: issueMaterialToWoSchema }),
+  asyncHandler(subcontractController.issueMaterial),
+);
+subcontractProjectRouter.post(
+  '/:id/subcontract/work-orders/:workOrderId/material-issues/:issueId/recover',
+  requireRole(Role.OWNER, Role.PM, Role.STORE_INCHARGE),
+  validate({ params: z.object({ id: z.string().uuid(), workOrderId: z.string().uuid(), issueId: z.string().uuid() }), body: recoverMaterialFromWoSchema }),
+  asyncHandler(subcontractController.recoverMaterial),
+);
+subcontractProjectRouter.get(
+  '/:id/subcontract/work-orders/:workOrderId/material-issues',
+  validate({ params: workOrderParams }),
+  asyncHandler(subcontractController.listMaterialIssues),
+);
+
 subcontractProjectRouter.post(
   '/:id/subcontract/bills/:billId/payment',
   requireRole(Role.OWNER, Role.PM, Role.ACCOUNTANT),

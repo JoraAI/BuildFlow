@@ -9,7 +9,9 @@ import type {
   CreateWorkOrderInput,
   CreateWorkOrderFromBoqInput,
   CreateMeasurementInput,
+  IssueMaterialToWoInput,
 } from '@buildflow/shared';
+import { StockMovementType } from '@prisma/client';
 
 function round2(n: number) {
   return Math.round(n * 100) / 100;
@@ -332,6 +334,7 @@ export async function createWorkOrder(
       endDate: input.endDate,
       boqItemId: input.boqItemId ?? null,
       taskId: input.taskId ?? null,
+      materialSupplyMode: input.materialSupplyMode ?? 'NONE',
       status: 'ACTIVE',
       contractLines: contractLines.length ? { create: contractLines } : undefined,
     },
@@ -950,4 +953,179 @@ export async function recordSubcontractBillPayment(
   if (!bill) throw ApiError.notFound('Subcontractor bill not found');
 
   return recordBillPayment(companyId, userId, billId, { amount, method: 'BANK' });
+}
+
+// ------------------------------------------------------------------
+// SUB-C2: Material issue / return (GC_SUPPLIED only)
+// ------------------------------------------------------------------
+
+export async function issueMaterialToWorkOrder(
+  companyId: string,
+  userId: string,
+  role: string,
+  projectId: string,
+  workOrderId: string,
+  input: IssueMaterialToWoInput,
+) {
+  await assertProjectAccess(companyId, userId, role as never, projectId, ['OWNER', 'PM', 'STORE_INCHARGE']);
+
+  const wo = await prisma.subcontractWorkOrder.findFirst({
+    where: { id: workOrderId, projectId, project: { companyId } },
+  });
+  if (!wo) throw ApiError.notFound('Work order not found');
+
+  // SUB-C1: Only allow material issue if supply mode is GC_SUPPLIED or MIXED
+  if (wo.materialSupplyMode === 'NONE') {
+    throw ApiError.badRequest(
+      'This work order is set to contractor-supplied materials. Change the material supply mode to issue materials from stock.',
+    );
+  }
+
+  // Find the project's stock location
+  const stockLoc = await prisma.stockLocation.findFirst({
+    where: { projectId, companyId },
+  });
+  if (!stockLoc) throw ApiError.notFound('No stock location found for this project');
+
+  // Validate stock availability
+  const balance = await prisma.stockBalance.findUnique({
+    where: { locationId_resourceId: { locationId: stockLoc.id, resourceId: input.resourceId } },
+  });
+  const availableQty = balance ? num(balance.quantity) : 0;
+  if (availableQty < input.quantity) {
+    throw ApiError.badRequest(
+      `Insufficient stock. Available: ${availableQty} ${input.unit}, requested: ${input.quantity} ${input.unit}`,
+    );
+  }
+
+  return prisma.$transaction(async (tx) => {
+    // Create the material issue record
+    const issue = await tx.subcontractorMaterialIssue.create({
+      data: {
+        workOrderId,
+        resourceId: input.resourceId,
+        quantity: input.quantity,
+        unit: input.unit,
+        rate: input.rate,
+        amount: round2(input.quantity * input.rate),
+        issueDate: input.issueDate,
+        issuedBy: userId,
+        notes: input.notes ?? null,
+      },
+    });
+
+    // Deduct from stock
+    await tx.stockBalance.update({
+      where: { locationId_resourceId: { locationId: stockLoc.id, resourceId: input.resourceId } },
+      data: { quantity: { decrement: input.quantity } },
+    });
+
+    // Record stock movement
+    await tx.stockMovement.create({
+      data: {
+        locationId: stockLoc.id,
+        resourceId: input.resourceId,
+        quantity: input.quantity,
+        type: StockMovementType.OUT,
+        referenceType: 'SUBCONTRACT_ISSUE',
+        referenceId: issue.id,
+      },
+    });
+
+    return issue;
+  });
+}
+
+export async function recoverMaterialFromWorkOrder(
+  companyId: string,
+  userId: string,
+  role: string,
+  projectId: string,
+  workOrderId: string,
+  issueId: string,
+  recoveredQty: number,
+) {
+  await assertProjectAccess(companyId, userId, role as never, projectId, ['OWNER', 'PM', 'STORE_INCHARGE']);
+
+  const issue = await prisma.subcontractorMaterialIssue.findFirst({
+    where: { id: issueId, workOrderId },
+    include: { workOrder: { select: { projectId: true, project: { select: { companyId: true } } } } },
+  });
+  if (!issue) throw ApiError.notFound('Material issue not found');
+  if (issue.workOrder.projectId !== projectId || issue.workOrder.project.companyId !== companyId) {
+    throw ApiError.notFound('Material issue not found');
+  }
+
+  const currentRecovered = num(issue.recoveredQty);
+  const issueQty = num(issue.quantity);
+  if (currentRecovered + recoveredQty > issueQty) {
+    throw ApiError.badRequest(
+      `Cannot recover more than issued. Issued: ${issueQty}, already recovered: ${currentRecovered}, attempting: ${recoveredQty}`,
+    );
+  }
+
+  const stockLoc = await prisma.stockLocation.findFirst({
+    where: { projectId, companyId },
+  });
+  if (!stockLoc) throw ApiError.notFound('No stock location found for this project');
+
+  return prisma.$transaction(async (tx) => {
+    const newRecoveredQty = round2(currentRecovered + recoveredQty);
+    const recoveredAmount = round2(recoveredQty * num(issue.rate));
+
+    const updated = await tx.subcontractorMaterialIssue.update({
+      where: { id: issueId },
+      data: {
+        recoveredQty: newRecoveredQty,
+        recoveredAmount: { increment: recoveredAmount },
+      },
+    });
+
+    // Return to stock
+    const existing = await tx.stockBalance.findUnique({
+      where: { locationId_resourceId: { locationId: stockLoc.id, resourceId: issue.resourceId } },
+    });
+    if (existing) {
+      await tx.stockBalance.update({
+        where: { id: existing.id },
+        data: { quantity: { increment: recoveredQty } },
+      });
+    } else {
+      await tx.stockBalance.create({
+        data: { locationId: stockLoc.id, resourceId: issue.resourceId, quantity: recoveredQty },
+      });
+    }
+
+    // Record stock movement (IN)
+    await tx.stockMovement.create({
+      data: {
+        locationId: stockLoc.id,
+        resourceId: issue.resourceId,
+        quantity: recoveredQty,
+        type: StockMovementType.IN,
+        referenceType: 'SUBCONTRACT_RETURN',
+        referenceId: issueId,
+      },
+    });
+
+    return updated;
+  });
+}
+
+export async function listMaterialIssues(
+  companyId: string,
+  userId: string,
+  role: string,
+  projectId: string,
+  workOrderId: string,
+) {
+  await assertProjectAccess(companyId, userId, role as never, projectId);
+  return prisma.subcontractorMaterialIssue.findMany({
+    where: { workOrderId, workOrder: { projectId, project: { companyId } } },
+    include: {
+      resource: { select: { id: true, name: true, unit: true } },
+      issuedByUser: { select: { id: true, name: true } },
+    },
+    orderBy: { issueDate: 'desc' },
+  });
 }

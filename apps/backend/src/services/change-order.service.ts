@@ -263,11 +263,7 @@ export async function approveChangeOrder(
     // Status was already set to APPROVED by the guarded updateMany above.
   });
 
-  // VO-B2: Auto-indent creation removed. After approve, the BOQ qty now
-  // includes the variation delta. The Shortfalls tab (fetchBoqMaterialDemands)
-  // is the single consistent demand path — it RA-explodes composite BOQ lines
-  // and correctly subtracts stock + open indents. Users review shortfalls and
-  // generate indents manually from Procurement → Shortfalls.
+  // VO-B2: After convert-to-boq, review shortfalls in Procurement (not auto-indented).
 
   // FIX (EST-M14): After schedule impact is applied, recompute CPM (critical
   // path method) for the project so downstream tasks' dates shift correctly.
@@ -332,7 +328,7 @@ export async function convertChangeOrderToBoq(
   }
 
   // VAR-D2: Prevent double-apply
-  if ((co as { boqAppliedAt?: Date | null }).boqAppliedAt) {
+  if (co.boqAppliedAt) {
     throw ApiError.conflict('BOQ has already been applied for this variation');
   }
 

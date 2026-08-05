@@ -1,5 +1,5 @@
 /**
- * Change order integration tests - approval updates BOQ + budget.
+ * Change order integration tests - approve (budget) + convert-to-boq (sanctioned qty).
  */
 import { loginAs, authGet, authPost, getSeedProjectId } from './test-helpers';
 
@@ -52,10 +52,27 @@ describe('Change orders (integration)', () => {
     const approveRes = await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/approve`);
     expect(approveRes.status).toBe(200);
     expect(approveRes.body.data.status).toBe('APPROVED');
-    // VAR-D2: Approve no longer writes BOQ — need explicit convert-to-boq
+    expect(approveRes.body.data.boqAppliedAt).toBeFalsy();
+
+    // VAR-D2d: Approve alone must not change BOQ qty
+    const boqAfterApprove = await authGet(token, `/api/projects/${projectId}/boq`);
+    const itemAfterApprove = (boqAfterApprove.body.data?.items as Array<{ id: string; quantity: number }>).find(
+      (i) => i.id === boqItem.id,
+    );
+    expect(Number(itemAfterApprove!.quantity)).toBe(Number(boqItem.quantity));
+
     const convertRes = await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/convert-to-boq`);
     expect(convertRes.status).toBe(200);
     expect(convertRes.body.data.boqAppliedAt).toBeTruthy();
+
+    const boqAfterConvert = await authGet(token, `/api/projects/${projectId}/boq`);
+    const itemAfterConvert = (boqAfterConvert.body.data?.items as Array<{ id: string; quantity: number }>).find(
+      (i) => i.id === boqItem.id,
+    );
+    expect(Number(itemAfterConvert!.quantity)).toBe(Number(boqItem.quantity) + 10);
+
+    const doubleConvert = await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/convert-to-boq`);
+    expect(doubleConvert.status).toBe(409);
   });
 
   it('approving variation linked to WO bumps WO contractValue in summary', async () => {

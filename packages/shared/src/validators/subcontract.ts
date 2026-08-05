@@ -17,6 +17,8 @@ export const workOrderLineSchema = z.object({
   boqItemId: idSchema.optional(),
 });
 
+export const materialSupplyModeSchema = z.enum(['NONE', 'GC_SUPPLIED', 'MIXED']).default('NONE');
+
 export const createWorkOrderSchema = z.object({
   subcontractorId: idSchema,
   woNumber: z.string().min(1).max(50),
@@ -28,6 +30,7 @@ export const createWorkOrderSchema = z.object({
   endDate: z.coerce.date().optional(),
   boqItemId: idSchema.optional(),
   taskId: idSchema.optional(),
+  materialSupplyMode: materialSupplyModeSchema,
   lines: z.array(workOrderLineSchema).optional(),
 });
 export type CreateWorkOrderInput = z.infer<typeof createWorkOrderSchema>;
@@ -75,3 +78,19 @@ export const recordBillPaymentSchema = z.object({
   amount: z.coerce.number().positive(),
 });
 export type RecordBillPaymentInput = z.infer<typeof recordBillPaymentSchema>;
+
+// SUB-C2: Material issue from stock to subcontract WO
+export const issueMaterialToWoSchema = z.object({
+  resourceId: idSchema,
+  quantity: z.coerce.number().positive(),
+  unit: z.string().min(1).max(20),
+  rate: z.coerce.number().nonnegative(),
+  issueDate: z.coerce.date(),
+  notes: z.string().max(500).optional(),
+});
+export type IssueMaterialToWoInput = z.infer<typeof issueMaterialToWoSchema>;
+
+export const recoverMaterialFromWoSchema = z.object({
+  recoveredQty: z.coerce.number().positive(),
+});
+export type RecoverMaterialFromWoInput = z.infer<typeof recoverMaterialFromWoSchema>;

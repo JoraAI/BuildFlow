@@ -563,6 +563,7 @@ export interface EstimateVariationRow {
   scheduleImpactDays: number;
   approvedAt: string | null;
   createdAt: string;
+  boqAppliedAt?: string | null;
   lines: Array<{ id: string }>;
 }
 

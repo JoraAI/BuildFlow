@@ -173,10 +173,10 @@ function ApprovedImpactSection({ projectId, co }: { projectId: string; co: Chang
   );
 }
 
-function VariationCard({ co, canManage, canApprove, isDesktop, submitPending, approvePending, rejectPending, convertPending, onSubmit, onApprove, onReject, onConvertToBoq, projectId }: { co: ChangeOrder; canManage: boolean; canApprove: boolean; isDesktop: boolean; submitPending: boolean; approvePending: boolean; rejectPending: boolean; convertPending: boolean; onSubmit: () => void; onApprove: () => void; onReject: () => void; onConvertToBoq: (id: string) => void; projectId: string }) {
+function VariationCard({ co, canManage, canApprove, isDesktop, submitPending, approvePending, rejectPending, convertPending, highlighted, onSubmit, onApprove, onReject, onConvertToBoq, projectId }: { co: ChangeOrder; canManage: boolean; canApprove: boolean; isDesktop: boolean; submitPending: boolean; approvePending: boolean; rejectPending: boolean; convertPending: boolean; highlighted?: boolean; onSubmit: () => void; onApprove: () => void; onReject: () => void; onConvertToBoq: (id: string) => void; projectId: string }) {
   const orderLines = co.lines ?? [];
   return (
-    <Card>
+    <Card className={highlighted ? 'border-2 border-primary' : undefined}>
       <View className="flex-row justify-between items-start mb-2">
         <View className="flex-1 min-w-0 mr-2">
           <Text className="text-sm font-semibold text-text" numberOfLines={2}>{co.number} - {co.title}</Text>
@@ -221,7 +221,7 @@ function VariationCard({ co, canManage, canApprove, isDesktop, submitPending, ap
   );
 }
 
-export function VariationsTab({ projectId }: { projectId: string }) {
+export function VariationsTab({ projectId, highlightChangeOrderId }: { projectId: string; highlightChangeOrderId?: string }) {
   const { isDesktop } = useViewport();
   const user = useAuthStore((s) => s.user);
   const canManage = user?.role === 'OWNER' || user?.role === 'PM';
@@ -294,7 +294,7 @@ export function VariationsTab({ projectId }: { projectId: string }) {
   const orders = data ?? [];
 
   const renderCard = (co: ChangeOrder) => (
-    <VariationCard key={co.id} co={co} projectId={projectId} canManage={canManage} canApprove={canApprove} isDesktop={isDesktop} submitPending={submitCo.isPending} approvePending={approveCo.isPending} rejectPending={rejectCo.isPending} convertPending={convertCo.isPending}
+    <VariationCard key={co.id} co={co} projectId={projectId} canManage={canManage} canApprove={canApprove} isDesktop={isDesktop} submitPending={submitCo.isPending} approvePending={approveCo.isPending} rejectPending={rejectCo.isPending} convertPending={convertCo.isPending} highlighted={highlightChangeOrderId === co.id}
       onSubmit={() => submitCo.mutate(co.id, { onError: (e: Error) => void alertAsync('Error', e.message) })}
       onApprove={() =>
         approveCo.mutate(co.id, {
@@ -316,9 +316,9 @@ export function VariationsTab({ projectId }: { projectId: string }) {
       {/* VAR-C9c: FlowHint — single line per BOQ/RA, all 5 types, no split */}
       <FlowHintCard title="When to use variations" steps={[
         'Use when the client agrees to extra scope or quantity after BOQ was approved',
-        'PM creates a variation → Owner approves → BOQ sanctioned qty updates (budget too)',
+        'PM creates a variation → Owner approves → Convert to BOQ updates sanctioned qty (budget on approve)',
         'Approved estimate stays as original baseline — see Estimate tab for revised scope',
-        'Material needs are NOT auto-indented — review Procurement → Shortfalls after approve',
+        'Material needs are NOT auto-indented — review Procurement → Shortfalls after convert',
         'Link to a subcontract work order to bump contract value when scope is subcontracted',
         'One line per BOQ chip (qty Δ) or one line per new scope item (type + material/RA)',
       ]} defaultCollapsed />

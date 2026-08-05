@@ -19,7 +19,7 @@ import { useEstimate, useEstimateMutations, useExportEstimate, useSubEstimates, 
 import { useProject } from '@/services/project.queries';
 import { useAuthStore } from '@/stores/auth.store';
 import { formatINR, formatDate } from '@/utils/format';
-import { useProjectScopeSummary, type ProjectScopeSummary } from '@/services/expansion.queries';
+import { useProjectScopeSummary, useConvertChangeOrderToBoq, type ProjectScopeSummary } from '@/services/expansion.queries';
 
 /**
  * VO-B4: Revised scope banner — shows original estimate + approved variations
@@ -53,7 +53,7 @@ function ScopeSummaryBanner({ projectId }: { projectId: string }) {
         </View>
       </View>
       <Text className="text-[10px] text-text-muted italic mt-2">
-        Approved estimate stays as the original baseline. BOQ sanctioned quantity updates on variation approve.
+        Approved estimate stays as the original baseline. BOQ sanctioned qty updates when a variation is converted to BOQ.
       </Text>
     </Card>
   );
@@ -226,13 +226,15 @@ function LineItemWithBreakdown({ item }: { item: EstimateItem }) {
 }
 
 /**
- * EST-VO-11c: Variations section — amber accent, distinct from sub-estimates.
- * Shows change orders linked to this estimate via `estimateId`.
- * Read-only directory; tapping opens the project Variations tab.
+ * EST-VO-11c / VAR-D2b: Variations linked to this estimate — amber accent,
+ * distinct from sub-estimates. Convert to BOQ when approved and not yet applied.
  */
 function VariationsSection({ estimateId, projectId }: { estimateId: string; projectId: string }) {
   const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+  const canManage = user?.role === 'OWNER' || user?.role === 'PM';
   const { data: variations } = useEstimateVariations(estimateId);
+  const convertCo = useConvertChangeOrderToBoq(projectId);
 
   const VAR_STATUS_COLORS: Record<string, string> = {
     DRAFT: 'neutral',
@@ -248,7 +250,7 @@ function VariationsSection({ estimateId, projectId }: { estimateId: string; proj
       </View>
 
       <Text className="text-xs text-muted">
-        Change orders linked to this estimate. Variations adjust BOQ qty or add new scope — they do not change the approved estimate baseline.
+        Change orders linked to this estimate. Approve updates budget; use Convert to BOQ to update sanctioned quantities.
       </Text>
 
       {(variations ?? []).length === 0 ? (
@@ -260,13 +262,16 @@ function VariationsSection({ estimateId, projectId }: { estimateId: string; proj
           <Card
             key={vo.id}
             className="border-warning/20 bg-warning/5"
-            onPress={() => router.push(`/projects/${projectId}?tab=variations` as never)}
+            onPress={() =>
+              router.push(`/projects/${projectId}?tab=variations&changeOrderId=${vo.id}` as never)
+            }
           >
             <View className="flex-row justify-between items-start mb-1">
               <View className="flex-1 pr-2">
                 <View className="flex-row items-center gap-2">
                   <Badge color="warning" label="Variation" />
                   <Text className="text-sm font-semibold text-text">{vo.number}</Text>
+                  {vo.boqAppliedAt ? <Badge color="success" label="BOQ applied" /> : null}
                 </View>
                 <Text className="text-xs text-text-muted mt-0.5" numberOfLines={1}>{vo.title}</Text>
                 <Text className="text-[10px] text-text-muted">{formatDate(vo.createdAt)}</Text>
@@ -277,6 +282,20 @@ function VariationsSection({ estimateId, projectId }: { estimateId: string; proj
               <Text className="text-xs text-text-muted">{vo.lines?.length ?? 0} lines · {vo.scheduleImpactDays}d</Text>
               <Text className="text-sm font-bold text-warning">{formatINR(parseFloat(vo.costImpact))}</Text>
             </View>
+            {canManage && vo.status === 'APPROVED' && !vo.boqAppliedAt && (
+              <View className="mt-2">
+                <Button
+                  label="Convert to BOQ"
+                  size="sm"
+                  loading={convertCo.isPending}
+                  onPress={() =>
+                    convertCo.mutate(vo.id, {
+                      onError: (e: Error) => void alertAsync('Error', e.message),
+                    })
+                  }
+                />
+              </View>
+            )}
           </Card>
         ))
       )}

@@ -141,6 +141,12 @@ enum WorkOrderStatus {
   CANCELLED
 }
 
+enum MaterialSupplyMode {
+  NONE
+  GC_SUPPLIED
+  MIXED
+}
+
 enum ReportScheduleType {
   GST_SUMMARY
   TDS_REPORT
@@ -1558,6 +1564,7 @@ model SubcontractWorkOrder {
   startDate       DateTime?       @map("start_date") @db.Date
   endDate         DateTime?       @map("end_date") @db.Date
   retentionReleasedAt DateTime?   @map("retention_released_at")
+  materialSupplyMode MaterialSupplyMode @default(NONE) @map("material_supply_mode")
   createdAt       DateTime        @default(now()) @map("created_at")
 
   project              Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)

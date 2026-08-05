@@ -903,7 +903,7 @@ function ShortfallsSection({ projectId, canCreate }: { projectId: string; canCre
         </View>
         {/* R13-VO3: Clarify that shortfalls include approved variation quantities. */}
         <Text className="text-xs text-muted mb-2">
-          Uses current BOQ qty (includes approved variations). Generate indents here after approving a variation.
+          Uses current BOQ qty (includes converted variations). Generate indents here after converting a variation to BOQ.
         </Text>
       </View>
 

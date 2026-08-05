@@ -1,14 +1,14 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 22 — VAR-D2 polish + convert-to-BOQ)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 24 — subcontract supply + report branding)
 
 > **You do not need any prior conversation or other documents.** This file is the
 > complete task brief. Read it top to bottom, then execute **Section 2** in order.
 > [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
 >
 > **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
-> **Last committed baseline:** `b6ef712` (`main` ahead of `origin/main` by 12 commits)  
-> **Verified:** 2026-08-05 — Round 22 polish **EST-VO-11e/f complete** (`b6ef712`, 116/116
-> tests ×2, tsc ×2). **VAR-D2** convert-to-BOQ and **EST-VO-11g** deep-link remain
-> deferred until product asks. Run §2.1 gates before/after.
+> **Last committed baseline:** Round 23 polish + `a20875e` (VAR-D2)  
+> **Verified:** 2026-08-05 — Rounds 12–23 (variations) **complete**. **Round 24**
+> required: flexible **subcontract / work-order material supply** + **company-branded
+> report templates** (logo, layout) with correct line-item visibility. Run §2.1 before/after.
 
 ---
 
@@ -66,35 +66,69 @@ BuildFlow spans the full project lifecycle:
 
 ---
 
-## 2. Round 22 — Complete; VAR-D2 deferred
+## 2. Round 24 — Subcontract supply flexibility + branded reports
 
-**Round 21 (`5d61c48`):** Variations on estimate page + `estimateId` link.  
-**Round 22 polish (`b6ef712`):** Query invalidation on CO mutations + seed/backfill.
+**Product direction (2026-08-05):**
 
-**Remaining (do not start without product sign-off):**
+1. **Subcontracts / work orders:** A subcontractor **may or may not** receive materials
+   from the general contractor. The platform must support **both** (and mixed) models
+   without forcing material issue or stock deduction when the contractor self-supplies.
+2. **Reports (PDF/Excel download):** Companies need **report templates** and **branding**
+   (logo, header/footer, optional watermark/background). Downloaded reports must show
+   **all relevant line items** in a **correct, professional layout** — not generic
+   BuildFlow chrome only.
 
-- **EST-VO-11g** — Deep-link tap to specific variation from estimate page (optional UX)
-- **VAR-D2** — Explicit convert-to-BOQ step (§2.2b); approve still writes BOQ today
+**Do not** break Rounds 12–23 (variation two-step flow, EST-VO-11, VAR-D2, shortfalls).
 
-**Do not** break Rounds 12–22 (single-line form, estimateId link, cache invalidation, shortfalls, frozen baseline).
+### 2.0 Current vs target
 
-### 2.0 Status (`b6ef712`)
+| Area | Today | Target (Round 24) |
+| ---- | ----- | ----------------- |
+| **Work order material model** | `SubcontractorMaterialIssue` schema exists; **no flexible supply mode** on WO; UI assumes lump-sum + measurements | Per-WO **`materialSupplyMode`**: `NONE` (contractor owns materials), `GC_SUPPLIED` (issue from stock), `MIXED` (per line or per resource flag) |
+| **Material issue flow** | Inventory traceability partial; material issues not first-class in Subcontracts UI | When `GC_SUPPLIED`: issue/return from stock → WO; deduct stock; show on WO summary + reports. When `NONE`: **skip** issue UI and stock hooks |
+| **Measurements / payables** | Measurement book + abstract PDF exist (`pdf-report.service.ts`) | Measurements unchanged; **material issues appear as separate section** on subcontract PDFs when applicable |
+| **Company logo** | `Company.logoUrl` + upload in Settings; **PDFs ignore logo** — hardcoded `drawHeader` uses text + amber bar only | All PDF exports load **`resolveLogoDisplayUrl`** and render logo in header; optional footer with company address/GSTIN |
+| **Report templates** | No template entity; one layout per report type in code | **`ReportTemplate`** (or `Company.reportSettings` JSON): per report-type layout preset (classic / compact / detailed), accent color, show/hide columns |
+| **Report line items** | Some PDFs truncate or omit rows; tables basic | Aligned columns, zebra rows, page breaks, INR + qty units; **subcontract lines, material issues, BOQ rows** visible where relevant |
+| **Excel exports** | `estimate-export.service.ts` has Excel; financial reports may be CSV/PDF only | Branded header row + logo image cell where Excel supports it; match PDF column set |
+
+**Reference files:**
+
+- Subcontracts UI: `apps/mobile/components/projects/SubcontractsTab.tsx`
+- Subcontract backend: `apps/backend/src/services/subcontract.service.ts`
+- Material issue schema: `SubcontractorMaterialIssue`, `SubcontractWorkOrder` in `schema.prisma`
+- PDF engine: `apps/backend/src/services/pdf-report.service.ts` (`drawHeader`, measurement book, abstract)
+- Estimate Excel: `apps/backend/src/services/estimate-export.service.ts`
+- Company logo: `settings.service.ts` → `resolveLogoDisplayUrl`, `Company.logoUrl`
+- Financial reports: `financial-report.service.ts`, `pdf-report.controller.ts`
+
+### 2.0 Status (Round 24)
 
 | ID | Task | Status | Notes |
 | -- | ---- | ------ | ----- |
-| **VAR-C1–C9** | Variation line editor | **Done** | `433f10b` |
-| **EST-VO-11a–d** | estimateId + list API + VariationsSection | **Done** | `5d61c48` |
-| **EST-VO-11e** | Invalidate variations query on CO mutations | **Done** | `b6ef712` — `invalidateEstimateVariations` |
-| **EST-VO-11f** | Seed/backfill `estimateId` | **Done** | `b6ef712` — VO-001 + backfill script; VO-002 seed still null (minor) |
-| **EST-VO-11g** | Deep-link to specific variation | **Deferred** | Optional UX |
-| **VAR-D2** | Explicit convert-to-BOQ step | **Deferred** | Approve still writes BOQ today |
-| **Ship gate** | 116/116 ×2 + tsc ×2 | **Green** | |
+| **SUB-C1** | `materialSupplyMode` on work order | **Not done** | User request 2026-08-05 |
+| **SUB-C2** | Material issue/return UI (GC_SUPPLIED only) | **Not done** | Wire to stock + `SubcontractorMaterialIssue` |
+| **SUB-C3** | WO summary + measurement PDFs show supply model | **Not done** | Label "Materials: GC / Contractor" |
+| **RPT-C1** | Company logo + footer on all PDF reports | **Not done** | Replace hardcoded BuildFlow header |
+| **RPT-C2** | Report template settings (per company, per type) | **Not done** | Settings UI + persist |
+| **RPT-C3** | PDF layout polish (tables, pagination, INR) | **Not done** | Shared `pdf-table` helpers |
+| **RPT-C4** | Line items on reports (WO, materials, BOQ, estimate) | **Not done** | Audit each of 12+ PDF types |
+| **Ship gate** | 116/116 ×2 + tsc ×2 | **Must stay green** | |
 
-### 2.0a Prior rounds — do NOT re-break
+### 2.0a Completed — Rounds 12–23 variations (do NOT re-break)
+
+| Area | Evidence |
+| ---- | -------- |
+| Two-step variation | Approve → budget; **convert-to-boq** → BOQ (`a20875e`) |
+| Estimate children | EST-VO-11 `estimateId` + `VariationsSection` (`5d61c48`–Round 23) |
+| Line editor | VAR-C9 single-line BOQ/RA (`433f10b`) |
+| Shortfalls | VAR-C6b after convert |
+
+### 2.0b Prior rounds — do NOT re-break
 
 | ID | Task | Status | Evidence |
 | -- | ---- | ------ | -------- |
-| **VO-B / R12–14** | Approve → BOQ/budget; shortfalls; impact UI; Via CO chips | **Done** | `804f0a6`–`e686c21` |
+| **VO-B / R12–14** | Approve → budget; **convert → BOQ**; shortfalls; impact UI | **Done** | `804f0a6`–`a20875e` |
 | **VAR-C1** | Explode no duplicate lines (same line) | **Done** | `f055465` — superseded by VAR-C9 UX |
 | **VAR-C2** | Remove line (min 1) | **Done** | `f055465` |
 | **VAR-C3a/b** | MaterialPicker + RateAnalysisPicker | **Done** | `dbac1aa` |
@@ -103,6 +137,7 @@ BuildFlow spans the full project lifecycle:
 | **VAR-C9** | Single-line BOQ/RA; no Split; BOQ dedupe; all 5 types | **Done** | `433f10b` |
 | **EST-VO-11a–d** | estimateId + variations on estimate page | **Done** | `5d61c48` |
 | **EST-VO-11e/f** | Cache invalidation + seed/backfill | **Done** | `b6ef712` |
+| **VAR-D2** | Approve ≠ BOQ; convert-to-boq endpoint + mobile | **Done** | `a20875e` |
 
 ### 2.0a Completed in Rounds 8–14 — do NOT re-break
 
@@ -131,14 +166,14 @@ Preserved from Rounds 3–7 — see §2.0c legacy table below.
 
 1. **Rate Analysis = one line** on this form (new scope via picker, or BOQ with RA).
    Never explode RA into material/labour/equipment rows in the variation draft UI.
-2. **BOQ chip = one line** with `boqItemId`; qty Δ adjusts that BOQ row on approve.
+2. **BOQ chip = one line** with `boqItemId`; qty Δ applies on **convert-to-boq** (VAR-D2).
 3. **One BOQ id per draft** — disable chips already used on another line (VAR-C9b).
-4. **Backend shortfalls** may RA-explode after approve — that is separate (VAR-C6b).
+4. **Backend shortfalls** RA-explode after **convert** when VARIATION BOQ rows exist (VAR-C6b).
 
-| Intent | UI | On approve |
-| ------ | -- | ---------- |
-| **Adjust existing BOQ qty** | One line + BOQ chip + qty Δ | `BOQItem.quantity += qtyDelta` |
-| **Add new scope** | Type + material **or** RA (**single line**) | New `BOQItem` `category: 'VARIATION'` |
+| Intent | UI | On approve | On convert-to-boq |
+| ------ | -- | ---------- | ------------------- |
+| **Adjust existing BOQ qty** | One line + BOQ chip + qty Δ | Budget/schedule only | `BOQItem.quantity += qtyDelta` |
+| **Add new scope** | Type + material **or** RA (**single line**) | Budget/schedule only | New `BOQItem` `category: 'VARIATION'` |
 
 **Reuse estimate patterns** (Remove, type chips, pickers — **not** Split):
 
@@ -191,33 +226,145 @@ pnpm exec prisma generate
 # restart backend dev server
 ```
 
-### 2.2a Completed Round 22 polish — reference (do NOT re-break)
+**After pulling schema changes, dev DB must run `prisma migrate deploy` + restart backend.**
+
+### 2.2 Mandatory tasks — Round 24
+
+#### SUB-C1 — Flexible material supply mode on work orders
+
+**Product rule:** Not every subcontract includes GC-supplied materials. Support:
+
+| Mode | Meaning | Stock / issue UI |
+| ---- | ------- | ---------------- |
+| **`NONE`** | Contractor supplies all materials (labour-only or full package) | Hide material issue; no stock deduction |
+| **`GC_SUPPLIED`** | GC issues materials from site stock to WO | Show issue/return; deduct `StockBalance` |
+| **`MIXED`** | Some items GC, some contractor (optional Phase 1.5) | Per-line or per-issue flag |
+
+1. Add enum `MaterialSupplyMode` (`NONE`, `GC_SUPPLIED`, `MIXED`) on `SubcontractWorkOrder`
+   (default **`NONE`** for backwards compatibility) + migration.
+2. Expose on create/update WO API + Zod validators in `packages/shared`.
+3. Mobile `SubcontractsTab`: supply mode selector on create/edit WO with plain-language copy:
+   *"Will you issue materials from site stock to this contractor?"*
+4. `getWorkOrderSummary`: return `materialSupplyMode`, `materialIssuedTotal`, `materialRecoveredTotal`,
+   `netMaterialOnWO` (zero when `NONE`).
+5. Integration test: WO with `NONE` → issue endpoint **403 or hidden**; `GC_SUPPLIED` → issue allowed.
+
+#### SUB-C2 — Material issue & return (GC_SUPPLIED only)
+
+Use existing `SubcontractorMaterialIssue` model; add service + routes if missing:
+
+1. `POST /api/projects/:id/subcontract/work-orders/:woId/material-issues` — issue from stock
+   (validate stock, write `StockMovement`, link to WO).
+2. `POST …/material-issues/:id/recover` — partial/full return to stock.
+3. Mobile: **Materials** section on WO detail when `materialSupplyMode !== 'NONE'`.
+4. Do **not** require material issue to create measurements or approve payables.
+
+#### SUB-C3 — Subcontract PDFs reflect supply model
+
+Update `reportSubcontractMeasurementBook` / `reportSubcontractAbstractSheet` in
+`pdf-report.service.ts`:
+
+- Header line: **Material supply: General contractor / Subcontractor**
+- When `GC_SUPPLIED`: table of issued materials (qty, rate, amount, recovered, net)
+- Measurement lines remain primary; material section is additive
+
+#### RPT-C1 — Company logo & footer on PDF exports
+
+Refactor `drawHeader` / add `drawFooter` in `pdf-report.service.ts`:
+
+1. Load company via `getCompanyProfile` / `resolveLogoDisplayUrl(companyId, logoUrl)`.
+2. Render **logo image** top-right (fallback: company name text if no logo).
+3. Footer: company legal name, address, GSTIN, report generated timestamp (IST).
+4. Optional: faint watermark logo center (low opacity) — **off by default**, toggle in template settings.
+5. Apply to **all** `report*` functions (12 types + subcontract measurement/abstract).
+
+Use existing encrypted storage / presigned URL pattern — do not embed broken URLs.
+
+#### RPT-C2 — Report template settings (per company)
+
+1. Add `CompanyReportSettings` or JSON on `Company`:
+   - `defaultTemplateId` or per-type map: `{ estimate: 'classic', boq: 'detailed', … }`
+   - `accentColor`, `showLogo`, `showWatermark`, `footerText`
+2. Settings UI: **Reports & branding** under Company settings (`settings/company.tsx` or new screen).
+3. At PDF generation, merge company settings into layout (column visibility, compact vs detailed).
+4. Seed: demo company uses logo from `seed.ts` `COMPANY_LOGO`.
+
+**Phase 1 minimum:** one enhanced template applied everywhere + settings for logo/watermark/accent.
+**Phase 2:** multiple named templates user can pick at download time.
+
+#### RPT-C3 — PDF layout polish (shared helpers)
+
+Extract reusable helpers (same file or `pdf-layout.ts`):
+
+- `drawTable(headers, rows, { zebra, align, pageBreak })`
+- Consistent INR (`en-IN`), qty + unit columns, right-aligned money
+- Section headings, spacing, don't clip long descriptions (wrap or truncate with tooltip in UI list)
+- Page numbers on multi-page reports
+
+**Acceptance:** Estimate PDF, BOQ vs Actual, and Subcontract Measurement Book are visually
+reviewed at **A4** on web download — no overlapping text, no cut-off totals.
+
+#### RPT-C4 — Line-item completeness audit
+
+For each export path, verify **all business rows** appear:
+
+| Report | Must include |
+| ------ | ------------- |
+| Estimate PDF/Excel | All sections + line items (top-level; no double-count children) |
+| BOQ vs Actual | BOQ rows + executed/billed/variance columns |
+| Subcontract MB/Abstract | WO lines + measurement lines + **material issues if GC_SUPPLIED** |
+| GST/TDS/P&L | Register lines matching on-screen financial reports |
+| Daily / Progress | Tasks, photos refs, KPIs |
+
+Add or extend one integration test per critical PDF (buffer length > 0, contains known seed string).
+
+**Ship gate:** `tsc` ×2 + backend tests **116/116** ×2 (may become 118+ with new tests — document count).
+
+### 2.2a Product model — subcontract supply (authoritative)
+
+```
+Work Order created
+  → materialSupplyMode selected (default NONE)
+  → If GC_SUPPLIED: optional material issues from stock (independent of measurements)
+  → Measurements / RA bills / payables (unchanged)
+  → PDF download: branded header + lines + material section if applicable
+```
+
+**Do not** block WO activation or measurement submit when no materials issued.
+
+### 2.2b Product model — report branding (authoritative)
+
+```
+User → Settings → Company → Reports & branding (logo already uploaded)
+  → Pick template / accent / watermark
+  → Download report (PDF/Excel) from project or reports hub
+  → Output uses company logo + template + full line items
+```
+
+### 2.2z Completed Round 23 — reference (do NOT re-break)
 
 | Task | Evidence |
 | ---- | -------- |
-| EST-VO-11e | `invalidateEstimateVariations()` in `project-query-invalidation.ts`; wired in create/submit/reject mutations + `invalidateChangeOrderImpact` (approve) |
-| EST-VO-11f | Seed `NH-65 Baseline Estimate` + `VO-001.estimateId`; `scripts/one-off/backfill-change-order-estimate-id.ts` |
+| VAR-D2b | `VariationsSection` Convert button + `boqAppliedAt` badge on estimate page |
+| VAR-D2c | ScopeSummaryBanner, FlowHint, BoqTab, ProcurementTab copy updated |
+| VAR-D2d | Test: approve leaves BOQ unchanged; convert updates; double-convert **409** |
+| EST-VO-11g | Deep-link `?tab=variations&changeOrderId=` + highlight in `VariationsTab` |
+| Route fix | `convert-to-boq` wrapped in `asyncHandler` so 409 returns properly |
+| Seed | `VO-002.estimateId` set |
 
-**Minor seed gap (optional):** `VO-002` in seed still has null `estimateId` despite comment — add `estimateId: estimate1.id` if demo parity matters.
+### 2.2b Completed VAR-D2 — reference (do NOT re-break)
 
-### 2.2b VAR-D2 — Explicit convert-to-BOQ (Phase 2 — product sign-off required)
+| Task | Evidence |
+| ---- | -------- |
+| Schema | `boqAppliedAt` on `ChangeOrder`; migration `20260805060000` |
+| Approve | Budget + schedule + linked WO only — **no BOQ writes** |
+| Convert | `convertChangeOrderToBoq` — BOQ qty/create + guarded `boqAppliedAt` |
+| Route | `POST …/convert-to-boq` (OWNER, PM) |
+| Mobile | `VariationsTab` Convert button + "BOQ applied" badge |
+| Seed | `VO-001.boqAppliedAt` set |
+| Tests | All `change-order.test.ts` flows: approve → convert → assert BOQ |
 
-**Today:** `approveChangeOrder` already creates/updates BOQ rows (R12–19). Shortfalls
-(VAR-C6b) depend on those BOQ rows existing after approve.
-
-**Future product ask:** mirror sub-estimate flow — variation approved first, then user
-clicks **"Convert to BOQ"** on the estimate page.
-
-If implementing VAR-D2 later:
-
-1. Split approve into **(a)** status → APPROVED + budget/schedule side-effects and
-   **(b)** BOQ write in `POST /change-orders/:id/convert-to-boq`.
-2. Add `boqAppliedAt` (or `convertedToBoqAt`) on `ChangeOrder` to prevent double-apply.
-3. Keep VAR-C6b tests green — shortfalls must still see VARIATION BOQ rows **after**
-   convert, not after approve.
-4. Until VAR-D2 ships, **Phase 1 must not remove** approve-time BOQ writes.
-
-**Ship gate (Round 22 polish):** `tsc` ×2 + backend tests **116/116** ×2.
+**Dev DB:** `pnpm exec prisma migrate deploy` for `20260805060000_change_order_boq_applied_at`.
 
 ### 2.2c Completed Round 21 — reference (do NOT re-break)
 
@@ -257,21 +404,22 @@ Preserved from Rounds 3–7 — see §2.0c legacy table below.
 | Subcontract measurement approve | — | Keep internal "Generate payable" semantics in code; UI may say **"Approve & record payable"** if you touch it — do not conflate with tax invoice |
 | User-facing field | Bill Number (alone) | **Supplier invoice no.** (with helper: "As printed on vendor's tax invoice") |
 | GRN success toast | — | Keep "Site stock updated" — do not mention billing |
-| Variation approve success | "Estimate updated" | **BOQ updated** / **Revised scope** (estimate baseline unchanged) |
-| Variation line — adjust BOQ | "New item" only | **Link BOQ** + qty Δ |
+| Variation approve success | "Estimate updated" / "BOQ updated" | **Approved** — prompt **Convert to BOQ** for sanctioned qty |
+| Variation line — adjust BOQ | "New item" only | **Link BOQ** + qty Δ (applies on convert) |
 | Variation line — new scope | Materials only | **All types:** Material, Labour, Equipment, Subcontractor, Misc |
-| Variation line — RA on form | Split RA into components | **One line per RA**; backend explodes for shortfalls after approve |
-| Variation line — BOQ link | Split into materials button | **One line per BOQ**; qty Δ on composite row |
-| Split materials | Split / explode on form | **Removed (VAR-C9)** — use Remove line instead |
-| Remove variation line | (missing) | **Remove** (min 1 line) |
-| Post-approve next step | (silent) / auto-indents | **Review shortfalls** / **View BOQ** |
+| Variation line — RA on form | Split RA into components | **One line per RA**; backend explodes for shortfalls after **convert** |
+| Variation → BOQ | Auto on approve | **Explicit convert-to-boq** after approve (VAR-D2) |
+| Post-approve next step | Review shortfalls immediately | **Convert to BOQ** first, then **Review shortfalls** |
 | Estimate page child — sub-estimate | (only sub-estimates listed) | **Sub-Estimate** — planned additional scope; green/primary |
-| Estimate page child — variation | (variations only on project tab) | **Variation (CO-xxx)** — change order; **amber/warning**; linked via `estimateId` |
-| Variation → BOQ (Phase 2) | Auto on approve (today) | Optional **Convert to BOQ** button on estimate page (VAR-D2); until then approve still writes BOQ |
-| Shortfalls tab | — | Helper: *Uses current BOQ qty (includes approved variations)* |
+| Estimate page child — variation | (variations only on project tab) | **Variation (CO-xxx)** — amber/warning; convert from Variations tab (estimate page: VAR-D2b) |
+| Shortfalls tab | — | Helper: *Uses current BOQ qty (includes **converted** variations)* |
 | Negative variation qty | — | Warn: *Open indents are not auto-reduced* (optional R13-O3) |
-| Bill upload / AI | — | **Upload invoice** / **Extract with AI** / **Import vendor bills** |
-| Users without `bill.create` | Show disabled actions that 403 | Hide via `PermissionGate`; assistant refuses |
+| Subcontract WO | Materials always from GC | **`materialSupplyMode`** — default NONE |
+| Material issue on labour-only WO | Required / implied | **Hidden when NONE** |
+| PDF header | "BuildFlow" generic | **Company name + logo** |
+| Report download | Code-fixed layout | **Company template + branding settings** |
+| Subcontract PDF | Measurements only | **+ material issue table when GC_SUPPLIED** |
+| Report line items | Sometimes truncated | **Full rows; paginate; align columns** |
 
 ### 2.5 Codebase patterns (keep following)
 
@@ -308,32 +456,27 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 | Variations invisible on estimate page | EST-VO-11c `VariationsSection` under parent estimate |
 | `estimateId` never set on ChangeOrder | EST-VO-11a on create |
 | Variations modeled as Estimate rows | Keep `ChangeOrder` — estimate page is a directory only |
-| Removing approve → BOQ without VAR-D2 | Phase 1 visibility only; BOQ write stays on approve |
+| Re-add BOQ writes on variation approve | VAR-D2 — BOQ only via convert-to-boq |
+| Force material issue on all subcontracts | Respect `materialSupplyMode: NONE` |
+| PDF reports without company logo | RPT-C1 — use `resolveLogoDisplayUrl` |
+| Generic "BuildFlow" on client-facing PDFs | Company branding required on downloads |
+| Omit WO material lines from subcontract PDF | RPT-C4 when GC_SUPPLIED |
 | Stale variations list on estimate page | EST-VO-11e — invalidate on CO mutations |
 
 ### 2.7 Definition of Done
 
-**Rounds 12–20 (done — do not regress):**
+**Rounds 12–23 (done — do NOT re-break):** See §2.0a.
 
-- [x] Variation approve → BOQ/budget; shortfalls; VAR-C6/C6b; line editor pickers
-- [x] VAR-C9a–c — Single-line BOQ/RA form (`433f10b`)
-- [x] Ship gate tsc ×2 (test count now **116** after Round 21)
+**Round 24 (SUB-C + RPT-C — must complete):**
 
-**Round 21 (EST-VO-11 — done `5d61c48`):**
-
-- [x] EST-VO-11a — `estimateId` set on variation create (latest approved parent estimate)
-- [x] EST-VO-11b — `GET /estimates/:id/variations` (+ integration test)
-- [x] EST-VO-11c — `VariationsSection` on estimate detail (distinct from sub-estimates)
-- [x] EST-VO-11d — Copy/visual distinction in UI
-- [x] Ship gate **116/116** ×2 + tsc ×2
-
-**Round 22 polish (done `b6ef712`):**
-
-- [x] EST-VO-11e — Invalidate `['estimates', *, 'variations']` on CO create/submit/approve/reject
-- [x] EST-VO-11f — Seed VO-001 `estimateId` + backfill script
-- [ ] EST-VO-11g — Deep-link to specific variation from estimate page (optional)
-- [ ] EST-VO-11f minor — Seed `VO-002.estimateId` (optional demo parity)
-- [ ] VAR-D2 convert-to-BOQ — **deferred** until product sign-off (§2.2b)
+- [ ] SUB-C1 — `materialSupplyMode` on WO + API + mobile selector + summary fields
+- [ ] SUB-C2 — Material issue/return when `GC_SUPPLIED`; stock integration; no block on measurements
+- [ ] SUB-C3 — Subcontract PDFs show supply mode + material table
+- [ ] RPT-C1 — Logo + footer on all PDF report types
+- [ ] RPT-C2 — Company report template/branding settings + Settings UI
+- [ ] RPT-C3 — Shared PDF table layout helpers; polished A4 output
+- [ ] RPT-C4 — Line-item audit for estimate, BOQ, subcontract, financial PDFs + tests
+- [ ] Ship gate **116+** tests ×2 + tsc ×2
 
 ### 2.8 Optional hardening (defer unless user asks)
 
@@ -353,8 +496,8 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 <details>
 <summary>Rounds 4–15 (superseded by §2 above)</summary>
 
-Rounds 8–22: variation sync + estimate-page children + polish complete
-(`804f0a6`–`b6ef712`). Next: VAR-D2 convert-to-BOQ or EST-VO-11g when product asks.
+Rounds 8–23: variation workflow complete. **Round 24:** subcontract supply flexibility +
+company-branded report templates (SUB-C, RPT-C).
 
 </details>
 

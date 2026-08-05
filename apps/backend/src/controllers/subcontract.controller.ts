@@ -261,6 +261,31 @@ export async function recordBillPayment(req: Request, res: Response) {
   return ok(res, data);
 }
 
+// SUB-C2: Material issue / return controllers
+export async function issueMaterial(req: Request, res: Response) {
+  const { companyId, id: userId, role } = req.user!;
+  const data = await subcontractService.issueMaterialToWorkOrder(
+    companyId, userId, role, req.params.id, req.params.workOrderId, req.body,
+  );
+  return created(res, data);
+}
+
+export async function recoverMaterial(req: Request, res: Response) {
+  const { companyId, id: userId, role } = req.user!;
+  const data = await subcontractService.recoverMaterialFromWorkOrder(
+    companyId, userId, role, req.params.id, req.params.workOrderId, req.params.issueId, req.body.recoveredQty,
+  );
+  return ok(res, data);
+}
+
+export async function listMaterialIssues(req: Request, res: Response) {
+  const { companyId, id: userId, role } = req.user!;
+  const data = await subcontractService.listMaterialIssues(
+    companyId, userId, role, req.params.id, req.params.workOrderId,
+  );
+  return ok(res, data);
+}
+
 export async function createSubcontractorPortalAccess(req: Request, res: Response) {
   const { companyId, id: userId, role } = req.user!;
   const data = await subPortalService.createSubcontractorPortalAccess(

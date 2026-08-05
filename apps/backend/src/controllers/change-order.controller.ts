@@ -67,7 +67,7 @@ export async function convertToBoq(req: Request, res: Response) {
     changeOrderId,
     req.ip,
   );
-  res.json({ success: true, data: result });
+  return ok(res, result);
 }
 
 export async function reject(req: Request, res: Response) {

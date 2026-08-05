@@ -49,9 +49,16 @@ const TABS: { label: string; value: Tab }[] = [
 ];
 
 export default function ProjectDetailScreen() {
-  const { id: idParam, tab: tabParam } = useLocalSearchParams<{ id: string; tab?: string }>();
+  const { id: idParam, tab: tabParam, changeOrderId: changeOrderIdParam } = useLocalSearchParams<{
+    id: string;
+    tab?: string;
+    changeOrderId?: string;
+  }>();
   const id = Array.isArray(idParam) ? idParam[0] : idParam;
   const tabFromUrl = Array.isArray(tabParam) ? tabParam[0] : tabParam;
+  const highlightChangeOrderId = Array.isArray(changeOrderIdParam)
+    ? changeOrderIdParam[0]
+    : changeOrderIdParam;
   const { isDesktop } = useViewport();
   // Persist the active tab in the URL so it survives a page refresh.
   // On first load, read the ?tab= param. On tab change, update the URL.
@@ -172,7 +179,9 @@ export default function ProjectDetailScreen() {
       {tab === 'schedule' && <ScheduleTab projectId={id} />}
       {tab === 'boq' && <BoqTab projectId={id} />}
       {tab === 'bills' && <BillsTab projectId={id} />}
-      {tab === 'variations' && <VariationsTab projectId={id} />}
+      {tab === 'variations' && (
+        <VariationsTab projectId={id} highlightChangeOrderId={highlightChangeOrderId} />
+      )}
       {tab === 'procurement' && <ProcurementTab projectId={id} />}
       {tab === 'subcontracts' && <SubcontractsTab projectId={id} />}
       {tab === 'resources' && <ResourcesTab projectId={id} />}

@@ -591,6 +591,7 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
   const [advanceAmount, setAdvanceAmount] = useState('0');
   const [selectedSub, setSelectedSub] = useState('');
   const [selectedBoqIds, setSelectedBoqIds] = useState<string[]>([]);
+  const [materialSupplyMode, setMaterialSupplyMode] = useState<'NONE' | 'GC_SUPPLIED' | 'MIXED'>('NONE');
 
   const [subName, setSubName] = useState('');
   const [subGstin, setSubGstin] = useState('');
@@ -637,6 +638,7 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
         contractValue: parseFloat(contractValue) || 0,
         retentionPct: parseFloat(retentionPct) || 0,
         advanceAmount: parseFloat(advanceAmount) || 0,
+        materialSupplyMode,
       },
       {
         onSuccess: () => {
@@ -883,6 +885,33 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
           onChangeText={setAdvanceAmount}
           keyboardType="numeric"
         />
+        {/* SUB-C1: Material supply mode selector */}
+        <Text className="text-sm font-semibold text-text mt-2">
+          Will you issue materials from site stock to this contractor?
+        </Text>
+        <View className="flex-row gap-2 mt-1 mb-2">
+          {(['NONE', 'GC_SUPPLIED', 'MIXED'] as const).map((mode) => (
+            <Pressable
+              key={mode}
+              onPress={() => setMaterialSupplyMode(mode)}
+              className={`px-3 py-2 rounded-lg border flex-1 ${
+                materialSupplyMode === mode ? 'border-primary bg-primary/5' : 'border-border'
+              }`}
+            >
+              <Text className={`text-xs font-semibold text-center ${
+                materialSupplyMode === mode ? 'text-primary' : 'text-muted'
+              }`}>
+                {mode === 'NONE' ? 'No (Contractor)' : mode === 'GC_SUPPLIED' ? 'Yes (GC stock)' : 'Mixed'}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        {materialSupplyMode === 'GC_SUPPLIED' && (
+          <Text className="text-[10px] text-muted italic mb-2">
+            Materials will be issued from site stock. The contractor can return unused materials.
+          </Text>
+        )}
+
         <Text className="text-sm font-semibold text-text">Subcontractor</Text>
         <ScrollView className="max-h-40">
           {subs.map((s: Subcontractor) => (
