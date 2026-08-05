@@ -49,7 +49,7 @@ import { useBoq, type BoqItem } from '@/services/boq.queries';
 import { apiFetch } from '@/lib/api-client';
 import { billDetailHref, projectTabHref } from '@/utils/navigation';
 import * as Sharing from 'expo-sharing';
-import { alertAsync } from '@/utils/confirm';
+import { alertAsync, confirmAsync } from '@/utils/confirm';
 import { FlowHintCard } from '@/components/ui/FlowHintCard';
 import { TermHint } from '@/components/ui/TermHint';
 
@@ -802,7 +802,6 @@ function MaterialsPanel({
   const recoverMat = useRecoverMaterial(projectId, workOrderId);
 
   const [issueModal, setIssueModal] = useState(false);
-  const [issueStep, setIssueStep] = useState<'pick' | 'review'>('pick');
   const [selectedResource, setSelectedResource] = useState<{ id: string; name: string; unit: string; rate?: string } | null>(null);
   const [qty, setQty] = useState('');
   const [unit, setUnit] = useState('');
@@ -1127,10 +1126,11 @@ function MaterialsPanel({
         visible={issueModal}
         onClose={() => {
           if (selectedResource && (qty || rate)) {
-            void alertAsync(
+            void confirmAsync(
               'Discard?',
               'You have unsaved entries. Close without issuing?',
-            ).then(() => {
+            ).then((ok) => {
+              if (!ok) return;
               setIssueModal(false);
               setSelectedResource(null);
               setQty('');
@@ -1211,10 +1211,11 @@ function MaterialsPanel({
               <Pressable
                 onPress={() => {
                   if (qty || rate) {
-                    void alertAsync(
+                    void confirmAsync(
                       'Change material?',
                       'This will discard the quantity and rate you entered.',
-                    ).then(() => {
+                    ).then((ok) => {
+                      if (!ok) return;
                       setSelectedResource(null);
                       setQty('');
                       setRate('');

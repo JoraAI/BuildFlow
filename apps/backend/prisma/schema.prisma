@@ -622,6 +622,8 @@ model BOQItem {
   subcontractWorkOrders SubcontractWorkOrder[]
   subcontractWorkOrderLines SubcontractWorkOrderLine[]
   subcontractMeasurementLines SubcontractMeasurementLine[]
+  // SUB-BOQ1B: Back-relation for material issues linked to this BOQ line
+  subcontractorMaterialIssues SubcontractorMaterialIssue[] @relation("SubcontractorMaterialIssueBoqItem")
 
   @@index([projectId])
   @@index([category])
@@ -1656,14 +1658,18 @@ model SubcontractorMaterialIssue {
   notes           String?
   recoveredQty    Decimal  @default(0) @map("recovered_qty") @db.Decimal(12, 3)
   recoveredAmount Decimal  @default(0) @map("recovered_amount") @db.Decimal(14, 2)
+  // SUB-BOQ1B: Optional link to BOQ item for visibility on BOQ tab
+  boqItemId       String?  @map("boq_item_id") @db.Uuid
   createdAt       DateTime @default(now()) @map("created_at")
 
   workOrder   SubcontractWorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
   resource    Resource             @relation(fields: [resourceId], references: [id])
   issuedByUser User                @relation("SubcontractMaterialIssuedBy", fields: [issuedBy], references: [id])
+  boqItem     BOQItem?             @relation("SubcontractorMaterialIssueBoqItem", fields: [boqItemId], references: [id], onDelete: SetNull)
 
   @@index([workOrderId])
   @@index([resourceId])
+  @@index([boqItemId])
   @@map("subcontractor_material_issues")
 }
 

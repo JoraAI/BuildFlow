@@ -1,4 +1,4 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 30 active)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 30b active)
 
 > **You do not need any prior conversation or other documents.** This file is the
 > complete task brief. Read it top to bottom before taking new work.
@@ -9,8 +9,8 @@
 > **Verified:** 2026-08-05 — Rounds 12–23 **complete**. **Round 24–28 + Round 29 SUB-UX complete**
 > (subcontract supply, branded PDFs/Excel, material picker UX, measurement modal). **129/129** tests.
 >
-> **Active work:** **Round 30** — subcontract↔BOQ sync, material-issue save flow, project team roles, picker UI (§2.10).
-> Round 29 SUB-UX is **complete** — do not regress. **129/129** tests baseline.
+> **Active work:** **Round 30b** — SUB-BOQ1 Phase B + MOB-PICK1 + SUB-UX3 confirm fix (§2.10.11).
+> **Round 30a** partial done — see §2.10.10. **129/129** tests baseline.
 
 ---
 
@@ -412,12 +412,46 @@ If `Rendered more hooks than during the previous render` in `MaterialsPanel`: en
 
 ### 2.10.7 Definition of done (Round 30)
 
-- [ ] **SUB-BOQ1** — BOQ/procurement cache invalidation + optional boqItemId + BOQ issued hint
-- [ ] **SUB-UX3** — Material issue review step + confirm on discard
-- [ ] **TEAM-R1** — Full role list in Project Team (UI + schema)
-- [ ] **MOB-PICK1** — MaterialPicker + RateAnalysisPicker visual polish
-- [ ] **NR-37** — No hooks violation in MaterialsPanel
-- [ ] 129/129+ tests, both tsc clean
+- [x] **SUB-BOQ1 Phase A** — `invalidateProjectBoq` on issue/recover (`6b802a7`)
+- [ ] **SUB-BOQ1 Phase B** — optional `boqItemId` + BOQ "Issued to subs" hint (§2.10.11)
+- [x] **SUB-UX3 (core)** — Review UI + Cancel/Issue footer + Change material link (`6b802a7`)
+- [ ] **SUB-UX3 fix** — discard dialogs must use `confirmAsync` not `alertAsync` (§2.10.10 NR-38)
+- [x] **TEAM-R1** — Full roles + `ROLE_LABELS` + schema (`6b802a7`)
+- [ ] **MOB-PICK1** — MaterialPicker + RateAnalysisPicker polish (§2.10.11)
+- [x] **NR-37** — Hooks before early return in MaterialsPanel
+- [x] 129/129 tests, both tsc clean
+
+### 2.10.10 Round 30a verification (2026-08-05 — do NOT revert)
+
+**Commit:** `6b802a7`
+
+**Ship gates:** backend tsc ✓ · mobile tsc ✓ · **129/129** tests ✓
+
+| ID | Status | Evidence |
+| -- | ------ | -------- |
+| **SUB-BOQ1 Phase A** | **Done** | `useIssueMaterial` / `useRecoverMaterial` call `invalidateProjectBoq` |
+| **SUB-UX3** | **Partial** | Cancel + Issue footer; Change material link; onClose dirty check — but **`alertAsync` used for confirm** (always proceeds on OK) → **NR-38** |
+| **TEAM-R1** | **Done** | 9 roles + `ROLE_LABELS`; `setProjectMembersSchema` expanded |
+| **MOB-PICK1** | **Not done** | No changes to `MaterialPicker.tsx` / `RateAnalysisPicker.tsx` |
+| **SUB-BOQ1 Phase B** | **Not done** | No migration `boq_item_id`; no BOQ issued hint in `BoqTab` |
+| **NR-37** | **Done** | `groupedIssues` useMemo before `return null` |
+
+**Post-verification fix (local):** NR-38 — `confirmAsync` for sheet close + Change material; removed unused `issueStep` state.
+
+### 2.10.11 Round 30b — Remaining work (ACTIVE for GLM)
+
+**SUB-BOQ1 Phase B:**
+
+1. Migration: nullable `boq_item_id` on `subcontractor_material_issues`.
+2. Extend issue API + mobile optional BOQ line picker when material matches BOQ `resourceId`.
+3. `BoqTab`: show `Issued to subs: {qty}` on MATERIAL rows (aggregate issues by resource/boqItemId).
+4. Optional test: issue → BOQ `stockQty` lower (or assert invalidation path).
+
+**MOB-PICK1:** Polish `MaterialPicker.tsx` + `RateAnalysisPicker.tsx` per §2.10.4 (section headers, checkmark selected, thumbnails, empty states).
+
+**NR-38:** Verify discard uses `confirmAsync` (fixed locally — do not regress).
+
+**Ship gate:** 129/129+ · both tsc clean.
 
 ### 2.10.8 Anti-patterns (Round 30)
 
@@ -688,7 +722,7 @@ New migrations: `20260805100000_subcontract_material_supply_mode`,
 
 ### 2.2 Mandatory tasks — none (epic complete)
 
-**Round 24–28 SUB-C + RPT-C and Round 29 SUB-UX are done.** Take new work from **§2.10 Round 30** first.
+**Round 24–28 + Round 29 SUB-UX + Round 30a done.** Take new work from **§2.10.11 Round 30b** first.
 Only take §2.8 if the user explicitly asks.
 
 <details>
@@ -1062,6 +1096,7 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 | **RPT-O4** | Branded Excel exports (`estimate-export.service.ts`) | **Done** |
 | **MOB-O1** | ~~Fix mobile tsc implicit-any~~ | **Done** |
 | **SUB-UX-O1** | Material issue: optional date/notes; hide zero-stock BOQ rows in picker; bill hint on approved measurements |
+| **NR-38** | ~~Material issue discard must use `confirmAsync` not `alertAsync`~~ | **Done** (post-30a verify) |
 | **Phase 5 gaps** | Smoke tests for inventory-traceability, accounting-export, labour, i18n |
 | **NR-36** | Drawing acknowledgement endpoint |
 | **Sync §8.1** | Remount `/api/sync` (needs `updatedAt` + mobile replay) |
