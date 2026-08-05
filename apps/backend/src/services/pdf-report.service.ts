@@ -256,7 +256,7 @@ export async function loadCompanyForPdf(companyId: string) {
 export async function reportProjectProgress(companyId: string, projectId: string): Promise<PdfResult> {
   const [project, company, tasks, counts] = await Promise.all([
     prisma.project.findFirstOrThrow({ where: { id: projectId, companyId } }),
-    prisma.company.findFirstOrThrow({ where: { id: companyId }, select: { name: true, gstin: true, logoUrl: true, address: true } }),
+    loadCompanyForPdf(companyId),
     prisma.task.findMany({
       where: { projectId },
       orderBy: { startDate: 'asc' },
@@ -584,7 +584,7 @@ export async function reportEstimateComparison(
       where: { id: estimateIdB, companyId },
       include: { sections: { include: { items: true } } },
     }),
-    prisma.company.findFirstOrThrow({ where: { id: companyId }, select: { name: true, gstin: true } }),
+    loadCompanyForPdf(companyId),
   ]);
 
   const doc = newDoc();
@@ -632,7 +632,7 @@ export async function reportEstimateComparison(
 export async function reportEstimateVsActual(companyId: string, projectId: string): Promise<PdfResult> {
   const [data, company] = await Promise.all([
     getEstimateVsActual(companyId, projectId),
-    prisma.company.findFirstOrThrow({ where: { id: companyId }, select: { name: true, gstin: true } }),
+    loadCompanyForPdf(companyId),
   ]);
 
   const doc = newDoc();
@@ -676,7 +676,7 @@ export async function reportEstimateVsActual(companyId: string, projectId: strin
 export async function reportProfitLoss(companyId: string, projectId: string): Promise<PdfResult> {
   const [data, company] = await Promise.all([
     getProfitLoss(companyId, projectId),
-    prisma.company.findFirstOrThrow({ where: { id: companyId }, select: { name: true, gstin: true } }),
+    loadCompanyForPdf(companyId),
   ]);
 
   const doc = newDoc();
@@ -711,7 +711,7 @@ export async function reportProfitLoss(companyId: string, projectId: string): Pr
 export async function reportGstSummary(companyId: string, from?: string, to?: string): Promise<PdfResult> {
   const [data, company] = await Promise.all([
     getGstReport(companyId, from, to),
-    prisma.company.findFirstOrThrow({ where: { id: companyId }, select: { name: true, gstin: true } }),
+    loadCompanyForPdf(companyId),
   ]);
 
   const doc = newDoc();
@@ -757,7 +757,7 @@ export async function reportGstSummary(companyId: string, from?: string, to?: st
 export async function reportTds(companyId: string, from?: string, to?: string): Promise<PdfResult> {
   const [data, company] = await Promise.all([
     getTdsReport(companyId, from, to),
-    prisma.company.findFirstOrThrow({ where: { id: companyId }, select: { name: true, gstin: true } }),
+    loadCompanyForPdf(companyId),
   ]);
 
   const doc = newDoc();
@@ -797,7 +797,7 @@ export async function reportTds(companyId: string, from?: string, to?: string): 
 // ===========================================================================
 export async function reportResourceUtilization(companyId: string, projectId: string): Promise<PdfResult> {
   const [company, taskResources, materialUsages] = await Promise.all([
-    prisma.company.findFirstOrThrow({ where: { id: companyId }, select: { name: true, gstin: true } }),
+    loadCompanyForPdf(companyId),
     prisma.taskResource.findMany({
       where: { task: { projectId } },
       include: { resource: { select: { name: true, unit: true, type: true } } },
@@ -859,7 +859,7 @@ export async function reportResourceUtilization(companyId: string, projectId: st
 // ===========================================================================
 export async function reportBoqVsActual(companyId: string, projectId: string): Promise<PdfResult> {
   const [company, boqItems, bills] = await Promise.all([
-    prisma.company.findFirstOrThrow({ where: { id: companyId }, select: { name: true, gstin: true } }),
+    loadCompanyForPdf(companyId),
     prisma.bOQItem.findMany({ where: { projectId, isSuperseded: false }, orderBy: { category: 'asc' } }),
     prisma.bill.findMany({
       where: { projectId, status: { in: ['APPROVED', 'PAID'] } },
@@ -908,7 +908,7 @@ export async function reportBoqVsActual(companyId: string, projectId: string): P
 // ===========================================================================
 export async function reportMaterialPriceHistory(companyId: string): Promise<PdfResult> {
   const [company, resources] = await Promise.all([
-    prisma.company.findFirstOrThrow({ where: { id: companyId }, select: { name: true, gstin: true } }),
+    loadCompanyForPdf(companyId),
     prisma.resource.findMany({
       where: { companyId, type: 'MATERIAL', isActive: true },
       orderBy: { name: 'asc' },
@@ -966,7 +966,7 @@ export async function reportProjectMaterialRates(
   projectId: string,
 ): Promise<PdfResult> {
   const [company, project, rows] = await Promise.all([
-    prisma.company.findFirstOrThrow({ where: { id: companyId }, select: { name: true, gstin: true } }),
+    loadCompanyForPdf(companyId),
     getProject(companyId, projectId),
     listMaterialRateVariance(companyId, projectId),
   ]);
@@ -1035,7 +1035,7 @@ export async function reportMeasurementBook(companyId: string, projectId: string
       where: { id: projectId, companyId },
       select: { name: true, code: true },
     }),
-    prisma.company.findFirstOrThrow({ where: { id: companyId }, select: { name: true, gstin: true } }),
+    loadCompanyForPdf(companyId),
     prisma.bOQItem.findMany({ where: { projectId }, orderBy: { itemCode: 'asc' } }),
     prisma.invoice.findMany({
       where: { projectId, companyId, invoiceType: 'RUNNING_ACCOUNT', status: { not: 'DRAFT' } },
@@ -1103,7 +1103,7 @@ export async function reportAbstractSheet(companyId: string, projectId: string):
       where: { id: projectId, companyId },
       select: { name: true, code: true },
     }),
-    prisma.company.findFirstOrThrow({ where: { id: companyId }, select: { name: true, gstin: true } }),
+    loadCompanyForPdf(companyId),
     prisma.bOQItem.findMany({ where: { projectId }, orderBy: [{ category: 'asc' }, { itemCode: 'asc' }] }),
   ]);
 
@@ -1181,10 +1181,7 @@ export async function reportSubcontractMeasurementBook(
   });
   if (!wo) throw new Error('Work order not found');
 
-  const company = await prisma.company.findFirstOrThrow({
-    where: { id: companyId },
-    select: { name: true, gstin: true, logoUrl: true, address: true },
-  });
+  const company = await loadCompanyForPdf(companyId);
 
   const doc = newDoc();
   drawHeader(doc, 'Subcontract Measurement Book', company ?? undefined);
