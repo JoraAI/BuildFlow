@@ -1274,14 +1274,14 @@ export async function reportSubcontractAbstractSheet(
         where: { status: 'APPROVED' },
         include: { lines: true },
       },
+      // SUB-C3b: Include material issues for the material table
+      materialIssues: { include: { resource: { select: { name: true, unit: true } } } },
     },
   });
   if (!wo) throw new Error('Work order not found');
 
-  const company = await prisma.company.findFirstOrThrow({
-    where: { id: companyId },
-    select: { name: true, gstin: true },
-  });
+  // SUB-C3b: Use loadCompanyForPdf for logo + settings
+  const company = await loadCompanyForPdf(companyId);
 
   const certifiedByLine = new Map<string, number>();
   for (const m of wo.measurements) {
@@ -1339,6 +1339,37 @@ export async function reportSubcontractAbstractSheet(
       i % 2 === 1,
     );
   });
+
+  // SUB-C3b: Material issues table on abstract when GC_SUPPLIED or MIXED
+  if ((absWoMode === 'GC_SUPPLIED' || absWoMode === 'MIXED') && wo.materialIssues.length > 0) {
+    doc.y = ensureSpace(doc, 80);
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(NAVY).text('Materials Issued from Site Stock', MARGIN, doc.y);
+    doc.moveDown(0.3);
+    const matWidths = [110, 50, 40, 50, 60, 50, 50];
+    let matY = tableHeaders(doc, ['Resource', 'Qty', 'Unit', 'Rate', 'Amount', 'Recovered', 'Net'], matWidths, doc.y);
+    wo.materialIssues.forEach((mi, i) => {
+      matY = tableRow(
+        doc,
+        [
+          mi.resource?.name ?? 'Unknown',
+          `${num(mi.quantity)}`,
+          mi.unit,
+          num(mi.rate).toLocaleString('en-IN'),
+          inr(num(mi.amount)),
+          `${num(mi.recoveredQty)}`,
+          `${num(mi.quantity) - num(mi.recoveredQty)}`,
+        ],
+        matWidths,
+        matY,
+        i % 2 === 1,
+      );
+    });
+    const issuedTotal = wo.materialIssues.reduce((s, mi) => s + num(mi.amount), 0);
+    const recoveredTotal = wo.materialIssues.reduce((s, mi) => s + num(mi.recoveredAmount), 0);
+    summaryLine(doc, 'Total Issued', inr(issuedTotal));
+    summaryLine(doc, 'Total Recovered', inr(recoveredTotal));
+    summaryLine(doc, 'Net Material on WO', inr(issuedTotal - recoveredTotal), true);
+  }
 
   drawFooter(doc, company ?? undefined);
   return {
