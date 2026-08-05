@@ -96,6 +96,13 @@ const SETTINGS_GROUPS: SettingsGroup[] = [
         icon: 'cube-outline',
       },
       {
+        id: 'report-branding',
+        label: 'Reports & Branding',
+        description: 'Logo, accent color, watermark, footer',
+        href: '/(app)/settings/report-branding',
+        icon: 'color-palette-outline',
+      },
+      {
         id: 'rate-regions',
         label: 'Rate Regions',
         description: 'Regional material rate books',
