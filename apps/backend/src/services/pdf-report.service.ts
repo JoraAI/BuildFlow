@@ -273,7 +273,7 @@ export async function reportProjectProgress(companyId: string, projectId: string
   ).length;
 
   const doc = newDoc();
-  drawHeader(doc, 'Project Progress Report', company ?? undefined);
+  drawHeader(doc, 'Project Progress Report', company ?? undefined, { accentColor: (company as any)?.accentColor, showLogo: (company as any)?.reportSettings?.showLogo as boolean | undefined });
   doc.fontSize(10).font('Helvetica-Bold').fillColor(NAVY).text(project.name, MARGIN);
   doc.font('Helvetica').fillColor(MUTED).fontSize(9).text(`Code: ${project.code} | Status: ${project.status}`);
   doc.moveDown(1);
@@ -331,7 +331,7 @@ export async function reportDailyReport(companyId: string, reportId: string): Pr
   const reporter = await prisma.user.findFirstOrThrow({ where: { id: report.reportedBy }, select: { name: true } });
 
   const doc = newDoc();
-  drawHeader(doc, 'Daily Site Report', company ?? undefined);
+  drawHeader(doc, 'Daily Site Report', company ?? undefined, { accentColor: (company as any)?.accentColor, showLogo: (company as any)?.reportSettings?.showLogo as boolean | undefined });
   doc.fontSize(10).font('Helvetica-Bold').fillColor(NAVY).text(report.project.name, MARGIN);
   doc.font('Helvetica').fillColor(MUTED).fontSize(9).text(`Date: ${report.reportDate.toISOString().slice(0, 10)} | Reported by: ${reporter.name}`);
   doc.moveDown(1);
@@ -393,7 +393,7 @@ export async function reportInvoice(companyId: string, invoiceId: string): Promi
       : invoice.invoiceType === 'MILESTONE'
         ? 'MILESTONE INVOICE'
         : 'TAX INVOICE';
-  drawHeader(doc, title, company ?? undefined);
+  drawHeader(doc, title, company ?? undefined, { accentColor: (company as any)?.accentColor, showLogo: (company as any)?.reportSettings?.showLogo as boolean | undefined });
   doc.fontSize(11).font('Helvetica-Bold').fillColor(NAVY).text(`Invoice #: ${invoice.invoiceNumber}`, MARGIN);
   let meta = `Date: ${invoice.invoiceDate.toISOString().slice(0, 10)} | Due: ${invoice.dueDate.toISOString().slice(0, 10)} | Project: ${invoice.project.name}`;
   if (invoice.invoiceType === 'RUNNING_ACCOUNT' && invoice.raSequence) {
@@ -488,7 +488,7 @@ export async function reportEstimate(companyId: string, estimateId: string): Pro
   const summary = estimate.summary;
 
   const doc = newDoc();
-  drawHeader(doc, 'Project Cost Estimate', company ?? undefined);
+  drawHeader(doc, 'Project Cost Estimate', company ?? undefined, { accentColor: (company as any)?.accentColor, showLogo: (company as any)?.reportSettings?.showLogo as boolean | undefined });
   doc.fontSize(11).font('Helvetica-Bold').fillColor(NAVY).text(project.name, MARGIN);
   doc.font('Helvetica').fontSize(9).fillColor(MUTED).text(`Ref: ${estimate.name} v${estimate.version} | Status: ${estimate.status}`);
   doc.moveDown(1);
@@ -588,7 +588,7 @@ export async function reportEstimateComparison(
   ]);
 
   const doc = newDoc();
-  drawHeader(doc, 'Estimate Comparison Report', company ?? undefined);
+  drawHeader(doc, 'Estimate Comparison Report', company ?? undefined, { accentColor: (company as any)?.accentColor, showLogo: (company as any)?.reportSettings?.showLogo as boolean | undefined });
   doc.fontSize(9).fillColor(MUTED).font('Helvetica').text(`Version A: ${a.name} v${a.version} (Rs ${num(a.grandTotal).toLocaleString('en-IN')})`);
   doc.text(`Version B: ${b.name} v${b.version} (Rs ${num(b.grandTotal).toLocaleString('en-IN')})`);
   doc.moveDown(1);
@@ -636,7 +636,7 @@ export async function reportEstimateVsActual(companyId: string, projectId: strin
   ]);
 
   const doc = newDoc();
-  drawHeader(doc, 'Estimate vs Actual Report', company ?? undefined);
+  drawHeader(doc, 'Estimate vs Actual Report', company ?? undefined, { accentColor: (company as any)?.accentColor, showLogo: (company as any)?.reportSettings?.showLogo as boolean | undefined });
   doc.fontSize(10).font('Helvetica-Bold').fillColor(NAVY).text(data.projectName, MARGIN);
   doc.font('Helvetica').fontSize(9).fillColor(MUTED).text(`Project Completion: ${data.completionPct}%`);
   doc.moveDown(1);
@@ -680,7 +680,7 @@ export async function reportProfitLoss(companyId: string, projectId: string): Pr
   ]);
 
   const doc = newDoc();
-  drawHeader(doc, 'Profit & Loss Statement', company ?? undefined);
+  drawHeader(doc, 'Profit & Loss Statement', company ?? undefined, { accentColor: (company as any)?.accentColor, showLogo: (company as any)?.reportSettings?.showLogo as boolean | undefined });
   doc.fontSize(10).font('Helvetica-Bold').fillColor(NAVY).text(data.projectName, MARGIN);
   doc.moveDown(1);
 
@@ -715,7 +715,7 @@ export async function reportGstSummary(companyId: string, from?: string, to?: st
   ]);
 
   const doc = newDoc();
-  drawHeader(doc, 'GST Summary (GSTR-1)', company ?? undefined);
+  drawHeader(doc, 'GST Summary (GSTR-1)', company ?? undefined, { accentColor: (company as any)?.accentColor, showLogo: (company as any)?.reportSettings?.showLogo as boolean | undefined });
   doc.fontSize(9).fillColor(MUTED).font('Helvetica').text(`Period: ${data.fromDate} to ${data.toDate}`);
   doc.moveDown(1);
 
@@ -761,7 +761,7 @@ export async function reportTds(companyId: string, from?: string, to?: string): 
   ]);
 
   const doc = newDoc();
-  drawHeader(doc, 'TDS Report (Form 16A Data)', company ?? undefined);
+  drawHeader(doc, 'TDS Report (Form 16A Data)', company ?? undefined, { accentColor: (company as any)?.accentColor, showLogo: (company as any)?.reportSettings?.showLogo as boolean | undefined });
   doc.fontSize(9).fillColor(MUTED).font('Helvetica').text(`Period: ${data.fromDate} to ${data.toDate}`);
   doc.moveDown(1);
 
@@ -824,7 +824,7 @@ export async function reportResourceUtilization(companyId: string, projectId: st
   }
 
   const doc = newDoc();
-  drawHeader(doc, 'Resource Utilization Report', company ?? undefined);
+  drawHeader(doc, 'Resource Utilization Report', company ?? undefined, { accentColor: (company as any)?.accentColor, showLogo: (company as any)?.reportSettings?.showLogo as boolean | undefined });
   doc.fontSize(9).fillColor(MUTED).font('Helvetica').text(`Project ID: ${projectId}`);
   doc.moveDown(1);
 
@@ -874,7 +874,7 @@ export async function reportBoqVsActual(companyId: string, projectId: string): P
   }
 
   const doc = newDoc();
-  drawHeader(doc, 'BOQ vs Actual Comparison', company ?? undefined);
+  drawHeader(doc, 'BOQ vs Actual Comparison', company ?? undefined, { accentColor: (company as any)?.accentColor, showLogo: (company as any)?.reportSettings?.showLogo as boolean | undefined });
   doc.fontSize(9).fillColor(MUTED).font('Helvetica').text(`Project ID: ${projectId}`);
   doc.moveDown(1);
 
@@ -928,7 +928,7 @@ export async function reportMaterialPriceHistory(companyId: string): Promise<Pdf
   );
 
   const doc = newDoc();
-  drawHeader(doc, 'Material Price History Report', company ?? undefined);
+  drawHeader(doc, 'Material Price History Report', company ?? undefined, { accentColor: (company as any)?.accentColor, showLogo: (company as any)?.reportSettings?.showLogo as boolean | undefined });
   doc.moveDown(1);
 
   resources.forEach((r, idx) => {
@@ -972,7 +972,7 @@ export async function reportProjectMaterialRates(
   ]);
 
   const doc = newDoc();
-  drawHeader(doc, 'Project Material Rate Sheet', company ?? undefined);
+  drawHeader(doc, 'Project Material Rate Sheet', company ?? undefined, { accentColor: (company as any)?.accentColor, showLogo: (company as any)?.reportSettings?.showLogo as boolean | undefined });
   doc.fontSize(9).fillColor(MUTED).font('Helvetica');
   doc.text(`Project: ${project.name} (${project.code})`);
   if (project.locationAddress) doc.text(`Site: ${project.locationAddress}`);
@@ -1058,7 +1058,7 @@ export async function reportMeasurementBook(companyId: string, projectId: string
   }
 
   const doc = newDoc();
-  drawHeader(doc, 'Measurement Book', company ?? undefined);
+  drawHeader(doc, 'Measurement Book', company ?? undefined, { accentColor: (company as any)?.accentColor, showLogo: (company as any)?.reportSettings?.showLogo as boolean | undefined });
   doc.fontSize(10).font('Helvetica-Bold').fillColor(NAVY).text(project.name, MARGIN);
   doc.font('Helvetica').fontSize(9).fillColor(MUTED).text(`Project Code: ${project.code}`);
   doc.moveDown(1);
@@ -1116,7 +1116,7 @@ export async function reportAbstractSheet(companyId: string, projectId: string):
   }
 
   const doc = newDoc();
-  drawHeader(doc, 'Abstract Sheet', company ?? undefined);
+  drawHeader(doc, 'Abstract Sheet', company ?? undefined, { accentColor: (company as any)?.accentColor, showLogo: (company as any)?.reportSettings?.showLogo as boolean | undefined });
   doc.fontSize(10).font('Helvetica-Bold').fillColor(NAVY).text(project.name, MARGIN);
   doc.font('Helvetica').fontSize(9).fillColor(MUTED).text(`Project Code: ${project.code}`);
   doc.moveDown(1);
@@ -1184,7 +1184,7 @@ export async function reportSubcontractMeasurementBook(
   const company = await loadCompanyForPdf(companyId);
 
   const doc = newDoc();
-  drawHeader(doc, 'Subcontract Measurement Book', company ?? undefined);
+  drawHeader(doc, 'Subcontract Measurement Book', company ?? undefined, { accentColor: (company as any)?.accentColor, showLogo: (company as any)?.reportSettings?.showLogo as boolean | undefined });
   doc.fontSize(10).font('Helvetica-Bold').fillColor(NAVY).text(wo.project.name, MARGIN);
   doc
     .font('Helvetica')
@@ -1302,7 +1302,7 @@ export async function reportSubcontractAbstractSheet(
   }
 
   const doc = newDoc();
-  drawHeader(doc, 'Subcontract Abstract Sheet', company ?? undefined);
+  drawHeader(doc, 'Subcontract Abstract Sheet', company ?? undefined, { accentColor: (company as any)?.accentColor, showLogo: (company as any)?.reportSettings?.showLogo as boolean | undefined });
   doc.fontSize(10).font('Helvetica-Bold').fillColor(NAVY).text(wo.project.name, MARGIN);
   doc
     .font('Helvetica')
