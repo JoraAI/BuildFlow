@@ -27,10 +27,9 @@ import {
   ESTIMATE_TEMPLATES,
   type EstimateTemplate,
 } from '@/constants/estimate-templates';
-import { confirmAsync, alertAsync, promptLinkApplyAsync } from '@/utils/confirm';
+import { confirmAsync, alertAsync } from '@/utils/confirm';
 import { formatINR } from '@/utils/format';
-import { MaterialPicker } from '@/components/materials/MaterialPicker';
-import { RateAnalysisPicker } from '@/components/estimation/RateAnalysisPicker';
+import { ProcurementLinkPicker } from '@/components/estimation/ProcurementLinkPicker';
 
 function resolveTemplateItemLinks(
   item: import('@/constants/estimate-templates').EstimateTemplateItem,
@@ -43,113 +42,7 @@ function resolveTemplateItemLinks(
   const rateAnalysisId = item.rateAnalysisName
     ? rateAnalyses.find((r) => r.name === item.rateAnalysisName)?.id
     : undefined;
-  // Debug: trace RA link resolution
-  if (item.rateAnalysisName) {
-    const matched = rateAnalyses.find((r) => r.name === item.rateAnalysisName);
-    console.log('[resolveTemplateItemLinks]', {
-      itemDesc: item.description,
-      rateAnalysisName: item.rateAnalysisName,
-      matched: matched ? `${matched.id} (${matched.name})` : 'NOT FOUND',
-      rateAnalysesCount: rateAnalyses.length,
-    });
-  }
   return { resourceId, rateAnalysisId };
-}
-
-type ScopeSetters = {
-  setDesc?: (v: string) => void;
-  setUnit?: (v: string) => void;
-  setRate?: (v: string) => void;
-};
-
-async function handleCatalogSelect(
-  resource: Resource,
-  setResourceId: (id: string) => void,
-  setRateAnalysisId: (id: string) => void,
-  scope?: ScopeSetters,
-) {
-  const choice = await promptLinkApplyAsync(resource.name);
-  if (choice === 'cancel') return;
-  setResourceId(resource.id);
-  setRateAnalysisId('');
-  if (choice === 'apply_defaults' && scope) {
-    scope.setDesc?.(resource.name);
-    scope.setUnit?.(resource.unit);
-    scope.setRate?.(String(parseFloat(resource.rate)));
-  }
-}
-
-async function handleRateAnalysisSelect(
-  analysis: RateAnalysis,
-  setResourceId: (id: string) => void,
-  setRateAnalysisId: (id: string) => void,
-  scope?: ScopeSetters,
-) {
-  const choice = await promptLinkApplyAsync(analysis.name);
-  if (choice === 'cancel') return;
-  setRateAnalysisId(analysis.id);
-  setResourceId('');
-  if (choice === 'apply_defaults' && scope) {
-    scope.setDesc?.(analysis.name);
-    scope.setUnit?.(analysis.unit);
-    scope.setRate?.(String(parseFloat(analysis.totalRate)));
-  }
-}
-
-function ProcurementLinkFields({
-  resourceId,
-  rateAnalysisId,
-  onResourceIdChange,
-  onRateAnalysisIdChange,
-  scope,
-  compact,
-}: {
-  resourceId: string;
-  rateAnalysisId: string;
-  onResourceIdChange: (id: string) => void;
-  onRateAnalysisIdChange: (id: string) => void;
-  scope?: ScopeSetters;
-  compact?: boolean;
-}) {
-  const hasLink = Boolean(resourceId || rateAnalysisId);
-
-  return (
-    <View className="gap-2 mt-1">
-      <View className="flex-row items-center justify-between">
-        <Text className="text-[10px] text-muted">Procurement link (optional)</Text>
-        {hasLink ? (
-          <Pressable
-            onPress={() => {
-              onResourceIdChange('');
-              onRateAnalysisIdChange('');
-            }}
-          >
-            <Text className="text-danger text-[10px] font-semibold">Clear link</Text>
-          </Pressable>
-        ) : null}
-      </View>
-      <View className="gap-1">
-        <Text className="text-[10px] text-muted">Catalog material (1:1)</Text>
-        <MaterialPicker
-          selectedId={resourceId || undefined}
-          onSelect={(r) =>
-            void handleCatalogSelect(r, onResourceIdChange, onRateAnalysisIdChange, scope)
-          }
-          maxHeight={compact ? 100 : 140}
-        />
-      </View>
-      <View className="gap-1">
-        <Text className="text-[10px] text-muted">Rate analysis (composite BOM)</Text>
-        <RateAnalysisPicker
-          selectedId={rateAnalysisId || undefined}
-          onSelect={(ra) =>
-            void handleRateAnalysisSelect(ra, onResourceIdChange, onRateAnalysisIdChange, scope)
-          }
-          maxHeight={compact ? 100 : 140}
-        />
-      </View>
-    </View>
-  );
 }
 
 export function EstimateBuildStep({
@@ -222,21 +115,10 @@ export function EstimateBuildStep({
     }
     setLoadingTemplate(true);
     try {
-      console.log('[applyTemplate] START', {
-        templateName: template.name,
-        rateAnalysesCount: rateAnalyses.length,
-        materialsCount: materials.length,
-      });
       for (const section of template.sections) {
         const created = await mut.addSection.mutateAsync({ name: section.name });
         for (const item of section.items) {
           const links = resolveTemplateItemLinks(item, materials, rateAnalyses);
-          console.log('[applyTemplate] adding item', {
-            desc: item.description,
-            rateAnalysisName: item.rateAnalysisName,
-            resolvedRateAnalysisId: links.rateAnalysisId ?? '(none)',
-            resolvedResourceId: links.resourceId ?? '(none)',
-          });
           await mut.addItem.mutateAsync({
             sectionId: created.id,
             description: item.description,
@@ -536,13 +418,20 @@ function EditableLineItem({
           />
         </View>
       </View>
-      {item.type === 'MATERIAL' ? (
-        <ProcurementLinkFields
-          resourceId={resourceId}
-          rateAnalysisId={rateAnalysisId}
-          onResourceIdChange={setResourceId}
-          onRateAnalysisIdChange={setRateAnalysisId}
-          scope={{ setDesc, setUnit, setRate }}
+      {item.type !== 'MISC' ? (
+        <ProcurementLinkPicker
+          value={{ resourceId: resourceId || undefined, rateAnalysisId: rateAnalysisId || undefined }}
+          onChange={(v) => {
+            setResourceId(v.resourceId ?? '');
+            setRateAnalysisId(v.rateAnalysisId ?? '');
+          }}
+          lineType={item.type}
+          hasExistingDescription={Boolean(desc.trim())}
+          onApplyDefaults={({ description, unit, rate }) => {
+            setDesc(description);
+            setUnit(unit);
+            setRate(rate);
+          }}
         />
       ) : null}
       <View className="flex-row gap-2">
@@ -662,13 +551,20 @@ function AddItemRow({
           = {formatINR((parseFloat(qty) || 0) * (parseFloat(rate) || 0))}
         </Text>
       </View>
-      {type === 'MATERIAL' ? (
-        <ProcurementLinkFields
-          resourceId={resourceId}
-          rateAnalysisId={rateAnalysisId}
-          onResourceIdChange={setResourceId}
-          onRateAnalysisIdChange={setRateAnalysisId}
-          scope={{ setDesc, setUnit, setRate }}
+      {type !== 'MISC' ? (
+        <ProcurementLinkPicker
+          value={{ resourceId: resourceId || undefined, rateAnalysisId: rateAnalysisId || undefined }}
+          onChange={(v) => {
+            setResourceId(v.resourceId ?? '');
+            setRateAnalysisId(v.rateAnalysisId ?? '');
+          }}
+          lineType={type}
+          hasExistingDescription={Boolean(desc.trim())}
+          onApplyDefaults={({ description, unit, rate }) => {
+            setDesc(description);
+            setUnit(unit);
+            setRate(rate);
+          }}
           compact
         />
       ) : null}

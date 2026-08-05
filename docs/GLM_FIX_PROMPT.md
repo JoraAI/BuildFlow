@@ -1,14 +1,15 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 30 complete)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 31 active)
 
 > **You do not need any prior conversation or other documents.** This file is the
 > complete task brief. Read it top to bottom before taking new work.
 > [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
 >
 > **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
-> **Last committed baseline:** Round 30c — `2d8f324` (BOQ picker + issued hint + RA polish)  
-> **Verified:** 2026-08-05 — Rounds 12–29 + **Round 30 complete** (incl. SUB-BOQ1T). **131/131** tests.
+> **Last committed baseline:** Round 30 complete — `2d8f324` + post-verify SUB-BOQ1T fixes  
+> **Verified:** 2026-08-05 — Rounds 12–30 complete. **131/131** tests.
 >
-> **Active work:** None mandatory — take **§2.8 optional hardening** only if the user asks.
+> **Active work:** **Round 31 — MOB-LINK1** unified Material / Rate Analysis link picker (§2.11).
+> Read §2.11 in full before coding. Do **not** take §2.8 unless §2.11 is done or user asks.
 
 ---
 
@@ -467,6 +468,491 @@ All §2.10.13 items delivered in `2d8f324`. Optional integration test remains in
 
 </details>
 
+---
+
+## 2.11 Round 31 — MOB-LINK1: Unified procurement link picker (ACTIVE)
+
+**User report (2026-08-05):** When adding/editing estimate line items (including **sub-estimates**,
+which reuse the same build wizard) or **variation new-scope lines**, the UI stacks **two full searchable
+lists** — `MaterialPicker` then `RateAnalysisPicker` — inline in the form. This feels wrong: duplicate
+search bars, cramped scroll areas (`maxHeight: 100–140`), and it looks like the user must pick **both**
+when links are **mutually exclusive** (material **or** rate analysis, never both).
+
+**Goal:** One compact inline control + one browse sheet. Same component in **EstimateBuildStep** and
+**VariationsTab**. Match the mental model of procurement indent (`IndentDraftLineCard`) which already
+uses a **single grouped Select**.
+
+**Do NOT change:** Daily report materials, subcontract material issue, project material rates, rate
+regions — those correctly use stock-first `MaterialPicker` only (no RA).
+
+---
+
+### 2.11.0 Read this first — current broken UX (do not re-create)
+
+**File:** `apps/mobile/components/estimation/EstimateBuildStep.tsx`
+
+Function `ProcurementLinkFields` (approx lines 99–153) renders:
+
+```
+Procurement link (optional)                    [Clear link]
+Catalog material (1:1)
+  [SearchBar]
+  [MaterialPicker scroll list maxHeight 100-140]
+Rate analysis (composite BOM)
+  [SearchBar]
+  [RateAnalysisPicker scroll list maxHeight 100-140]
+```
+
+Problems:
+
+| # | Problem |
+| - | ------- |
+| 1 | Two SearchBars visible at once |
+| 2 | Two scroll regions eat vertical space inside every line item |
+| 3 | Selecting material clears RA (and vice versa) but UI doesn't communicate exclusivity |
+| 4 | `promptLinkApplyAsync` fires **after every tap** — extra modal friction |
+| 5 | Only `MATERIAL` type lines show pickers in estimates, but variations show **both** pickers for MATERIAL new-scope (worse) |
+
+**Sub-estimates:** Created via `/estimates/:id/sub-estimates` then edited in the same
+`EstimateBuildStep` wizard (`apps/mobile/app/(app)/estimation/create.tsx` step 2). Fixing
+`EstimateBuildStep` fixes sub-estimates automatically.
+
+**Variations:** `apps/mobile/components/projects/VariationsTab.tsx` lines ~432–487 — MATERIAL new-scope
+shows `MaterialPicker`; **all non-MISC** new-scope also shows `RateAnalysisPicker` → MATERIAL lines get
+**both** stacked lists.
+
+---
+
+### 2.11.1 Data model (backend — do NOT change)
+
+Estimate items and variation lines store **at most one** procurement link:
+
+| Field | Meaning |
+| ----- | ------- |
+| `resourceId` | 1:1 link to catalog **material** resource |
+| `rateAnalysisId` | Link to **composite** rate analysis (BOM); explodes to materials in procurement after BOQ convert |
+
+**Mutual exclusion rule:** Setting `resourceId` must clear `rateAnalysisId` and vice versa. Payloads
+use `null` to clear on update (see `EditableLineItem.clearLink` in EstimateBuildStep).
+
+**No new API fields.** Mobile-only UX refactor.
+
+---
+
+### 2.11.2 Reference implementations (copy patterns)
+
+| File | What to copy |
+| ---- | ------------ |
+| `apps/mobile/components/projects/IndentDraftLineCard.tsx` | **Best UX reference** — single `Select` with `groupKey`: "From BOQ", "Catalog Materials", "Rate Analysis (Composite)". Lines 130–184 build options; encoded values `boq:`, `mat:`, `ra:`. |
+| `apps/mobile/components/ui/Select.tsx` | Searchable sheet modal, grouped headers, compact trigger — reuse or mirror for link picker sheet |
+| `apps/mobile/components/materials/MaterialPicker.tsx` | Row styling: thumbnail 40px, checkmark when selected, bold primary text, `active:bg-surface`, section header "On this project" / "All materials" |
+| `apps/mobile/components/estimation/RateAnalysisPicker.tsx` | Row styling: calculator icon in primary/10 box, unit pill, checkmark, section header "Rate analyses" |
+| `apps/mobile/components/layout/AdaptiveSheet.tsx` | Use for browse sheet on mobile (already used in SubcontractsTab issue modal) |
+
+**Do NOT refactor `IndentDraftLineCard` in Round 31** — optional Phase 3 later. Focus on estimate + variation.
+
+---
+
+### 2.11.3 Deliverable — new component `ProcurementLinkPicker`
+
+**Create:** `apps/mobile/components/estimation/ProcurementLinkPicker.tsx`
+
+**Export from:** optionally add to `apps/mobile/components/estimation/index.ts` if such barrel exists; otherwise direct import is fine.
+
+#### 2.11.3a Props (implement exactly)
+
+```typescript
+import type { Resource, RateAnalysis } from '@/services/estimate.queries';
+
+export type ProcurementLinkKind = 'material' | 'rate_analysis';
+
+export type ProcurementLinkValue = {
+  resourceId?: string;
+  rateAnalysisId?: string;
+};
+
+export function ProcurementLinkPicker({
+  /** Current link — at most one set */
+  value,
+  onChange,
+  /** Which segments to show in sheet. Default: both. */
+  allowedKinds = ['material', 'rate_analysis'],
+  /** Estimate/variation line cost type — drives default segment */
+  lineType = 'MATERIAL',
+  /** Called when user picks an item AND "Apply defaults" is on */
+  onApplyDefaults,
+  /** Initial description empty → default apply ON; editing existing desc → default OFF */
+  hasExistingDescription = false,
+  compact = false,
+  disabled = false,
+}: {
+  value: ProcurementLinkValue;
+  onChange: (next: ProcurementLinkValue) => void;
+  allowedKinds?: ProcurementLinkKind[];
+  lineType?: 'MATERIAL' | 'LABOUR' | 'EQUIPMENT' | 'SUBCONTRACTOR' | 'MISC';
+  onApplyDefaults?: (fields: { description: string; unit: string; rate: string }) => void;
+  hasExistingDescription?: boolean;
+  compact?: boolean;
+  disabled?: boolean;
+});
+```
+
+#### 2.11.3b Inline (collapsed) UI — default state
+
+When **no link** selected:
+
+```
+┌──────────────────────────────────────────────────┐
+│ Procurement link (optional)              [none]  │
+│ ┌──────────────────────────────────────────────┐ │
+│ │  🔗  Link to material or rate analysis…     │ │  ← Pressable, opens sheet
+│ └──────────────────────────────────────────────┘ │
+│ Link for procurement & BOQ material explosion    │  ← helper text, text-[10px] text-muted
+└──────────────────────────────────────────────────┘
+```
+
+When **material** linked (`value.resourceId` set):
+
+```
+┌──────────────────────────────────────────────────┐
+│ Procurement link (optional)            [Clear]   │
+│ ┌──────────────────────────────────────────────┐ │
+│ │ [thumb] OPC Cement 53 Grade          ✓      │ │
+│ │         Material · bag · ₹420               │ │
+│ │                              [Change]       │ │
+│ └──────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────┘
+```
+
+When **RA** linked (`value.rateAnalysisId` set):
+
+```
+┌──────────────────────────────────────────────────┐
+│ ┌──────────────────────────────────────────────┐ │
+│ │ [calc] PCC M15 (1:4:8)               ✓      │ │
+│ │        Rate analysis · cum · ₹5,200/u       │ │
+│ └──────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────┘
+```
+
+- **Clear** sets `{ resourceId: undefined, rateAnalysisId: undefined }` via `onChange({})`.
+- **Change** reopens sheet with current segment pre-selected.
+- Resolve display names via `useMaterials({ limit: 300 })` and `useRateAnalyses()` — same as EstimateBuildStep today.
+
+#### 2.11.3c Sheet UI (opened on tap)
+
+Use `AdaptiveSheet` with `size="lg"`, title **"Link to library"**.
+
+**Layout top → bottom:**
+
+1. **Segmented control** (only if `allowedKinds.length > 1`):
+   - Pills: `Material` | `Rate analysis`
+   - Default segment from `lineType`:
+     - `MATERIAL` → default `material`
+     - `LABOUR` | `EQUIPMENT` | `SUBCONTRACTOR` → default `rate_analysis`
+     - `MISC` → picker disabled / hidden entirely
+
+2. **Single SearchBar** — filters active segment list only
+   - Material segment placeholder: `"Search materials…"`
+   - RA segment placeholder: `"Search rate analyses…"`
+
+3. **ScrollView** (flex, no tiny maxHeight — sheet provides height)
+   - Reuse row components from MaterialPicker / RateAnalysisPicker (copy JSX or extract shared `PickerListRow` if ≤30 lines duplication)
+   - Show checkmark on currently selected row
+   - Material rows: `MaterialThumbnail` + name + unit + category
+   - RA rows: calculator icon + name + unit badge + `formatINR(totalRate)`
+
+4. **Footer row** (sticky at bottom of sheet):
+   - Toggle/checkbox: **"Apply description, unit & rate from library"**
+   - Default: `!hasExistingDescription` (ON for new lines, OFF when user already typed description)
+   - When ON and user taps a row → call `onApplyDefaults({ description, unit, rate })` **in addition to** `onChange`
+
+5. **Empty states:**
+   - No materials: centered icon + "No materials found"
+   - No RAs: centered calculator icon + "No rate analyses found"
+
+#### 2.11.3d Selection handler (mutual exclusion)
+
+```typescript
+function selectMaterial(resource: Resource, applyDefaults: boolean) {
+  onChange({ resourceId: resource.id, rateAnalysisId: undefined });
+  if (applyDefaults && onApplyDefaults) {
+    onApplyDefaults({
+      description: resource.name,
+      unit: resource.unit,
+      rate: String(parseFloat(resource.rate) || 0),
+    });
+  }
+  closeSheet();
+}
+
+function selectRateAnalysis(ra: RateAnalysis, applyDefaults: boolean) {
+  onChange({ resourceId: undefined, rateAnalysisId: ra.id });
+  if (applyDefaults && onApplyDefaults) {
+    onApplyDefaults({
+      description: ra.name,
+      unit: ra.unit,
+      rate: String(parseFloat(ra.totalRate) || 0),
+    });
+  }
+  closeSheet();
+}
+```
+
+**Remove dependency on `promptLinkApplyAsync`** for these flows — the sheet footer toggle replaces it.
+
+---
+
+### 2.11.4 Line-type rules (enforce in parent AND picker)
+
+| `lineType` | Show picker? | `allowedKinds` | Default segment |
+| ---------- | ------------ | -------------- | --------------- |
+| `MATERIAL` | Yes | `['material', 'rate_analysis']` | `material` |
+| `LABOUR` | Yes | `['rate_analysis']` | `rate_analysis` |
+| `EQUIPMENT` | Yes | `['rate_analysis']` | `rate_analysis` |
+| `SUBCONTRACTOR` | Yes | `['rate_analysis']` | `rate_analysis` |
+| `MISC` | **No** | — | — |
+
+For non-MATERIAL estimate lines today, `ProcurementLinkFields` is hidden entirely — **extend** to show
+RA-only picker for LABOUR/EQUIPMENT/SUBCONTRACTOR when user expands "Procurement link" (optional
+collapsible) OR always show compact chip "Link rate analysis (optional)" below type chips in AddItemRow.
+
+**Minimum for Round 31:** At minimum fix MATERIAL lines (main complaint). **Stretch:** enable RA link for
+LABOUR/EQUIPMENT/SUBCONTRACTOR in AddItemRow + EditableLineItem when `item.type !== 'MISC'`.
+
+---
+
+### 2.11.5 File changes — step by step
+
+#### Step 1 — Create `ProcurementLinkPicker.tsx`
+
+Implement §2.11.3 fully. Use existing hooks:
+
+- `useMaterials({ search: debouncedSearch, limit: 200, enabled: sheetOpen && segment === 'material' })`
+- `useRateAnalyses()` — filter client-side by search (same as RateAnalysisPicker)
+
+Debounce search 300ms (copy pattern from MaterialPicker).
+
+#### Step 2 — Refactor `EstimateBuildStep.tsx`
+
+**Delete** function `ProcurementLinkFields` entirely.
+
+**Delete** functions `handleCatalogSelect` and `handleRateAnalysisSelect` (logic moves into picker).
+
+**Remove import** of `promptLinkApplyAsync` if no longer used.
+
+**Remove debug `console.log`** calls in `resolveTemplateItemLinks` and `applyTemplate` (lines ~47–55, ~225–239).
+
+**Replace** in `EditableLineItem` (editing mode, ~line 539):
+
+```tsx
+{item.type !== 'MISC' ? (
+  <ProcurementLinkPicker
+    value={{ resourceId: resourceId || undefined, rateAnalysisId: rateAnalysisId || undefined }}
+    onChange={(v) => {
+      setResourceId(v.resourceId ?? '');
+      setRateAnalysisId(v.rateAnalysisId ?? '');
+    }}
+    lineType={item.type}
+    hasExistingDescription={Boolean(desc.trim())}
+    onApplyDefaults={({ description, unit, rate }) => {
+      setDesc(description);
+      setUnit(unit);
+      setRate(rate);
+    }}
+  />
+) : null}
+```
+
+**Replace** in `AddItemRow` (~line 665):
+
+```tsx
+{type !== 'MISC' ? (
+  <ProcurementLinkPicker
+    value={{ resourceId: resourceId || undefined, rateAnalysisId: rateAnalysisId || undefined }}
+    onChange={(v) => {
+      setResourceId(v.resourceId ?? '');
+      setRateAnalysisId(v.rateAnalysisId ?? '');
+    }}
+    lineType={type}
+    hasExistingDescription={Boolean(desc.trim())}
+    onApplyDefaults={({ description, unit, rate }) => {
+      setDesc(description);
+      setUnit(unit);
+      setRate(rate);
+    }}
+    compact
+  />
+) : null}
+```
+
+**Read-only view** (`!editing` branch): keep existing linkedResource/linkedRa badge text — no change needed.
+
+**Save payload** unchanged: `resourceId: resourceId || null, rateAnalysisId: rateAnalysisId || null`.
+
+#### Step 3 — Refactor `VariationsTab.tsx`
+
+**Remove** blocks:
+- `{isNewScope && line.type === 'MATERIAL' && ( ... MaterialPicker ... )}` (~432–458)
+- `{isNewScope && line.type !== 'MISC' && ( ... RateAnalysisPicker ... )}` (~460–487)
+
+**Replace** with single block for new scope:
+
+```tsx
+{isNewScope && line.type !== 'MISC' && (
+  <ProcurementLinkPicker
+    value={{
+      resourceId: line.resourceId,
+      rateAnalysisId: line.rateAnalysisId,
+    }}
+    onChange={(v) =>
+      setLines((prev) =>
+        prev.map((l) =>
+          l.id === line.id
+            ? { ...l, resourceId: v.resourceId, rateAnalysisId: v.rateAnalysisId }
+            : l,
+        ),
+      )
+    }
+    lineType={line.type}
+    hasExistingDescription={Boolean(line.description.trim())}
+    onApplyDefaults={({ description, unit, rate }) =>
+      setLines((prev) =>
+        prev.map((l) =>
+          l.id === line.id
+            ? {
+                ...l,
+                description: l.description || description,
+                unit,
+                rate,
+              }
+            : l,
+        ),
+      )
+    }
+  />
+)}
+```
+
+**Keep unchanged:**
+- BOQ chip row for adjust vs new scope
+- VAR-C9 badges for BOQ-linked composite lines
+- Line type chips
+- Submit/approve/convert logic
+
+**On material select in old code** cleared `rateAnalysisId` — picker `onChange` must still enforce mutual exclusion (handled inside picker).
+
+#### Step 4 — Keep `MaterialPicker` and `RateAnalysisPicker` as-is
+
+Other call sites depend on them:
+
+| File | Keep |
+| ---- | ---- |
+| `SubcontractsTab.tsx` MaterialsPanel | MaterialPicker + BOQ chips |
+| `reports/create.tsx` | MaterialPicker + projectMaterials |
+| `ProjectMaterialRatesSection.tsx` | MaterialPicker |
+| `settings/rate-regions.tsx` | MaterialPicker |
+
+Do **not** delete MaterialPicker/RateAnalysisPicker.
+
+---
+
+### 2.11.6 Visual / UX requirements (MOB-PICK1 continuity)
+
+Match Round 30 picker polish:
+
+- Selected row: `border-primary bg-primary/5`, bold primary text, `checkmark-circle` icon
+- Pressed: `active:bg-surface`
+- Padding: `p-2.5`
+- Section labels: `text-[10px] font-semibold text-muted uppercase tracking-wide`
+- Primary colour: `#1E3A5F` (already used in pickers)
+
+Inline summary card: `rounded-lg border border-primary/20 bg-primary/5` when linked (match SubcontractsTab review chip).
+
+---
+
+### 2.11.7 Anti-patterns (Round 31)
+
+| Don't | Do instead |
+| ----- | ---------- |
+| Stack MaterialPicker + RateAnalysisPicker inline | One ProcurementLinkPicker |
+| Two SearchBars on same form row | One SearchBar inside sheet |
+| Use `maxHeight: 100` inline lists | Full-height sheet scroll |
+| Call `promptLinkApplyAsync` after each pick | Footer toggle "Apply defaults" |
+| Allow both resourceId and rateAnalysisId set | Clear the other in onChange |
+| Change backend estimate/CO schemas | Mobile-only |
+| Break IndentDraftLineCard | Leave for later |
+| Break SUB-UX / material issue / daily report pickers | Out of scope |
+
+---
+
+### 2.11.8 Ship gate
+
+```bash
+cd /home/prasanna/work/BuildFlow
+npx tsc --noEmit -p apps/backend    # must stay clean (no backend changes expected)
+npx tsc --noEmit -p apps/mobile     # must stay clean
+pnpm --filter @buildflow/backend test  # **131/131** — no regressions
+pnpm --filter @buildflow/backend test  # run twice, same count
+```
+
+No new migrations. No new backend tests required unless you add one voluntarily.
+
+---
+
+### 2.11.9 Manual test checklist (must pass before marking done)
+
+**Estimate wizard** (`/estimation/create` or edit estimate step 2):
+
+- [ ] Add MATERIAL line → tap link chip → sheet opens with Material segment default
+- [ ] Switch to Rate analysis segment → pick RA → inline shows RA name; material cleared
+- [ ] Toggle "Apply defaults" ON → description/unit/rate fill from library
+- [ ] Toggle OFF → only link fields change, description unchanged
+- [ ] Clear link → chip returns to "Link to material or rate analysis…"
+- [ ] Save line → reload estimate → link persists
+- [ ] Collapsed line shows "Catalog: …" or "Rate analysis: …" badge (existing read view)
+
+**Sub-estimate** (parent estimate → Add Sub-Estimate → open sub-estimate → build step):
+
+- [ ] Same picker behaviour as parent estimate
+
+**Variations** (project → Variations → new scope line):
+
+- [ ] MATERIAL new-scope: one picker, not two stacked lists
+- [ ] LABOUR new-scope: RA segment only (no material segment)
+- [ ] MISC: no picker shown
+- [ ] Selecting RA clears material on same line
+
+**Regression:**
+
+- [ ] Subcontract material issue still uses MaterialPicker (not ProcurementLinkPicker)
+- [ ] Daily report material section unchanged
+- [ ] Template load on estimate still resolves RA links
+
+---
+
+### 2.11.10 Definition of done (Round 31)
+
+- [ ] **MOB-LINK1a** — `ProcurementLinkPicker.tsx` created per §2.11.3
+- [ ] **MOB-LINK1b** — `EstimateBuildStep.tsx` refactored; `ProcurementLinkFields` removed
+- [ ] **MOB-LINK1c** — `VariationsTab.tsx` refactored; dual pickers removed for new scope
+- [ ] **MOB-LINK1d** — `promptLinkApplyAsync` removed from estimate link flow; sheet toggle used
+- [ ] **MOB-LINK1e** — Debug `console.log` removed from EstimateBuildStep template path
+- [ ] **MOB-LINK1f** — 131/131 tests, mobile + backend tsc clean
+- [ ] **MOB-LINK1g** — Manual checklist §2.11.9 passed
+
+---
+
+### 2.11.11 Optional stretch (only if core done early)
+
+| ID | Task |
+| -- | ---- |
+| **MOB-LINK2** | Extract shared `PickerListRow` used by MaterialPicker, RateAnalysisPicker, ProcurementLinkPicker |
+| **MOB-LINK3** | Show RA-only link for LABOUR/EQUIPMENT/SUBCONTRACTOR in estimate AddItemRow (not only MATERIAL) |
+| **MOB-LINK4** | Refactor IndentDraftLineCard to use ProcurementLinkPicker internally |
+
+Do not start stretch items until §2.11.10 all checked.
+
 ### 2.10.11 Round 30b spec (was ACTIVE — see §2.10.12/§2.10.13)
 
 <details>
@@ -743,9 +1229,10 @@ New migrations: `20260805100000_subcontract_material_supply_mode`,
 
 **Expected test count:** **131/131** (stable; +2 SUB-BOQ1T subcontract tests).
 
-### 2.2 Mandatory tasks — none (epic complete)
+### 2.2 Mandatory tasks — Round 31 (MOB-LINK1)
 
-**Round 30 complete** (`2d8f324`). No mandatory tasks — only take **§2.8 optional hardening** if the user explicitly asks.
+**Take new work from §2.11 Round 31 first.** Complete §2.11.10 definition of done before §2.8 optional items.
+Only take §2.8 if the user explicitly asks for something else or §2.11 is complete.
 
 <details>
 <summary>Round 28 spec (completed — reference)</summary>
@@ -1122,6 +1609,8 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 | **SUB-BOQ1C** | ~~BOQ line picker on issue + BoqTab "Issued to subs" + boqItemId validation~~ | **Done** (`2d8f324`) |
 | **MOB-PICK1b** | ~~RateAnalysisPicker visual polish (match MaterialPicker)~~ | **Done** (`2d8f324`) |
 | **SUB-BOQ1T** | ~~Integration test: issue with `boqItemId` → BOQ `subIssuedQty` or list returns link~~ | **Done** |
+| **MOB-LINK1** | ~~Unified ProcurementLinkPicker — estimate + variation~~ | **ACTIVE §2.11** |
+| **MOB-LINK2–4** | PickerListRow extract; RA for all cost types; IndentDraftLineCard | Stretch §2.11.11 |
 | **Phase 5 gaps** | Smoke tests for inventory-traceability, accounting-export, labour, i18n |
 | **NR-36** | Drawing acknowledgement endpoint |
 | **Sync §8.1** | Remount `/api/sync` (needs `updatedAt` + mobile replay) |

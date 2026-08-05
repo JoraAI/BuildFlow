@@ -51,8 +51,7 @@ import {
   type Resource,
   type RateAnalysis,
 } from '@/services/estimate.queries';
-import { MaterialPicker } from '@/components/materials/MaterialPicker';
-import { RateAnalysisPicker } from '@/components/estimation/RateAnalysisPicker';
+import { ProcurementLinkPicker } from '@/components/estimation/ProcurementLinkPicker';
 
 const STATUS_COLOR: Record<string, 'neutral' | 'warning' | 'success' | 'danger'> = {
   DRAFT: 'neutral',
@@ -429,61 +428,39 @@ export function VariationsTab({ projectId, highlightChangeOrderId }: { projectId
                   </ScrollView>
                 </View>
               )}
-              {/* VAR-C3a: MaterialPicker for new scope MATERIAL lines */}
-              {isNewScope && line.type === 'MATERIAL' && (
-                <View className="gap-1">
-                  <View className="flex-row justify-between items-center">
-                    <Text className="text-xs text-muted">Catalog material</Text>
-                    {line.resourceId && (
-                      <Pressable onPress={() => setLines((prev) => prev.map((l) => (l.id === line.id ? { ...l, resourceId: undefined, rateAnalysisId: undefined } : l)))}>
-                        <Text className="text-[10px] text-danger">✕ Clear link</Text>
-                      </Pressable>
-                    )}
-                  </View>
-                  <MaterialPicker
-                    selectedId={line.resourceId}
-                    onSelect={(r: Resource) =>
-                      setLines((prev) => prev.map((l) =>
-                        l.id === line.id ? {
-                          ...l,
-                          resourceId: r.id,
-                          description: l.description || r.name,
-                          unit: r.unit || 'Nos',
-                          rateAnalysisId: undefined,
-                        } : l,
-                      ))
-                    }
-                    maxHeight={180}
-                  />
-                </View>
-              )}
-              {/* VAR-C3b: RateAnalysisPicker for new scope (all types except MISC) */}
+              {/* MOB-LINK1: Unified ProcurementLinkPicker for new scope */}
               {isNewScope && line.type !== 'MISC' && (
-                <View className="gap-1">
-                  <View className="flex-row justify-between items-center">
-                    <Text className="text-xs text-muted">Rate analysis (optional)</Text>
-                    {line.rateAnalysisId && (
-                      <Pressable onPress={() => setLines((prev) => prev.map((l) => (l.id === line.id ? { ...l, rateAnalysisId: undefined } : l)))}>
-                        <Text className="text-[10px] text-danger">✕ Clear RA</Text>
-                      </Pressable>
-                    )}
-                  </View>
-                  <RateAnalysisPicker
-                    selectedId={line.rateAnalysisId}
-                    onSelect={(ra: RateAnalysis) =>
-                      setLines((prev) => prev.map((l) =>
-                        l.id === line.id ? {
-                          ...l,
-                          rateAnalysisId: ra.id,
-                          description: l.description || ra.name,
-                          rate: String(parseFloat(String(ra.totalRate ?? '0')) || 0),
-                          resourceId: undefined,
-                        } : l,
-                      ))
-                    }
-                    maxHeight={180}
-                  />
-                </View>
+                <ProcurementLinkPicker
+                  value={{
+                    resourceId: line.resourceId,
+                    rateAnalysisId: line.rateAnalysisId,
+                  }}
+                  onChange={(v) =>
+                    setLines((prev) =>
+                      prev.map((l) =>
+                        l.id === line.id
+                          ? { ...l, resourceId: v.resourceId, rateAnalysisId: v.rateAnalysisId }
+                          : l,
+                      ),
+                    )
+                  }
+                  lineType={line.type}
+                  hasExistingDescription={Boolean(line.description.trim())}
+                  onApplyDefaults={({ description, unit, rate }) =>
+                    setLines((prev) =>
+                      prev.map((l) =>
+                        l.id === line.id
+                          ? {
+                              ...l,
+                              description: l.description || description,
+                              unit,
+                              rate,
+                            }
+                          : l,
+                      ),
+                    )
+                  }
+                />
               )}
               {/* VAR-C9: New scope helper */}
               {isNewScope && (
