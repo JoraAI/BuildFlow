@@ -281,4 +281,109 @@ describe('Subcontract (integration)', () => {
     );
     expect(measRes.status).toBe(400);
   });
+
+  it('issues material with boqItemId and reflects subIssuedQty on BOQ list', async () => {
+    const boqRes = await authGet(token, `/api/projects/${trailProjectId}/boq`);
+    const carpetBoq = (
+      boqRes.body.data.items as Array<{
+        id: string;
+        category: string;
+        resourceId: string | null;
+        itemCode: string;
+        subIssuedQty?: number;
+      }>
+    ).find((i) => i.itemCode === 'O-020' && i.category === 'MATERIAL');
+    expect(carpetBoq).toBeTruthy();
+    expect(carpetBoq!.resourceId).toBeTruthy();
+
+    const subsRes = await authGet(token, '/api/subcontractors');
+    const sub = (subsRes.body.data as Array<{ id: string }>)[0];
+    expect(sub).toBeTruthy();
+
+    const ts = Date.now();
+    const woRes = await authPost(token, `/api/projects/${trailProjectId}/subcontract/work-orders`, {
+      subcontractorId: sub!.id,
+      woNumber: `WO-BOQ-LINK-${ts}`,
+      scope: 'BOQ link material issue test',
+      contractValue: 10_000,
+      retentionPct: 0,
+      advanceAmount: 0,
+      materialSupplyMode: 'GC_SUPPLIED',
+    });
+    expect(woRes.status).toBe(201);
+    const woId = woRes.body.data.id as string;
+
+    const issueQty = 5;
+    const issueRes = await authPost(
+      token,
+      `/api/projects/${trailProjectId}/subcontract/work-orders/${woId}/material-issues`,
+      {
+        resourceId: carpetBoq!.resourceId!,
+        quantity: issueQty,
+        unit: 'sqm',
+        rate: 680,
+        issueDate: new Date().toISOString().slice(0, 10),
+        boqItemId: carpetBoq!.id,
+      },
+    );
+    if (issueRes.status === 400) {
+      const msg = issueRes.body.error?.message ?? issueRes.body.message ?? '';
+      expect(String(msg)).toMatch(/stock|Insufficient/i);
+      return;
+    }
+    expect(issueRes.status).toBe(201);
+    expect(issueRes.body.data.boqItemId).toBe(carpetBoq!.id);
+
+    const boqAfter = await authGet(token, `/api/projects/${trailProjectId}/boq`);
+    const carpetAfter = (
+      boqAfter.body.data.items as Array<{ id: string; subIssuedQty?: number }>
+    ).find((i) => i.id === carpetBoq!.id);
+    expect((carpetAfter?.subIssuedQty ?? 0) - (carpetBoq!.subIssuedQty ?? 0)).toBeGreaterThanOrEqual(
+      issueQty,
+    );
+  });
+
+  it('rejects boqItemId when BOQ line is not MATERIAL category', async () => {
+    const boqRes = await authGet(token, `/api/projects/${projectId}/boq`);
+    const earthBoq = (
+      boqRes.body.data.items as Array<{ id: string; category: string; itemCode: string }>
+    ).find((i) => i.itemCode === 'BOQ-001');
+    expect(earthBoq).toBeTruthy();
+
+    const resRes = await authGet(token, '/api/resources?type=MATERIAL&search=OPC');
+    const resource = (resRes.body.data as Array<{ id: string; unit?: string }>)[0];
+    if (!resource) return;
+
+    const subsRes = await authGet(token, '/api/subcontractors');
+    const sub = (subsRes.body.data as Array<{ id: string }>)[0];
+    expect(sub).toBeTruthy();
+
+    const woRes = await authPost(token, `/api/projects/${projectId}/subcontract/work-orders`, {
+      subcontractorId: sub!.id,
+      woNumber: `WO-BAD-BOQ-${Date.now()}`,
+      scope: 'Invalid BOQ category test',
+      contractValue: 5000,
+      retentionPct: 0,
+      advanceAmount: 0,
+      materialSupplyMode: 'GC_SUPPLIED',
+    });
+    expect(woRes.status).toBe(201);
+    const woId = woRes.body.data.id as string;
+
+    const issueRes = await authPost(
+      token,
+      `/api/projects/${projectId}/subcontract/work-orders/${woId}/material-issues`,
+      {
+        resourceId: resource.id,
+        quantity: 1,
+        unit: resource.unit ?? 'bag',
+        rate: 400,
+        issueDate: new Date().toISOString().slice(0, 10),
+        boqItemId: earthBoq!.id,
+      },
+    );
+    expect(issueRes.status).toBe(400);
+    const msg = issueRes.body.error?.message ?? issueRes.body.message ?? '';
+    expect(String(msg)).toMatch(/MATERIAL/i);
+  });
 });

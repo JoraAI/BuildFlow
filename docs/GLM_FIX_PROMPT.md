@@ -1,14 +1,14 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 30c active)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 30 complete)
 
 > **You do not need any prior conversation or other documents.** This file is the
 > complete task brief. Read it top to bottom before taking new work.
 > [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
 >
 > **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
-> **Last committed baseline:** Round 30b — `9462a3e` (boqItemId schema + MaterialPicker polish)  
-> **Verified:** 2026-08-05 — Rounds 12–29 + Round 30a/30b **partial**. **129/129** tests.
+> **Last committed baseline:** Round 30c — `2d8f324` (BOQ picker + issued hint + RA polish)  
+> **Verified:** 2026-08-05 — Rounds 12–29 + **Round 30 complete** (incl. SUB-BOQ1T). **131/131** tests.
 >
-> **Active work:** **Round 30c** — BOQ issued hint + issue UI boqItemId + RateAnalysisPicker polish (§2.10.13).
+> **Active work:** None mandatory — take **§2.8 optional hardening** only if the user asks.
 
 ---
 
@@ -404,7 +404,7 @@ If `Rendered more hooks than during the previous render` in `MaterialsPanel`: en
 
 | Gate | Requirement |
 | ---- | ----------- |
-| Tests | **129/129** minimum; +1 if BOQ/stock integration test added |
+| Tests | **131/131** minimum |
 | tsc | Backend + mobile clean |
 | Manual | Issue stock → BOQ `Site stock` updates; issue flow has review + Issue button; assign Store Incharge to project; pickers look polished |
 
@@ -412,14 +412,14 @@ If `Rendered more hooks than during the previous render` in `MaterialsPanel`: en
 
 - [x] **SUB-BOQ1 Phase A** — `invalidateProjectBoq` on issue/recover (`6b802a7`)
 - [x] **SUB-BOQ1 Phase B (schema/API)** — migration + `boqItemId` persist (`bb50b2a`, `9462a3e`)
-- [ ] **SUB-BOQ1 Phase B (UI/BOQ)** — mobile BOQ picker + BoqTab hint + service validation (§2.10.13)
+- [x] **SUB-BOQ1 Phase B (UI/BOQ)** — BOQ picker + BoqTab hint + validation (`2d8f324`)
 - [x] **SUB-UX3** — Review UI + `confirmAsync` discard (`6b802a7`, `bb50b2a` NR-38)
 - [x] **TEAM-R1** — Full roles + `ROLE_LABELS` + schema (`6b802a7`)
 - [x] **MOB-PICK1 (MaterialPicker)** — checkmark, bold selected, padding (`9462a3e`)
-- [ ] **MOB-PICK1 (RateAnalysisPicker)** — match MaterialPicker polish (§2.10.13)
+- [x] **MOB-PICK1 (RateAnalysisPicker)** — match MaterialPicker polish (`2d8f324`)
 - [x] **NR-37** — Hooks before early return in MaterialsPanel
 - [x] **NR-38** — `confirmAsync` for discard dialogs
-- [x] 129/129 tests, both tsc clean
+- [x] 131/131 tests, both tsc clean
 
 ### 2.10.12 Round 30b verification (2026-08-05 — do NOT revert)
 
@@ -439,21 +439,33 @@ If `Rendered more hooks than during the previous render` in `MaterialsPanel`: en
 
 **Apply migration on dev:** `pnpm db:migrate:deploy` (includes `20260805160000_subcontract_material_issue_boq_item`).
 
-### 2.10.13 Round 30c — Remaining work (ACTIVE for GLM)
+### 2.10.13 Round 30c verification (2026-08-05 — do NOT revert)
 
-**SUB-BOQ1B finish:**
+**Commit:** `2d8f324`
 
-1. **`subcontract.service.ts`** — When `boqItemId` provided: validate BOQ item belongs to WO project, category MATERIAL, `resourceId === input.resourceId`.
-2. **`expansion.queries.ts`** — Add `boqItemId?: string` to `useIssueMaterial` input type.
-3. **`MaterialsPanel`** — After material select, if BOQ has MATERIAL lines with same `resourceId`, show optional **Link to BOQ line** chips/list; pass `boqItemId` on issue.
-4. **`boq.service.ts` + `BoqTab.tsx`** — Aggregate net issued qty per BOQ item (or resource): show `Issued to subs: {qty} {unit}` on MATERIAL rows alongside `Site stock`.
-5. **Test (recommended):** Issue with `boqItemId` → list returns it; or BOQ includes `subIssuedQty`.
+**Ship gates:** backend tsc ✓ · mobile tsc ✓ · **131/131** tests ✓ (post-verify: SUB-BOQ1T + aggregation fix)
 
-**MOB-PICK1 finish — `RateAnalysisPicker.tsx`:**
+| ID | Status | Evidence |
+| -- | ------ | -------- |
+| **SUB-BOQ1B validation** | **Done** | Project + `category === 'MATERIAL'` + resource match (incl. estimateItem) |
+| **SUB-BOQ1B mobile** | **Done** | BOQ chips; `boqItemId` only sent when chip matches material |
+| **SUB-BOQ1B BoqTab** | **Done** | `subIssuedQty` per boqItemId + unlinked by resourceId |
+| **MOB-PICK1 RA** | **Done** | `RateAnalysisPicker.tsx` |
+| **SUB-BOQ1T** | **Done** | `subcontract.test.ts` — issue with `boqItemId` + MATERIAL rejection |
+| **NR-39** | **Done** | Reset `selectedBoqItemId` on material change (`useEffect`) |
 
-Mirror MaterialPicker: checkmark when selected, bold primary text, `p-2.5`, `active:bg-surface`, section header styling.
+**Minor notes (resolved):**
 
-**Ship gate:** 129/129+ · both tsc clean · run migration on dev DB.
+- ~~Validation missing MATERIAL category~~ — fixed.
+- ~~Aggregation by resourceId only~~ — linked issues count on BOQ line; unlinked still by resource.
+- ~~Stale `selectedBoqItemId`~~ — fixed.
+
+<details>
+<summary>Round 30c original spec (completed)</summary>
+
+All §2.10.13 items delivered in `2d8f324`. Optional integration test remains in §2.8.
+
+</details>
 
 ### 2.10.11 Round 30b spec (was ACTIVE — see §2.10.12/§2.10.13)
 
@@ -729,12 +741,11 @@ pnpm exec prisma generate
 New migrations: `20260805100000_subcontract_material_supply_mode`,
 `20260805120000_company_report_settings`.
 
-**Expected test count:** **129/129** (stable; +1 Excel export test).
+**Expected test count:** **131/131** (stable; +2 SUB-BOQ1T subcontract tests).
 
 ### 2.2 Mandatory tasks — none (epic complete)
 
-**Round 30a/30b partial done.** Take new work from **§2.10.13 Round 30c** first.
-Only take §2.8 if the user explicitly asks.
+**Round 30 complete** (`2d8f324`). No mandatory tasks — only take **§2.8 optional hardening** if the user explicitly asks.
 
 <details>
 <summary>Round 28 spec (completed — reference)</summary>
@@ -1108,8 +1119,9 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 | **MOB-O1** | ~~Fix mobile tsc implicit-any~~ | **Done** |
 | **SUB-UX-O1** | Material issue: optional date/notes; hide zero-stock BOQ rows in picker; bill hint on approved measurements |
 | **NR-38** | ~~Material issue discard must use `confirmAsync` not `alertAsync`~~ | **Done** (`bb50b2a`) |
-| **SUB-BOQ1C** | BOQ line picker on issue + BoqTab "Issued to subs" + boqItemId validation |
-| **MOB-PICK1b** | RateAnalysisPicker visual polish (match MaterialPicker) |
+| **SUB-BOQ1C** | ~~BOQ line picker on issue + BoqTab "Issued to subs" + boqItemId validation~~ | **Done** (`2d8f324`) |
+| **MOB-PICK1b** | ~~RateAnalysisPicker visual polish (match MaterialPicker)~~ | **Done** (`2d8f324`) |
+| **SUB-BOQ1T** | ~~Integration test: issue with `boqItemId` → BOQ `subIssuedQty` or list returns link~~ | **Done** |
 | **Phase 5 gaps** | Smoke tests for inventory-traceability, accounting-export, labour, i18n |
 | **NR-36** | Drawing acknowledgement endpoint |
 | **Sync §8.1** | Remount `/api/sync` (needs `updatedAt` + mobile replay) |

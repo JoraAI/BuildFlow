@@ -88,30 +88,49 @@ export async function listBoq(companyId: string, projectId: string) {
     }
   }
 
-  // SUB-BOQ1B: Aggregate subcontract material issues (net qty) by resourceId
-  const subIssuedByResource = new Map<string, number>();
-  if (resourceIds.length > 0) {
+  // SUB-BOQ1B: Aggregate subcontract material issues — linked by boqItemId, unlinked by resourceId
+  const boqItemIdList = enrichedItems.map((i) => i.id);
+  const subIssuedByBoqItem = new Map<string, number>();
+  const subIssuedUnlinkedByResource = new Map<string, number>();
+  if (boqItemIdList.length > 0 || resourceIds.length > 0) {
     const subIssues = await prisma.subcontractorMaterialIssue.findMany({
       where: {
-        resourceId: { in: resourceIds },
         workOrder: { projectId, project: { companyId } },
+        OR: [
+          ...(boqItemIdList.length > 0 ? [{ boqItemId: { in: boqItemIdList } }] : []),
+          ...(resourceIds.length > 0
+            ? [{ boqItemId: null, resourceId: { in: resourceIds } }]
+            : []),
+        ],
       },
-      select: { resourceId: true, quantity: true, recoveredQty: true },
+      select: { boqItemId: true, resourceId: true, quantity: true, recoveredQty: true },
     });
     for (const si of subIssues) {
       const net = Number(si.quantity) - Number(si.recoveredQty);
-      subIssuedByResource.set(
-        si.resourceId,
-        (subIssuedByResource.get(si.resourceId) ?? 0) + net,
-      );
+      if (si.boqItemId) {
+        subIssuedByBoqItem.set(
+          si.boqItemId,
+          (subIssuedByBoqItem.get(si.boqItemId) ?? 0) + net,
+        );
+      } else {
+        subIssuedUnlinkedByResource.set(
+          si.resourceId,
+          (subIssuedUnlinkedByResource.get(si.resourceId) ?? 0) + net,
+        );
+      }
     }
   }
 
-  const itemsWithStock = enrichedItems.map((item) => ({
-    ...item,
-    stockQty: item.resourceId ? (stockByResource.get(item.resourceId) ?? 0) : undefined,
-    subIssuedQty: item.resourceId ? (subIssuedByResource.get(item.resourceId) ?? 0) : undefined,
-  }));
+  const itemsWithStock = enrichedItems.map((item) => {
+    const linked = subIssuedByBoqItem.get(item.id) ?? 0;
+    const unlinked = item.resourceId ? (subIssuedUnlinkedByResource.get(item.resourceId) ?? 0) : 0;
+    const subIssuedQty = linked + unlinked;
+    return {
+      ...item,
+      stockQty: item.resourceId ? (stockByResource.get(item.resourceId) ?? 0) : undefined,
+      subIssuedQty: item.resourceId || linked > 0 ? subIssuedQty : undefined,
+    };
+  });
 
   // R14-VO1: Resolve variation provenance — which approved change orders touched
   // each BOQ line? A line is touched if a ChangeOrderLine references it by

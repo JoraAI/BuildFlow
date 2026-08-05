@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Alert, ScrollView, Pressable, TextInput, Share, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -804,6 +804,9 @@ function MaterialsPanel({
   const [issueModal, setIssueModal] = useState(false);
   const [selectedResource, setSelectedResource] = useState<{ id: string; name: string; unit: string; rate?: string } | null>(null);
   const [selectedBoqItemId, setSelectedBoqItemId] = useState<string | null>(null);
+  useEffect(() => {
+    setSelectedBoqItemId(null);
+  }, [selectedResource?.id]);
   const [qty, setQty] = useState('');
   const [unit, setUnit] = useState('');
   const [rate, setRate] = useState('');
@@ -891,6 +894,16 @@ function MaterialsPanel({
       void alertAsync('Required', 'Select a material, then enter quantity, unit, and rate.');
       return;
     }
+    const matchingBoqIds = (boq?.items ?? [])
+      .filter(
+        (b: BoqItem) =>
+          b.resourceId === selectedResource.id && b.category === 'MATERIAL',
+      )
+      .map((b: BoqItem) => b.id);
+    const boqItemId =
+      selectedBoqItemId && matchingBoqIds.includes(selectedBoqItemId)
+        ? selectedBoqItemId
+        : undefined;
     issueMat.mutate(
       {
         resourceId: selectedResource.id,
@@ -898,7 +911,7 @@ function MaterialsPanel({
         unit,
         rate: parseFloat(rate) || 0,
         issueDate: new Date().toISOString().slice(0, 10),
-        ...(selectedBoqItemId ? { boqItemId: selectedBoqItemId } : {}),
+        ...(boqItemId ? { boqItemId } : {}),
       },
       {
         onSuccess: () => {
