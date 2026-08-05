@@ -551,6 +551,33 @@ export interface SubEstimateRow {
   approvedAt: string | null;
 }
 
+/**
+ * EST-VO-11c: Variation summary returned by GET /estimates/:id/variations.
+ */
+export interface EstimateVariationRow {
+  id: string;
+  number: string;
+  title: string;
+  status: string;
+  costImpact: string;
+  scheduleImpactDays: number;
+  approvedAt: string | null;
+  createdAt: string;
+  lines: Array<{ id: string }>;
+}
+
+/**
+ * EST-VO-11c: Variations linked to an estimate (change orders).
+ */
+export function useEstimateVariations(estimateId: string) {
+  return useQuery({
+    queryKey: ['estimates', estimateId, 'variations'] as const,
+    queryFn: () =>
+      apiFetch<EstimateVariationRow[]>(`/estimates/${estimateId}/variations`),
+    enabled: !!estimateId,
+  });
+}
+
 export function useSubEstimates(parentEstimateId: string) {
   return useQuery({
     queryKey: ['estimates', parentEstimateId, 'sub-estimates'] as const,

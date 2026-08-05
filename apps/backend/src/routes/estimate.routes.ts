@@ -28,6 +28,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import * as estimateController from '../controllers/estimate.controller';
 import * as boqController from '../controllers/boq.controller';
+import * as changeOrderService from '../services/change-order.service';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { asyncHandler } from '../utils/async-handler';
@@ -141,6 +142,23 @@ estimateRouter.delete(
   '/estimate-items/:itemId/sub-items/:subItemId',
   validate({ params: z.object({ itemId: z.string().uuid(), subItemId: z.string().uuid() }) }),
   estimateController.deleteSubItem,
+);
+
+// EST-VO-11b: Variations linked to this estimate
+estimateRouter.get(
+  '/estimates/:id/variations',
+  validate({ params: estimateIdParamsSchema }),
+  async (req, res, next) => {
+    try {
+      const result = await changeOrderService.listVariationsByEstimate(
+        req.user!.companyId,
+        req.params.id,
+      );
+      res.json({ data: result });
+    } catch (e) {
+      next(e);
+    }
+  },
 );
 
 // Sub-estimates (child estimates for additional scope)

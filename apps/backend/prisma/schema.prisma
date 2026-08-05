@@ -663,6 +663,7 @@ model Estimate {
   createdByUser  User          @relation("EstimateCreatedBy", fields: [createdBy], references: [id])
   sections    EstimateSection[]
   items       EstimateItem[]
+  changeOrders ChangeOrder[] @relation("EstimateChangeOrders")
 
   @@index([projectId])
   @@index([companyId])
@@ -1312,6 +1313,7 @@ model ChangeOrder {
   linkedTask       Task?                  @relation(fields: [linkedTaskId], references: [id], onDelete: SetNull)
   linkedWorkOrder  SubcontractWorkOrder?  @relation(fields: [linkedWorkOrderId], references: [id], onDelete: SetNull)
   lines            ChangeOrderLine[]
+  estimate         Estimate?          @relation("EstimateChangeOrders", fields: [estimateId], references: [id], onDelete: SetNull)
 
   @@unique([projectId, number])
   @@index([companyId, status])

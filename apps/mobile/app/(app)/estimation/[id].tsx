@@ -15,7 +15,7 @@ import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { useViewport } from '@/hooks/useViewport';
 import { confirmAsync, alertAsync } from '@/utils/confirm';
 import { SummaryBreakdownCard } from '@/components/ui';
-import { useEstimate, useEstimateMutations, useExportEstimate, useSubEstimates, useCreateSubEstimate, useRateAnalysis, useMaterials, type EstimateSection, type EstimateItem, type SubEstimateRow } from '@/services/estimate.queries';
+import { useEstimate, useEstimateMutations, useExportEstimate, useSubEstimates, useCreateSubEstimate, useRateAnalysis, useMaterials, useEstimateVariations, type EstimateSection, type EstimateItem, type SubEstimateRow, type EstimateVariationRow } from '@/services/estimate.queries';
 import { useProject } from '@/services/project.queries';
 import { useAuthStore } from '@/stores/auth.store';
 import { formatINR, formatDate } from '@/utils/format';
@@ -221,6 +221,65 @@ function LineItemWithBreakdown({ item }: { item: EstimateItem }) {
           ) : null}
         </View>
       ) : null}
+    </View>
+  );
+}
+
+/**
+ * EST-VO-11c: Variations section — amber accent, distinct from sub-estimates.
+ * Shows change orders linked to this estimate via `estimateId`.
+ * Read-only directory; tapping opens the project Variations tab.
+ */
+function VariationsSection({ estimateId, projectId }: { estimateId: string; projectId: string }) {
+  const router = useRouter();
+  const { data: variations } = useEstimateVariations(estimateId);
+
+  const VAR_STATUS_COLORS: Record<string, string> = {
+    DRAFT: 'neutral',
+    SUBMITTED: 'warning',
+    APPROVED: 'success',
+    REJECTED: 'danger',
+  };
+
+  return (
+    <View className="gap-2">
+      <View className="flex-row justify-between items-center">
+        <Text className="text-sm font-bold text-text">Variations (Change Orders)</Text>
+      </View>
+
+      <Text className="text-xs text-muted">
+        Change orders linked to this estimate. Variations adjust BOQ qty or add new scope — they do not change the approved estimate baseline.
+      </Text>
+
+      {(variations ?? []).length === 0 ? (
+        <Text className="text-xs text-muted italic">
+          No variations linked to this estimate yet. Create one from Project → Variations.
+        </Text>
+      ) : (
+        (variations ?? []).map((vo: EstimateVariationRow) => (
+          <Card
+            key={vo.id}
+            className="border-warning/20 bg-warning/5"
+            onPress={() => router.push(`/projects/${projectId}?tab=variations` as never)}
+          >
+            <View className="flex-row justify-between items-start mb-1">
+              <View className="flex-1 pr-2">
+                <View className="flex-row items-center gap-2">
+                  <Badge color="warning" label="Variation" />
+                  <Text className="text-sm font-semibold text-text">{vo.number}</Text>
+                </View>
+                <Text className="text-xs text-text-muted mt-0.5" numberOfLines={1}>{vo.title}</Text>
+                <Text className="text-[10px] text-text-muted">{formatDate(vo.createdAt)}</Text>
+              </View>
+              <Badge color={(VAR_STATUS_COLORS[vo.status] ?? 'neutral') as 'neutral'} label={vo.status} />
+            </View>
+            <View className="flex-row justify-between items-center pt-2 mt-1 border-t border-warning/10">
+              <Text className="text-xs text-text-muted">{vo.lines?.length ?? 0} lines · {vo.scheduleImpactDays}d</Text>
+              <Text className="text-sm font-bold text-warning">{formatINR(parseFloat(vo.costImpact))}</Text>
+            </View>
+          </Card>
+        ))
+      )}
     </View>
   );
 }
@@ -447,6 +506,9 @@ export default function EstimateDetailScreen() {
 
           {/* Sub-Estimates section — only on parent estimates, not on sub-estimates */}
           {!estimate.parentId && <SubEstimatesSection parentEstimateId={id} />}
+
+          {/* EST-VO-11c: Variations section — amber accent, distinct from sub-estimates */}
+          {!estimate.parentId && <VariationsSection estimateId={id} projectId={estimate.projectId} />}
 
           {/* Line items detail */}
           <Text className="text-sm font-bold text-text mt-2">Detailed Line Items</Text>

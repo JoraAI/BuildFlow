@@ -183,6 +183,34 @@ describe('Change orders (integration)', () => {
     expect(newBoqRow!.rateAnalysisId).toBe(ra.id);
   });
 
+  // EST-VO-11a: Variation create links estimateId to approved parent estimate.
+  it('createChangeOrder sets estimateId to latest approved parent estimate', async () => {
+    // Get the approved estimate — the list API only returns top-level estimates
+    const estRes = await authGet(token, `/api/projects/${projectId}/estimates`);
+    expect(estRes.status).toBe(200);
+    const allEstimates = estRes.body.data as Array<{ id: string; status: string }>;
+    const approvedParent = allEstimates.find((e) => e.status === 'APPROVED');
+    // Skip if no approved estimate in seed
+    if (!approvedParent) return;
+
+    const createRes = await authPost(token, `/api/projects/${projectId}/change-orders`, {
+      number: `VO-EST-${Date.now()}`,
+      title: 'estimateId link test',
+      reason: 'Integration test',
+      scheduleImpactDays: 0,
+      lines: [{ description: 'Test line', unit: 'Nos', qtyDelta: 1, rate: 100 }],
+    });
+    expect(createRes.status).toBe(201);
+    // EST-VO-11a: estimateId should be set to the approved estimate
+    expect(createRes.body.data.estimateId).toBe(approvedParent.id);
+
+    // EST-VO-11b: List variations by estimate
+    const variationsRes = await authGet(token, `/api/estimates/${approvedParent.id}/variations`);
+    expect(variationsRes.status).toBe(200);
+    const variations = variationsRes.body.data as Array<{ id: string }>;
+    expect(variations.some((v) => v.id === createRes.body.data.id)).toBe(true);
+  });
+
   // VAR-C6b: RA-linked variation → approve → shortfalls show exploded materials.
   it('shortfalls RA-explode variation BOQ rows with direct rateAnalysisId', async () => {
     // Find a rate analysis with MATERIAL components

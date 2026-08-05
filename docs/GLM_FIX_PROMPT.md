@@ -1,16 +1,16 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 20 — VAR-C9 single-line BOQ/RA)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 21 — variations on estimate page)
 
 > **You do not need any prior conversation or other documents.** This file is the
 > complete task brief. Read it top to bottom, then execute **Section 2** in order.
 > [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
 >
 > **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
-> **Last committed baseline:** `1145896` (`main` ahead of `origin/main` by 8 commits)  
-> **Verified:** 2026-08-05 — Rounds 12–19 complete. **Round 20 (VAR-C9)** required:
-> remove Split button; **one line per BOQ and one line per RA** on the form (no RA
-> BOM expansion on this screen). Dedupe BOQ per draft. **All five cost types** on
-> new scope (not materials-only). Run §2.1 gates before/after. After VAR-C6 pulls,
-> run `prisma migrate deploy`.
+> **Last committed baseline:** `433f10b` (`main` ahead of `origin/main` by 10 commits)  
+> **Verified:** 2026-08-05 — Round 20 **VAR-C9 complete** (`433f10b`, 115/115 tests ×2,
+> tsc ×2). **Round 21 (EST-VO-11 / VAR-D)** required: show variations as **children
+> of the approved parent estimate** on the estimate detail page (visually distinct
+> from sub-estimates); wire `ChangeOrder.estimateId`; plan **convert-to-BOQ** UX
+> parity with sub-estimates. Run §2.1 gates before/after.
 
 ---
 
@@ -68,28 +68,44 @@ BuildFlow spans the full project lifecycle:
 
 ---
 
-## 2. Round 20 — Single-line BOQ/RA on variation form (VAR-C9)
+## 2. Round 21 — Variations on estimate page (EST-VO-11 / VAR-D)
 
-User feedback: **Split into N materials** still allows duplicates (same BOQ on a
-second line → split again). **Remove Split entirely.**
+**Product direction (2026-08-05):** After a variation is **created**, it should appear
+on the **estimate detail page** as a child of the current (approved) parent estimate —
+similar placement to sub-estimates, but with a **clear visual distinction**. Later,
+lines inside an approved variation should be **convertible to BOQ** (like sub-estimate
+`convert-to-boq`); downstream procurement/shortfalls follow existing paths.
 
-**Product decision (2026-08-05):** On the variation create form, **every line is one
-part** — including Rate Analyses and composite BOQ rows. **Do not expand RA BOM**
-into child lines on this screen. RA/component explosion for procurement happens
-**after approve** on the backend only (`fetchBoqMaterialDemands` — VAR-C6b).
+**Do not** break Rounds 12–20 (single-line variation form, approve → BOQ today,
+VAR-C6b shortfalls, frozen estimate baseline).
 
-**Do not** break Rounds 12–19 (approve → BOQ → shortfalls, RA persistence).
+### 2.0 Current vs target architecture
 
-### 2.0 Status (`1145896` + user-reported gap)
+| Area | Today (`433f10b`) | Target (Round 21+) |
+| ---- | ----------------- | ------------------ |
+| **Where variations live** | Project → **Variations** tab only | Also listed under **parent estimate** on `estimation/[id].tsx` |
+| **`ChangeOrder.estimateId`** | Column exists in DB; **never set** on create; no Prisma `Estimate` relation | Set to project's **latest APPROVED parent estimate** (`parentId: null`) on create |
+| **Sub-estimates** | `Estimate` rows with `parentId`; green "Additional Scope"; full edit + convert-to-boq | **Unchanged** — still the model for *planned* extra scope |
+| **Variations** | `ChangeOrder` + `ChangeOrderLine`; amber in Variations tab | Same data model; **amber "Variation / Change Order"** child rows on estimate page |
+| **BOQ on approve** | `approveChangeOrder` **immediately** updates/creates BOQ rows | **Phase 1:** keep as-is (visibility only). **Phase 2 (VAR-D2):** optional explicit "Convert to BOQ" step — see §2.2b |
+| **Estimate baseline** | Frozen on variation approve (`ScopeSummaryBanner` shows derived revised total) | **Must stay frozen** — do not mutate approved estimate lines on variation approve |
+
+**Reference files:**
+
+- Estimate detail + sub-estimates UI: `apps/mobile/app/(app)/estimation/[id].tsx` (`SubEstimatesSection`, `ScopeSummaryBanner`)
+- Sub-estimate API: `listSubEstimates` in `estimate.service.ts`; hooks in `estimate.queries.ts`
+- Variation create/approve: `change-order.service.ts`, `VariationsTab.tsx`
+- Convert-to-boq pattern: `POST /api/estimates/:id/convert-to-boq` in `boq.service.ts`
+
+### 2.0 Status (`433f10b`)
 
 | ID | Task | Status | Notes |
 | -- | ---- | ------ | ----- |
-| **VAR-C1–C6b** | Prior variation work | **Done** | See §2.0a |
-| **VAR-C9** | Remove Split; single-line BOQ/RA; BOQ dedupe | **Not done** | User report 2026-08-05 |
+| **VAR-C1–C9** | Variation line editor + single-line BOQ/RA | **Done** | `433f10b` |
+| **EST-VO-11a** | Link `estimateId` on variation create | **Not done** | Column orphan today |
+| **EST-VO-11b** | List variations on estimate detail page | **Not done** | User request 2026-08-05 |
+| **VAR-D2** | Explicit convert-to-BOQ for variations | **Deferred Phase 2** | Approve already writes BOQ — see §2.2b |
 | **Ship gate** | 115/115 ×2 + tsc ×2 | **Must stay green** | |
-
-**Why Split still duplicates:** VAR-C1 only blocks re-split on the **same line**.
-User can add **line 2** → link **same BOQ** → Split again.
 
 ### 2.0a Prior rounds — do NOT re-break
 
@@ -101,6 +117,7 @@ User can add **line 2** → link **same BOQ** → Split again.
 | **VAR-C3a/b** | MaterialPicker + RateAnalysisPicker | **Done** | `dbac1aa` |
 | **VAR-C4** | Adjust vs new scope copy + FlowHint | **Done** | `f055465` — update copy in VAR-C9 |
 | **VAR-C5–C6b** | Ship gate + RA persist + shortfalls | **Done** | `dbac1aa`–`1145896` |
+| **VAR-C9** | Single-line BOQ/RA; no Split; BOQ dedupe; all 5 types | **Done** | `433f10b` |
 
 ### 2.0a Completed in Rounds 8–14 — do NOT re-break
 
@@ -189,36 +206,88 @@ pnpm exec prisma generate
 # restart backend dev server
 ```
 
-### 2.2 Mandatory tasks — Round 20 (VAR-C9)
+### 2.2 Mandatory tasks — Round 21 (EST-VO-11)
 
-#### VAR-C9a — Remove Split / RA expansion from variation form
+#### EST-VO-11a — Wire `ChangeOrder.estimateId` on create
 
-In `apps/mobile/components/projects/VariationsTab.tsx`:
+In `apps/backend/src/services/change-order.service.ts` → `createChangeOrder`:
 
-1. **Delete** `ExplodeButton`, `explodeCompositeBoq`, `RaComponentPicker`,
-   `showMaterialPickerForLine` (if only used for split/RA chips), and
-   `explodedFromBoqId` on `DraftLine`.
-2. **Remove** all "Split into N materials" UI and "(from split)" copy.
-3. **BOQ-linked line:** show BOQ chip + description + qty Δ + rate only. If BOQ has
-   `rateAnalysisId`, show read-only badge *"Composite (RA linked)"* — **no** component
-   picker, **no** split.
-4. **New-scope line:** keep type chips for all five types; `MaterialPicker` for
-   MATERIAL; `RateAnalysisPicker` for non-MISC types — each produces **one line**.
+1. Resolve the project's **current approved parent estimate**:
+   `findFirst({ where: { projectId, companyId, status: 'APPROVED', parentId: null }, orderBy: { approvedAt: 'desc' } })`.
+2. Set `estimateId` on the new `ChangeOrder` (nullable if none approved yet).
+3. Add optional Prisma relation `estimate Estimate? @relation(...)` on `ChangeOrder`
+   + `@@index([estimateId])` if missing; ship migration only if schema changes.
+4. **Backfill (optional script in `scripts/one-off/`):** set `estimateId` on existing
+   change orders from the same lookup — do not block Round 21 on backfill.
+5. Integration test: create variation on project with approved estimate → assert
+   `estimateId` matches; create with no approved estimate → `estimateId` null.
 
-#### VAR-C9b — One BOQ per variation draft
+#### EST-VO-11b — API: list variations for an estimate
 
-When rendering BOQ chips for a line, compute `usedBoqIds` from all other lines'
-`boqItemId`. Disable chips already in `usedBoqIds` (opacity + no press, or skip render).
+Add `GET /api/estimates/:id/variations` (or extend estimate detail payload):
 
-#### VAR-C9c — Update copy
+- Auth + tenant scope; verify estimate belongs to company.
+- Return change orders where `estimateId = :id`, ordered `createdAt desc`.
+- Include: `id`, `number`, `title`, `status`, `costImpact`, `scheduleImpactDays`,
+  `approvedAt`, line count, `createdAt`.
+- Reuse `serializeChangeOrder` / `changeOrderInclude` where practical.
 
-- Modal info box: *Adjust existing BOQ: link one BOQ chip per line → qty Δ.*
-  *Add new scope: pick type (Material, Labour, …) + material or rate analysis — one line each.*
-- FlowHint: remove "split" wording; mention all line types supported.
-- §2.4 wording: replace Split rows with single-line BOQ/RA language.
+Register route in `estimate.routes.ts` + controller; mirror patterns from
+`listSubEstimates`.
 
-**Ship gate:** `tsc` ×2 + backend tests **115/115** ×2. Mobile-only change expected;
-add a brief comment in `VariationsTab.tsx` header if VAR-B3 explode is retired.
+#### EST-VO-11c — Mobile: `VariationsSection` on estimate detail
+
+In `apps/mobile/app/(app)/estimation/[id].tsx`, **below** `SubEstimatesSection`
+(parent estimates only, `!estimate.parentId`):
+
+1. New **`VariationsSection`** — parallel structure to `SubEstimatesSection` but
+   **visually distinct** (see §2.0d).
+2. Hook `useEstimateVariations(estimateId)` in `estimate.queries.ts` or
+   `expansion.queries.ts`.
+3. Each row shows: CO number, title, status badge, cost impact, line count, date.
+4. Tap row → navigate to project Variations tab with context, **or** open an
+   `AdaptiveSheet` with line summary + link "Open in Variations tab".
+5. Empty state: *No variations linked to this estimate yet. Create one from
+   Project → Variations.* (Optional: "+ New Variation" deep-link to project tab.)
+6. Invalidate `['estimates', estimateId, 'variations']` when variations are
+   created/approved from the project tab.
+
+**Do not** merge variations into the `Estimate` table — they remain `ChangeOrder`
+records; the estimate page is a **read-only directory** of linked variations.
+
+#### EST-VO-11d — Copy and visual distinction (sub-estimate vs variation)
+
+| Aspect | Sub-Estimate | Variation (Change Order) |
+| ------ | ------------ | ------------------------ |
+| **Purpose** | Planned additional scope (new work package) | Change to sanctioned scope (qty Δ or new VO lines) |
+| **Data model** | Child `Estimate` (`parentId`) | `ChangeOrder` + lines |
+| **Section title** | "Sub-Estimates (Additional Scope)" | "Variations (Change Orders)" |
+| **Accent color** | Primary / green success tone | **Warning / amber** (`Badge variant="warning"`) |
+| **Icon / label** | "Sub-Estimate" | "Variation" + CO number |
+| **Actions** | Edit, Approve, Convert to BOQ | View lines, Submit/Approve (owner), **Phase 2:** Convert to BOQ |
+| **Baseline** | Adds new estimate total when approved | Does **not** change approved estimate lines; `ScopeSummaryBanner` shows derived revised total |
+
+Update §2.4 wording table with variation-on-estimate rows.
+
+### 2.2b Phase 2 — VAR-D2: explicit convert-to-BOQ (defer unless Phase 1 done)
+
+**Today:** `approveChangeOrder` already creates/updates BOQ rows (R12–19). Shortfalls
+(VAR-C6b) depend on those BOQ rows existing after approve.
+
+**Future product ask:** mirror sub-estimate flow — variation approved first, then user
+clicks **"Convert to BOQ"** on the estimate page.
+
+If implementing VAR-D2 later:
+
+1. Split approve into **(a)** status → APPROVED + budget/schedule side-effects and
+   **(b)** BOQ write in `POST /change-orders/:id/convert-to-boq`.
+2. Add `boqAppliedAt` (or `convertedToBoqAt`) on `ChangeOrder` to prevent double-apply.
+3. Keep VAR-C6b tests green — shortfalls must still see VARIATION BOQ rows **after**
+   convert, not after approve.
+4. Until VAR-D2 ships, **Phase 1 must not remove** approve-time BOQ writes.
+
+**Ship gate (Round 21 Phase 1):** `tsc` ×2 + backend tests **115/115** ×2 + at least
+one new integration test for `estimateId` link and list-by-estimate endpoint.
 
 ### 2.2a Completed in Rounds 8–19 — do NOT re-break
 
@@ -253,6 +322,9 @@ Preserved from Rounds 3–7 — see §2.0c legacy table below.
 | Split materials | Split / explode on form | **Removed (VAR-C9)** — use Remove line instead |
 | Remove variation line | (missing) | **Remove** (min 1 line) |
 | Post-approve next step | (silent) / auto-indents | **Review shortfalls** / **View BOQ** |
+| Estimate page child — sub-estimate | (only sub-estimates listed) | **Sub-Estimate** — planned additional scope; green/primary |
+| Estimate page child — variation | (variations only on project tab) | **Variation (CO-xxx)** — change order; **amber/warning**; linked via `estimateId` |
+| Variation → BOQ (Phase 2) | Auto on approve (today) | Optional **Convert to BOQ** button on estimate page (VAR-D2); until then approve still writes BOQ |
 | Shortfalls tab | — | Helper: *Uses current BOQ qty (includes approved variations)* |
 | Negative variation qty | — | Warn: *Open indents are not auto-reduced* (optional R13-O3) |
 | Bill upload / AI | — | **Upload invoice** / **Extract with AI** / **Import vendor bills** |
@@ -290,19 +362,29 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 | Public route after auth router | Mount `/api/portal` before `/api` estimate router |
 | Ship stub sync route | Keep `/api/sync` unmounted |
 | Re-breaking completed fixes | See §2.0c |
+| Variations invisible on estimate page | EST-VO-11c `VariationsSection` under parent estimate |
+| `estimateId` never set on ChangeOrder | EST-VO-11a on create |
+| Variations modeled as Estimate rows | Keep `ChangeOrder` — estimate page is a directory only |
+| Removing approve → BOQ without VAR-D2 | Phase 1 visibility only; BOQ write stays on approve |
 
 ### 2.7 Definition of Done
 
-**Rounds 12–19 (done — do not regress):**
+**Rounds 12–20 (done — do not regress):**
 
 - [x] Variation approve → BOQ/budget; shortfalls; VAR-C6/C6b; line editor pickers
+- [x] VAR-C9a — Remove Split, RaComponentPicker, `explodedFromBoqId`; RA/BOQ = one line (`433f10b`)
+- [x] VAR-C9b — One BOQ id per variation draft (dedupe chips)
+- [x] VAR-C9c — Copy + FlowHint updated (all five line types; no split wording)
+- [x] Ship gate **115/115** ×2 + tsc ×2
 
-**Round 20 (VAR-C9 — must complete):**
+**Round 21 (EST-VO-11 — must complete):**
 
-- [ ] VAR-C9a — Remove Split, RaComponentPicker, `explodedFromBoqId`; RA/BOQ = one line
-- [ ] VAR-C9b — One BOQ id per variation draft (dedupe chips)
-- [ ] VAR-C9c — Copy + FlowHint updated (all line types; no split wording)
+- [ ] EST-VO-11a — `estimateId` set on variation create (latest approved parent estimate)
+- [ ] EST-VO-11b — `GET /estimates/:id/variations` (+ test)
+- [ ] EST-VO-11c — `VariationsSection` on estimate detail (distinct from sub-estimates)
+- [ ] EST-VO-11d — Copy/visual distinction documented in UI
 - [ ] Ship gate **115/115** ×2 + tsc ×2
+- [ ] VAR-D2 convert-to-BOQ — **deferred** to Phase 2 (§2.2b); do not break approve → BOQ until migration plan lands
 
 ### 2.8 Optional hardening (defer unless user asks)
 
@@ -322,8 +404,9 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 <details>
 <summary>Rounds 4–15 (superseded by §2 above)</summary>
 
-Rounds 8–19: backend variation sync complete (`804f0a6`–`1145896`). Round 20
-(VAR-C9): single-line BOQ/RA on form, no Split, all five line types.
+Rounds 8–20: variation sync + line editor complete (`804f0a6`–`433f10b`). Round 21
+(EST-VO-11): variations as estimate-page children + `estimateId` link; VAR-D2
+convert-to-BOQ deferred.
 
 </details>
 

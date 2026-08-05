@@ -129,6 +129,14 @@ export async function createChangeOrder(
 ) {
   await assertProjectAccess(companyId, userId, role as never, projectId, ['OWNER', 'PM']);
 
+  // EST-VO-11a: Resolve the project's latest APPROVED parent estimate (parentId null)
+  // and link it to the new ChangeOrder. Nullable if no approved estimate exists.
+  const approvedEstimate = await prisma.estimate.findFirst({
+    where: { projectId, companyId, status: 'APPROVED', parentId: null },
+    orderBy: { approvedAt: 'desc' },
+    select: { id: true },
+  });
+
   const lines = input.lines.map((l) => ({
     boqItemId: l.boqItemId,
     resourceId: l.resourceId,
@@ -152,6 +160,7 @@ export async function createChangeOrder(
       scheduleImpactDays: input.scheduleImpactDays,
       linkedTaskId: input.linkedTaskId,
       linkedWorkOrderId: input.linkedWorkOrderId,
+      estimateId: approvedEstimate?.id ?? null,
       createdBy: userId,
       lines: { create: lines },
     },
@@ -444,6 +453,28 @@ export async function getChangeOrderImpact(companyId: string, changeOrderId: str
     budgetDelta: Number(co.costImpact),
     scheduleImpactDays: co.scheduleImpactDays,
   };
+}
+
+/**
+ * EST-VO-11b: List change orders (variations) linked to an estimate.
+ * Returns change orders where estimateId matches, ordered by createdAt desc.
+ */
+export async function listVariationsByEstimate(
+  companyId: string,
+  estimateId: string,
+) {
+  const estimate = await prisma.estimate.findFirst({
+    where: { id: estimateId, companyId },
+    select: { id: true },
+  });
+  if (!estimate) throw ApiError.notFound('Estimate not found');
+
+  const rows = await prisma.changeOrder.findMany({
+    where: { estimateId, companyId },
+    include: changeOrderInclude,
+    orderBy: { createdAt: 'desc' },
+  });
+  return rows.map(serializeChangeOrder);
 }
 
 /**
