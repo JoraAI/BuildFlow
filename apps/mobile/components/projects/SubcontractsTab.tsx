@@ -318,6 +318,7 @@ function MeasurementsPanel({
   const [modalOpen, setModalOpen] = useState(false);
   const [periodLabel, setPeriodLabel] = useState('');
   const [lines, setLines] = useState<DraftMeasLine[]>([emptyMeasLine()]);
+  const [expandedMeas, setExpandedMeas] = useState<Set<string>>(new Set());
 
   const subtotal = useMemo(
     () => lines.reduce((s, l) => s + lineAmount(l.quantity, l.rate), 0),
@@ -428,11 +429,21 @@ function MeasurementsPanel({
       {measurements.length === 0 ? (
         <Text className="text-xs text-muted italic py-2">No measurements yet.</Text>
       ) : (
-        measurements.map((m: Measurement) => (
+        measurements.map((m: Measurement) => {
+          const isExpandedMeas = expandedMeas.has(m.id);
+          const lineCount = m.lines?.length ?? 0;
+          return (
           <View key={m.id} className="rounded-xl border border-border bg-card p-3 gap-1">
             <View className="flex-row justify-between items-start gap-2">
               <View className="flex-1">
-                <Text className="text-sm font-semibold text-text">{m.periodLabel}</Text>
+                <View className="flex-row items-center gap-2">
+                  <Text className="text-sm font-semibold text-text">{m.periodLabel}</Text>
+                  {lineCount > 0 && (
+                    <View className="px-1.5 py-0.5 rounded bg-muted/10">
+                      <Text className="text-[9px] text-muted font-medium">{lineCount} {lineCount === 1 ? 'line' : 'lines'}</Text>
+                    </View>
+                  )}
+                </View>
                 <Text className="text-xs text-muted mt-0.5">{formatDate(m.createdAt)}</Text>
               </View>
               <Badge color={STATUS_COLOR[m.status] ?? 'neutral'} label={m.status} />
@@ -443,13 +454,34 @@ function MeasurementsPanel({
             {m.rejectionReason ? (
               <Text className="text-xs text-danger mt-1">Rejected: {m.rejectionReason}</Text>
             ) : null}
-            {m.lines?.slice(0, 3).map((l) => (
-              <Text key={l.id} className="text-xs text-muted" numberOfLines={1}>
+            {/* SUB-UX2: Expandable lines — show first 2 when collapsed, all when expanded */}
+            {(m.lines ?? []).slice(0, isExpandedMeas ? undefined : 2).map((l) => (
+              <Text key={l.id} className="text-xs text-muted" numberOfLines={isExpandedMeas ? undefined : 1}>
                 {l.description} · {l.quantity} {l.unit} @ {formatINR(parseFloat(l.rate))}
               </Text>
             ))}
-            {(m.lines?.length ?? 0) > 3 && (
-              <Text className="text-xs text-muted">+{(m.lines?.length ?? 0) - 3} more lines</Text>
+            {/* Expand/collapse toggle */}
+            {lineCount > 2 && (
+              <Pressable
+                onPress={() => {
+                  setExpandedMeas((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(m.id)) next.delete(m.id);
+                    else next.add(m.id);
+                    return next;
+                  });
+                }}
+                className="flex-row items-center gap-1 mt-0.5"
+              >
+                <Ionicons
+                  name={isExpandedMeas ? 'chevron-up-outline' : 'chevron-down-outline'}
+                  size={12}
+                  color="#1E3A5F"
+                />
+                <Text className="text-[10px] font-semibold text-primary">
+                  {isExpandedMeas ? 'Show less' : `Show all ${lineCount} lines`}
+                </Text>
+              </Pressable>
             )}
             <View className="flex-row flex-wrap gap-2 mt-2 pt-2 border-t border-border/60">
               {canCreate && (m.status === 'DRAFT' || m.status === 'REJECTED') && (
@@ -511,7 +543,8 @@ function MeasurementsPanel({
               />
             </View>
           </View>
-        ))
+          );
+        })
       )}
 
       <AdaptiveSheet
