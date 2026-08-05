@@ -165,6 +165,14 @@ export const saasCheckoutSchema = z.object({
 
 export type CompanyUpdateInput = z.infer<typeof companyUpdateSchema>;
 export type UserRoleUpdateInput = z.infer<typeof userRoleUpdateSchema>;
+
+// RPT-C2c: Zod validator for report settings PATCH
+export const updateReportSettingsSchema = z.object({
+  accentColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Must be a hex color like #F59E0B').optional(),
+  showLogo: z.boolean().optional(),
+  showWatermark: z.boolean().optional(),
+  footerText: z.string().max(500).optional(),
+});
 export type MyProfileUpdateInput = z.infer<typeof myProfileUpdateSchema>;
 export type CreateTicketInput = z.infer<typeof createTicketSchema>;
 export type UpdateTicketInput = z.infer<typeof updateTicketSchema>;

@@ -60,6 +60,7 @@ import {
   googleMapsIntegrationSchema,
   llmIntegrationSchema,
   s3IntegrationSchema,
+  updateReportSettingsSchema,
   saasCheckoutSchema,
   createRateRegionSchema,
   updateRateRegionSchema,
@@ -90,9 +91,15 @@ router.put(
   updateCompany,
 );
 
-// RPT-C2a: Report settings
+// RPT-C2a/c: Report settings (with Zod validation on PATCH)
 router.get('/report-settings', authenticateToken, getReportSettings);
-router.patch('/report-settings', authenticateToken, requirePermission('settings.company'), updateReportSettings);
+router.patch(
+  '/report-settings',
+  authenticateToken,
+  requirePermission('settings.company'),
+  validate({ body: updateReportSettingsSchema }),
+  updateReportSettings,
+);
 
 router.post(
   '/company/logo/upload-url',

@@ -100,12 +100,21 @@ function inr(n: number): string {
  * Renders logo image top-right if available; falls back to company name text.
  * Accent bar color adapts to company reportSettings (default amber).
  */
-function drawHeader(doc: PDFKit.PDFDocument, title: string, company?: { name: string; gstin?: string | null; logoUrl?: string | null; address?: string | null }) {
-  // Accent bar (default amber, can be overridden by reportSettings)
-  doc.rect(0, 0, PAGE_W, 6).fill(AMBER);
+// RPT-C1d: drawHeader now accepts accentColor + showLogo from reportSettings
+function drawHeader(
+  doc: PDFKit.PDFDocument,
+  title: string,
+  company?: { name: string; gstin?: string | null; logoUrl?: string | null; address?: string | null },
+  opts?: { accentColor?: string; showLogo?: boolean },
+) {
+  const accentColor = opts?.accentColor ?? AMBER;
+  const showLogo = opts?.showLogo !== false; // default true
 
-  // RPT-C1: Try to render company logo top-right
-  const hasLogo = company?.logoUrl && company.logoUrl.startsWith('http');
+  // RPT-C1d: Use accentColor from reportSettings (default amber)
+  doc.rect(0, 0, PAGE_W, 6).fill(accentColor);
+
+  // RPT-C1: Try to render company logo top-right (skip if showLogo === false)
+  const hasLogo = showLogo && company?.logoUrl && company.logoUrl.startsWith('http');
   if (hasLogo) {
     try {
       doc.image(company!.logoUrl!, PAGE_W - MARGIN - 60, 20, { width: 60, height: 40, fit: [60, 40], align: 'right' });
