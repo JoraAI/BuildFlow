@@ -12,7 +12,7 @@ import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { Card, Badge, Button, Input, EmptyState } from '@/components/ui';
 import { usePermission } from '@/hooks/usePermission';
 import { useExtractBillBatch, useBulkCreateBills, type BillExtractDraft } from '@/services/accounting.queries';
-import { useProjects } from '@/services/project.queries';
+import { useProjects, type ProjectListItem } from '@/services/project.queries';
 import { dismissTo, DISMISS } from '@/utils/navigation';
 import { alertAsync } from '@/utils/confirm';
 import { formatINR } from '@/utils/format';
@@ -149,7 +149,7 @@ export default function ImportBillsScreen() {
       {/* Project picker */}
       <Text className="text-sm font-semibold text-text mb-1">Project</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-2 mb-3">
-        {projects.map((p) => (
+        {projects.map((p: ProjectListItem) => (
           <Pressable
             key={p.id}
             onPress={() => setProjectId(p.id)}

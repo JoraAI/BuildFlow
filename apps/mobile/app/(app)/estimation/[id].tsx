@@ -15,7 +15,7 @@ import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { useViewport } from '@/hooks/useViewport';
 import { confirmAsync, alertAsync } from '@/utils/confirm';
 import { SummaryBreakdownCard } from '@/components/ui';
-import { useEstimate, useEstimateMutations, useExportEstimate, useSubEstimates, useCreateSubEstimate, useRateAnalysis, useMaterials, useEstimateVariations, type EstimateSection, type EstimateItem, type SubEstimateRow, type EstimateVariationRow } from '@/services/estimate.queries';
+import { useEstimate, useEstimateMutations, useExportEstimate, useSubEstimates, useCreateSubEstimate, useRateAnalysis, useMaterials, useEstimateVariations, type EstimateSection, type EstimateItem, type SubEstimateRow, type EstimateVariationRow, type RateAnalysisComponent, type Resource } from '@/services/estimate.queries';
 import { useProject } from '@/services/project.queries';
 import { useAuthStore } from '@/stores/auth.store';
 import { formatINR, formatDate } from '@/utils/format';
@@ -159,7 +159,7 @@ function LineItemWithBreakdown({ item }: { item: EstimateItem }) {
   const { data: raDetail } = useRateAnalysis(item.rateAnalysisId ?? '');
   const { data: materialsData } = useMaterials({ limit: 300 });
   const materials = materialsData?.data ?? [];
-  const linkedMaterial = item.resourceId ? materials.find((m) => m.id === item.resourceId) : undefined;
+  const linkedMaterial = item.resourceId ? materials.find((m: Resource) => m.id === item.resourceId) : undefined;
   const hasRA = !!item.rateAnalysisId;
   const hasMaterial = !!item.resourceId || !!linkedMaterial;
 
@@ -197,7 +197,7 @@ function LineItemWithBreakdown({ item }: { item: EstimateItem }) {
           </Pressable>
           {expanded ? (
             <View className="mt-1.5 gap-1 pl-2 border-l-2 border-accent/20">
-              {raDetail.components.map((c, ci) => {
+              {raDetail.components.map((c: RateAnalysisComponent, ci: number) => {
                 const qty = (parseFloat(String(c.quantityPerUnit)) || 0) * parseFloat(item.quantity);
                 const resName = c.resourceName ?? c.miscName ?? 'Unknown';
                 return (

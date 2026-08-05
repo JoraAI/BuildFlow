@@ -2,13 +2,14 @@
  * BuildFlow - Estimate export service (Excel + PDF).
  *
  * Excel: 4-sheet workbook (Summary, Detailed, Rate Analysis Used, Price Assumptions)
- *        with live Excel formulas and color-coded rows.
+ *        with company branding (logo, accent color, footer) + live Excel formulas.
  * PDF:   Cover + detailed line items + summary page.
  */
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import { prisma } from '../lib/prisma';
 import { getEstimateWithSummary } from './estimate.service';
+import { loadCompanyForPdf, type PdfCompany } from './pdf-report.service';
 import { ApiError } from '../utils/errors';
 
 export interface EstimateExportData {
@@ -18,11 +19,7 @@ export interface EstimateExportData {
     code: string;
     locationAddress: string | null;
   };
-  company: {
-    name: string;
-    gstin: string | null;
-    address: string | null;
-  };
+  company: PdfCompany;
 }
 
 async function loadExportData(companyId: string, estimateId: string): Promise<EstimateExportData> {
@@ -34,22 +31,167 @@ async function loadExportData(companyId: string, estimateId: string): Promise<Es
   });
   if (!project) throw ApiError.notFound('Project not found');
 
-  const company = await prisma.company.findUnique({
-    where: { id: companyId },
-    select: { name: true, gstin: true, address: true },
-  });
-  if (!company) throw ApiError.notFound('Company not found');
+  const company = await loadCompanyForPdf(companyId);
 
   return { estimate, project, company };
 }
 
 const TYPE_COLORS: Record<string, string> = {
-  MATERIAL: 'FFDBEAFE', // light blue
-  LABOUR: 'FFDCFCE7', // light green
-  EQUIPMENT: 'FFFEF9C3', // light yellow
-  SUBCONTRACTOR: 'FFFCE7F3', // light pink
-  MISC: 'FFF1F5F9', // light slate
+  MATERIAL: 'FFDBEAFE',
+  LABOUR: 'FFDCFCE7',
+  EQUIPMENT: 'FFFEF9C3',
+  SUBCONTRACTOR: 'FFFCE7F3',
+  MISC: 'FFF1F5F9',
 };
+
+const NAVY_ARGB = 'FF1E3A5F';
+const MUTED_ARGB = 'FF64748B';
+const DEFAULT_ACCENT_ARGB = 'FFF59E0B';
+
+function hexToArgb(hex: string, fallback = DEFAULT_ACCENT_ARGB): string {
+  const h = hex.replace('#', '').toUpperCase();
+  if (!/^[0-9A-F]{6}$/.test(h)) return fallback;
+  return `FF${h}`;
+}
+
+interface ExcelBranding {
+  accentArgb: string;
+  showLogo: boolean;
+  footerText?: string;
+  logoImage?: { buffer: Uint8Array; extension: 'png' | 'jpeg' };
+}
+
+async function fetchLogoImage(url: string): Promise<{ buffer: Uint8Array; extension: 'png' | 'jpeg' } | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const buffer = new Uint8Array(await res.arrayBuffer());
+    const ct = (res.headers.get('content-type') ?? '').toLowerCase();
+    const extension: 'png' | 'jpeg' =
+      ct.includes('png') || url.toLowerCase().includes('.png') ? 'png' : 'jpeg';
+    return { buffer, extension };
+  } catch {
+    return null;
+  }
+}
+
+async function buildExcelBranding(company: PdfCompany): Promise<ExcelBranding> {
+  const accentArgb = hexToArgb(company.accentColor);
+  const showLogo = company.reportSettings.showLogo !== false;
+  const rawFooter = company.reportSettings.footerText;
+  const footerText = typeof rawFooter === 'string' && rawFooter.trim() ? rawFooter.trim() : undefined;
+  let logoImage: ExcelBranding['logoImage'];
+  if (showLogo && company.logoUrl?.startsWith('http')) {
+    logoImage = (await fetchLogoImage(company.logoUrl)) ?? undefined;
+  }
+  return { accentArgb, showLogo, footerText, logoImage };
+}
+
+function styleTableHeaderCell(cell: ExcelJS.Cell) {
+  cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY_ARGB } };
+}
+
+/** RPT-O4: Branded header block on Summary sheet — returns first content row index. */
+function applySummaryBranding(
+  ws: ExcelJS.Worksheet,
+  wb: ExcelJS.Workbook,
+  company: PdfCompany,
+  branding: ExcelBranding,
+  projectLabel: string,
+): number {
+  ws.mergeCells('A1:D1');
+  ws.getRow(1).height = 8;
+  ws.getCell('A1').fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: branding.accentArgb },
+  };
+
+  ws.mergeCells('A2:C2');
+  ws.getCell('A2').value = company.name;
+  ws.getCell('A2').font = { bold: true, size: 16, color: { argb: NAVY_ARGB } };
+
+  if (branding.logoImage) {
+    const imageId = wb.addImage({
+      base64: Buffer.from(branding.logoImage.buffer).toString('base64'),
+      extension: branding.logoImage.extension,
+    });
+    ws.addImage(imageId, {
+      tl: { col: 3, row: 1 },
+      ext: { width: 72, height: 48 },
+    });
+  }
+
+  ws.mergeCells('A3:D3');
+  ws.getCell('A3').value = `GSTIN: ${company.gstin ?? '-'}`;
+  ws.getCell('A3').font = { size: 10, color: { argb: MUTED_ARGB } };
+
+  if (company.address) {
+    ws.mergeCells('A4:D4');
+    ws.getCell('A4').value = company.address;
+    ws.getCell('A4').font = { size: 9, color: { argb: MUTED_ARGB } };
+  }
+
+  const titleRow = company.address ? 6 : 5;
+  ws.mergeCells(`A${titleRow}:D${titleRow}`);
+  ws.getCell(`A${titleRow}`).value = 'PROJECT COST ESTIMATE - SUMMARY';
+  ws.getCell(`A${titleRow}`).font = { bold: true, size: 14, color: { argb: NAVY_ARGB } };
+
+  const subRow = titleRow + 1;
+  ws.mergeCells(`A${subRow}:D${subRow}`);
+  ws.getCell(`A${subRow}`).value = projectLabel;
+  ws.getCell(`A${subRow}`).font = { size: 10, color: { argb: MUTED_ARGB } };
+
+  return titleRow + 3;
+}
+
+/** Compact branded row on secondary sheets — returns row index for table headers. */
+function applySheetBranding(
+  ws: ExcelJS.Worksheet,
+  wb: ExcelJS.Workbook,
+  company: PdfCompany,
+  branding: ExcelBranding,
+  sheetTitle: string,
+): number {
+  ws.mergeCells('A1:G1');
+  ws.getRow(1).height = 6;
+  ws.getCell('A1').fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: branding.accentArgb },
+  };
+
+  ws.mergeCells('A2:E2');
+  ws.getCell('A2').value = `${company.name} — ${sheetTitle}`;
+  ws.getCell('A2').font = { bold: true, size: 11, color: { argb: NAVY_ARGB } };
+
+  if (branding.logoImage) {
+    const imageId = wb.addImage({
+      base64: Buffer.from(branding.logoImage.buffer).toString('base64'),
+      extension: branding.logoImage.extension,
+    });
+    ws.addImage(imageId, {
+      tl: { col: 5, row: 1 },
+      ext: { width: 56, height: 36 },
+    });
+  }
+
+  return 4;
+}
+
+function appendSummaryFooter(ws: ExcelJS.Worksheet, row: number, company: PdfCompany, branding: ExcelBranding) {
+  row += 2;
+  const footerParts = [
+    branding.footerText,
+    company.name,
+    company.gstin ? `GSTIN: ${company.gstin}` : null,
+    `Generated ${new Date().toLocaleString('en-IN')}`,
+  ].filter(Boolean);
+  ws.mergeCells(`A${row}:D${row}`);
+  ws.getCell(`A${row}`).value = footerParts.join(' | ');
+  ws.getCell(`A${row}`).font = { size: 9, italic: true, color: { argb: MUTED_ARGB } };
+}
 
 function inr(n: number): string {
   return `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
@@ -61,27 +203,19 @@ function inr(n: number): string {
 
 export async function generateEstimateExcel(companyId: string, estimateId: string): Promise<Buffer> {
   const { estimate, project, company } = await loadExportData(companyId, estimateId);
+  const branding = await buildExcelBranding(company);
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'BuildFlow';
+  wb.creator = company.name;
+  wb.company = company.name;
   wb.created = new Date();
 
   const s = estimate.summary;
+  const projectLabel = `${project.name} (${project.code})`;
 
   /* ---- Sheet 1: Summary ---- */
   const ws1 = wb.addWorksheet('Summary', { views: [{ showGridLines: false }] });
-  // Company header
-  ws1.mergeCells('A1:D1');
-  ws1.getCell('A1').value = company.name;
-  ws1.getCell('A1').font = { bold: true, size: 16 };
-  ws1.mergeCells('A2:D2');
-  ws1.getCell('A2').value = `GSTIN: ${company.gstin ?? '-'}`;
-  ws1.getCell('A2').font = { size: 10, color: { argb: 'FF64748B' } };
+  let row = applySummaryBranding(ws1, wb, company, branding, projectLabel);
 
-  ws1.mergeCells('A4:D4');
-  ws1.getCell('A4').value = 'PROJECT COST ESTIMATE - SUMMARY';
-  ws1.getCell('A4').font = { bold: true, size: 14, color: { argb: 'FF1E3A5F' } };
-
-  // Meta rows
   const meta: Array<[string, string]> = [
     ['Project', project.name],
     ['Project Code', project.code],
@@ -92,7 +226,6 @@ export async function generateEstimateExcel(companyId: string, estimateId: strin
     ['Date', new Date(estimate.createdAt).toLocaleDateString('en-IN')],
     ['Status', estimate.status],
   ];
-  let row = 6;
   for (const [label, value] of meta) {
     ws1.getCell(`A${row}`).value = label;
     ws1.getCell(`A${row}`).font = { bold: true };
@@ -101,7 +234,6 @@ export async function generateEstimateExcel(companyId: string, estimateId: strin
     row++;
   }
 
-  // Cost breakdown table
   row += 2;
   ws1.getCell(`A${row}`).value = 'Cost Breakdown';
   ws1.getCell(`A${row}`).font = { bold: true, size: 12 };
@@ -110,8 +242,7 @@ export async function generateEstimateExcel(companyId: string, estimateId: strin
   ['A', 'B', 'C'].forEach((col, i) => {
     const c = ws1.getCell(`${col}${row}`);
     c.value = breakdownHeader[i];
-    c.font = { bold: true };
-    c.fill = { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FF1E3A5F' } };
+    styleTableHeaderCell(c);
   });
   row++;
   const breakdownRows: Array<[string, number, number]> = [
@@ -130,7 +261,6 @@ export async function generateEstimateExcel(companyId: string, estimateId: strin
     row++;
   }
 
-  // Subtotal + add-ons + grand total
   row++;
   const totals: Array<[string, number]> = [
     ['Subtotal', s.subtotal],
@@ -149,24 +279,30 @@ export async function generateEstimateExcel(companyId: string, estimateId: strin
     ws1.getCell(`B${row}`).numFmt = '#,##0.00';
     ws1.getCell(`B${row}`).font = label === 'GRAND TOTAL' ? { bold: true, size: 12 } : { bold: true };
     if (label === 'GRAND TOTAL') {
-      ws1.getCell(`B${row}`).fill = { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFF59E0B' } };
+      ws1.getCell(`B${row}`).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: branding.accentArgb },
+      };
     }
     row++;
   }
 
+  appendSummaryFooter(ws1, row, company, branding);
   ws1.columns = [{ width: 28 }, { width: 20 }, { width: 14 }, { width: 14 }];
 
   /* ---- Sheet 2: Detailed (with live formulas) ---- */
   const ws2 = wb.addWorksheet('Detailed', { views: [{ showGridLines: false }] });
+  let detailRow = applySheetBranding(ws2, wb, company, branding, 'Detailed Line Items');
   const detailHeader = ['Sr', 'Description', 'Unit', 'Qty', 'Rate (Rs)', 'Amount (Rs)', 'Type'];
   detailHeader.forEach((h, i) => {
-    const c = ws2.getCell(1, i + 1);
+    const c = ws2.getCell(detailRow, i + 1);
     c.value = h;
-    c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A5F' } };
+    styleTableHeaderCell(c);
   });
+  detailRow++;
 
-  let detailRow = 2;
+  const detailDataStartRow = detailRow;
   let sr = 1;
   for (const section of estimate.sections) {
     // Section header row
@@ -216,10 +352,14 @@ export async function generateEstimateExcel(companyId: string, estimateId: strin
   // Grand total with SUM of all amount column
   ws2.getCell(detailRow, 2).value = 'GRAND TOTAL (Direct Costs)';
   ws2.getCell(detailRow, 2).font = { bold: true, size: 12 };
-  ws2.getCell(detailRow, 6).value = { formula: `SUM(F2:F${detailRow - 1})` };
+  ws2.getCell(detailRow, 6).value = { formula: `SUM(F${detailDataStartRow}:F${detailRow - 1})` };
   ws2.getCell(detailRow, 6).font = { bold: true, size: 12 };
   ws2.getCell(detailRow, 6).numFmt = '#,##0.00';
-  ws2.getCell(detailRow, 6).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF59E0B' } };
+  ws2.getCell(detailRow, 6).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: branding.accentArgb },
+  };
 
   ws2.columns = [
     { width: 6 },
@@ -233,7 +373,7 @@ export async function generateEstimateExcel(companyId: string, estimateId: strin
 
   /* ---- Sheet 3: Rate Analysis Used ---- */
   const ws3 = wb.addWorksheet('Rate Analysis Used', { views: [{ showGridLines: false }] });
-  // FIX (EST-M8): Collect rate analyses linked via item.rateAnalysisId (not resource lookup).
+  let raRow = applySheetBranding(ws3, wb, company, branding, 'Rate Analysis Used');
   const raIds = estimate.sections
     .flatMap((sec) => sec.items)
     .filter((it) => it.rateAnalysisId)
@@ -253,13 +393,11 @@ export async function generateEstimateExcel(companyId: string, estimateId: strin
 
   const raHeader = ['Rate Analysis', 'Unit', 'Component', 'Type', 'Qty/Unit', 'Rate (Rs)', 'Amount (Rs)'];
   raHeader.forEach((h, i) => {
-    const c = ws3.getCell(1, i + 1);
+    const c = ws3.getCell(raRow, i + 1);
     c.value = h;
-    c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A5F' } };
+    styleTableHeaderCell(c);
   });
-
-  let raRow = 2;
+  raRow++;
   for (const ra of rateAnalyses) {
     ws3.getCell(raRow, 1).value = ra.name;
     ws3.getCell(raRow, 1).font = { bold: true };
@@ -284,7 +422,7 @@ export async function generateEstimateExcel(companyId: string, estimateId: strin
     raRow += 2;
   }
   if (rateAnalyses.length === 0) {
-    ws3.getCell(2, 1).value = 'No rate analyses referenced in this estimate.';
+    ws3.getCell(raRow, 1).value = 'No rate analyses referenced in this estimate.';
   }
   ws3.columns = [
     { width: 30 },
@@ -298,13 +436,14 @@ export async function generateEstimateExcel(companyId: string, estimateId: strin
 
   /* ---- Sheet 4: Price Assumptions ---- */
   const ws4 = wb.addWorksheet('Price Assumptions', { views: [{ showGridLines: false }] });
+  let paRow = applySheetBranding(ws4, wb, company, branding, 'Price Assumptions');
   const paHeader = ['Resource', 'Type', 'Unit', 'Rate (Rs)', 'As of Date'];
   paHeader.forEach((h, i) => {
-    const c = ws4.getCell(1, i + 1);
+    const c = ws4.getCell(paRow, i + 1);
     c.value = h;
-    c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A5F' } };
+    styleTableHeaderCell(c);
   });
+  paRow++;
 
   const resourceIds = estimate.sections
     .flatMap((sec) => sec.items)
@@ -320,7 +459,7 @@ export async function generateEstimateExcel(companyId: string, estimateId: strin
     : [];
 
   resources.forEach((r, i) => {
-    const r2 = i + 2;
+    const r2 = paRow + i;
     ws4.getCell(r2, 1).value = r.name;
     ws4.getCell(r2, 2).value = r.type;
     ws4.getCell(r2, 3).value = r.unit;
@@ -331,7 +470,7 @@ export async function generateEstimateExcel(companyId: string, estimateId: strin
       : '-';
   });
   if (resources.length === 0) {
-    ws4.getCell(2, 1).value = 'No resources referenced in this estimate.';
+    ws4.getCell(paRow, 1).value = 'No resources referenced in this estimate.';
   }
   ws4.columns = [{ width: 32 }, { width: 14 }, { width: 10 }, { width: 14 }, { width: 14 }];
 

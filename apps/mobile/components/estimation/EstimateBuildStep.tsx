@@ -201,7 +201,7 @@ export function EstimateBuildStep({
       const missingRas = new Set<string>();
       for (const sec of template.sections) {
         for (const item of sec.items) {
-          if (item.rateAnalysisName && !rateAnalyses.find((r) => r.name === item.rateAnalysisName)) {
+          if (item.rateAnalysisName && !rateAnalyses.find((r: RateAnalysis) => r.name === item.rateAnalysisName)) {
             missingRas.add(item.rateAnalysisName);
           }
         }

@@ -28,7 +28,12 @@ describe('Phase 5 modules (integration)', () => {
     expect(createRes.status).toBe(201);
     expect(createRes.body.data.status).toBe('PENDING');
 
-    const listRes = await authGet(token, `/api/petty-cash?projectId=${projectId}`);
+    const getRes = await authGet(token, `/api/petty-cash/${createRes.body.data.id}`);
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.data.id).toBe(createRes.body.data.id);
+    expect(getRes.body.data.project?.id).toBe(projectId);
+
+    const listRes = await authGet(token, `/api/petty-cash?projectId=${projectId}&limit=100`);
     expect(listRes.status).toBe(200);
     expect(Array.isArray(listRes.body.data)).toBe(true);
     expect(listRes.body.data.some((r: { id: string }) => r.id === createRes.body.data.id)).toBe(true);

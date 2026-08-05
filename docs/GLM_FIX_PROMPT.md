@@ -1,15 +1,170 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 28 — PDF settings wiring)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 29: Subcontract UX)
 
 > **You do not need any prior conversation or other documents.** This file is the
-> complete task brief. Read it top to bottom, then execute **Section 2** in order.
+> complete task brief. Read it top to bottom before taking new work.
 > [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
 >
 > **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
-> **Last committed baseline:** Round 27 — `e84859f` (drawHeader opts + Zod),
-> `0e7de58` (loadCompanyForPdf on all 17 generators)  
-> **Verified:** 2026-08-05 — Rounds 12–23 **complete**. **Round 24–27 ~98%** —
-> subcontract supply + report branding **shipped**; one wiring gap: `drawHeader` opts
-> not passed from callers (§2.2). Run §2.1 before/after.
+> **Last committed baseline:** Round 28 — `15ce80a` (drawHeader accent/showLogo wired)  
+> **Verified:** 2026-08-05 — Rounds 12–23 **complete**. **Round 24–28 + optional polish complete**
+> (subcontract supply, branded PDFs, footerText, branded Excel export, E2E issue test, mobile tsc). **129/129** tests.
+>
+> **Active work:** **Round 29 (SUB-UX)** — subcontract measurement sheet + materials-from-stock UI.
+> Do not re-break Rounds 12–28. Only take §2.8 items if explicitly listed in Round 29 or user asks.
+
+---
+
+## 2.9 Round 29 — Subcontract measurement & material-issue UX (ACTIVE)
+
+**User report (2026-08-05):** The subcontract **measurement sheet** modal and **materials from site stock**
+panel work functionally but feel like developer stubs — especially material issue, which asks for a raw
+**resource UUID** instead of showing project stock the user can pick from.
+
+**Your job:** Polish both flows to match the quality of the daily-report material picker
+(`apps/mobile/app/(app)/reports/create.tsx`) and Procore/Fieldwire-style field UX.
+**Mobile-only** unless a tiny backend tweak is strictly required (prefer reusing existing APIs).
+
+### 2.9.0 How material issue works today (read before coding)
+
+| Step | Behaviour |
+| ---- | --------- |
+| WO supply mode | `materialSupplyMode`: `NONE` (hide panel), `GC_SUPPLIED`, or `MIXED` |
+| Issue | `POST …/material-issues` — creates a **new ledger row** per issue; deducts `StockBalance` at project store |
+| Recover | `POST …/material-issues/:id/recover` — partial/full return; restores stock |
+| List | `GET …/material-issues` — all rows for WO, newest first |
+| Rate/qty | User supplies qty, unit, rate at issue time; amount = qty × rate |
+| Stock check | Backend rejects if `availableQty < requested` (`subcontract.service.ts`) |
+
+**Important product rule:** There is **no PATCH** on an existing issue row. Multiple issues for the same
+resource are valid (construction ledger). The UI should **group/display by resource** and offer
+**"Issue more"** (another POST with pre-filled material) — not imply users can edit a past issue's qty.
+
+**Reference implementation (copy patterns, do not duplicate blindly):**
+
+- `apps/mobile/app/(app)/reports/create.tsx` — `MaterialUsageSection`: `useStockSummary`, `MaterialPicker`,
+  `projectMaterials`, inline qty, on-hand validation, rate resolution via `/resources/:id/rate`
+- `apps/mobile/components/materials/MaterialPicker.tsx` — project stock first, catalog search second
+- `apps/mobile/components/projects/SubcontractsTab.tsx` — `MaterialsPanel` (lines ~584–768), `MeasurementsPanel` (~291–581)
+
+**Hooks already exist:** `useStockSummary`, `useMaterialIssues`, `useIssueMaterial`, `useRecoverMaterial`,
+`useBoq` (for BOQ-linked materials).
+
+### 2.9.1 SUB-UX1 — Materials from site stock panel
+
+**File:** `apps/mobile/components/projects/SubcontractsTab.tsx` → `MaterialsPanel`
+
+**Remove:** Raw `Resource ID` / UUID `TextInput` in issue modal.
+
+**Replace with:**
+
+1. **Stock-first picker**
+   - `useStockSummary(projectId)` + optional `useBoq(projectId)` → build `projectMaterials` (same union
+     logic as daily report: on-hand stock rows + BOQ-linked materials).
+   - Reuse `MaterialPicker` inside the issue sheet; show **on-hand balance** per row (`72 bags` style).
+
+2. **Issue form (after material selected)**
+   - Auto-fill **unit** from resource; auto-suggest **rate** via
+     `GET /projects/:projectId/resources/:resourceId/rate` (optional `?boqItemId=`).
+   - **Qty** input with live validation: `qty ≤ onHand` (show red helper if over; disable Issue button).
+   - Optional **issue date** (default today) and **notes** (collapsed/advanced).
+   - Primary CTA: **Issue to subcontractor**.
+
+3. **Issued materials list — ledger UX**
+   - **Group by `resourceId`** in the UI (aggregate issued / recovered / net qty and amount).
+   - Each group shows: material name, total issued, recovered, **net on WO**, last issue date.
+   - Actions per group:
+     - **Issue more** — opens issue sheet with material pre-selected (focus qty).
+     - **Recover** — inline qty + confirm (keep existing recover API).
+   - Expand group to see individual issue rows (date, qty, rate, who issued).
+   - Empty state: icon + "No materials issued yet" + CTA **Issue from stock**.
+
+4. **Summary strip** (when issues exist)
+   - Mirror WO summary: `Issued`, `Recovered`, `Net material on WO` (₹) — use list data or
+     `useWorkOrderSummary` totals.
+
+5. **Permissions** — unchanged: `OWNER`, `PM`, `STORE_INCHARGE` can issue/recover.
+
+**Do NOT:**
+
+- Add PATCH endpoint for material issues unless you also add tests and audit trail (defer).
+- Block measurement submit when no materials issued (existing rule).
+- Break recover flow or PDF material tables.
+
+### 2.9.2 SUB-UX2 — Measurement sheet panel
+
+**File:** `apps/mobile/components/projects/SubcontractsTab.tsx` → `MeasurementsPanel`
+
+**List view improvements:**
+
+1. **Card layout** — period label, status badge, total amount (keep), but add:
+   - Line count chip (`4 lines`)
+   - **Expand/collapse** to show all lines (not truncated at 3 with "+N more" only).
+   - Linked bill hint when `APPROVED` (bill number if available in response).
+
+2. **Status actions** — keep Submit / Approve / Reject / PDF buttons; group primary vs secondary visually
+   (primary = Submit/Approve; ghost = PDFs).
+
+**New measurement modal improvements:**
+
+1. **Period field** — placeholder chips: `Jan 2026`, `Feb 2026`, `Week 1`, or auto-suggest current month.
+
+2. **Copy from contract lines** (already exists) — enhance:
+   - Only copy lines with `balanceQty > 0`.
+   - Show **balance qty** and **contract rate** on each draft line when `workOrderLineId` is set
+     (read-only hint: "Balance: 120 sqm").
+   - Warn (don't block) if entered qty > balance.
+
+3. **Line editor** — table-like on desktop (`useViewport().isDesktop`):
+   - Columns: #, Description, Qty, Unit, Rate, Amount.
+   - Row amount live-calculated; running **subtotal** sticky in footer.
+   - Remove line control clearer (trash icon, not tiny text link).
+
+4. **Add line** — second path besides blank line: **Pick from WO lines** sub-sheet listing contract
+   lines with balance > 0 (one tap adds pre-filled row).
+
+5. **Validation messages** — inline under fields (period required, at least one line, qty > 0).
+
+**Do NOT:**
+
+- Change measurement approval → bill generation semantics.
+- Change backend measurement schemas unless validation gap found (prefer client-side first).
+
+### 2.9.3 Optional small backend tweak (only if mobile can't do it cleanly)
+
+| ID | Task | When |
+| -- | ---- | ---- |
+| **SUB-UX1b** | `GET …/material-issues` add optional `?groupBy=resource` aggregated summary | Only if grouping logic in mobile becomes unwieldy (>80 lines duplicated) |
+
+Default: **implement grouping in mobile** from existing list response.
+
+### 2.9.4 Tests & ship gate
+
+| Gate | Requirement |
+| ---- | ----------- |
+| Backend tests | Stay **129/129** (no regressions on subcontract integration tests) |
+| Backend tsc | Pass |
+| Mobile tsc | Pass |
+| Manual | GC_SUPPLIED WO → issue material via picker (not UUID) → appears in grouped list → Issue more → Recover |
+
+**Optional test (add if easy):** Extend `subcontract.test.ts` or `pdf-report.test.ts` assertion that
+material issue list returns `resource.name` after issue (already likely covered).
+
+### 2.9.5 Definition of done (Round 29)
+
+- [ ] **SUB-UX1** — MaterialPicker + stock balances; no UUID field; grouped issued list; Issue more + Recover
+- [ ] **SUB-UX2** — Measurement list expand; improved new-measurement modal (balance hints, desktop table)
+- [ ] Ship gate: 129/129 tests, mobile + backend tsc clean
+- [ ] Do not re-break SUB-C supply mode, PDF material tables, or Rounds 12–23 variations
+
+### 2.9.6 Anti-patterns (Round 29)
+
+| Don't | Do instead |
+| ----- | ---------- |
+| Paste UUID for materials | `MaterialPicker` + `useStockSummary` |
+| Single flat issue list only | Group by resource + expand detail |
+| Imply PATCH edits history | "Issue more" = new POST |
+| Truncate measurement lines forever | Expandable full line list |
+| New backend endpoint without tests | Reuse existing issue/recover/list APIs |
 
 ---
 
@@ -67,29 +222,36 @@ BuildFlow spans the full project lifecycle:
 
 ---
 
-## 2. Round 28 — PDF settings wiring (Round 24–27 feature done)
+## 2. Round 24–28 — Subcontract supply + report branding (COMPLETE)
 
-**Product direction:** Subcontract supply + company-branded reports are **shipped**
-(§2.0f–§2.0g). Do not re-break Rounds 12–23 or Round 24–27 deliverables.
+**Status:** All mandatory SUB-C and RPT-C tasks are **done** (§2.0, §2.7). Do not
+re-break Rounds 12–23 or Round 24–28 deliverables.
 
-**Round 28 scope (one wiring fix + optional hardening):**
+**Shipped capabilities:**
 
-1. Pass `accentColor` + `showLogo` from `loadCompanyForPdf` into **every** `drawHeader` call.
-2. Optional: use `footerText` from settings in `drawFooter`.
-3. Optional: end-to-end material-issue test; fix mobile tsc implicit-any (7 files).
+1. **Subcontract / work-order material supply** — `materialSupplyMode` (NONE / GC_SUPPLIED / MIXED),
+   MaterialsPanel issue/return, summary totals, edit modal, PDF material tables.
+2. **Company-branded PDF reports** — `loadCompanyForPdf` on all 17 generators,
+   resolved logos, accent bar + showLogo from Settings → Reports & Branding, Zod-validated API.
 
 **Do not** break Rounds 12–23 (variation two-step flow, EST-VO-11, VAR-D2, shortfalls).
 
-### 2.0 Status (Round 24–27 — complete except drawHeader wiring)
+### 2.0 Status (Round 24–28 — all mandatory tasks done)
 
-| ID | Task | Status | Notes |
-| -- | ---- | ------ | ----- |
-| **SUB-C1–C3** | Subcontract supply | **Done** | Round 24–26 (`9e97427`–`ee7defe`) |
-| **RPT-C1** | Logo + footer on PDFs | **Partial** | All 17 use `loadCompanyForPdf` (`0e7de58`); **`drawHeader` opts never passed** — accent/showLogo settings ignored at runtime |
-| **RPT-C2** | Report template settings | **Done** | API + UI + Json fix + Zod validator (`7107c81`, `e84859f`) |
+| ID | Task | Status | Evidence |
+| -- | ---- | ------ | -------- |
+| **SUB-C1–C3** | Subcontract supply | **Done** | `9e97427`–`ee7defe`, `dfee7be`–`1266096` |
+| **RPT-C1** | Logo + footer + accent on PDFs | **Done** | `0e7de58`, `e84859f`, `15ce80a` |
+| **RPT-C2** | Report template settings | **Done** | API + UI + Zod (`7107c81`, `e84859f`) |
 | **RPT-C3** | PDF layout polish | **Done** | `pdf-layout` re-exports |
-| **RPT-C4** | Tests | **Partial** | **127/127** ×2; NONE→400 ✓; optional E2E issue test not done |
-| **Ship gate** | tsc ×2 + tests ×2 | **Partial** | Backend tsc ✓, **127/127 ×2** ✓; mobile tsc: 7 pre-existing implicit-any |
+| **RPT-C4** | PDF / supply tests | **Done** | **127/127** ×2; buffer + NONE→400 + GC summary |
+| **Ship gate** | tsc + tests | **Partial** | Backend tsc ✓, **127/127 ×2** ✓; mobile tsc: 7 pre-existing implicit-any |
+
+### 2.0h Round 28 delivered (do NOT revert)
+
+| Commit | What landed |
+| ------ | ----------- |
+| `15ce80a` | All 17 `drawHeader` calls pass `{ accentColor, showLogo }` from `loadCompanyForPdf` |
 
 ### 2.0g Round 27 delivered (do NOT revert)
 
@@ -110,15 +272,15 @@ BuildFlow spans the full project lifecycle:
 
 ### 2.0 Status table (legacy IDs)
 
-| ID | Task | Status | Notes |
-| -- | ---- | ------ | ----- |
-| **SUB-C1** | `materialSupplyMode` on work order | **Done** | Create + edit modal + summary badge/totals |
-| **SUB-C2** | Material issue/return | **Done** | Backend + `MaterialsPanel` UI |
-| **SUB-C3** | Subcontract PDFs | **Done** | Supply labels + material table MB + abstract |
-| **RPT-C1** | Logo + footer on PDFs | **Partial** | See §2.0 above — wire `drawHeader` opts |
-| **RPT-C2** | Report template settings | **Done** | API + UI + Zod |
-| **RPT-C3** | PDF layout polish | **Done** | |
-| **RPT-C4** | Tests | **Partial** | Optional E2E issue test |
+| ID | Task | Status |
+| -- | ---- | ------ |
+| **SUB-C1** | `materialSupplyMode` on work order | **Done** |
+| **SUB-C2** | Material issue/return | **Done** |
+| **SUB-C3** | Subcontract PDFs | **Done** |
+| **RPT-C1** | Logo + footer + accent on PDFs | **Done** |
+| **RPT-C2** | Report template settings | **Done** |
+| **RPT-C3** | PDF layout polish | **Done** |
+| **RPT-C4** | Tests | **Done** |
 
 ### 2.0f Round 26 delivered (do NOT revert)
 
@@ -259,47 +421,19 @@ pnpm exec prisma generate
 New migrations: `20260805100000_subcontract_material_supply_mode`,
 `20260805120000_company_report_settings`.
 
-**Expected test count:** **127/127** (stable since Round 25).
+**Expected test count:** **129/129** (stable; +1 Excel export test).
 
-### 2.2 Mandatory tasks — Round 28 (wire drawHeader settings)
+### 2.2 Mandatory tasks — none (epic complete)
 
-**Do not touch subcontract supply or MaterialsPanel unless fixing a bug.**
+**Round 24–28 SUB-C + RPT-C are done.** Take new work from **§2.9 Round 29 (SUB-UX)** first.
+Only take §2.8 if the user explicitly asks.
 
-#### RPT-C1e — Pass settings into every `drawHeader` call
+<details>
+<summary>Round 28 spec (completed — reference)</summary>
 
-`loadCompanyForPdf` already returns `{ accentColor, reportSettings, logoUrl, ... }`.
-All 17 generators call `drawHeader(doc, title, company)` **without** the 4th `opts` arg.
+RPT-C1e: Pass `accentColor` + `showLogo` to all 17 `drawHeader` calls — **Done** (`15ce80a`).
 
-Fix (pick one approach):
-
-1. **Preferred:** Add helper `headerOptsFromCompany(company)` returning
-   `{ accentColor: company.accentColor, showLogo: company.reportSettings?.showLogo }`.
-2. Update all 17 calls:  
-   `drawHeader(doc, title, company, headerOptsFromCompany(company))`
-
-Or extend `drawHeader` to read `accentColor` from company when opts omitted.
-
-Verify: PATCH accent to `#1E3A5F` → progress PDF accent bar is navy (not amber).
-
-#### RPT-C1f — Optional footer custom text
-
-If `reportSettings.footerText` is set, append or replace generic footer line in `drawFooter`.
-
-#### RPT-C4c — Optional (defer unless quick)
-
-E2E: seed stock → POST material issue on GC_SUPPLIED WO → list length ≥ 1.
-
-**Ship gate:** backend tsc ✓; tests **127+** ×2.
-
----
-
-### 2.2z Reference — Round 27 spec (done; see §2.0g)
-
-#### RPT-C1c — Complete `loadCompanyForPdf` sweep — **Done** (`0e7de58`)
-
-#### RPT-C1d — `drawHeader` reads settings — **Signature done; callers not wired** (`e84859f`)
-
-#### RPT-C2c — Zod validator — **Done** (`e84859f`)
+</details>
 
 ---
 
@@ -646,21 +780,24 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 
 **Rounds 12–23 (done — do NOT re-break):** See §2.0a.
 
-**Round 24–27 (SUB-C + RPT-C — product scope done):**
+**Round 24–28 (SUB-C + RPT-C — complete):**
 
 - [x] SUB-C1–C3 — subcontract supply full stack
+- [x] RPT-C1 — loadCompanyForPdf + drawHeader accent/showLogo on all 17 PDFs
 - [x] RPT-C2 — report settings API + UI + Zod
 - [x] RPT-C3 — pdf-layout
-- [~] RPT-C1 — loadCompanyForPdf on 17/17; **drawHeader opts not passed to callers**
-- [~] RPT-C4 — 127 tests; optional E2E issue test
+- [x] RPT-C4 — 127 tests (buffer + supply mode + settings GET)
 - [x] Ship gate backend **127/127** ×2; backend tsc ✓
-
-**Round 28 (§2.2):** wire `drawHeader` accent/showLogo from `loadCompanyForPdf`.
 
 ### 2.8 Optional hardening (defer unless user asks)
 
 | ID | Task |
 | -- | ---- |
+| **RPT-O1** | ~~`footerText` from reportSettings in `drawFooter`~~ | **Done** |
+| **RPT-O2** | ~~E2E test: seed stock → POST material issue → list length ≥ 1~~ | **Done** — 128 tests |
+| **RPT-O3** | ~~Refactor drawHeader sites to `drawBrandedHeader` / helpers~~ | **Done** |
+| **RPT-O4** | Branded Excel exports (`estimate-export.service.ts`) | **Done** |
+| **MOB-O1** | ~~Fix mobile tsc implicit-any~~ | **Done** |
 | **Phase 5 gaps** | Smoke tests for inventory-traceability, accounting-export, labour, i18n |
 | **NR-36** | Drawing acknowledgement endpoint |
 | **Sync §8.1** | Remount `/api/sync` (needs `updatedAt` + mobile replay) |
@@ -675,8 +812,8 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 <details>
 <summary>Rounds 4–15 (superseded by §2 above)</summary>
 
-Rounds 8–23: variation workflow complete. **Round 24–27:** subcontract supply +
-report branding **done** (§2.0f–§2.0g). **Round 28:** wire drawHeader settings (§2.2).
+Rounds 8–23: variation workflow complete. **Round 24–28:** subcontract supply +
+report branding **complete** (§2.0h).
 
 </details>
 

@@ -28,6 +28,7 @@ import {
   useBoqShortfalls,
   useGenerateIndentsFromBoq,
   type Requisition,
+  type BoqShortfall,
   type StockSummaryRow,
   type StockMovementRow,
   type PurchaseOrderSummary,
@@ -118,7 +119,7 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
       {/* Sub-tab bar */}
       <SubTabBar active={subTab} onChange={setSubTab} counts={{
         indents: requisitions.length,
-        pos: requisitions.filter((r) => r.purchaseOrders?.length).length,
+        pos: requisitions.filter((r: Requisition) => r.purchaseOrders?.length).length,
       }} />
 
       {subTab === 'indents' && (
@@ -917,7 +918,7 @@ function ShortfallsSection({ projectId, canCreate }: { projectId: string; canCre
           description="All BOQ materials are covered by stock and open indents."
         />
       ) : (
-        shortfalls.map((s, idx) => (
+        shortfalls.map((s: BoqShortfall, idx: number) => (
           <Card key={idx}>
             <View className="flex-row justify-between items-start">
               <View className="flex-1 pr-2">

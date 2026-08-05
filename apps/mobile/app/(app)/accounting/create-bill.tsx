@@ -27,7 +27,7 @@ import { alertAsync } from '@/utils/confirm';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { useCreateBill, useExtractBill, type BillExtractDraft } from '@/services/accounting.queries';
 import { useProjects, type ProjectListItem } from '@/services/project.queries';
-import { useRequisitions } from '@/services/expansion.queries';
+import { useRequisitions, type PurchaseOrderSummary } from '@/services/expansion.queries';
 import { usePermission } from '@/hooks/usePermission';
 import { formatINR } from '@/utils/format';
 
@@ -87,7 +87,7 @@ export default function CreateBillScreen() {
   const grnSuggestedSubtotal = useMemo(() => {
     if (!prePurchaseOrderId || !requisitions) return null;
     for (const req of requisitions) {
-      const po = req.purchaseOrders?.find((p) => p.id === prePurchaseOrderId);
+      const po = req.purchaseOrders?.find((p: PurchaseOrderSummary) => p.id === prePurchaseOrderId);
       if (!po) continue;
       // Compute Σ(GRN received qty × PO line rate). PO lines carry rate in the
       // requisition payload snapshot; GRN lines carry received qty per resource.

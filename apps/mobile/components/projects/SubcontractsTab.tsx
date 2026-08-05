@@ -32,6 +32,7 @@ import {
   useMaterialIssues,
   useIssueMaterial,
   useRecoverMaterial,
+  useStockSummary,
   type SubcontractorMaterialIssue,
   downloadSubcontractMeasurementBookPdf,
   downloadSubcontractAbstractSheetPdf,
@@ -40,6 +41,9 @@ import {
   type WorkOrder,
   type WorkOrderSummary,
 } from '@/services/expansion.queries';
+// SUB-UX1: Import MaterialPicker + Resource type for stock-first picker
+import { MaterialPicker, type ProjectMaterial } from '@/components/materials/MaterialPicker';
+import { type Resource } from '@/services/estimate.queries';
 import { useBills, type Bill } from '@/services/accounting.queries';
 import { useBoq, type BoqItem } from '@/services/boq.queries';
 import { billDetailHref, projectTabHref } from '@/utils/navigation';
@@ -581,7 +585,8 @@ function MeasurementsPanel({
   );
 }
 
-// SUB-C2b: Materials section for GC_SUPPLIED / MIXED work orders
+// SUB-UX1: Materials section for GC_SUPPLIED / MIXED work orders
+// Uses MaterialPicker with project stock balances; groups issues by resource
 function MaterialsPanel({
   projectId,
   workOrderId,
@@ -595,28 +600,44 @@ function MaterialsPanel({
   const canManage = user?.role === 'OWNER' || user?.role === 'PM' || user?.role === 'STORE_INCHARGE';
 
   const { data: issues, isLoading } = useMaterialIssues(projectId, workOrderId);
+  const { data: stockSummary } = useStockSummary(projectId);
   const issueMat = useIssueMaterial(projectId, workOrderId);
   const recoverMat = useRecoverMaterial(projectId, workOrderId);
 
   const [issueModal, setIssueModal] = useState(false);
-  const [resourceId, setResourceId] = useState('');
+  const [selectedResource, setSelectedResource] = useState<{ id: string; name: string; unit: string; rate?: string } | null>(null);
   const [qty, setQty] = useState('');
   const [unit, setUnit] = useState('');
   const [rate, setRate] = useState('');
   const [recoveringId, setRecoveringId] = useState<string | null>(null);
   const [recoverQty, setRecoverQty] = useState('');
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  // Build projectMaterials from stock summary for MaterialPicker
+  const projectMaterials = useMemo<ProjectMaterial[]>(() => {
+    if (!stockSummary) return [];
+    return stockSummary
+      .filter((s) => s.balance > 0)
+      .map((s) => ({
+        id: s.resourceId,
+        name: s.name,
+        unit: s.unit,
+        type: 'MATERIAL' as const,
+        balance: s.balance,
+      }));
+  }, [stockSummary]);
 
   // Hide when NONE
   if (materialSupplyMode === 'NONE' || !materialSupplyMode) return null;
 
   const onIssue = () => {
-    if (!resourceId || !qty || !unit || !rate) {
-      void alertAsync('Required', 'Resource, quantity, unit, and rate are required.');
+    if (!selectedResource || !qty || !unit || !rate) {
+      void alertAsync('Required', 'Select a material, then enter quantity, unit, and rate.');
       return;
     }
     issueMat.mutate(
       {
-        resourceId,
+        resourceId: selectedResource.id,
         quantity: parseFloat(qty) || 0,
         unit,
         rate: parseFloat(rate) || 0,
@@ -625,7 +646,7 @@ function MaterialsPanel({
       {
         onSuccess: () => {
           setIssueModal(false);
-          setResourceId('');
+          setSelectedResource(null);
           setQty('');
           setUnit('');
           setRate('');
@@ -652,9 +673,54 @@ function MaterialsPanel({
     );
   };
 
+  // Group issues by resourceId for ledger display
+  const groupedIssues = useMemo(() => {
+    const allIssues: SubcontractorMaterialIssue[] = issues ?? [];
+    const groups = new Map<string, {
+      resourceId: string;
+      resourceName: string;
+      unit: string;
+      issues: SubcontractorMaterialIssue[];
+      totalIssuedQty: number;
+      totalRecoveredQty: number;
+      totalIssuedAmt: number;
+      totalRecoveredAmt: number;
+    }>();
+    for (const mi of allIssues) {
+      const key = mi.resourceId;
+      const g = groups.get(key) ?? {
+        resourceId: key,
+        resourceName: mi.resource?.name ?? 'Unknown',
+        unit: mi.unit,
+        issues: [],
+        totalIssuedQty: 0,
+        totalRecoveredQty: 0,
+        totalIssuedAmt: 0,
+        totalRecoveredAmt: 0,
+      };
+      g.issues.push(mi);
+      g.totalIssuedQty += parseFloat(mi.quantity);
+      g.totalRecoveredQty += parseFloat(mi.recoveredQty);
+      g.totalIssuedAmt += parseFloat(mi.amount);
+      g.totalRecoveredAmt += parseFloat(mi.recoveredAmount);
+      groups.set(key, g);
+    }
+    return Array.from(groups.values());
+  }, [issues]);
+
+  const grandIssued = groupedIssues.reduce((s, g) => s + g.totalIssuedAmt, 0);
+  const grandRecovered = groupedIssues.reduce((s, g) => s + g.totalRecoveredAmt, 0);
+
   if (isLoading) return <LoadingSkeleton className="h-16 rounded-lg mt-3" />;
 
-  const materialIssues: SubcontractorMaterialIssue[] = issues ?? [];
+  const toggleGroup = (resourceId: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(resourceId)) next.delete(resourceId);
+      else next.add(resourceId);
+      return next;
+    });
+  };
 
   return (
     <View className="mt-3 p-3 rounded-xl border border-border bg-card/50 gap-2">
@@ -664,7 +730,16 @@ function MaterialsPanel({
           icon="cube-outline"
           action={
             canManage ? (
-              <Pressable onPress={() => setIssueModal(true)} className="flex-row items-center gap-1">
+              <Pressable
+                onPress={() => {
+                  setSelectedResource(null);
+                  setQty('');
+                  setUnit('');
+                  setRate('');
+                  setIssueModal(true);
+                }}
+                className="flex-row items-center gap-1"
+              >
                 <Ionicons name="add-circle-outline" size={16} color="#1E3A5F" />
                 <Text className="text-primary text-xs font-semibold">Issue</Text>
               </Pressable>
@@ -675,68 +750,153 @@ function MaterialsPanel({
       <Text className="text-[10px] text-muted mb-1">
         Issue materials from site stock to this subcontractor. Recover unused materials anytime.
       </Text>
-      {materialIssues.length === 0 ? (
-        <Text className="text-xs text-muted italic py-2">No materials issued yet.</Text>
+
+      {/* Summary strip when issues exist */}
+      {groupedIssues.length > 0 && (
+        <View className="flex-row gap-2 mb-1">
+          <View className="flex-1 px-2 py-1.5 rounded-lg border border-border bg-card">
+            <Text className="text-[10px] text-muted">Issued</Text>
+            <Text className="text-sm font-semibold text-text">{formatINR(grandIssued)}</Text>
+          </View>
+          <View className="flex-1 px-2 py-1.5 rounded-lg border border-border bg-card">
+            <Text className="text-[10px] text-muted">Recovered</Text>
+            <Text className="text-sm font-semibold text-success">{formatINR(grandRecovered)}</Text>
+          </View>
+          <View className="flex-1 px-2 py-1.5 rounded-lg border border-primary/20 bg-primary/5">
+            <Text className="text-[10px] text-muted">Net on WO</Text>
+            <Text className="text-sm font-semibold text-primary">{formatINR(grandIssued - grandRecovered)}</Text>
+          </View>
+        </View>
+      )}
+
+      {groupedIssues.length === 0 ? (
+        <View className="items-center py-4 gap-2">
+          <Ionicons name="cube-outline" size={32} color="#94A3B8" />
+          <Text className="text-sm text-muted">No materials issued yet</Text>
+          {canManage && (
+            <Button label="Issue from stock" size="sm" onPress={() => setIssueModal(true)} />
+          )}
+        </View>
       ) : (
-        materialIssues.map((mi: SubcontractorMaterialIssue) => {
-          const remaining = parseFloat(mi.quantity) - parseFloat(mi.recoveredQty);
+        groupedIssues.map((group) => {
+          const isExpanded = expandedGroups.has(group.resourceId);
+          const netQty = group.totalIssuedQty - group.totalRecoveredQty;
+          const lastIssueDate = group.issues[0]?.issueDate ?? '';
+          const onHand = projectMaterials.find((m) => m.id === group.resourceId)?.balance;
+
           return (
-            <View key={mi.id} className="rounded-xl border border-border bg-card p-3 gap-1">
-              <View className="flex-row justify-between items-start">
-                <View className="flex-1">
-                  <Text className="text-sm font-semibold text-text">
-                    {mi.resource?.name ?? 'Unknown resource'}
-                  </Text>
-                  <Text className="text-xs text-muted">
-                    {mi.quantity} {mi.unit} @ {formatINR(parseFloat(mi.rate))}
-                  </Text>
+            <View key={group.resourceId} className="rounded-xl border border-border bg-card overflow-hidden">
+              {/* Group header */}
+              <Pressable
+                onPress={() => toggleGroup(group.resourceId)}
+                className="p-3 active:bg-surface"
+              >
+                <View className="flex-row justify-between items-start">
+                  <View className="flex-1">
+                    <Text className="text-sm font-semibold text-text">{group.resourceName}</Text>
+                    <Text className="text-xs text-muted mt-0.5">
+                      Issued {group.totalIssuedQty} {group.unit}
+                      {group.totalRecoveredQty > 0 && ` · Recovered ${group.totalRecoveredQty} ${group.unit}`}
+                    </Text>
+                    {onHand !== undefined && (
+                      <Text className="text-[10px] text-muted mt-0.5">
+                        Stock on hand: {onHand} {group.unit}
+                      </Text>
+                    )}
+                  </View>
+                  <View className="items-end">
+                    <Text className="text-xs font-bold text-primary">
+                      Net {netQty} {group.unit}
+                    </Text>
+                    <Text className="text-[10px] text-muted">{formatINR(group.totalIssuedAmt)}</Text>
+                  </View>
                 </View>
-                <Text className="text-sm font-bold text-text">{formatINR(parseFloat(mi.amount))}</Text>
-              </View>
-              {parseFloat(mi.recoveredQty) > 0 && (
-                <Text className="text-xs text-success">
-                  Recovered: {mi.recoveredQty} {mi.unit} ({formatINR(parseFloat(mi.recoveredAmount))})
-                </Text>
+              </Pressable>
+
+              {/* Expanded: individual issue rows */}
+              {isExpanded && (
+                <View className="border-t border-border/60 px-3 py-2 gap-1">
+                  {group.issues.map((mi) => {
+                    const remaining = parseFloat(mi.quantity) - parseFloat(mi.recoveredQty);
+                    return (
+                      <View key={mi.id} className="py-1.5 border-b border-border/30">
+                        <View className="flex-row justify-between">
+                          <Text className="text-xs text-muted">
+                            {mi.issueDate} · {mi.issuedByUser?.name ?? '—'}
+                          </Text>
+                          <Text className="text-xs text-muted">
+                            {mi.quantity} {mi.unit} @ {formatINR(parseFloat(mi.rate))}
+                          </Text>
+                        </View>
+                        {parseFloat(mi.recoveredQty) > 0 && (
+                          <Text className="text-[10px] text-success">
+                            Recovered {mi.recoveredQty} {mi.unit}
+                          </Text>
+                        )}
+                        {/* Recover action */}
+                        {canManage && remaining > 0 && (
+                          <View className="mt-1">
+                            {recoveringId === mi.id ? (
+                              <View className="flex-row gap-2 items-center">
+                                <TextInput
+                                  className="flex-1 border border-border rounded-lg px-2 py-1 text-xs text-text"
+                                  placeholder="Qty to recover"
+                                  value={recoverQty}
+                                  onChangeText={setRecoverQty}
+                                  keyboardType="numeric"
+                                />
+                                <Button
+                                  label="Confirm"
+                                  size="sm"
+                                  loading={recoverMat.isPending}
+                                  onPress={() => onRecover(mi.id)}
+                                />
+                                <Button
+                                  label="Cancel"
+                                  size="sm"
+                                  variant="secondary"
+                                  onPress={() => {
+                                    setRecoveringId(null);
+                                    setRecoverQty('');
+                                  }}
+                                />
+                              </View>
+                            ) : (
+                              <Pressable
+                                onPress={() => setRecoveringId(mi.id)}
+                                className="flex-row items-center gap-1"
+                              >
+                                <Ionicons name="arrow-undo-outline" size={12} color="#16A34A" />
+                                <Text className="text-[10px] font-semibold text-success">Recover</Text>
+                              </Pressable>
+                            )}
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
               )}
-              <Text className="text-xs text-muted">
-                Net on WO: {remaining} {mi.unit}
-              </Text>
-              {canManage && remaining > 0 && (
-                <View className="mt-1">
-                  {recoveringId === mi.id ? (
-                    <View className="flex-row gap-2 items-center">
-                      <TextInput
-                        className="flex-1 border border-border rounded-lg px-2 py-1 text-sm text-text"
-                        placeholder="Qty to recover"
-                        value={recoverQty}
-                        onChangeText={setRecoverQty}
-                        keyboardType="numeric"
-                      />
-                      <Button
-                        label="Confirm"
-                        size="sm"
-                        loading={recoverMat.isPending}
-                        onPress={() => onRecover(mi.id)}
-                      />
-                      <Button
-                        label="Cancel"
-                        size="sm"
-                        variant="secondary"
-                        onPress={() => {
-                          setRecoveringId(null);
-                          setRecoverQty('');
-                        }}
-                      />
-                    </View>
-                  ) : (
-                    <Pressable
-                      onPress={() => setRecoveringId(mi.id)}
-                      className="flex-row items-center gap-1"
-                    >
-                      <Ionicons name="arrow-undo-outline" size={14} color="#16A34A" />
-                      <Text className="text-xs font-semibold text-success">Recover / Return</Text>
-                    </Pressable>
-                  )}
+
+              {/* Per-group actions */}
+              {canManage && (
+                <View className="flex-row gap-2 px-3 py-2 border-t border-border/60">
+                  <Button
+                    label="Issue more"
+                    size="sm"
+                    variant="secondary"
+                    onPress={() => {
+                      setSelectedResource({
+                        id: group.resourceId,
+                        name: group.resourceName,
+                        unit: group.unit,
+                      });
+                      setUnit(group.unit);
+                      setRate(String(group.issues[0]?.rate ?? '0'));
+                      setQty('');
+                      setIssueModal(true);
+                    }}
+                  />
                 </View>
               )}
             </View>
@@ -744,25 +904,62 @@ function MaterialsPanel({
         })
       )}
 
+      {/* Issue modal — MaterialPicker instead of UUID */}
       <AdaptiveSheet
         visible={issueModal}
         onClose={() => setIssueModal(false)}
         title="Issue Material from Stock"
-        size="md"
-        footer={<Button label="Issue" loading={issueMat.isPending} onPress={onIssue} />}
+        size="lg"
+        footer={
+          <Button
+            label="Issue to subcontractor"
+            loading={issueMat.isPending}
+            onPress={onIssue}
+          />
+        }
       >
-        <Text className="text-sm font-semibold text-text">Resource ID</Text>
-        <TextInput
-          className="border border-border rounded-lg p-2 text-sm text-text"
-          placeholder="Paste resource UUID"
-          value={resourceId}
-          onChangeText={setResourceId}
-        />
-        <View className="flex-row gap-2">
-          <Input label="Qty" value={qty} onChangeText={setQty} keyboardType="numeric" />
-          <Input label="Unit" value={unit} onChangeText={setUnit} placeholder="bag" />
-        </View>
-        <Input label="Rate (₹)" value={rate} onChangeText={setRate} keyboardType="numeric" />
+        {!selectedResource ? (
+          <>
+            <Text className="text-sm font-semibold text-text mb-2">Select material from project stock</Text>
+            <MaterialPicker
+              selectedId={undefined}
+              projectMaterials={projectMaterials}
+              onSelect={(r) => {
+                setSelectedResource(r);
+                setUnit(r.unit);
+                setRate(parseFloat(r.rate || '0') > 0 ? r.rate : '');
+              }}
+              maxHeight={300}
+            />
+          </>
+        ) : (
+          <>
+            <View className="flex-row items-center justify-between p-2 rounded-lg border border-primary/20 bg-primary/5 mb-2">
+              <View className="flex-1">
+                <Text className="text-sm font-semibold text-text">{selectedResource.name}</Text>
+                <Text className="text-xs text-muted">
+                  {selectedResource.unit}
+                  {projectMaterials.find((m) => m.id === selectedResource.id)?.balance !== undefined && (
+                    ` · On hand: ${projectMaterials.find((m) => m.id === selectedResource.id)?.balance} ${selectedResource.unit}`
+                  )}
+                </Text>
+              </View>
+              <Pressable onPress={() => setSelectedResource(null)}>
+                <Ionicons name="close-circle-outline" size={20} color="#94A3B8" />
+              </Pressable>
+            </View>
+            <Input label="Quantity" value={qty} onChangeText={setQty} keyboardType="numeric" placeholder="0" />
+            <View className="flex-row gap-2">
+              <Input label="Unit" value={unit} onChangeText={setUnit} />
+              <Input label="Rate (₹)" value={rate} onChangeText={setRate} keyboardType="numeric" />
+            </View>
+            {qty && rate && (
+              <Text className="text-sm font-semibold text-text mt-1">
+                Amount: {formatINR((parseFloat(qty) || 0) * (parseFloat(rate) || 0))}
+              </Text>
+            )}
+          </>
+        )}
       </AdaptiveSheet>
     </View>
   );

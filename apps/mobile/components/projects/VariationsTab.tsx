@@ -364,7 +364,7 @@ export function VariationsTab({ projectId, highlightChangeOrderId }: { projectId
           </Text>
         </View>
         {lines.map((line, idx) => {
-          const linkedBoq = boqItems.find((b) => b.id === line.boqItemId);
+          const linkedBoq = boqItems.find((b: BoqItem) => b.id === line.boqItemId);
           const isNewScope = !line.boqItemId;
           return (
             <View key={line.id} className="border border-border rounded-lg p-3 gap-2">

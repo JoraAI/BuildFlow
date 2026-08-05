@@ -534,7 +534,7 @@ function EstimateTab({ projectId }: { projectId: string }) {
   // Safety net: filter out any sub-estimates (parentId != null) in case the
   // backend hasn't been restarted yet with the parentId: null filter.
   // Sub-estimates are shown nested under their parent via useSubEstimates().
-  const estimates = (data ?? []).filter((e) => !e.parentId);
+  const estimates = (data ?? []).filter((e: EstimateListRow) => !e.parentId);
 
   if (isLoading) return <LoadingSkeleton className="h-48 rounded-xl" />;
 
