@@ -823,6 +823,61 @@ export function useRecordSubcontractBillPayment(projectId: string) {
   });
 }
 
+// SUB-C2a: Material issue hooks for subcontract WO detail
+export interface SubcontractorMaterialIssue {
+  id: string;
+  resourceId: string;
+  quantity: string;
+  unit: string;
+  rate: string;
+  amount: string;
+  issueDate: string;
+  notes: string | null;
+  recoveredQty: string;
+  recoveredAmount: string;
+  resource?: { id: string; name: string; unit: string };
+  issuedByUser?: { id: string; name: string };
+}
+
+export function useMaterialIssues(projectId: string, workOrderId: string | null) {
+  return useQuery({
+    queryKey: ['subcontract', 'material-issues', projectId, workOrderId],
+    queryFn: () => apiFetch<SubcontractorMaterialIssue[]>(
+      `/projects/${projectId}/subcontract/work-orders/${workOrderId}/material-issues`,
+    ),
+    enabled: !!projectId && !!workOrderId,
+  });
+}
+
+export function useIssueMaterial(projectId: string, workOrderId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { resourceId: string; quantity: number; unit: string; rate: number; issueDate: string; notes?: string }) =>
+      apiFetch<SubcontractorMaterialIssue>(
+        `/projects/${projectId}/subcontract/work-orders/${workOrderId}/material-issues`,
+        { method: 'POST', body: JSON.stringify(input) },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['subcontract', 'material-issues', projectId, workOrderId] });
+      invalidateProjectSubcontract(qc, projectId);
+    },
+  });
+}
+
+export function useRecoverMaterial(projectId: string, workOrderId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ issueId, recoveredQty }: { issueId: string; recoveredQty: number }) =>
+      apiFetch<SubcontractorMaterialIssue>(
+        `/projects/${projectId}/subcontract/work-orders/${workOrderId}/material-issues/${issueId}/recover`,
+        { method: 'POST', body: JSON.stringify({ recoveredQty }) },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['subcontract', 'material-issues', projectId, workOrderId] });
+    },
+  });
+}
+
 export function useCreateSubcontractorPortalAccess(projectId: string) {
   return useMutation({
     mutationFn: (input: CreateSubcontractorPortalInput) =>

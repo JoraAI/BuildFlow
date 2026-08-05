@@ -22,6 +22,26 @@
 import PDFDocument from 'pdfkit';
 import { prisma } from '../lib/prisma';
 import { Decimal } from '@prisma/client/runtime/library';
+// RPT-C3a: Import shared layout helpers from pdf-layout.ts
+export {
+  formatINR,
+  formatPDFDate,
+  ensureSpace,
+  drawTableHeader,
+  drawTableRow,
+  drawSummaryLine,
+  drawSectionHeading,
+  PDF_MARGIN,
+  PDF_PAGE_W,
+  PDF_CONTENT_W,
+  PDF_NAVY,
+  PDF_AMBER,
+  PDF_MUTED,
+  PDF_BORDER,
+  PDF_ROW_ALT,
+  PDF_RED,
+  PDF_GREEN,
+} from './pdf-layout';
 import {
   getProfitLoss,
   getEstimateVsActual,
