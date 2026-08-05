@@ -29,6 +29,10 @@ import {
   useApproveMeasurement,
   useRejectMeasurement,
   useCreateSubcontractorPortalAccess,
+  useMaterialIssues,
+  useIssueMaterial,
+  useRecoverMaterial,
+  type SubcontractorMaterialIssue,
   downloadSubcontractMeasurementBookPdf,
   downloadSubcontractAbstractSheetPdf,
   type Measurement,
@@ -577,6 +581,193 @@ function MeasurementsPanel({
   );
 }
 
+// SUB-C2b: Materials section for GC_SUPPLIED / MIXED work orders
+function MaterialsPanel({
+  projectId,
+  workOrderId,
+  materialSupplyMode,
+}: {
+  projectId: string;
+  workOrderId: string;
+  materialSupplyMode?: string;
+}) {
+  const user = useAuthStore((s) => s.user);
+  const canManage = user?.role === 'OWNER' || user?.role === 'PM' || user?.role === 'STORE_INCHARGE';
+
+  const { data: issues, isLoading } = useMaterialIssues(projectId, workOrderId);
+  const issueMat = useIssueMaterial(projectId, workOrderId);
+  const recoverMat = useRecoverMaterial(projectId, workOrderId);
+
+  const [issueModal, setIssueModal] = useState(false);
+  const [resourceId, setResourceId] = useState('');
+  const [qty, setQty] = useState('');
+  const [unit, setUnit] = useState('');
+  const [rate, setRate] = useState('');
+  const [recoveringId, setRecoveringId] = useState<string | null>(null);
+  const [recoverQty, setRecoverQty] = useState('');
+
+  // Hide when NONE
+  if (materialSupplyMode === 'NONE' || !materialSupplyMode) return null;
+
+  const onIssue = () => {
+    if (!resourceId || !qty || !unit || !rate) {
+      void alertAsync('Required', 'Resource, quantity, unit, and rate are required.');
+      return;
+    }
+    issueMat.mutate(
+      {
+        resourceId,
+        quantity: parseFloat(qty) || 0,
+        unit,
+        rate: parseFloat(rate) || 0,
+        issueDate: new Date().toISOString().slice(0, 10),
+      },
+      {
+        onSuccess: () => {
+          setIssueModal(false);
+          setResourceId('');
+          setQty('');
+          setUnit('');
+          setRate('');
+        },
+        onError: (e: Error) => void alertAsync('Error', e.message),
+      },
+    );
+  };
+
+  const onRecover = (issueId: string) => {
+    if (!recoverQty) {
+      void alertAsync('Required', 'Enter quantity to recover.');
+      return;
+    }
+    recoverMat.mutate(
+      { issueId, recoveredQty: parseFloat(recoverQty) || 0 },
+      {
+        onSuccess: () => {
+          setRecoveringId(null);
+          setRecoverQty('');
+        },
+        onError: (e: Error) => void alertAsync('Error', e.message),
+      },
+    );
+  };
+
+  if (isLoading) return <LoadingSkeleton className="h-16 rounded-lg mt-3" />;
+
+  const materialIssues: SubcontractorMaterialIssue[] = issues ?? [];
+
+  return (
+    <View className="mt-3 p-3 rounded-xl border border-border bg-card/50 gap-2">
+      <View className="flex-row items-center justify-between mb-1">
+        <SectionHeader
+          title="Materials from site stock"
+          icon="cube-outline"
+          action={
+            canManage ? (
+              <Pressable onPress={() => setIssueModal(true)} className="flex-row items-center gap-1">
+                <Ionicons name="add-circle-outline" size={16} color="#1E3A5F" />
+                <Text className="text-primary text-xs font-semibold">Issue</Text>
+              </Pressable>
+            ) : undefined
+          }
+        />
+      </View>
+      <Text className="text-[10px] text-muted mb-1">
+        Issue materials from site stock to this subcontractor. Recover unused materials anytime.
+      </Text>
+      {materialIssues.length === 0 ? (
+        <Text className="text-xs text-muted italic py-2">No materials issued yet.</Text>
+      ) : (
+        materialIssues.map((mi: SubcontractorMaterialIssue) => {
+          const remaining = parseFloat(mi.quantity) - parseFloat(mi.recoveredQty);
+          return (
+            <View key={mi.id} className="rounded-xl border border-border bg-card p-3 gap-1">
+              <View className="flex-row justify-between items-start">
+                <View className="flex-1">
+                  <Text className="text-sm font-semibold text-text">
+                    {mi.resource?.name ?? 'Unknown resource'}
+                  </Text>
+                  <Text className="text-xs text-muted">
+                    {mi.quantity} {mi.unit} @ {formatINR(parseFloat(mi.rate))}
+                  </Text>
+                </View>
+                <Text className="text-sm font-bold text-text">{formatINR(parseFloat(mi.amount))}</Text>
+              </View>
+              {parseFloat(mi.recoveredQty) > 0 && (
+                <Text className="text-xs text-success">
+                  Recovered: {mi.recoveredQty} {mi.unit} ({formatINR(parseFloat(mi.recoveredAmount))})
+                </Text>
+              )}
+              <Text className="text-xs text-muted">
+                Net on WO: {remaining} {mi.unit}
+              </Text>
+              {canManage && remaining > 0 && (
+                <View className="mt-1">
+                  {recoveringId === mi.id ? (
+                    <View className="flex-row gap-2 items-center">
+                      <TextInput
+                        className="flex-1 border border-border rounded-lg px-2 py-1 text-sm text-text"
+                        placeholder="Qty to recover"
+                        value={recoverQty}
+                        onChangeText={setRecoverQty}
+                        keyboardType="numeric"
+                      />
+                      <Button
+                        label="Confirm"
+                        size="sm"
+                        loading={recoverMat.isPending}
+                        onPress={() => onRecover(mi.id)}
+                      />
+                      <Button
+                        label="Cancel"
+                        size="sm"
+                        variant="secondary"
+                        onPress={() => {
+                          setRecoveringId(null);
+                          setRecoverQty('');
+                        }}
+                      />
+                    </View>
+                  ) : (
+                    <Pressable
+                      onPress={() => setRecoveringId(mi.id)}
+                      className="flex-row items-center gap-1"
+                    >
+                      <Ionicons name="arrow-undo-outline" size={14} color="#16A34A" />
+                      <Text className="text-xs font-semibold text-success">Recover / Return</Text>
+                    </Pressable>
+                  )}
+                </View>
+              )}
+            </View>
+          );
+        })
+      )}
+
+      <AdaptiveSheet
+        visible={issueModal}
+        onClose={() => setIssueModal(false)}
+        title="Issue Material from Stock"
+        size="md"
+        footer={<Button label="Issue" loading={issueMat.isPending} onPress={onIssue} />}
+      >
+        <Text className="text-sm font-semibold text-text">Resource ID</Text>
+        <TextInput
+          className="border border-border rounded-lg p-2 text-sm text-text"
+          placeholder="Paste resource UUID"
+          value={resourceId}
+          onChangeText={setResourceId}
+        />
+        <View className="flex-row gap-2">
+          <Input label="Qty" value={qty} onChangeText={setQty} keyboardType="numeric" />
+          <Input label="Unit" value={unit} onChangeText={setUnit} placeholder="bag" />
+        </View>
+        <Input label="Rate (₹)" value={rate} onChangeText={setRate} keyboardType="numeric" />
+      </AdaptiveSheet>
+    </View>
+  );
+}
+
 export function SubcontractsTab({ projectId }: { projectId: string }) {
   const router = useRouter();
   const { isDesktop } = useViewport();
@@ -864,6 +1055,12 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
                   woNumber={wo.woNumber}
                   woStatus={wo.status}
                   summary={expandedSummary.data}
+                />
+                {/* SUB-C2b: Materials section (hidden when NONE) */}
+                <MaterialsPanel
+                  projectId={projectId}
+                  workOrderId={wo.id}
+                  materialSupplyMode={expandedSummary.data?.materialSupplyMode}
                 />
               </>
             )}

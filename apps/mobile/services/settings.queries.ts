@@ -129,6 +129,39 @@ export function useUpdateMyProfile() {
   });
 }
 
+// RPT-C2b: Report branding settings hooks
+export interface ReportSettings {
+  accentColor?: string;
+  showLogo?: boolean;
+  showWatermark?: boolean;
+  footerText?: string;
+}
+
+export const settingsReportKeys = {
+  reportSettings: ['settings', 'report-settings'] as const,
+};
+
+export function useReportSettings() {
+  return useQuery<ReportSettings>({
+    queryKey: settingsReportKeys.reportSettings,
+    queryFn: () => apiFetch<ReportSettings>('/settings/report-settings'),
+  });
+}
+
+export function useUpdateReportSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Partial<ReportSettings>) =>
+      apiFetch<ReportSettings>('/settings/report-settings', {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: settingsReportKeys.reportSettings });
+    },
+  });
+}
+
 export function useCompanyLogoUpload() {
   return useMutation({
     mutationFn: async (input: { uri: string; filename: string; contentType: string }) => {
