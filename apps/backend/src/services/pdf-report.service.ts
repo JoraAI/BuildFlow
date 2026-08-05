@@ -257,7 +257,7 @@ export async function reportProjectProgress(companyId: string, projectId: string
     );
   });
 
-  drawFooter(doc);
+  drawFooter(doc, company ?? undefined);
   return { buffer: await endBuffer(doc), filename: `project-progress-${project.code}.pdf` };
 }
 
@@ -314,7 +314,7 @@ export async function reportDailyReport(companyId: string, reportId: string): Pr
     doc.font('Helvetica').fillColor(MUTED).fontSize(9).text(`Photos attached: ${report.photos.length} (see app for images)`);
   }
 
-  drawFooter(doc);
+  drawFooter(doc, company ?? undefined);
   return { buffer: await endBuffer(doc), filename: `daily-report-${report.reportDate.toISOString().slice(0, 10)}.pdf` };
 }
 
@@ -413,7 +413,7 @@ export async function reportInvoice(companyId: string, invoiceId: string): Promi
   doc.moveDown(1);
   doc.font('Helvetica').fontSize(8).fillColor(MUTED).text('This is a computer-generated invoice.', MARGIN, doc.y, { align: 'center', width: CONTENT_W });
 
-  drawFooter(doc);
+  drawFooter(doc, company ?? undefined);
   return { buffer: await endBuffer(doc), filename: `invoice-${invoice.invoiceNumber}.pdf` };
 }
 
@@ -505,7 +505,7 @@ export async function reportEstimate(companyId: string, estimateId: string): Pro
   doc.moveTo(MARGIN, doc.y).lineTo(PAGE_W - MARGIN, doc.y).strokeColor(NAVY).lineWidth(1.5).stroke();
   summaryLine(doc, 'GRAND TOTAL', inr(summary.grandTotal), true);
 
-  drawFooter(doc);
+  drawFooter(doc, company ?? undefined);
   return { buffer: await endBuffer(doc), filename: `estimate-${project.code}-v${estimate.version}.pdf` };
 }
 
@@ -564,7 +564,7 @@ export async function reportEstimateComparison(
   summaryLine(doc, 'Version B Grand Total', inr(num(b.grandTotal)));
   summaryLine(doc, 'Total Difference', `${totalDiff >= 0 ? '+' : ''}${inr(totalDiff)} (${totalPct.toFixed(1)}%)`, true);
 
-  drawFooter(doc);
+  drawFooter(doc, company ?? undefined);
   return { buffer: await endBuffer(doc), filename: `estimate-comparison-v${a.version}-v${b.version}.pdf` };
 }
 
@@ -608,7 +608,7 @@ export async function reportEstimateVsActual(companyId: string, projectId: strin
     });
   }
 
-  drawFooter(doc);
+  drawFooter(doc, company ?? undefined);
   return { buffer: await endBuffer(doc), filename: `estimate-vs-actual-${projectId}.pdf` };
 }
 
@@ -643,7 +643,7 @@ export async function reportProfitLoss(companyId: string, projectId: string): Pr
     summaryLine(doc, 'Estimate Variance', `${data.estimateVariance >= 0 ? '+' : ''}${inr(data.estimateVariance)}`, data.estimateVariance > 0);
   }
 
-  drawFooter(doc);
+  drawFooter(doc, company ?? undefined);
   return { buffer: await endBuffer(doc), filename: `pnl-${projectId}.pdf` };
 }
 
@@ -689,7 +689,7 @@ export async function reportGstSummary(companyId: string, from?: string, to?: st
   summaryLine(doc, 'Total Tax', inr(data.totalTax), true);
   summaryLine(doc, 'Total Invoice Value', inr(data.totalInvoiceValue), true);
 
-  drawFooter(doc);
+  drawFooter(doc, company ?? undefined);
   return { buffer: await endBuffer(doc), filename: `gst-summary-${data.fromDate}-${data.toDate}.pdf` };
 }
 
@@ -730,7 +730,7 @@ export async function reportTds(companyId: string, from?: string, to?: string): 
   summaryLine(doc, 'Total Amount Paid', inr(data.totalAmountPaid));
   summaryLine(doc, 'Total TDS Deducted', inr(data.totalTdsDeducted), true);
 
-  drawFooter(doc);
+  drawFooter(doc, company ?? undefined);
   return { buffer: await endBuffer(doc), filename: `tds-report-${data.fromDate}-${data.toDate}.pdf` };
 }
 
@@ -792,7 +792,7 @@ export async function reportResourceUtilization(companyId: string, projectId: st
     );
   });
 
-  drawFooter(doc);
+  drawFooter(doc, company ?? undefined);
   return { buffer: await endBuffer(doc), filename: `resource-utilization-${projectId}.pdf` };
 }
 
@@ -841,7 +841,7 @@ export async function reportBoqVsActual(companyId: string, projectId: string): P
     );
   });
 
-  drawFooter(doc);
+  drawFooter(doc, company ?? undefined);
   return { buffer: await endBuffer(doc), filename: `boq-vs-actual-${projectId}.pdf` };
 }
 
@@ -888,7 +888,7 @@ export async function reportMaterialPriceHistory(companyId: string): Promise<Pdf
     doc.moveDown(1);
   });
 
-  drawFooter(doc);
+  drawFooter(doc, company ?? undefined);
   return { buffer: await endBuffer(doc), filename: 'material-price-history.pdf' };
 }
 
@@ -964,7 +964,7 @@ export async function reportProjectMaterialRates(
     });
   }
 
-  drawFooter(doc);
+  drawFooter(doc, company ?? undefined);
   return { buffer: await endBuffer(doc), filename: `material-rates-${project.code}.pdf` };
 }
 
@@ -1032,7 +1032,7 @@ export async function reportMeasurementBook(companyId: string, projectId: string
     );
   });
 
-  drawFooter(doc);
+  drawFooter(doc, company ?? undefined);
   return { buffer: await endBuffer(doc), filename: `measurement-book-${project.code}.pdf` };
 }
 
@@ -1096,7 +1096,7 @@ export async function reportAbstractSheet(companyId: string, projectId: string):
 
   doc.moveTo(MARGIN, doc.y).lineTo(PAGE_W - MARGIN, doc.y).strokeColor(NAVY).lineWidth(1.5).stroke();
   summaryLine(doc, 'GRAND TOTAL', inr(grandTotal), true);
-  drawFooter(doc);
+  drawFooter(doc, company ?? undefined);
   return { buffer: await endBuffer(doc), filename: `abstract-sheet-${project.code}.pdf` };
 }
 
@@ -1169,7 +1169,7 @@ export async function reportSubcontractMeasurementBook(
     doc.moveDown(0.75);
   }
 
-  drawFooter(doc);
+  drawFooter(doc, company ?? undefined);
   return {
     buffer: await endBuffer(doc),
     filename: `sub-measurement-book-${wo.woNumber}.pdf`,
@@ -1223,6 +1223,14 @@ export async function reportSubcontractAbstractSheet(
     .fontSize(9)
     .fillColor(MUTED)
     .text(`WO ${wo.woNumber} - Contract ${inr(num(wo.contractValue))}`);
+  // SUB-C3a: Supply mode label on abstract too
+  const absWoMode = (wo as { materialSupplyMode?: string }).materialSupplyMode ?? 'NONE';
+  const absSupplyLabel = absWoMode === 'GC_SUPPLIED'
+    ? 'Material supply: General contractor (GC stock)'
+    : absWoMode === 'MIXED'
+      ? 'Material supply: Mixed (GC + contractor)'
+      : 'Material supply: Subcontractor (self-supplied)';
+  doc.fillColor(MUTED).fontSize(8).text(absSupplyLabel);
   doc.moveDown(1);
 
   const widths = [160, 40, 55, 55, 55, 55, 70];
@@ -1252,7 +1260,7 @@ export async function reportSubcontractAbstractSheet(
     );
   });
 
-  drawFooter(doc);
+  drawFooter(doc, company ?? undefined);
   return {
     buffer: await endBuffer(doc),
     filename: `sub-abstract-${wo.woNumber}.pdf`,

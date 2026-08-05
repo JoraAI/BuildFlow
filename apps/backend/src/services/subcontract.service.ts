@@ -22,6 +22,10 @@ function num(v: unknown): number {
 }
 
 export interface WorkOrderSummary {
+  materialSupplyMode?: string;
+  materialIssuedTotal?: number;
+  materialRecoveredTotal?: number;
+  netMaterialOnWO?: number;
   contractValue: number;
   retentionPct: number;
   advanceAmount: number;
@@ -58,12 +62,13 @@ export async function getWorkOrderSummary(
 ): Promise<WorkOrderSummary> {
   await assertProjectAccess(companyId, userId, role as never, projectId);
 
-  const wo = await prisma.subcontractWorkOrder.findFirst({
+    const wo = await prisma.subcontractWorkOrder.findFirst({
     where: { id: workOrderId, projectId, project: { companyId } },
     include: {
       contractLines: true,
       measurements: { include: { lines: true } },
       bills: true,
+      materialIssues: true,
       linkedChangeOrders: {
         where: { status: 'APPROVED' },
         select: { number: true, title: true, costImpact: true },
@@ -120,7 +125,16 @@ export async function getWorkOrderSummary(
 
   const variationTotal = wo.linkedChangeOrders.reduce((s, v) => s + num(v.costImpact), 0);
 
+  // SUB-C1a: Material supply mode + totals
+  const materialIssuedTotal = wo.materialIssues.reduce((s, mi) => s + num(mi.amount), 0);
+  const materialRecoveredTotal = wo.materialIssues.reduce((s, mi) => s + num(mi.recoveredAmount), 0);
+  const woMode = (wo as { materialSupplyMode?: string }).materialSupplyMode ?? 'NONE';
+
   return {
+    materialSupplyMode: woMode,
+    materialIssuedTotal: round2(materialIssuedTotal),
+    materialRecoveredTotal: round2(materialRecoveredTotal),
+    netMaterialOnWO: round2(materialIssuedTotal - materialRecoveredTotal),
     contractValue,
     retentionPct: num(wo.retentionPct),
     advanceAmount: num(wo.advanceAmount),

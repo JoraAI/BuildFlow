@@ -229,6 +229,10 @@ export interface WorkOrderLine {
 }
 
 export interface WorkOrderSummary {
+  materialSupplyMode?: string;
+  materialIssuedTotal?: number;
+  materialRecoveredTotal?: number;
+  netMaterialOnWO?: number;
   contractValue: number;
   retentionPct: number;
   advanceAmount: number;

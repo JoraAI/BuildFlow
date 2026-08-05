@@ -1,14 +1,15 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 24 — subcontract supply + report branding)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 25 — finish Round 24 gaps)
 
 > **You do not need any prior conversation or other documents.** This file is the
 > complete task brief. Read it top to bottom, then execute **Section 2** in order.
 > [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
 >
 > **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
-> **Last committed baseline:** Round 23 polish + `a20875e` (VAR-D2)  
+> **Last committed baseline:** Round 24 partial — `9e97427` (SUB-C1/C2), `ec1bf84`
+> (SUB-C3/RPT-C1/C2 schema), `07d11b7` (RPT-C3/C4 tests)  
 > **Verified:** 2026-08-05 — Rounds 12–23 (variations) **complete**. **Round 24**
-> required: flexible **subcontract / work-order material supply** + **company-branded
-> report templates** (logo, layout) with correct line-item visibility. Run §2.1 before/after.
+> **partial** (~60%): backend supply mode + issue API landed; mobile create selector +
+> PDF header/footer scaffold; **gaps remain** (see §2.0, §2.2). Run §2.1 before/after.
 
 ---
 
@@ -66,9 +67,9 @@ BuildFlow spans the full project lifecycle:
 
 ---
 
-## 2. Round 24 — Subcontract supply flexibility + branded reports
+## 2. Round 25 — Finish Round 24 gaps (subcontract supply + report branding)
 
-**Product direction (2026-08-05):**
+**Product direction (2026-08-05, unchanged):**
 
 1. **Subcontracts / work orders:** A subcontractor **may or may not** receive materials
    from the general contractor. The platform must support **both** (and mixed) models
@@ -84,12 +85,12 @@ BuildFlow spans the full project lifecycle:
 
 | Area | Today | Target (Round 24) |
 | ---- | ----- | ----------------- |
-| **Work order material model** | `SubcontractorMaterialIssue` schema exists; **no flexible supply mode** on WO; UI assumes lump-sum + measurements | Per-WO **`materialSupplyMode`**: `NONE` (contractor owns materials), `GC_SUPPLIED` (issue from stock), `MIXED` (per line or per resource flag) |
-| **Material issue flow** | Inventory traceability partial; material issues not first-class in Subcontracts UI | When `GC_SUPPLIED`: issue/return from stock → WO; deduct stock; show on WO summary + reports. When `NONE`: **skip** issue UI and stock hooks |
-| **Measurements / payables** | Measurement book + abstract PDF exist (`pdf-report.service.ts`) | Measurements unchanged; **material issues appear as separate section** on subcontract PDFs when applicable |
-| **Company logo** | `Company.logoUrl` + upload in Settings; **PDFs ignore logo** — hardcoded `drawHeader` uses text + amber bar only | All PDF exports load **`resolveLogoDisplayUrl`** and render logo in header; optional footer with company address/GSTIN |
-| **Report templates** | No template entity; one layout per report type in code | **`ReportTemplate`** (or `Company.reportSettings` JSON): per report-type layout preset (classic / compact / detailed), accent color, show/hide columns |
-| **Report line items** | Some PDFs truncate or omit rows; tables basic | Aligned columns, zebra rows, page breaks, INR + qty units; **subcontract lines, material issues, BOQ rows** visible where relevant |
+| **Work order material model** | **`materialSupplyMode` enum + migration landed** (`9e97427`); create WO API + mobile selector on **New WO only** | Also expose on **edit WO**; **`getWorkOrderSummary`** must return mode + material totals |
+| **Material issue flow** | **Backend** issue/recover/list routes + stock deduction landed (`9e97427`) | **Mobile Materials section** on WO detail when mode ≠ `NONE`; integration test NONE vs GC_SUPPLIED |
+| **Measurements / payables** | Measurement book PDF has supply **label** only; `materialIssues` queried but **not rendered** | Material issues table on subcontract MB + abstract when `GC_SUPPLIED`/`MIXED` |
+| **Company logo** | `drawHeader`/`drawFooter` added (`ec1bf84`); logo only if raw URL starts with `http`; footer **never receives company** | Use **`resolveLogoDisplayUrl`**; pass company into **every** `drawFooter(doc, company)` |
+| **Report templates** | `Company.reportSettings` JSONB column + migration (`ec1bf84`); **no API or Settings UI** | Settings → Reports & branding; read settings in PDF layout (accent, showLogo) |
+| **Report line items** | `pdf-layout.ts` created (`07d11b7`) but **not imported** by `pdf-report.service.ts`; 8 PDF buffer tests added | Wire shared helpers; material table on subcontract PDFs; seed-string assertions where feasible |
 | **Excel exports** | `estimate-export.service.ts` has Excel; financial reports may be CSV/PDF only | Branded header row + logo image cell where Excel supports it; match PDF column set |
 
 **Reference files:**
@@ -102,18 +103,26 @@ BuildFlow spans the full project lifecycle:
 - Company logo: `settings.service.ts` → `resolveLogoDisplayUrl`, `Company.logoUrl`
 - Financial reports: `financial-report.service.ts`, `pdf-report.controller.ts`
 
-### 2.0 Status (Round 24)
+### 2.0 Status (Round 24 → Round 25 gaps)
 
 | ID | Task | Status | Notes |
 | -- | ---- | ------ | ----- |
-| **SUB-C1** | `materialSupplyMode` on work order | **Not done** | User request 2026-08-05 |
-| **SUB-C2** | Material issue/return UI (GC_SUPPLIED only) | **Not done** | Wire to stock + `SubcontractorMaterialIssue` |
-| **SUB-C3** | WO summary + measurement PDFs show supply model | **Not done** | Label "Materials: GC / Contractor" |
-| **RPT-C1** | Company logo + footer on all PDF reports | **Not done** | Replace hardcoded BuildFlow header |
-| **RPT-C2** | Report template settings (per company, per type) | **Not done** | Settings UI + persist |
-| **RPT-C3** | PDF layout polish (tables, pagination, INR) | **Not done** | Shared `pdf-table` helpers |
-| **RPT-C4** | Line items on reports (WO, materials, BOQ, estimate) | **Not done** | Audit each of 12+ PDF types |
-| **Ship gate** | 116/116 ×2 + tsc ×2 | **Must stay green** | |
+| **SUB-C1** | `materialSupplyMode` on work order | **Partial** | Schema + create API + mobile **create** selector (`9e97427`). Missing: summary fields, edit WO, integration test |
+| **SUB-C2** | Material issue/return (GC_SUPPLIED) | **Partial** | Backend service/routes + stock (`9e97427`). Missing: **mobile WO detail UI** |
+| **SUB-C3** | WO summary + subcontract PDFs | **Partial** | MB supply label only (`ec1bf84`). Missing: abstract label, **material issues table**, summary totals |
+| **RPT-C1** | Company logo + footer on all PDFs | **Partial** | `drawHeader`/`drawFooter` scaffold (`ec1bf84`). Missing: `resolveLogoDisplayUrl`, company on footer, S3/presigned logos |
+| **RPT-C2** | Report template settings | **Partial** | `reportSettings` JSONB column only (`ec1bf84`). Missing: API, Settings UI, PDF reads settings |
+| **RPT-C3** | PDF layout polish | **Partial** | `pdf-layout.ts` file (`07d11b7`). **Not wired** into `pdf-report.service.ts` |
+| **RPT-C4** | Line-item audit + tests | **Partial** | 8 PDF buffer tests (`07d11b7`); **124/124** total. Missing: subcontract material rows, NONE/GC issue test |
+| **Ship gate** | tsc ×2 + tests ×2 | **Partial** | Backend tsc ✓, **124/124 ×2** ✓. Mobile tsc has **pre-existing** implicit-any errors (EstimateBuildStep, ProcurementTab, VariationsTab) — fix if touching those files |
+
+### 2.0d Round 24 delivered (do NOT revert)
+
+| Commit | What landed |
+| ------ | ----------- |
+| `9e97427` | `MaterialSupplyMode` enum; migration `20260805100000_subcontract_material_supply_mode`; create WO validator; `issueMaterialToWorkOrder` / `recoverMaterialFromWorkOrder` / `listMaterialIssues`; routes under `subcontract.routes.ts`; mobile supply-mode chips on **New WO** |
+| `ec1bf84` | MB PDF supply label; `drawHeader` logo (http URLs); `drawFooter` with page numbers; `reportSettings` JSONB + migration `20260805120000_company_report_settings` |
+| `07d11b7` | `pdf-layout.ts` helpers; `pdf-report.test.ts` (estimate, MB, abstract, BOQ vs actual, progress, P&L, subcontract MB/abstract) |
 
 ### 2.0a Completed — Rounds 12–23 variations (do NOT re-break)
 
@@ -216,8 +225,7 @@ DATABASE_URL="postgresql://buildflow:buildflow@localhost:5432/buildflow_test?sch
 
 **Regression on any gate = stop and fix before continuing.**
 
-**After pulling VAR-C6+ code (`a251b25`+), dev DB must apply migration
-`20260804180000_change_order_line_rate_analysis_id` or BOQ/variation APIs 500:**
+**After pulling Round 24 code (`9e97427`+), dev DB must apply migrations or subcontract/PDF APIs may 500:**
 
 ```bash
 cd /home/prasanna/work/BuildFlow/apps/backend
@@ -226,9 +234,70 @@ pnpm exec prisma generate
 # restart backend dev server
 ```
 
+New migrations: `20260805100000_subcontract_material_supply_mode`,
+`20260805120000_company_report_settings`.
+
+**Expected test count after Round 24:** **124/124** (was 116; +8 PDF tests in `pdf-report.test.ts`).
+
 **After pulling schema changes, dev DB must run `prisma migrate deploy` + restart backend.**
 
-### 2.2 Mandatory tasks — Round 24
+### 2.2 Mandatory tasks — Round 25 (complete Round 24 gaps only)
+
+**Do not re-implement what §2.0d already landed.** Finish the gaps below in order.
+
+#### SUB-C1a — Work order summary + edit
+
+1. Extend `getWorkOrderSummary` + `WorkOrderSummary` type (backend + `expansion.queries.ts`):
+   - `materialSupplyMode`
+   - `materialIssuedTotal`, `materialRecoveredTotal`, `netMaterialOnWO` (zero when `NONE`)
+2. Show supply mode badge + material totals on expanded WO in `SubcontractsTab.tsx`.
+3. Allow changing `materialSupplyMode` on **edit WO** (same chips as create).
+4. Integration test: WO with `NONE` → `POST …/material-issues` returns **400**; `GC_SUPPLIED` → issue succeeds.
+
+#### SUB-C2a — Mobile material issue / return UI
+
+When `materialSupplyMode !== 'NONE'` on WO detail:
+
+1. **Materials** section: list issues (`GET …/material-issues`), issue form (resource, qty, rate, date), recover action.
+2. Hide entire section when `NONE`.
+3. Use existing routes from `9e97427` — no new backend unless validation gaps found.
+
+#### SUB-C3a — Subcontract PDF material section
+
+In `reportSubcontractMeasurementBook` and `reportSubcontractAbstractSheet`:
+
+1. Supply label on **both** PDFs (abstract currently missing).
+2. When `GC_SUPPLIED` or `MIXED`: render table — Resource, Qty, Unit, Rate, Amount, Recovered, Net.
+3. `materialIssues` already included in MB query — use it.
+
+#### RPT-C1a — Logo + footer wiring
+
+1. Before PDF generation, call `resolveLogoDisplayUrl(companyId, logoUrl)` from `settings.service.ts`.
+2. Pass resolved URL to `drawHeader`; support presigned/S3 logical URLs (not only `http` prefix).
+3. Pass **company** object into **every** `drawFooter(doc, company)` call (currently all omit company).
+4. Select `reportSettings` + `logoUrl` + `address` + `gstin` in company queries.
+
+#### RPT-C2a — Report settings API + Settings UI
+
+1. GET/PATCH company report settings (accentColor, showLogo, showWatermark, footerText, optional per-type template map).
+2. Mobile: **Reports & branding** under Company settings — reuse logo upload from company profile.
+3. `drawHeader`: read `reportSettings.accentColor` for accent bar (default amber).
+
+#### RPT-C3a — Wire `pdf-layout.ts`
+
+1. Import shared helpers from `pdf-layout.ts` into `pdf-report.service.ts` (or migrate table functions there).
+2. Remove duplicate INR/table logic where safe; keep behavior identical for existing tests.
+
+#### RPT-C4a — Tests
+
+1. Subcontract integration test: create WO `GC_SUPPLIED` → issue material → MB PDF buffer length > 0.
+2. Optional: parse PDF text for supply label when feasible; otherwise assert issue list API returns rows.
+
+**Ship gate:** `tsc` backend ✓; tests **124+** ×2; fix mobile tsc only if you touch affected files.
+
+---
+
+### 2.2z Reference — Round 24 original spec (mostly done; see §2.2 for gaps)
 
 #### SUB-C1 — Flexible material supply mode on work orders
 
@@ -318,7 +387,7 @@ For each export path, verify **all business rows** appear:
 
 Add or extend one integration test per critical PDF (buffer length > 0, contains known seed string).
 
-**Ship gate:** `tsc` ×2 + backend tests **116/116** ×2 (may become 118+ with new tests — document count).
+**Ship gate:** `tsc` ×2 + backend tests **124/124** ×2 (may become 126+ with new tests — document count).
 
 ### 2.2a Product model — subcontract supply (authoritative)
 
@@ -467,16 +536,18 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 
 **Rounds 12–23 (done — do NOT re-break):** See §2.0a.
 
-**Round 24 (SUB-C + RPT-C — must complete):**
+**Round 24 (partial — finish in Round 25):**
 
-- [ ] SUB-C1 — `materialSupplyMode` on WO + API + mobile selector + summary fields
-- [ ] SUB-C2 — Material issue/return when `GC_SUPPLIED`; stock integration; no block on measurements
-- [ ] SUB-C3 — Subcontract PDFs show supply mode + material table
-- [ ] RPT-C1 — Logo + footer on all PDF report types
-- [ ] RPT-C2 — Company report template/branding settings + Settings UI
-- [ ] RPT-C3 — Shared PDF table layout helpers; polished A4 output
-- [ ] RPT-C4 — Line-item audit for estimate, BOQ, subcontract, financial PDFs + tests
-- [ ] Ship gate **116+** tests ×2 + tsc ×2
+- [x] SUB-C1 core — enum + create API + mobile create selector (`9e97427`)
+- [ ] SUB-C1 — summary fields + edit WO + integration test
+- [x] SUB-C2 backend — issue/return routes + stock (`9e97427`)
+- [ ] SUB-C2 — mobile Materials section on WO detail
+- [~] SUB-C3 — MB supply label only; material table + abstract label missing
+- [~] RPT-C1 — header/footer scaffold; `resolveLogoDisplayUrl` + company footer missing
+- [~] RPT-C2 — schema only; API + Settings UI missing
+- [~] RPT-C3 — `pdf-layout.ts` exists; not wired
+- [~] RPT-C4 — 8 PDF buffer tests; subcontract material + issue test missing
+- [x] Ship gate backend tests **124/124** ×2; backend tsc ✓
 
 ### 2.8 Optional hardening (defer unless user asks)
 
@@ -496,8 +567,8 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 <details>
 <summary>Rounds 4–15 (superseded by §2 above)</summary>
 
-Rounds 8–23: variation workflow complete. **Round 24:** subcontract supply flexibility +
-company-branded report templates (SUB-C, RPT-C).
+Rounds 8–23: variation workflow complete. **Round 24:** partial (see §2.0d).
+**Round 25:** finish subcontract supply + report branding gaps (§2.2).
 
 </details>
 
