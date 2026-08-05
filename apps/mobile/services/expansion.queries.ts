@@ -79,6 +79,8 @@ export interface ChangeOrder {
   scheduleImpactDays: number;
   linkedTaskId?: string | null;
   linkedWorkOrderId?: string | null;
+  estimateId?: string | null;
+  boqAppliedAt?: string | null;
   createdAt: string;
   lines: ChangeOrderLine[];
   createdByUser?: { id: string; name: string };
@@ -472,6 +474,24 @@ export function useApproveChangeOrder(projectId: string) {
         body: '{}',
       }),
     onSuccess: () => invalidateChangeOrderImpact(qc, projectId),
+  });
+}
+
+/** VAR-D2: Convert an approved variation to BOQ (explicit step) */
+export function useConvertChangeOrderToBoq(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (changeOrderId: string) =>
+      apiFetch<ChangeOrder>(`/projects/${projectId}/change-orders/${changeOrderId}/convert-to-boq`, {
+        method: 'POST',
+        body: '{}',
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: expansionKeys.changeOrders(projectId) });
+      invalidateChangeOrderImpact(qc, projectId);
+      invalidateProjectBoq(qc, projectId);
+      invalidateEstimateVariations(qc);
+    },
   });
 }
 

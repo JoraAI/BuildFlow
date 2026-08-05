@@ -52,6 +52,10 @@ describe('Change orders (integration)', () => {
     const approveRes = await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/approve`);
     expect(approveRes.status).toBe(200);
     expect(approveRes.body.data.status).toBe('APPROVED');
+    // VAR-D2: Approve no longer writes BOQ — need explicit convert-to-boq
+    const convertRes = await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/convert-to-boq`);
+    expect(convertRes.status).toBe(200);
+    expect(convertRes.body.data.boqAppliedAt).toBeTruthy();
   });
 
   it('approving variation linked to WO bumps WO contractValue in summary', async () => {
@@ -129,6 +133,8 @@ describe('Change orders (integration)', () => {
     await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/submit`);
     const approveRes = await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/approve`);
     expect(approveRes.status).toBe(200);
+    // VAR-D2: Convert to BOQ after approve
+    await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/convert-to-boq`);
 
     // VO-B1: Impact endpoint
     const impactRes = await authGet(token, `/api/projects/${projectId}/change-orders/${coId}/impact`);
@@ -174,6 +180,8 @@ describe('Change orders (integration)', () => {
     await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/submit`);
     const approveRes = await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/approve`);
     expect(approveRes.status).toBe(200);
+    // VAR-D2: Convert to BOQ after approve
+    await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/convert-to-boq`);
 
     // Verify BOQ row has rateAnalysisId set
     const boqRes = await authGet(token, `/api/projects/${projectId}/boq`);
@@ -249,6 +257,8 @@ describe('Change orders (integration)', () => {
 
     await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/submit`);
     await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/approve`);
+    // VAR-D2: Convert to BOQ after approve — shortfalls need BOQ rows to exist
+    await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/convert-to-boq`);
 
     // Shortfalls should include demands from the RA-exploded BOQ row
     const sfRes = await authGet(token, `/api/projects/${projectId}/procurement/boq-shortfalls`);

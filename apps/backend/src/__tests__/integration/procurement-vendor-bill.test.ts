@@ -8,6 +8,7 @@
  * 4. Assert purchaseOrderId is persisted
  * 5. Assert listRequisitions shows bill summary on the PO
  */
+import { randomUUID } from 'crypto';
 import { loginAs, authGet, authPost, getSeedProjectId } from './test-helpers';
 
 const OWNER = 'owner@reddyconst.com';
@@ -113,7 +114,7 @@ describe('Procurement vendor bill (PROC-B7 integration)', () => {
 
   it('rejects bill with non-existent purchaseOrderId (404)', async () => {
     // Use a random UUID that doesn't exist as a PO
-    const fakePoId = crypto.randomUUID();
+    const fakePoId = randomUUID();
     const billRes = await authPost(token, `/api/projects/${projectId}/bills`, {
       vendorName: 'Invalid PO test',
       billDate: new Date().toISOString().slice(0, 10),

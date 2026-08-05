@@ -56,6 +56,20 @@ export async function approve(req: Request, res: Response) {
   return ok(res, data);
 }
 
+// VAR-D2: Convert approved variation to BOQ
+export async function convertToBoq(req: Request, res: Response) {
+  const { companyId, id: userId, role } = req.user!;
+  const { id: _projectId, changeOrderId } = req.params;
+  const result = await changeOrderService.convertChangeOrderToBoq(
+    companyId,
+    userId,
+    role as string,
+    changeOrderId,
+    req.ip,
+  );
+  res.json({ success: true, data: result });
+}
+
 export async function reject(req: Request, res: Response) {
   const { companyId, id: userId, role } = req.user!;
   const data = await changeOrderService.rejectChangeOrder(

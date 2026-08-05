@@ -35,6 +35,7 @@ import {
   useSubmitChangeOrder,
   useApproveChangeOrder,
   useRejectChangeOrder,
+  useConvertChangeOrderToBoq,
   useChangeOrderImpact,
   useWorkOrders,
   type ChangeOrder,
@@ -172,7 +173,7 @@ function ApprovedImpactSection({ projectId, co }: { projectId: string; co: Chang
   );
 }
 
-function VariationCard({ co, canManage, canApprove, isDesktop, submitPending, approvePending, rejectPending, onSubmit, onApprove, onReject, projectId }: { co: ChangeOrder; canManage: boolean; canApprove: boolean; isDesktop: boolean; submitPending: boolean; approvePending: boolean; rejectPending: boolean; onSubmit: () => void; onApprove: () => void; onReject: () => void; projectId: string }) {
+function VariationCard({ co, canManage, canApprove, isDesktop, submitPending, approvePending, rejectPending, convertPending, onSubmit, onApprove, onReject, onConvertToBoq, projectId }: { co: ChangeOrder; canManage: boolean; canApprove: boolean; isDesktop: boolean; submitPending: boolean; approvePending: boolean; rejectPending: boolean; convertPending: boolean; onSubmit: () => void; onApprove: () => void; onReject: () => void; onConvertToBoq: (id: string) => void; projectId: string }) {
   const orderLines = co.lines ?? [];
   return (
     <Card>
@@ -191,6 +192,22 @@ function VariationCard({ co, canManage, canApprove, isDesktop, submitPending, ap
         <Text className="shrink-0 text-sm font-bold text-primary">{formatINR(co.costImpact)}</Text>
       </View>
       {co.status === 'APPROVED' && <ApprovedImpactSection projectId={projectId} co={co} />}
+      {/* VAR-D2: Convert to BOQ button for approved variations not yet applied */}
+      {canManage && co.status === 'APPROVED' && !co.boqAppliedAt && (
+        <View className="mt-2">
+          <Button
+            label="Convert to BOQ"
+            size="sm"
+            onPress={() => onConvertToBoq(co.id)}
+            loading={convertPending}
+          />
+        </View>
+      )}
+      {co.status === 'APPROVED' && co.boqAppliedAt && (
+        <View className="mt-1">
+          <Badge color="success" label="BOQ applied" />
+        </View>
+      )}
       {canManage && (co.status === 'DRAFT' || co.status === 'REJECTED') && (
         <View className="mt-2"><Button label="Submit for approval" size="sm" variant="secondary" fullWidth={!isDesktop} loading={submitPending} onPress={onSubmit} /></View>
       )}
@@ -222,6 +239,7 @@ export function VariationsTab({ projectId }: { projectId: string }) {
   const submitCo = useSubmitChangeOrder(projectId);
   const approveCo = useApproveChangeOrder(projectId);
   const rejectCo = useRejectChangeOrder(projectId);
+  const convertCo = useConvertChangeOrderToBoq(projectId);
   const [modalOpen, setModalOpen] = useState(false);
   const [number, setNumber] = useState('');
   const [title, setTitle] = useState('');
@@ -276,20 +294,21 @@ export function VariationsTab({ projectId }: { projectId: string }) {
   const orders = data ?? [];
 
   const renderCard = (co: ChangeOrder) => (
-    <VariationCard key={co.id} co={co} projectId={projectId} canManage={canManage} canApprove={canApprove} isDesktop={isDesktop} submitPending={submitCo.isPending} approvePending={approveCo.isPending} rejectPending={rejectCo.isPending}
+    <VariationCard key={co.id} co={co} projectId={projectId} canManage={canManage} canApprove={canApprove} isDesktop={isDesktop} submitPending={submitCo.isPending} approvePending={approveCo.isPending} rejectPending={rejectCo.isPending} convertPending={convertCo.isPending}
       onSubmit={() => submitCo.mutate(co.id, { onError: (e: Error) => void alertAsync('Error', e.message) })}
       onApprove={() =>
         approveCo.mutate(co.id, {
           onSuccess: async () => {
             await alertAsync(
               'Variation approved',
-              'BOQ sanctioned qty updated. Review material shortfalls in Procurement if needed.',
+              'Convert to BOQ to update sanctioned quantities. Review material shortfalls in Procurement after convert.',
             );
           },
           onError: (e: Error) => void alertAsync('Error', e.message),
         })
       }
-      onReject={() => onReject(co)} />
+      onReject={() => onReject(co)}
+      onConvertToBoq={(id: string) => convertCo.mutate(id, { onError: (e: Error) => void alertAsync('Error', e.message) })} />
   );
 
   return (

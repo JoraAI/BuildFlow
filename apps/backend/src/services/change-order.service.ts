@@ -42,6 +42,7 @@ type ChangeOrderRecord = {
   linkedTaskId: string | null;
   linkedWorkOrderId: string | null;
   estimateId: string | null;
+  boqAppliedAt?: Date | null;
   createdBy: string;
   approvedBy: string | null;
   approvedAt: Date | null;
@@ -79,6 +80,7 @@ function serializeChangeOrder(co: ChangeOrderRecord) {
     linkedTaskId: co.linkedTaskId,
     linkedWorkOrderId: co.linkedWorkOrderId,
     estimateId: co.estimateId,
+    boqAppliedAt: co.boqAppliedAt?.toISOString() ?? null,
     createdBy: co.createdBy,
     approvedBy: co.approvedBy,
     approvedAt: co.approvedAt?.toISOString() ?? null,
@@ -220,7 +222,7 @@ export async function approveChangeOrder(
   await prisma.$transaction(async (tx) => {
     // FIX (EST-H5): Guard the approval with a conditional updateMany so that
     // two concurrent approvals can't both pass the read-check and double-apply
-    // the BOQ/budget changes. If count === 0, another request already approved.
+    // the budget changes. If count === 0, another request already approved.
     const guard = await tx.changeOrder.updateMany({
       where: { id, companyId, status: 'SUBMITTED' },
       data: { status: 'APPROVED', approvedBy: userId, approvedAt: new Date(), rejectionReason: null },
@@ -229,51 +231,8 @@ export async function approveChangeOrder(
       throw ApiError.conflict('This variation has already been processed or is no longer in SUBMITTED status');
     }
 
-    for (const line of co.lines) {
-      if (line.boqItemId) {
-        const boq = await tx.bOQItem.findFirst({ where: { id: line.boqItemId, projectId: co.projectId } });
-        if (boq) {
-          // FIX (EST-M14 / VO-B6): Clamp resulting BOQ quantity to at least
-          // executedQty (can't reduce below what's already been measured/used)
-          // floored at 0. If the raw new qty would go below executedQty, reject
-          // with 422 — the variation must account for already-executed work.
-          const rawNewQty = Number(boq.quantity) + Number(line.qtyDelta);
-          const executedQty = Number(boq.executedQty);
-          if (rawNewQty < executedQty) {
-            throw ApiError.badRequest(
-              `Variation would reduce BOQ qty to ${rawNewQty} but ${executedQty} has already been executed. Adjust the qty delta to at least ${executedQty}.`,
-            );
-          }
-          const newQty = Math.max(0, rawNewQty);
-          const newAmount = round2(newQty * Number(boq.rate));
-          await tx.bOQItem.update({
-            where: { id: boq.id },
-            data: { quantity: newQty, amount: newAmount },
-          });
-        }
-      } else if (Number(line.qtyDelta) > 0) {
-        // VAR-C6: Create new BOQ line with resourceId + rateAnalysisId from
-        // the variation line. This enables the shortfall scanner to
-        // RA-explode composite BOQ rows created by variations.
-        await tx.bOQItem.create({
-          data: {
-            projectId: co.projectId,
-            itemCode: `VO-${co.number}`,
-            description: line.description,
-            unit: line.unit,
-            quantity: line.qtyDelta,
-            rate: line.rate,
-            amount: line.amount,
-            category: 'VARIATION',
-            resourceId: line.resourceId,
-            rateAnalysisId: line.rateAnalysisId,
-          },
-        });
-      }
-
-      // VO-B2: Auto-indent creation removed — rely on single shortfall path
-      // (Shortfalls tab) which RA-explodes composite BOQ lines consistently.
-    }
+    // VAR-D2: BOQ writes moved to convertChangeOrderToBoq. Approve now only
+    // applies budget/schedule/linked-task/linked-WO side-effects.
 
     if (co.linkedTaskId && co.scheduleImpactDays !== 0) {
       const task = await tx.task.findFirst({ where: { id: co.linkedTaskId, projectId: co.projectId } });
@@ -340,12 +299,102 @@ export async function approveChangeOrder(
     userId: co.createdBy,
     companyId,
     title: 'Variation approved',
-    body: co.number + ' - ' + co.title + ' has been approved. BOQ and budget updated.',
+    body: co.number + ' - ' + co.title + ' has been approved. Convert to BOQ to update sanctioned quantities.',
     type: 'CHANGE_ORDER_APPROVED',
     referenceId: id,
   });
 
   return serializeChangeOrder(approved);
+}
+
+/**
+ * VAR-D2: Convert an approved change order to BOQ.
+ * Moves the BOQ write logic that was previously in approveChangeOrder here.
+ * - Adjusts existing BOQ item quantities (boqItemId linked lines)
+ * - Creates new VARIATION category BOQ items (new scope lines)
+ * - Sets boqAppliedAt to prevent double-apply
+ * - Must be called AFTER approve (status must be APPROVED)
+ */
+export async function convertChangeOrderToBoq(
+  companyId: string,
+  userId: string,
+  _role: string,
+  id: string,
+  ip?: string,
+) {
+  const co = await prisma.changeOrder.findFirst({
+    where: { id, companyId },
+    include: { lines: true },
+  });
+  if (!co) throw ApiError.notFound('Change order not found');
+  if (co.status !== 'APPROVED') {
+    throw ApiError.badRequest('Only APPROVED variations can be converted to BOQ');
+  }
+
+  // VAR-D2: Prevent double-apply
+  if ((co as { boqAppliedAt?: Date | null }).boqAppliedAt) {
+    throw ApiError.conflict('BOQ has already been applied for this variation');
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // Guard: prevent concurrent convert calls
+    const guard = await tx.changeOrder.updateMany({
+      where: { id, companyId, boqAppliedAt: null },
+      data: { boqAppliedAt: new Date() },
+    });
+    if (guard.count === 0) {
+      throw ApiError.conflict('BOQ has already been applied for this variation');
+    }
+
+    for (const line of co.lines) {
+      if (line.boqItemId) {
+        const boq = await tx.bOQItem.findFirst({ where: { id: line.boqItemId, projectId: co.projectId } });
+        if (boq) {
+          const rawNewQty = Number(boq.quantity) + Number(line.qtyDelta);
+          const executedQty = Number(boq.executedQty);
+          if (rawNewQty < executedQty) {
+            throw ApiError.badRequest(
+              `Variation would reduce BOQ qty to ${rawNewQty} but ${executedQty} has already been executed. Adjust the qty delta to at least ${executedQty}.`,
+            );
+          }
+          const newQty = Math.max(0, rawNewQty);
+          const newAmount = round2(newQty * Number(boq.rate));
+          await tx.bOQItem.update({
+            where: { id: boq.id },
+            data: { quantity: newQty, amount: newAmount },
+          });
+        }
+      } else if (Number(line.qtyDelta) > 0) {
+        await tx.bOQItem.create({
+          data: {
+            projectId: co.projectId,
+            itemCode: `VO-${co.number}`,
+            description: line.description,
+            unit: line.unit,
+            quantity: line.qtyDelta,
+            rate: line.rate,
+            amount: line.amount,
+            category: 'VARIATION',
+            resourceId: line.resourceId,
+            rateAnalysisId: line.rateAnalysisId,
+          },
+        });
+      }
+    }
+  });
+
+  await recordAudit({
+    companyId,
+    userId,
+    action: 'UPDATE' as const,
+    entityType: 'ChangeOrder',
+    entityId: id,
+    ipAddress: ip,
+  });
+
+  const result = await prisma.changeOrder.findFirst({ where: { id }, include: changeOrderInclude });
+  if (!result) throw ApiError.notFound('Change order not found');
+  return serializeChangeOrder(result);
 }
 
 /**

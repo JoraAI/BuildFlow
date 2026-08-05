@@ -51,6 +51,14 @@ changeOrderRouter.post(
   changeOrderController.reject,
 );
 
+// VAR-D2: Convert approved variation to BOQ (explicit step)
+changeOrderRouter.post(
+  '/:id/change-orders/:changeOrderId/convert-to-boq',
+  requireRole(Role.OWNER, Role.PM),
+  validate({ params: changeOrderIdParamsSchema }),
+  changeOrderController.convertToBoq,
+);
+
 // Variation BOQ picker — list eligible items + bulk-attach as variation lines
 changeOrderRouter.get(
   '/:id/change-orders/:changeOrderId/eligible-boq',

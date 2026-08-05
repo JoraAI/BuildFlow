@@ -5,10 +5,10 @@
 > [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
 >
 > **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
-> **Last committed baseline:** `5d61c48` (`main` ahead of `origin/main` by 11 commits)  
-> **Verified:** 2026-08-05 — Round 21 **EST-VO-11 complete** (`5d61c48`, 116/116 tests ×2,
-> tsc ×2). **Round 22** optional polish (§2.2a) then **VAR-D2** explicit convert-to-BOQ
-> when product approves Phase 2. Run §2.1 gates before/after.
+> **Last committed baseline:** `b6ef712` (`main` ahead of `origin/main` by 12 commits)  
+> **Verified:** 2026-08-05 — Round 22 polish **EST-VO-11e/f complete** (`b6ef712`, 116/116
+> tests ×2, tsc ×2). **VAR-D2** convert-to-BOQ and **EST-VO-11g** deep-link remain
+> deferred until product asks. Run §2.1 gates before/after.
 
 ---
 
@@ -66,27 +66,29 @@ BuildFlow spans the full project lifecycle:
 
 ---
 
-## 2. Round 22 — Polish + VAR-D2 convert-to-BOQ (optional Phase 2)
+## 2. Round 22 — Complete; VAR-D2 deferred
 
-**Round 21 landed (`5d61c48`):** Variations appear on the estimate detail page;
-`estimateId` is set on create; `GET /estimates/:id/variations` works; amber
-`VariationsSection` is visually distinct from sub-estimates. Approve → BOQ unchanged.
+**Round 21 (`5d61c48`):** Variations on estimate page + `estimateId` link.  
+**Round 22 polish (`b6ef712`):** Query invalidation on CO mutations + seed/backfill.
 
-**Next:** §2.2a optional polish (quick wins). **VAR-D2** (§2.2b) only when product
-explicitly wants approve and BOQ write split — do not start VAR-D2 without sign-off.
+**Remaining (do not start without product sign-off):**
 
-**Do not** break Rounds 12–21 (single-line form, estimateId link, shortfalls, frozen baseline).
+- **EST-VO-11g** — Deep-link tap to specific variation from estimate page (optional UX)
+- **VAR-D2** — Explicit convert-to-BOQ step (§2.2b); approve still writes BOQ today
 
-### 2.0 Status (`5d61c48`)
+**Do not** break Rounds 12–22 (single-line form, estimateId link, cache invalidation, shortfalls, frozen baseline).
+
+### 2.0 Status (`b6ef712`)
 
 | ID | Task | Status | Notes |
 | -- | ---- | ------ | ----- |
 | **VAR-C1–C9** | Variation line editor | **Done** | `433f10b` |
 | **EST-VO-11a–d** | estimateId + list API + VariationsSection | **Done** | `5d61c48` |
-| **EST-VO-11e** | Invalidate variations query on CO create/approve | **Not done** | Minor UX — see §2.2a |
-| **EST-VO-11f** | Seed/backfill `estimateId` on existing COs | **Not done** | Seed `VO-001` has null `estimateId` |
+| **EST-VO-11e** | Invalidate variations query on CO mutations | **Done** | `b6ef712` — `invalidateEstimateVariations` |
+| **EST-VO-11f** | Seed/backfill `estimateId` | **Done** | `b6ef712` — VO-001 + backfill script; VO-002 seed still null (minor) |
+| **EST-VO-11g** | Deep-link to specific variation | **Deferred** | Optional UX |
 | **VAR-D2** | Explicit convert-to-BOQ step | **Deferred** | Approve still writes BOQ today |
-| **Ship gate** | 116/116 ×2 + tsc ×2 | **Must stay green** | |
+| **Ship gate** | 116/116 ×2 + tsc ×2 | **Green** | |
 
 ### 2.0a Prior rounds — do NOT re-break
 
@@ -100,6 +102,7 @@ explicitly wants approve and BOQ write split — do not start VAR-D2 without sig
 | **VAR-C5–C6b** | Ship gate + RA persist + shortfalls | **Done** | `dbac1aa`–`1145896` |
 | **VAR-C9** | Single-line BOQ/RA; no Split; BOQ dedupe; all 5 types | **Done** | `433f10b` |
 | **EST-VO-11a–d** | estimateId + variations on estimate page | **Done** | `5d61c48` |
+| **EST-VO-11e/f** | Cache invalidation + seed/backfill | **Done** | `b6ef712` |
 
 ### 2.0a Completed in Rounds 8–14 — do NOT re-break
 
@@ -188,25 +191,14 @@ pnpm exec prisma generate
 # restart backend dev server
 ```
 
-### 2.2a Optional polish — Round 22 quick wins (do before VAR-D2)
+### 2.2a Completed Round 22 polish — reference (do NOT re-break)
 
-#### EST-VO-11e — Invalidate estimate variations query
+| Task | Evidence |
+| ---- | -------- |
+| EST-VO-11e | `invalidateEstimateVariations()` in `project-query-invalidation.ts`; wired in create/submit/reject mutations + `invalidateChangeOrderImpact` (approve) |
+| EST-VO-11f | Seed `NH-65 Baseline Estimate` + `VO-001.estimateId`; `scripts/one-off/backfill-change-order-estimate-id.ts` |
 
-In `expansion.queries.ts`, when a change order is created/submitted/approved/rejected,
-also invalidate `['estimates', estimateId, 'variations']` when the response includes
-`estimateId` (or resolve estimateId from project). Without this, the estimate detail
-page stays stale until manual refresh.
-
-#### EST-VO-11f — Seed + backfill `estimateId`
-
-- Update `seed.ts`: set `estimateId` on seeded `VO-001` (and any other seeded COs)
-  to the project's approved parent estimate so demo data shows on estimate page.
-- Optional script `scripts/one-off/backfill-change-order-estimate-id.ts` for existing DBs.
-
-#### EST-VO-11g — Deep-link tap to specific variation (optional)
-
-`VariationsSection` tap currently opens `?tab=variations` only. Optionally pass
-`changeOrderId` query param and scroll/highlight that CO in `VariationsTab`.
+**Minor seed gap (optional):** `VO-002` in seed still has null `estimateId` despite comment — add `estimateId: estimate1.id` if demo parity matters.
 
 ### 2.2b VAR-D2 — Explicit convert-to-BOQ (Phase 2 — product sign-off required)
 
@@ -335,11 +327,12 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 - [x] EST-VO-11d — Copy/visual distinction in UI
 - [x] Ship gate **116/116** ×2 + tsc ×2
 
-**Round 22 (optional polish + VAR-D2):**
+**Round 22 polish (done `b6ef712`):**
 
-- [ ] EST-VO-11e — Invalidate `['estimates', *, 'variations']` on CO create/approve
-- [ ] EST-VO-11f — Seed/backfill `estimateId` on existing change orders
+- [x] EST-VO-11e — Invalidate `['estimates', *, 'variations']` on CO create/submit/approve/reject
+- [x] EST-VO-11f — Seed VO-001 `estimateId` + backfill script
 - [ ] EST-VO-11g — Deep-link to specific variation from estimate page (optional)
+- [ ] EST-VO-11f minor — Seed `VO-002.estimateId` (optional demo parity)
 - [ ] VAR-D2 convert-to-BOQ — **deferred** until product sign-off (§2.2b)
 
 ### 2.8 Optional hardening (defer unless user asks)
@@ -360,8 +353,8 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 <details>
 <summary>Rounds 4–15 (superseded by §2 above)</summary>
 
-Rounds 8–21: variation sync + estimate-page children complete (`804f0a6`–`5d61c48`).
-Round 22: polish (EST-VO-11e–g) + VAR-D2 convert-to-BOQ when approved.
+Rounds 8–22: variation sync + estimate-page children + polish complete
+(`804f0a6`–`b6ef712`). Next: VAR-D2 convert-to-BOQ or EST-VO-11g when product asks.
 
 </details>
 

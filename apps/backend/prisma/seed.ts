@@ -582,6 +582,7 @@ async function main(): Promise<void> {
       scheduleImpactDays: 5,
       linkedTaskId: t3.id,
       estimateId: estimate1.id,
+      boqAppliedAt: new Date('2025-02-10'),
       createdBy: pm.id,
       approvedBy: owner.id,
       approvedAt: new Date('2025-02-10'),

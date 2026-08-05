@@ -1299,6 +1299,7 @@ model ChangeOrder {
   linkedTaskId       String?        @map("linked_task_id") @db.Uuid
   linkedWorkOrderId  String?        @map("linked_work_order_id") @db.Uuid
   estimateId         String?        @map("estimate_id") @db.Uuid
+  boqAppliedAt       DateTime?      @map("boq_applied_at")
   createdBy          String         @map("created_by") @db.Uuid
   approvedBy         String?        @map("approved_by") @db.Uuid
   approvedAt         DateTime?      @map("approved_at")
