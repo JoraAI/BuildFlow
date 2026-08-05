@@ -18,7 +18,11 @@ export const setProjectMembersSchema = z.object({
   members: z.array(
     z.object({
       userId: z.string().uuid(),
-      role: z.enum(['OWNER', 'PM', 'SUPERVISOR', 'ACCOUNTANT']),
+      role: z.enum([
+        'OWNER', 'PM', 'DPM', 'QC', 'MECHANICAL_MANAGER',
+        'STORE_INCHARGE', 'WEIGHBRIDGE_INCHARGE',
+        'SITE_SUPERVISOR', 'SUPERVISOR', 'ACCOUNTANT',
+      ]),
     }),
   ),
 });

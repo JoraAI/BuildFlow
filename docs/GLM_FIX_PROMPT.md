@@ -1,4 +1,4 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 29 SUB-UX complete)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 30 active)
 
 > **You do not need any prior conversation or other documents.** This file is the
 > complete task brief. Read it top to bottom before taking new work.
@@ -9,7 +9,8 @@
 > **Verified:** 2026-08-05 — Rounds 12–23 **complete**. **Round 24–28 + Round 29 SUB-UX complete**
 > (subcontract supply, branded PDFs/Excel, material picker UX, measurement modal). **129/129** tests.
 >
-> **Active work:** None mandatory — only §2.8 optional hardening unless user asks.
+> **Active work:** **Round 30** — subcontract↔BOQ sync, material-issue save flow, project team roles, picker UI (§2.10).
+> Round 29 SUB-UX is **complete** — do not regress. **129/129** tests baseline.
 
 ---
 
@@ -277,6 +278,159 @@ All items delivered — see §2.9.11 verification.
 
 ---
 
+## 2.10 Round 30 — Subcontract↔BOQ sync, team roles, picker polish (ACTIVE)
+
+**User report (2026-08-05):**
+
+1. When a subcontractor **takes stock**, BOQ should reflect it (site stock / consumption).
+2. After selecting material in the issue flow, user can **unlink** (X) and lose the draft — needs an explicit **Save / Issue** step (button missing or unclear).
+3. **Settings → Project Team** — only PM / SUPERVISOR / ACCOUNTANT assignable; other company roles missing.
+4. **Material** and **Rate Analysis** dropdowns look plain — need professional picker UI.
+
+**Do not re-break:** Round 29 SUB-UX, SUB-C supply mode, Rounds 12–28.
+
+### 2.10.0 Product rules (read first)
+
+| Topic | Current behaviour | Expected |
+| ----- | ----------------- | -------- |
+| Stock on issue | `issueMaterialToWorkOrder` deducts `StockBalance` + `StockMovement` (`SUBCONTRACT_ISSUE`) | Keep |
+| BOQ `stockQty` | `boq.service.ts` aggregates `StockBalance` by `resourceId` | Should **drop** when stock issued |
+| BOQ cache | `useIssueMaterial` invalidates stock summary but **not** BOQ query | **Bug** — BOQ tab stale until manual refresh |
+| BOQ line link | `SubcontractorMaterialIssue` has no `boqItemId` | Optional link + display on BOQ (Phase 2) |
+| Issue modal | Tap X on selected material → clears selection; footer posts immediately | Draft + explicit **Issue** confirm; warn on discard |
+| Project roles | UI: `ASSIGNABLE_ROLES = ['PM','SUPERVISOR','ACCOUNTANT']` | All `INVITABLE_ROLES` + `SITE_SUPERVISOR` with labels |
+| Backend roles | `setProjectMembersSchema` allows only 4 roles | Align with `INVITABLE_ROLES` in `@buildflow/shared` |
+
+**Key files:**
+
+| Area | Path |
+| ---- | ---- |
+| Material issue | `apps/backend/src/services/subcontract.service.ts` (`issueMaterialToWorkOrder`) |
+| BOQ stock display | `apps/backend/src/services/boq.service.ts` (~lines 75–93) |
+| Issue hooks / cache | `apps/mobile/services/expansion.queries.ts` (`useIssueMaterial`, `useRecoverMaterial`) |
+| Invalidation | `apps/mobile/lib/project-query-invalidation.ts` |
+| Issue UI | `apps/mobile/components/projects/SubcontractsTab.tsx` → `MaterialsPanel` |
+| BOQ UI | `apps/mobile/components/projects/BoqTab.tsx` (shows `stockQty`) |
+| Project team | `apps/mobile/components/projects/ProjectMembersSection.tsx` |
+| Members API schema | `packages/shared/src/validators/portal.ts` → `setProjectMembersSchema` |
+| Role enums | `packages/shared/src/enums/index.ts` (`INVITABLE_ROLES`, `ROLE_LABELS`) |
+| Pickers | `apps/mobile/components/materials/MaterialPicker.tsx`, `apps/mobile/components/estimation/RateAnalysisPicker.tsx` |
+
+### 2.10.1 SUB-BOQ1 — BOQ reflects subcontract stock issue (Priority 1)
+
+**Phase A — cache fix (required, mobile-only):**
+
+In `useIssueMaterial` and `useRecoverMaterial` `onSuccess`, also call:
+
+- `invalidateProjectBoq(qc, projectId)` and/or `invalidateProjectProcurement(qc, projectId)`
+
+(from `project-query-invalidation.ts`). Verify BOQ tab `Site stock: X` updates without full page reload after issue/recover.
+
+**Phase B — BOQ visibility (required, backend + mobile):**
+
+1. **Optional `boqItemId`** on material issue:
+   - Migration: add nullable `boq_item_id` to `subcontractor_material_issues`.
+   - Extend `issueMaterialToWoSchema` + `issueMaterialToWorkOrder` to accept optional `boqItemId` (validate belongs to project + matches `resourceId` when set).
+2. **Issue UI:** When material selected, if BOQ has MATERIAL lines with same `resourceId`, show optional **"Link to BOQ line"** picker (compact list).
+3. **BOQ tab:** For MATERIAL rows with `resourceId`, show secondary hint when issues exist:
+   - `Site stock: {stockQty}` (existing)
+   - `Issued to subs: {sum qty}` (new — aggregate `SubcontractorMaterialIssue` for project by resource or boqItemId)
+4. **Tests:** Extend subcontract or procurement integration test: issue material → BOQ list/summary reflects lower stock (or assert stock movement + issue row).
+
+**Do NOT:** Double-deduct stock (issue already decrements balance). BOQ display is read-model only.
+
+### 2.10.2 SUB-UX3 — Material issue draft + explicit Issue button (Priority 1)
+
+**File:** `MaterialsPanel` in `SubcontractsTab.tsx`
+
+**Problem:** User selects material + enters qty/rate, then taps **X** on the selected-material chip → draft cleared with no confirmation. Footer **Issue to subcontractor** is the only action but feels like instant commit without review.
+
+**Fix:**
+
+1. **Two-step sheet state:** `pick` → `review` (auto-advance after material select).
+2. **Review step shows:** material name, on-hand, qty, unit, rate, amount, optional BOQ line — all editable except name (use "Change material" link instead of bare X).
+3. **"Change material"** → confirm dialog if qty/rate entered: *Discard entries?*
+4. **Footer buttons on review step:**
+   - **Cancel** — close sheet; confirm if dirty.
+   - **Issue to subcontractor** (primary) — POST only here (disabled if qty invalid / over on-hand).
+5. **Do not POST** on material pick alone.
+6. After success: close sheet, toast/alert, list refreshes (existing).
+
+### 2.10.3 TEAM-R1 — Project Team: all assignable roles (Priority 2)
+
+**Files:**
+
+- `apps/mobile/components/projects/ProjectMembersSection.tsx`
+- `packages/shared/src/validators/portal.ts` → `setProjectMembersSchema`
+- `apps/backend/src/services/project-member.service.ts` (if role validation duplicated)
+
+**Fix:**
+
+1. Replace `ASSIGNABLE_ROLES` with project-appropriate subset of `INVITABLE_ROLES`:
+   `PM`, `DPM`, `QC`, `MECHANICAL_MANAGER`, `STORE_INCHARGE`, `WEIGHBRIDGE_INCHARGE`, `SITE_SUPERVISOR`, `ACCOUNTANT`.
+2. Display **`ROLE_LABELS[role]`** in chips (not raw enum).
+3. Map legacy `SUPERVISOR` → `SITE_SUPERVISOR` on load/save for consistency.
+4. Expand `setProjectMembersSchema` `role` enum to match (use `z.enum([...])` from shared list — single source).
+5. **Save members** button already exists when `dirty` — keep; ensure role change marks dirty (already does).
+
+**Test:** Assign `STORE_INCHARGE` to project member via API → 200; list returns role.
+
+### 2.10.4 MOB-PICK1 — Material & RA picker visual polish (Priority 2)
+
+**Goal:** Pickers should feel like Procore/Fieldwire quality — not plain bordered list rows.
+
+**Create or enhance** shared patterns in:
+
+- `apps/mobile/components/materials/MaterialPicker.tsx`
+- `apps/mobile/components/estimation/RateAnalysisPicker.tsx`
+
+**Minimum UI improvements:**
+
+1. **Section header** styling ("On this project" / "Catalog" / "Rate analyses").
+2. **Row design:** left icon/thumbnail (MaterialThumbnail already exists for materials), title + subtitle, right **checkmark** when selected.
+3. **Selected row** — primary border + subtle fill (keep but refine spacing/typography).
+4. **Empty / loading** — centered icon + message, not bare text.
+5. **Search bar** — consistent with `SearchBar` but add clear button when text present.
+6. **RateAnalysisPicker:** add unit badge, rate formatted with `formatINR`, optional SAC/category if in model.
+7. **Desktop:** slightly taller rows, hover/pressed states (`active:bg-surface`).
+
+**Do not break** call sites: `VariationsTab`, `EstimateBuildStep`, `reports/create.tsx`, `SubcontractsTab` MaterialsPanel.
+
+Optional: extract `PickerListRow` shared component if it reduces duplication.
+
+### 2.10.5 NR-37 — MaterialsPanel hooks order (fix if still present)
+
+If `Rendered more hooks than during the previous render` in `MaterialsPanel`: ensure **all** `useMemo` hooks run **before** any `return null` for `materialSupplyMode === 'NONE'`. (Fixed locally — verify not regressed.)
+
+### 2.10.6 Ship gate
+
+| Gate | Requirement |
+| ---- | ----------- |
+| Tests | **129/129** minimum; +1 if BOQ/stock integration test added |
+| tsc | Backend + mobile clean |
+| Manual | Issue stock → BOQ `Site stock` updates; issue flow has review + Issue button; assign Store Incharge to project; pickers look polished |
+
+### 2.10.7 Definition of done (Round 30)
+
+- [ ] **SUB-BOQ1** — BOQ/procurement cache invalidation + optional boqItemId + BOQ issued hint
+- [ ] **SUB-UX3** — Material issue review step + confirm on discard
+- [ ] **TEAM-R1** — Full role list in Project Team (UI + schema)
+- [ ] **MOB-PICK1** — MaterialPicker + RateAnalysisPicker visual polish
+- [ ] **NR-37** — No hooks violation in MaterialsPanel
+- [ ] 129/129+ tests, both tsc clean
+
+### 2.10.8 Anti-patterns (Round 30)
+
+| Don't | Do instead |
+| ----- | ---------- |
+| Skip BOQ invalidation after stock issue | `invalidateProjectBoq` + procurement bundle |
+| POST material issue on picker tap | Review step + explicit Issue button |
+| Hardcode 3 roles in Project Team | Use `INVITABLE_ROLES` + `ROLE_LABELS` |
+| Duplicate role enum in Zod | Import role list from `@buildflow/shared` |
+| Style pickers only in one screen | Update shared picker components |
+
+---
+
 ## 1. Role & Context
 
 You are a senior full-stack engineer taking ownership of **BuildFlow**, a
@@ -534,7 +688,8 @@ New migrations: `20260805100000_subcontract_material_supply_mode`,
 
 ### 2.2 Mandatory tasks — none (epic complete)
 
-**Round 24–28 SUB-C + RPT-C and Round 29 SUB-UX are done.** Only take §2.8 if the user explicitly asks.
+**Round 24–28 SUB-C + RPT-C and Round 29 SUB-UX are done.** Take new work from **§2.10 Round 30** first.
+Only take §2.8 if the user explicitly asks.
 
 <details>
 <summary>Round 28 spec (completed — reference)</summary>

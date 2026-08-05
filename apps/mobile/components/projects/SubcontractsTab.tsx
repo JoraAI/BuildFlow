@@ -802,6 +802,7 @@ function MaterialsPanel({
   const recoverMat = useRecoverMaterial(projectId, workOrderId);
 
   const [issueModal, setIssueModal] = useState(false);
+  const [issueStep, setIssueStep] = useState<'pick' | 'review'>('pick');
   const [selectedResource, setSelectedResource] = useState<{ id: string; name: string; unit: string; rate?: string } | null>(null);
   const [qty, setQty] = useState('');
   const [unit, setUnit] = useState('');
@@ -844,7 +845,45 @@ function MaterialsPanel({
   const selectedOnHand = selectedResource ? projectMaterials.find((m) => m.id === selectedResource.id)?.balance : undefined;
   const qtyOverOnHand = selectedOnHand !== undefined && qty !== '' && (parseFloat(qty) || 0) > selectedOnHand;
 
-  // Hide when NONE
+  // Group issues by resourceId for ledger display (must run before any early return — Rules of Hooks)
+  const groupedIssues = useMemo(() => {
+    const allIssues: SubcontractorMaterialIssue[] = issues ?? [];
+    const groups = new Map<string, {
+      resourceId: string;
+      resourceName: string;
+      unit: string;
+      issues: SubcontractorMaterialIssue[];
+      totalIssuedQty: number;
+      totalRecoveredQty: number;
+      totalIssuedAmt: number;
+      totalRecoveredAmt: number;
+    }>();
+    for (const mi of allIssues) {
+      const key = mi.resourceId;
+      const g = groups.get(key) ?? {
+        resourceId: key,
+        resourceName: mi.resource?.name ?? 'Unknown',
+        unit: mi.unit,
+        issues: [],
+        totalIssuedQty: 0,
+        totalRecoveredQty: 0,
+        totalIssuedAmt: 0,
+        totalRecoveredAmt: 0,
+      };
+      g.issues.push(mi);
+      g.totalIssuedQty += parseFloat(mi.quantity);
+      g.totalRecoveredQty += parseFloat(mi.recoveredQty);
+      g.totalIssuedAmt += parseFloat(mi.amount);
+      g.totalRecoveredAmt += parseFloat(mi.recoveredAmount);
+      groups.set(key, g);
+    }
+    return Array.from(groups.values());
+  }, [issues]);
+
+  const grandIssued = groupedIssues.reduce((s, g) => s + g.totalIssuedAmt, 0);
+  const grandRecovered = groupedIssues.reduce((s, g) => s + g.totalRecoveredAmt, 0);
+
+  // Hide when NONE — after all hooks
   if (materialSupplyMode === 'NONE' || !materialSupplyMode) return null;
 
   const onIssue = () => {
@@ -889,44 +928,6 @@ function MaterialsPanel({
       },
     );
   };
-
-  // Group issues by resourceId for ledger display
-  const groupedIssues = useMemo(() => {
-    const allIssues: SubcontractorMaterialIssue[] = issues ?? [];
-    const groups = new Map<string, {
-      resourceId: string;
-      resourceName: string;
-      unit: string;
-      issues: SubcontractorMaterialIssue[];
-      totalIssuedQty: number;
-      totalRecoveredQty: number;
-      totalIssuedAmt: number;
-      totalRecoveredAmt: number;
-    }>();
-    for (const mi of allIssues) {
-      const key = mi.resourceId;
-      const g = groups.get(key) ?? {
-        resourceId: key,
-        resourceName: mi.resource?.name ?? 'Unknown',
-        unit: mi.unit,
-        issues: [],
-        totalIssuedQty: 0,
-        totalRecoveredQty: 0,
-        totalIssuedAmt: 0,
-        totalRecoveredAmt: 0,
-      };
-      g.issues.push(mi);
-      g.totalIssuedQty += parseFloat(mi.quantity);
-      g.totalRecoveredQty += parseFloat(mi.recoveredQty);
-      g.totalIssuedAmt += parseFloat(mi.amount);
-      g.totalRecoveredAmt += parseFloat(mi.recoveredAmount);
-      groups.set(key, g);
-    }
-    return Array.from(groups.values());
-  }, [issues]);
-
-  const grandIssued = groupedIssues.reduce((s, g) => s + g.totalIssuedAmt, 0);
-  const grandRecovered = groupedIssues.reduce((s, g) => s + g.totalRecoveredAmt, 0);
 
   if (isLoading) return <LoadingSkeleton className="h-16 rounded-lg mt-3" />;
 
@@ -1121,19 +1122,54 @@ function MaterialsPanel({
         })
       )}
 
-      {/* Issue modal — MaterialPicker instead of UUID */}
+      {/* Issue modal — MaterialPicker + review step (SUB-UX3) */}
       <AdaptiveSheet
         visible={issueModal}
-        onClose={() => setIssueModal(false)}
+        onClose={() => {
+          if (selectedResource && (qty || rate)) {
+            void alertAsync(
+              'Discard?',
+              'You have unsaved entries. Close without issuing?',
+            ).then(() => {
+              setIssueModal(false);
+              setSelectedResource(null);
+              setQty('');
+              setUnit('');
+              setRate('');
+            });
+          } else {
+            setIssueModal(false);
+            setSelectedResource(null);
+          }
+        }}
         title="Issue Material from Stock"
         size="lg"
         footer={
-          <Button
-            label="Issue to subcontractor"
-            loading={issueMat.isPending}
-            disabled={qtyOverOnHand || !selectedResource || !qty}
-            onPress={onIssue}
-          />
+          <View className="gap-2">
+            {selectedResource && (
+              <View className="flex-row gap-2">
+                <Button
+                  label="Cancel"
+                  variant="secondary"
+                  onPress={() => {
+                    setIssueModal(false);
+                    setSelectedResource(null);
+                    setQty('');
+                    setUnit('');
+                    setRate('');
+                  }}
+                  className="flex-1"
+                />
+                <Button
+                  label="Issue to subcontractor"
+                  loading={issueMat.isPending}
+                  disabled={qtyOverOnHand || !qty}
+                  onPress={onIssue}
+                  className="flex-1"
+                />
+              </View>
+            )}
+          </View>
         }
       >
         {!selectedResource ? (
@@ -1161,6 +1197,7 @@ function MaterialsPanel({
           </>
         ) : (
           <>
+            {/* SUB-UX3: Review step with "Change material" link (not bare X) */}
             <View className="flex-row items-center justify-between p-2 rounded-lg border border-primary/20 bg-primary/5 mb-2">
               <View className="flex-1">
                 <Text className="text-sm font-semibold text-text">{selectedResource.name}</Text>
@@ -1171,8 +1208,23 @@ function MaterialsPanel({
                   )}
                 </Text>
               </View>
-              <Pressable onPress={() => setSelectedResource(null)}>
-                <Ionicons name="close-circle-outline" size={20} color="#94A3B8" />
+              <Pressable
+                onPress={() => {
+                  if (qty || rate) {
+                    void alertAsync(
+                      'Change material?',
+                      'This will discard the quantity and rate you entered.',
+                    ).then(() => {
+                      setSelectedResource(null);
+                      setQty('');
+                      setRate('');
+                    });
+                  } else {
+                    setSelectedResource(null);
+                  }
+                }}
+              >
+                <Text className="text-xs text-primary font-medium">Change</Text>
               </Pressable>
             </View>
             <Input label="Quantity" value={qty} onChangeText={setQty} keyboardType="numeric" placeholder="0" />

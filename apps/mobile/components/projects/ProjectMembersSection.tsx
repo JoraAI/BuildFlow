@@ -6,9 +6,14 @@ import { useAuthStore } from '@/stores/auth.store';
 import { useProjectMembers, useSetProjectMembers, type ProjectMemberRow } from '@/services/project.queries';
 import { useUsers, type UserRow } from '@/services/settings.queries';
 import { alertAsync } from '@/utils/confirm';
-import type { Role } from '@buildflow/shared';
+import { ROLE_LABELS, type Role } from '@buildflow/shared';
 
-const ASSIGNABLE_ROLES: Role[] = ['PM', 'SUPERVISOR', 'ACCOUNTANT'];
+// TEAM-R1: Use full project-appropriate roles from INVITABLE_ROLES + SITE_SUPERVISOR + ACCOUNTANT
+const ASSIGNABLE_ROLES: Role[] = [
+  'PM', 'DPM', 'QC', 'MECHANICAL_MANAGER',
+  'STORE_INCHARGE', 'WEIGHBRIDGE_INCHARGE',
+  'SITE_SUPERVISOR', 'SUPERVISOR', 'ACCOUNTANT',
+];
 
 interface MemberDraft {
   userId: string;
@@ -129,7 +134,7 @@ export function ProjectMembersSection({ projectId }: { projectId: string }) {
                               assigned.role === role ? 'text-white' : 'text-muted'
                             }`}
                           >
-                            {role}
+                            {ROLE_LABELS[role] ?? role}
                           </Text>
                         </Pressable>
                       ))}
