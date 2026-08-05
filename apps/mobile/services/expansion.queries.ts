@@ -7,6 +7,7 @@ import { apiFetch, apiDownload } from '@/lib/api-client';
 import { API_BASE_URL } from '@/constants';
 import {
   invalidateChangeOrderImpact,
+  invalidateEstimateVariations,
   invalidateProjectAccounting,
   invalidateProjectBoq,
   invalidateProjectCore,
@@ -438,7 +439,11 @@ export function useCreateChangeOrder(projectId: string) {
         method: 'POST',
         body: JSON.stringify(input),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: expansionKeys.changeOrders(projectId) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: expansionKeys.changeOrders(projectId) });
+      // EST-VO-11e: Refresh estimate variations list
+      invalidateEstimateVariations(qc);
+    },
   });
 }
 
@@ -450,7 +455,11 @@ export function useSubmitChangeOrder(projectId: string) {
         method: 'POST',
         body: '{}',
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: expansionKeys.changeOrders(projectId) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: expansionKeys.changeOrders(projectId) });
+      // EST-VO-11e: Refresh estimate variations list
+      invalidateEstimateVariations(qc);
+    },
   });
 }
 
@@ -474,7 +483,11 @@ export function useRejectChangeOrder(projectId: string) {
         method: 'POST',
         body: JSON.stringify({ reason }),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: expansionKeys.changeOrders(projectId) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: expansionKeys.changeOrders(projectId) });
+      // EST-VO-11e: Refresh estimate variations list
+      invalidateEstimateVariations(qc);
+    },
   });
 }
 

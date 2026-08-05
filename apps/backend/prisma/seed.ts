@@ -555,6 +555,21 @@ async function main(): Promise<void> {
     },
   });
 
+  // EST-VO-11f: Approved estimate for NH-65 so VO-001 and VO-002 can link via estimateId
+  const estimate1 = await prisma.estimate.create({
+    data: {
+      projectId: project1.id,
+      companyId: company.id,
+      name: 'NH-65 Baseline Estimate',
+      status: EstimateStatus.APPROVED,
+      subtotal: 1_490_000,
+      grandTotal: 1_490_000,
+      createdBy: pm.id,
+      approvedBy: owner.id,
+      approvedAt: new Date('2025-01-20'),
+    },
+  });
+
   await prisma.changeOrder.create({
     data: {
       projectId: project1.id,
@@ -566,6 +581,7 @@ async function main(): Promise<void> {
       costImpact: 22_500,
       scheduleImpactDays: 5,
       linkedTaskId: t3.id,
+      estimateId: estimate1.id,
       createdBy: pm.id,
       approvedBy: owner.id,
       approvedAt: new Date('2025-02-10'),

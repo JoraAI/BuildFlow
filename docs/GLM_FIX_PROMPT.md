@@ -1,16 +1,14 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 21 — variations on estimate page)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 22 — VAR-D2 polish + convert-to-BOQ)
 
 > **You do not need any prior conversation or other documents.** This file is the
 > complete task brief. Read it top to bottom, then execute **Section 2** in order.
 > [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
 >
 > **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
-> **Last committed baseline:** `433f10b` (`main` ahead of `origin/main` by 10 commits)  
-> **Verified:** 2026-08-05 — Round 20 **VAR-C9 complete** (`433f10b`, 115/115 tests ×2,
-> tsc ×2). **Round 21 (EST-VO-11 / VAR-D)** required: show variations as **children
-> of the approved parent estimate** on the estimate detail page (visually distinct
-> from sub-estimates); wire `ChangeOrder.estimateId`; plan **convert-to-BOQ** UX
-> parity with sub-estimates. Run §2.1 gates before/after.
+> **Last committed baseline:** `5d61c48` (`main` ahead of `origin/main` by 11 commits)  
+> **Verified:** 2026-08-05 — Round 21 **EST-VO-11 complete** (`5d61c48`, 116/116 tests ×2,
+> tsc ×2). **Round 22** optional polish (§2.2a) then **VAR-D2** explicit convert-to-BOQ
+> when product approves Phase 2. Run §2.1 gates before/after.
 
 ---
 
@@ -68,44 +66,27 @@ BuildFlow spans the full project lifecycle:
 
 ---
 
-## 2. Round 21 — Variations on estimate page (EST-VO-11 / VAR-D)
+## 2. Round 22 — Polish + VAR-D2 convert-to-BOQ (optional Phase 2)
 
-**Product direction (2026-08-05):** After a variation is **created**, it should appear
-on the **estimate detail page** as a child of the current (approved) parent estimate —
-similar placement to sub-estimates, but with a **clear visual distinction**. Later,
-lines inside an approved variation should be **convertible to BOQ** (like sub-estimate
-`convert-to-boq`); downstream procurement/shortfalls follow existing paths.
+**Round 21 landed (`5d61c48`):** Variations appear on the estimate detail page;
+`estimateId` is set on create; `GET /estimates/:id/variations` works; amber
+`VariationsSection` is visually distinct from sub-estimates. Approve → BOQ unchanged.
 
-**Do not** break Rounds 12–20 (single-line variation form, approve → BOQ today,
-VAR-C6b shortfalls, frozen estimate baseline).
+**Next:** §2.2a optional polish (quick wins). **VAR-D2** (§2.2b) only when product
+explicitly wants approve and BOQ write split — do not start VAR-D2 without sign-off.
 
-### 2.0 Current vs target architecture
+**Do not** break Rounds 12–21 (single-line form, estimateId link, shortfalls, frozen baseline).
 
-| Area | Today (`433f10b`) | Target (Round 21+) |
-| ---- | ----------------- | ------------------ |
-| **Where variations live** | Project → **Variations** tab only | Also listed under **parent estimate** on `estimation/[id].tsx` |
-| **`ChangeOrder.estimateId`** | Column exists in DB; **never set** on create; no Prisma `Estimate` relation | Set to project's **latest APPROVED parent estimate** (`parentId: null`) on create |
-| **Sub-estimates** | `Estimate` rows with `parentId`; green "Additional Scope"; full edit + convert-to-boq | **Unchanged** — still the model for *planned* extra scope |
-| **Variations** | `ChangeOrder` + `ChangeOrderLine`; amber in Variations tab | Same data model; **amber "Variation / Change Order"** child rows on estimate page |
-| **BOQ on approve** | `approveChangeOrder` **immediately** updates/creates BOQ rows | **Phase 1:** keep as-is (visibility only). **Phase 2 (VAR-D2):** optional explicit "Convert to BOQ" step — see §2.2b |
-| **Estimate baseline** | Frozen on variation approve (`ScopeSummaryBanner` shows derived revised total) | **Must stay frozen** — do not mutate approved estimate lines on variation approve |
-
-**Reference files:**
-
-- Estimate detail + sub-estimates UI: `apps/mobile/app/(app)/estimation/[id].tsx` (`SubEstimatesSection`, `ScopeSummaryBanner`)
-- Sub-estimate API: `listSubEstimates` in `estimate.service.ts`; hooks in `estimate.queries.ts`
-- Variation create/approve: `change-order.service.ts`, `VariationsTab.tsx`
-- Convert-to-boq pattern: `POST /api/estimates/:id/convert-to-boq` in `boq.service.ts`
-
-### 2.0 Status (`433f10b`)
+### 2.0 Status (`5d61c48`)
 
 | ID | Task | Status | Notes |
 | -- | ---- | ------ | ----- |
-| **VAR-C1–C9** | Variation line editor + single-line BOQ/RA | **Done** | `433f10b` |
-| **EST-VO-11a** | Link `estimateId` on variation create | **Not done** | Column orphan today |
-| **EST-VO-11b** | List variations on estimate detail page | **Not done** | User request 2026-08-05 |
-| **VAR-D2** | Explicit convert-to-BOQ for variations | **Deferred Phase 2** | Approve already writes BOQ — see §2.2b |
-| **Ship gate** | 115/115 ×2 + tsc ×2 | **Must stay green** | |
+| **VAR-C1–C9** | Variation line editor | **Done** | `433f10b` |
+| **EST-VO-11a–d** | estimateId + list API + VariationsSection | **Done** | `5d61c48` |
+| **EST-VO-11e** | Invalidate variations query on CO create/approve | **Not done** | Minor UX — see §2.2a |
+| **EST-VO-11f** | Seed/backfill `estimateId` on existing COs | **Not done** | Seed `VO-001` has null `estimateId` |
+| **VAR-D2** | Explicit convert-to-BOQ step | **Deferred** | Approve still writes BOQ today |
+| **Ship gate** | 116/116 ×2 + tsc ×2 | **Must stay green** | |
 
 ### 2.0a Prior rounds — do NOT re-break
 
@@ -118,6 +99,7 @@ VAR-C6b shortfalls, frozen estimate baseline).
 | **VAR-C4** | Adjust vs new scope copy + FlowHint | **Done** | `f055465` — update copy in VAR-C9 |
 | **VAR-C5–C6b** | Ship gate + RA persist + shortfalls | **Done** | `dbac1aa`–`1145896` |
 | **VAR-C9** | Single-line BOQ/RA; no Split; BOQ dedupe; all 5 types | **Done** | `433f10b` |
+| **EST-VO-11a–d** | estimateId + variations on estimate page | **Done** | `5d61c48` |
 
 ### 2.0a Completed in Rounds 8–14 — do NOT re-break
 
@@ -206,70 +188,27 @@ pnpm exec prisma generate
 # restart backend dev server
 ```
 
-### 2.2 Mandatory tasks — Round 21 (EST-VO-11)
+### 2.2a Optional polish — Round 22 quick wins (do before VAR-D2)
 
-#### EST-VO-11a — Wire `ChangeOrder.estimateId` on create
+#### EST-VO-11e — Invalidate estimate variations query
 
-In `apps/backend/src/services/change-order.service.ts` → `createChangeOrder`:
+In `expansion.queries.ts`, when a change order is created/submitted/approved/rejected,
+also invalidate `['estimates', estimateId, 'variations']` when the response includes
+`estimateId` (or resolve estimateId from project). Without this, the estimate detail
+page stays stale until manual refresh.
 
-1. Resolve the project's **current approved parent estimate**:
-   `findFirst({ where: { projectId, companyId, status: 'APPROVED', parentId: null }, orderBy: { approvedAt: 'desc' } })`.
-2. Set `estimateId` on the new `ChangeOrder` (nullable if none approved yet).
-3. Add optional Prisma relation `estimate Estimate? @relation(...)` on `ChangeOrder`
-   + `@@index([estimateId])` if missing; ship migration only if schema changes.
-4. **Backfill (optional script in `scripts/one-off/`):** set `estimateId` on existing
-   change orders from the same lookup — do not block Round 21 on backfill.
-5. Integration test: create variation on project with approved estimate → assert
-   `estimateId` matches; create with no approved estimate → `estimateId` null.
+#### EST-VO-11f — Seed + backfill `estimateId`
 
-#### EST-VO-11b — API: list variations for an estimate
+- Update `seed.ts`: set `estimateId` on seeded `VO-001` (and any other seeded COs)
+  to the project's approved parent estimate so demo data shows on estimate page.
+- Optional script `scripts/one-off/backfill-change-order-estimate-id.ts` for existing DBs.
 
-Add `GET /api/estimates/:id/variations` (or extend estimate detail payload):
+#### EST-VO-11g — Deep-link tap to specific variation (optional)
 
-- Auth + tenant scope; verify estimate belongs to company.
-- Return change orders where `estimateId = :id`, ordered `createdAt desc`.
-- Include: `id`, `number`, `title`, `status`, `costImpact`, `scheduleImpactDays`,
-  `approvedAt`, line count, `createdAt`.
-- Reuse `serializeChangeOrder` / `changeOrderInclude` where practical.
+`VariationsSection` tap currently opens `?tab=variations` only. Optionally pass
+`changeOrderId` query param and scroll/highlight that CO in `VariationsTab`.
 
-Register route in `estimate.routes.ts` + controller; mirror patterns from
-`listSubEstimates`.
-
-#### EST-VO-11c — Mobile: `VariationsSection` on estimate detail
-
-In `apps/mobile/app/(app)/estimation/[id].tsx`, **below** `SubEstimatesSection`
-(parent estimates only, `!estimate.parentId`):
-
-1. New **`VariationsSection`** — parallel structure to `SubEstimatesSection` but
-   **visually distinct** (see §2.0d).
-2. Hook `useEstimateVariations(estimateId)` in `estimate.queries.ts` or
-   `expansion.queries.ts`.
-3. Each row shows: CO number, title, status badge, cost impact, line count, date.
-4. Tap row → navigate to project Variations tab with context, **or** open an
-   `AdaptiveSheet` with line summary + link "Open in Variations tab".
-5. Empty state: *No variations linked to this estimate yet. Create one from
-   Project → Variations.* (Optional: "+ New Variation" deep-link to project tab.)
-6. Invalidate `['estimates', estimateId, 'variations']` when variations are
-   created/approved from the project tab.
-
-**Do not** merge variations into the `Estimate` table — they remain `ChangeOrder`
-records; the estimate page is a **read-only directory** of linked variations.
-
-#### EST-VO-11d — Copy and visual distinction (sub-estimate vs variation)
-
-| Aspect | Sub-Estimate | Variation (Change Order) |
-| ------ | ------------ | ------------------------ |
-| **Purpose** | Planned additional scope (new work package) | Change to sanctioned scope (qty Δ or new VO lines) |
-| **Data model** | Child `Estimate` (`parentId`) | `ChangeOrder` + lines |
-| **Section title** | "Sub-Estimates (Additional Scope)" | "Variations (Change Orders)" |
-| **Accent color** | Primary / green success tone | **Warning / amber** (`Badge variant="warning"`) |
-| **Icon / label** | "Sub-Estimate" | "Variation" + CO number |
-| **Actions** | Edit, Approve, Convert to BOQ | View lines, Submit/Approve (owner), **Phase 2:** Convert to BOQ |
-| **Baseline** | Adds new estimate total when approved | Does **not** change approved estimate lines; `ScopeSummaryBanner` shows derived revised total |
-
-Update §2.4 wording table with variation-on-estimate rows.
-
-### 2.2b Phase 2 — VAR-D2: explicit convert-to-BOQ (defer unless Phase 1 done)
+### 2.2b VAR-D2 — Explicit convert-to-BOQ (Phase 2 — product sign-off required)
 
 **Today:** `approveChangeOrder` already creates/updates BOQ rows (R12–19). Shortfalls
 (VAR-C6b) depend on those BOQ rows existing after approve.
@@ -286,8 +225,20 @@ If implementing VAR-D2 later:
    convert, not after approve.
 4. Until VAR-D2 ships, **Phase 1 must not remove** approve-time BOQ writes.
 
-**Ship gate (Round 21 Phase 1):** `tsc` ×2 + backend tests **115/115** ×2 + at least
-one new integration test for `estimateId` link and list-by-estimate endpoint.
+**Ship gate (Round 22 polish):** `tsc` ×2 + backend tests **116/116** ×2.
+
+### 2.2c Completed Round 21 — reference (do NOT re-break)
+
+| Task | Evidence |
+| ---- | -------- |
+| EST-VO-11a | `createChangeOrder` sets `estimateId`; FK migration `20260805020000` |
+| EST-VO-11b | `GET /estimates/:id/variations` + `listVariationsByEstimate` |
+| EST-VO-11c | `VariationsSection` in `estimation/[id].tsx`; `useEstimateVariations` |
+| EST-VO-11d | Amber warning cards vs green sub-estimates |
+| Test | `change-order.test.ts` — estimateId + list-by-estimate |
+
+**Dev DB:** After pull, run `pnpm exec prisma migrate deploy` in `apps/backend`
+(migration `20260805020000_change_order_estimate_relation`).
 
 ### 2.2a Completed in Rounds 8–19 — do NOT re-break
 
@@ -366,25 +317,30 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 | `estimateId` never set on ChangeOrder | EST-VO-11a on create |
 | Variations modeled as Estimate rows | Keep `ChangeOrder` — estimate page is a directory only |
 | Removing approve → BOQ without VAR-D2 | Phase 1 visibility only; BOQ write stays on approve |
+| Stale variations list on estimate page | EST-VO-11e — invalidate on CO mutations |
 
 ### 2.7 Definition of Done
 
 **Rounds 12–20 (done — do not regress):**
 
 - [x] Variation approve → BOQ/budget; shortfalls; VAR-C6/C6b; line editor pickers
-- [x] VAR-C9a — Remove Split, RaComponentPicker, `explodedFromBoqId`; RA/BOQ = one line (`433f10b`)
-- [x] VAR-C9b — One BOQ id per variation draft (dedupe chips)
-- [x] VAR-C9c — Copy + FlowHint updated (all five line types; no split wording)
-- [x] Ship gate **115/115** ×2 + tsc ×2
+- [x] VAR-C9a–c — Single-line BOQ/RA form (`433f10b`)
+- [x] Ship gate tsc ×2 (test count now **116** after Round 21)
 
-**Round 21 (EST-VO-11 — must complete):**
+**Round 21 (EST-VO-11 — done `5d61c48`):**
 
-- [ ] EST-VO-11a — `estimateId` set on variation create (latest approved parent estimate)
-- [ ] EST-VO-11b — `GET /estimates/:id/variations` (+ test)
-- [ ] EST-VO-11c — `VariationsSection` on estimate detail (distinct from sub-estimates)
-- [ ] EST-VO-11d — Copy/visual distinction documented in UI
-- [ ] Ship gate **115/115** ×2 + tsc ×2
-- [ ] VAR-D2 convert-to-BOQ — **deferred** to Phase 2 (§2.2b); do not break approve → BOQ until migration plan lands
+- [x] EST-VO-11a — `estimateId` set on variation create (latest approved parent estimate)
+- [x] EST-VO-11b — `GET /estimates/:id/variations` (+ integration test)
+- [x] EST-VO-11c — `VariationsSection` on estimate detail (distinct from sub-estimates)
+- [x] EST-VO-11d — Copy/visual distinction in UI
+- [x] Ship gate **116/116** ×2 + tsc ×2
+
+**Round 22 (optional polish + VAR-D2):**
+
+- [ ] EST-VO-11e — Invalidate `['estimates', *, 'variations']` on CO create/approve
+- [ ] EST-VO-11f — Seed/backfill `estimateId` on existing change orders
+- [ ] EST-VO-11g — Deep-link to specific variation from estimate page (optional)
+- [ ] VAR-D2 convert-to-BOQ — **deferred** until product sign-off (§2.2b)
 
 ### 2.8 Optional hardening (defer unless user asks)
 
@@ -404,9 +360,8 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 <details>
 <summary>Rounds 4–15 (superseded by §2 above)</summary>
 
-Rounds 8–20: variation sync + line editor complete (`804f0a6`–`433f10b`). Round 21
-(EST-VO-11): variations as estimate-page children + `estimateId` link; VAR-D2
-convert-to-BOQ deferred.
+Rounds 8–21: variation sync + estimate-page children complete (`804f0a6`–`5d61c48`).
+Round 22: polish (EST-VO-11e–g) + VAR-D2 convert-to-BOQ when approved.
 
 </details>
 

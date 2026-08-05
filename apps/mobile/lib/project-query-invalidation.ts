@@ -54,12 +54,29 @@ export function invalidateAnalyticsDashboard(qc: QueryClient) {
   qc.invalidateQueries({ queryKey: ['analytics', 'dashboard'] });
 }
 
+/**
+ * EST-VO-11e: Invalidate estimate variations query when change orders are
+ * created/submitted/approved/rejected. estimateId is unknown at call site
+ * (it's on the ChangeOrder), so we invalidate the prefix broadly — React
+ * Query will refetch any active ['estimates', *, 'variations'] queries.
+ */
+export function invalidateEstimateVariations(qc: QueryClient) {
+  qc.invalidateQueries({
+    predicate: (query) =>
+      Array.isArray(query.queryKey) &&
+      query.queryKey[0] === 'estimates' &&
+      query.queryKey[2] === 'variations',
+  });
+}
+
 /** Full side-effect bundle after variation approval. */
 export function invalidateChangeOrderImpact(qc: QueryClient, projectId: string) {
   qc.invalidateQueries({ queryKey: ['change-orders', projectId] });
   // R13-VO4: Invalidate impact + scope-summary queries so the UI refreshes.
   qc.invalidateQueries({ queryKey: ['change-order-impact', projectId] });
   qc.invalidateQueries({ queryKey: ['project-scope-summary', projectId] });
+  // EST-VO-11e: Invalidate estimate variations so estimate detail refreshes.
+  invalidateEstimateVariations(qc);
   invalidateProjectCore(qc, projectId);
   invalidateProjectBoq(qc, projectId);
   invalidateProjectSchedule(qc, projectId);
