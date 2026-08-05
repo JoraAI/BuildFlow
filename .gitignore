@@ -82,3 +82,4 @@ apps/backend/prisma/migrations/**/*.bak
 .vercel
 .netlify
 apps/backend/.filestore/
+.filestore/
