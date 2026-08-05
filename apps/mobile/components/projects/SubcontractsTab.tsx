@@ -617,8 +617,8 @@ function MaterialsPanel({
   const projectMaterials = useMemo<ProjectMaterial[]>(() => {
     if (!stockSummary) return [];
     return stockSummary
-      .filter((s) => s.balance > 0)
-      .map((s) => ({
+      .filter((s: { balance: number }) => s.balance > 0)
+      .map((s: { resourceId: string; name: string; unit: string; balance: number }) => ({
         id: s.resourceId,
         name: s.name,
         unit: s.unit,

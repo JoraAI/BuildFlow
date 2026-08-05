@@ -9,20 +9,19 @@
 > **Verified:** 2026-08-05 — Rounds 12–23 **complete**. **Round 24–28 + optional polish complete**
 > (subcontract supply, branded PDFs, footerText, branded Excel export, E2E issue test, mobile tsc). **129/129** tests.
 >
-> **Active work:** **Round 29 (SUB-UX)** — subcontract measurement sheet + materials-from-stock UI.
-> Do not re-break Rounds 12–28. Only take §2.8 items if explicitly listed in Round 29 or user asks.
+> **Active work:** **Round 29b (SUB-UX2 + SUB-UX1 polish)** — finish measurement sheet UX; polish material issue validation.
+> **Round 29a (SUB-UX1 core)** is **done** — see §2.9.7. Do not re-break Rounds 12–28.
 
 ---
 
-## 2.9 Round 29 — Subcontract measurement & material-issue UX (ACTIVE)
+## 2.9 Round 29 — Subcontract measurement & material-issue UX
 
 **User report (2026-08-05):** The subcontract **measurement sheet** modal and **materials from site stock**
 panel work functionally but feel like developer stubs — especially material issue, which asks for a raw
 **resource UUID** instead of showing project stock the user can pick from.
 
-**Your job:** Polish both flows to match the quality of the daily-report material picker
-(`apps/mobile/app/(app)/reports/create.tsx`) and Procore/Fieldwire-style field UX.
-**Mobile-only** unless a tiny backend tweak is strictly required (prefer reusing existing APIs).
+**Round 29a status (verified 2026-08-05):** SUB-UX1 core landed in `SubcontractsTab.tsx`. SUB-UX2 **not started**.
+See §2.9.7 verification notes and §2.9.8 for remaining work.
 
 ### 2.9.0 How material issue works today (read before coding)
 
@@ -151,10 +150,65 @@ material issue list returns `resource.name` after issue (already likely covered)
 
 ### 2.9.5 Definition of done (Round 29)
 
-- [ ] **SUB-UX1** — MaterialPicker + stock balances; no UUID field; grouped issued list; Issue more + Recover
+- [x] **SUB-UX1 (core)** — MaterialPicker + stock balances; no UUID field; grouped issued list; Issue more + Recover
+- [ ] **SUB-UX1 polish** — rate API, qty≤onHand client validation, BOQ union, invalidate stock after issue/recover (§2.9.8)
 - [ ] **SUB-UX2** — Measurement list expand; improved new-measurement modal (balance hints, desktop table)
-- [ ] Ship gate: 129/129 tests, mobile + backend tsc clean
+- [x] Ship gate: 129/129 tests, mobile + backend tsc clean (post-verification fix: implicit-any on stockSummary map)
 - [ ] Do not re-break SUB-C supply mode, PDF material tables, or Rounds 12–23 variations
+
+### 2.9.7 Round 29a verification (2026-08-05 — do NOT revert SUB-UX1 core)
+
+**Ship gates:** backend tsc ✓ · mobile tsc ✓ · **129/129** tests ✓
+
+**API flow exercised** (NH65 seed, `owner@reddyconst.com`):
+
+| Step | Result |
+| ---- | ------ |
+| Create `GC_SUPPLIED` WO with 2 contract lines | 201 |
+| Issue material (OPC Cement, qty 2) via API | 201 |
+| Issue more (same resource, qty 1) | 201 — 2 ledger rows |
+| Recover 1 from first issue | 200 |
+| Summary `netMaterialOnWO` | ₹700 |
+| Create measurement `Aug 2026` with WO line link | 201, total ₹4500 |
+
+**SUB-UX1 delivered in mobile (`MaterialsPanel`):**
+
+- `MaterialPicker` + `useStockSummary` (no UUID field)
+- Grouped by resource; expand for individual issues
+- Summary strip: Issued / Recovered / Net on WO
+- **Issue more** pre-fills material; **Recover** per issue row
+- Empty state + "Issue from stock" CTA
+
+**SUB-UX1 gaps (→ §2.9.8 polish):**
+
+- No `GET …/resources/:id/rate` auto-fill on select
+- No client-side `qty ≤ onHand` (backend rejects only)
+- `projectMaterials` = stock only (no BOQ union like daily report)
+- `useIssueMaterial` / `useRecoverMaterial` do not invalidate `stockSummary` — on-hand display stale until refresh
+
+**SUB-UX2 not delivered:**
+
+- Measurement list still truncates at 3 lines (no expand)
+- New-measurement modal unchanged (no balance hints, period chips, desktop table, pick-from-WO-lines)
+
+### 2.9.8 Round 29b — Remaining work (ACTIVE for GLM)
+
+**Priority 1 — SUB-UX2 (measurement sheet)** — `MeasurementsPanel` in `SubcontractsTab.tsx`:
+
+1. List cards: line-count chip; **expand/collapse** all lines (remove hard 3-line cap).
+2. Modal: period quick-pick chips (current month); **balance hint** on lines linked to `workOrderLineId`
+   (`Balance: X unit` from `summary.lines`); warn if qty > balance.
+3. Desktop (`useViewport().isDesktop`): table columns # / Description / Qty / Unit / Rate / Amount.
+4. **Pick from WO lines** button → sub-sheet of contract lines with `balanceQty > 0`.
+
+**Priority 2 — SUB-UX1 polish** — `MaterialsPanel`:
+
+1. On material select: fetch rate via `apiFetch('/projects/${projectId}/resources/${id}/rate')` (copy from `reports/create.tsx`).
+2. Disable **Issue** when `parseFloat(qty) > onHand`; show red helper text.
+3. Union BOQ materials into `projectMaterials` (daily-report pattern).
+4. In `useIssueMaterial` / `useRecoverMaterial` `onSuccess`: invalidate `['procurement', 'stock', 'summary', projectId]`.
+
+**Ship gate:** 129/129 · both tsc clean · no backend changes required.
 
 ### 2.9.6 Anti-patterns (Round 29)
 
@@ -425,7 +479,7 @@ New migrations: `20260805100000_subcontract_material_supply_mode`,
 
 ### 2.2 Mandatory tasks — none (epic complete)
 
-**Round 24–28 SUB-C + RPT-C are done.** Take new work from **§2.9 Round 29 (SUB-UX)** first.
+**Round 24–28 SUB-C + RPT-C are done.** Take new work from **§2.9.8 Round 29b** first.
 Only take §2.8 if the user explicitly asks.
 
 <details>

@@ -859,6 +859,7 @@ export function useIssueMaterial(projectId: string, workOrderId: string) {
       ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['subcontract', 'material-issues', projectId, workOrderId] });
+      qc.invalidateQueries({ queryKey: ['procurement', 'stock', 'summary', projectId] });
       invalidateProjectSubcontract(qc, projectId);
     },
   });
@@ -874,6 +875,7 @@ export function useRecoverMaterial(projectId: string, workOrderId: string) {
       ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['subcontract', 'material-issues', projectId, workOrderId] });
+      qc.invalidateQueries({ queryKey: ['procurement', 'stock', 'summary', projectId] });
     },
   });
 }
