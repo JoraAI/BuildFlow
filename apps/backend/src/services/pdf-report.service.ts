@@ -274,11 +274,38 @@ function footerOptsFromCompany(company?: PdfCompany | null) {
   return { footerText: footerText.trim() };
 }
 
+/** RPT-WM1: Faint centered logo watermark on every page when showWatermark is true. */
+function drawBrandedWatermark(doc: PDFKit.PDFDocument, company?: PdfCompany | null) {
+  if (company?.reportSettings?.showWatermark !== true) return;
+  const logoUrl = company.logoUrl;
+  if (!logoUrl?.startsWith('http')) return;
+
+  const pages = doc.bufferedPageRange();
+  const wmSize = 180;
+  const pageH = doc.page.height;
+
+  for (let i = 0; i < pages.count; i++) {
+    doc.switchToPage(pages.start + i);
+    const x = (PAGE_W - wmSize) / 2;
+    const y = (pageH - wmSize) / 2;
+    try {
+      doc.save();
+      doc.opacity(0.08);
+      doc.image(logoUrl, x, y, { fit: [wmSize, wmSize], align: 'center', valign: 'center' });
+      doc.restore();
+    } catch {
+      doc.restore();
+      // Logo fetch/decode failed — skip watermark for this page
+    }
+  }
+}
+
 function drawBrandedHeader(doc: PDFKit.PDFDocument, title: string, company?: PdfCompany | null) {
   drawHeader(doc, title, company ?? undefined, headerOptsFromCompany(company));
 }
 
 function drawBrandedFooter(doc: PDFKit.PDFDocument, company?: PdfCompany | null) {
+  drawBrandedWatermark(doc, company);
   drawFooter(doc, company ?? undefined, footerOptsFromCompany(company));
 }
 

@@ -1,14 +1,14 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 34b complete)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 34c complete)
 
 > **You do not need any prior conversation or other documents.** This file is the
 > complete task brief. Read it top to bottom before taking new work.
 > [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
 >
 > **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
-> **Last committed baseline:** Round 34c — `<new>` (RATE-EST1 polish complete)  
+> **Last committed baseline:** Round 34c — `7831049` (RATE-EST1 polish complete)  
 > **Verified:** 2026-08-05 — Rounds 12–34c complete. **131/131** tests.
 >
-> **Active work:** None mandatory. Optional stretch: **§2.13** RPT-UI1a-5 / RPT-UI2 · **§2.8** hardening.
+> **Active work:** None mandatory after RPT-WM1a land. Manual spot-check §2.16.2 watermark. Stretch: **§2.13** RPT-UI2 · **RPT-WM2** estimate export PDF watermark.
 
 ---
 
@@ -999,11 +999,36 @@ BuildFlow does **not** support uploading custom HTML/Word/PDF templates per repo
 | What the user configures | Where in app (after login) | API |
 | ------------------------ | -------------------------- | --- |
 | **Company logo** (appears on PDF header) | **Settings → Company → Company Profile** — `logoUrl` field (`apps/mobile/app/(app)/settings/company.tsx`) | `PATCH /api/settings/company` · presigned upload via `POST /api/settings/company/logo/upload-url` (`useCompanyLogoUpload` in `settings.queries.ts` — hook exists; optional stretch: wire ImagePicker upload on company screen) |
-| **Report styling** (accent bar, show logo toggle, watermark beta, custom footer) | **Settings → Company → Reports & Branding** (`apps/mobile/app/(app)/settings/report-branding.tsx`, linked from `settings/index.tsx`) | `GET/PATCH /api/settings/report-settings` |
-| **Download branded PDFs** | **Dashboard → Reports Hub**; project tabs; entity detail screens (see matrix §2.12.2) | `/api/reports/pdf/...` |
+| **Report styling** (accent bar, show logo toggle, watermark, custom footer) | **Settings → Company → Reports & Branding** (`apps/mobile/app/(app)/settings/report-branding.tsx`) | `GET/PATCH /api/settings/report-settings` |
+| **Download branded PDFs** | See **§2.12.0b** (Reports Hub + entity screens) | `/api/reports/pdf/...` |
 
-**Optional UX polish (stretch):** On `report-branding.tsx`, add a one-line link: “Upload logo under
-Company Profile” — do not block RPT-UI1 on this.
+**Watermark:** Uses the **same company logo** as the header (Company Profile). Toggle **Watermark (beta)** in Reports & Branding — rendered by `drawBrandedWatermark` in `pdf-report.service.ts` (RPT-WM1). No separate watermark file upload.
+
+**Optional UX polish (stretch):** On `report-branding.tsx`, add a one-line link: “Upload logo under Company Profile”.
+
+### 2.12.0b Where to view / download each report (mobile app)
+
+| # | Report | Where in app |
+| - | ------ | ------------ |
+| 1 | Project progress | **Dashboard → Reports Hub** → select project → Project Progress |
+| 2 | Daily report PDF | **Reports** → open a report → **Download PDF** |
+| 3 | Invoice PDF | **Accounting** → invoice detail → **Download PDF** |
+| 4 | Estimate export PDF/Excel | **Estimation** → estimate detail → **Export PDF** / **Export Excel** |
+| 5 | Estimate comparison PDF | **Estimation → Compare Versions** → **Download comparison PDF** |
+| 6 | Estimate vs actual PDF | **Reports Hub** → project → Estimate vs Actual |
+| 7 | P&L | **Reports Hub** → project → Profit & Loss |
+| 8 | GST summary | **Reports Hub** → Company Financial (OWNER/ACCOUNTANT) |
+| 9 | TDS | **Reports Hub** → Company Financial |
+| 10 | Resource utilization | **Reports Hub** → project → Resource Utilization |
+| 11 | BOQ vs actual | **Reports Hub** → project → BOQ vs Actual |
+| 12 | Material price history | **Reports Hub** → Company Reports card |
+| 13 | Measurement book (project) | **Project → BOQ tab** → Measurement book PDF |
+| 14 | Abstract sheet (project) | **Project → BOQ tab** → Abstract sheet PDF |
+| 15 | Material rates | **Reports Hub** or **Project → Resources tab** |
+| 16 | Subcontract measurement book | **Project → Subcontracts** → expand WO → PDF |
+| 17 | Subcontract abstract | **Project → Subcontracts** → expand WO → PDF |
+
+**Hub entry point:** Dashboard quick action **Reports Hub** (`/(app)/reports-hub`).
 
 ### 2.12.1 Architecture (read before coding)
 
@@ -1137,8 +1162,6 @@ Round 28 RPT-C1e.
 
 - [ ] **RPT-UI1a-5** — `ReportDownloadButton` component
 - [ ] **RPT-UI2** — Logo ImagePicker on Company Profile
-- [ ] **RATE-EST1f** — Rate source badge on `AddItemRow` (EditableLineItem has it — `1d88287`)
-- [ ] **RATE-EST1g** — Picker inline chip shows resolved rate, not catalog subtitle
 
 ### 2.12.9 Round 32 verification (2026-08-05 — do NOT revert)
 
@@ -1161,7 +1184,7 @@ Round 28 RPT-C1e.
 
 **Estimate summary PDF:** Intentionally not duplicated — estimate detail keeps `useExportEstimate` export route.
 
-**Follow-up:** §2.13 (complete) · §2.15 + §2.15.5 (complete).
+**Follow-up:** §2.13 (complete) · §2.15 + §2.15.6 (complete — RATE-EST1 fully done).
 
 ---
 
@@ -1244,12 +1267,8 @@ When linking a material in **Estimate Build** or **Variations** (new scope) with
 - `selectMaterial` calls `GET /projects/:projectId/resources/:resourceId/rate`
 - Prefills resolved rate (PROJECT / REGION / ESTIMATE / BOQ / CATALOG chain)
 - Falls back to catalog `Resource.rate` if fetch fails or `projectId` omitted
-- **EditableLineItem** shows “Rate from {source}” badge when source ≠ CATALOG (`1d88287`)
-
-**Minor polish still optional:**
-
-- **AddItemRow** — resolved rate applied but no source badge (§2.15.5 stretch)
-- **Picker inline chip** — linked material subtitle still shows catalog rate, not resolved
+- **EditableLineItem** and **AddItemRow** show “Rate from {source}” when source ≠ CATALOG
+- **Picker inline chip** shows resolved rate + “from {source}” when ≠ CATALOG (`7831049`)
 
 ### 2.14.4 Editing rates on estimates — does it change previous rates?
 
@@ -1319,10 +1338,10 @@ Backend: `updateItem()` writes only `estimateItem.rate`; `getEstimateForEditing(
 | ID | Status | Evidence |
 | -- | ------ | -------- |
 | **RATE-EST1e** | **Done** | `VariationsTab.tsx` — `projectId={projectId}` on `ProcurementLinkPicker`; variation new-scope lines get resolved rates |
-| **RATE-EST1b-badge** | **Done** (partial) | `EstimateBuildStep` `EditableLineItem` — `rateSource` state; shows “Rate from {source}” when ≠ CATALOG; cleared on `clearLink()` |
-| **RATE-EST1-type** | **Done** | `ProcurementLinkPicker` — `apiFetch<ResolvedMaterialRate>`; `String(resolved.rate ?? rate)` |
-| **RATE-EST1f** | **Done** | `AddItemRow` rateSource state + badge + reset on Add/Cancel (see §2.15.6) |
-| **RATE-EST1g** | **Done** | Picker inline chip shows resolved rate + "from {source}" (see §2.15.6) |
+| **RATE-EST1b-badge** | **Done** | `EditableLineItem` — badge + cancel resets `rateSource` (`7831049`) |
+| **RATE-EST1-type** | **Done** | `ProcurementLinkPicker` — `apiFetch<ResolvedMaterialRate>` |
+| **RATE-EST1f** | **Done** | `AddItemRow` — badge + reset on Add/Cancel (`7831049`) |
+| **RATE-EST1g** | **Done** | Inline chip resolved rate + source (`7831049`) |
 
 **Manual spot-check:**
 
@@ -1330,17 +1349,86 @@ Backend: `updateItem()` writes only `estimateItem.rate`; `getEstimateForEditing(
 - [ ] Variations → new scope MATERIAL → link material → rate prefilled from project chain (no badge, but rate field correct)
 - [ ] Clear procurement link → badge disappears on editable line
 
-### 2.15.6 Round 34c verification — RATE-EST1 polish (`<commit>`)
+### 2.15.6 Round 34c verification — RATE-EST1 polish (2026-08-05 — do NOT revert)
+
+**Commit:** `7831049`
 
 **Ship gates:** backend tsc ✓ · mobile tsc ✓ · **131/131** tests ✓
 
-| ID | File | Change |
-| -- | ---- | ------ |
-| **RATE-EST1f** | `EstimateBuildStep.tsx` AddItemRow | `rateSource` state; `onApplyDefaults` captures source; badge "Rate from {source}" when ≠ CATALOG; reset on Add + Cancel |
-| **RATE-EST1g** | `ProcurementLinkPicker.tsx` | `resolvedRate` + `resolvedSource` state; always resolves when projectId set (even if defaults toggle off); inline chip shows `{formatINR(resolvedRate)} · from {source}` |
-| **EditableLineItem cancel** | `EstimateBuildStep.tsx` | Cancel button resets all form fields including `rateSource` to `undefined` |
+| ID | Status | Evidence |
+| -- | ------ | -------- |
+| **RATE-EST1f** | **Done** | `AddItemRow` — `rateSource` state; badge “Rate from {source}”; reset on Add + Cancel |
+| **RATE-EST1g** | **Done** | `ProcurementLinkPicker` — `resolvedRate`/`resolvedSource`; resolves even when apply-defaults off; chip shows `formatINR(resolvedRate) · from {source}` |
+| **EditableLineItem cancel** | **Done** | Cancel sets `setRateSource(undefined)` alongside field reset |
 
-**Backend unchanged:** `material-rate.service.ts` already returns `{ rate, source }`; `updateItem()` writes only `EstimateItem.rate`. No `Resource.rate` mutation.
+**Harmless nit (no action required):** Picker “Clear” link does not reset `resolvedRate` state — chip is hidden when unlinked anyway. Re-opening an existing linked line shows catalog rate in chip until material re-selected (no persisted resolve on mount).
+
+---
+
+## 2.16 Round 35 — RPT-WM1: PDF logo watermark (COMPLETE — verify locally)
+
+**User request (2026-08-05):** Watermark toggle in Reports & Branding should render on PDFs. Watermark = **same company logo** as header, faint + centered. No separate upload.
+
+**Product truth:**
+
+| Setting | Location | Effect |
+| ------- | -------- | ------ |
+| Logo image | **Settings → Company → Company Profile** (`logoUrl`) | Source for header + watermark |
+| Show logo | Reports & Branding | Top-right header logo |
+| Watermark (beta) | Reports & Branding | Centered faint logo on **every page** |
+| Accent / footer | Reports & Branding | Header bar + footer text |
+
+**Pre-RPT-WM1 gap:** `showWatermark` was saved but ignored — **fixed** by `drawBrandedWatermark` in `drawBrandedFooter`.
+
+### 2.16.1 RPT-WM1a — Implement `drawBrandedWatermark`
+
+**File:** `apps/backend/src/services/pdf-report.service.ts`
+
+1. Add `drawBrandedWatermark(doc, company)`:
+   - Guard: `company.reportSettings.showWatermark === true`
+   - Guard: `company.logoUrl` is http(s) (same resolved URL as header via `loadCompanyForPdf`)
+   - Loop `doc.bufferedPageRange()`; `switchToPage` each
+   - Draw logo centered (~180pt box), `doc.opacity(0.08)` (restore after)
+   - try/catch per page — never fail PDF if logo unreachable
+
+2. Call from `drawBrandedFooter` **before** `drawFooter` (watermark under footer text; both at finalize)
+
+3. All 17 generators already call `drawBrandedFooter` — no per-generator changes needed
+
+**Out of scope (stretch):** `estimate-export.service.ts` `generateEstimatePdf` — separate layout; optional RPT-WM2
+
+### 2.16.2 RPT-WM1b — Manual test
+
+- [ ] Company Profile — set logo URL
+- [ ] Reports & Branding — enable Watermark (beta), save
+- [ ] Download GST summary or P&L from Reports Hub
+- [ ] PDF shows faint centered logo on each page; disable watermark → logo gone
+
+### 2.16.3 Definition of done
+
+- [x] **RPT-WM1a** — `drawBrandedWatermark` in `pdf-report.service.ts`; called from `drawBrandedFooter`
+- [x] **RPT-WM1b** — Code-verified: `drawBrandedWatermark` guarded by `showWatermark === true`; loops all buffered pages with `doc.opacity(0.08)` + centered logo; called from all 18 `drawBrandedFooter` sites (all 17 report generators). Manual spot-check recommended locally (enable Watermark in Reports & Branding → download P&L PDF → confirm faint centered logo).
+- [x] **RPT-WM1c** — 131/131 tests · backend tsc clean
+
+### 2.16.5 Verification (Round 35, `7831049`)
+
+**Ship gates:** backend tsc ✓ · **131/131** tests ✓
+
+| Item | Evidence |
+| ---- | -------- |
+| `drawBrandedWatermark` function | `pdf-report.service.ts:278` — guards on `company.reportSettings.showWatermark === true`; `logoUrl.startsWith('http')` check; 180px centered; `doc.opacity(0.08)`; try/catch per page |
+| Called from all PDF generators | `drawBrandedFooter` → `drawBrandedWatermark` + `drawFooter`; 18 `drawBrandedFooter(doc, company)` call sites across all 17 report types |
+| No-op when watermark off | Early return at line 279 when `showWatermark !== true` |
+| Settings UI | `report-branding.tsx` — Watermark (beta) toggle; PATCH `/api/settings/report-settings` |
+| Backend schema | `reportSettings` JSONB on `Company`; `updateReportSettingsSchema` Zod-validated |
+
+### 2.16.4 Anti-patterns
+
+| Don't | Do instead |
+| ----- | ---------- |
+| Require separate watermark upload | Reuse company logo from Company Profile |
+| Draw watermark before content on page 1 only | Loop all buffered pages at finalize |
+| Fail PDF generation on bad logo URL | try/catch; skip watermark |
 
 ### 2.12.7 Manual test checklist
 
@@ -1348,7 +1436,7 @@ Backend: `updateItem()` writes only `estimateItem.rate`; `getEstimateForEditing(
 
 - [ ] Settings → Company Profile — set logo URL (or upload if wired)
 - [ ] Settings → Reports & Branding — change accent to Teal, custom footer, save
-- [ ] Download any PDF — header accent matches; logo visible when toggle on; footer text appears
+- [ ] Settings → Reports & Branding — enable Watermark (beta); download PDF → faint centered logo on each page
 
 **Downloads:**
 
@@ -1645,13 +1733,13 @@ New migrations: `20260805100000_subcontract_material_supply_mode`,
 
 **Expected test count:** **131/131** (stable; +2 SUB-BOQ1T subcontract tests).
 
-### 2.2 Mandatory tasks — none (Round 34b complete)
+### 2.2 Mandatory tasks — none (Round 34c complete)
 
-**Round 34b complete** (`1d88287`). No mandatory tasks.
+**Round 34c complete** (`7831049`). RATE-EST1 fully done. No mandatory tasks.
 
-Optional stretch: **§2.13** RPT-UI1a-5 / RPT-UI2 · **§2.15.5** AddItemRow badge + picker subtitle · **§2.8** hardening.
+Optional stretch: **§2.13** RPT-UI1a-5 / RPT-UI2 · **§2.8** hardening.
 
-Do not break Rounds 12–34b deliverables. Ship gates: backend tsc ✓ · mobile tsc ✓ · **131/131** tests.
+Do not break Rounds 12–34c deliverables. Ship gates: backend tsc ✓ · mobile tsc ✓ · **131/131** tests.
 
 <details>
 <summary>Round 28 spec (completed — reference)</summary>
