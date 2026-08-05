@@ -88,9 +88,29 @@ export async function listBoq(companyId: string, projectId: string) {
     }
   }
 
+  // SUB-BOQ1B: Aggregate subcontract material issues (net qty) by resourceId
+  const subIssuedByResource = new Map<string, number>();
+  if (resourceIds.length > 0) {
+    const subIssues = await prisma.subcontractorMaterialIssue.findMany({
+      where: {
+        resourceId: { in: resourceIds },
+        workOrder: { projectId, project: { companyId } },
+      },
+      select: { resourceId: true, quantity: true, recoveredQty: true },
+    });
+    for (const si of subIssues) {
+      const net = Number(si.quantity) - Number(si.recoveredQty);
+      subIssuedByResource.set(
+        si.resourceId,
+        (subIssuedByResource.get(si.resourceId) ?? 0) + net,
+      );
+    }
+  }
+
   const itemsWithStock = enrichedItems.map((item) => ({
     ...item,
     stockQty: item.resourceId ? (stockByResource.get(item.resourceId) ?? 0) : undefined,
+    subIssuedQty: item.resourceId ? (subIssuedByResource.get(item.resourceId) ?? 0) : undefined,
   }));
 
   // R14-VO1: Resolve variation provenance — which approved change orders touched

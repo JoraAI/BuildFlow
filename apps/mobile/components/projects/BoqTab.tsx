@@ -281,6 +281,12 @@ export function BoqTab({ projectId }: BoqTabProps) {
                           Site stock: {item.stockQty} {item.unit}
                         </Text>
                       )}
+                      {/* SUB-BOQ1B: Show issued-to-subs hint when subcontract issues exist */}
+                      {item.category === 'MATERIAL' && (item.subIssuedQty ?? 0) > 0 && (
+                        <Text className="text-xs text-primary font-semibold">
+                          Issued to subs: {item.subIssuedQty} {item.unit}
+                        </Text>
+                      )}
                       {(item.billableQty ?? 0) > 0 && (
                         <Text className="text-xs text-accent font-semibold">
                           Billable: {item.billableQty} {item.unit}

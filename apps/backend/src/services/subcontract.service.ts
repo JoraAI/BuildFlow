@@ -1001,6 +1001,20 @@ export async function issueMaterialToWorkOrder(
   });
   if (!stockLoc) throw ApiError.notFound('No stock location found for this project');
 
+  // SUB-BOQ1B: Validate boqItemId if provided — must belong to project + match resourceId
+  if (input.boqItemId) {
+    const boqItem = await prisma.bOQItem.findFirst({
+      where: { id: input.boqItemId, projectId, isSuperseded: false },
+      select: { id: true, resourceId: true, category: true },
+    });
+    if (!boqItem) {
+      throw ApiError.badRequest('Specified BOQ line does not exist on this project');
+    }
+    if (boqItem.resourceId && boqItem.resourceId !== input.resourceId) {
+      throw ApiError.badRequest('BOQ line resource does not match the selected material');
+    }
+  }
+
   // Validate stock availability
   const balance = await prisma.stockBalance.findUnique({
     where: { locationId_resourceId: { locationId: stockLoc.id, resourceId: input.resourceId } },

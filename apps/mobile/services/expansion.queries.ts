@@ -852,7 +852,7 @@ export function useMaterialIssues(projectId: string, workOrderId: string | null)
 export function useIssueMaterial(projectId: string, workOrderId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { resourceId: string; quantity: number; unit: string; rate: number; issueDate: string; notes?: string }) =>
+    mutationFn: (input: { resourceId: string; quantity: number; unit: string; rate: number; issueDate: string; notes?: string; boqItemId?: string }) =>
       apiFetch<SubcontractorMaterialIssue>(
         `/projects/${projectId}/subcontract/work-orders/${workOrderId}/material-issues`,
         { method: 'POST', body: JSON.stringify(input) },

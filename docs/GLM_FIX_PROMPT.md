@@ -1,16 +1,14 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 30b active)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 30c active)
 
 > **You do not need any prior conversation or other documents.** This file is the
 > complete task brief. Read it top to bottom before taking new work.
 > [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
 >
 > **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
-> **Last committed baseline:** Round 29c — `ed0f16a` (subcontract measurement + material UX)  
-> **Verified:** 2026-08-05 — Rounds 12–23 **complete**. **Round 24–28 + Round 29 SUB-UX complete**
-> (subcontract supply, branded PDFs/Excel, material picker UX, measurement modal). **129/129** tests.
+> **Last committed baseline:** Round 30b — `9462a3e` (boqItemId schema + MaterialPicker polish)  
+> **Verified:** 2026-08-05 — Rounds 12–29 + Round 30a/30b **partial**. **129/129** tests.
 >
-> **Active work:** **Round 30b** — SUB-BOQ1 Phase B + MOB-PICK1 + SUB-UX3 confirm fix (§2.10.11).
-> **Round 30a** partial done — see §2.10.10. **129/129** tests baseline.
+> **Active work:** **Round 30c** — BOQ issued hint + issue UI boqItemId + RateAnalysisPicker polish (§2.10.13).
 
 ---
 
@@ -413,45 +411,58 @@ If `Rendered more hooks than during the previous render` in `MaterialsPanel`: en
 ### 2.10.7 Definition of done (Round 30)
 
 - [x] **SUB-BOQ1 Phase A** — `invalidateProjectBoq` on issue/recover (`6b802a7`)
-- [ ] **SUB-BOQ1 Phase B** — optional `boqItemId` + BOQ "Issued to subs" hint (§2.10.11)
-- [x] **SUB-UX3 (core)** — Review UI + Cancel/Issue footer + Change material link (`6b802a7`)
-- [ ] **SUB-UX3 fix** — discard dialogs must use `confirmAsync` not `alertAsync` (§2.10.10 NR-38)
+- [x] **SUB-BOQ1 Phase B (schema/API)** — migration + `boqItemId` persist (`bb50b2a`, `9462a3e`)
+- [ ] **SUB-BOQ1 Phase B (UI/BOQ)** — mobile BOQ picker + BoqTab hint + service validation (§2.10.13)
+- [x] **SUB-UX3** — Review UI + `confirmAsync` discard (`6b802a7`, `bb50b2a` NR-38)
 - [x] **TEAM-R1** — Full roles + `ROLE_LABELS` + schema (`6b802a7`)
-- [ ] **MOB-PICK1** — MaterialPicker + RateAnalysisPicker polish (§2.10.11)
+- [x] **MOB-PICK1 (MaterialPicker)** — checkmark, bold selected, padding (`9462a3e`)
+- [ ] **MOB-PICK1 (RateAnalysisPicker)** — match MaterialPicker polish (§2.10.13)
 - [x] **NR-37** — Hooks before early return in MaterialsPanel
+- [x] **NR-38** — `confirmAsync` for discard dialogs
 - [x] 129/129 tests, both tsc clean
 
-### 2.10.10 Round 30a verification (2026-08-05 — do NOT revert)
+### 2.10.12 Round 30b verification (2026-08-05 — do NOT revert)
 
-**Commit:** `6b802a7`
+**Commits:** `bb50b2a` (migration/schema + NR-38) · `9462a3e` (service + MaterialPicker)
 
 **Ship gates:** backend tsc ✓ · mobile tsc ✓ · **129/129** tests ✓
 
 | ID | Status | Evidence |
 | -- | ------ | -------- |
-| **SUB-BOQ1 Phase A** | **Done** | `useIssueMaterial` / `useRecoverMaterial` call `invalidateProjectBoq` |
-| **SUB-UX3** | **Partial** | Cancel + Issue footer; Change material link; onClose dirty check — but **`alertAsync` used for confirm** (always proceeds on OK) → **NR-38** |
-| **TEAM-R1** | **Done** | 9 roles + `ROLE_LABELS`; `setProjectMembersSchema` expanded |
-| **MOB-PICK1** | **Not done** | No changes to `MaterialPicker.tsx` / `RateAnalysisPicker.tsx` |
-| **SUB-BOQ1 Phase B** | **Not done** | No migration `boq_item_id`; no BOQ issued hint in `BoqTab` |
-| **NR-37** | **Done** | `groupedIssues` useMemo before `return null` |
+| **SUB-BOQ1B schema** | **Done** | Migration `20260805160000`; `SubcontractorMaterialIssue.boqItemId`; BOQItem back-relation |
+| **SUB-BOQ1B API** | **Partial** | `issueMaterialToWoSchema.boqItemId`; persisted in `issueMaterialToWorkOrder` — **no validation** that BOQ line matches project/resource |
+| **SUB-BOQ1B mobile** | **Not done** | `useIssueMaterial` type omits `boqItemId`; `onIssue` doesn't send it; no BOQ line picker in issue modal |
+| **SUB-BOQ1B BoqTab** | **Not done** | No `Issued to subs` in `BoqTab.tsx`; `boq.service.ts` doesn't aggregate subcontract issues |
+| **MOB-PICK1 Material** | **Done** | Checkmark, bold primary text, 40px thumbnail, `active:bg-surface` |
+| **MOB-PICK1 RA** | **Not done** | `RateAnalysisPicker.tsx` unchanged |
+| **NR-38** | **Done** | `confirmAsync` on sheet close + Change material (`bb50b2a`) |
 
-**Post-verification fix (local):** NR-38 — `confirmAsync` for sheet close + Change material; removed unused `issueStep` state.
+**Apply migration on dev:** `pnpm db:migrate:deploy` (includes `20260805160000_subcontract_material_issue_boq_item`).
 
-### 2.10.11 Round 30b — Remaining work (ACTIVE for GLM)
+### 2.10.13 Round 30c — Remaining work (ACTIVE for GLM)
 
-**SUB-BOQ1 Phase B:**
+**SUB-BOQ1B finish:**
 
-1. Migration: nullable `boq_item_id` on `subcontractor_material_issues`.
-2. Extend issue API + mobile optional BOQ line picker when material matches BOQ `resourceId`.
-3. `BoqTab`: show `Issued to subs: {qty}` on MATERIAL rows (aggregate issues by resource/boqItemId).
-4. Optional test: issue → BOQ `stockQty` lower (or assert invalidation path).
+1. **`subcontract.service.ts`** — When `boqItemId` provided: validate BOQ item belongs to WO project, category MATERIAL, `resourceId === input.resourceId`.
+2. **`expansion.queries.ts`** — Add `boqItemId?: string` to `useIssueMaterial` input type.
+3. **`MaterialsPanel`** — After material select, if BOQ has MATERIAL lines with same `resourceId`, show optional **Link to BOQ line** chips/list; pass `boqItemId` on issue.
+4. **`boq.service.ts` + `BoqTab.tsx`** — Aggregate net issued qty per BOQ item (or resource): show `Issued to subs: {qty} {unit}` on MATERIAL rows alongside `Site stock`.
+5. **Test (recommended):** Issue with `boqItemId` → list returns it; or BOQ includes `subIssuedQty`.
 
-**MOB-PICK1:** Polish `MaterialPicker.tsx` + `RateAnalysisPicker.tsx` per §2.10.4 (section headers, checkmark selected, thumbnails, empty states).
+**MOB-PICK1 finish — `RateAnalysisPicker.tsx`:**
 
-**NR-38:** Verify discard uses `confirmAsync` (fixed locally — do not regress).
+Mirror MaterialPicker: checkmark when selected, bold primary text, `p-2.5`, `active:bg-surface`, section header styling.
 
-**Ship gate:** 129/129+ · both tsc clean.
+**Ship gate:** 129/129+ · both tsc clean · run migration on dev DB.
+
+### 2.10.11 Round 30b spec (was ACTIVE — see §2.10.12/§2.10.13)
+
+<details>
+<summary>Round 30b original spec (partially done)</summary>
+
+Schema/API + MaterialPicker done. UI/BOQ hint + RA picker → §2.10.13.
+
+</details>
 
 ### 2.10.8 Anti-patterns (Round 30)
 
@@ -722,7 +733,7 @@ New migrations: `20260805100000_subcontract_material_supply_mode`,
 
 ### 2.2 Mandatory tasks — none (epic complete)
 
-**Round 24–28 + Round 29 SUB-UX + Round 30a done.** Take new work from **§2.10.11 Round 30b** first.
+**Round 30a/30b partial done.** Take new work from **§2.10.13 Round 30c** first.
 Only take §2.8 if the user explicitly asks.
 
 <details>
@@ -1096,7 +1107,9 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 | **RPT-O4** | Branded Excel exports (`estimate-export.service.ts`) | **Done** |
 | **MOB-O1** | ~~Fix mobile tsc implicit-any~~ | **Done** |
 | **SUB-UX-O1** | Material issue: optional date/notes; hide zero-stock BOQ rows in picker; bill hint on approved measurements |
-| **NR-38** | ~~Material issue discard must use `confirmAsync` not `alertAsync`~~ | **Done** (post-30a verify) |
+| **NR-38** | ~~Material issue discard must use `confirmAsync` not `alertAsync`~~ | **Done** (`bb50b2a`) |
+| **SUB-BOQ1C** | BOQ line picker on issue + BoqTab "Issued to subs" + boqItemId validation |
+| **MOB-PICK1b** | RateAnalysisPicker visual polish (match MaterialPicker) |
 | **Phase 5 gaps** | Smoke tests for inventory-traceability, accounting-export, labour, i18n |
 | **NR-36** | Drawing acknowledgement endpoint |
 | **Sync §8.1** | Remount `/api/sync` (needs `updatedAt` + mobile replay) |

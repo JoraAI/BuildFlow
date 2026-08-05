@@ -28,6 +28,7 @@ export interface BoqItem {
   billableQty?: number;
   /** On-hand qty at site store (from GRN receipts), for MATERIAL lines linked to catalog. */
   stockQty?: number;
+  subIssuedQty?: number;
   /** R14-VO1: Approved change order numbers that modified this line. */
   variationNumbers?: string[];
 }

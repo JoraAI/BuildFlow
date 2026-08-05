@@ -803,6 +803,7 @@ function MaterialsPanel({
 
   const [issueModal, setIssueModal] = useState(false);
   const [selectedResource, setSelectedResource] = useState<{ id: string; name: string; unit: string; rate?: string } | null>(null);
+  const [selectedBoqItemId, setSelectedBoqItemId] = useState<string | null>(null);
   const [qty, setQty] = useState('');
   const [unit, setUnit] = useState('');
   const [rate, setRate] = useState('');
@@ -897,6 +898,7 @@ function MaterialsPanel({
         unit,
         rate: parseFloat(rate) || 0,
         issueDate: new Date().toISOString().slice(0, 10),
+        ...(selectedBoqItemId ? { boqItemId: selectedBoqItemId } : {}),
       },
       {
         onSuccess: () => {
@@ -1244,6 +1246,42 @@ function MaterialsPanel({
                 Amount: {formatINR((parseFloat(qty) || 0) * (parseFloat(rate) || 0))}
               </Text>
             )}
+            {/* SUB-BOQ1B: Optional BOQ line link when matching MATERIAL lines exist */}
+            {(() => {
+              const matchingBoqLines = (boq?.items ?? [])
+                .filter((b: BoqItem) => b.resourceId === selectedResource.id && b.category === 'MATERIAL');
+              if (matchingBoqLines.length === 0) return null;
+              return (
+                <View className="mt-2">
+                  <Text className="text-xs font-semibold text-text mb-1">
+                    Link to BOQ line (optional)
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <Pressable
+                      onPress={() => setSelectedBoqItemId(null)}
+                      className={`px-3 py-1.5 rounded-lg border mr-1 ${
+                        selectedBoqItemId === null ? 'border-primary bg-primary/5' : 'border-border'
+                      }`}
+                    >
+                      <Text className="text-xs text-muted">None</Text>
+                    </Pressable>
+                    {matchingBoqLines.map((b: BoqItem) => (
+                      <Pressable
+                        key={b.id}
+                        onPress={() => setSelectedBoqItemId(b.id)}
+                        className={`px-3 py-1.5 rounded-lg border mr-1 ${
+                          selectedBoqItemId === b.id ? 'border-primary bg-primary/5' : 'border-border'
+                        }`}
+                      >
+                        <Text className={`text-xs ${selectedBoqItemId === b.id ? 'text-primary font-semibold' : 'text-muted'}`}>
+                          {b.itemCode}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              );
+            })()}
           </>
         )}
       </AdaptiveSheet>

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { SearchBar } from '@/components/ui';
 import { useRateAnalyses, type RateAnalysis } from '@/services/estimate.queries';
 import { formatINR } from '@/utils/format';
@@ -44,27 +45,51 @@ export function RateAnalysisPicker({
       {isLoading ? (
         <ActivityIndicator className="py-4" />
       ) : analyses.length === 0 ? (
-        <Text className="text-sm text-muted py-2">{emptyLabel}</Text>
+        <View className="items-center py-4 gap-2">
+          <Ionicons name="calculator-outline" size={28} color="#94A3B8" />
+          <Text className="text-sm text-muted">{emptyLabel}</Text>
+        </View>
       ) : (
         <ScrollView style={{ maxHeight }} nestedScrollEnabled>
-          {analyses.map((ra: RateAnalysis) => (
-            <Pressable
-              key={ra.id}
-              onPress={() => onSelect(ra)}
-              className={`flex-row items-center gap-3 p-2 rounded-lg border mb-1 ${
-                selectedId === ra.id ? 'border-primary bg-primary/5' : 'border-border bg-card'
-              }`}
-            >
-              <View className="flex-1 min-w-0">
-                <Text className="text-sm text-text" numberOfLines={1}>
-                  {ra.name}
-                </Text>
-                <Text className="text-xs text-muted">
-                  {ra.unit} · {formatINR(parseFloat(ra.totalRate))} / {ra.unit}
-                </Text>
-              </View>
-            </Pressable>
-          ))}
+          <Text className="text-[10px] font-semibold text-muted uppercase tracking-wide mb-1">
+            Rate analyses
+          </Text>
+          {analyses.map((ra: RateAnalysis) => {
+            const isSelected = selectedId === ra.id;
+            return (
+              <Pressable
+                key={ra.id}
+                onPress={() => onSelect(ra)}
+                className={`flex-row items-center gap-3 p-2.5 rounded-lg border mb-1 active:bg-surface ${
+                  isSelected ? 'border-primary bg-primary/5' : 'border-border bg-card'
+                }`}
+              >
+                <View className="w-10 h-10 rounded-lg bg-primary/10 items-center justify-center">
+                  <Ionicons name="calculator-outline" size={18} color="#1E3A5F" />
+                </View>
+                <View className="flex-1 min-w-0">
+                  <Text
+                    className={`text-sm ${isSelected ? 'font-semibold text-primary' : 'text-text'}`}
+                    numberOfLines={1}
+                  >
+                    {ra.name}
+                  </Text>
+                  <View className="flex-row items-center gap-2">
+                    <View className="px-1.5 py-0.5 rounded bg-muted/10">
+                      <Text className="text-[9px] text-muted font-medium">{ra.unit}</Text>
+                    </View>
+                    <Text className="text-xs text-muted">
+                      {formatINR(parseFloat(ra.totalRate))} / {ra.unit}
+                    </Text>
+                  </View>
+                </View>
+                {/* MOB-PICK1: Checkmark when selected */}
+                {isSelected && (
+                  <Ionicons name="checkmark-circle" size={20} color="#1E3A5F" />
+                )}
+              </Pressable>
+            );
+          })}
         </ScrollView>
       )}
       {footer ? (
