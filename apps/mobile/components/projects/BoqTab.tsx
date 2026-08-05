@@ -31,6 +31,7 @@ import {
   useCreateWorkOrderFromBoq,
   type Subcontractor,
 } from "@/services/expansion.queries";
+import { downloadReportPdf, reportPaths } from '@/services/report-download';
 import { alertAsync } from '@/utils/confirm';
 
 interface BoqTabProps {
@@ -188,6 +189,24 @@ export function BoqTab({ projectId }: BoqTabProps) {
           </View>
         </View>
       </Card>
+
+      {/* RPT-UI1b-boq: Project MB + Abstract PDF buttons */}
+      <View className="flex-row gap-2">
+        <Button
+          label="Measurement book PDF"
+          size="sm"
+          variant="secondary"
+          className="flex-1"
+          onPress={() => downloadReportPdf(reportPaths.measurementBook(projectId), `measurement-book-${projectId}.pdf`)}
+        />
+        <Button
+          label="Abstract sheet PDF"
+          size="sm"
+          variant="secondary"
+          className="flex-1"
+          onPress={() => downloadReportPdf(reportPaths.abstractSheet(projectId), `abstract-sheet-${projectId}.pdf`)}
+        />
+      </View>
 
       {/* View toggle: By Section | By Category */}
       <View className="flex-row gap-2 px-1">

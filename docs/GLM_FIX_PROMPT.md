@@ -1,15 +1,14 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 31 active)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 32 active)
 
 > **You do not need any prior conversation or other documents.** This file is the
 > complete task brief. Read it top to bottom before taking new work.
 > [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
 >
 > **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
-> **Last committed baseline:** Round 30 complete — `2d8f324` + post-verify SUB-BOQ1T fixes  
-> **Verified:** 2026-08-05 — Rounds 12–30 complete. **131/131** tests.
+> **Last committed baseline:** Round 31 — `1d86081` (ProcurementLinkPicker)  
+> **Verified:** 2026-08-05 — Rounds 12–31 complete. **131/131** tests.
 >
-> **Active work:** **Round 31 — MOB-LINK1** unified Material / Rate Analysis link picker (§2.11).
-> Read §2.11 in full before coding. Do **not** take §2.8 unless §2.11 is done or user asks.
+> **Active work:** **§2.12 Round 32 — RPT-UI1** (report download buttons + branding coverage).
 
 ---
 
@@ -470,7 +469,7 @@ All §2.10.13 items delivered in `2d8f324`. Optional integration test remains in
 
 ---
 
-## 2.11 Round 31 — MOB-LINK1: Unified procurement link picker (ACTIVE)
+## 2.11 Round 31 — MOB-LINK1: Unified procurement link picker (COMPLETE)
 
 **User report (2026-08-05):** When adding/editing estimate line items (including **sub-estimates**,
 which reuse the same build wizard) or **variation new-scope lines**, the UI stacks **two full searchable
@@ -933,13 +932,40 @@ No new migrations. No new backend tests required unless you add one voluntarily.
 
 ### 2.11.10 Definition of done (Round 31)
 
-- [ ] **MOB-LINK1a** — `ProcurementLinkPicker.tsx` created per §2.11.3
-- [ ] **MOB-LINK1b** — `EstimateBuildStep.tsx` refactored; `ProcurementLinkFields` removed
-- [ ] **MOB-LINK1c** — `VariationsTab.tsx` refactored; dual pickers removed for new scope
-- [ ] **MOB-LINK1d** — `promptLinkApplyAsync` removed from estimate link flow; sheet toggle used
-- [ ] **MOB-LINK1e** — Debug `console.log` removed from EstimateBuildStep template path
-- [ ] **MOB-LINK1f** — 131/131 tests, mobile + backend tsc clean
-- [ ] **MOB-LINK1g** — Manual checklist §2.11.9 passed
+- [x] **MOB-LINK1a** — `ProcurementLinkPicker.tsx` created per §2.11.3 (`1d86081`)
+- [x] **MOB-LINK1b** — `EstimateBuildStep.tsx` refactored; `ProcurementLinkFields` removed
+- [x] **MOB-LINK1c** — `VariationsTab.tsx` refactored; dual pickers removed for new scope
+- [x] **MOB-LINK1d** — `promptLinkApplyAsync` removed from estimate link flow; sheet toggle used
+- [x] **MOB-LINK1e** — Debug `console.log` removed from EstimateBuildStep template path
+- [x] **MOB-LINK1f** — 131/131 tests, mobile + backend tsc clean
+- [x] **MOB-LINK1g** — Manual checklist §2.11.9 (automated verify; user spot-check recommended)
+
+### 2.11.12 Round 31 verification (2026-08-05 — do NOT revert)
+
+**Commit:** `1d86081`
+
+**Ship gates:** backend tsc ✓ · mobile tsc ✓ · **131/131** tests ✓
+
+| ID | Status | Evidence |
+| -- | ------ | -------- |
+| **MOB-LINK1a** | **Done** | `ProcurementLinkPicker.tsx` — inline chip + `AdaptiveSheet`, segmented Material/RA, apply-defaults Switch |
+| **MOB-LINK1b** | **Done** | `EstimateBuildStep` — picker for all non-MISC types; template logs removed |
+| **MOB-LINK1c** | **Done** | `VariationsTab` — single picker for new scope; old dual pickers removed |
+| **MOB-LINK1d** | **Done** | No `promptLinkApplyAsync` in estimate flow |
+| **MOB-LINK1e** | **Done** | `resolveTemplateItemLinks` / `applyTemplate` console.log removed |
+| **MOB-LINK3 partial** | **Done** (post-verify) | `effectiveAllowedKinds` from `lineType` — LABOUR/EQUIP/SUBCONTRACTOR RA-only segment |
+| **NR-40** | **Done** (post-verify) | Read-only link badge shown for all non-MISC types (was MATERIAL-only) |
+
+**Unchanged (correct):** `MaterialPicker` / `RateAnalysisPicker` still used by subcontract, daily report, rates, indent.
+
+**Stretch not done (§2.11.11):** MOB-LINK2 PickerListRow extract · MOB-LINK4 IndentDraftLineCard refactor.
+
+<details>
+<summary>Round 31 original spec (completed)</summary>
+
+Full MOB-LINK1 spec delivered in `1d86081`. See §2.11.12 verification table.
+
+</details>
 
 ---
 
@@ -952,6 +978,186 @@ No new migrations. No new backend tests required unless you add one voluntarily.
 | **MOB-LINK4** | Refactor IndentDraftLineCard to use ProcurementLinkPicker internally |
 
 Do not start stretch items until §2.11.10 all checked.
+
+---
+
+## 2.12 Round 32 — RPT-UI1: Report download buttons + branding coverage (ACTIVE)
+
+**User request (2026-08-05):** Every report that has a backend PDF endpoint should have a clear
+**Download PDF** entry in the mobile app. Branding (logo, accent, footer) must apply consistently.
+User also asked where to configure “report templates” after login — see **§2.12.0** (no per-report
+file upload today; company-level branding only).
+
+**Round 32 status:** **ACTIVE** — implement §2.12.3–§2.12.6.
+
+### 2.12.0 Report branding vs “templates” (product truth — document in UI if helpful)
+
+BuildFlow does **not** support uploading custom HTML/Word/PDF templates per report type. PDFs are
+**generated programmatically** in `apps/backend/src/services/pdf-report.service.ts` (and
+`estimate-export.service.ts` for estimate Excel/PDF).
+
+| What the user configures | Where in app (after login) | API |
+| ------------------------ | -------------------------- | --- |
+| **Company logo** (appears on PDF header) | **Settings → Company → Company Profile** — `logoUrl` field (`apps/mobile/app/(app)/settings/company.tsx`) | `PATCH /api/settings/company` · presigned upload via `POST /api/settings/company/logo/upload-url` (`useCompanyLogoUpload` in `settings.queries.ts` — hook exists; optional stretch: wire ImagePicker upload on company screen) |
+| **Report styling** (accent bar, show logo toggle, watermark beta, custom footer) | **Settings → Company → Reports & Branding** (`apps/mobile/app/(app)/settings/report-branding.tsx`, linked from `settings/index.tsx`) | `GET/PATCH /api/settings/report-settings` |
+| **Download branded PDFs** | **Dashboard → Reports Hub**; project tabs; entity detail screens (see matrix §2.12.2) | `/api/reports/pdf/...` |
+
+**Optional UX polish (stretch):** On `report-branding.tsx`, add a one-line link: “Upload logo under
+Company Profile” — do not block RPT-UI1 on this.
+
+### 2.12.1 Architecture (read before coding)
+
+**Backend PDF engine:** `apps/backend/src/services/pdf-report.service.ts`  
+**Routes:** `apps/backend/src/routes/pdf-report.routes.ts` → mounted at `/api/reports/pdf`  
+**Branding helpers:** `loadCompanyForPdf` + `drawBrandedHeader` (Round 28 RPT-C1e — all 17 generators
+should already pass `accentColor`, `showLogo`, footer).
+
+**Estimate exports (separate from pdf-report routes):**
+
+- `apps/backend/src/services/estimate-export.service.ts`
+- Mobile: `useExportEstimate` on estimate detail → `/api/estimates/:id/export/pdf|excel`
+- Already branded — **do not duplicate** with `/reports/pdf/estimates/:id` on same screen unless
+  product wants both; prefer keeping existing Export PDF/Excel buttons.
+
+**Mobile download pattern today (copy, then centralize):**
+
+- Reports Hub inline `downloadPdf` — `apiDownload` + `expo-sharing` (`reports-hub/index.tsx`)
+- Subcontracts — `downloadSubcontractMeasurementBookPdf` etc. in `expansion.queries.ts`
+- Resources tab — inline `apiDownload` for material rates PDF
+
+### 2.12.2 Report inventory matrix (17 pdf-report types + estimate export)
+
+| # | Report | API path | Mobile UI today | Round 32 action |
+| - | ------ | -------- | --------------- | --------------- |
+| 1 | Project progress | `GET /reports/pdf/projects/:id/progress` | **Missing** | Add to Reports Hub project grid + optional project overview |
+| 2 | Daily report | `GET /reports/pdf/reports/:id` | **Missing** | **Download PDF** on `reports/[id].tsx` header |
+| 3 | Invoice | `GET /reports/pdf/invoices/:id` | **Missing** | **Download PDF** on `accounting/invoice/[id].tsx` |
+| 4 | Estimate summary | `GET /reports/pdf/estimates/:id` | Partial — estimate detail has export service | **Skip duplicate** if export PDF already present; else add secondary “Summary PDF” |
+| 5 | Estimate comparison | `GET /reports/pdf/estimates/:idA/compare/:idB` | **Missing** | **Download PDF** on `estimation/compare.tsx` when `canCompare` |
+| 6 | Estimate vs actual | `GET /reports/pdf/projects/:id/estimate-vs-actual` | Data in Reports Hub (`useEstimateVsActual`) but **no PDF button** | Add card/button in Reports Hub |
+| 7 | P&L | `GET /reports/pdf/projects/:id/profit-loss` | Reports Hub ✓ | Keep; verify branding |
+| 8 | GST summary | `GET /reports/pdf/gst-summary` | Reports Hub ✓ (OWNER/ACCOUNTANT) | Keep |
+| 9 | TDS | `GET /reports/pdf/tds` | Reports Hub ✓ | Keep |
+| 10 | Resource utilization | `GET /reports/pdf/projects/:id/resource-utilization` | **Missing** | Add to Reports Hub project grid |
+| 11 | BOQ vs actual | `GET /reports/pdf/projects/:id/boq-vs-actual` | Reports Hub ✓ | Keep |
+| 12 | Material price history | `GET /reports/pdf/material-price-history` | **Missing** | Add company-level card in Reports Hub (no projectId) |
+| 13 | Measurement book (project) | `GET /reports/pdf/projects/:id/measurement-book` | Helpers exist; **no UI** | Wire on **BOQ tab** (`BoqTab.tsx`) action row |
+| 14 | Abstract sheet (project) | `GET /reports/pdf/projects/:id/abstract-sheet` | Helpers exist; **no UI** | Wire on **BOQ tab** action row |
+| 15 | Material rates | `GET /reports/pdf/projects/:id/material-rates` | Reports Hub ✓ + Resources tab ✓ | Keep |
+| 16 | Subcontract MB | `GET …/subcontract/work-orders/:woId/measurement-book` | SubcontractsTab ✓ | Keep |
+| 17 | Subcontract abstract | `GET …/subcontract/work-orders/:woId/abstract-sheet` | SubcontractsTab ✓ | Keep |
+
+### 2.12.3 RPT-UI1a — Shared `downloadReportPdf` helper
+
+**Create:** `apps/mobile/services/report-download.ts` (or add to `expansion.queries.ts` if you prefer
+one file — prefer **new small module** to avoid bloating expansion).
+
+```ts
+/** Download PDF from authenticated API path; share via expo-sharing when available. */
+export async function downloadReportPdf(apiPath: string, filename: string): Promise<void>
+```
+
+Behaviour (match Reports Hub):
+
+1. `apiDownload(path, filename, 'application/pdf')`
+2. If `Sharing.isAvailableAsync()` → `Sharing.shareAsync(uri)` (opens share sheet / save)
+3. Else `alertAsync('Saved', 'Report downloaded.')`
+4. On error → `alertAsync('Error', message)`
+
+Refactor **Reports Hub** to import this helper (remove local duplicate).
+Refactor **SubcontractsTab** PDF handlers to use it (keep path helpers in `expansion.queries.ts`).
+Refactor **ResourcesTab** material-rates download similarly.
+
+Add path helpers for all endpoints used in §2.12.2 (named exports, e.g. `projectProgressPdfPath`).
+
+### 2.12.4 RPT-UI1b — Wire missing screens
+
+#### Daily report detail (`apps/mobile/app/(app)/reports/[id].tsx`)
+
+- Add header action **Download PDF** (secondary button or icon in `FormScreenHeader` if supported).
+- Path: `/reports/pdf/reports/${id}` · filename: `daily-report-${id}.pdf`
+
+#### Invoice detail (`apps/mobile/app/(app)/accounting/invoice/[id].tsx`)
+
+- Add **Download PDF** near Send / Record payment (visible for SENT/PAID/OVERDUE; allow DRAFT too).
+- Path: `/reports/pdf/invoices/${id}`
+
+#### Estimate compare (`apps/mobile/app/(app)/estimation/compare.tsx`)
+
+- When `canCompare`, show **Download comparison PDF** above results table.
+- Path: `/reports/pdf/estimates/${idA}/compare/${idB}`
+
+#### BOQ tab (`apps/mobile/components/projects/BoqTab.tsx`)
+
+- Add compact action row (desktop: top of tab; mobile: below summary): **Measurement book PDF** ·
+  **Abstract sheet PDF** — use existing `downloadMeasurementBookPdf` / `downloadAbstractSheetPdf`
+  (update internals to call shared helper + sharing).
+
+#### Reports Hub expansion (`apps/mobile/app/(app)/reports-hub/index.tsx`)
+
+Add project cards (same `ProjectReportCard` pattern):
+
+- **Project progress** → `/reports/pdf/projects/${id}/progress`
+- **Estimate vs actual** → `/reports/pdf/projects/${id}/estimate-vs-actual`
+- **Resource utilization** → `/reports/pdf/projects/${id}/resource-utilization`
+
+Add company card (no project selector):
+
+- **Material price history** → `/reports/pdf/material-price-history` · filename `material-price-history.pdf`
+
+Update subtitle copy: “Select a project…” → mention progress, EVA, resource util, MB/abstract on BOQ tab.
+
+**Optional stretch:** Project detail quick action “Progress PDF” linking same endpoint.
+
+### 2.12.5 RPT-UI1c — Backend branding audit
+
+In `pdf-report.service.ts`, grep every `export async function generate*` / PDF builder:
+
+- Each must call `loadCompanyForPdf(companyId)` and pass branding into `drawBrandedHeader`.
+- If any generator still uses plain `drawHeader` without accent/logo — **fix in this round**.
+
+Run a quick smoke: generate one PDF per category in dev (or unit test mock) — no regression to
+Round 28 RPT-C1e.
+
+**Out of scope:** CSV/plain Excel without branding; scheduled email attachments (separate service).
+
+### 2.12.6 Definition of done (Round 32)
+
+- [ ] **RPT-UI1a** — `downloadReportPdf` shared helper; Reports Hub + Subcontracts + Resources refactored
+- [ ] **RPT-UI1b-daily** — Daily report detail PDF button
+- [ ] **RPT-UI1b-invoice** — Invoice detail PDF button
+- [ ] **RPT-UI1b-compare** — Estimate comparison PDF button
+- [ ] **RPT-UI1b-boq** — Project MB + abstract on BOQ tab
+- [ ] **RPT-UI1b-hub** — Progress, EVA PDF, resource util, material price history in Reports Hub
+- [ ] **RPT-UI1c** — Backend branding audit clean (all pdf-report generators)
+- [ ] **RPT-UI1d** — 131/131 tests · backend tsc · mobile tsc
+
+### 2.12.7 Manual test checklist
+
+**Branding setup:**
+
+- [ ] Settings → Company Profile — set logo URL (or upload if wired)
+- [ ] Settings → Reports & Branding — change accent to Teal, custom footer, save
+- [ ] Download any PDF — header accent matches; logo visible when toggle on; footer text appears
+
+**Downloads:**
+
+- [ ] Reports Hub — each new card downloads/opens share sheet
+- [ ] Daily report detail → PDF includes report date + project
+- [ ] Invoice detail → PDF matches invoice totals
+- [ ] Compare estimates → PDF reflects idA vs idB
+- [ ] Project → BOQ tab → MB + abstract PDFs
+- [ ] Subcontract WO PDFs still work (regression)
+
+### 2.12.8 Anti-patterns
+
+| Don't | Do instead |
+| ----- | ---------- |
+| Duplicate `downloadPdf` in every screen | Use `downloadReportPdf` |
+| Add web-only `<a download>` | Use `apiDownload` + Sharing (mobile-first) |
+| Break existing Reports Hub GST/TDS role gate | Keep `canFinancials` checks |
+| Replace estimate Export PDF with pdf-report route | Keep `useExportEstimate`; add compare PDF only |
+| Invent template upload API | Document §2.12.0; logo + report-settings only |
 
 ### 2.10.11 Round 30b spec (was ACTIVE — see §2.10.12/§2.10.13)
 
@@ -1229,10 +1435,12 @@ New migrations: `20260805100000_subcontract_material_supply_mode`,
 
 **Expected test count:** **131/131** (stable; +2 SUB-BOQ1T subcontract tests).
 
-### 2.2 Mandatory tasks — Round 31 (MOB-LINK1)
+### 2.2 Mandatory tasks — Round 32 (RPT-UI1)
 
-**Take new work from §2.11 Round 31 first.** Complete §2.11.10 definition of done before §2.8 optional items.
-Only take §2.8 if the user explicitly asks for something else or §2.11 is complete.
+**Round 31 complete** (`1d86081`). **Implement §2.12** — wire all missing mobile PDF download entry points;
+centralize download helper; verify every backend PDF generator uses company branding.
+
+Do not break Rounds 12–31 deliverables. Ship gates: backend tsc ✓ · mobile tsc ✓ · **131/131** tests.
 
 <details>
 <summary>Round 28 spec (completed — reference)</summary>
@@ -1609,8 +1817,9 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 | **SUB-BOQ1C** | ~~BOQ line picker on issue + BoqTab "Issued to subs" + boqItemId validation~~ | **Done** (`2d8f324`) |
 | **MOB-PICK1b** | ~~RateAnalysisPicker visual polish (match MaterialPicker)~~ | **Done** (`2d8f324`) |
 | **SUB-BOQ1T** | ~~Integration test: issue with `boqItemId` → BOQ `subIssuedQty` or list returns link~~ | **Done** |
-| **MOB-LINK1** | ~~Unified ProcurementLinkPicker — estimate + variation~~ | **ACTIVE §2.11** |
-| **MOB-LINK2–4** | PickerListRow extract; RA for all cost types; IndentDraftLineCard | Stretch §2.11.11 |
+| **MOB-LINK1** | ~~Unified ProcurementLinkPicker — estimate + variation~~ | **Done** (`1d86081`) |
+| **MOB-LINK2** | Extract shared `PickerListRow` | §2.11.11 stretch |
+| **MOB-LINK4** | Refactor IndentDraftLineCard to use ProcurementLinkPicker | §2.11.11 stretch |
 | **Phase 5 gaps** | Smoke tests for inventory-traceability, accounting-export, labour, i18n |
 | **NR-36** | Drawing acknowledgement endpoint |
 | **Sync §8.1** | Remount `/api/sync` (needs `updatedAt` + mobile replay) |

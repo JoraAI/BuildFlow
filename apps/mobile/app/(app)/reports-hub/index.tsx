@@ -3,7 +3,7 @@
  * Financial reports, PDF downloads, and scheduled report management.
  */
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Alert, Pressable } from 'react-native';
+import { View, Text, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card, Button, LoadingSkeleton, EmptyState, Input, Badge } from '@/components/ui';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
@@ -24,10 +24,9 @@ import {
   useCreateReportSchedule,
   type ReportSchedule,
 } from '@/services/expansion.queries';
-import { apiDownload } from '@/lib/api-client';
+import { downloadReportPdf, reportPaths } from '@/services/report-download';
 import { COLORS } from '@/constants';
 import { formatINR } from '@/utils/format';
-import * as Sharing from 'expo-sharing';
 
 export default function ReportsHubScreen() {
   const { isDesktop } = useViewport();
@@ -45,19 +44,6 @@ export default function ReportsHubScreen() {
   const [cronExpr, setCronExpr] = useState('0 9 * * 1');
   const [recipient, setRecipient] = useState(user?.email ?? '');
   const [scheduleError, setScheduleError] = useState<string | null>(null);
-
-  const downloadPdf = async (path: string, filename: string) => {
-    try {
-      const uri = await apiDownload(path, filename, 'application/pdf');
-      if (uri && (await Sharing.isAvailableAsync())) {
-        await Sharing.shareAsync(uri);
-      } else {
-        Alert.alert('Saved', 'Report downloaded.');
-      }
-    } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Download failed');
-    }
-  };
 
   const onCreateSchedule = () => {
     if (!recipient.trim()) {
@@ -94,17 +80,29 @@ export default function ReportsHubScreen() {
             <ReportLink
               label="GST Summary"
               sub={gstQ.data ? `${formatINR(gstQ.data.totalTax)} total tax` : 'Loading…'}
-              onPress={() => downloadPdf('/reports/pdf/gst-summary', 'gst-summary.pdf')}
+              onPress={() => downloadReportPdf(reportPaths.gstSummary(), 'gst-summary.pdf')}
             />
             <ReportLink
               label="TDS Report"
               sub={tdsQ.data ? `${formatINR(tdsQ.data.totalTdsDeducted)} deducted` : 'Loading…'}
-              onPress={() => downloadPdf('/reports/pdf/tds', 'tds-report.pdf')}
+              onPress={() => downloadReportPdf(reportPaths.tds(), 'tds-report.pdf')}
             />
           </ResponsiveGrid>
           {(gstQ.isLoading || tdsQ.isLoading) && <LoadingSkeleton className="h-8 mt-2" />}
         </Card>
       )}
+
+      {/* Company-level material price history (no project required) */}
+      <Card>
+        <Text className="text-base font-bold text-text mb-3">Company Reports</Text>
+        <ResponsiveGrid gap={8} columns={isDesktop ? 2 : 1}>
+          <ReportLink
+            label="Material Price History"
+            sub="Rate trends across all projects"
+            onPress={() => downloadReportPdf(reportPaths.materialPriceHistory(), 'material-price-history.pdf')}
+          />
+        </ResponsiveGrid>
+      </Card>
 
       {/* Project reports - improved selector + report cards */}
       <Card>
@@ -115,7 +113,8 @@ export default function ReportsHubScreen() {
           ) : null}
         </View>
         <Text className="text-xs text-muted mb-3">
-          Select a project to view P&L, BOQ variance, and material rate analysis.
+          Select a project to download progress, P&L, BOQ variance, estimate vs actual, and resource utilization.
+          Measurement book and abstract sheet are available on the project's BOQ tab.
         </Text>
 
         {/* Project selector - status dots + names */}
@@ -177,18 +176,27 @@ export default function ReportsHubScreen() {
 
             {/* Reports grid - responsive: 3 cols desktop, 1 col mobile */}
             <ResponsiveGrid gap={8} columns={isDesktop ? 3 : 1}>
+              {/* RPT-UI1b-hub: Project progress */}
+              <ProjectReportCard
+                accent={COLORS.primary}
+                tag="PRG"
+                title="Project Progress"
+                description="Task status & milestones"
+                onPress={() =>
+                  downloadReportPdf(reportPaths.projectProgress(selectedProject), `progress-${selectedProject}.pdf`)
+                }
+              />
+              {/* RPT-UI1b-hub: P&L */}
               <ProjectReportCard
                 accent={COLORS.primary}
                 tag="P&L"
                 title="Profit & Loss"
                 description="Revenue, costs & margin"
                 onPress={() =>
-                  downloadPdf(
-                    `/reports/pdf/projects/${selectedProject}/profit-loss`,
-                    'profit-loss.pdf',
-                  )
+                  downloadReportPdf(reportPaths.profitLoss(selectedProject), 'profit-loss.pdf')
                 }
               />
+              {/* RPT-UI1b-hub: BOQ vs Actual */}
               <ProjectReportCard
                 accent={COLORS.success}
                 tag="BOQ"
@@ -196,22 +204,37 @@ export default function ReportsHubScreen() {
                 description="Quantity & cost variance"
                 meta={evaQ.data ? `${evaQ.data.completionPct.toFixed(0)}% complete` : undefined}
                 onPress={() =>
-                  downloadPdf(
-                    `/reports/pdf/projects/${selectedProject}/boq-vs-actual`,
-                    'boq-vs-actual.pdf',
-                  )
+                  downloadReportPdf(reportPaths.boqVsActual(selectedProject), 'boq-vs-actual.pdf')
                 }
               />
+              {/* RPT-UI1b-hub: Estimate vs Actual */}
+              <ProjectReportCard
+                accent={COLORS.warning}
+                tag="EVA"
+                title="Estimate vs Actual"
+                description="Budget vs actual spend"
+                onPress={() =>
+                  downloadReportPdf(reportPaths.estimateVsActual(selectedProject), 'estimate-vs-actual.pdf')
+                }
+              />
+              {/* RPT-UI1b-hub: Resource utilization */}
+              <ProjectReportCard
+                accent={COLORS.accent}
+                tag="RES"
+                title="Resource Utilization"
+                description="Planned vs used quantities"
+                onPress={() =>
+                  downloadReportPdf(reportPaths.resourceUtilization(selectedProject), 'resource-utilization.pdf')
+                }
+              />
+              {/* RPT-UI1b-hub: Material rate sheet */}
               <ProjectReportCard
                 accent={COLORS.accent}
                 tag="₹"
                 title="Material Rate Sheet"
                 description="Planned vs last PO rate"
                 onPress={() =>
-                  downloadPdf(
-                    `/reports/pdf/projects/${selectedProject}/material-rates`,
-                    'material-rates.pdf',
-                  )
+                  downloadReportPdf(reportPaths.materialRates(selectedProject), 'material-rates.pdf')
                 }
               />
             </ResponsiveGrid>

@@ -350,7 +350,7 @@ function EditableLineItem({
                 <Badge label={item.type} color="neutral" />
               </View>
             </Pressable>
-            {item.type === 'MATERIAL' && (linkedResource || linkedRa) ? (
+            {item.type !== 'MISC' && (linkedResource || linkedRa) ? (
               <View className="flex-row items-center gap-2 mt-0.5 flex-wrap">
                 <Text className="text-[10px] text-primary">
                   {linkedResource

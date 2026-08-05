@@ -27,6 +27,7 @@ import {
   type InvoiceLineItem,
 } from '@/services/accounting.queries';
 import { formatINR, formatDate } from '@/utils/format';
+import { downloadReportPdf, reportPaths } from '@/services/report-download';
 
 const STATUS_COLOR: Record<string, 'success' | 'warning' | 'danger' | 'primary' | 'neutral'> = {
   DRAFT: 'neutral',
@@ -132,6 +133,12 @@ export default function InvoiceDetailScreen() {
 
   const actionsBlock = (
     <View className="gap-3">
+      {/* RPT-UI1b-invoice: Download PDF */}
+      <Button
+        label="Download PDF"
+        variant="secondary"
+        onPress={() => downloadReportPdf(reportPaths.invoice(id), `invoice-${invoice.invoiceNumber}.pdf`)}
+      />
       {invoice.status === 'DRAFT' && (
         <Button
           label={sendInvoice.isPending ? 'Sending...' : 'Send Invoice'}

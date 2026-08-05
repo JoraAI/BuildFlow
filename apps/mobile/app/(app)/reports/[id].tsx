@@ -16,10 +16,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { Card, Badge, EmptyState, LoadingSkeleton } from '@/components/ui';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { DISMISS, parseReturnTo, navigateAppBack } from '@/utils/navigation';
 import { useReport, useReportPhotos, type ReportListItem } from '@/services/report.queries';
+import { downloadReportPdf, reportPaths } from '@/services/report-download';
 import { formatDate } from '@/utils/format';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -88,6 +90,16 @@ export default function ReportDetailScreen() {
                 <Text className="text-sm text-muted">Workers: {report.workersCount}</Text>
               </View>
               <Text className="text-xs text-muted mt-1">By {report.reportedByUser.name}</Text>
+              {/* RPT-UI1b-daily: Download PDF button */}
+              <View className="mt-3 pt-3 border-t border-border/60">
+                <Pressable
+                  onPress={() => downloadReportPdf(reportPaths.dailyReport(id), `daily-report-${id}.pdf`)}
+                  className="flex-row items-center justify-center gap-2 py-2.5 rounded-lg border border-primary/30 bg-primary/5 active:bg-surface"
+                >
+                  <Ionicons name="download-outline" size={16} color="#1E3A5F" />
+                  <Text className="text-sm font-semibold text-primary">Download PDF</Text>
+                </Pressable>
+              </View>
             </Card>
           </View>
 

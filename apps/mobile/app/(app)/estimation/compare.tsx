@@ -11,6 +11,7 @@ import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { dismissTo, DISMISS } from '@/utils/navigation';
 import { useProjectEstimates, useCompareEstimates, type EstimateListItem, type EstimateComparison } from '@/services/estimate.queries';
+import { downloadReportPdf, reportPaths } from '@/services/report-download';
 import { formatINR } from '@/utils/format';
 
 export default function CompareEstimatesScreen() {
@@ -94,6 +95,13 @@ export default function CompareEstimatesScreen() {
           <LoadingSkeleton className="h-48 rounded-xl" />
         ) : cmp ? (
           <>
+            {/* RPT-UI1b-compare: Download comparison PDF */}
+            <Button
+              label="Download comparison PDF"
+              size="sm"
+              variant="secondary"
+              onPress={() => downloadReportPdf(reportPaths.estimateComparison(idA!, idB!), `estimate-compare.pdf`)}
+            />
             {/* Section-by-section diff */}
             <Card>
               <Text className="text-sm font-bold text-text mb-3">Section Comparison</Text>

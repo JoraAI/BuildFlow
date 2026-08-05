@@ -88,8 +88,18 @@ export function ProcurementLinkPicker({
     return allRateAnalyses.filter((r: RateAnalysis) => r.name.toLowerCase().includes(q));
   }, [allRateAnalyses, debouncedSearch]);
 
+  const effectiveAllowedKinds = useMemo((): ProcurementLinkKind[] => {
+    if (lineType === 'MATERIAL') return allowedKinds;
+    if (lineType === 'MISC') return [];
+    return ['rate_analysis'];
+  }, [lineType, allowedKinds]);
+
+  useEffect(() => {
+    if (lineType !== 'MATERIAL') setSegment('rate_analysis');
+  }, [lineType]);
+
   const hasLink = Boolean(value.resourceId || value.rateAnalysisId);
-  const showSegmented = allowedKinds.length > 1;
+  const showSegmented = effectiveAllowedKinds.length > 1;
 
   // Selection handlers (mutual exclusion)
   function selectMaterial(resource: Resource, doApply: boolean) {
@@ -208,7 +218,7 @@ export function ProcurementLinkPicker({
         {/* Segmented control (only when both kinds allowed) */}
         {showSegmented ? (
           <View className="flex-row gap-2 mb-2">
-            {allowedKinds.map((kind) => (
+            {effectiveAllowedKinds.map((kind) => (
               <Pressable
                 key={kind}
                 onPress={() => { setSegment(kind); setSearch(''); }}
