@@ -46,6 +46,7 @@ import { MaterialPicker, type ProjectMaterial } from '@/components/materials/Mat
 import { type Resource } from '@/services/estimate.queries';
 import { useBills, type Bill } from '@/services/accounting.queries';
 import { useBoq, type BoqItem } from '@/services/boq.queries';
+import { apiFetch } from '@/lib/api-client';
 import { billDetailHref, projectTabHref } from '@/utils/navigation';
 import * as Sharing from 'expo-sharing';
 import { alertAsync } from '@/utils/confirm';
@@ -315,10 +316,27 @@ function MeasurementsPanel({
   const approveMeas = useApproveMeasurement(projectId);
   const rejectMeas = useRejectMeasurement(projectId);
 
+  const { isDesktop } = useViewport();
   const [modalOpen, setModalOpen] = useState(false);
   const [periodLabel, setPeriodLabel] = useState('');
   const [lines, setLines] = useState<DraftMeasLine[]>([emptyMeasLine()]);
   const [expandedMeas, setExpandedMeas] = useState<Set<string>>(new Set());
+  const [woPickerOpen, setWoPickerOpen] = useState(false);
+
+  // SUB-UX2c: Period quick-pick chips
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const now = new Date();
+  const currentMonthChip = `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonthChip = `${monthNames[lastMonth.getMonth()]} ${lastMonth.getFullYear()}`;
+  const periodChips = [currentMonthChip, lastMonthChip, `Week ${Math.ceil(now.getDate() / 7)}`];
+
+  // SUB-UX2c: Balance hints from summary.lines
+  const getLineBalance = (workOrderLineId?: string) => {
+    if (!workOrderLineId || !summary) return undefined;
+    const sl = summary.lines.find((l) => l.id === workOrderLineId);
+    return sl ? { qty: sl.balanceQty, unit: sl.unit } : undefined;
+  };
 
   const subtotal = useMemo(
     () => lines.reduce((s, l) => s + lineAmount(l.quantity, l.rate), 0),
@@ -561,58 +579,203 @@ function MeasurementsPanel({
           </View>
         }
       >
+        {/* SUB-UX2c: Period field with quick-pick chips */}
         <Input label="Period" value={periodLabel} onChangeText={setPeriodLabel} placeholder="Jan 2025" />
+        <View className="flex-row gap-2 mb-2">
+          {periodChips.map((chip) => (
+            <Pressable
+              key={chip}
+              onPress={() => setPeriodLabel(chip)}
+              className={`px-2.5 py-1.5 rounded-lg border ${
+                periodLabel === chip ? 'border-primary bg-primary/5' : 'border-border bg-card'
+              }`}
+            >
+              <Text className={`text-xs font-medium ${
+                periodLabel === chip ? 'text-primary' : 'text-muted'
+              }`}>{chip}</Text>
+            </Pressable>
+          ))}
+        </View>
+
         {summary && summary.lines.length > 0 && (
-          <Button label="Copy from WO contract lines" variant="secondary" onPress={copyFromContractLines} />
-        )}
-        {lines.map((line, idx) => (
-          <View key={line.id} className="border border-border rounded-lg p-2 mb-2 gap-1">
-            <TextInput
-              className="border border-border rounded-lg p-2 text-sm text-text"
-              placeholder="Description"
-              value={line.description}
-              onChangeText={(v) =>
-                setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, description: v } : l)))
-              }
-              multiline
-            />
-            <View className="flex-row gap-2">
-              <Input
-                label="Qty"
-                value={line.quantity}
-                onChangeText={(v) =>
-                  setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, quantity: v } : l)))
-                }
-                keyboardType="numeric"
-              />
-              <Input
-                label="Unit"
-                value={line.unit}
-                onChangeText={(v) =>
-                  setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, unit: v } : l)))
-                }
-              />
-              <Input
-                label="Rate"
-                value={line.rate}
-                onChangeText={(v) =>
-                  setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, rate: v } : l)))
-                }
-                keyboardType="numeric"
+          <View className="flex-row gap-2 mb-2">
+            <View className="flex-1">
+              <Button label="Copy all WO lines" variant="secondary" size="sm" onPress={copyFromContractLines} />
+            </View>
+            <View className="flex-1">
+              <Button
+                label="Pick from WO lines"
+                variant="secondary"
+                size="sm"
+                onPress={() => setWoPickerOpen(true)}
               />
             </View>
-            <Text className="text-xs text-muted">{formatINR(lineAmount(line.quantity, line.rate))}</Text>
-            {lines.length > 1 && (
-              <Pressable
-                onPress={() => setLines((prev) => prev.filter((_, i) => i !== idx))}
-                className="self-end"
-              >
-                <Text className="text-xs text-danger">Remove line</Text>
-              </Pressable>
+          </View>
+        )}
+
+        {/* SUB-UX2c: Desktop table header */}
+        {isDesktop && lines.length > 0 && (
+          <View className="flex-row px-2 py-1 border-b border-border">
+            <Text className="text-[10px] font-bold text-muted w-6">#</Text>
+            <Text className="text-[10px] font-bold text-muted flex-1">Description</Text>
+            <Text className="text-[10px] font-bold text-muted w-16 text-center">Qty</Text>
+            <Text className="text-[10px] font-bold text-muted w-14 text-center">Unit</Text>
+            <Text className="text-[10px] font-bold text-muted w-16 text-center">Rate</Text>
+            <Text className="text-[10px] font-bold text-muted w-20 text-right">Amount</Text>
+            <Text className="text-[10px] font-bold text-muted w-6" />
+          </View>
+        )}
+
+        {lines.map((line, idx) => {
+          const balance = getLineBalance(line.workOrderLineId);
+          const qtyOverBalance = balance !== undefined && (parseFloat(line.quantity) || 0) > balance.qty;
+          return (
+          <View key={line.id} className="border border-border rounded-lg p-2 mb-2 gap-1">
+            {isDesktop ? (
+              <View className="flex-row items-center gap-1">
+                <Text className="text-xs text-muted w-6">{idx + 1}</Text>
+                <TextInput
+                  className="border border-border rounded-lg px-2 py-1 text-sm text-text flex-1"
+                  placeholder="Description"
+                  value={line.description}
+                  onChangeText={(v) =>
+                    setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, description: v } : l)))
+                  }
+                />
+                <TextInput
+                  className="border border-border rounded-lg px-2 py-1 text-sm text-text w-16 text-center"
+                  value={line.quantity}
+                  onChangeText={(v) =>
+                    setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, quantity: v } : l)))
+                  }
+                  keyboardType="numeric"
+                />
+                <TextInput
+                  className="border border-border rounded-lg px-2 py-1 text-sm text-text w-14 text-center"
+                  value={line.unit}
+                  onChangeText={(v) =>
+                    setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, unit: v } : l)))
+                  }
+                />
+                <TextInput
+                  className="border border-border rounded-lg px-2 py-1 text-sm text-text w-16 text-center"
+                  value={line.rate}
+                  onChangeText={(v) =>
+                    setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, rate: v } : l)))
+                  }
+                  keyboardType="numeric"
+                />
+                <Text className="text-xs text-muted w-20 text-right">
+                  {formatINR(lineAmount(line.quantity, line.rate))}
+                </Text>
+                {lines.length > 1 && (
+                  <Pressable onPress={() => setLines((prev) => prev.filter((_, i) => i !== idx))}>
+                    <Ionicons name="trash-outline" size={14} color="#EF4444" />
+                  </Pressable>
+                )}
+              </View>
+            ) : (
+              <>
+                <TextInput
+                  className="border border-border rounded-lg p-2 text-sm text-text"
+                  placeholder="Description"
+                  value={line.description}
+                  onChangeText={(v) =>
+                    setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, description: v } : l)))
+                  }
+                  multiline
+                />
+                <View className="flex-row gap-2">
+                  <Input
+                    label="Qty"
+                    value={line.quantity}
+                    onChangeText={(v) =>
+                      setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, quantity: v } : l)))
+                    }
+                    keyboardType="numeric"
+                  />
+                  <Input
+                    label="Unit"
+                    value={line.unit}
+                    onChangeText={(v) =>
+                      setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, unit: v } : l)))
+                    }
+                  />
+                  <Input
+                    label="Rate"
+                    value={line.rate}
+                    onChangeText={(v) =>
+                      setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, rate: v } : l)))
+                    }
+                    keyboardType="numeric"
+                  />
+                </View>
+                <Text className="text-xs text-muted">{formatINR(lineAmount(line.quantity, line.rate))}</Text>
+                {lines.length > 1 && (
+                  <Pressable
+                    onPress={() => setLines((prev) => prev.filter((_, i) => i !== idx))}
+                    className="self-end"
+                  >
+                    <Text className="text-xs text-danger">Remove line</Text>
+                  </Pressable>
+                )}
+              </>
+            )}
+            {/* SUB-UX2c: Balance hint for WO-linked lines */}
+            {balance && (
+              <Text className={`text-[10px] ${qtyOverBalance ? 'text-warning' : 'text-muted'}`}>
+                Balance: {balance.qty} {balance.unit}
+                {qtyOverBalance && ` — exceeds remaining (warn only)`}
+              </Text>
             )}
           </View>
-        ))}
+          );
+        })}
         <Button label="+ Add line" variant="secondary" onPress={() => setLines((p) => [...p, emptyMeasLine()])} />
+      </AdaptiveSheet>
+
+      {/* SUB-UX2c: Pick from WO lines sub-sheet */}
+      <AdaptiveSheet
+        visible={woPickerOpen}
+        onClose={() => setWoPickerOpen(false)}
+        title="Pick from WO contract lines"
+        size="md"
+      >
+        {summary && summary.lines.filter((l) => l.balanceQty > 0).length === 0 ? (
+          <Text className="text-sm text-muted py-4 text-center">
+            All contract lines are fully certified.
+          </Text>
+        ) : (
+          (summary?.lines ?? [])
+            .filter((l) => l.balanceQty > 0)
+            .filter((l) => !lines.some((dl) => dl.workOrderLineId === l.id))
+            .map((l) => (
+              <Pressable
+                key={l.id}
+                onPress={() => {
+                  setLines((prev) => [
+                    ...prev,
+                    {
+                      id: Math.random().toString(36).slice(2),
+                      description: l.description,
+                      quantity: String(l.balanceQty),
+                      unit: l.unit,
+                      rate: String(l.rate),
+                      workOrderLineId: l.id,
+                      boqItemId: l.boqItemId ?? undefined,
+                    },
+                  ]);
+                  setWoPickerOpen(false);
+                }}
+                className="p-2 rounded-lg border border-border mb-1 active:bg-surface"
+              >
+                <Text className="text-sm text-text">{l.description}</Text>
+                <Text className="text-xs text-muted">
+                  Balance: {l.balanceQty} {l.unit} @ {formatINR(l.rate)}
+                </Text>
+              </Pressable>
+            ))
+        )}
       </AdaptiveSheet>
     </View>
   );
@@ -634,6 +797,7 @@ function MaterialsPanel({
 
   const { data: issues, isLoading } = useMaterialIssues(projectId, workOrderId);
   const { data: stockSummary } = useStockSummary(projectId);
+  const { data: boq } = useBoq(projectId);
   const issueMat = useIssueMaterial(projectId, workOrderId);
   const recoverMat = useRecoverMaterial(projectId, workOrderId);
 
@@ -646,19 +810,39 @@ function MaterialsPanel({
   const [recoverQty, setRecoverQty] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
-  // Build projectMaterials from stock summary for MaterialPicker
+  // SUB-UX1c: Build projectMaterials from stock + BOQ union (daily-report pattern)
   const projectMaterials = useMemo<ProjectMaterial[]>(() => {
-    if (!stockSummary) return [];
-    return stockSummary
-      .filter((s: { balance: number }) => s.balance > 0)
-      .map((s: { resourceId: string; name: string; unit: string; balance: number }) => ({
+    const map = new Map<string, ProjectMaterial>();
+    const stock = stockSummary ?? [];
+    const boqItems = (boq?.items ?? []) as Array<{ resourceId?: string | null; description: string; unit: string; section?: string | null }>;
+    for (const s of stock) {
+      const boqItem = boqItems.find((b) => b.resourceId === s.resourceId);
+      map.set(s.resourceId, {
         id: s.resourceId,
         name: s.name,
         unit: s.unit,
-        type: 'MATERIAL' as const,
+        type: 'MATERIAL',
         balance: s.balance,
-      }));
-  }, [stockSummary]);
+        category: boqItem?.section,
+      });
+    }
+    for (const b of boqItems) {
+      if (b.resourceId && !map.has(b.resourceId)) {
+        map.set(b.resourceId, {
+          id: b.resourceId,
+          name: b.description || 'BOQ material',
+          unit: b.unit,
+          type: 'MATERIAL',
+          category: b.section,
+        });
+      }
+    }
+    return Array.from(map.values());
+  }, [stockSummary, boq]);
+
+  // SUB-UX1c: onHand for selected material
+  const selectedOnHand = selectedResource ? projectMaterials.find((m) => m.id === selectedResource.id)?.balance : undefined;
+  const qtyOverOnHand = selectedOnHand !== undefined && qty !== '' && (parseFloat(qty) || 0) > selectedOnHand;
 
   // Hide when NONE
   if (materialSupplyMode === 'NONE' || !materialSupplyMode) return null;
@@ -947,6 +1131,7 @@ function MaterialsPanel({
           <Button
             label="Issue to subcontractor"
             loading={issueMat.isPending}
+            disabled={qtyOverOnHand || !selectedResource || !qty}
             onPress={onIssue}
           />
         }
@@ -957,10 +1142,19 @@ function MaterialsPanel({
             <MaterialPicker
               selectedId={undefined}
               projectMaterials={projectMaterials}
-              onSelect={(r) => {
+              onSelect={async (r) => {
                 setSelectedResource(r);
                 setUnit(r.unit);
-                setRate(parseFloat(r.rate || '0') > 0 ? r.rate : '');
+                setQty('');
+                // SUB-UX1c: Fetch rate from rate API
+                try {
+                  const resolved = await apiFetch<{ rate: string; source: string }>(
+                    `/projects/${projectId}/resources/${r.id}/rate`,
+                  );
+                  setRate(resolved.rate || (parseFloat(r.rate || '0') > 0 ? r.rate : '0'));
+                } catch {
+                  setRate(parseFloat(r.rate || '0') > 0 ? r.rate : '0');
+                }
               }}
               maxHeight={300}
             />
@@ -982,6 +1176,12 @@ function MaterialsPanel({
               </Pressable>
             </View>
             <Input label="Quantity" value={qty} onChangeText={setQty} keyboardType="numeric" placeholder="0" />
+            {/* SUB-UX1c: qty ≤ onHand client validation */}
+            {qtyOverOnHand && (
+              <Text className="text-xs text-danger mt-0.5">
+                Only {selectedOnHand} {selectedResource.unit} on hand. Reduce quantity or receive more stock.
+              </Text>
+            )}
             <View className="flex-row gap-2">
               <Input label="Unit" value={unit} onChangeText={setUnit} />
               <Input label="Rate (₹)" value={rate} onChangeText={setRate} keyboardType="numeric" />
