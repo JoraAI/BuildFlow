@@ -3,7 +3,7 @@
  * change orders, procurement, subcontract, portal, report schedules.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiFetch, apiDownload } from '@/lib/api-client';
+import { apiFetch } from '@/lib/api-client';
 import { API_BASE_URL } from '@/constants';
 import {
   invalidateChangeOrderImpact,
@@ -332,56 +332,6 @@ export interface ReportSchedule {
 
 /* ------------------------------------------------------------------ */
 /* PDF path helpers                                                    */
-/* ------------------------------------------------------------------ */
-
-export function measurementBookPdfPath(projectId: string) {
-  return `/reports/pdf/projects/${projectId}/measurement-book`;
-}
-
-export function abstractSheetPdfPath(projectId: string) {
-  return `/reports/pdf/projects/${projectId}/abstract-sheet`;
-}
-
-export function subcontractMeasurementBookPdfPath(projectId: string, workOrderId: string) {
-  return `/reports/pdf/projects/${projectId}/subcontract/work-orders/${workOrderId}/measurement-book`;
-}
-
-export function subcontractAbstractSheetPdfPath(projectId: string, workOrderId: string) {
-  return `/reports/pdf/projects/${projectId}/subcontract/work-orders/${workOrderId}/abstract-sheet`;
-}
-
-export async function downloadMeasurementBookPdf(projectId: string) {
-  return apiDownload(
-    measurementBookPdfPath(projectId),
-    `measurement-book-${projectId}.pdf`,
-    'application/pdf',
-  );
-}
-
-export async function downloadAbstractSheetPdf(projectId: string) {
-  return apiDownload(
-    abstractSheetPdfPath(projectId),
-    `abstract-sheet-${projectId}.pdf`,
-    'application/pdf',
-  );
-}
-
-export async function downloadSubcontractMeasurementBookPdf(projectId: string, workOrderId: string) {
-  return apiDownload(
-    subcontractMeasurementBookPdfPath(projectId, workOrderId),
-    `sub-measurement-book-${workOrderId}.pdf`,
-    'application/pdf',
-  );
-}
-
-export async function downloadSubcontractAbstractSheetPdf(projectId: string, workOrderId: string) {
-  return apiDownload(
-    subcontractAbstractSheetPdfPath(projectId, workOrderId),
-    `sub-abstract-${workOrderId}.pdf`,
-    'application/pdf',
-  );
-}
-
 /* ------------------------------------------------------------------ */
 /* Change order impact / scope summary (VO-B1/B4)                      */
 /* ------------------------------------------------------------------ */

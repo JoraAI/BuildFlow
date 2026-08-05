@@ -1164,34 +1164,44 @@ Round 28 RPT-C1e.
 
 ---
 
-## 2.13 Round 33 — RPT-UI1a+: Report download cleanup (optional)
+## 2.13 Round 33 — RPT-UI1a+: Report download cleanup (COMPLETE)
 
-**Goal:** Finish the Round 32 partial items — one code path for all PDF downloads, no duplicate helpers.
+**Status:** **COMPLETE** (`<commit>`) — single `downloadReportPdf` code path for all report PDFs; duplicate helpers removed.
 
-**Priority:** Low — all reports work today. Take only if user asks for polish or before adding new report types.
+### 2.13.1 Verification table
 
-### 2.13.1 Tasks
+| ID | Status | Evidence |
+| -- | ------ | -------- |
+| **RPT-UI1a-1** | **Done** | `reportPaths.subcontractMeasurementBook(projectId, woId)` + `subcontractAbstractSheet(projectId, woId)` added to `report-download.ts` |
+| **RPT-UI1a-2** | **Done** | `SubcontractsTab.tsx` — `onDownloadPdf` uses `downloadReportPdf(reportPaths.subcontract…)`; removed `downloadSubcontract*Pdf` imports; removed inline `Sharing.isAvailableAsync`/`Alert` block |
+| **RPT-UI1a-3** | **Done** | `ResourcesTab.tsx` — `downloadRateSheet` uses `downloadReportPdf(reportPaths.materialRates(projectId), …)`; removed inline `apiDownload` + `Sharing` block + unused `apiDownload` import |
+| **RPT-UI1a-4** | **Done** | `expansion.queries.ts` — removed 4 path helpers (`measurementBookPdfPath`, `abstractSheetPdfPath`, `subcontract*PdfPath`) + 4 download helpers (`downloadMeasurementBookPdf`, `downloadAbstractSheetPdf`, `downloadSubcontract*Pdf`); removed unused `apiDownload` import |
+| **RPT-UI1a-5** | **Not done** (stretch) | `ReportDownloadButton` component — deferred; each call site has ≤3 lines of `downloadReportPdf` call |
+| **RPT-UI2** | **Not done** (stretch) | Logo ImagePicker on Company Profile — deferred; `useCompanyLogoUpload` hook exists, not wired to ImagePicker |
 
-| ID | Task | File(s) | Acceptance |
-| -- | ---- | ------- | ---------- |
-| **RPT-UI1a-1** | Add subcontract paths to `reportPaths` | `report-download.ts` | `subcontractMeasurementBook(projectId, woId)`, `subcontractAbstractSheet(projectId, woId)` |
-| **RPT-UI1a-2** | Refactor SubcontractsTab PDF handlers | `SubcontractsTab.tsx` | Replace `downloadSubcontract*Pdf` with `downloadReportPdf(reportPaths.subcontract…)` |
-| **RPT-UI1a-3** | Refactor ResourcesTab material-rates download | `ResourcesTab.tsx` | Use `downloadReportPdf(reportPaths.materialRates(projectId), …)`; remove inline Sharing block |
-| **RPT-UI1a-4** | Deprecate duplicate helpers | `expansion.queries.ts` | Remove `downloadMeasurementBookPdf`, `downloadAbstractSheetPdf`, `downloadSubcontract*Pdf` **or** thin-wrap them to call `downloadReportPdf` (prefer remove + update imports) |
-| **RPT-UI1a-5** | Optional: `ReportDownloadButton` component | `components/reports/ReportDownloadButton.tsx` | Props: `path`, `filename`, `label`, `loading?` — used by BoqTab, invoice detail, compare (reduce copy-paste) |
-| **RPT-UI2** | Logo upload UX | `settings/company.tsx`, `report-branding.tsx` | Wire `useCompanyLogoUpload` + ImagePicker on Company Profile; link from Reports & Branding |
+**Ship gates:** backend tsc ✓ · mobile tsc ✓ · **131/131** tests ✓
 
-### 2.13.2 Ship gates
+**Call sites before/after:**
 
-- backend tsc ✓ · mobile tsc ✓ · **131/131** tests
-- Manual: subcontract MB/abstract PDFs still share; Resources tab rate sheet still downloads
+| File | Before | After |
+| ---- | ------ | ----- |
+| `SubcontractsTab.tsx` | `downloadSubcontractMeasurementBookPdf` / `downloadSubcontractAbstractSheetPdf` (expansion.queries) | `downloadReportPdf(reportPaths.subcontract…)` |
+| `ResourcesTab.tsx` | inline `apiDownload` + `Sharing.shareAsync` | `downloadReportPdf(reportPaths.materialRates)` |
+| `BoqTab.tsx` | already `downloadReportPdf` (Round 32) | unchanged |
+| `reports-hub/index.tsx` | already `downloadReportPdf` (Round 32) | unchanged |
+| `reports/[id].tsx` | already `downloadReportPdf` (Round 32) | unchanged |
+| `invoice/[id].tsx` | already `downloadReportPdf` (Round 32) | unchanged |
+| `estimation/compare.tsx` | already `downloadReportPdf` (Round 32) | unchanged |
 
-### 2.13.3 Anti-patterns
+**Remaining inline `apiDownload` for PDFs:** None — all report PDF downloads now go through `downloadReportPdf`. Non-PDF downloads (estimate Excel export via `useExportEstimate`) are separate and unchanged.
+
+### 2.13.2 Anti-patterns
 
 | Don't | Do instead |
 | ----- | ---------- |
 | Break SubcontractsTab loading state during PDF gen | Keep existing `downloading` UX if present |
 | Remove path helpers before updating all call sites | Grep `downloadSubcontract`, `downloadMeasurement`, `apiDownload.*material-rates` first |
+| Re-add `apiDownload` to `expansion.queries.ts` | Use `downloadReportPdf` + `reportPaths` from `report-download.ts` |
 
 ---
 

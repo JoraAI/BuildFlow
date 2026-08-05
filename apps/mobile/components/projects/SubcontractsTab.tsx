@@ -34,8 +34,6 @@ import {
   useRecoverMaterial,
   useStockSummary,
   type SubcontractorMaterialIssue,
-  downloadSubcontractMeasurementBookPdf,
-  downloadSubcontractAbstractSheetPdf,
   type Measurement,
   type Subcontractor,
   type WorkOrder,
@@ -50,6 +48,7 @@ import { apiFetch } from '@/lib/api-client';
 import { billDetailHref, projectTabHref } from '@/utils/navigation';
 import * as Sharing from 'expo-sharing';
 import { alertAsync, confirmAsync } from '@/utils/confirm';
+import { downloadReportPdf, reportPaths } from '@/services/report-download';
 import { FlowHintCard } from '@/components/ui/FlowHintCard';
 import { TermHint } from '@/components/ui/TermHint';
 
@@ -399,20 +398,12 @@ function MeasurementsPanel({
     );
   };
 
-  const onDownloadPdf = async (type: 'book' | 'abstract') => {
-    try {
-      const uri =
-        type === 'book'
-          ? await downloadSubcontractMeasurementBookPdf(projectId, workOrderId)
-          : await downloadSubcontractAbstractSheetPdf(projectId, workOrderId);
-      if (uri && (await Sharing.isAvailableAsync())) {
-        await Sharing.shareAsync(uri);
-      } else {
-        Alert.alert('Saved', 'PDF saved to device.');
-      }
-    } catch (e) {
-      Alert.alert('Download failed', e instanceof Error ? e.message : 'Could not download PDF');
-    }
+  const onDownloadPdf = (type: 'book' | 'abstract') => {
+    const path =
+      type === 'book'
+        ? reportPaths.subcontractMeasurementBook(projectId, workOrderId)
+        : reportPaths.subcontractAbstractSheet(projectId, workOrderId);
+    return downloadReportPdf(path, `sub-${type}-${workOrderId}.pdf`);
   };
 
   if (isLoading) return <LoadingSkeleton className="h-16 rounded-lg mt-3" />;

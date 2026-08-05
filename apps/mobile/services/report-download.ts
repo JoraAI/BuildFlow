@@ -46,4 +46,9 @@ export const reportPaths = {
   gstSummary: () => '/reports/pdf/gst-summary',
   tds: () => '/reports/pdf/tds',
   materialPriceHistory: () => '/reports/pdf/material-price-history',
+  // Subcontract-scoped
+  subcontractMeasurementBook: (projectId: string, workOrderId: string) =>
+    `/reports/pdf/projects/${projectId}/subcontract/work-orders/${workOrderId}/measurement-book`,
+  subcontractAbstractSheet: (projectId: string, workOrderId: string) =>
+    `/reports/pdf/projects/${projectId}/subcontract/work-orders/${workOrderId}/abstract-sheet`,
 } as const;

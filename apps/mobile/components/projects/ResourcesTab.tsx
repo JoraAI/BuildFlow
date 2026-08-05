@@ -5,8 +5,7 @@ import { useResourceUtilization, type ResourceUtilRow } from '@/services/boq.que
 import { useMaterialRateVariance } from '@/services/project.queries';
 import { formatINR } from '@/utils/format';
 import { RATE_VARIANCE_ALERT_PCT, type MaterialRateVarianceRow } from '@buildflow/shared';
-import { apiDownload } from '@/lib/api-client';
-import * as Sharing from 'expo-sharing';
+import { downloadReportPdf, reportPaths } from '@/services/report-download';
 
 interface ResourcesTabProps {
   projectId: string;
@@ -28,18 +27,10 @@ export function ResourcesTab({ projectId }: ResourcesTabProps) {
   const downloadRateSheet = async () => {
     setDownloading(true);
     try {
-      const uri = await apiDownload(
-        `/reports/pdf/projects/${projectId}/material-rates`,
+      await downloadReportPdf(
+        reportPaths.materialRates(projectId),
         `material-rates-${projectId}.pdf`,
-        'application/pdf',
       );
-      if (uri && (await Sharing.isAvailableAsync())) {
-        await Sharing.shareAsync(uri);
-      } else {
-        Alert.alert('Saved', 'Material rate sheet downloaded.');
-      }
-    } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Download failed');
     } finally {
       setDownloading(false);
     }
