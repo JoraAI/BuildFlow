@@ -81,6 +81,17 @@ export async function getCompany(req: Request, res: Response) {
   return ok(res, company);
 }
 
+// RPT-C2a: Report settings controllers
+export async function getReportSettings(req: Request, res: Response) {
+  const settings = await settingsService.getReportSettings(req.user!.companyId);
+  return ok(res, settings);
+}
+
+export async function updateReportSettings(req: Request, res: Response) {
+  const settings = await settingsService.updateReportSettings(req.user!.companyId, req.body);
+  return ok(res, settings);
+}
+
 export async function updateCompany(req: Request, res: Response) {
   const company = await settingsService.updateCompanyProfile(req.user!.companyId, req.body);
   res.locals.audit = { entityId: company.id, newValue: company };

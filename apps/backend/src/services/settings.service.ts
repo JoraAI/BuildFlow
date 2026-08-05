@@ -117,6 +117,29 @@ export interface CompanyUpdateInput {
   state?: string;
 }
 
+// RPT-C2a: Report settings API
+export async function getReportSettings(companyId: string) {
+  const company = await prisma.company.findUniqueOrThrow({
+    where: { id: companyId },
+    select: { reportSettings: true },
+  });
+  return (company.reportSettings as Record<string, unknown>) ?? {};
+}
+
+export async function updateReportSettings(companyId: string, settings: Record<string, unknown>) {
+  const company = await prisma.company.findUniqueOrThrow({
+    where: { id: companyId },
+    select: { reportSettings: true },
+  });
+  const existing = (company.reportSettings as Record<string, unknown>) ?? {};
+  const merged = { ...existing, ...settings };
+  await prisma.company.update({
+    where: { id: companyId },
+    data: { reportSettings: JSON.stringify(merged) },
+  });
+  return merged;
+}
+
 export async function updateCompanyProfile(companyId: string, data: CompanyUpdateInput) {
   const company = await prisma.company.update({
     where: { id: companyId },

@@ -35,6 +35,8 @@ import {
   listMyTickets,
   listTicketInbox,
   updateTicket,
+  getReportSettings,
+  updateReportSettings,
 } from '../controllers/settings.controller';
 import * as rateRegionController from '../controllers/rate-region.controller';
 import * as permissionController from '../controllers/permission.controller';
@@ -87,6 +89,10 @@ router.put(
   auditLog('UPDATE', 'Company'),
   updateCompany,
 );
+
+// RPT-C2a: Report settings
+router.get('/report-settings', authenticateToken, getReportSettings);
+router.patch('/report-settings', authenticateToken, requirePermission('settings.company'), updateReportSettings);
 
 router.post(
   '/company/logo/upload-url',
