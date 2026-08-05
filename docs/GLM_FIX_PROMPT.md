@@ -1,14 +1,14 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Rounds 33–34 complete)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 34b complete)
 
 > **You do not need any prior conversation or other documents.** This file is the
 > complete task brief. Read it top to bottom before taking new work.
 > [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
 >
 > **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
-> **Last committed baseline:** Round 34 — `3493baa` (RATE-EST1 + RPT-UI1a+ cleanup)  
-> **Verified:** 2026-08-05 — Rounds 12–34 complete. **131/131** tests.
+> **Last committed baseline:** Round 34c — `<new>` (RATE-EST1 polish complete)  
+> **Verified:** 2026-08-05 — Rounds 12–34c complete. **131/131** tests.
 >
-> **Active work:** None mandatory. Optional stretch: **§2.13** RPT-UI2 / RPT-UI1a-5 · **§2.15.4** VariationsTab + rate badge.
+> **Active work:** None mandatory. Optional stretch: **§2.13** RPT-UI1a-5 / RPT-UI2 · **§2.8** hardening.
 
 ---
 
@@ -1133,12 +1133,12 @@ Round 28 RPT-C1e.
 - [x] **RPT-UI1c** — Backend branding audit clean (all 17 pdf-report generators use `drawBrandedHeader`)
 - [x] **RPT-UI1d** — 131/131 tests · backend tsc · mobile tsc
 
-**Partial (optional — see §2.13 / §2.15.4):**
+**Partial (optional stretch only):**
 
 - [ ] **RPT-UI1a-5** — `ReportDownloadButton` component
 - [ ] **RPT-UI2** — Logo ImagePicker on Company Profile
-- [ ] **RATE-EST1b-badge** — Show “From {source}” under rate field in estimate build
-- [ ] **RATE-EST1e** — `projectId` on VariationsTab picker
+- [ ] **RATE-EST1f** — Rate source badge on `AddItemRow` (EditableLineItem has it — `1d88287`)
+- [ ] **RATE-EST1g** — Picker inline chip shows resolved rate, not catalog subtitle
 
 ### 2.12.9 Round 32 verification (2026-08-05 — do NOT revert)
 
@@ -1161,7 +1161,7 @@ Round 28 RPT-C1e.
 
 **Estimate summary PDF:** Intentionally not duplicated — estimate detail keeps `useExportEstimate` export route.
 
-**Follow-up:** §2.13 (complete) · §2.15 (complete; badge + variations stretch in §2.15.4).
+**Follow-up:** §2.13 (complete) · §2.15 + §2.15.5 (complete).
 
 ---
 
@@ -1239,19 +1239,17 @@ Round 28 RPT-C1e.
 
 ### 2.14.3 Estimate wizard rate defaults (post-Round 34)
 
-When linking a material in **Estimate Build** with `projectId` set (`estimation/create.tsx` →
-`EstimateBuildStep` → `ProcurementLinkPicker`):
+When linking a material in **Estimate Build** or **Variations** (new scope) with `projectId` set:
 
 - `selectMaterial` calls `GET /projects/:projectId/resources/:resourceId/rate`
 - Prefills resolved rate (PROJECT / REGION / ESTIMATE / BOQ / CATALOG chain)
 - Falls back to catalog `Resource.rate` if fetch fails or `projectId` omitted
+- **EditableLineItem** shows “Rate from {source}” badge when source ≠ CATALOG (`1d88287`)
 
-**Still catalog-only:**
+**Minor polish still optional:**
 
-- **VariationsTab** new-scope lines — `ProcurementLinkPicker` has no `projectId` prop (§2.15.4 stretch)
-- Linked material **inline chip** still shows catalog rate in subtitle (resolved rate only applied on pick + applyDefaults)
-
-**Workaround for variations:** Manually edit line rate, or copy project rates first.
+- **AddItemRow** — resolved rate applied but no source badge (§2.15.5 stretch)
+- **Picker inline chip** — linked material subtitle still shows catalog rate, not resolved
 
 ### 2.14.4 Editing rates on estimates — does it change previous rates?
 
@@ -1270,9 +1268,7 @@ Backend: `updateItem()` writes only `estimateItem.rate`; `getEstimateForEditing(
 
 ## 2.15 Round 34 — RATE-EST1: Project-aware defaults in estimate wizard (COMPLETE)
 
-**User pain:** “I set regional rates / project overrides — why doesn’t the estimate picker use them?”
-
-**Round 34 status:** **COMPLETE** (`6426f15`) — core resolution wired; see §2.15.3 verification.
+**Round 34 status:** **COMPLETE** — core `6426f15` · UX polish `1d88287` (§2.15.5).
 
 ### 2.15.1 RATE-EST1a — Pass `projectId` into estimate build
 
@@ -1289,16 +1285,19 @@ Backend: `updateItem()` writes only `estimateItem.rate`; `getEstimateForEditing(
 - When resolved source ≠ CATALOG, show small label under rate field: “From {source}”
 - If no projectId (edge case), fall back to catalog rate (current behaviour)
 
-### 2.15.3 Definition of done (Round 34)
+### 2.15.3 Definition of done (Round 34 + 34b)
 
 - [x] **RATE-EST1a** — `projectId` threaded; `selectMaterial` calls resolve API (`6426f15`)
 - [x] **RATE-EST1b-fallback** — Catalog fallback when no projectId or fetch error
 - [x] **RATE-EST1c** — Saving line does not mutate `Resource.rate` (backend unchanged)
 - [x] **RATE-EST1d** — 131/131 tests · mobile tsc · backend tsc
-- [ ] **RATE-EST1b-badge** — “From {source}” label under rate field (stretch — `rateSource` passed but not rendered)
-- [ ] **RATE-EST1e** — VariationsTab passes `projectId` to picker (stretch — §2.15.4)
+- [x] **RATE-EST1b-badge** — “Rate from {source}” on **EditableLineItem** (`1d88287`)
+- [x] **RATE-EST1e** — `VariationsTab` passes `projectId` to picker (`1d88287`)
+- [x] **RATE-EST1-type** — `apiFetch<ResolvedMaterialRate>` in picker (`1d88287`)
+- [x] **RATE-EST1f** — Same badge on **AddItemRow** (done — see §2.15.6)
+- [x] **RATE-EST1g** — Resolved rate in picker inline chip subtitle (done — see §2.15.6)
 
-### 2.15.4 Round 34 verification (2026-08-05 — do NOT revert)
+### 2.15.4 Round 34 core verification (2026-08-05 — do NOT revert)
 
 **Commit:** `6426f15`
 
@@ -1310,16 +1309,38 @@ Backend: `updateItem()` writes only `estimateItem.rate`; `getEstimateForEditing(
 | **RATE-EST1a-thread** | **Done** | `EstimateBuildStep` → `EditableLineItem` / `AddItemRow` → picker; `create.tsx` passes `projectId` from route params (create + edit-via-create flows) |
 | **RATE-EST1b-fallback** | **Done** | No `projectId` → catalog rate; try/catch on fetch |
 | **RATE-EST1c** | **Done** | `estimate.service.ts` `updateItem()` writes only `EstimateItem.rate` |
-| **RATE-EST1b-badge** | **Not done** (stretch) | `rateSource` in `onApplyDefaults` but `EstimateBuildStep` does not render “From REGION” etc. |
-| **RATE-EST1e** | **Not done** (stretch) | `VariationsTab.tsx` — picker missing `projectId={projectId}` |
 
-**Note:** Use `ResolvedMaterialRate` typing (`rate: number`) in picker fetch — runtime OK; optional type cleanup.
+### 2.15.5 Round 34b verification — UX polish (2026-08-05 — do NOT revert)
 
-**Optional stretch (§2.15.4 follow-up):**
+**Commit:** `1d88287`
 
-1. Pass `projectId` to `ProcurementLinkPicker` in `VariationsTab.tsx`
-2. Show `rateSource` badge under rate input in `EstimateBuildStep` when ≠ `CATALOG`
-3. Update inline linked-material subtitle to show resolved rate when available
+**Ship gates:** backend tsc ✓ · mobile tsc ✓ · **131/131** tests ✓
+
+| ID | Status | Evidence |
+| -- | ------ | -------- |
+| **RATE-EST1e** | **Done** | `VariationsTab.tsx` — `projectId={projectId}` on `ProcurementLinkPicker`; variation new-scope lines get resolved rates |
+| **RATE-EST1b-badge** | **Done** (partial) | `EstimateBuildStep` `EditableLineItem` — `rateSource` state; shows “Rate from {source}” when ≠ CATALOG; cleared on `clearLink()` |
+| **RATE-EST1-type** | **Done** | `ProcurementLinkPicker` — `apiFetch<ResolvedMaterialRate>`; `String(resolved.rate ?? rate)` |
+| **RATE-EST1f** | **Done** | `AddItemRow` rateSource state + badge + reset on Add/Cancel (see §2.15.6) |
+| **RATE-EST1g** | **Done** | Picker inline chip shows resolved rate + "from {source}" (see §2.15.6) |
+
+**Manual spot-check:**
+
+- [ ] Project with rate region → estimate edit line → link material → rate prefilled ≠ catalog; badge shows “Rate from region”
+- [ ] Variations → new scope MATERIAL → link material → rate prefilled from project chain (no badge, but rate field correct)
+- [ ] Clear procurement link → badge disappears on editable line
+
+### 2.15.6 Round 34c verification — RATE-EST1 polish (`<commit>`)
+
+**Ship gates:** backend tsc ✓ · mobile tsc ✓ · **131/131** tests ✓
+
+| ID | File | Change |
+| -- | ---- | ------ |
+| **RATE-EST1f** | `EstimateBuildStep.tsx` AddItemRow | `rateSource` state; `onApplyDefaults` captures source; badge "Rate from {source}" when ≠ CATALOG; reset on Add + Cancel |
+| **RATE-EST1g** | `ProcurementLinkPicker.tsx` | `resolvedRate` + `resolvedSource` state; always resolves when projectId set (even if defaults toggle off); inline chip shows `{formatINR(resolvedRate)} · from {source}` |
+| **EditableLineItem cancel** | `EstimateBuildStep.tsx` | Cancel button resets all form fields including `rateSource` to `undefined` |
+
+**Backend unchanged:** `material-rate.service.ts` already returns `{ rate, source }`; `updateItem()` writes only `EstimateItem.rate`. No `Resource.rate` mutation.
 
 ### 2.12.7 Manual test checklist
 
@@ -1624,13 +1645,13 @@ New migrations: `20260805100000_subcontract_material_supply_mode`,
 
 **Expected test count:** **131/131** (stable; +2 SUB-BOQ1T subcontract tests).
 
-### 2.2 Mandatory tasks — none (Rounds 33–34 complete)
+### 2.2 Mandatory tasks — none (Round 34b complete)
 
-**Rounds 33–34 complete** (`3493baa`). No mandatory tasks.
+**Round 34b complete** (`1d88287`). No mandatory tasks.
 
-Optional stretch: **§2.13** RPT-UI1a-5 / RPT-UI2 · **§2.15.4** VariationsTab + rate source badge · **§2.8** hardening.
+Optional stretch: **§2.13** RPT-UI1a-5 / RPT-UI2 · **§2.15.5** AddItemRow badge + picker subtitle · **§2.8** hardening.
 
-Do not break Rounds 12–34 deliverables. Ship gates: backend tsc ✓ · mobile tsc ✓ · **131/131** tests.
+Do not break Rounds 12–34b deliverables. Ship gates: backend tsc ✓ · mobile tsc ✓ · **131/131** tests.
 
 <details>
 <summary>Round 28 spec (completed — reference)</summary>

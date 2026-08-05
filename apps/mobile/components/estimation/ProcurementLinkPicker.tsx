@@ -55,6 +55,9 @@ export function ProcurementLinkPicker({
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [applyDefaults, setApplyDefaults] = useState(!hasExistingDescription);
+  // RATE-EST1g: Store last resolved rate/source for inline display
+  const [resolvedRate, setResolvedRate] = useState<number | null>(null);
+  const [resolvedSource, setResolvedSource] = useState<string | null>(null);
 
   // Reset applyDefaults when opening with a different existing-description state
   useEffect(() => {
@@ -112,20 +115,27 @@ export function ProcurementLinkPicker({
   // overrides are applied. Fall back to catalog rate if fetch fails.
   async function selectMaterial(resource: Resource, doApply: boolean) {
     onChange({ resourceId: resource.id, rateAnalysisId: undefined });
-    if (doApply && onApplyDefaults) {
-      let rate = String(parseFloat(resource.rate) || 0);
-      let rateSource: string | undefined = undefined;
-      if (projectId) {
-        try {
-          const resolved = await apiFetch<ResolvedMaterialRate>(
-            `/projects/${projectId}/resources/${resource.id}/rate`,
-          );
-          rate = String(resolved.rate ?? rate);
-          rateSource = resolved.source;
-        } catch {
-          // Fall back to catalog rate (current behaviour)
-        }
+    let rate = String(parseFloat(resource.rate) || 0);
+    let rateSource: string | undefined = undefined;
+    // RATE-EST1g: Always resolve rate when projectId is set (even if defaults off)
+    if (projectId) {
+      try {
+        const resolved = await apiFetch<ResolvedMaterialRate>(
+          `/projects/${projectId}/resources/${resource.id}/rate`,
+        );
+        rate = String(resolved.rate ?? rate);
+        rateSource = resolved.source;
+        setResolvedRate(Number(resolved.rate) || parseFloat(resource.rate) || 0);
+        setResolvedSource(resolved.source ?? null);
+      } catch {
+        setResolvedRate(parseFloat(resource.rate) || 0);
+        setResolvedSource(null);
       }
+    } else {
+      setResolvedRate(parseFloat(resource.rate) || 0);
+      setResolvedSource(null);
+    }
+    if (doApply && onApplyDefaults) {
       onApplyDefaults({
         description: resource.name,
         unit: resource.unit,
@@ -173,7 +183,8 @@ export function ProcurementLinkPicker({
           <View className="flex-1 min-w-0">
             <Text className="text-sm font-semibold text-text" numberOfLines={1}>{linkedResource.name}</Text>
             <Text className="text-xs text-muted">
-              Material · {linkedResource.unit} · {formatINR(parseFloat(linkedResource.rate))}
+              Material · {linkedResource.unit} · {formatINR(resolvedRate ?? parseFloat(linkedResource.rate))}
+              {resolvedSource && resolvedSource !== 'CATALOG' ? ` · from ${resolvedSource.toLowerCase()}` : ''}
             </Text>
           </View>
           {!disabled && <Text className="text-xs text-primary font-medium">Change</Text>}

@@ -480,6 +480,7 @@ function EditableLineItem({
             setUnit(item.unit);
             setResourceId(item.resourceId ?? '');
             setRateAnalysisId(item.rateAnalysisId ?? '');
+            setRateSource(undefined);
             setEditing(false);
           }}
         />
@@ -504,6 +505,7 @@ function AddItemRow({
   const [rate, setRate] = useState('0');
   const [resourceId, setResourceId] = useState('');
   const [rateAnalysisId, setRateAnalysisId] = useState('');
+  const [rateSource, setRateSource] = useState<string | undefined>(undefined);
   const [type, setType] = useState<'MATERIAL' | 'LABOUR' | 'EQUIPMENT' | 'SUBCONTRACTOR' | 'MISC'>(
     'MATERIAL',
   );
@@ -579,14 +581,21 @@ function AddItemRow({
           lineType={type}
           hasExistingDescription={Boolean(desc.trim())}
           projectId={projectId}
-          onApplyDefaults={({ description, unit, rate }) => {
+          onApplyDefaults={({ description, unit, rate, rateSource: source }) => {
             setDesc(description);
             setUnit(unit);
             setRate(rate);
+            setRateSource(source);
           }}
           compact
         />
       ) : null}
+      {/* RATE-EST1f: Show rate source badge when not CATALOG */}
+      {rateSource && rateSource !== 'CATALOG' && (
+        <Text className="text-[10px] text-accent font-medium">
+          Rate from {rateSource.toLowerCase()}
+        </Text>
+      )}
       <View className="flex-row gap-2 mt-1">
         <Button
           label="Add"
@@ -608,10 +617,11 @@ function AddItemRow({
             setRate('0');
             setResourceId('');
             setRateAnalysisId('');
+            setRateSource(undefined);
             setOpen(false);
           }}
         />
-        <Button label="Cancel" size="sm" variant="ghost" onPress={() => setOpen(false)} />
+        <Button label="Cancel" size="sm" variant="ghost" onPress={() => { setRateSource(undefined); setOpen(false); }} />
       </View>
     </View>
   );
