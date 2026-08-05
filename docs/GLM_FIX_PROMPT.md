@@ -1,14 +1,14 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 32 complete)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Rounds 33–34 complete)
 
 > **You do not need any prior conversation or other documents.** This file is the
 > complete task brief. Read it top to bottom before taking new work.
 > [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
 >
 > **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
-> **Last committed baseline:** Round 32 — `92811df` (RPT-UI1 report downloads)  
-> **Verified:** 2026-08-05 — Rounds 12–32 complete. **131/131** tests.
+> **Last committed baseline:** Round 34 — `3493baa` (RATE-EST1 + RPT-UI1a+ cleanup)  
+> **Verified:** 2026-08-05 — Rounds 12–34 complete. **131/131** tests.
 >
-> **Active work:** None mandatory. Optional: **§2.13** (report download cleanup) · **§2.15** (estimate rate defaults from project chain).
+> **Active work:** None mandatory. Optional stretch: **§2.13** RPT-UI2 / RPT-UI1a-5 · **§2.15.4** VariationsTab + rate badge.
 
 ---
 
@@ -1133,11 +1133,12 @@ Round 28 RPT-C1e.
 - [x] **RPT-UI1c** — Backend branding audit clean (all 17 pdf-report generators use `drawBrandedHeader`)
 - [x] **RPT-UI1d** — 131/131 tests · backend tsc · mobile tsc
 
-**Partial (optional — see §2.13):**
+**Partial (optional — see §2.13 / §2.15.4):**
 
-- [ ] **RPT-UI1a+** — Refactor `SubcontractsTab` + `ResourcesTab` to use `downloadReportPdf`
-- [ ] **RPT-UI1a+** — Subcontract paths in `reportPaths`; deprecate `expansion.queries.ts` PDF helpers
-- [ ] **RPT-UI2** — Logo ImagePicker on Company Profile; link on report-branding screen
+- [ ] **RPT-UI1a-5** — `ReportDownloadButton` component
+- [ ] **RPT-UI2** — Logo ImagePicker on Company Profile
+- [ ] **RATE-EST1b-badge** — Show “From {source}” under rate field in estimate build
+- [ ] **RATE-EST1e** — `projectId` on VariationsTab picker
 
 ### 2.12.9 Round 32 verification (2026-08-05 — do NOT revert)
 
@@ -1160,26 +1161,28 @@ Round 28 RPT-C1e.
 
 **Estimate summary PDF:** Intentionally not duplicated — estimate detail keeps `useExportEstimate` export route.
 
-**Follow-up:** §2.13 (report download cleanup) · §2.14 (rate architecture reference) · §2.15 (estimate rate resolution — optional).
+**Follow-up:** §2.13 (complete) · §2.15 (complete; badge + variations stretch in §2.15.4).
 
 ---
 
 ## 2.13 Round 33 — RPT-UI1a+: Report download cleanup (COMPLETE)
 
-**Status:** **COMPLETE** (`<commit>`) — single `downloadReportPdf` code path for all report PDFs; duplicate helpers removed.
+**Status:** **COMPLETE** (`3493baa`) — see §2.13.1 verification.
 
-### 2.13.1 Verification table
+### 2.13.1 Verification table (2026-08-05 — do NOT revert)
+
+**Commit:** `3493baa` (Round 33; builds on `6426f15` + `92811df`)
+
+**Ship gates:** backend tsc ✓ · mobile tsc ✓ · **131/131** tests ✓
 
 | ID | Status | Evidence |
 | -- | ------ | -------- |
-| **RPT-UI1a-1** | **Done** | `reportPaths.subcontractMeasurementBook(projectId, woId)` + `subcontractAbstractSheet(projectId, woId)` added to `report-download.ts` |
-| **RPT-UI1a-2** | **Done** | `SubcontractsTab.tsx` — `onDownloadPdf` uses `downloadReportPdf(reportPaths.subcontract…)`; removed `downloadSubcontract*Pdf` imports; removed inline `Sharing.isAvailableAsync`/`Alert` block |
-| **RPT-UI1a-3** | **Done** | `ResourcesTab.tsx` — `downloadRateSheet` uses `downloadReportPdf(reportPaths.materialRates(projectId), …)`; removed inline `apiDownload` + `Sharing` block + unused `apiDownload` import |
-| **RPT-UI1a-4** | **Done** | `expansion.queries.ts` — removed 4 path helpers (`measurementBookPdfPath`, `abstractSheetPdfPath`, `subcontract*PdfPath`) + 4 download helpers (`downloadMeasurementBookPdf`, `downloadAbstractSheetPdf`, `downloadSubcontract*Pdf`); removed unused `apiDownload` import |
-| **RPT-UI1a-5** | **Not done** (stretch) | `ReportDownloadButton` component — deferred; each call site has ≤3 lines of `downloadReportPdf` call |
-| **RPT-UI2** | **Not done** (stretch) | Logo ImagePicker on Company Profile — deferred; `useCompanyLogoUpload` hook exists, not wired to ImagePicker |
-
-**Ship gates:** backend tsc ✓ · mobile tsc ✓ · **131/131** tests ✓
+| **RPT-UI1a-1** | **Done** | `reportPaths.subcontractMeasurementBook(projectId, woId)` + `subcontractAbstractSheet(projectId, woId)` in `report-download.ts` |
+| **RPT-UI1a-2** | **Done** | `SubcontractsTab.tsx` — `onDownloadPdf` uses `downloadReportPdf(reportPaths.subcontract…)` |
+| **RPT-UI1a-3** | **Done** | `ResourcesTab.tsx` — `downloadRateSheet` uses `downloadReportPdf(reportPaths.materialRates)` |
+| **RPT-UI1a-4** | **Done** | `expansion.queries.ts` — all duplicate PDF path/download helpers removed |
+| **RPT-UI1a-5** | **Not done** (stretch) | `ReportDownloadButton` component — deferred |
+| **RPT-UI2** | **Not done** (stretch) | Logo ImagePicker on Company Profile — deferred |
 
 **Call sites before/after:**
 
@@ -1234,16 +1237,21 @@ Round 28 RPT-C1e.
 
 **Integration tests:** `material-rate.test.ts` — NH-65 / GVR / TPK projects resolve with expected source types.
 
-### 2.14.3 Estimate wizard — known gap (not a regression)
+### 2.14.3 Estimate wizard rate defaults (post-Round 34)
 
-When linking a material in **Estimate Build** (`ProcurementLinkPicker` → `applyDefaults`):
+When linking a material in **Estimate Build** with `projectId` set (`estimation/create.tsx` →
+`EstimateBuildStep` → `ProcurementLinkPicker`):
 
-- Rate prefilled from **`Resource.rate`** (catalog) or **`RateAnalysis.totalRate`**
-- Does **NOT** call `resolveMaterialRate()` — so **regional rates and project overrides are not auto-applied** when picking materials in a new estimate
+- `selectMaterial` calls `GET /projects/:projectId/resources/:resourceId/rate`
+- Prefills resolved rate (PROJECT / REGION / ESTIMATE / BOQ / CATALOG chain)
+- Falls back to catalog `Resource.rate` if fetch fails or `projectId` omitted
 
-**Workaround today:** Assign rate region on project → use **Project → Material Rates → From region** before estimating; or manually edit line rates.
+**Still catalog-only:**
 
-**Optional fix:** §2.15 RATE-EST1.
+- **VariationsTab** new-scope lines — `ProcurementLinkPicker` has no `projectId` prop (§2.15.4 stretch)
+- Linked material **inline chip** still shows catalog rate in subtitle (resolved rate only applied on pick + applyDefaults)
+
+**Workaround for variations:** Manually edit line rate, or copy project rates first.
 
 ### 2.14.4 Editing rates on estimates — does it change previous rates?
 
@@ -1260,20 +1268,20 @@ Backend: `updateItem()` writes only `estimateItem.rate`; `getEstimateForEditing(
 
 ---
 
-## 2.15 Round 34 — RATE-EST1: Project-aware defaults in estimate wizard (optional)
+## 2.15 Round 34 — RATE-EST1: Project-aware defaults in estimate wizard (COMPLETE)
 
 **User pain:** “I set regional rates / project overrides — why doesn’t the estimate picker use them?”
 
-**Root cause:** §2.14.3 — `ProcurementLinkPicker.selectMaterial` uses `resource.rate` from catalog list.
+**Round 34 status:** **COMPLETE** (`6426f15`) — core resolution wired; see §2.15.3 verification.
 
 ### 2.15.1 RATE-EST1a — Pass `projectId` into estimate build
 
-**Files:** `estimation/create.tsx`, `estimation/[id].tsx`, `EstimateBuildStep.tsx`, `ProcurementLinkPicker.tsx`
+**Files:** `estimation/create.tsx`, `EstimateBuildStep.tsx`, `ProcurementLinkPicker.tsx`
 
 - Thread `projectId` prop through build step → picker
 - When `applyDefaults` and material selected, fetch resolved rate:
   `GET /projects/:projectId/resources/:resourceId/rate`
-- Prefill rate + optionally show source badge (`REGION`, `PROJECT`, `CATALOG`, …)
+- Prefill rate + pass `rateSource` in `onApplyDefaults` callback
 - Rate analysis path unchanged (`ra.totalRate`)
 
 ### 2.15.2 RATE-EST1b — UX hints
@@ -1281,20 +1289,37 @@ Backend: `updateItem()` writes only `estimateItem.rate`; `getEstimateForEditing(
 - When resolved source ≠ CATALOG, show small label under rate field: “From {source}”
 - If no projectId (edge case), fall back to catalog rate (current behaviour)
 
-### 2.15.3 Definition of done
+### 2.15.3 Definition of done (Round 34)
 
-- [x] Picking cement on TPK project prefills **regional** rate when no project override
-- [x] Picking on NH-65 prefills **project override** when set
-- [x] Saving line does not mutate `Resource.rate` (only writes `EstimateItem.rate`)
-- [x] 131/131 tests + mobile tsc clean
+- [x] **RATE-EST1a** — `projectId` threaded; `selectMaterial` calls resolve API (`6426f15`)
+- [x] **RATE-EST1b-fallback** — Catalog fallback when no projectId or fetch error
+- [x] **RATE-EST1c** — Saving line does not mutate `Resource.rate` (backend unchanged)
+- [x] **RATE-EST1d** — 131/131 tests · mobile tsc · backend tsc
+- [ ] **RATE-EST1b-badge** — “From {source}” label under rate field (stretch — `rateSource` passed but not rendered)
+- [ ] **RATE-EST1e** — VariationsTab passes `projectId` to picker (stretch — §2.15.4)
 
-**Verified Round 34 (`<commit>`):**
-- `ProcurementLinkPicker.tsx` — `projectId?: string` prop; `selectMaterial` calls `GET /projects/:projectId/resources/:resourceId/rate` when projectId is set; falls back to catalog `Resource.rate` if fetch fails or projectId is undefined (edge case). `rateSource` threaded in `onApplyDefaults`.
-- `EstimateBuildStep.tsx` — `projectId?: string` prop; threaded to `EditableLineItem` and `AddItemRow`; passed to `ProcurementLinkPicker`.
-- `estimation/create.tsx` — passes `projectId` from `useLocalSearchParams` to `<EstimateBuildStep>`.
-- `estimation/[id].tsx` — read-only detail; no `EstimateBuildStep` usage (no change needed).
-- Backend: `material-rate.service.ts` already exposes `GET /projects/:projectId/resources/:resourceId/rate` with `{ rate, source }` (verified by `material-rate.test.ts`). Backend `updateItem()` writes only `estimateItem.rate` — no `Resource.rate` mutation.
-- VariationsTab unchanged (no projectId on that screen).
+### 2.15.4 Round 34 verification (2026-08-05 — do NOT revert)
+
+**Commit:** `6426f15`
+
+**Ship gates:** backend tsc ✓ · mobile tsc ✓ · **131/131** tests ✓
+
+| ID | Status | Evidence |
+| -- | ------ | -------- |
+| **RATE-EST1a** | **Done** | `ProcurementLinkPicker` — `projectId?: string`; `selectMaterial` → `apiFetch('/projects/${projectId}/resources/${resource.id}/rate')`; fallback to catalog on error |
+| **RATE-EST1a-thread** | **Done** | `EstimateBuildStep` → `EditableLineItem` / `AddItemRow` → picker; `create.tsx` passes `projectId` from route params (create + edit-via-create flows) |
+| **RATE-EST1b-fallback** | **Done** | No `projectId` → catalog rate; try/catch on fetch |
+| **RATE-EST1c** | **Done** | `estimate.service.ts` `updateItem()` writes only `EstimateItem.rate` |
+| **RATE-EST1b-badge** | **Not done** (stretch) | `rateSource` in `onApplyDefaults` but `EstimateBuildStep` does not render “From REGION” etc. |
+| **RATE-EST1e** | **Not done** (stretch) | `VariationsTab.tsx` — picker missing `projectId={projectId}` |
+
+**Note:** Use `ResolvedMaterialRate` typing (`rate: number`) in picker fetch — runtime OK; optional type cleanup.
+
+**Optional stretch (§2.15.4 follow-up):**
+
+1. Pass `projectId` to `ProcurementLinkPicker` in `VariationsTab.tsx`
+2. Show `rateSource` badge under rate input in `EstimateBuildStep` when ≠ `CATALOG`
+3. Update inline linked-material subtitle to show resolved rate when available
 
 ### 2.12.7 Manual test checklist
 
@@ -1599,13 +1624,13 @@ New migrations: `20260805100000_subcontract_material_supply_mode`,
 
 **Expected test count:** **131/131** (stable; +2 SUB-BOQ1T subcontract tests).
 
-### 2.2 Mandatory tasks — none (Round 32 complete)
+### 2.2 Mandatory tasks — none (Rounds 33–34 complete)
 
-**Round 32 complete** (`92811df`). No mandatory tasks.
+**Rounds 33–34 complete** (`3493baa`). No mandatory tasks.
 
-Optional if user asks: **§2.13** RPT-UI1a+ (PDF helper cleanup) · **§2.15** RATE-EST1 (estimate picker uses project rate chain) · **§2.8** hardening.
+Optional stretch: **§2.13** RPT-UI1a-5 / RPT-UI2 · **§2.15.4** VariationsTab + rate source badge · **§2.8** hardening.
 
-Do not break Rounds 12–32 deliverables. Ship gates: backend tsc ✓ · mobile tsc ✓ · **131/131** tests.
+Do not break Rounds 12–34 deliverables. Ship gates: backend tsc ✓ · mobile tsc ✓ · **131/131** tests.
 
 <details>
 <summary>Round 28 spec (completed — reference)</summary>

@@ -328,6 +328,7 @@ function EditableLineItem({
   const [unit, setUnit] = useState(item.unit);
   const [resourceId, setResourceId] = useState(item.resourceId ?? '');
   const [rateAnalysisId, setRateAnalysisId] = useState(item.rateAnalysisId ?? '');
+  const [rateSource, setRateSource] = useState<string | undefined>(undefined);
 
   const linkedResource = materials.find((m) => m.id === (resourceId || item.resourceId));
   const linkedRa = rateAnalyses.find((r) => r.id === (rateAnalysisId || item.rateAnalysisId));
@@ -337,6 +338,7 @@ function EditableLineItem({
       itemId: item.id,
       body: { resourceId: null, rateAnalysisId: null },
     });
+    setRateSource(undefined);
   }
 
   if (!editing) {
@@ -434,13 +436,20 @@ function EditableLineItem({
           lineType={item.type}
           hasExistingDescription={Boolean(desc.trim())}
           projectId={projectId}
-          onApplyDefaults={({ description, unit, rate }) => {
+          onApplyDefaults={({ description, unit, rate, rateSource: source }) => {
             setDesc(description);
             setUnit(unit);
             setRate(rate);
+            setRateSource(source);
           }}
         />
       ) : null}
+      {/* RATE-EST1b: Show rate source badge when not CATALOG */}
+      {rateSource && rateSource !== 'CATALOG' && (
+        <Text className="text-[10px] text-accent font-medium">
+          Rate from {rateSource.toLowerCase()}
+        </Text>
+      )}
       <View className="flex-row gap-2">
         <Button
           label="Save"

@@ -446,6 +446,7 @@ export function VariationsTab({ projectId, highlightChangeOrderId }: { projectId
                   }
                   lineType={line.type}
                   hasExistingDescription={Boolean(line.description.trim())}
+                  projectId={projectId}
                   onApplyDefaults={({ description, unit, rate }) =>
                     setLines((prev) =>
                       prev.map((l) =>

@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
 import { SearchBar } from '@/components/ui';
 import { useMaterials, useRateAnalyses, type Resource, type RateAnalysis } from '@/services/estimate.queries';
+import type { ResolvedMaterialRate } from '@buildflow/shared';
 import { MaterialThumbnail } from '@/components/materials/MaterialThumbnail';
 import { apiFetch } from '@/lib/api-client';
 import { formatINR } from '@/utils/format';
@@ -116,10 +117,10 @@ export function ProcurementLinkPicker({
       let rateSource: string | undefined = undefined;
       if (projectId) {
         try {
-          const resolved = await apiFetch<{ rate: string; source: string }>(
+          const resolved = await apiFetch<ResolvedMaterialRate>(
             `/projects/${projectId}/resources/${resource.id}/rate`,
           );
-          rate = resolved.rate || rate;
+          rate = String(resolved.rate ?? rate);
           rateSource = resolved.source;
         } catch {
           // Fall back to catalog rate (current behaviour)
