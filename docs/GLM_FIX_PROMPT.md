@@ -1,16 +1,15 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 29: Subcontract UX)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 29 SUB-UX complete)
 
 > **You do not need any prior conversation or other documents.** This file is the
 > complete task brief. Read it top to bottom before taking new work.
 > [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
 >
 > **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
-> **Last committed baseline:** Round 28 — `15ce80a` (drawHeader accent/showLogo wired)  
-> **Verified:** 2026-08-05 — Rounds 12–23 **complete**. **Round 24–28 + optional polish complete**
-> (subcontract supply, branded PDFs, footerText, branded Excel export, E2E issue test, mobile tsc). **129/129** tests.
+> **Last committed baseline:** Round 29c — `ed0f16a` (subcontract measurement + material UX)  
+> **Verified:** 2026-08-05 — Rounds 12–23 **complete**. **Round 24–28 + Round 29 SUB-UX complete**
+> (subcontract supply, branded PDFs/Excel, material picker UX, measurement modal). **129/129** tests.
 >
-> **Active work:** **Round 29c (SUB-UX finish)** — measurement modal polish + material issue validation/rate/BOQ.
-> **Round 29a–29b** largely done — see §2.9.7–§2.9.9. Do not re-break Rounds 12–28.
+> **Active work:** None mandatory — only §2.8 optional hardening unless user asks.
 
 ---
 
@@ -20,8 +19,8 @@
 panel work functionally but feel like developer stubs — especially material issue, which asks for a raw
 **resource UUID** instead of showing project stock the user can pick from.
 
-**Round 29 status:** 29a SUB-UX1 core **done** · 29b **partial** (list expand + stock invalidation) · 29c **active** (§2.9.10).
-See §2.9.7–§2.9.9 verification notes.
+**Round 29 status:** **COMPLETE** (29a core · 29b list/invalidation · 29c polish/modal) — see §2.9.11.
+Do not re-break SUB-UX deliverables or Rounds 12–28.
 
 ### 2.9.0 How material issue works today (read before coding)
 
@@ -148,13 +147,12 @@ Default: **implement grouping in mobile** from existing list response.
 **Optional test (add if easy):** Extend `subcontract.test.ts` or `pdf-report.test.ts` assertion that
 material issue list returns `resource.name` after issue (already likely covered).
 
-### 2.9.5 Definition of done (Round 29)
+### 2.9.5 Definition of done (Round 29 — COMPLETE)
 
 - [x] **SUB-UX1 (core)** — MaterialPicker + stock balances; no UUID field; grouped issued list; Issue more + Recover
-- [x] **SUB-UX1 partial** — stock summary invalidation after issue/recover (`48fe998`)
-- [ ] **SUB-UX1 polish** — rate API, qty≤onHand client validation, BOQ union (§2.9.10)
+- [x] **SUB-UX1 polish** — stock invalidation (`48fe998`); BOQ union + rate API + qty≤onHand (`ed0f16a`)
 - [x] **SUB-UX2 (list)** — line-count chip + expand/collapse lines (`251a897`)
-- [ ] **SUB-UX2 (modal)** — period chips, balance hints, desktop table, pick-from-WO-lines (§2.9.10)
+- [x] **SUB-UX2 (modal)** — period chips, balance hints, desktop table, pick-from-WO-lines (`ed0f16a`)
 - [x] Ship gate: 129/129 tests, mobile + backend tsc clean
 - [x] Do not re-break SUB-C supply mode, PDF material tables, or Rounds 12–23 variations
 
@@ -224,30 +222,48 @@ material issue list returns `resource.name` after issue (already likely covered)
 
 </details>
 
-### 2.9.10 Round 29c — Remaining work (ACTIVE for GLM)
+### 2.9.10 Round 29c spec (completed — reference)
 
-**File:** `apps/mobile/components/projects/SubcontractsTab.tsx`
+<details>
+<summary>Round 29c original spec (done in ed0f16a)</summary>
 
-**SUB-UX1 polish — `MaterialsPanel`:**
+All items delivered — see §2.9.11 verification.
 
-1. Pass `useBoq(projectId)` into panel (or build `projectMaterials` in parent and pass prop).
-2. Union BOQ-linked materials into `projectMaterials` — copy `projectMaterials` useMemo from
-   `apps/mobile/app/(app)/reports/create.tsx` (~lines 827–851).
-3. On `MaterialPicker` select: `apiFetch('/projects/${projectId}/resources/${id}/rate')` → set rate field.
-4. Compute `onHand` from selected material; if `parseFloat(qty) > onHand` show red text + **disable Issue button**.
+</details>
 
-**SUB-UX2 modal — `MeasurementsPanel`:**
+### 2.9.11 Round 29c verification (2026-08-05 — do NOT revert)
 
-1. Period quick-pick chips below Period input (current month name, e.g. `Aug 2026`).
-2. When `line.workOrderLineId` set: show read-only `Balance: {balanceQty} {unit}` from `summary.lines`.
-3. Warn (amber text, non-blocking) if `parseFloat(line.quantity) > balanceQty`.
-4. `useViewport().isDesktop`: render lines as table header row + aligned columns.
-5. **Pick from WO lines** button → `AdaptiveSheet` listing `summary.lines.filter(l => l.balanceQty > 0)`;
-   tap adds pre-filled draft line (avoid duplicate `workOrderLineId` if already in `lines`).
+**Commit:** `ed0f16a` — SUB-UX1 polish + SUB-UX2 modal
 
-**Ship gate:** 129/129 · both tsc clean · mobile-only · do not revert §2.9.9 deliverables.
+**Ship gates:** backend tsc ✓ · mobile tsc ✓ · **129/129** tests ✓
 
-**Anti-pattern:** Do not mark Round 29c done in commit message unless all five modal items + four polish items are in the diff.
+**SUB-UX1 polish delivered (`MaterialsPanel`):**
+
+| Item | Evidence |
+| ---- | -------- |
+| BOQ ∪ stock `projectMaterials` | `useBoq` + Map union (~lines 813–841) |
+| Rate API on select | `apiFetch(…/resources/${id}/rate)` in `MaterialPicker` onSelect |
+| qty ≤ onHand validation | `qtyOverOnHand` + red helper + disabled Issue button |
+| Stock refresh | Already in `48fe998` — unchanged |
+
+**SUB-UX2 modal delivered (`MeasurementsPanel`):**
+
+| Item | Evidence |
+| ---- | -------- |
+| Period chips | Current month, last month, week chip (~lines 326–597) |
+| Balance hints | `getLineBalance()` + amber warn when qty > balance |
+| Desktop table | Column header + row layout when `isDesktop` |
+| Pick from WO lines | `woPickerOpen` sub-sheet; filters `balanceQty > 0`; dedupes existing `workOrderLineId` |
+
+**Optional deferrals (not required for Round 29 done):**
+
+- Issue date / notes field on material issue modal
+- Approved measurement → linked bill number on list card
+- Hide BOQ-only materials with zero on-hand from issue picker (backend still rejects insufficient stock)
+
+### 2.9.10 Round 29c — Remaining work (was ACTIVE — now complete)
+
+**Moved to §2.9.11.** Do not re-implement unless regressions found.
 
 ### 2.9.6 Anti-patterns (Round 29)
 
@@ -518,8 +534,7 @@ New migrations: `20260805100000_subcontract_material_supply_mode`,
 
 ### 2.2 Mandatory tasks — none (epic complete)
 
-**Round 24–28 SUB-C + RPT-C are done.** Take new work from **§2.9.10 Round 29c** first.
-Only take §2.8 if the user explicitly asks.
+**Round 24–28 SUB-C + RPT-C and Round 29 SUB-UX are done.** Only take §2.8 if the user explicitly asks.
 
 <details>
 <summary>Round 28 spec (completed — reference)</summary>
@@ -891,6 +906,7 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 | **RPT-O3** | ~~Refactor drawHeader sites to `drawBrandedHeader` / helpers~~ | **Done** |
 | **RPT-O4** | Branded Excel exports (`estimate-export.service.ts`) | **Done** |
 | **MOB-O1** | ~~Fix mobile tsc implicit-any~~ | **Done** |
+| **SUB-UX-O1** | Material issue: optional date/notes; hide zero-stock BOQ rows in picker; bill hint on approved measurements |
 | **Phase 5 gaps** | Smoke tests for inventory-traceability, accounting-export, labour, i18n |
 | **NR-36** | Drawing acknowledgement endpoint |
 | **Sync §8.1** | Remount `/api/sync` (needs `updatedAt` + mobile replay) |
