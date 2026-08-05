@@ -1,15 +1,16 @@
 /**
- * BuildFlow - VariationsTab (VAR-B + VAR-C rewrite)
+ * BuildFlow - VariationsTab (VAR-C9 rewrite)
  *
- * VAR-B1: Material picker scoped to BOQ (resourceId or RA components), not full catalog
- * VAR-B2: RA-linked BOQ shows MATERIAL component chips (procurement parity)
- * VAR-B3: Explode composite BOQ into one line per RA MATERIAL component
- * VAR-B5: Ad-hoc catalog material hidden by default when no BOQ linked
+ * VAR-C9: One line per BOQ, one line per RA. No Split/BOM expansion on this form.
+ * RA/component explosion for procurement happens after approve (backend only,
+ * fetchBoqMaterialDemands — VAR-C6b).
  *
- * VAR-C1: Explode no longer creates duplicates (children lose boqItemId)
- * VAR-C2: Remove line button on each draft line
- * VAR-C3: Line type + estimate-style catalog pickers for new scope
- * VAR-C4: Section copy + FlowHint update
+ * VAR-C2: Remove line (min 1).
+ * VAR-C3: All five cost types (MATERIAL, LABOUR, EQUIPMENT, SUBCONTRACTOR, MISC)
+ * VAR-C3a: MaterialPicker for new-scope MATERIAL lines
+ * VAR-C3b: RateAnalysisPicker for new-scope non-MISC lines
+ * VAR-C4: Adjust vs new scope copy + FlowHint
+ * VAR-C9b: BOQ dedupe — each BOQ chip usable on at most one draft line
  */
 import React, { useMemo, useState } from 'react';
 import { View, Text, Alert, Pressable, ScrollView } from 'react-native';
@@ -46,8 +47,6 @@ import { useBoq, type BoqItem } from '@/services/boq.queries';
 import { useTasks, type TaskRow } from '@/services/project.queries';
 import {
   useResources,
-  useRateAnalysis,
-  useRateAnalyses,
   type Resource,
   type RateAnalysis,
 } from '@/services/estimate.queries';
@@ -61,7 +60,7 @@ const STATUS_COLOR: Record<string, 'neutral' | 'warning' | 'success' | 'danger'>
   REJECTED: 'danger',
 };
 
-// VAR-C3: Line types matching estimate item types
+// VAR-C3/C9: All five cost types matching estimate item types
 const LINE_TYPES = ['MATERIAL', 'LABOUR', 'EQUIPMENT', 'SUBCONTRACTOR', 'MISC'] as const;
 type LineType = (typeof LINE_TYPES)[number];
 
@@ -81,12 +80,8 @@ interface DraftLine {
   rate: string;
   boqItemId?: string;
   resourceId?: string;
-  // VAR-C3: Line type for new scope (estimate parity)
   type: LineType;
   rateAnalysisId?: string;
-  addToBoqOnApprove?: boolean;
-  // VAR-C1: Marks exploded children so they can't be re-exploded
-  explodedFromBoqId?: string;
 }
 
 function emptyLine(): DraftLine {
@@ -97,8 +92,6 @@ function emptyLine(): DraftLine {
     qtyDelta: '0',
     rate: '0',
     type: 'MATERIAL',
-    // VAR-C3: New scope lines default to creating a BOQ row on approve
-    addToBoqOnApprove: true,
   };
 }
 
@@ -106,40 +99,9 @@ function lineAmount(qtyDelta: string, rate: string): number {
   return Math.round((parseFloat(qtyDelta) || 0) * (parseFloat(rate) || 0) * 100) / 100;
 }
 
-function showMaterialPickerForLine(line: DraftLine, boqItems: BoqItem[]): boolean {
-  if (!line.boqItemId) return false;
-  const linked = boqItems.find((b) => b.id === line.boqItemId);
-  if (!linked) return false;
-  return !!(linked.resourceId || linked.rateAnalysisId);
-}
-
-// VAR-C1: Exploded children lose boqItemId so they can't be re-exploded.
-// They keep resourceId for procurement linking, and gain explodedFromBoqId
-// for display (prevents showing ExplodeButton on children).
-function explodeCompositeBoq(boq: BoqItem, ra: RateAnalysis, qtyDelta: string): DraftLine[] {
-  const qty = parseFloat(qtyDelta) || 0;
-  return ra.components
-    .filter((c) => c.type === 'MATERIAL' && c.resourceId)
-    .map((c) => {
-      const compQty = Number(c.quantityPerUnit) || 0;
-      const compRate = Number(c.rate) || 0;
-      return {
-        id: Math.random().toString(36).slice(2),
-        description: `${boq.itemCode} · ${c.resourceName || c.resource?.name || 'Material'}`,
-        unit: c.unit || boq.unit,
-        qtyDelta: String(Math.round(qty * compQty * 1000) / 1000),
-        rate: String(compRate),
-        // VAR-C1: Children do NOT keep boqItemId — prevents re-explode
-        resourceId: c.resourceId ?? undefined,
-        type: 'MATERIAL' as LineType,
-        explodedFromBoqId: boq.id,
-      };
-    });
-}
-
 function applyBoqLinkToLine(line: DraftLine, boq: BoqItem | null): DraftLine {
   if (!boq) {
-    return { ...line, boqItemId: undefined, resourceId: undefined, explodedFromBoqId: undefined };
+    return { ...line, boqItemId: undefined, resourceId: undefined };
   }
   return {
     ...line,
@@ -148,7 +110,6 @@ function applyBoqLinkToLine(line: DraftLine, boq: BoqItem | null): DraftLine {
     unit: boq.unit,
     rate: String(parseFloat(boq.rate) || 0),
     resourceId: boq.resourceId ?? undefined,
-    explodedFromBoqId: undefined,
   };
 }
 
@@ -157,44 +118,6 @@ function formatLineSummary(line: ChangeOrderLine): string {
   const rate = parseFloat(line.rate) || 0;
   const amount = parseFloat(line.amount) || qty * rate;
   return `• ${line.description} - ${qty} ${line.unit} @ ${formatINR(rate)} = ${formatINR(amount)}`;
-}
-
-function RaComponentPicker({ boq, selectedResourceId, onSelect }: { boq: BoqItem; selectedResourceId: string | undefined; onSelect: (resourceId: string | undefined) => void }) {
-  const { data: ra, isLoading } = useRateAnalysis(boq.rateAnalysisId!);
-  if (isLoading) return <Text className="text-[10px] text-muted">Loading components…</Text>;
-  if (!ra) return null;
-  const materialComps = ra.components.filter((c) => c.type === 'MATERIAL' && c.resourceId);
-  if (materialComps.length === 0) return null;
-  return (
-    <View className="gap-1">
-      <Text className="text-xs text-muted">Materials for this BOQ (RA components)</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-1">
-        <Pressable onPress={() => onSelect(undefined)} className={`px-2 py-1 rounded border ${!selectedResourceId ? 'bg-accent border-accent' : 'border-border'}`}>
-          <Text className={`text-[10px] ${!selectedResourceId ? 'text-white' : 'text-muted'}`}>None</Text>
-        </Pressable>
-        {materialComps.map((c) => (
-          <Pressable key={c.id} onPress={() => onSelect(c.resourceId ?? undefined)} className={`px-2 py-1 rounded border max-w-[160px] ${selectedResourceId === c.resourceId ? 'bg-accent border-accent' : 'border-border'}`}>
-            <Text className={`text-[10px] ${selectedResourceId === c.resourceId ? 'text-white' : 'text-muted'}`} numberOfLines={1}>
-              {c.resourceName || c.resource?.name || 'Material'} · {c.quantityPerUnit} {c.unit}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-    </View>
-  );
-}
-
-// VAR-C1: ExplodeButton only shows on composite BOQ-linked lines that haven't been exploded yet
-function ExplodeButton({ boq, qtyDelta, onExplode }: { boq: BoqItem; qtyDelta: string; onExplode: (lines: DraftLine[]) => void }) {
-  const { data: ra } = useRateAnalysis(boq.rateAnalysisId!);
-  if (!ra) return null;
-  const materialComps = ra.components.filter((c) => c.type === 'MATERIAL' && c.resourceId);
-  if (materialComps.length <= 1) return null;
-  return (
-    <Pressable onPress={() => onExplode(explodeCompositeBoq(boq, ra, qtyDelta))}>
-      <Text className="text-primary text-xs font-semibold">⚡ Split into {materialComps.length} materials</Text>
-    </Pressable>
-  );
 }
 
 /**
@@ -307,9 +230,17 @@ export function VariationsTab({ projectId }: { projectId: string }) {
   const [linkedTaskId, setLinkedTaskId] = useState('');
   const [linkedWorkOrderId, setLinkedWorkOrderId] = useState('');
   const [lines, setLines] = useState<DraftLine[]>([emptyLine()]);
-  // R19-O1: Removed dead adhocExpandid state (inline catalog replaced by MaterialPicker in R17)
   const draftTotal = useMemo(() => lines.reduce((sum, l) => sum + lineAmount(l.qtyDelta, l.rate), 0), [lines]);
   const resetForm = () => { setNumber(''); setTitle(''); setReason(''); setScheduleDays('0'); setLinkedTaskId(''); setLinkedWorkOrderId(''); setLines([emptyLine()]); };
+
+  // VAR-C9b: Compute BOQ IDs already used on other lines for dedup
+  const usedBoqIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const l of lines) {
+      if (l.boqItemId) ids.add(l.boqItemId);
+    }
+    return ids;
+  }, [lines]);
 
   const onCreate = () => {
     if (!number.trim() || !title.trim()) { void alertAsync('Required', 'Variation number and title are required.'); return; }
@@ -363,14 +294,14 @@ export function VariationsTab({ projectId }: { projectId: string }) {
 
   return (
     <View className="gap-3">
-      {/* R13-VO1 + VAR-C4: FlowHint with baseline / shortfall / line editor guidance */}
+      {/* VAR-C9c: FlowHint — single line per BOQ/RA, all 5 types, no split */}
       <FlowHintCard title="When to use variations" steps={[
         'Use when the client agrees to extra scope or quantity after BOQ was approved',
         'PM creates a variation → Owner approves → BOQ sanctioned qty updates (budget too)',
         'Approved estimate stays as original baseline — see Estimate tab for revised scope',
         'Material needs are NOT auto-indented — review Procurement → Shortfalls after approve',
         'Link to a subcontract work order to bump contract value when scope is subcontracted',
-        'VAR-C: Adjust existing BOQ by linking a BOQ chip; add new scope by picking a material or type',
+        'One line per BOQ chip (qty Δ) or one line per new scope item (type + material/RA)',
       ]} defaultCollapsed />
       <View className="flex-row justify-between items-center">
         <Text className="text-sm font-bold text-text shrink">{orders.length} Variations</Text>
@@ -405,26 +336,22 @@ export function VariationsTab({ projectId }: { projectId: string }) {
             </ScrollView>
           </View>
         ) : null}
-        {/* VAR-C4: Section copy explaining the two paths */}
+        {/* VAR-C9c: Section copy — single line per BOQ/RA */}
         <Text className="text-sm font-bold text-text -mb-2">Line items</Text>
         <View className="rounded-lg bg-primary/5 border border-primary/20 p-2 mb-1">
           <Text className="text-[10px] text-muted leading-4">
-            <Text className="font-semibold text-text">Adjust existing BOQ:</Text> Link a BOQ chip → enter qty Δ.{'\n'}
-            <Text className="font-semibold text-text">Add new scope:</Text> Leave BOQ as "New" → pick material or type. Creates a BOQ line on approve.
+            <Text className="font-semibold text-text">Adjust existing BOQ:</Text> Link one BOQ chip per line → qty Δ.{'\n'}
+            <Text className="font-semibold text-text">Add new scope:</Text> Pick type (Material, Labour, Equipment, Subcontractor, Misc) + material or RA — one line each.
           </Text>
         </View>
         {lines.map((line, idx) => {
           const linkedBoq = boqItems.find((b) => b.id === line.boqItemId);
-          const showPicker = showMaterialPickerForLine(line, boqItems);
-          // VAR-C1: Explode only shows on composite BOQ-linked, non-exploded lines
-          const canExplode = showPicker && linkedBoq?.rateAnalysisId && !line.explodedFromBoqId;
-          const isNewScope = !line.boqItemId && !line.explodedFromBoqId;
+          const isNewScope = !line.boqItemId;
           return (
             <View key={line.id} className="border border-border rounded-lg p-3 gap-2">
               {/* VAR-C2: Line header with Remove button */}
               <View className="flex-row justify-between items-center">
-                <Text className="text-xs text-muted">Line {idx + 1}{line.explodedFromBoqId ? ' (from split)' : ''}</Text>
-                {/* VAR-C2: Remove line — keep at least one */}
+                <Text className="text-xs text-muted">Line {idx + 1}</Text>
                 {lines.length > 1 && (
                   <Pressable onPress={() => void removeLine(line.id)} hitSlop={8} className="px-2 py-1">
                     <Text className="text-danger text-xs font-semibold">✕ Remove</Text>
@@ -437,11 +364,40 @@ export function VariationsTab({ projectId }: { projectId: string }) {
                   <Text className="text-xs text-muted">Link to BOQ line (optional)</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-1">
                     <Pressable onPress={() => setLines((prev) => prev.map((l) => (l.id === line.id ? applyBoqLinkToLine(l, null) : l)))} className={`px-2 py-1 rounded border ${!line.boqItemId ? 'bg-accent border-accent' : 'border-border'}`}><Text className={`text-[10px] ${!line.boqItemId ? 'text-white' : 'text-muted'}`}>New</Text></Pressable>
-                    {boqItems.map((b: BoqItem) => (<Pressable key={b.id} onPress={() => setLines((prev) => prev.map((l) => (l.id === line.id ? applyBoqLinkToLine(l, b) : l)))} className={`px-2 py-1 rounded border max-w-[140px] ${line.boqItemId === b.id ? 'bg-accent border-accent' : 'border-border'}`}><Text className={`text-[10px] ${line.boqItemId === b.id ? 'text-white' : 'text-muted'}`} numberOfLines={1}>{b.itemCode}</Text></Pressable>))}
+                    {boqItems.map((b: BoqItem) => {
+                      // VAR-C9b: Disable BOQ chips already used on other lines
+                      const isUsedElsewhere = usedBoqIds.has(b.id) && line.boqItemId !== b.id;
+                      return (
+                        <Pressable
+                          key={b.id}
+                          disabled={isUsedElsewhere}
+                          onPress={() => setLines((prev) => prev.map((l) => (l.id === line.id ? applyBoqLinkToLine(l, b) : l)))}
+                          className={`px-2 py-1 rounded border max-w-[140px] ${line.boqItemId === b.id ? 'bg-accent border-accent' : isUsedElsewhere ? 'border-border opacity-30' : 'border-border'}`}
+                        >
+                          <Text className={`text-[10px] ${line.boqItemId === b.id ? 'text-white' : 'text-muted'}`} numberOfLines={1}>{b.itemCode}</Text>
+                        </Pressable>
+                      );
+                    })}
                   </ScrollView>
+                  {usedBoqIds.size > 0 && (
+                    <Text className="text-[10px] text-muted">Greyed chips are already used on another line.</Text>
+                  )}
                 </View>
               ) : null}
-              {/* VAR-C3: Line type chips for new scope (no BOQ link, not exploded) */}
+              {/* VAR-C9: BOQ-linked line — show RA badge if composite, no split/expansion */}
+              {line.boqItemId && linkedBoq?.rateAnalysisId ? (
+                <View className="flex-row items-center gap-2">
+                  <Badge color="primary" label={line.type} />
+                  <Badge color="accent" label="Composite (RA linked)" />
+                  <Text className="text-[10px] text-muted">One line — materials explode after approve</Text>
+                </View>
+              ) : line.boqItemId && linkedBoq?.resourceId ? (
+                <View className="flex-row items-center gap-2">
+                  <Badge color="primary" label={line.type} />
+                  <Text className="text-xs text-text">{materialResources.find((r) => r.id === linkedBoq.resourceId)?.name ?? 'Linked material'}</Text>
+                </View>
+              ) : null}
+              {/* VAR-C3/C9: Line type chips for new scope (all five types) */}
               {isNewScope && (
                 <View className="gap-1">
                   <Text className="text-xs text-muted">Line type</Text>
@@ -454,31 +410,6 @@ export function VariationsTab({ projectId }: { projectId: string }) {
                   </ScrollView>
                 </View>
               )}
-              {/* Line type badge on BOQ-linked or exploded lines */}
-              {(line.boqItemId || line.explodedFromBoqId) && (
-                <View className="flex-row items-center gap-2">
-                  <Badge color={LINE_TYPE_BADGE[line.type]} label={line.type} />
-                  {line.explodedFromBoqId ? <Text className="text-[10px] text-muted">Split from BOQ</Text> : null}
-                </View>
-              )}
-              {showPicker && linkedBoq?.resourceId ? (
-                <View className="gap-1">
-                  <Text className="text-xs text-muted">Material for this BOQ</Text>
-                  <View className="flex-row items-center gap-1">
-                    <Badge color="neutral" label="Auto-linked" />
-                    <Text className="text-xs text-text">{materialResources.find((r) => r.id === linkedBoq.resourceId)?.name ?? 'Linked material'}</Text>
-                  </View>
-                </View>
-              ) : showPicker && linkedBoq?.rateAnalysisId ? (
-                <RaComponentPicker boq={linkedBoq} selectedResourceId={line.resourceId} onSelect={(rid: string | undefined) => setLines((prev) => prev.map((l) => (l.id === line.id ? { ...l, resourceId: rid } : l)))} />
-              ) : null}
-              {/* VAR-C1: Explode only on non-exploded composite lines */}
-              {canExplode ? (
-                <ExplodeButton boq={linkedBoq!} qtyDelta={line.qtyDelta} onExplode={(explodedLines: DraftLine[]) => {
-                  setLines((prev) => { const i = prev.findIndex((l) => l.id === line.id); return [...prev.slice(0, i), ...explodedLines, ...prev.slice(i + 1)]; });
-                  void alertAsync('Exploded', `${explodedLines.length} material lines created.`);
-                }} />
-              ) : null}
               {/* VAR-C3a: MaterialPicker for new scope MATERIAL lines */}
               {isNewScope && line.type === 'MATERIAL' && (
                 <View className="gap-1">
@@ -526,7 +457,7 @@ export function VariationsTab({ projectId }: { projectId: string }) {
                           ...l,
                           rateAnalysisId: ra.id,
                           description: l.description || ra.name,
-                          rate: String(parseFloat(String(ra.totalRate ?? ra.totalRate ?? '0')) || 0),
+                          rate: String(parseFloat(String(ra.totalRate ?? '0')) || 0),
                           resourceId: undefined,
                         } : l,
                       ))
@@ -535,9 +466,9 @@ export function VariationsTab({ projectId }: { projectId: string }) {
                   />
                 </View>
               )}
-              {/* VAR-C3: New scope helper */}
+              {/* VAR-C9: New scope helper */}
               {isNewScope && (
-                <Text className="text-[10px] text-muted italic">New scope — creates a BOQ line on approve unless linked to existing BOQ.</Text>
+                <Text className="text-[10px] text-muted italic">New scope — creates a BOQ line on approve. RA materials explode in Procurement → Shortfalls.</Text>
               )}
               <View className="flex-row gap-2">
                 <View className="flex-1"><Input label="Qty Δ" value={line.qtyDelta} onChangeText={(v: string) => setLines((prev) => prev.map((l) => (l.id === line.id ? { ...l, qtyDelta: v } : l)))} keyboardType="decimal-pad" fullWidth /></View>

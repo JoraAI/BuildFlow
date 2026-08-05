@@ -1,4 +1,4 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Variation arc complete — optional Round 20+)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 20 — VAR-C9 single-line BOQ/RA)
 
 > **You do not need any prior conversation or other documents.** This file is the
 > complete task brief. Read it top to bottom, then execute **Section 2** in order.
@@ -6,9 +6,11 @@
 >
 > **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
 > **Last committed baseline:** `1145896` (`main` ahead of `origin/main` by 8 commits)  
-> **Verified:** 2026-08-04 — **Variation arc complete** (Rounds 12–19, `804f0a6`–`1145896`).
-> VAR-C1–C6b all done. Ship gate **115/115 ×2**. **No mandatory variation tasks**
-> remain — Section 2 lists optional next work only. Run §2.1 before any change.
+> **Verified:** 2026-08-05 — Rounds 12–19 complete. **Round 20 (VAR-C9)** required:
+> remove Split button; **one line per BOQ and one line per RA** on the form (no RA
+> BOM expansion on this screen). Dedupe BOQ per draft. **All five cost types** on
+> new scope (not materials-only). Run §2.1 gates before/after. After VAR-C6 pulls,
+> run `prisma migrate deploy`.
 
 ---
 
@@ -66,25 +68,39 @@ BuildFlow spans the full project lifecycle:
 
 ---
 
-## 2. Variation arc — complete (verified 2026-08-04, `1145896`)
+## 2. Round 20 — Single-line BOQ/RA on variation form (VAR-C9)
 
-Rounds 12–19 closed the full **variation → BOQ → estimate visibility → shortfalls**
-flow plus the line editor UX (VAR-C). **Do not regress** any item in §2.0.
+User feedback: **Split into N materials** still allows duplicates (same BOQ on a
+second line → split again). **Remove Split entirely.**
 
-### 2.0 Final verification table (`804f0a6` → `1145896`)
+**Product decision (2026-08-05):** On the variation create form, **every line is one
+part** — including Rate Analyses and composite BOQ rows. **Do not expand RA BOM**
+into child lines on this screen. RA/component explosion for procurement happens
+**after approve** on the backend only (`fetchBoqMaterialDemands` — VAR-C6b).
+
+**Do not** break Rounds 12–19 (approve → BOQ → shortfalls, RA persistence).
+
+### 2.0 Status (`1145896` + user-reported gap)
+
+| ID | Task | Status | Notes |
+| -- | ---- | ------ | ----- |
+| **VAR-C1–C6b** | Prior variation work | **Done** | See §2.0a |
+| **VAR-C9** | Remove Split; single-line BOQ/RA; BOQ dedupe | **Not done** | User report 2026-08-05 |
+| **Ship gate** | 115/115 ×2 + tsc ×2 | **Must stay green** | |
+
+**Why Split still duplicates:** VAR-C1 only blocks re-split on the **same line**.
+User can add **line 2** → link **same BOQ** → Split again.
+
+### 2.0a Prior rounds — do NOT re-break
 
 | ID | Task | Status | Evidence |
 | -- | ---- | ------ | -------- |
 | **VO-B / R12–14** | Approve → BOQ/budget; shortfalls; impact UI; Via CO chips | **Done** | `804f0a6`–`e686c21` |
-| **VAR-C1** | Explode no duplicate lines | **Done** | `f055465` |
+| **VAR-C1** | Explode no duplicate lines (same line) | **Done** | `f055465` — superseded by VAR-C9 UX |
 | **VAR-C2** | Remove line (min 1) | **Done** | `f055465` |
 | **VAR-C3a/b** | MaterialPicker + RateAnalysisPicker | **Done** | `dbac1aa` |
-| **VAR-C4** | Adjust vs new scope copy + FlowHint | **Done** | `f055465` |
-| **VAR-C5** | Ship gate (no 409 flake) | **Done** | `dbac1aa` |
-| **VAR-C6** | RA/resource persist create → approve → BOQ | **Done** | `a251b25` |
-| **VAR-C6b** | Shortfalls RA-explode VARIATION BOQ rows | **Done** | `1145896` — `material-demand.service.ts:443-514`, test `:186-233` |
-| **R19-O1** | Remove dead `adhocExpandid` state | **Done** | `1145896` — `VariationsTab.tsx:310` |
-| **Ship gate** | 115/115 ×2 + tsc ×2 | **Done** | Verified 2026-08-04 |
+| **VAR-C4** | Adjust vs new scope copy + FlowHint | **Done** | `f055465` — update copy in VAR-C9 |
+| **VAR-C5–C6b** | Ship gate + RA persist + shortfalls | **Done** | `dbac1aa`–`1145896` |
 
 ### 2.0a Completed in Rounds 8–14 — do NOT re-break
 
@@ -96,22 +112,37 @@ flow plus the line editor UX (VAR-C). **Do not regress** any item in §2.0.
 
 Preserved from Rounds 3–7 — see §2.0c legacy table below.
 
-### 2.0b Product model (follow for VAR-C4)
+### 2.0b Product model — line types and paths (authoritative)
 
-Two explicit paths when adding a variation line:
+**Variations are not materials-only.** Same five types as estimate (`VariationsTab.tsx`
+`LINE_TYPES`): **MATERIAL, LABOUR, EQUIPMENT, SUBCONTRACTOR, MISC**.
 
-| Intent | UI | On approve (existing backend) |
-| ------ | -- | ----------------------------- |
-| **Adjust existing BOQ qty** | Pick BOQ chip → qty Δ | `BOQItem.quantity += qtyDelta` when `boqItemId` set |
-| **Add new scope** | Line type + catalog **or** RA (estimate-style) | New `BOQItem` `category: 'VARIATION'` when no `boqItemId` and qty Δ > 0 |
+| Line type | New scope (BOQ = "New") | Adjust existing BOQ (BOQ chip) |
+| --------- | ----------------------- | ------------------------------ |
+| **MATERIAL** | Type chip + optional `MaterialPicker` | **One line** + BOQ chip + qty Δ |
+| **LABOUR** | Type chip + optional `RateAnalysisPicker` | **One line** + BOQ chip + qty Δ |
+| **EQUIPMENT** | Type chip + optional `RateAnalysisPicker` | **One line** + BOQ chip + qty Δ |
+| **SUBCONTRACTOR** | Type chip + optional `RateAnalysisPicker` | **One line** + BOQ chip + qty Δ |
+| **MISC** | Type chip only | **One line** + BOQ chip + qty Δ |
 
-Optional toggle on **new scope** lines: **“Add new BOQ line on approve”** (default on when no BOQ link).
+**Rules:**
 
-**Reuse estimate patterns** — do not reinvent:
+1. **Rate Analysis = one line** on this form (new scope via picker, or BOQ with RA).
+   Never explode RA into material/labour/equipment rows in the variation draft UI.
+2. **BOQ chip = one line** with `boqItemId`; qty Δ adjusts that BOQ row on approve.
+3. **One BOQ id per draft** — disable chips already used on another line (VAR-C9b).
+4. **Backend shortfalls** may RA-explode after approve — that is separate (VAR-C6b).
 
-- `components/estimation/EstimateBuildStep.tsx` — Remove, clear link, type badge
-- `components/estimation/RateAnalysisPicker.tsx` — RA selection
-- `components/materials/MaterialPicker.tsx` — catalog material
+| Intent | UI | On approve |
+| ------ | -- | ---------- |
+| **Adjust existing BOQ qty** | One line + BOQ chip + qty Δ | `BOQItem.quantity += qtyDelta` |
+| **Add new scope** | Type + material **or** RA (**single line**) | New `BOQItem` `category: 'VARIATION'` |
+
+**Reuse estimate patterns** (Remove, type chips, pickers — **not** Split):
+
+- `components/estimation/EstimateBuildStep.tsx`
+- `components/estimation/RateAnalysisPicker.tsx`
+- `components/materials/MaterialPicker.tsx`
 
 ### 2.0c Completed in Rounds 3–7 — do NOT re-break
 
@@ -158,28 +189,52 @@ pnpm exec prisma generate
 # restart backend dev server
 ```
 
-### 2.2 Optional next work (Round 20+ — pick when user directs)
+### 2.2 Mandatory tasks — Round 20 (VAR-C9)
 
-No mandatory tasks until the product owner chooses the next domain. Suggested
-optional items (do not scope-creep without explicit ask):
+#### VAR-C9a — Remove Split / RA expansion from variation form
 
-| ID | Task | Notes |
-| -- | ---- | ----- |
-| **VAR-C7** | Unit test for `explodeCompositeBoq` | Extract helper from `VariationsTab.tsx` |
-| **VAR-C8** | Draft edit for rejected variations | `updateChangeOrderLine` backend exists |
-| **EST-VO-2** | BOQ rate update when variation rate differs | Partial in audit — document or implement |
-| **R15-O1–O6** | Rate on BOQ approve, deep-link shortfalls, etc. | Polish |
-| **Phase 5 gaps** | Smoke tests: inventory-traceability, accounting-export, labour, i18n | See AUDIT_FINDINGS |
-| **NR-36** | Drawing acknowledgement endpoint | Phase 5 |
-| **Sync §8.1** | Remount `/api/sync` | Needs schema + mobile replay |
-| **DAT-3.8** | Remove `--forceExit` from jest | Test infra |
-| **SEC-L17/21/22** | Security polish | Low priority |
-| **Push** | `git push origin main` | Only when user asks |
+In `apps/mobile/components/projects/VariationsTab.tsx`:
 
-### 2.3 Optional (defer unless user asks)
+1. **Delete** `ExplodeButton`, `explodeCompositeBoq`, `RaComponentPicker`,
+   `showMaterialPickerForLine` (if only used for split/RA chips), and
+   `explodedFromBoqId` on `DraftLine`.
+2. **Remove** all "Split into N materials" UI and "(from split)" copy.
+3. **BOQ-linked line:** show BOQ chip + description + qty Δ + rate only. If BOQ has
+   `rateAnalysisId`, show read-only badge *"Composite (RA linked)"* — **no** component
+   picker, **no** split.
+4. **New-scope line:** keep type chips for all five types; `MaterialPicker` for
+   MATERIAL; `RateAnalysisPicker` for non-MISC types — each produces **one line**.
 
-See §2.2 table. **Variation arc requires no further GLM rounds** unless regressions
-are found or the user requests VAR-C7/C8 or EST-VO-2.
+#### VAR-C9b — One BOQ per variation draft
+
+When rendering BOQ chips for a line, compute `usedBoqIds` from all other lines'
+`boqItemId`. Disable chips already in `usedBoqIds` (opacity + no press, or skip render).
+
+#### VAR-C9c — Update copy
+
+- Modal info box: *Adjust existing BOQ: link one BOQ chip per line → qty Δ.*
+  *Add new scope: pick type (Material, Labour, …) + material or rate analysis — one line each.*
+- FlowHint: remove "split" wording; mention all line types supported.
+- §2.4 wording: replace Split rows with single-line BOQ/RA language.
+
+**Ship gate:** `tsc` ×2 + backend tests **115/115** ×2. Mobile-only change expected;
+add a brief comment in `VariationsTab.tsx` header if VAR-B3 explode is retired.
+
+### 2.2a Completed in Rounds 8–19 — do NOT re-break
+
+| Area | What landed |
+| ---- | ----------- |
+| **804f0a6–1145896** | Approve → BOQ/budget; shortfalls (incl. VAR-C6b); impact UI; line editor |
+| **VAR-C3** | MaterialPicker + RateAnalysisPicker for **new scope** (single line) |
+| **58489eb** | Vendor bills, permissions (Round 10) |
+
+Preserved from Rounds 3–7 — see §2.0c legacy table below.
+
+**Reuse estimate patterns** (Remove, type chips, pickers — not Split):
+
+- `components/estimation/EstimateBuildStep.tsx`
+- `components/estimation/RateAnalysisPicker.tsx`
+- `components/materials/MaterialPicker.tsx`
 
 ### 2.4 Wording guide (use consistently)
 
@@ -192,8 +247,10 @@ are found or the user requests VAR-C7/C8 or EST-VO-2.
 | GRN success toast | — | Keep "Site stock updated" — do not mention billing |
 | Variation approve success | "Estimate updated" | **BOQ updated** / **Revised scope** (estimate baseline unchanged) |
 | Variation line — adjust BOQ | "New item" only | **Link BOQ** + qty Δ |
-| Variation line — new scope | Full catalog when BOQ linked | **New scope** + type + material/RA picker |
-| Split materials | Repeatable explode | **Split once** — replaces line; no duplicate Explode on children |
+| Variation line — new scope | Materials only | **All types:** Material, Labour, Equipment, Subcontractor, Misc |
+| Variation line — RA on form | Split RA into components | **One line per RA**; backend explodes for shortfalls after approve |
+| Variation line — BOQ link | Split into materials button | **One line per BOQ**; qty Δ on composite row |
+| Split materials | Split / explode on form | **Removed (VAR-C9)** — use Remove line instead |
 | Remove variation line | (missing) | **Remove** (min 1 line) |
 | Post-approve next step | (silent) / auto-indents | **Review shortfalls** / **View BOQ** |
 | Shortfalls tab | — | Helper: *Uses current BOQ qty (includes approved variations)* |
@@ -213,10 +270,12 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 | ------------ | ---------- |
 | Auto-create vendor bill on GRN | GRN = stock only; bill = separate user action |
 | Label "Create Bill" for supplier tax invoice | Use §2.4 wording |
-| Exploded lines keep `boqItemId` | Clear `boqItemId` on explode; keep `resourceId` (VAR-C1) |
-| Split into materials clickable repeatedly | One-shot replace; hide Explode on children |
+| Exploded lines keep `boqItemId` | N/A after VAR-C9 — no form explode |
+| Split / RA expand on variation form | **Removed VAR-C9** — single line; backend shortfalls only |
+| Same BOQ on multiple draft lines | **One BOQ per draft (VAR-C9b)** |
+| Variations materials-only | Support all five `LINE_TYPES` on new scope |
 | Variation lines without Remove | Add Remove like estimate (VAR-C2) |
-| Full catalog when BOQ linked for qty adjust | BOQ-scoped materials / RA components only (VAR-B) |
+| Full catalog when BOQ linked for qty adjust | One BOQ line + qty Δ only (VAR-C9) |
 | Role-based bill gates on **mobile** | Use `usePermission('bill.create')` (R9-B1); backend already fixed |
 | LLM auto-creates bills without review | Extract → review UI → user confirms → create |
 | Chatbot creates bills for unauthorized users | `buildPermissionAwarePrompt` + API `403` |
@@ -232,20 +291,18 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 | Ship stub sync route | Keep `/api/sync` unmounted |
 | Re-breaking completed fixes | See §2.0c |
 
-### 2.7 Definition of Done (variation arc — all complete)
+### 2.7 Definition of Done
 
-**Rounds 12–19:**
+**Rounds 12–19 (done — do not regress):**
 
-- [x] Variation approve → BOQ/budget; shortfalls; impact UI; Via CO chips; revised scope
-- [x] VAR-C1 — Explode dedup (`f055465`)
-- [x] VAR-C2 — Remove line (`f055465`)
-- [x] VAR-C3 — MaterialPicker + RateAnalysisPicker (`dbac1aa`)
-- [x] VAR-C4 — Section copy + FlowHint (`f055465`)
-- [x] VAR-C5 — Ship gate stable (`dbac1aa`)
-- [x] VAR-C6 — RA/resource persist through approve → BOQ (`a251b25`)
-- [x] VAR-C6b — Shortfalls RA-explode VARIATION BOQ rows (`1145896`)
-- [x] R19-O1 — Dead state cleanup (`1145896`)
-- [x] Ship gate **115/115** ×2 + tsc ×2
+- [x] Variation approve → BOQ/budget; shortfalls; VAR-C6/C6b; line editor pickers
+
+**Round 20 (VAR-C9 — must complete):**
+
+- [ ] VAR-C9a — Remove Split, RaComponentPicker, `explodedFromBoqId`; RA/BOQ = one line
+- [ ] VAR-C9b — One BOQ id per variation draft (dedupe chips)
+- [ ] VAR-C9c — Copy + FlowHint updated (all line types; no split wording)
+- [ ] Ship gate **115/115** ×2 + tsc ×2
 
 ### 2.8 Optional hardening (defer unless user asks)
 
@@ -265,8 +322,8 @@ Validate middleware; public routes before auth catch-all; migrations in folders;
 <details>
 <summary>Rounds 4–15 (superseded by §2 above)</summary>
 
-Rounds 8–19: variation sync + line editor + RA shortfalls complete
-(`804f0a6`–`1145896`). No mandatory GLM work until user picks §2.2 item.
+Rounds 8–19: backend variation sync complete (`804f0a6`–`1145896`). Round 20
+(VAR-C9): single-line BOQ/RA on form, no Split, all five line types.
 
 </details>
 
