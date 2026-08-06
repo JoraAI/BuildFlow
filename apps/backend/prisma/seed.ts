@@ -509,7 +509,7 @@ async function main(): Promise<void> {
   });
   await prisma.taskPredecessor.create({ data: { taskId: t3.id, predecessorId: t2.id, type: 'FS', lagDays: 0 } });
 
-  // Project-scoped access (PM + supervisor on NH-65)
+  // Project-scoped access (PM + supervisor on NH-45)
   await prisma.projectMember.createMany({
     data: [
       { projectId: project1.id, userId: owner.id, role: Role.OWNER },
@@ -520,7 +520,7 @@ async function main(): Promise<void> {
   });
 
   // ----------------------------------------------------------------
-  // ESTIMATE → BOQ → PROCUREMENT full chain on NH-65
+  // ESTIMATE → BOQ → PROCUREMENT full chain on NH-45
   // ----------------------------------------------------------------
 
   // Look up RAs for estimate linking (from rate-analysis-data.ts via seed above)
@@ -1116,7 +1116,7 @@ async function main(): Promise<void> {
   });
 
   // eslint-disable-next-line no-console
-  console.log('   Seeded 5 daily reports on NH-65');
+  console.log('   Seeded 5 daily reports on NH-45');
 
   // eslint-disable-next-line no-console
   console.log('✅ Seed complete.');

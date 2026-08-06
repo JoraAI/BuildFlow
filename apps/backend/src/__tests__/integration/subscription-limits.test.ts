@@ -71,4 +71,46 @@ describe('SUB-PLAN1 Subscription limits (integration)', () => {
     expect(p4.status).toBe(402);
     expect(p4.body.error?.message ?? p4.body.message).toMatch(/STARTER.*3.*projects/i);
   });
+
+  it('STARTER plan blocks inviting 6th user (limit: 5)', async () => {
+    // Deactivate all but 4 non-owner users (5 active = STARTER limit)
+    const nonOwners = await prisma.user.findMany({
+      where: { companyId, role: { not: 'OWNER' } },
+      select: { id: true },
+      take: 4,
+    });
+    const deactivateIds = (
+      await prisma.user.findMany({
+        where: { companyId, role: { not: 'OWNER' }, id: { notIn: nonOwners.map(u => u.id) } },
+        select: { id: true },
+      })
+    ).map(u => u.id);
+
+    if (deactivateIds.length === 0) return; // Skip if not enough users to test
+
+    await prisma.user.updateMany({
+      where: { id: { in: deactivateIds } },
+      data: { isActive: false },
+    });
+
+    await prisma.company.update({
+      where: { id: companyId },
+      data: { subscriptionPlan: 'STARTER', subscriptionStatus: 'ACTIVE' },
+    });
+
+    // Call createInvite directly — should throw ApiError 402
+    const { createInvite } = await import('../../services/invite.service');
+    await expect(
+      createInvite(companyId, '00000000-0000-0000-0000-000000000000', {
+        email: `test6-limit-${Date.now()}@test.com`,
+        role: 'SITE_SUPERVISOR' as any,
+      }),
+    ).rejects.toThrow(/STARTER.*5.*users/i);
+
+    // Reactivate users
+    await prisma.user.updateMany({
+      where: { id: { in: deactivateIds } },
+      data: { isActive: true },
+    });
+  });
 });

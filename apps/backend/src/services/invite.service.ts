@@ -11,6 +11,7 @@ import { env } from '../config/env';
 import { Role } from '@buildflow/shared';
 import type { AcceptInviteInput, CreateUserInviteInput } from '@buildflow/shared';
 import type { AuthResponse } from './auth.service';
+import { assertPlanAllowsUser } from './plan-enforcement.service';
 
 const ACCESS_EXPIRES_SECONDS = 15 * 60;
 
@@ -34,6 +35,9 @@ export async function createInvite(
     where: { companyId, email, acceptedAt: null, expiresAt: { gt: new Date() } },
   });
   if (pending) throw ApiError.conflict('A pending invite already exists for this email');
+
+  // SUB-PLAN1: Enforce plan user limit before creating invite
+  await assertPlanAllowsUser(companyId);
 
   const { token, tokenHash } = generateInviteToken();
   const expiresAt = new Date();
