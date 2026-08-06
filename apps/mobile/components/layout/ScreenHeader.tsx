@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { usePathname } from 'expo-router';
 import { useViewport } from '@/hooks/useViewport';
-import { isPrimaryAppTabRoute, isNestedAppRoute } from '@/constants/navigation';
+import { isNestedAppRoute } from '@/constants/navigation';
 import { NavHeaderBar } from '@/components/layout/NavBackButton';
 
 /** Standard list screen title block (matches Projects mobile header). */
@@ -44,14 +44,13 @@ export function FormScreenHeader({
   cancelLabel?: string;
   cancelIcon?: 'back' | 'close';
   right?: React.ReactNode;
-  /** Override back visibility. Default: mobile nested routes only (hidden on desktop). */
+  /** Override back visibility. Default: nested / secondary routes on all viewports. */
   showBack?: boolean;
 }) {
   const { isDesktop } = useViewport();
   const pathname = usePathname();
-  const onPrimaryTab = isPrimaryAppTabRoute(pathname);
   const onNested = isNestedAppRoute(pathname);
-  const showBackButton = showBack ?? (!onPrimaryTab && (!isDesktop || onNested));
+  const showBackButton = showBack ?? onNested;
 
   return (
     <View

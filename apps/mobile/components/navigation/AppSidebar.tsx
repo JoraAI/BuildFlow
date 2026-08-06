@@ -7,6 +7,7 @@ import {
   TAB_CONFIG,
   BRAND_IMAGES,
   NAV_GROUPS,
+  APP_LINKS,
   getActiveTabFromPath,
   type TabName,
 } from '@/constants/navigation';
@@ -65,7 +66,11 @@ export function AppSidebar({ allowedTabs }: AppSidebarProps) {
       <ScrollView className="flex-1 min-h-0 py-4 px-3" showsVerticalScrollIndicator={false}>
         {NAV_GROUPS.map((group) => {
           const groupTabs = group.tabs.filter((t) => allowedSet.has(t));
-          if (groupTabs.length === 0) return null;
+          const groupLinks = (group.appLinks ?? []).filter((linkName) => {
+            const link = APP_LINKS[linkName];
+            return user?.role && (link.roles as readonly string[]).includes(user.role);
+          });
+          if (groupTabs.length === 0 && groupLinks.length === 0) return null;
           return (
             <View key={group.title} className="mb-5">
               <Text className="text-white/40 text-[10px] font-bold uppercase tracking-widest px-3 mb-2">
@@ -102,6 +107,41 @@ export function AppSidebar({ allowedTabs }: AppSidebarProps) {
                       }`}
                     >
                       {config.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+              {groupLinks.map((linkName) => {
+                const link = APP_LINKS[linkName];
+                const isActive = activeTab === linkName;
+                return (
+                  <Pressable
+                    key={linkName}
+                    onPress={() => router.push(link.href as never)}
+                    className={`flex-row items-center px-3 py-2.5 mb-0.5 rounded-xl ${
+                      isActive ? 'bg-white/14' : 'active:bg-white/8'
+                    }`}
+                  >
+                    {isActive && (
+                      <View className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-accent" />
+                    )}
+                    <View
+                      className={`w-8 h-8 rounded-lg items-center justify-center ${
+                        isActive ? 'bg-accent' : 'bg-white/8'
+                      }`}
+                    >
+                      <Ionicons
+                        name={link.icon}
+                        size={17}
+                        color={isActive ? '#1E3A5F' : '#FFFFFF'}
+                      />
+                    </View>
+                    <Text
+                      className={`ml-3 text-[13px] font-semibold flex-1 ${
+                        isActive ? 'text-white' : 'text-white/70'
+                      }`}
+                    >
+                      {link.label}
                     </Text>
                   </Pressable>
                 );

@@ -6,10 +6,9 @@
  * PDF:   Cover + detailed line items + summary page.
  */
 import ExcelJS from 'exceljs';
-import PDFDocument from 'pdfkit';
 import { prisma } from '../lib/prisma';
 import { getEstimateWithSummary } from './estimate.service';
-import { loadCompanyForPdf, type PdfCompany } from './pdf-report.service';
+import { loadCompanyForPdf, type PdfCompany, reportEstimate } from './pdf-report.service';
 import { ApiError } from '../utils/errors';
 
 export interface EstimateExportData {
@@ -191,10 +190,6 @@ function appendSummaryFooter(ws: ExcelJS.Worksheet, row: number, company: PdfCom
   ws.mergeCells(`A${row}:D${row}`);
   ws.getCell(`A${row}`).value = footerParts.join(' | ');
   ws.getCell(`A${row}`).font = { size: 9, italic: true, color: { argb: MUTED_ARGB } };
-}
-
-function inr(n: number): string {
-  return `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -483,192 +478,6 @@ export async function generateEstimateExcel(companyId: string, estimateId: strin
 /* ------------------------------------------------------------------ */
 
 export async function generateEstimatePdf(companyId: string, estimateId: string): Promise<Buffer> {
-  const { estimate, project, company } = await loadExportData(companyId, estimateId);
-  const s = estimate.summary;
-
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    const doc = new PDFDocument({ margin: 50, size: 'A4' });
-
-    doc.on('data', (chunk: Buffer) => chunks.push(chunk));
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
-    doc.on('error', reject);
-
-    /* ---- Cover / Header ---- */
-    doc
-      .fontSize(20)
-      .fillColor('#1E3A5F')
-      .font('Helvetica-Bold')
-      .text(company.name, { align: 'center' });
-    doc
-      .fontSize(10)
-      .fillColor('#64748B')
-      .font('Helvetica')
-      .text(`GSTIN: ${company.gstin ?? '-'}`, { align: 'center' });
-    if (company.address) {
-      doc.text(company.address, { align: 'center' });
-    }
-
-    doc.moveDown(0.5);
-    doc
-      .fontSize(16)
-      .fillColor('#1E3A5F')
-      .font('Helvetica-Bold')
-      .text('PROJECT COST ESTIMATE', { align: 'center' });
-    doc.moveDown(1);
-
-    // Meta table
-    const metaLeft: Array<[string, string]> = [
-      ['Project', project.name],
-      ['Code', project.code],
-      ['Location', project.locationAddress ?? '-'],
-    ];
-    const metaRight: Array<[string, string]> = [
-      ['Estimate', `${estimate.name} (v${estimate.version}.0)`],
-      ['Prepared By', estimate.createdByName],
-      ['Date', new Date(estimate.createdAt).toLocaleDateString('en-IN')],
-    ];
-    const startY = doc.y;
-    doc.fontSize(9).font('Helvetica');
-    metaLeft.forEach(([label, value], i) => {
-      const y = startY + i * 14;
-      doc.font('Helvetica-Bold').text(`${label}:`, 50, y);
-      doc.font('Helvetica').text(value, 130, y);
-    });
-    metaRight.forEach(([label, value], i) => {
-      const y = startY + i * 14;
-      doc.font('Helvetica-Bold').text(`${label}:`, 320, y);
-      doc.font('Helvetica').text(value, 420, y);
-    });
-    doc.moveDown(3);
-
-    /* ---- Detailed line items ---- */
-    doc
-      .fontSize(13)
-      .fillColor('#1E3A5F')
-      .font('Helvetica-Bold')
-      .text('Detailed Line Items');
-    doc.moveDown(0.3);
-
-    for (const section of estimate.sections) {
-      if (doc.y > 700) doc.addPage();
-      doc
-        .fontSize(11)
-        .fillColor('#1E3A5F')
-        .font('Helvetica-Bold')
-        .text(section.name, { underline: false });
-      doc.moveDown(0.1);
-
-      // Table header
-      const tableY = doc.y;
-      doc.fontSize(8).font('Helvetica-Bold').fillColor('#FFFFFF');
-      doc.rect(50, tableY, 495, 16).fill('#1E3A5F');
-      doc.fillColor('#FFFFFF');
-      doc.text('Sr', 55, tableY + 4);
-      doc.text('Description', 80, tableY + 4);
-      doc.text('Unit', 280, tableY + 4);
-      doc.text('Qty', 320, tableY + 4);
-      doc.text('Rate', 370, tableY + 4, { width: 60, align: 'right' });
-      doc.text('Amount', 490, tableY + 4, { width: 55, align: 'right' });
-      doc.moveDown(0.3);
-
-      let sr = 1;
-      for (const item of section.items) {
-        if (doc.y > 740) doc.addPage();
-        const rowY = doc.y;
-        doc
-          .fontSize(8)
-          .font('Helvetica')
-          .fillColor('#0F172A');
-        doc.text(String(sr++), 55, rowY);
-        doc.text(item.description, 80, rowY, { width: 195 });
-        doc.text(item.unit, 280, rowY);
-        doc.text(item.quantity.toFixed(2), 320, rowY);
-        doc.text(inr(item.rate), 370, rowY, { width: 60, align: 'right' });
-        doc.text(inr(item.amount), 490, rowY, { width: 55, align: 'right' });
-        doc.moveDown(0.3);
-      }
-
-      // Section subtotal
-      if (doc.y > 740) doc.addPage();
-      doc
-        .font('Helvetica-Bold')
-        .fontSize(9)
-        .text(`Subtotal:`, 400, doc.y, { width: 80, align: 'right' });
-      doc.text(inr(section.subtotal), 490, doc.y - 10, { width: 55, align: 'right' });
-      doc.moveDown(0.5);
-    }
-
-    /* ---- Summary page ---- */
-    doc.addPage();
-    doc
-      .fontSize(13)
-      .fillColor('#1E3A5F')
-      .font('Helvetica-Bold')
-      .text('Cost Summary');
-    doc.moveDown(0.5);
-
-    const summaryRows: Array<[string, string]> = [
-      ['Materials', inr(s.materialCost)],
-      ['Labour', inr(s.labourCost)],
-      ['Equipment', inr(s.equipmentCost)],
-      ['Subcontractor', inr(s.subcontractorCost)],
-      ['Miscellaneous', inr(s.miscCost)],
-      ['Subtotal', inr(s.subtotal)],
-      [`Overhead (${s.overheadPct}%)`, inr(s.overheadAmount)],
-      [`Contingency (${s.contingencyPct}%)`, inr(s.contingencyAmount)],
-      [`Profit Margin (${s.profitMarginPct}%)`, inr(s.profitMarginAmount)],
-      ['Total Before Tax', inr(s.grandTotalBeforeGST)],
-      ['GST (weighted)', inr(s.gstAmount)],
-    ];
-
-    doc.fontSize(10);
-    summaryRows.forEach(([label, value]) => {
-      doc.font('Helvetica').text(label, 150, doc.y);
-      doc.text(value, 400, doc.y - 12, { width: 145, align: 'right' });
-      doc.moveDown(0.2);
-    });
-
-    doc.moveDown(0.3);
-    doc.rect(140, doc.y, 405, 24).fill('#F59E0B');
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(13)
-      .fillColor('#FFFFFF')
-      .text('GRAND TOTAL', 150, doc.y + 6);
-    doc.text(inr(s.grandTotal), 400, doc.y - 13, { width: 145, align: 'right' });
-    doc.moveDown(2);
-
-    // Notes
-    if (estimate.notes) {
-      doc
-        .font('Helvetica-Bold')
-        .fontSize(10)
-        .fillColor('#0F172A')
-        .text('Notes & Assumptions');
-      doc.font('Helvetica').fontSize(9).fillColor('#64748B').text(estimate.notes);
-      doc.moveDown(1);
-    }
-
-    doc
-      .font('Helvetica-Oblique')
-      .fontSize(8)
-      .fillColor('#94A3B8')
-      .text('This estimate is valid for 30 days from date of preparation.');
-
-    doc.moveDown(2);
-    // Signature blocks
-    const sigY = doc.y;
-    doc.font('Helvetica').fontSize(9).fillColor('#0F172A');
-    doc.text('Prepared By', 50, sigY, {});
-    doc.text('Checked By', 220, sigY, {});
-    doc.text('Approved By', 390, sigY, {});
-    doc.moveDown(2);
-    const sigLineY = doc.y;
-    doc.moveTo(50, sigLineY).lineTo(160, sigLineY).stroke('#94A3B8');
-    doc.moveTo(220, sigLineY).lineTo(330, sigLineY).stroke('#94A3B8');
-    doc.moveTo(390, sigLineY).lineTo(500, sigLineY).stroke('#94A3B8');
-
-    doc.end();
-  });
+  const { buffer } = await reportEstimate(companyId, estimateId);
+  return buffer;
 }

@@ -1,16 +1,10 @@
 /**
  * RPT-C2b (UI): Reports & branding settings.
- *
- * Lets the company owner/PM configure:
- * - Accent color for PDF headers (default amber #F59E0B)
- * - Show company logo toggle
- * - Optional watermark toggle
- * - Custom footer text
  */
-import React, { useState } from 'react';
-import { View, Text, Pressable, Switch, TextInput } from 'react-native';
-import { Stack } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { View, Text, Pressable, Switch } from 'react-native';
 import { Card, Button, Input, LoadingSkeleton } from '@/components/ui';
+import { SettingsPageLayout } from '@/components/layout/SettingsPageLayout';
 import { useReportSettings, useUpdateReportSettings } from '@/services/settings.queries';
 import { useAuthStore } from '@/stores/auth.store';
 import { alertAsync } from '@/utils/confirm';
@@ -30,10 +24,18 @@ export default function ReportBrandingScreen() {
   const { data: settings, isLoading } = useReportSettings();
   const updateSettings = useUpdateReportSettings();
 
-  const [accentColor, setAccentColor] = useState(settings?.accentColor ?? '#F59E0B');
-  const [showLogo, setShowLogo] = useState(settings?.showLogo ?? true);
-  const [showWatermark, setShowWatermark] = useState(settings?.showWatermark ?? false);
-  const [footerText, setFooterText] = useState(settings?.footerText ?? '');
+  const [accentColor, setAccentColor] = useState('#F59E0B');
+  const [showLogo, setShowLogo] = useState(true);
+  const [showWatermark, setShowWatermark] = useState(false);
+  const [footerText, setFooterText] = useState('');
+
+  useEffect(() => {
+    if (!settings) return;
+    setAccentColor(settings.accentColor ?? '#F59E0B');
+    setShowLogo(settings.showLogo ?? true);
+    setShowWatermark(settings.showWatermark ?? false);
+    setFooterText(settings.footerText ?? '');
+  }, [settings]);
 
   const onSave = () => {
     updateSettings.mutate(
@@ -45,17 +47,13 @@ export default function ReportBrandingScreen() {
     );
   };
 
-  if (isLoading) return <LoadingSkeleton className="h-48 rounded-xl mt-4" />;
-
-  return (
-    <View className="flex-1 p-4 gap-4">
-      <Stack.Screen options={{ title: 'Reports & Branding' }} />
-
+  const body = isLoading ? (
+    <LoadingSkeleton className="h-48 rounded-xl" />
+  ) : (
+    <View className="gap-4">
       <Card>
         <Text className="text-sm font-bold text-text mb-2">Accent Color</Text>
-        <Text className="text-xs text-muted mb-2">
-          Used for the top accent bar on PDF reports.
-        </Text>
+        <Text className="text-xs text-muted mb-2">Used for the top accent bar on PDF reports.</Text>
         <View className="flex-row flex-wrap gap-2">
           {ACCENT_PRESETS.map((preset) => (
             <Pressable
@@ -93,7 +91,7 @@ export default function ReportBrandingScreen() {
           <View className="flex-1">
             <Text className="text-sm font-bold text-text">Watermark (beta)</Text>
             <Text className="text-xs text-muted mt-0.5">
-              Faint logo watermark centered on each page. Off by default.
+              Faint logo watermark centered on each page. Uses the logo from Company Profile.
             </Text>
           </View>
           <Switch
@@ -121,5 +119,14 @@ export default function ReportBrandingScreen() {
         <Button label="Save settings" loading={updateSettings.isPending} onPress={onSave} />
       )}
     </View>
+  );
+
+  return (
+    <SettingsPageLayout
+      title="Reports & Branding"
+      subtitle="PDF accent color, logo, watermark, and footer"
+    >
+      {body}
+    </SettingsPageLayout>
   );
 }

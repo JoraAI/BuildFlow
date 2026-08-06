@@ -8,6 +8,7 @@ import {
   TAB_CONFIG,
   getActiveTabFromPath,
   getMobileOverflowTabs,
+  getAppLinksForRole,
   MOBILE_PRIMARY_TABS,
   type TabName,
 } from '@/constants/navigation';
@@ -31,7 +32,9 @@ export function AppTabBar({ allowedTabs }: AppTabBarProps) {
   const activeTab = getActiveTabFromPath(pathname, returnTo);
   const primaryTabs = MOBILE_PRIMARY_TABS.filter((t) => allowedTabs.includes(t));
   const overflowTabs = user ? getMobileOverflowTabs(user.role) : [];
-  const isOverflowActive = overflowTabs.includes(activeTab as TabName);
+  const appLinks = user ? getAppLinksForRole(user.role) : [];
+  const isOverflowActive =
+    overflowTabs.includes(activeTab as TabName) || appLinks.some((l) => l.href === pathname);
 
   const navigate = (href: string) => {
     setMenuOpen(false);
@@ -87,7 +90,7 @@ export function AppTabBar({ allowedTabs }: AppTabBarProps) {
             );
           })}
 
-          {overflowTabs.length > 0 && (
+          {(overflowTabs.length > 0 || appLinks.length > 0) && (
             <Pressable
               onPress={() => setMenuOpen(true)}
               className="flex-1 items-center py-2 active:opacity-70"
@@ -169,6 +172,43 @@ export function AppTabBar({ allowedTabs }: AppTabBarProps) {
                       }`}
                     >
                       {config.label}
+                    </Text>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color="#94A3B8"
+                      style={{ marginLeft: 'auto' }}
+                    />
+                  </Pressable>
+                );
+              })}
+              {appLinks.map((link) => {
+                const isActive = pathname.startsWith(link.href);
+                return (
+                  <Pressable
+                    key={link.href}
+                    onPress={() => navigate(link.href)}
+                    className={`flex-row items-center px-4 py-3.5 mb-1 rounded-xl ${
+                      isActive ? 'bg-primary/8' : 'active:bg-surface'
+                    }`}
+                  >
+                    <View
+                      className={`w-10 h-10 rounded-xl items-center justify-center ${
+                        isActive ? 'bg-primary' : 'bg-surface'
+                      }`}
+                    >
+                      <Ionicons
+                        name={link.icon}
+                        size={20}
+                        color={isActive ? '#FFFFFF' : '#1E3A5F'}
+                      />
+                    </View>
+                    <Text
+                      className={`ml-3 text-base font-semibold ${
+                        isActive ? 'text-primary' : 'text-text'
+                      }`}
+                    >
+                      {link.label}
                     </Text>
                     <Ionicons
                       name="chevron-forward"

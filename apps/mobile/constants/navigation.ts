@@ -13,7 +13,7 @@ export const TAB_CONFIG = {
   proposals: { label: 'Proposals', icon: 'calculator-outline' as const, href: '/proposals' },
   planning: { label: 'Planning', icon: 'calendar-outline' as const, href: '/planning' },
   reports: { label: 'Reports', icon: 'document-text-outline' as const, href: '/reports' },
-  accounting: { label: 'Accounts', icon: 'cash-outline' as const, href: '/accounting' },
+  accounting: { label: 'Accounting', icon: 'cash-outline' as const, href: '/accounting' },
   settings: { label: 'Settings', icon: 'settings-outline' as const, href: '/settings' },
   chat: { label: 'Assistant', icon: 'chatbubble-ellipses-outline' as const, href: '/chat' },
   notifications: { label: 'Alerts', icon: 'notifications-outline' as const, href: '/notifications' },
@@ -82,6 +82,28 @@ export function getMobileOverflowTabs(role: Role): TabName[] {
   return allowed.filter((t) => !primary.has(t));
 }
 
+/** Standalone screens not in the tab navigator but linked from sidebar / More menu. */
+export const APP_LINKS = {
+  reportsHub: {
+    label: 'Reports Hub',
+    icon: 'bar-chart-outline' as const,
+    href: '/reports-hub',
+    roles: ['OWNER', 'PM', 'ACCOUNTANT'] as const satisfies readonly Role[],
+  },
+} as const;
+
+export type AppLinkName = keyof typeof APP_LINKS;
+
+export function getAppLinksForRole(role: Role): (typeof APP_LINKS)[AppLinkName][] {
+  return Object.values(APP_LINKS).filter((link) =>
+    (link.roles as readonly Role[]).includes(role),
+  );
+}
+
+export function isReportsHubPath(pathname: string): boolean {
+  return normalizePath(pathname).startsWith('/reports-hub');
+}
+
 export interface Breadcrumb {
   label: string;
   href?: string;
@@ -103,6 +125,7 @@ export function getProjectIdFromReturnTo(returnTo: string | null | undefined): s
 
 export function getActiveTabFromPath(pathname: string, returnTo?: string | null): string {
   const source = returnTo?.split('?')[0] ?? pathname;
+  if (isReportsHubPath(source)) return 'reportsHub';
   const segment = source.split('/').filter(Boolean)[0] ?? 'dashboard';
   return segment in TAB_CONFIG ? segment : 'dashboard';
 }
@@ -178,6 +201,10 @@ export function getBreadcrumbs(
     });
   }
 
+  if (root === 'reports-hub') {
+    crumbs.push({ label: 'Reports Hub' });
+  }
+
   return crumbs;
 }
 
@@ -192,6 +219,9 @@ const SETTINGS_CHILD_LABELS: Record<string, string> = {
   profile: 'My Profile',
   tickets: 'Support requests',
   permissions: 'Role Permissions',
+  help: 'How BuildFlow works',
+  'report-branding': 'Reports & Branding',
+  'rate-regions': 'Rate Regions',
 };
 
 /** Unsplash - free for commercial use (Unsplash License). */
@@ -207,10 +237,10 @@ export const BRAND_IMAGES = {
 } as const;
 
 /** Sidebar navigation groups for desktop layout. */
-export const NAV_GROUPS: { title: string; tabs: TabName[] }[] = [
+export const NAV_GROUPS: { title: string; tabs: TabName[]; appLinks?: AppLinkName[] }[] = [
   { title: 'Workspace', tabs: ['dashboard', 'projects', 'planning'] },
   { title: 'Operations', tabs: ['proposals', 'reports'] },
-  { title: 'Finance', tabs: ['accounting'] },
+  { title: 'Finance', tabs: ['accounting'], appLinks: ['reportsHub'] },
   { title: 'Alerts', tabs: ['notifications'] },
   { title: 'Admin', tabs: ['settings'] },
 ];
@@ -251,12 +281,17 @@ function hiddenScreenToRegex(screen: string): RegExp {
 export function isNestedAppRoute(pathname: string): boolean {
   const normalized = normalizePath(pathname);
   if (normalized.startsWith('/notifications')) return true;
+  if (normalized.startsWith('/reports-hub')) return true;
   if (isPrimaryAppTabRoute(pathname)) return false;
   const segments = normalized.split('/').filter(Boolean);
   if (segments.length === 0) return false;
   const pathTail = segments.join('/');
   return (
-    HIDDEN_TAB_SCREENS.some((screen) => hiddenScreenToRegex(screen).test(pathTail)) ||
+    HIDDEN_TAB_SCREENS.some((screen) => {
+      if (hiddenScreenToRegex(screen).test(pathTail)) return true;
+      const root = screen.split('/')[0];
+      return pathTail === root;
+    }) ||
     segments.length > 1
   );
 }

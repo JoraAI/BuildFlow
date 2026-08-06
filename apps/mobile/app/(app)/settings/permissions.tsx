@@ -8,17 +8,14 @@ import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   Switch,
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
 import { apiFetch } from '@/lib/api-client';
 import type { Permission, Role } from '@buildflow/shared';
-import { ROLE_LABELS, PERMISSION_GROUPS } from '@buildflow/shared';
+import { SettingsPageLayout } from '@/components/layout/SettingsPageLayout';
 
 interface RolePerms {
   role: Role;
@@ -123,20 +120,24 @@ export default function PermissionsSettingsScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-surface items-center justify-center">
-        <ActivityIndicator size="large" color="#1E3A5F" />
-      </SafeAreaView>
+      <SettingsPageLayout title="Role Permissions" subtitle="Customize access per role">
+        <View className="items-center justify-center py-16">
+          <ActivityIndicator size="large" color="#1E3A5F" />
+        </View>
+      </SettingsPageLayout>
     );
   }
 
   if (!state) {
     return (
-      <SafeAreaView className="flex-1 bg-surface items-center justify-center p-6">
-        <Text className="text-muted text-center">Unable to load permissions.</Text>
-        <TouchableOpacity onPress={load} className="mt-4 px-4 py-2 bg-primary rounded-lg">
-          <Text className="text-white">Retry</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
+      <SettingsPageLayout title="Role Permissions" subtitle="Customize access per role">
+        <View className="items-center justify-center py-16 px-6">
+          <Text className="text-muted text-center">Unable to load permissions.</Text>
+          <TouchableOpacity onPress={load} className="mt-4 px-4 py-2 bg-primary rounded-lg">
+            <Text className="text-white">Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SettingsPageLayout>
     );
   }
 
@@ -144,26 +145,17 @@ export default function PermissionsSettingsScreen() {
   const editableRoles = state.roles.filter((r) => r.role !== 'OWNER');
 
   return (
-    <SafeAreaView className="flex-1 bg-surface">
-      <View className="px-4 py-3 border-b border-border flex-row items-center justify-between">
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text className="text-primary font-semibold">← Back</Text>
-        </TouchableOpacity>
-        <Text className="text-lg font-bold text-text">Role Permissions</Text>
-        <View style={{ width: 50 }} />
+    <SettingsPageLayout
+      title="Role Permissions"
+      subtitle="Customize what each role can see and do"
+    >
+      <View className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+        <Text className="text-blue-900 text-sm">
+          Changes apply immediately to all users with that role. Owner permissions cannot be modified.
+        </Text>
       </View>
 
-      <ScrollView className="flex-1" contentContainerClassName="p-4 pb-8">
-        {/* Info banner */}
-        <View className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-          <Text className="text-blue-900 text-sm">
-            Customize what each role can see and do. Changes apply immediately to all
-            users with that role. Owner permissions cannot be modified.
-          </Text>
-        </View>
-
-        {/* Role cards */}
-        {editableRoles.map((roleData) => {
+      {editableRoles.map((roleData) => {
           const isExpanded = expandedRole === roleData.role;
           return (
             <View key={roleData.role} className="bg-card rounded-xl border border-border mb-3 overflow-hidden">
@@ -243,7 +235,6 @@ export default function PermissionsSettingsScreen() {
             </View>
           );
         })}
-      </ScrollView>
-    </SafeAreaView>
+    </SettingsPageLayout>
   );
 }

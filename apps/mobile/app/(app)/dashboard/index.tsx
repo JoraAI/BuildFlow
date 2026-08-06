@@ -54,7 +54,7 @@ export default function DashboardScreen() {
             {user.role === 'ACCOUNTANT' && (
               <ActionRow label="Accounting" onPress={() => router.push('/accounting')} />
             )}
-            {user.role === 'ACCOUNTANT' && (
+            {(user.role === 'ACCOUNTANT' || user.role === 'PM') && (
               <ActionRow label="Reports Hub" onPress={() => router.push('/reports-hub')} />
             )}
             {user.role === 'PM' && (
@@ -150,6 +150,16 @@ export default function DashboardScreen() {
           </ResponsiveGrid>
         </>
       )}
+
+      <Card className="mt-4">
+        <Text className="text-base font-bold text-text mb-2">Quick actions</Text>
+        <View className="gap-2">
+          <ActionRow label="Reports Hub" onPress={() => router.push('/reports-hub')} />
+          <ActionRow label="Accounting" onPress={() => router.push('/accounting')} />
+          <ActionRow label="Proposals" onPress={() => router.push('/proposals')} />
+          <ActionRow label="Settings" onPress={() => router.push('/settings')} />
+        </View>
+      </Card>
 
       <ResponsiveGrid gap={16} className="mt-4">
         {/* CASH FLOW FORECAST */}

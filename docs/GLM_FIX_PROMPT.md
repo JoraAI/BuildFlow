@@ -1,14 +1,14 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 34c complete)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 37 NAV-BACK1)
 
 > **You do not need any prior conversation or other documents.** This file is the
 > complete task brief. Read it top to bottom before taking new work.
 > [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
 >
 > **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
-> **Last committed baseline:** Round 34c — `7831049` (RATE-EST1 polish complete)  
-> **Verified:** 2026-08-05 — Rounds 12–34c complete. **131/131** tests.
+> **Last committed baseline:** Round 36 — `NAV-DISC1` + PDF UX (working tree)  
+> **Verified:** 2026-08-06 — Rounds 12–36 in progress. **131/131** tests.
 >
-> **Active work:** None mandatory after RPT-WM1a land. Manual spot-check §2.16.2 watermark. Stretch: **§2.13** RPT-UI2 · **RPT-WM2** estimate export PDF watermark.
+> **Active work:** **§2.18 NAV-BACK1** (consistent back button all viewports) · **§2.18 SUB-UX3** (Add Subcontractor when zero WOs). UI polish priority.
 
 ---
 
@@ -1008,11 +1008,19 @@ BuildFlow does **not** support uploading custom HTML/Word/PDF templates per repo
 
 ### 2.12.0b Where to view / download each report (mobile app)
 
+**Navigation truth (post §2.17 NAV-DISC1 — how users actually find screens):**
+
+| Screen | Label in app | How to reach (OWNER / PM) |
+| ------ | ------------- | ------------------------- |
+| **Reports Hub** | Reports Hub | **Dashboard → Quick actions → Reports Hub**; desktop **sidebar → Finance → Reports Hub**; mobile **More → Reports Hub**; also link inside Cash Flow Forecast card |
+| **Accounting** | Accounting (tab) | **Dashboard → Quick actions → Accounting**; desktop **sidebar → Finance → Accounting**; mobile **More → Accounting** (not in bottom bar — Home / Projects / Planning / Reports are primary) |
+| **Daily reports** | Reports | Bottom tab **Reports** |
+
 | # | Report | Where in app |
 | - | ------ | ------------ |
-| 1 | Project progress | **Dashboard → Reports Hub** → select project → Project Progress |
+| 1 | Project progress | **Dashboard → Quick actions → Reports Hub** → select project → Project Progress |
 | 2 | Daily report PDF | **Reports** → open a report → **Download PDF** |
-| 3 | Invoice PDF | **Accounting** → invoice detail → **Download PDF** |
+| 3 | Invoice PDF | **More → Accounting** → invoice detail → **Download PDF** |
 | 4 | Estimate export PDF/Excel | **Estimation** → estimate detail → **Export PDF** / **Export Excel** |
 | 5 | Estimate comparison PDF | **Estimation → Compare Versions** → **Download comparison PDF** |
 | 6 | Estimate vs actual PDF | **Reports Hub** → project → Estimate vs Actual |
@@ -1025,10 +1033,12 @@ BuildFlow does **not** support uploading custom HTML/Word/PDF templates per repo
 | 13 | Measurement book (project) | **Project → BOQ tab** → Measurement book PDF |
 | 14 | Abstract sheet (project) | **Project → BOQ tab** → Abstract sheet PDF |
 | 15 | Material rates | **Reports Hub** or **Project → Resources tab** |
-| 16 | Subcontract measurement book | **Project → Subcontracts** → expand WO → PDF |
-| 17 | Subcontract abstract | **Project → Subcontracts** → expand WO → PDF |
+| 16 | Subcontract measurement book | **Project → Subcontracts** → expand WO → **Subcontract PDFs** card → **Measurement book PDF** (also per-measurement **MB PDF**) |
+| 17 | Subcontract abstract | **Project → Subcontracts** → expand WO → **Subcontract PDFs** card → **Abstract sheet PDF** (also per-measurement **Abstract**) |
 
-**Hub entry point:** Dashboard quick action **Reports Hub** (`/(app)/reports-hub`).
+**Hub entry points:** Dashboard **Quick actions → Reports Hub** (`/(app)/reports-hub`); desktop sidebar **Finance → Reports Hub**; mobile **More → Reports Hub**.
+
+**Pre-NAV-DISC1 gap (do not regress):** Reports Hub was only a small link inside Cash Flow Forecast on Owner dashboard; Accounting tab was labeled “Accounts” and only in **More** overflow — easy to miss.
 
 ### 2.12.1 Architecture (read before coding)
 
@@ -1037,12 +1047,12 @@ BuildFlow does **not** support uploading custom HTML/Word/PDF templates per repo
 **Branding helpers:** `loadCompanyForPdf` + `drawBrandedHeader` (Round 28 RPT-C1e — all 17 generators
 should already pass `accentColor`, `showLogo`, footer).
 
-**Estimate exports (separate from pdf-report routes):**
+**Estimate exports:**
 
 - `apps/backend/src/services/estimate-export.service.ts`
 - Mobile: `useExportEstimate` on estimate detail → `/api/estimates/:id/export/pdf|excel`
-- Already branded — **do not duplicate** with `/reports/pdf/estimates/:id` on same screen unless
-  product wants both; prefer keeping existing Export PDF/Excel buttons.
+- **PDF:** `generateEstimatePdf` delegates to `reportEstimate` in `pdf-report.service.ts` (EST-PDF-UX / RPT-WM2) — same branded table layout, header, footer, watermark as `/reports/pdf/estimates/:id`. **Excel** remains separate 4-sheet workbook in `estimate-export.service.ts`.
+- Keep existing **Export PDF** / **Export Excel** buttons on estimate detail — do not add a second PDF button pointing at `/reports/pdf/estimates/:id`.
 
 **Mobile download pattern (post-Round 32):**
 
@@ -1395,7 +1405,7 @@ Backend: `updateItem()` writes only `estimateItem.rate`; `getEstimateForEditing(
 
 3. All 17 generators already call `drawBrandedFooter` — no per-generator changes needed
 
-**Out of scope (stretch):** `estimate-export.service.ts` `generateEstimatePdf` — separate layout; optional RPT-WM2
+**Out of scope (was stretch RPT-WM2):** ~~`estimate-export.service.ts` separate layout~~ — **fixed** in §2.17 EST-PDF-UX: PDF export delegates to `reportEstimate` (watermark + branded tables).
 
 ### 2.16.2 RPT-WM1b — Manual test
 
@@ -1430,6 +1440,162 @@ Backend: `updateItem()` writes only `estimateItem.rate`; `getEstimateForEditing(
 | Draw watermark before content on page 1 only | Loop all buffered pages at finalize |
 | Fail PDF generation on bad logo URL | try/catch; skip watermark |
 
+---
+
+## 2.17 Round 36 — NAV-DISC1: Reports Hub / Accounting discoverability + PDF UX
+
+**User report (2026-08-05):** Logged in as **OWNER** — could not find **Reports Hub** or **Accounting** tab. **Export PDF** on estimate detail had overlapping/poor table layout. **Subcontract WO PDF** buttons not visible at documented path (only hidden inside per-measurement rows).
+
+**Root cause:**
+
+| Issue | Cause |
+| ----- | ----- |
+| Reports Hub missing for Owner | Route `reports-hub/index` in `HIDDEN_TAB_SCREENS`; Owner dashboard had no Quick actions card (only non-OWNER welcome screen did); Hub link buried in Cash Flow card |
+| Accounting “missing” | Tab labeled **Accounts**; lives in mobile **More** overflow, not bottom bar |
+| Subcontract PDFs | `MB PDF` / `Abstract` only on each measurement row inside `MeasurementsPanel` — not at WO header |
+| Estimate Export PDF | `generateEstimatePdf` used hand-rolled PDFKit rows (`doc.y` / absolute `rowY` overlap); separate from `pdf-report.service.ts` |
+
+### 2.17.1 NAV-DISC1a — Navigation discoverability
+
+**Files:**
+
+- `apps/mobile/constants/navigation.ts` — `APP_LINKS.reportsHub`, `getAppLinksForRole`, Finance group `appLinks`
+- `apps/mobile/components/navigation/AppSidebar.tsx` — render `APP_LINKS` under Finance
+- `apps/mobile/components/navigation/AppTabBar.tsx` — **More** menu includes Reports Hub + overflow tabs
+- `apps/mobile/app/(app)/dashboard/index.tsx` — **Owner** Quick actions card: Reports Hub, Accounting, Proposals, Settings
+- Rename tab label: `accounting` → **Accounting** (was “Accounts”)
+
+**Definition of done:**
+
+- [x] Owner dashboard shows prominent **Quick actions** with Reports Hub + Accounting
+- [x] Desktop sidebar **Finance → Reports Hub** + **Accounting**
+- [x] Mobile **More → Reports Hub** and **More → Accounting** (OWNER/PM)
+- [x] §2.12.0b navigation truth table updated
+
+### 2.17.2 SUB-PDF-UX — Subcontract WO-level PDF buttons
+
+**File:** `apps/mobile/components/projects/SubcontractsTab.tsx`
+
+- Extract `downloadSubcontractReportPdf` helper (shared with `MeasurementsPanel`)
+- Add `WorkOrderPdfActions` card when WO expanded — **Measurement book PDF** + **Abstract sheet PDF** at WO level (before measurement list)
+- Keep per-measurement **MB PDF** / **Abstract** buttons (regression)
+
+### 2.17.3 EST-PDF-UX — Estimate export PDF quality + watermark
+
+**File:** `apps/backend/src/services/estimate-export.service.ts`
+
+- `generateEstimatePdf` → delegate to `reportEstimate(companyId, estimateId)` from `pdf-report.service.ts`
+- Keeps `/api/estimates/:id/export/pdf` + `useExportEstimate('pdf')` unchanged on mobile
+- Gains: zebra tables, page breaks, branded header/footer, watermark (RPT-WM1), rate-analysis annexure
+
+**Do not:** Remove Export PDF button or switch mobile to a second `/reports/pdf/estimates/:id` button.
+
+### 2.17.4 Definition of done (Round 36)
+
+- [x] **NAV-DISC1a** — Owner Quick actions + sidebar + More menu + Accounting label
+- [x] **SUB-PDF-UX** — WO-level subcontract PDF card
+- [x] **EST-PDF-UX** — `generateEstimatePdf` delegates to `reportEstimate`
+- [ ] **NAV-DISC1b** — Manual: Owner login → Quick actions → Reports Hub opens; More → Accounting opens
+- [ ] **SUB-PDF-UXb** — Manual: expand subcontract WO → Subcontract PDFs card visible without measurements
+- [ ] **EST-PDF-UXb** — Manual: estimate Export PDF → readable tables + watermark when enabled
+- [ ] Ship gates: backend tsc · mobile tsc · **131/131** tests
+
+### 2.17.5 Anti-patterns
+
+| Don't | Do instead |
+| ----- | ---------- |
+| Add Reports Hub as bottom-tab primary (crowds nav) | Quick actions + sidebar + More |
+| Remove per-measurement PDF buttons | WO-level + row-level both |
+| Replace `useExportEstimate` with new mobile hook | Delegate backend PDF to `reportEstimate` |
+| Document “Dashboard → Reports Hub” without Quick actions | Use §2.12.0b truth table |
+
+---
+
+## 2.18 Round 37 — NAV-BACK1: Consistent back button + SUB-UX3 subcontractor empty state
+
+**User report (2026-08-06):** Focus on UI fixes. Back button must appear on required pages, look/behave the same on **mobile and desktop**, and land on the **correct parent** (not wrong tab via `router.back()`). Also: **Add Subcontractor** button hidden when there are zero work orders — only visible after at least one WO exists.
+
+### 2.18.0 Back navigation architecture (read before coding)
+
+| Component | Role |
+| --------- | ---- |
+| `NavBackButton` / `NavHeaderBar` | **Single visual** — chevron + “Back” label, bordered pill (default variant) |
+| `FormScreenHeader` | Nested/form screens; shows back when `isNestedAppRoute(pathname)` unless `showBack={false}` |
+| `SettingsPageLayout` | All settings child pages; **always** shows `NavBackButton` on desktop + mobile; `onBack` defaults to `goBackToSettings()` |
+| `navigateAppBack(fallback, returnTo?)` | Prefer `returnTo` query param when set; else `router.back()` if stack exists; else `router.replace(fallback)` |
+| `dismissTo(href)` | **Replace** route — use when Expo Tabs history is unreliable (hidden tab screens) |
+
+**Never use raw `router.back()`** on app nested screens — it often jumps to Assistant/wrong tab.
+
+**Pre-NAV-BACK1 gaps:**
+
+| Screen / area | Gap |
+| ------------- | --- |
+| `FormScreenHeader` | Back hidden on **desktop** for single-segment routes like `/reports-hub` |
+| `isNestedAppRoute` | `/reports-hub` not detected as nested (only matched `reports-hub/index`) |
+| `SettingsPageLayout` desktop | Back only when `onBack` prop explicitly passed — child pages had **no back** |
+| `settings/report-branding` | **No header/back at all** |
+| `settings/permissions` | Custom `← Back` text + `router.back()` |
+| `settings/rate-regions` mobile | `router.back()` instead of `goBackToSettings()` |
+| `accounting/import-bills` | Success handler used `router.back()` |
+
+### 2.18.1 NAV-BACK1a — Unified back visibility
+
+**Files:**
+
+- `apps/mobile/constants/navigation.ts` — `isNestedAppRoute`: treat `/reports-hub` + single-segment hidden-tab roots as nested; breadcrumb labels for settings children + Reports Hub
+- `apps/mobile/components/layout/ScreenHeader.tsx` — `FormScreenHeader`: `showBack = showBack ?? isNestedAppRoute(pathname)` on **all viewports** (remove desktop hide)
+- `apps/mobile/components/layout/SettingsPageLayout.tsx` — always render `NavBackButton` on desktop (default `goBackToSettings`); replace custom arrow-back with `NavBackButton`
+
+**Screens migrated to shared pattern:**
+
+- `settings/report-branding.tsx` → `SettingsPageLayout`
+- `settings/permissions.tsx` → `SettingsPageLayout` + `goBackToSettings`
+- `settings/rate-regions.tsx` → single `SettingsPageLayout` (remove duplicate mobile header)
+- `accounting/import-bills.tsx` → `dismissTo(DISMISS.accounting)` on success
+
+**Back target cheat sheet (manual QA):**
+
+| Screen | Back target |
+| ------ | ----------- |
+| Project detail | `/projects` |
+| Estimate detail | proposal or `?tab=estimate` on project |
+| Reports Hub | `/dashboard` |
+| Notifications | `/dashboard` |
+| Settings child (company, users, report-branding, …) | `/settings` |
+| Create bill (with `returnTo`) | decoded `returnTo` |
+| Invoice/bill detail (with `returnTo`) | decoded `returnTo` else `/accounting` |
+| Rate analysis library | settings / proposals / estimation per `from` param |
+
+### 2.18.2 SUB-UX3 — Add Subcontractor when zero work orders
+
+**File:** `apps/mobile/components/projects/SubcontractsTab.tsx`
+
+**Bug:** Header actions `{canManage && orders.length > 0 && (...)}` hid **Add Subcontractor** until first WO existed — chicken-and-egg (need subcontractor before WO).
+
+**Fix:**
+
+- Show **Add Subcontractor** whenever `canManage` (regardless of WO count)
+- Show **New WO** / **Import from BOQ** only when `orders.length > 0` (or always show New WO in empty state — both empty-state CTAs: Add Subcontractor + Create Work Order)
+
+### 2.18.3 Definition of done (Round 37)
+
+- [x] **NAV-BACK1a** — `FormScreenHeader` + `SettingsPageLayout` + `isNestedAppRoute` fixes
+- [x] **NAV-BACK1b** — report-branding, permissions, rate-regions, import-bills migrated
+- [x] **SUB-UX3** — Add Subcontractor visible with zero WOs
+- [ ] **NAV-BACK1c** — Manual matrix: nested screens on mobile + desktop → back visible, lands on parent in cheat sheet
+- [ ] Ship gates: mobile tsc · **131/131** tests
+
+### 2.18.4 Anti-patterns
+
+| Don't | Do instead |
+| ----- | ---------- |
+| `router.back()` on hidden tab screens | `dismissTo` / `navigateAppBack` |
+| Custom `← Back` text links per screen | `NavBackButton` via `FormScreenHeader` or `SettingsPageLayout` |
+| Hide back on desktop nested routes | Same `isNestedAppRoute` rule for all viewports |
+| Gate Add Subcontractor on `orders.length > 0` | Always show for `canManage`; empty state offers both Add Sub + Create WO |
+| Invent per-screen back icon styles | `NavBackButton` variants only |
+
 ### 2.12.7 Manual test checklist
 
 **Branding setup:**
@@ -1445,7 +1611,21 @@ Backend: `updateItem()` writes only `estimateItem.rate`; `getEstimateForEditing(
 - [ ] Invoice detail → PDF matches invoice totals
 - [ ] Compare estimates → PDF reflects idA vs idB
 - [ ] Project → BOQ tab → MB + abstract PDFs
-- [ ] Subcontract WO PDFs still work (regression)
+- [ ] Subcontract WO PDFs — **Subcontract PDFs** card at WO level + per-measurement buttons (regression)
+- [ ] Owner dashboard — Quick actions → Reports Hub + Accounting
+- [ ] Estimate Export PDF — branded tables (no overlapping rows); watermark when enabled
+
+**Back navigation (§2.18):**
+
+- [ ] Reports Hub — Back → dashboard (mobile + desktop)
+- [ ] Settings → Reports & Branding — Back → settings hub
+- [ ] Settings → Role Permissions — Back → settings hub
+- [ ] Project detail — Back → projects list
+- [ ] Create bill with returnTo — Back → originating project tab
+
+**Subcontracts empty state (§2.18 SUB-UX3):**
+
+- [ ] Zero work orders → **Add Subcontractor** visible in header + empty state
 
 ### 2.12.8 Anti-patterns
 
@@ -1454,7 +1634,7 @@ Backend: `updateItem()` writes only `estimateItem.rate`; `getEstimateForEditing(
 | Duplicate `downloadPdf` in every screen | Use `downloadReportPdf` |
 | Add web-only `<a download>` | Use `apiDownload` + Sharing (mobile-first) |
 | Break existing Reports Hub GST/TDS role gate | Keep `canFinancials` checks |
-| Replace estimate Export PDF with pdf-report route | Keep `useExportEstimate`; add compare PDF only |
+| Replace estimate Export PDF with pdf-report route on mobile | Keep `useExportEstimate`; delegate backend `generateEstimatePdf` → `reportEstimate` |
 | Invent template upload API | Document §2.12.0; logo + report-settings only |
 
 ### 2.10.11 Round 30b spec (was ACTIVE — see §2.10.12/§2.10.13)

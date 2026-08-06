@@ -52,6 +52,49 @@ import { downloadReportPdf, reportPaths } from '@/services/report-download';
 import { FlowHintCard } from '@/components/ui/FlowHintCard';
 import { TermHint } from '@/components/ui/TermHint';
 
+function downloadSubcontractReportPdf(
+  projectId: string,
+  workOrderId: string,
+  type: 'book' | 'abstract',
+) {
+  const path =
+    type === 'book'
+      ? reportPaths.subcontractMeasurementBook(projectId, workOrderId)
+      : reportPaths.subcontractAbstractSheet(projectId, workOrderId);
+  return downloadReportPdf(path, `sub-${type}-${workOrderId}.pdf`);
+}
+
+function WorkOrderPdfActions({
+  projectId,
+  workOrderId,
+}: {
+  projectId: string;
+  workOrderId: string;
+}) {
+  return (
+    <View className="mt-2 p-3 rounded-xl border border-border bg-card/50 gap-2">
+      <Text className="text-xs font-semibold text-text">Subcontract PDFs</Text>
+      <Text className="text-[10px] text-muted">
+        Full work-order measurement book and abstract sheet (all approved periods).
+      </Text>
+      <View className="flex-row flex-wrap gap-2">
+        <Button
+          label="Measurement book PDF"
+          size="sm"
+          variant="secondary"
+          onPress={() => downloadSubcontractReportPdf(projectId, workOrderId, 'book')}
+        />
+        <Button
+          label="Abstract sheet PDF"
+          size="sm"
+          variant="secondary"
+          onPress={() => downloadSubcontractReportPdf(projectId, workOrderId, 'abstract')}
+        />
+      </View>
+    </View>
+  );
+}
+
 const STATUS_COLOR: Record<string, 'neutral' | 'warning' | 'success' | 'danger'> = {
   DRAFT: 'neutral',
   SUBMITTED: 'warning',
@@ -398,13 +441,8 @@ function MeasurementsPanel({
     );
   };
 
-  const onDownloadPdf = (type: 'book' | 'abstract') => {
-    const path =
-      type === 'book'
-        ? reportPaths.subcontractMeasurementBook(projectId, workOrderId)
-        : reportPaths.subcontractAbstractSheet(projectId, workOrderId);
-    return downloadReportPdf(path, `sub-${type}-${workOrderId}.pdf`);
-  };
+  const onDownloadPdf = (type: 'book' | 'abstract') =>
+    downloadSubcontractReportPdf(projectId, workOrderId, type);
 
   if (isLoading) return <LoadingSkeleton className="h-16 rounded-lg mt-3" />;
 
@@ -1488,13 +1526,17 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
 
       <View className="flex-row justify-between items-center">
         <Text className="text-sm font-bold text-text">{orders.length} Work Orders</Text>
-        {canManage && orders.length > 0 && (
+        {canManage && (
           <View className={`gap-2 ${isDesktop ? 'flex-row flex-wrap' : ''}`}>
             <Button label="Add Subcontractor" size="sm" variant="secondary" onPress={() => setSubModal(true)} />
-            {subcontractBoqItems.length > 0 && (
-              <Button label="Import from BOQ" size="sm" variant="secondary" onPress={() => setBoqModal(true)} />
+            {orders.length > 0 && (
+              <>
+                {subcontractBoqItems.length > 0 && (
+                  <Button label="Import from BOQ" size="sm" variant="secondary" onPress={() => setBoqModal(true)} />
+                )}
+                <Button label="New WO" size="sm" onPress={() => setWoModal(true)} />
+              </>
             )}
-            <Button label="New WO" size="sm" onPress={() => setWoModal(true)} />
           </View>
         )}
       </View>
@@ -1502,10 +1544,13 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
       {orders.length === 0 ? (
         <EmptyState
           title="No work orders"
-          description="Create subcontract work orders and track measurement sheets."
+          description="Add a subcontractor, then create work orders and track measurement sheets."
           action={
             canManage ? (
-              <Button label="Create Work Order" onPress={() => setWoModal(true)} />
+              <View className="gap-2 w-full max-w-xs">
+                <Button label="Add Subcontractor" variant="secondary" onPress={() => setSubModal(true)} />
+                <Button label="Create Work Order" onPress={() => setWoModal(true)} />
+              </View>
             ) : undefined
           }
         />
@@ -1618,6 +1663,7 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
                     />
                   </View>
                 )}
+                <WorkOrderPdfActions projectId={projectId} workOrderId={wo.id} />
                 <WorkOrderBillsPanel projectId={projectId} workOrderId={wo.id} />
                 <MeasurementsPanel
                   projectId={projectId}

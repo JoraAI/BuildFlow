@@ -7,7 +7,6 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { Card, Badge, Button, Input, EmptyState } from '@/components/ui';
 import { usePermission } from '@/hooks/usePermission';
@@ -61,7 +60,6 @@ interface ReviewRow {
 }
 
 export default function ImportBillsScreen() {
-  const router = useRouter();
   const canCreate = usePermission('bill.create');
   const { data: projectsData } = useProjects();
   const projects = projectsData ?? [];
@@ -135,7 +133,7 @@ export default function ImportBillsScreen() {
     bulkCreate.mutate(bills, {
       onSuccess: (data) => {
         void alertAsync('Bills created', `${data.created} vendor bill(s) created as PENDING.`);
-        router.back();
+        dismissTo(DISMISS.accounting);
       },
       onError: (e: Error) => void alertAsync('Error', e.message),
     });

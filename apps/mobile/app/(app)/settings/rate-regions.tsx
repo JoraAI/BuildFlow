@@ -3,7 +3,6 @@
  */
 import React, { useState } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Card,
   Button,
@@ -13,8 +12,6 @@ import {
   DateField,
 } from '@/components/ui';
 import { SettingsPageLayout } from '@/components/layout/SettingsPageLayout';
-import { FormScreenHeader } from '@/components/layout/ScreenHeader';
-import { useViewport } from '@/hooks/useViewport';
 import { MaterialPicker } from '@/components/materials/MaterialPicker';
 import {
   useRateRegions,
@@ -28,11 +25,8 @@ import { useMaterials, type Resource } from '@/services/estimate.queries';
 import { formatINR } from '@/utils/format';
 import { todayDateOnly } from '@/utils/date-field';
 import { alertAsync } from '@/utils/confirm';
-import { useRouter } from 'expo-router';
 
 export default function RateRegionsScreen() {
-  const router = useRouter();
-  const { isDesktop } = useViewport();
   const { data: regions, isLoading } = useRateRegions();
   const createRegion = useCreateRateRegion();
   const { data: materialsData } = useMaterials({ limit: 200 });
@@ -164,18 +158,9 @@ export default function RateRegionsScreen() {
     </ScrollView>
   );
 
-  if (isDesktop) {
-    return (
-      <SettingsPageLayout title="Rate Regions" subtitle="Regional material rate books for new projects.">
-        {body}
-      </SettingsPageLayout>
-    );
-  }
-
   return (
-    <SafeAreaView className="flex-1 bg-surface">
-      <FormScreenHeader title="Rate Regions" onCancel={() => router.back()} />
+    <SettingsPageLayout title="Rate Regions" subtitle="Regional material rate books for new projects.">
       {body}
-    </SafeAreaView>
+    </SettingsPageLayout>
   );
 }
