@@ -86,7 +86,9 @@ export function AssistantChatContent({ projectId }: { projectId?: string }) {
             <View style={styles.empty}>
               <Text style={styles.emptyTitle}>How can I help?</Text>
               <Text style={styles.emptyBody}>
-                Ask about project status, estimates, bills, GST, or overdue tasks.
+                {projectId
+                  ? 'Ask about this project — status, bills, estimates, BOQ, or overdue tasks. I can fetch live data when you have permission.'
+                  : 'Ask about project status, estimates, bills, GST, or overdue tasks. I can list and update items you are permitted to access.'}
               </Text>
             </View>
           }

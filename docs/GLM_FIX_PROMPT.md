@@ -1,14 +1,7 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 37 NAV-BACK1)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 38 ASST-PROJ1)
 
-> **You do not need any prior conversation or other documents.** This file is the
-> complete task brief. Read it top to bottom before taking new work.
-> [`AUDIT_FINDINGS.md`](AUDIT_FINDINGS.md) is optional background history only.
->
-> **Repo:** `/home/prasanna/work/BuildFlow` (Turborepo monorepo, pnpm workspaces)  
-> **Last committed baseline:** Round 36 — `NAV-DISC1` + PDF UX (working tree)  
-> **Verified:** 2026-08-06 — Rounds 12–36 in progress. **131/131** tests.
->
-> **Active work:** **§2.18 NAV-BACK1** (consistent back button all viewports) · **§2.18 SUB-UX3** (Add Subcontractor when zero WOs). UI polish priority.
+> **Last committed baseline:** Round 37 — NAV-BACK1 + SUB-UX3 (working tree)  
+> **Active work:** **§2.19** — Project complete UI · Assistant MCP tools in chat · Pre-login product guide
 
 ---
 
@@ -1595,6 +1588,38 @@ Backend: `updateItem()` writes only `estimateItem.rate`; `getEstimateForEditing(
 | Hide back on desktop nested routes | Same `isNestedAppRoute` rule for all viewports |
 | Gate Add Subcontractor on `orders.length > 0` | Always show for `canManage`; empty state offers both Add Sub + Create WO |
 | Invent per-screen back icon styles | `NavBackButton` variants only |
+
+---
+
+## 2.19 Round 38 — PROJ-COMP1 + ASST-MCP1: Complete project + permission-aware assistant
+
+### 2.19.1 PROJ-COMP1 — Mark project completed (UI)
+
+**Where:** **Project → Settings tab → Project status** (`ProjectStatusSection.tsx`)
+
+- **Mark project completed** button (Owner/PM) with confirmation
+- Status chips: Planning · In progress · On hold · Cancelled
+- API: `PUT /projects/:id` `{ status: "COMPLETED" }`
+- View completed: **Projects → Completed** filter
+
+### 2.19.2 ASST-MCP1 — Assistant + MCP alignment
+
+| Mode | Endpoint | Behavior |
+| ---- | -------- | -------- |
+| Pre-login | `POST /api/chatbot/public/message` | Product/pricing guide only — `buildProductMarketingPrompt()`, no tools |
+| Post-login | `POST /api/chatbot/message` | Company/project context + OpenAI **function calling** via `assistant-tools.service.ts` |
+
+**Tools:** Same permission-gated catalog as MCP (`list_projects`, `update_project_status`, `list_bills`, `approve_bill`, `list_proposals`, …).
+
+**Mobile:** `MarketingAssistantFab` on public/auth pages; post-login FAB passes `projectId` on project screens.
+
+**Not in chat:** Bill/proposal PDF OCR — use Import bills / Import tender screens.
+
+### 2.19.3 Definition of done
+
+- [x] PROJ-COMP1 UI
+- [x] ASST tool loop + public marketing chat
+- [ ] Manual QA (complete project, ask assistant for bills, pre-login pricing)
 
 ### 2.12.7 Manual test checklist
 

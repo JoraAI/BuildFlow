@@ -25,6 +25,7 @@ import { BillsTab } from '@/components/projects/BillsTab';
 import { ResourcesTab } from '@/components/projects/ResourcesTab';
 import { ProjectMembersSection } from '@/components/projects/ProjectMembersSection';
 import { ProjectMaterialRatesSection } from '@/components/projects/ProjectMaterialRatesSection';
+import { ProjectStatusSection } from '@/components/projects/ProjectStatusSection';
 import { ProjectSetupChecklist } from '@/components/projects/ProjectSetupChecklist';
 import { TermHint } from '@/components/ui/TermHint';
 import { PROJECT_TAB_HINTS } from '@/constants/project-workflow';
@@ -627,6 +628,7 @@ function SettingsTab({ projectId }: { projectId: string }) {
 
   return (
     <View className="gap-4">
+      <ProjectStatusSection projectId={projectId} />
       <ProjectMembersSection projectId={projectId} />
       <ProjectMaterialRatesSection projectId={projectId} />
       {canPortal && (

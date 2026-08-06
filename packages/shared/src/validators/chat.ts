@@ -3,6 +3,12 @@
  */
 import { z } from 'zod';
 
+export const publicChatMessageSchema = z.object({
+  message: z.string().min(1, 'Message is required').max(2000),
+});
+
+export type PublicChatMessageInput = z.infer<typeof publicChatMessageSchema>;
+
 export const sendMessageSchema = z.object({
   message: z.string().min(1, 'Message is required').max(4000),
   projectId: z.string().uuid().optional(),

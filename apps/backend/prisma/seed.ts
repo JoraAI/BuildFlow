@@ -1,8 +1,13 @@
 /**
  * BuildFlow - Database seed.
  *
- * Creates the sample company "Reddy Constructions Pvt Ltd" + 4 users (one per role),
- * realistic resources, 5 rate analyses, and 3 projects.
+ * Creates the sample company "Reddy Constructions Pvt Ltd" + 9 users (all roles),
+ * realistic resources, composite rate analyses, and 1 project (NH-65 Road Widening)
+ * with complete lifecycle: estimate → BOQ → procurement → stock → subcontract →
+ * invoices → change orders → daily reports.
+ *
+ * Catalog data (catalog-data.ts) and rate analyses (rate-analysis-data.ts) are
+ * NOT changed — they remain the full ~500 item library.
  *
  * Idempotent-ish: uses upsert on unique fields. Re-running updates in place.
  */
@@ -453,7 +458,7 @@ async function main(): Promise<void> {
   });
 
   // ----------------------------------------------------------------
-  // Project 1 - NH-65 Road Widening
+  // Project 1 - NH-65 Road Widening (ONLY project — complete lifecycle)
   // ----------------------------------------------------------------
   const project1 = await prisma.project.create({
     data: {
@@ -489,6 +494,9 @@ async function main(): Promise<void> {
   const wbs1 = await prisma.wBSItem.create({
     data: { projectId: project1.id, code: '1.0', name: 'Site Mobilization', level: 1, orderIndex: 1 },
   });
+  const wbs2 = await prisma.wBSItem.create({
+    data: { projectId: project1.id, code: '2.0', name: 'Earthwork & PCC', level: 1, orderIndex: 2 },
+  });
   const t1 = await prisma.task.create({
     data: { projectId: project1.id, wbsId: wbs1.id, name: 'Site survey', startDate: new Date('2025-01-15'), endDate: new Date('2025-01-20'), durationDays: 5, progressPct: 100, status: 'COMPLETED', assignedTo: supervisor.id },
   });
@@ -497,9 +505,118 @@ async function main(): Promise<void> {
   });
   await prisma.taskPredecessor.create({ data: { taskId: t2.id, predecessorId: t1.id, type: 'FS', lagDays: 0 } });
   const t3 = await prisma.task.create({
-    data: { projectId: project1.id, wbsId: wbs1.id, name: 'Earthwork excavation', startDate: new Date('2025-02-01'), endDate: new Date('2025-03-15'), durationDays: 43, progressPct: 60, status: 'IN_PROGRESS', assignedTo: supervisor.id },
+    data: { projectId: project1.id, wbsId: wbs2.id, name: 'Earthwork excavation', startDate: new Date('2025-02-01'), endDate: new Date('2025-03-15'), durationDays: 43, progressPct: 60, status: 'IN_PROGRESS', assignedTo: supervisor.id },
   });
   await prisma.taskPredecessor.create({ data: { taskId: t3.id, predecessorId: t2.id, type: 'FS', lagDays: 0 } });
+
+  // Project-scoped access (PM + supervisor on NH-65)
+  await prisma.projectMember.createMany({
+    data: [
+      { projectId: project1.id, userId: owner.id, role: Role.OWNER },
+      { projectId: project1.id, userId: pm.id, role: Role.PM },
+      { projectId: project1.id, userId: supervisor.id, role: Role.SUPERVISOR },
+      { projectId: project1.id, userId: storeIncharge.id, role: Role.STORE_INCHARGE },
+    ],
+  });
+
+  // ----------------------------------------------------------------
+  // ESTIMATE → BOQ → PROCUREMENT full chain on NH-65
+  // ----------------------------------------------------------------
+
+  // Approved estimate with sections + line items (some RA-linked)
+  const estimate1 = await prisma.estimate.create({
+    data: {
+      projectId: project1.id,
+      companyId: company.id,
+      name: 'NH-65 Baseline Estimate',
+      status: EstimateStatus.APPROVED,
+      subtotal: 1_490_000,
+      grandTotal: 1_490_000,
+      createdBy: pm.id,
+      approvedBy: owner.id,
+      approvedAt: new Date('2025-01-20'),
+    },
+  });
+
+  const estSec1 = await prisma.estimateSection.create({
+    data: { estimateId: estimate1.id, name: 'Earthwork & PCC', orderIndex: 1 },
+  });
+  const estSec2 = await prisma.estimateSection.create({
+    data: { estimateId: estimate1.id, name: 'Finishing', orderIndex: 2 },
+  });
+
+  const estItemEarthwork = await prisma.estimateItem.create({
+    data: {
+      estimateId: estimate1.id,
+      sectionId: estSec1.id,
+      itemCode: 'O-001',
+      description: 'Earthwork excavation',
+      unit: 'cum',
+      quantity: 1000,
+      rate: 450,
+      amount: 450_000,
+      type: CostType.MATERIAL,
+      resourceId: resources['OPC Cement 53 Grade'].id,
+    },
+  });
+
+  const estItemPcc = await prisma.estimateItem.create({
+    data: {
+      estimateId: estimate1.id,
+      sectionId: estSec1.id,
+      itemCode: 'O-002',
+      description: 'PCC M15',
+      unit: 'cum',
+      quantity: 200,
+      rate: 5200,
+      amount: 1_040_000,
+      type: CostType.MATERIAL,
+    },
+  });
+
+  // BOQ items linked to estimate items (estimate→BOQ conversion chain)
+  const boqEarth = await prisma.bOQItem.create({
+    data: {
+      projectId: project1.id,
+      itemCode: 'BOQ-001',
+      description: 'Earthwork excavation',
+      unit: 'cum',
+      quantity: 1000,
+      rate: 450,
+      amount: 450_000,
+      category: 'EARTHWORK',
+      estimateItemId: estItemEarthwork.id,
+    },
+  });
+
+  const boqPcc = await prisma.bOQItem.create({
+    data: {
+      projectId: project1.id,
+      itemCode: 'BOQ-002',
+      description: 'PCC M15',
+      unit: 'cum',
+      quantity: 200,
+      rate: 5200,
+      amount: 1_040_000,
+      category: 'MATERIAL',
+      resourceId: resources['OPC Cement 53 Grade'].id,
+      estimateItemId: estItemPcc.id,
+    },
+  });
+
+  // SUBCONTRACTOR BOQ item (needed for from-boq WO creation test)
+  const boqSubcontractor = await prisma.bOQItem.create({
+    data: {
+      projectId: project1.id,
+      itemCode: 'BOQ-003',
+      description: 'Road marking & signage sub-contract',
+      unit: 'lot',
+      quantity: 1,
+      rate: 350_000,
+      amount: 350_000,
+      category: 'SUBCONTRACTOR',
+    },
+  });
 
   // Sample invoices
   await prisma.invoice.create({
@@ -520,56 +637,7 @@ async function main(): Promise<void> {
     },
   });
 
-  // Project-scoped access (PM + supervisor on NH-65)
-  await prisma.projectMember.createMany({
-    data: [
-      { projectId: project1.id, userId: owner.id, role: Role.OWNER },
-      { projectId: project1.id, userId: pm.id, role: Role.PM },
-      { projectId: project1.id, userId: supervisor.id, role: Role.SUPERVISOR },
-    ],
-  });
-
-  const boqEarth = await prisma.bOQItem.create({
-    data: {
-      projectId: project1.id,
-      itemCode: 'BOQ-001',
-      description: 'Earthwork excavation',
-      unit: 'cum',
-      quantity: 1000,
-      rate: 450,
-      amount: 450_000,
-      category: 'EARTHWORK',
-    },
-  });
-
-  const boqPcc = await prisma.bOQItem.create({
-    data: {
-      projectId: project1.id,
-      itemCode: 'BOQ-002',
-      description: 'PCC M15',
-      unit: 'cum',
-      quantity: 200,
-      rate: 5200,
-      amount: 1_040_000,
-      category: 'CONCRETE',
-    },
-  });
-
-  // EST-VO-11f: Approved estimate for NH-65 so VO-001 and VO-002 can link via estimateId
-  const estimate1 = await prisma.estimate.create({
-    data: {
-      projectId: project1.id,
-      companyId: company.id,
-      name: 'NH-65 Baseline Estimate',
-      status: EstimateStatus.APPROVED,
-      subtotal: 1_490_000,
-      grandTotal: 1_490_000,
-      createdBy: pm.id,
-      approvedBy: owner.id,
-      approvedAt: new Date('2025-01-20'),
-    },
-  });
-
+  // Change orders (VO-001 approved + converted to BOQ; VO-002 submitted)
   await prisma.changeOrder.create({
     data: {
       projectId: project1.id,
@@ -662,6 +730,9 @@ async function main(): Promise<void> {
     },
   });
 
+  // ----------------------------------------------------------------
+  // PROCUREMENT: Requisition → PO → GRN → Stock
+  // ----------------------------------------------------------------
   const requisition = await prisma.materialRequisition.create({
     data: {
       projectId: project1.id,
@@ -676,6 +747,9 @@ async function main(): Promise<void> {
             resourceId: resources['OPC Cement 53 Grade'].id,
             quantity: 500,
             unit: 'bag',
+            boqItemId: boqPcc.id,
+            expectedRate: 435,
+            rateSource: 'PROJECT',
           },
         ],
       },
@@ -728,10 +802,19 @@ async function main(): Promise<void> {
     },
   });
 
+  // Mark BOQ-002 as procured (500 bag received against 200 cum sanctioned)
+  await prisma.bOQItem.update({
+    where: { id: boqPcc.id },
+    data: { procuredQty: 500 },
+  });
+
   await applyStockIn(stockLoc.id, grn1.id, [
     { resourceId: resources['OPC Cement 53 Grade'].id, quantity: 500 },
   ]);
 
+  // ----------------------------------------------------------------
+  // SUBCONTRACT: Subcontractor → WO → Measurements → Bill
+  // ----------------------------------------------------------------
   const subbie = await prisma.subcontractor.create({
     data: {
       companyId: company.id,
@@ -772,7 +855,8 @@ async function main(): Promise<void> {
     where: { workOrderId: wo.id },
   });
 
-  await prisma.subcontractMeasurement.create({
+  // Approved measurement → linked vendor bill (like Trail's pattern)
+  const measApproved = await prisma.subcontractMeasurement.create({
     data: {
       workOrderId: wo.id,
       periodLabel: 'Feb 2025 - Earthwork Phase 1',
@@ -792,6 +876,30 @@ async function main(): Promise<void> {
           },
         ],
       },
+    },
+  });
+
+  // Vendor bill linked to subcontractor measurement
+  await prisma.bill.create({
+    data: {
+      projectId: project1.id,
+      companyId: company.id,
+      billNumber: 'SC-WO-001-FEB',
+      vendorName: subbie.name,
+      vendorGstin: subbie.gstin,
+      billDate: new Date('2025-03-01'),
+      status: 'APPROVED',
+      approvedBy: pm.id,
+      subtotal: 180_000,
+      retentionAmount: 9_000,
+      advanceRecoveryAmount: 5_000,
+      tdsRate: 1,
+      tdsAmount: 1_665,
+      total: 164_335,
+      paidAmount: 50_000,
+      category: 'SUBCONTRACTOR',
+      workOrderId: wo.id,
+      measurementId: measApproved.id,
     },
   });
 
@@ -881,488 +989,9 @@ async function main(): Promise<void> {
   });
 
   // ----------------------------------------------------------------
-  // Project 2 - Greenview Residency Block-C (planning + sample estimate)
-  // ----------------------------------------------------------------
-  const project2 = await prisma.project.create({
-    data: {
-      companyId: company.id,
-      name: 'Greenview Residency Block-C',
-      code: 'GVR-C',
-      type: ProjectType.MID,
-      status: ProjectStatus.PLANNING,
-      clientName: 'Greenview Developers',
-      startDate: new Date('2025-04-01'),
-      endDate: new Date('2026-12-31'),
-      budget: 0,
-      rateRegionId: regionApTier2.id,
-      createdBy: pm.id,
-    },
-  });
-
-  const estimate2 = await prisma.estimate.create({
-    data: {
-      projectId: project2.id,
-      companyId: company.id,
-      name: 'GVR Block-C Baseline',
-      status: EstimateStatus.APPROVED,
-      grandTotal: 850_000,
-      subtotal: 850_000,
-      createdBy: pm.id,
-      approvedBy: owner.id,
-      approvedAt: new Date('2025-03-01'),
-    },
-  });
-
-  const estSection = await prisma.estimateSection.create({
-    data: {
-      estimateId: estimate2.id,
-      name: 'Structure',
-      orderIndex: 1,
-    },
-  });
-
-  await prisma.estimateItem.createMany({
-    data: [
-      {
-        estimateId: estimate2.id,
-        sectionId: estSection.id,
-        description: 'OPC Cement supply',
-        unit: 'bag',
-        quantity: 300,
-        rate: 445,
-        amount: 133_500,
-        type: CostType.MATERIAL,
-        resourceId: resources['OPC Cement 53 Grade'].id,
-      },
-      {
-        estimateId: estimate2.id,
-        sectionId: estSection.id,
-        description: 'Masonry labour',
-        unit: 'day',
-        quantity: 120,
-        rate: 750,
-        amount: 90_000,
-        type: CostType.LABOUR,
-        resourceId: resources['Mason Grade 1 (Mistri)'].id,
-      },
-    ],
-  });
-
-  // ----------------------------------------------------------------
-  // Project 3 - Trail Office Renovation (estimate → BOQ → procurement demo)
-  // ----------------------------------------------------------------
-  const project3 = await prisma.project.create({
-    data: {
-      companyId: company.id,
-      name: 'Trail Office Renovation',
-      code: 'TRAIL',
-      type: ProjectType.MINI,
-      status: ProjectStatus.IN_PROGRESS,
-      clientName: 'Trail Logistics Pvt Ltd',
-      clientContact: 'facilities@trail.in',
-      locationAddress: 'HITEC City, Hyderabad',
-      startDate: new Date('2025-05-01'),
-      endDate: new Date('2025-10-31'),
-      budget: 828_000,
-      rateRegionId: regionHyderabad.id,
-      createdBy: pm.id,
-    },
-  });
-
-  await prisma.projectMember.createMany({
-    data: [
-      { projectId: project3.id, userId: owner.id, role: Role.OWNER },
-      { projectId: project3.id, userId: pm.id, role: Role.PM },
-      { projectId: project3.id, userId: supervisor.id, role: Role.SUPERVISOR },
-    ],
-  });
-
-  const wbsTrail = await prisma.wBSItem.create({
-    data: { projectId: project3.id, code: '1.0', name: 'Renovation Works', level: 1, orderIndex: 1 },
-  });
-  await prisma.task.createMany({
-    data: [
-      {
-        projectId: project3.id,
-        wbsId: wbsTrail.id,
-        name: 'Carpet installation',
-        startDate: new Date('2025-05-15'),
-        endDate: new Date('2025-06-30'),
-        durationDays: 45,
-        progressPct: 20,
-        status: 'IN_PROGRESS',
-        assignedTo: supervisor.id,
-      },
-      {
-        projectId: project3.id,
-        wbsId: wbsTrail.id,
-        name: 'Wall painting',
-        startDate: new Date('2025-06-01'),
-        endDate: new Date('2025-08-31'),
-        durationDays: 90,
-        progressPct: 10,
-        status: 'IN_PROGRESS',
-        assignedTo: supervisor.id,
-      },
-      {
-        projectId: project3.id,
-        wbsId: wbsTrail.id,
-        name: 'Ceiling paint & finish',
-        startDate: new Date('2025-07-01'),
-        endDate: new Date('2025-09-15'),
-        durationDays: 75,
-        progressPct: 0,
-        status: 'NOT_STARTED',
-        assignedTo: supervisor.id,
-      },
-    ],
-  });
-
-  const estimate3 = await prisma.estimate.create({
-    data: {
-      projectId: project3.id,
-      companyId: company.id,
-      name: 'Office Renovation Baseline',
-      status: EstimateStatus.APPROVED,
-      subtotal: 828_000,
-      grandTotal: 828_000,
-      createdBy: pm.id,
-      approvedBy: owner.id,
-      approvedAt: new Date('2025-05-05'),
-    },
-  });
-
-  const estSecFloor = await prisma.estimateSection.create({
-    data: { estimateId: estimate3.id, name: 'Flooring & Paint', orderIndex: 1 },
-  });
-
-  const estItemCarpet = await prisma.estimateItem.create({
-    data: {
-      estimateId: estimate3.id,
-      sectionId: estSecFloor.id,
-      itemCode: 'O-020',
-      description: 'Carpet tiles (commercial grade)',
-      unit: 'sqm',
-      quantity: 950,
-      rate: 680,
-      amount: 646_000,
-      type: CostType.MATERIAL,
-      resourceId: resources['Commercial Carpet Tile'].id,
-    },
-  });
-
-  const estItemPaint = await prisma.estimateItem.create({
-    data: {
-      estimateId: estimate3.id,
-      sectionId: estSecFloor.id,
-      itemCode: 'O-021',
-      description: 'Emulsion paint - walls & ceiling',
-      unit: 'sqm',
-      quantity: 2800,
-      rate: 65,
-      amount: 182_000,
-      type: CostType.MATERIAL,
-      rateAnalysisId: emulsionPaintRa?.id,
-    },
-  });
-
-  const boqCarpet = await prisma.bOQItem.create({
-    data: {
-      projectId: project3.id,
-      itemCode: 'O-020',
-      description: 'Carpet tiles (commercial grade)',
-      unit: 'sqm',
-      quantity: 950,
-      rate: 680,
-      amount: 646_000,
-      category: 'MATERIAL',
-      estimateItemId: estItemCarpet.id,
-      procuredQty: 950,
-    },
-  });
-
-  const boqPaint = await prisma.bOQItem.create({
-    data: {
-      projectId: project3.id,
-      itemCode: 'O-021',
-      description: 'Emulsion paint - walls & ceiling',
-      unit: 'sqm',
-      quantity: 2800,
-      rate: 65,
-      amount: 182_000,
-      category: 'MATERIAL',
-      estimateItemId: estItemPaint.id,
-    },
-  });
-
-  const paintLitres = Math.round(2800 * 0.12 * 1000) / 1000;
-
-  const requisitionTrail = await prisma.materialRequisition.create({
-    data: {
-      projectId: project3.id,
-      companyId: company.id,
-      reqNumber: 'IND-002',
-      status: 'APPROVED',
-      requestedBy: supervisor.id,
-      approvedBy: pm.id,
-      notes: 'Flooring & paint - carpet line linked to BOQ O-020 for procured tracking',
-      lines: {
-        create: [
-          {
-            resourceId: resources['Commercial Carpet Tile'].id,
-            quantity: 950,
-            unit: 'sqm',
-            boqItemId: boqCarpet.id,
-            expectedRate: 680,
-            rateSource: 'CATALOG',
-          },
-          {
-            resourceId: resources['Exterior Emulsion Paint (Premium)'].id,
-            quantity: paintLitres,
-            unit: 'litre',
-            expectedRate: 420,
-            rateSource: 'CATALOG',
-          },
-        ],
-      },
-    },
-  });
-
-  const poTrail = await prisma.purchaseOrder.create({
-    data: {
-      projectId: project3.id,
-      companyId: company.id,
-      requisitionId: requisitionTrail.id,
-      poNumber: 'PO-002',
-      vendorName: 'Hyderabad Interiors Supply',
-      status: 'APPROVED',
-      totalAmount: 646_000 + paintLitres * 420,
-      lines: {
-        create: [
-          {
-            resourceId: resources['Commercial Carpet Tile'].id,
-            quantity: 950,
-            unit: 'sqm',
-            rate: 680,
-            amount: 646_000,
-          },
-          {
-            resourceId: resources['Exterior Emulsion Paint (Premium)'].id,
-            quantity: paintLitres,
-            unit: 'litre',
-            rate: 420,
-            amount: paintLitres * 420,
-          },
-        ],
-      },
-    },
-  });
-
-  const stockLocTrail = await prisma.stockLocation.create({
-    data: { companyId: company.id, projectId: project3.id, name: 'Office Site Store' },
-  });
-
-  const grnTrail = await prisma.goodsReceiptNote.create({
-    data: {
-      projectId: project3.id,
-      companyId: company.id,
-      purchaseOrderId: poTrail.id,
-      grnNumber: 'GRN-002',
-      receivedDate: new Date('2025-05-20'),
-      lines: {
-        create: [
-          {
-            resourceId: resources['Commercial Carpet Tile'].id,
-            quantity: 950,
-            unit: 'sqm',
-          },
-          {
-            resourceId: resources['Exterior Emulsion Paint (Premium)'].id,
-            quantity: paintLitres,
-            unit: 'litre',
-          },
-        ],
-      },
-    },
-  });
-
-  await applyStockIn(stockLocTrail.id, grnTrail.id, [
-    { resourceId: resources['Commercial Carpet Tile'].id, quantity: 950 },
-    { resourceId: resources['Exterior Emulsion Paint (Premium)'].id, quantity: paintLitres },
-  ]);
-
-  const paintIssuedDemo = 36;
-  const trailDailyReport = await prisma.dailyReport.create({
-    data: {
-      projectId: project3.id,
-      reportedBy: supervisor.id,
-      reportDate: new Date('2025-05-25'),
-      workDone: 'Primer coat on corridor walls - paint drawn from site store',
-      workersCount: 8,
-      materialUsages: {
-        create: {
-          resourceId: resources['Exterior Emulsion Paint (Premium)'].id,
-          quantityUsed: paintIssuedDemo,
-          notes: 'Deduct from site stock (demo)',
-        },
-      },
-    },
-  });
-
-  await applyStockOut(stockLocTrail.id, trailDailyReport.id, [
-    { resourceId: resources['Exterior Emulsion Paint (Premium)'].id, quantity: paintIssuedDemo },
-  ]);
-
-  const boqCarpetInstall = await prisma.bOQItem.create({
-    data: {
-      projectId: project3.id,
-      itemCode: 'O-SC-020',
-      description: 'Carpet tile installation (subcontract)',
-      unit: 'sqm',
-      quantity: 950,
-      rate: 120,
-      amount: 114_000,
-      category: 'SUBCONTRACTOR',
-    },
-  });
-
-  const trailSubbie = await prisma.subcontractor.create({
-    data: {
-      companyId: company.id,
-      name: 'FloorCraft Interiors',
-      gstin: '36AABCF5678B1Z3',
-      contactPhone: '+919876543210',
-      defaultTdsRate: 2,
-    },
-  });
-
-  const woTrail = await prisma.subcontractWorkOrder.create({
-    data: {
-      projectId: project3.id,
-      companyId: company.id,
-      subcontractorId: trailSubbie.id,
-      boqItemId: boqCarpet.id,
-      woNumber: 'WO-TRAIL-001',
-      scope: 'Carpet tile installation - linked to BOQ O-020',
-      contractValue: 114_000,
-      retentionPct: 5,
-      advanceAmount: 10_000,
-      status: 'ACTIVE',
-      startDate: new Date('2025-05-01'),
-      contractLines: {
-        create: [
-          {
-            description: 'Carpet tile installation',
-            unit: 'sqm',
-            contractQty: 950,
-            rate: 120,
-            amount: 114_000,
-            boqItemId: boqCarpetInstall.id,
-          },
-        ],
-      },
-    },
-    include: { contractLines: true },
-  });
-
-  const trailContractLine = woTrail.contractLines[0]!;
-
-  const trailMeasApproved = await prisma.subcontractMeasurement.create({
-    data: {
-      workOrderId: woTrail.id,
-      periodLabel: 'May 2025 - Phase 1',
-      status: 'APPROVED',
-      totalAmount: 28_800,
-      approvedBy: pm.id,
-      approvedAt: new Date('2025-05-20'),
-      lines: {
-        create: [
-          {
-            description: 'Carpet tile installation - reception & corridor',
-            quantity: 240,
-            unit: 'sqm',
-            rate: 120,
-            amount: 28_800,
-            workOrderLineId: trailContractLine.id,
-            boqItemId: boqCarpetInstall.id,
-            boqMeasurementPosted: true,
-          },
-        ],
-      },
-    },
-  });
-
-  await prisma.boqMeasurement.create({
-    data: {
-      boqItemId: boqCarpetInstall.id,
-      projectId: project3.id,
-      quantity: 240,
-      recordedBy: pm.id,
-      notes: 'From subcontract measurement (seed)',
-    },
-  });
-
-  await prisma.bOQItem.update({
-    where: { id: boqCarpetInstall.id },
-    data: { executedQty: 240 },
-  });
-
-  await prisma.subcontractMeasurement.create({
-    data: {
-      workOrderId: woTrail.id,
-      periodLabel: 'Jun 2025 - Phase 2 (draft)',
-      status: 'DRAFT',
-      totalAmount: 36_000,
-      lines: {
-        create: [
-          {
-            description: 'Carpet tile installation - open office',
-            quantity: 300,
-            unit: 'sqm',
-            rate: 120,
-            amount: 36_000,
-            workOrderLineId: trailContractLine.id,
-            boqItemId: boqCarpetInstall.id,
-          },
-        ],
-      },
-    },
-  });
-
-  await prisma.bill.create({
-    data: {
-      projectId: project3.id,
-      companyId: company.id,
-      billNumber: 'SC-WO-TRAIL-001-MAY',
-      vendorName: trailSubbie.name,
-      vendorGstin: trailSubbie.gstin,
-      billDate: new Date('2025-05-21'),
-      status: 'APPROVED',
-      approvedBy: pm.id,
-      subtotal: 28_800,
-      retentionAmount: 1_440,
-      advanceRecoveryAmount: 2_880,
-      tdsRate: 2,
-      tdsAmount: 485.76,
-      total: 23_994.24,
-      paidAmount: 10_000,
-      category: 'SUBCONTRACTOR',
-      workOrderId: woTrail.id,
-      measurementId: trailMeasApproved.id,
-    },
-  });
-
-  // ----------------------------------------------------------------
-  // Daily Reports (rich, multi-project) — exercises calendar, materials,
-  // stock deduction, task progress, BOQ posting & issues.
-  // ----------------------------------------------------------------
-  // Resolve Trail (project3) task IDs (created via createMany above).
-  const trailTasks = await prisma.task.findMany({ where: { projectId: project3.id } });
-  const trailCarpetTask = trailTasks.find((t) => t.name === 'Carpet installation')!;
-  const trailPaintTask = trailTasks.find((t) => t.name === 'Wall painting')!;
-
-  // --- Project 1 (NH-65) — 5 reports across the earthwork week ---
+  // Daily Reports (5 reports across the earthwork week)
   // Note: stockLoc has 500 bag OPC Cement on hand. Total drawn here = 90 bag.
+  // ----------------------------------------------------------------
   const p1r1 = await seedReport(project1.id, supervisor.id, '2025-02-03', {
     weather: 'SUNNY',
     siteStatus: 'ON_SCHEDULE',
@@ -1420,119 +1049,8 @@ async function main(): Promise<void> {
     materials: [],
   });
 
-  // --- Project 3 (Trail) — 4 reports for the renovation phase ---
-  // Note: stockLocTrail has 950 sqm carpet + ~300 litre paint on hand.
-  // R1 posts carpet usage to BOQ measurement (mirrors service behaviour).
-  const p3r1 = await seedReport(project3.id, supervisor.id, '2025-05-15', {
-    weather: 'SUNNY',
-    siteStatus: 'ON_SCHEDULE',
-    workDone: 'Carpet installation started in reception & corridor. Floor prepared, adhesive laid.',
-    workersCount: 12,
-    materials: [
-      {
-        resourceName: 'Commercial Carpet Tile',
-        quantity: 240,
-        boqItemId: boqCarpet.id,
-        boqMeasurementPosted: true,
-        notes: 'Reception + corridor carpet laid',
-      },
-    ],
-    taskUpdates: [{ taskId: trailCarpetTask.id, progressPct: 25 }],
-  });
-  await applyStockOut(stockLocTrail.id, p3r1.id, [
-    { resourceId: resources['Commercial Carpet Tile'].id, quantity: 240 },
-  ]);
-  await prisma.boqMeasurement.create({
-    data: {
-      boqItemId: boqCarpet.id,
-      projectId: project3.id,
-      quantity: 240,
-      recordedBy: supervisor.id,
-      notes: 'From daily report 2025-05-15 (seed)',
-    },
-  });
-  await prisma.bOQItem.update({
-    where: { id: boqCarpet.id },
-    data: { executedQty: { increment: 240 } },
-  });
-
-  const p3r2 = await seedReport(project3.id, supervisor.id, '2025-05-18', {
-    weather: 'CLOUDY',
-    siteStatus: 'ON_SCHEDULE',
-    workDone: 'Primer coat applied on corridor walls. Surface prep (putty) 60% complete.',
-    workersCount: 10,
-    materials: [
-      { resourceName: 'Exterior Emulsion Paint (Premium)', quantity: 48, notes: 'Primer + first coat' },
-    ],
-    taskUpdates: [{ taskId: trailPaintTask.id, progressPct: 15 }],
-  });
-  await applyStockOut(stockLocTrail.id, p3r2.id, [
-    { resourceId: resources['Exterior Emulsion Paint (Premium)'].id, quantity: 48 },
-  ]);
-
-  const p3r3 = await seedReport(project3.id, supervisor.id, '2025-05-22', {
-    weather: 'FOG',
-    siteStatus: 'ON_SCHEDULE',
-    workDone:
-      'Carpet extended to meeting rooms. Wall paint second coat started in corridor.',
-    workersCount: 14,
-    materials: [
-      { resourceName: 'Commercial Carpet Tile', quantity: 200, boqItemId: boqCarpet.id },
-      { resourceName: 'Exterior Emulsion Paint (Premium)', quantity: 40 },
-    ],
-    taskUpdates: [
-      { taskId: trailCarpetTask.id, progressPct: 45 },
-      { taskId: trailPaintTask.id, progressPct: 25 },
-    ],
-  });
-  await applyStockOut(stockLocTrail.id, p3r3.id, [
-    { resourceId: resources['Commercial Carpet Tile'].id, quantity: 200 },
-    { resourceId: resources['Exterior Emulsion Paint (Premium)'].id, quantity: 40 },
-  ]);
-  await prisma.bOQItem.update({
-    where: { id: boqCarpet.id },
-    data: { executedQty: { increment: 200 } },
-  });
-
-  // (The pre-existing 2025-05-25 report above remains as the 4th Trail report.)
-
-  // --- Project 2 (Greenview) — 2 planning-phase reports (no stock, no materials) ---
-  await seedReport(project2.id, pm.id, '2025-04-02', {
-    weather: 'SUNNY',
-    siteStatus: 'ON_SCHEDULE',
-    workDone: 'Site survey and benchmark marking completed. Soil testing samples collected.',
-    workersCount: 5,
-  });
-
-  await seedReport(project2.id, pm.id, '2025-04-03', {
-    weather: 'CLOUDY',
-    siteStatus: 'ON_SCHEDULE',
-    workDone: 'Soil test results received. Reviewing foundation design with structural consultant.',
-    issues: 'Borehole 3 showed loose fill - may require deeper footing locally.',
-    workersCount: 6,
-  });
-
   // eslint-disable-next-line no-console
-  console.log('   Seeded 11 daily reports (P1: 5, P2: 2, P3: 4 incl. pre-existing)');
-
-  // ----------------------------------------------------------------
-  // Project 4 - TechPark Office Renovation (completed archive)
-  // ----------------------------------------------------------------
-  const _project4 = await prisma.project.create({
-    data: {
-      companyId: company.id,
-      name: 'TechPark Office Renovation',
-      code: 'TPK-RENO',
-      type: ProjectType.MINI,
-      status: ProjectStatus.COMPLETED,
-      clientName: 'TechPark Infra',
-      startDate: new Date('2024-03-01'),
-      endDate: new Date('2024-09-30'),
-      budget: 1_200_000,
-      rateRegionId: regionApTier2.id,
-      createdBy: pm.id,
-    },
-  });
+  console.log('   Seeded 5 daily reports on NH-65');
 
   // eslint-disable-next-line no-console
   console.log('✅ Seed complete.');

@@ -29,7 +29,7 @@ describe('Material rate PO alerts (integration)', () => {
 
   beforeAll(async () => {
     token = await loginAs(OWNER);
-    projectId = await getProjectId(token, 'TPK-RENO');
+    projectId = await getProjectId(token, 'NH65');
     cementId = await getCementResourceId(token);
   });
 
@@ -58,7 +58,7 @@ describe('Material rate PO alerts (integration)', () => {
     const items = notifRes.body.data.items as Array<{ type: string; body: string }>;
     const alert = items.find((n) => n.type === 'MATERIAL_RATE_VARIANCE' && n.body.includes('500'));
     expect(alert).toBeTruthy();
-    expect(alert!.body).toContain('TPK-RENO');
+    expect(alert!.body).toContain('NH65');
   });
 
   it('returns material rate sheet PDF', async () => {

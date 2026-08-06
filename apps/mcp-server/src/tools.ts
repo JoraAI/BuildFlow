@@ -245,6 +245,51 @@ const tools: ToolDef[] = [
       return serialize(projects);
     },
   },
+  {
+    name: 'update_project_status',
+    description: 'Update project status (e.g. COMPLETED when job is closed). Requires projectId and status.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string', description: 'Project UUID' },
+        status: { type: 'string', enum: ['PLANNING', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETED', 'CANCELLED'] },
+      },
+      required: ['projectId', 'status'],
+    },
+    requires: 'project.edit',
+    handler: async (identity, args) => {
+      guard(identity, 'project.edit');
+      const { projectId, status } = args as { projectId: string; status: string };
+      const updated = await prisma.project.updateMany({
+        where: { id: projectId, companyId: identity.companyId },
+        data: { status: status as never },
+      });
+      if (updated.count === 0) throw new Error('Project not found');
+      return { success: true, projectId, status };
+    },
+  },
+  {
+    name: 'list_proposals',
+    description: 'List pre-construction proposals. Returns id, title, status, clientName.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['DRAFT', 'IN_REVIEW', 'APPROVED', 'SENT', 'WON', 'LOST', 'ARCHIVED'] },
+      },
+    },
+    requires: 'proposal.view',
+    handler: async (identity, args) => {
+      guard(identity, 'proposal.view');
+      const { status } = args as { status?: string };
+      const rows = await prisma.proposal.findMany({
+        where: { companyId: identity.companyId, ...(status ? { status: status as never } : {}) },
+        select: { id: true, title: true, status: true, clientName: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      });
+      return serialize(rows);
+    },
+  },
 
   // ════════════════════════════════════════════════════════════════
   // ESTIMATES
@@ -318,7 +363,7 @@ const tools: ToolDef[] = [
       const { billId } = args as { billId: string };
       const updated = await prisma.bill.updateMany({
         where: { id: billId, companyId: identity.companyId, status: 'PENDING' },
-        data: { status: 'APPROVED', approvedById: identity.userId, approvedAt: new Date() },
+        data: { status: 'APPROVED', approvedBy: identity.userId },
       });
       if (updated.count === 0) throw new Error('Bill not found, already processed, or does not belong to your company');
       return { success: true, billId, newStatus: 'APPROVED' };

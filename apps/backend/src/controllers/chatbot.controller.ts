@@ -2,9 +2,15 @@
  * BuildFlow - Chatbot controller.
  */
 import type { Request, Response } from 'express';
-import { handleChatMessage, listHistory } from '../services/chatbot.service';
+import { handleChatMessage, handlePublicChatMessage, listHistory } from '../services/chatbot.service';
 import { ok } from '../utils/response';
 import { ApiError } from '../utils/errors';
+
+export async function publicMessage(req: Request, res: Response) {
+  const { message } = req.body as { message: string };
+  const data = await handlePublicChatMessage(message.trim());
+  return ok(res, data);
+}
 
 export async function message(req: Request, res: Response) {
   const { companyId, id: userId } = req.user!;

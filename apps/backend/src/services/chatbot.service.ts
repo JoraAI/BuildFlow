@@ -1,37 +1,26 @@
 /**
  * BuildFlow - Chatbot service (BuildFlow Assistant).
  *
- * POST /api/chatbot/message
- *   - Persists the user's message
- *   - Builds project/company context (status, estimate vs actual, budget, overdue tasks,
- *     outstanding invoices, materials variance)
- *   - Calls an OpenAI-compatible LLM endpoint (LLM_API_URL) with a civil-engineering
- *     expert system prompt; supports English + Hinglish.
- *   - Persists the bot reply and returns it
- *
- * If LLM creds are absent, returns a deterministic canned answer built from the same
- * context - so the assistant is always usable in local dev.
+ * Post-login: permission-aware prompt + OpenAI function calling (MCP-equivalent tools).
+ * Pre-login: product marketing prompt only (no tools, no tenant data).
  */
 import { prisma } from '../lib/prisma';
 import { logger } from '../config/logger';
 import { resolveLlmConfig } from './integration.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import { getEstimateVsActual } from './financial-report.service';
-import { getRolePermissions } from '../lib/permissions';
-import { buildPermissionAwarePrompt } from '@buildflow/shared';
+import { buildPermissionAwarePrompt, buildProductMarketingPrompt } from '@buildflow/shared';
+import {
+  buildOpenAiTools,
+  executeAssistantTool,
+  resolveAssistantIdentity,
+} from './assistant-tools.service';
 
 function num(d: Decimal | number | null | undefined): number {
   if (d === null || d === undefined) return 0;
   return typeof d === 'number' ? d : Number(d);
 }
 
-/**
- * Build a compact context block for the LLM from company + optional project.
- *
- * FIX (FIN-M7): enforce that the caller's userId is a member of the project
- * before including project-scoped data, so context isn't leaked to users who
- * aren't on the project.
- */
 export async function buildContext(companyId: string, projectId?: string, userId?: string): Promise<string> {
   const company = await prisma.company.findFirstOrThrow({
     where: { id: companyId },
@@ -47,29 +36,27 @@ export async function buildContext(companyId: string, projectId?: string, userId
     });
     if (!project) return lines.join('\n');
 
-    // FIX (FIN-M7): enforce project membership so context isn't leaked.
     if (userId) {
       const isMember = await prisma.projectMember.findFirst({
         where: { projectId, userId },
         select: { id: true },
       });
-      if (!isMember) {
-        // Not a member — skip project-scoped context.
-        return lines.join('\n');
-      }
+      if (!isMember) return lines.join('\n');
     }
-    lines.push(`Project: ${project.name} | Status: ${project.status} | Budget: Rs ${num(project.budget).toLocaleString('en-IN')}`);
+    lines.push(
+      `Project: ${project.name} | Status: ${project.status} | Budget: Rs ${num(project.budget).toLocaleString('en-IN')}`,
+    );
 
     const ea = await getEstimateVsActual(companyId, projectId).catch(() => null);
     if (ea) {
       lines.push(`Completion: ${ea.completionPct}%`);
-      lines.push(`Estimate vs Actual: estimated Rs ${ea.totalEstimated.toLocaleString('en-IN')}, actual Rs ${ea.totalActual.toLocaleString('en-IN')}, variance Rs ${ea.totalVariance.toLocaleString('en-IN')}`);
+      lines.push(
+        `Estimate vs Actual: estimated Rs ${ea.totalEstimated.toLocaleString('en-IN')}, actual Rs ${ea.totalActual.toLocaleString('en-IN')}, variance Rs ${ea.totalVariance.toLocaleString('en-IN')}`,
+      );
       if (ea.flagged.length) lines.push(`Variance flags: ${ea.flagged.join('; ')}`);
     }
 
-    const overdue = await prisma.task.count({
-      where: { projectId, status: 'DELAYED' },
-    });
+    const overdue = await prisma.task.count({ where: { projectId, status: 'DELAYED' } });
     lines.push(`Overdue tasks: ${overdue}`);
 
     const outstanding = await prisma.invoice.aggregate({
@@ -88,38 +75,117 @@ export async function buildContext(companyId: string, projectId?: string, userId
   return lines.join('\n');
 }
 
-interface LlmMessage { role: 'system' | 'user' | 'assistant'; content: string }
+type LlmMessage =
+  | { role: 'system' | 'user' | 'assistant'; content: string }
+  | { role: 'assistant'; content: string | null; tool_calls?: ToolCall[] }
+  | { role: 'tool'; tool_call_id: string; content: string };
 
-async function callLLM(companyId: string, messages: LlmMessage[]): Promise<string | null> {
-  const cfg = await resolveLlmConfig(companyId);
+interface ToolCall {
+  id: string;
+  type: 'function';
+  function: { name: string; arguments: string };
+}
+
+interface LlmResponse {
+  content: string | null;
+  toolCalls: ToolCall[];
+}
+
+async function callLLMOnce(
+  companyId: string | null,
+  messages: LlmMessage[],
+  tools?: ReturnType<typeof buildOpenAiTools>,
+): Promise<LlmResponse | null> {
+  const cfg = companyId ? await resolveLlmConfig(companyId) : await resolvePlatformLlmConfig();
   if (!cfg) return null;
   try {
+    const body: Record<string, unknown> = {
+      model: cfg.model,
+      messages,
+      temperature: 0.4,
+      max_tokens: 900,
+    };
+    if (tools && tools.length > 0) {
+      body.tools = tools;
+      body.tool_choice = 'auto';
+    }
     const res = await fetch(`${cfg.apiUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${cfg.apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: cfg.model,
-        messages,
-        temperature: 0.4,
-        max_tokens: 800,
-      }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) {
       logger.warn('LLM call failed', { status: res.status, companyId });
       return null;
     }
-    const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    return data.choices?.[0]?.message?.content ?? null;
+    const data = (await res.json()) as {
+      choices?: Array<{ message?: { content?: string | null; tool_calls?: ToolCall[] } }>;
+    };
+    const msg = data.choices?.[0]?.message;
+    return {
+      content: msg?.content ?? null,
+      toolCalls: msg?.tool_calls ?? [],
+    };
   } catch (err) {
     logger.warn('LLM call error', { error: String(err), companyId });
     return null;
   }
 }
 
-/** Deterministic fallback when no LLM is configured - still context-aware. */
+async function resolvePlatformLlmConfig() {
+  const apiUrl = process.env.LLM_API_URL;
+  const apiKey = process.env.LLM_API_KEY;
+  const model = process.env.LLM_MODEL ?? 'gpt-4o-mini';
+  if (!apiUrl || !apiKey) return null;
+  return { apiUrl, apiKey, model };
+}
+
+async function runLlmWithTools(
+  companyId: string,
+  identity: Awaited<ReturnType<typeof resolveAssistantIdentity>>,
+  messages: LlmMessage[],
+): Promise<string | null> {
+  const tools = buildOpenAiTools(identity.permissions);
+  const working = [...messages];
+  const MAX_ROUNDS = 5;
+
+  for (let round = 0; round < MAX_ROUNDS; round++) {
+    const res = await callLLMOnce(companyId, working, tools);
+    if (!res) return null;
+
+    if (res.toolCalls.length === 0) {
+      return res.content?.trim() || null;
+    }
+
+    working.push({
+      role: 'assistant',
+      content: res.content,
+      tool_calls: res.toolCalls,
+    });
+
+    for (const tc of res.toolCalls) {
+      let result: unknown;
+      try {
+        const args = JSON.parse(tc.function.arguments || '{}') as Record<string, unknown>;
+        result = await executeAssistantTool(identity, tc.function.name, args);
+      } catch (err) {
+        result = { error: err instanceof Error ? err.message : String(err) };
+      }
+      working.push({
+        role: 'tool',
+        tool_call_id: tc.id,
+        content: JSON.stringify(result),
+      });
+    }
+  }
+
+  const final = await callLLMOnce(companyId, working, undefined);
+  return final?.content?.trim() ?? null;
+}
+
 function cannedReply(message: string, context: string): string {
   const q = message.toLowerCase();
   if (q.includes('status') || q.includes('project')) {
@@ -137,6 +203,17 @@ function cannedReply(message: string, context: string): string {
   return `I'm BuildFlow Assistant. I can explain this project's status, GST/TDS, estimate vs actual, overdue tasks and outstanding invoices.\n\nContext:\n${context}`;
 }
 
+function cannedMarketingReply(message: string): string {
+  const q = message.toLowerCase();
+  if (q.includes('price') || q.includes('cost') || q.includes('plan')) {
+    return 'BuildFlow plans start around ₹4,999/month (Starter, up to 3 projects). See the Pricing page for Professional and Enterprise tiers. All prices + 18% GST. Sign up for a free trial from the homepage.';
+  }
+  if (q.includes('gst') || q.includes('invoice') || q.includes('bill')) {
+    return 'BuildFlow includes GST-aware invoicing (client invoices) and vendor bills with CGST/SGST/IGST split and TDS tracking — built for Indian construction firms.';
+  }
+  return 'BuildFlow is a construction ERP for Indian contractors: estimation, BOQ, daily site reports, procurement, subcontracts, and accounting. Sign up or log in to manage your company projects. What would you like to know?';
+}
+
 export interface ChatResult {
   userMessageId: string;
   botMessageId: string;
@@ -149,7 +226,6 @@ export async function handleChatMessage(
   message: string,
   projectId?: string,
 ): Promise<ChatResult> {
-  // 1. Persist user message
   const userMsg = await prisma.chatMessage.create({
     data: {
       companyId,
@@ -161,51 +237,39 @@ export async function handleChatMessage(
     },
   });
 
-  // 2. Build context (FIX FIN-M7: pass userId for project-membership check)
   const context = await buildContext(companyId, projectId, userId);
-
-  // 2b. Resolve the caller's permissions and build a permission-aware
-  // system prompt. This ensures the LLM only recommends actions the user
-  // is authorized to perform.
-  const user = await prisma.user.findFirstOrThrow({
-    where: { id: userId, companyId },
-    select: { role: true },
-  });
+  const identity = await resolveAssistantIdentity(companyId, userId);
   const company = await prisma.company.findFirstOrThrow({
     where: { id: companyId },
     select: { name: true },
   });
-  const permissions = await getRolePermissions(companyId, user.role);
-  const permissionPrompt = buildPermissionAwarePrompt(permissions, user.role, company.name);
+  const permissionPrompt = buildPermissionAwarePrompt(identity.permissions, identity.role, company.name);
 
-  // 3. Fetch last ~8 messages for conversational continuity.
-  //    FIX (FIN-M7): scope by senderId so users don't see each other's chats.
   const history = await prisma.chatMessage.findMany({
     where: { companyId, senderId: userId, ...(projectId ? { projectId } : {}) },
     orderBy: { createdAt: 'desc' },
     take: 8,
     select: { message: true, isBot: true },
   });
+
   const llmMessages: LlmMessage[] = [
     {
       role: 'system',
-      content: `${permissionPrompt}\n\n--- PROJECT CONTEXT ---\n${context}`,
+      content: `${permissionPrompt}\n\n--- LIVE CONTEXT (may be stale — prefer tools for numbers) ---\n${context}`,
     },
-    ...history.reverse().map<LlmMessage & { role: 'user' | 'assistant' }>((h) => ({
-      role: h.isBot ? 'assistant' : 'user',
+    ...history.reverse().map((h) => ({
+      role: (h.isBot ? 'assistant' : 'user') as 'assistant' | 'user',
       content: h.message,
     })),
   ];
 
-  // 4. Get reply (LLM or canned)
-  let reply = await callLLM(companyId, llmMessages);
+  let reply = await runLlmWithTools(companyId, identity, llmMessages);
   if (!reply) reply = cannedReply(message, context);
 
-  // 5. Persist bot message
   const botMsg = await prisma.chatMessage.create({
     data: {
       companyId,
-      senderId: userId, // conversation owner; isBot marks origin
+      senderId: userId,
       projectId: projectId ?? null,
       message: reply,
       messageType: 'TEXT',
@@ -216,12 +280,23 @@ export async function handleChatMessage(
   return { userMessageId: userMsg.id, botMessageId: botMsg.id, reply };
 }
 
-/** List conversation history (newest last) for a user, optionally filtered by project. */
+/** Pre-login product guide — stateless, no DB persistence. */
+export async function handlePublicChatMessage(message: string): Promise<{ reply: string }> {
+  const systemPrompt = buildProductMarketingPrompt();
+  const llmMessages: LlmMessage[] = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: message },
+  ];
+  const res = await callLLMOnce(null, llmMessages, undefined);
+  const reply = res?.content?.trim() || cannedMarketingReply(message);
+  return { reply };
+}
+
 export async function listHistory(companyId: string, userId: string, projectId?: string) {
   return prisma.chatMessage.findMany({
     where: {
       companyId,
-      senderId: userId, // each user has their own thread with the bot
+      senderId: userId,
       ...(projectId ? { projectId } : {}),
     },
     orderBy: { createdAt: 'asc' },

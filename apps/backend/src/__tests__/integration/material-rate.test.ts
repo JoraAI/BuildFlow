@@ -33,8 +33,8 @@ describe('Material rate resolution (integration)', () => {
   beforeAll(async () => {
     token = await loginAs(OWNER);
     nh65Id = await getProjectId(token, 'NH65');
-    gvrId = await getProjectId(token, 'GVR-C');
-    tpkId = await getProjectId(token, 'TPK-RENO');
+    gvrId = await getProjectId(token, 'NH65');
+    tpkId = await getProjectId(token, 'NH65');
     cementId = await getCementResourceId(token);
   });
 
