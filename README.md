@@ -79,6 +79,8 @@ pnpm dev
 | `pnpm db:studio`     | Open Prisma Studio                           |
 | `pnpm format`        | Format all files with Prettier               |
 
+**Deploying for testing?** See [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) (Vercel + Render + Neon + Upstash).
+
 ---
 
 ## Feature Highlights

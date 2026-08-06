@@ -107,6 +107,10 @@ app.use('/api/portal/sub', subPortalPublicRouter);
 
 // --- Routes ---
 app.use('/api/auth', authRouter);
+// Platform admin MUST mount before any catch-all `/api` routers that apply
+// authenticateToken globally (e.g. estimateRouter) — otherwise POST
+// /api/platform/auth/login is blocked with "Missing authorization token".
+app.use('/api/platform', platformRouter);
 app.use('/api/projects', projectRouter);
 app.use('/api/projects', taskRouter); // project-scoped: /:id/tasks, /:id/gantt
 app.use('/api/tasks', taskDetailRouter);
@@ -128,7 +132,6 @@ app.use('/api', paymentRouter); // /invoices/:id/payment-link + /webhooks/razorp
 app.use('/api/reports/pdf', pdfReportRouter); // 12 PDF report downloads
 app.use('/api/analytics', analyticsRouter); // OWNER-only dashboard
 app.use('/api/settings', settingsRouter); // company profile, users, audit log
-app.use('/api/platform', platformRouter); // BuildFlow internal admin
 app.use('/api/projects', changeOrderRouter); // /:id/change-orders
 app.use('/api/projects', procurementRouter); // /:id/procurement/*
 app.use('/api/projects', subcontractProjectRouter); // /:id/subcontract/*

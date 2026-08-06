@@ -47,6 +47,6 @@ router.patch(
   ctrl.patchTicket,
 );
 
-export default router;
+router.delete('/companies/:companyId', authenticatePlatformAdmin, ctrl.deactivateCompany);
 
-router.delete("/companies/:companyId", authenticatePlatformAdmin, ctrl.deactivateCompany);
+export default router;

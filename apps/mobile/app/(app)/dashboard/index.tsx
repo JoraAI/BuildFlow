@@ -43,25 +43,24 @@ export default function DashboardScreen() {
 
   // Non-OWNER: simple welcome screen.
   if (user && user.role !== 'OWNER') {
+    const staffActions: QuickAction[] = [
+      { label: 'View Projects', icon: 'folder-open-outline', href: '/projects' },
+      { label: 'Daily Reports', icon: 'document-text-outline', href: '/reports' },
+    ];
+    if (user.role === 'ACCOUNTANT') {
+      staffActions.push({ label: 'Accounting', icon: 'calculator-outline', href: '/accounting' });
+    }
+    if (user.role === 'ACCOUNTANT' || user.role === 'PM') {
+      staffActions.push({ label: 'Reports Hub', icon: 'bar-chart-outline', href: '/reports-hub' });
+    }
+    if (user.role === 'PM') {
+      staffActions.push({ label: 'Proposals', icon: 'briefcase-outline', href: '/proposals' });
+    }
+
     const welcome = (
       <>
         <RolePlaybookCard role={user.role} />
-        <Card className="mt-2">
-          <Text className="text-base font-bold text-text mb-2">Quick actions</Text>
-          <View className="gap-2">
-            <ActionRow label="View Projects" onPress={() => router.push('/projects')} />
-            <ActionRow label="Daily Reports" onPress={() => router.push('/reports')} />
-            {user.role === 'ACCOUNTANT' && (
-              <ActionRow label="Accounting" onPress={() => router.push('/accounting')} />
-            )}
-            {(user.role === 'ACCOUNTANT' || user.role === 'PM') && (
-              <ActionRow label="Reports Hub" onPress={() => router.push('/reports-hub')} />
-            )}
-            {user.role === 'PM' && (
-              <ActionRow label="Proposals" onPress={() => router.push('/proposals')} />
-            )}
-          </View>
-        </Card>
+        <QuickActionsPanel actions={staffActions} isDesktop={isDesktop} className="mt-2" />
       </>
     );
 
@@ -124,6 +123,14 @@ export default function DashboardScreen() {
     month: 'long',
   });
 
+  const ownerActions: QuickAction[] = [
+    { label: 'Projects', icon: 'folder-open-outline', href: '/projects' },
+    { label: 'Reports Hub', icon: 'bar-chart-outline', href: '/reports-hub' },
+    { label: 'Accounting', icon: 'calculator-outline', href: '/accounting' },
+    { label: 'Proposals', icon: 'briefcase-outline', href: '/proposals' },
+    { label: 'Settings', icon: 'settings-outline', href: '/settings' },
+  ];
+
   const content = (
     <>
       {isDesktop ? (
@@ -151,15 +158,7 @@ export default function DashboardScreen() {
         </>
       )}
 
-      <Card className="mt-4">
-        <Text className="text-base font-bold text-text mb-2">Quick actions</Text>
-        <View className="gap-2">
-          <ActionRow label="Reports Hub" onPress={() => router.push('/reports-hub')} />
-          <ActionRow label="Accounting" onPress={() => router.push('/accounting')} />
-          <ActionRow label="Proposals" onPress={() => router.push('/proposals')} />
-          <ActionRow label="Settings" onPress={() => router.push('/settings')} />
-        </View>
-      </Card>
+      <QuickActionsPanel actions={ownerActions} isDesktop={isDesktop} className="mt-4" />
 
       <ResponsiveGrid gap={16} className="mt-4">
         {/* CASH FLOW FORECAST */}
@@ -341,13 +340,76 @@ export default function DashboardScreen() {
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
-function ActionRow({ label, onPress }: { label: string; onPress: () => void }) {
+type QuickAction = {
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  href: string;
+};
+
+function QuickActionsPanel({
+  actions,
+  isDesktop,
+  className = '',
+}: {
+  actions: QuickAction[];
+  isDesktop: boolean;
+  className?: string;
+}) {
+  if (isDesktop) {
+    return (
+      <View className={className}>
+        <Text className="text-sm font-semibold text-muted uppercase tracking-wide mb-3">Quick actions</Text>
+        <View className="flex-row flex-wrap gap-2">
+          {actions.map((action) => (
+            <Pressable
+              key={action.href}
+              onPress={() => router.push(action.href as never)}
+              className="flex-row items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-card active:bg-surface hover:bg-surface/80"
+            >
+              <Ionicons name={action.icon} size={18} color="#1E3A5F" />
+              <Text className="text-sm font-semibold text-text">{action.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <Card className={className}>
+      <Text className="text-base font-bold text-text mb-2">Quick actions</Text>
+      <View className="gap-2">
+        {actions.map((action) => (
+          <ActionRow
+            key={action.href}
+            label={action.label}
+            icon={action.icon}
+            onPress={() => router.push(action.href as never)}
+          />
+        ))}
+      </View>
+    </Card>
+  );
+}
+
+function ActionRow({
+  label,
+  icon,
+  onPress,
+}: {
+  label: string;
+  icon?: keyof typeof Ionicons.glyphMap;
+  onPress: () => void;
+}) {
   return (
     <Pressable
       onPress={onPress}
       className="flex-row justify-between items-center py-3 px-2 rounded-lg active:bg-surface"
     >
-      <Text className="text-base font-semibold text-primary">{label}</Text>
+      <View className="flex-row items-center gap-2.5">
+        {icon ? <Ionicons name={icon} size={20} color="#1E3A5F" /> : null}
+        <Text className="text-base font-semibold text-primary">{label}</Text>
+      </View>
       <Text className="text-2xl text-muted">›</Text>
     </Pressable>
   );

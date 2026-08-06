@@ -103,6 +103,13 @@ export default function LoginScreen() {
           <Text className="text-primary font-semibold">Sign up</Text>
         </Text>
       </TouchableOpacity>
+
+      <TouchableOpacity onPress={() => router.push('/platform/login' as never)} className="mt-4 self-center">
+        <Text className="text-muted text-xs">
+          BuildFlow internal admin?{' '}
+          <Text className="text-primary font-semibold">Platform console</Text>
+        </Text>
+      </TouchableOpacity>
     </AuthScreenShell>
   );
 }
