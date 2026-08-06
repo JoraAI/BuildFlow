@@ -222,7 +222,8 @@ describe('PDF report line-item completeness (RPT-C4)', () => {
     );
     if (issueRes.status === 400) {
       // Test DB may lack stock location — skip rather than fail CI
-      expect(issueRes.body.message ?? issueRes.body.error).toMatch(/stock|Insufficient/i);
+      const msg = issueRes.body.message ?? issueRes.body.error?.message ?? JSON.stringify(issueRes.body.error ?? issueRes.body);
+      expect(String(msg)).toMatch(/stock|Insufficient/i);
       return;
     }
     expect(issueRes.status).toBe(201);

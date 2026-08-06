@@ -35,8 +35,8 @@ export async function getSeedProjectId(token: string): Promise<string> {
   if (res.status !== 200 || !res.body.data?.length) {
     throw new Error('No projects in seed data - run pnpm db:seed first');
   }
-  const nh65 = res.body.data.find((p: { code: string }) => p.code === 'NH65');
-  return (nh65 ?? res.body.data[0]).id as string;
+  const nh45 = res.body.data.find((p: { code: string }) => p.code === 'NH45');
+  return (nh45 ?? res.body.data[0]).id as string;
 }
 
 export async function getProjectId(token: string, code: string): Promise<string> {

@@ -15,7 +15,7 @@ describe('Subcontract (integration)', () => {
   beforeAll(async () => {
     token = await loginAs(OWNER);
     projectId = await getSeedProjectId(token);
-    trailProjectId = await getProjectId(token, 'NH65');
+    trailProjectId = await getProjectId(token, 'NH45');
   });
 
   afterAll(async () => {
@@ -138,7 +138,7 @@ describe('Subcontract (integration)', () => {
   it('creates work order from SUBCONTRACTOR BOQ items on Trail project', async () => {
     const projectsRes = await authGet(token, '/api/projects');
     const trail = (projectsRes.body.data as Array<{ id: string; code: string }>).find(
-      (p) => p.code === 'NH65',
+      (p) => p.code === 'NH45',
     );
     expect(trail).toBeTruthy();
 

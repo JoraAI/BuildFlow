@@ -51,7 +51,7 @@ describe('Procurement (integration)', () => {
   it('generate-from-boq creates indents when shortfalls exist', async () => {
     const projectsRes = await authGet(token, '/api/projects');
     const gvr = (projectsRes.body.data as Array<{ id: string; code: string }>).find(
-      (p) => p.code === 'NH65',
+      (p) => p.code === 'NH45',
     );
     expect(gvr).toBeTruthy();
 
@@ -348,7 +348,7 @@ describe('Procurement (integration)', () => {
   });
 
   it('material procurement on Trail does not auto-certify subcontract WO', async () => {
-    const trailId = await getProjectId(token, 'NH65');
+    const trailId = await getProjectId(token, 'NH45');
 
     const woRes = await authGet(token, `/api/projects/${trailId}/subcontract/work-orders`);
     const wo = (woRes.body.data as Array<{ id: string; woNumber: string }>).find(

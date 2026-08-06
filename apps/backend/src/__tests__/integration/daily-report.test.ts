@@ -23,8 +23,8 @@ describe('Daily reports (integration)', () => {
   let paintId: string;
   beforeAll(async () => {
     token = await loginAs(OWNER);
-    tpkId = await getProjectId(token, 'NH65');
-    trailId = await getProjectId(token, 'NH65');
+    tpkId = await getProjectId(token, 'NH45');
+    trailId = await getProjectId(token, 'NH45');
     paintId = await getPaintResourceId(token);
   });
 
@@ -118,7 +118,7 @@ describe('Daily reports (integration)', () => {
     });
     expect(res.status).toBe(201);
     expect(res.body.data.stockDeductionApplied).toBe(true);
-    expect(res.body.data.project?.code).toBe('NH65');
+    expect(res.body.data.project?.code).toBe('NH45');
 
     const summaryAfter = await authGet(token, `/api/projects/${trailId}/procurement/stock/summary`);
     const afterRow = (
@@ -155,7 +155,7 @@ describe('Daily reports (integration)', () => {
 
     const detailRes = await authGet(token, `/api/reports/${reports[0]!.id}`);
     expect(detailRes.status).toBe(200);
-    expect(detailRes.body.data.project?.code).toBe('NH65');
+    expect(detailRes.body.data.project?.code).toBe('NH45');
     expect(Array.isArray(detailRes.body.data.materialUsages)).toBe(true);
   });
 });

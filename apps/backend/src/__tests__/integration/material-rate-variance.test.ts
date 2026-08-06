@@ -14,15 +14,15 @@ async function getProjectId(token: string, code: string): Promise<string> {
 
 describe('Material rate variance (integration)', () => {
   let token: string;
-  let nh65Id: string;
+  let nh45Id: string;
 
   beforeAll(async () => {
     token = await loginAs(OWNER);
-    nh65Id = await getProjectId(token, 'NH65');
+    nh45Id = await getProjectId(token, 'NH45');
   });
 
-  it('returns cement planned vs last PO variance on NH-65', async () => {
-    const res = await authGet(token, `/api/projects/${nh65Id}/material-rate-variance`);
+  it('returns cement planned vs last PO variance on NH-45', async () => {
+    const res = await authGet(token, `/api/projects/${nh45Id}/material-rate-variance`);
     expect(res.status).toBe(200);
     const rows = res.body.data as Array<{
       name: string;

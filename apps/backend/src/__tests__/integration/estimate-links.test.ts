@@ -19,7 +19,7 @@ describe('Estimate procurement-link integrity (integration)', () => {
     // FIX: Use OWNER instead of PM — PM may not have project membership
     // for GVR-C, causing 500 errors on project list.
     token = await loginAs(OWNER);
-    projectId = await getProjectId(token, 'NH65');
+    projectId = await getProjectId(token, 'NH45');
 
     // FIX (DAT-2.2): Fetch rate analyses and resources, handle 404 gracefully.
     const raRes = await authGet(token, '/api/rate-analyses');

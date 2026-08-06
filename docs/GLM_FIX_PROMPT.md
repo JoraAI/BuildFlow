@@ -1,7 +1,7 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 38 ASST-PROJ1)
+# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 39 SEED-SUB1)
 
-> **Last committed baseline:** Round 37 — NAV-BACK1 + SUB-UX3 (working tree)  
-> **Active work:** **§2.19** — Project complete UI · Assistant MCP tools in chat · Pre-login product guide
+> **Last committed baseline:** `14cf67d` — Reseed single project (NH-65, not NH-45) · 131/131 tests  
+> **Active work:** **§2.20** — Rename/fix NH-45 seed density · Subscription plan enforcement
 
 ---
 
@@ -3394,3 +3394,187 @@ If GLM writes a migration to `prisma/m`, a hook to `hooks/use`, or a schema
 change without a migration folder again, **stop and fix the process** before
 continuing. Three occurrences of the same mistake means the prompt must be
 followed line-by-line with a checklist per PR.
+
+---
+
+## 2.20 Round 39 — SEED-NH45 verification + SUB-PLAN1 subscription wiring
+
+**User request (2026-08-06):** Reseed with **one project only**, **do not change**
+`catalog-data.ts` or `rate-analysis-data.ts` (RAs/materials library), add **detailed
+valid in-between sections/items** for **NH-45**, update tests.
+
+**Verification verdict on commit `14cf67d`:** **Partially good** — lifecycle chain works,
+tests pass, catalog untouched; but **wrong highway name**, **thin estimate sections**,
+and **subscription plan limits are marketing-only** (not enforced in API).
+
+### 2.20.1 What GLM got right (keep)
+
+| Item | Status |
+| ---- | ------ |
+| Single tenant project (removed GVR-C, TRAIL, TPK-RENO) | ✅ |
+| `catalog-data.ts` + `rate-analysis-data.ts` unchanged | ✅ (0-line diff in commit) |
+| Full lifecycle on one project: estimate → BOQ → procurement → stock → subcontract → invoices (incl. RA) → change orders → daily reports | ✅ |
+| Demo company `PROFESSIONAL` / `ACTIVE` subscription in seed | ✅ |
+| TRUNCATE guard (`SEED_ALLOW_TRUNCATE=1`, blocks production) | ✅ |
+| Redis disconnect in seed `finally` | ✅ |
+| Integration tests updated; **131/131 pass** | ✅ |
+
+**Seed credentials unchanged:** `owner@reddyconst.com` / `Test@1234` · platform admin
+`admin@buildflow.com` / `Admin@1234`.
+
+### 2.20.2 What GLM got wrong (fix in this round)
+
+#### A) NH-45 vs NH-65 (user asked NH-45)
+
+GLM seeded **NH-65 Road Widening** (`code: NH65`, address `NH-65, Hyderabad`). User
+explicitly said **NH-45**.
+
+**Do:**
+
+1. Rename project everywhere:
+   - `name`: `NH-45 Road Widening` (or `NH-45 Four-Laning` — pick one, stay consistent)
+   - `code`: `NH45` (not `NH65`)
+   - `locationAddress`: real NH-45 corridor copy (e.g. Chennai–Trichy stretch or
+     Hyderabad-adjacent NH-45 if keeping Telangana rate region — document choice in seed comment)
+   - Estimate name: `NH-45 Baseline Estimate`
+   - Auto-indent `sourceRef`: match new estimate name
+2. Update **all** test references:
+   - `test-helpers.ts` `getSeedProjectId` → prefer `NH45`
+   - Replace `NH65` / `NH-65` / legacy labels **GVR**, **Trail**, **TPK**, **TechPark** in
+     test names and variables with `NH45` / `nh45Id` (tests currently alias all three project
+     IDs to the same NH65 row — confusing)
+   - `material-rate-alert.test.ts`: body assertion should say `NH45`, not `NH65`
+3. Update `GLM_FIX_PROMPT.md` §2.9+ cross-references that still say NH65/GVR where they
+   mean the seed project.
+
+**Do NOT** touch `catalog-data.ts` or `rate-analysis-data.ts`.
+
+#### B) Estimate sections/items too thin (“detailed valid inbetween sections/items”)
+
+Current seed:
+
+- Section **Earthwork & PCC**: 2 items (`O-001`, `O-002`)
+- Section **Finishing**: **created but empty** (`estSec2` has zero items)
+- `emulsionPaintRa` looked up (`Distemper Painting (2 Coats)`) but **never used** — dead code
+- Only **2 BOQ lines** + 1 subcontract BOQ; no RA-linked estimate line despite RA library
+
+**Target density (minimum — add without breaking existing test IDs where possible):**
+
+| Section | Items (examples — use existing catalog RAs/resources) |
+| ------- | ----------------------------------------------------- |
+| **1. Earthwork & PCC** | Keep `O-001`, `O-002`; add `O-003` U-drain excavation (RA-linked earthwork if available), `O-004` PCC M15 with `rateAnalysisId` from existing RA |
+| **2. Pavement & Drainage** (rename empty “Finishing”) | `O-010` WMM layer (cum), `O-011` DBM 40mm (sqm), `O-012` Road marking (lot) — at least one **SUBCONTRACTOR** type for BOQ-003 test |
+| **3. Finishing & Signage** | `O-020` Distemper/road furniture item linked to `Distemper Painting (2 Coats)` RA **or** signage lump sum |
+
+**Rules:**
+
+- Every new estimate item must have valid `unit`, `quantity`, `rate`, `amount = qty × rate`.
+- Prefer `rateAnalysisId` on at least **2** items (proves RA → estimate chain).
+- BOQ: add matching items with `estimateItemId` links; keep **`BOQ-001`**, **`BOQ-002`**, **`BOQ-003`**
+  codes stable (tests depend on them) — extend with `BOQ-004+` if needed.
+- WBS/tasks: add 1–2 tasks under new sections with realistic `progressPct` (daily reports already
+  reference `t3` — extend or add `t4` for pavement).
+- Reconcile estimate `subtotal` / `grandTotal` with sum of line items.
+
+#### C) Seed data quality nits
+
+1. **Duplicate subcontract measurements** on `WO-001` (two APPROVED sheets, one with
+   `workOrderLineId`, one without) — keep **one** canonical approved sheet linked to bill
+   `SC-WO-001-FEB`; second can be `DRAFT` or different period label if needed for list tests.
+2. **`estItemEarthwork`** incorrectly sets `resourceId` to cement — earthwork should **not**
+   carry cement `resourceId` (use null or correct earthwork resource if catalog has one).
+3. **`VO-002`** status `SUBMITTED` is valid (`ApprovalStatus`) — keep for workflow tests.
+
+#### D) Seed run contract (document in seed header)
+
+```bash
+SEED_ALLOW_TRUNCATE=1 pnpm --filter @buildflow/backend db:seed
+pnpm --filter @buildflow/backend test   # expect 131+ pass, 0 fail
+```
+
+### 2.20.3 SUB-PLAN1 — Subscription model wiring audit
+
+**Currently wired (do not break):**
+
+| Layer | Behaviour |
+| ----- | --------- |
+| Schema | `Company.subscriptionPlan`, `subscriptionStatus`, `trialStartsAt`, `trialEndsAt`, `lastPaymentAt` |
+| Registration | `auth.service` → `initializeTrial()` → STARTER + TRIAL + trial window |
+| Auth middleware | Blocks API when EXPIRED, CANCELLED, or trial past `trialEndsAt` (402 payment required); billing routes exempt (`/api/settings/billing`, webhooks) |
+| Cron | `subscription.service` `runSubscriptionCron()` — 7/3/1-day reminders, auto EXPIRED |
+| Checkout | `saas-billing.service` Razorpay/Stripe → sets plan ACTIVE + `lastPaymentAt` |
+| UI | `settings/billing.tsx`, platform admin subscription edit |
+| Seed | Demo tenant PROFESSIONAL/ACTIVE (intentionally above STARTER limits for QA) |
+
+**NOT wired (implement this round):**
+
+| Gap | Required behaviour |
+| --- | ------------------ |
+| **Plan limits** | Marketing says Starter = **3 projects**, **5 users** (`PRODUCT_OVERVIEW.md`, `marketing.ts`, assistant prompt). **No enforcement** on `POST /api/projects`, user invite, or elsewhere. |
+| **Feature gating by plan** | E.g. procurement/subcontracts on Professional+ — currently permission-only |
+| **Pricing copy drift** | Assistant prompt says Professional ~₹9,999; `PLAN_PRICES_INR.PROFESSIONAL` = **13999**. Align all copy to `@buildflow/shared` pricing. |
+| **`PLAN_ANNUAL_INR`** | Missing ENTERPRISE entry (`FIN-L8` in audit) — add or document “contact sales” |
+| **TECHNICAL_OVERVIEW** | Claims cron does “plan enforcement” — false today; update after code lands |
+
+**Implementation spec (minimal, testable):**
+
+1. Add `packages/shared/src/subscription-limits.ts`:
+
+```ts
+export const PLAN_LIMITS = {
+  STARTER: { maxProjects: 3, maxUsers: 5 },
+  PROFESSIONAL: { maxProjects: 25, maxUsers: 25 },
+  ENTERPRISE: { maxProjects: null, maxUsers: null }, // unlimited
+} as const;
+```
+
+2. Add `assertPlanAllows(companyId, action: 'create_project' | 'invite_user')` in
+   `subscription.service.ts` (or new `plan-enforcement.service.ts`):
+   - Count active projects / active users for company
+   - Compare to `PLAN_LIMITS[company.subscriptionPlan]`
+   - Throw `ApiError.paymentRequired` or `403` with upgrade message naming the limit
+   - **Skip** when `subscriptionStatus === TRIAL` (trial = Starter limits) OR document
+     if trial should allow unlimited — **default: apply Starter limits during trial**
+
+3. Call enforcement from:
+   - `project.service.ts` `createProject` (before insert)
+   - User invite / registration path that adds company users (find exact handler)
+
+4. **Do NOT** block reads/list on expired plan beyond existing auth middleware.
+
+5. Integration tests (new file `subscription-limits.test.ts`):
+   - Seed/demo company (PROFESSIONAL) can create 4th project when under limit
+   - Temporarily set company to STARTER + ACTIVE with 3 projects → 4th `POST /projects` → 402/403
+   - Same for user count if invite API exists
+
+6. Optional mobile: show limit in Billing screen (“2 of 3 projects used”) from new
+   `GET /settings/subscription` field — only if backend exposes counts cheaply.
+
+**Anti-patterns:**
+
+- Do not hardcode limits in mobile only — backend must enforce
+- Do not change seed catalog/RAs
+- Do not lower demo company below PROFESSIONAL without updating tests that create extra projects
+
+### 2.20.4 Round 39 Definition of Done
+
+- [ ] Project renamed to **NH-45** / code **NH45** in seed + all tests + prompt cross-refs
+- [ ] Estimate has **≥3 sections**, **≥8 line items**, **≥2 RA-linked**, Finishing section populated
+- [ ] No duplicate approved WO measurements unless intentional (document in seed comment)
+- [ ] `catalog-data.ts` and `rate-analysis-data.ts` **unchanged** (verify `git diff` empty)
+- [ ] `pnpm --filter @buildflow/backend test`: **131+ pass**, 0 fail, two consecutive runs
+- [ ] `PLAN_LIMITS` enforced on project create (+ user invite if applicable) with integration tests
+- [ ] Pricing copy in `prompt-builder.ts` / chatbot matches `PLAN_PRICES_INR`
+- [ ] `TECHNICAL_OVERVIEW.md` cron row updated to match actual enforcement
+
+### 2.20.5 Manual QA (NH-45 seed)
+
+After reseed, log in as `owner@reddyconst.com`:
+
+1. Projects list shows **one** project NH-45
+2. Estimate → sections expand with multiple items; at least one shows linked RA
+3. BOQ-001/002/003 present; procurement IND-001 + stock 500 bag cement
+4. Subcontract WO-001 → measurement + bill visible
+5. Invoice list: INV-2025-001 + RA-2025-001
+6. Settings → Billing shows PROFESSIONAL ACTIVE
+7. (After SUB-PLAN1) Create 4th project on a STARTER test company → blocked with upgrade message

@@ -25,23 +25,23 @@ async function getCementResourceId(token: string): Promise<string> {
 
 describe('Material rate resolution (integration)', () => {
   let token: string;
-  let nh65Id: string;
+  let nh45Id: string;
   let gvrId: string;
   let tpkId: string;
   let cementId: string;
 
   beforeAll(async () => {
     token = await loginAs(OWNER);
-    nh65Id = await getProjectId(token, 'NH65');
-    gvrId = await getProjectId(token, 'NH65');
-    tpkId = await getProjectId(token, 'NH65');
+    nh45Id = await getProjectId(token, 'NH45');
+    gvrId = await getProjectId(token, 'NH45');
+    tpkId = await getProjectId(token, 'NH45');
     cementId = await getCementResourceId(token);
   });
 
   // FIX (DAT-2.2): Don't assert exact rates — derive dynamically.
   // Other test suites (resource-bulk) may mutate the catalog rate.
-  it('NH-65 cement resolves from project override', async () => {
-    const res = await authGet(token, `/api/projects/${nh65Id}/resources/${cementId}/rate`);
+  it('NH-45 cement resolves from project override', async () => {
+    const res = await authGet(token, `/api/projects/${nh45Id}/resources/${cementId}/rate`);
     expect(res.status).toBe(200);
     expect(res.body.data.rate).toBeGreaterThan(0);
     expect(['PROJECT', 'ESTIMATE', 'BOQ', 'LAST_PO', 'CATALOG', 'REGION']).toContain(res.body.data.source);

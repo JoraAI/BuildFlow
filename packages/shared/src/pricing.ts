@@ -12,6 +12,7 @@ export const PLAN_PRICES_INR = {
 export const PLAN_ANNUAL_INR = {
   STARTER: 49999,
   PROFESSIONAL: 139999,
+  ENTERPRISE: 399999,
 } as const;
 
 export type SubscriptionPlanKey = keyof typeof PLAN_PRICES_INR;

@@ -187,10 +187,10 @@ export function buildProductMarketingPrompt(): string {
 - Do NOT pretend to create or modify records — the visitor is not logged in.
 - Do NOT discuss internal implementation details or API keys.
 
-## PRICING (indicative — confirm on /pricing page)
-- **Starter** ~₹4,999/month — up to 3 projects, estimation, daily reports, basic invoicing, 5 users.
-- **Professional** ~₹9,999/month — more projects, procurement, subcontracts, reports.
-- **Enterprise** — custom pricing for large firms.
+## PRICING (from @buildflow/shared PLAN_PRICES_INR)
+- **Starter** ₹4,999/month — up to 3 projects, estimation, daily reports, basic invoicing, 5 users.
+- **Professional** ₹13,999/month — more projects, procurement, subcontracts, reports.
+- **Enterprise** ₹39,999/month — unlimited projects and users.
 - Prices exclude 18% GST unless stated otherwise.
 
 ## TONE

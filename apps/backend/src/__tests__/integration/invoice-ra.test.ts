@@ -31,11 +31,11 @@ describe('RA invoices (integration)', () => {
     const projects = projectsRes.body.data as Array<{ id: string; code: string }>;
     const otherProject = projects.find((p) => p.id !== projectId);
 
-    const nh65Res = await authGet(token, `/api/projects/${projectId}/invoices`);
-    expect(nh65Res.status).toBe(200);
-    const nh65Numbers = (nh65Res.body.data as Array<{ invoiceNumber: string }>).map((i) => i.invoiceNumber);
-    expect(nh65Numbers.length).toBeGreaterThan(0);
-    expect(nh65Numbers).toContain('RA-2025-001');
+    const nh45Res = await authGet(token, `/api/projects/${projectId}/invoices`);
+    expect(nh45Res.status).toBe(200);
+    const nh45Numbers = (nh45Res.body.data as Array<{ invoiceNumber: string }>).map((i) => i.invoiceNumber);
+    expect(nh45Numbers.length).toBeGreaterThan(0);
+    expect(nh45Numbers).toContain('RA-2025-001');
 
     // Only verify cross-project isolation if a second project exists
     if (otherProject) {

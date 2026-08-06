@@ -597,7 +597,8 @@ Webhook routes capture the **raw body** before JSON parsing (see [§4](#4-backen
 |------|---------|
 | `lib/queue.ts` | BullMQ queue(s) on Redis |
 | `jobs/notification.worker.ts` | Processes notification dispatch (Expo push, WhatsApp, SMS) |
-| `jobs/subscription.cron.ts` | Trial expiry checks (sends reminders at 7/3/1 days), plan enforcement |
+| `jobs/subscription.cron.ts` | Trial expiry checks (sends reminders at 7/3/1 days), auto-EXPIRED status |
+| `services/plan-enforcement.service.ts` | SUB-PLAN1: Enforces `PLAN_LIMITS` (maxProjects, maxUsers) on project create + user invite (402 on limit reached) |
 | `services/report-schedule.service.ts` | Cron-driven report generation (`ReportSchedule`) |
 
 Jobs run within `runInCompanyContext()` so the ALS-based Prisma scoping applies.

@@ -18,6 +18,7 @@ import type {
   UpdateWbsItemInput,
 } from '@buildflow/shared';
 import { assertRateRegionForProject } from './project-material-rate.service';
+import { assertPlanAllowsProject } from './plan-enforcement.service';
 
 // Project summary is recomputed-heavy; cache for 2 min per spec.
 const SUMMARY_TTL = 2 * 60;
@@ -91,6 +92,9 @@ export async function createProject(
   input: CreateProjectInput,
   ipAddress?: string,
 ) {
+  // SUB-PLAN1: Enforce plan project limit before creating
+  await assertPlanAllowsProject(companyId);
+
   // Check unique code within company
   const existing = await prisma.project.findFirst({
     where: { companyId, code: input.code, isDeleted: false },

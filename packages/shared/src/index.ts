@@ -13,6 +13,7 @@ export * from './types';
 export * from './validators';
 export * from './constants';
 export * from './pricing';
+export * from './subscription-limits';
 export * from './permissions';
 export * from './utils/date';
 

@@ -2,7 +2,7 @@
  * BuildFlow - Database seed.
  *
  * Creates the sample company "Reddy Constructions Pvt Ltd" + 9 users (all roles),
- * realistic resources, composite rate analyses, and 1 project (NH-65 Road Widening)
+ * realistic resources, composite rate analyses, and 1 project (NH-45 Road Widening)
  * with complete lifecycle: estimate → BOQ → procurement → stock → subcontract →
  * invoices → change orders → daily reports.
  *
@@ -458,20 +458,20 @@ async function main(): Promise<void> {
   });
 
   // ----------------------------------------------------------------
-  // Project 1 - NH-65 Road Widening (ONLY project — complete lifecycle)
+  // Project 1 - NH-45 Road Widening (ONLY project — complete lifecycle)
   // ----------------------------------------------------------------
   const project1 = await prisma.project.create({
     data: {
       companyId: company.id,
-      name: 'NH-65 Road Widening',
-      code: 'NH65',
+      name: 'NH-45 Road Widening',
+      code: 'NH45',
       type: ProjectType.HEAVY,
       status: ProjectStatus.IN_PROGRESS,
       clientName: 'NHAI',
       clientContact: 'pi@nhai.gov.in',
       locationLat: 17.385,
       locationLng: 78.4867,
-      locationAddress: 'NH-65, Hyderabad, Telangana',
+      locationAddress: 'NH-45, Hyderabad, Telangana',
       startDate: new Date('2025-01-15'),
       endDate: new Date('2026-06-30'),
       budget: 24_500_000,
@@ -523,15 +523,28 @@ async function main(): Promise<void> {
   // ESTIMATE → BOQ → PROCUREMENT full chain on NH-65
   // ----------------------------------------------------------------
 
-  // Approved estimate with sections + line items (some RA-linked)
+  // Look up RAs for estimate linking (from rate-analysis-data.ts via seed above)
+  const raPccM15 = await prisma.rateAnalysis.findFirstOrThrow({
+    where: { companyId: company.id, name: 'PCC M15 (1:2:4)' },
+  });
+  const raRccM30 = await prisma.rateAnalysis.findFirstOrThrow({
+    where: { companyId: company.id, name: 'RCC M30' },
+  });
+  const raDistemper = await prisma.rateAnalysis.findFirstOrThrow({
+    where: { companyId: company.id, name: 'Distemper Painting (2 Coats)' },
+  });
+
+  // ── Estimate: 3 sections, 8+ items, 3 RA-linked ──────────────
+  // Section totals: 2,216,000 (earthwork) + 3,750,000 (pavement) + 380,000 (finishing)
+  // Grand total: 6,346,000
   const estimate1 = await prisma.estimate.create({
     data: {
       projectId: project1.id,
       companyId: company.id,
-      name: 'NH-65 Baseline Estimate',
+      name: 'NH-45 Baseline Estimate',
       status: EstimateStatus.APPROVED,
-      subtotal: 1_490_000,
-      grandTotal: 1_490_000,
+      subtotal: 6_346_000,
+      grandTotal: 6_346_000,
       createdBy: pm.id,
       approvedBy: owner.id,
       approvedAt: new Date('2025-01-20'),
@@ -539,37 +552,102 @@ async function main(): Promise<void> {
   });
 
   const estSec1 = await prisma.estimateSection.create({
-    data: { estimateId: estimate1.id, name: 'Earthwork & PCC', orderIndex: 1 },
+    data: { estimateId: estimate1.id, name: 'Earthwork & Substructure', orderIndex: 1 },
   });
   const estSec2 = await prisma.estimateSection.create({
-    data: { estimateId: estimate1.id, name: 'Finishing', orderIndex: 2 },
+    data: { estimateId: estimate1.id, name: 'Pavement & Drainage', orderIndex: 2 },
+  });
+  const estSec3 = await prisma.estimateSection.create({
+    data: { estimateId: estimate1.id, name: 'Finishing & Signage', orderIndex: 3 },
   });
 
+  // Section 1: Earthwork & Substructure (4 items, 2 RA-linked)
   const estItemEarthwork = await prisma.estimateItem.create({
     data: {
-      estimateId: estimate1.id,
-      sectionId: estSec1.id,
-      itemCode: 'O-001',
-      description: 'Earthwork excavation',
-      unit: 'cum',
-      quantity: 1000,
-      rate: 450,
-      amount: 450_000,
+      estimateId: estimate1.id, sectionId: estSec1.id, itemCode: 'O-001',
+      description: 'Earthwork excavation in ordinary soil',
+      unit: 'cum', quantity: 5000, rate: 145, amount: 725_000,
       type: CostType.MATERIAL,
-      resourceId: resources['OPC Cement 53 Grade'].id,
+      // Earthwork has no direct catalog resource — leave resourceId null (was wrongly cement before)
+    },
+  });
+
+  const estItemDrain = await prisma.estimateItem.create({
+    data: {
+      estimateId: estimate1.id, sectionId: estSec1.id, itemCode: 'O-002',
+      description: 'U-drain excavation & refilling',
+      unit: 'cum', quantity: 800, rate: 180, amount: 144_000,
+      type: CostType.MATERIAL,
+      resourceId: resources['River Sand (Fine)'].id,
     },
   });
 
   const estItemPcc = await prisma.estimateItem.create({
     data: {
-      estimateId: estimate1.id,
-      sectionId: estSec1.id,
-      itemCode: 'O-002',
-      description: 'PCC M15',
-      unit: 'cum',
-      quantity: 200,
-      rate: 5200,
-      amount: 1_040_000,
+      estimateId: estimate1.id, sectionId: estSec1.id, itemCode: 'O-003',
+      description: 'PCC M15 (1:2:4) in foundation',
+      unit: 'cum', quantity: 150, rate: 5200, amount: 780_000,
+      type: CostType.MATERIAL,
+      rateAnalysisId: raPccM15.id,  // RA-linked
+    },
+  });
+
+  const estItemRcc = await prisma.estimateItem.create({
+    data: {
+      estimateId: estimate1.id, sectionId: estSec1.id, itemCode: 'O-004',
+      description: 'RCC M30 slab & retaining wall',
+      unit: 'cum', quantity: 320, rate: 1772, amount: 567_000,
+      type: CostType.MATERIAL,
+      rateAnalysisId: raRccM30.id,  // RA-linked
+    },
+  });
+
+  // Section 2: Pavement & Drainage (3 items, 1 RA-linked, 1 SUBCONTRACTOR)
+  const estItemWmm = await prisma.estimateItem.create({
+    data: {
+      estimateId: estimate1.id, sectionId: estSec2.id, itemCode: 'O-010',
+      description: 'WMM (Wet Mix Macadam) sub-base layer',
+      unit: 'cum', quantity: 2000, rate: 1200, amount: 2_400_000,
+      type: CostType.MATERIAL,
+      resourceId: resources['WMM (Wet Mix Macadam)'].id,
+    },
+  });
+
+  const estItemDbm = await prisma.estimateItem.create({
+    data: {
+      estimateId: estimate1.id, sectionId: estSec2.id, itemCode: 'O-011',
+      description: 'DBM (Dense Bituminous Macadam) 40mm course',
+      unit: 'sqm', quantity: 15000, rate: 650, amount: 975_000,
+      type: CostType.MATERIAL,
+      resourceId: resources['DBM Mix Material (per ton)'].id,
+    },
+  });
+
+  const estItemRoadMark = await prisma.estimateItem.create({
+    data: {
+      estimateId: estimate1.id, sectionId: estSec2.id, itemCode: 'O-012',
+      description: 'Road marking & thermoplastic signage',
+      unit: 'lot', quantity: 1, rate: 375_000, amount: 375_000,
+      type: CostType.SUBCONTRACTOR,
+    },
+  });
+
+  // Section 3: Finishing & Signage (2 items, 1 RA-linked)
+  const estItemDistemper = await prisma.estimateItem.create({
+    data: {
+      estimateId: estimate1.id, sectionId: estSec3.id, itemCode: 'O-020',
+      description: 'Distemper painting on median walls',
+      unit: 'sqm', quantity: 2000, rate: 85, amount: 170_000,
+      type: CostType.MATERIAL,
+      rateAnalysisId: raDistemper.id,  // RA-linked
+    },
+  });
+
+  const estItemSignage = await prisma.estimateItem.create({
+    data: {
+      estimateId: estimate1.id, sectionId: estSec3.id, itemCode: 'O-021',
+      description: 'Metal signage & retro-reflective boards',
+      unit: 'Nos', quantity: 40, rate: 5250, amount: 210_000,
       type: CostType.MATERIAL,
     },
   });
@@ -577,13 +655,9 @@ async function main(): Promise<void> {
   // BOQ items linked to estimate items (estimate→BOQ conversion chain)
   const boqEarth = await prisma.bOQItem.create({
     data: {
-      projectId: project1.id,
-      itemCode: 'BOQ-001',
-      description: 'Earthwork excavation',
-      unit: 'cum',
-      quantity: 1000,
-      rate: 450,
-      amount: 450_000,
+      projectId: project1.id, itemCode: 'BOQ-001',
+      description: 'Earthwork excavation in ordinary soil',
+      unit: 'cum', quantity: 5000, rate: 145, amount: 725_000,
       category: 'EARTHWORK',
       estimateItemId: estItemEarthwork.id,
     },
@@ -591,13 +665,9 @@ async function main(): Promise<void> {
 
   const boqPcc = await prisma.bOQItem.create({
     data: {
-      projectId: project1.id,
-      itemCode: 'BOQ-002',
-      description: 'PCC M15',
-      unit: 'cum',
-      quantity: 200,
-      rate: 5200,
-      amount: 1_040_000,
+      projectId: project1.id, itemCode: 'BOQ-002',
+      description: 'PCC M15 (1:2:4) in foundation',
+      unit: 'cum', quantity: 150, rate: 5200, amount: 780_000,
       category: 'MATERIAL',
       resourceId: resources['OPC Cement 53 Grade'].id,
       estimateItemId: estItemPcc.id,
@@ -607,14 +677,11 @@ async function main(): Promise<void> {
   // SUBCONTRACTOR BOQ item (needed for from-boq WO creation test)
   const boqSubcontractor = await prisma.bOQItem.create({
     data: {
-      projectId: project1.id,
-      itemCode: 'BOQ-003',
-      description: 'Road marking & signage sub-contract',
-      unit: 'lot',
-      quantity: 1,
-      rate: 350_000,
-      amount: 350_000,
+      projectId: project1.id, itemCode: 'BOQ-003',
+      description: 'Road marking & thermoplastic signage',
+      unit: 'lot', quantity: 1, rate: 375_000, amount: 375_000,
       category: 'SUBCONTRACTOR',
+      estimateItemId: estItemRoadMark.id,
     },
   });
 
@@ -939,7 +1006,7 @@ async function main(): Promise<void> {
       reqNumber: 'IND-AUTO-EST-001',
       status: 'DRAFT',
       sourceType: 'ESTIMATE_CONVERT',
-      sourceRef: 'NH-65 Baseline Estimate',
+      sourceRef: 'NH-45 Baseline Estimate',
       requestedBy: pm.id,
       notes: 'Auto-generated from estimate convert - review before submit.',
       lines: {
@@ -957,22 +1024,21 @@ async function main(): Promise<void> {
     },
   });
 
+  // Second measurement is DRAFT (not duplicate APPROVED — spec §2.20.2.C nit #1)
   await prisma.subcontractMeasurement.create({
     data: {
       workOrderId: wo.id,
-      periodLabel: 'Feb 2025',
-      status: 'APPROVED',
-      totalAmount: 180_000,
-      approvedBy: owner.id,
-      approvedAt: new Date('2025-03-01'),
+      periodLabel: 'Mar 2025',
+      status: 'DRAFT',
+      totalAmount: 220_000,
       lines: {
         create: [
           {
-            description: 'Excavation completed',
-            quantity: 400,
+            description: 'Excavation - chainage 500m to 1km (draft)',
+            quantity: 440,
             unit: 'cum',
-            rate: 450,
-            amount: 180_000,
+            rate: 500,
+            amount: 220_000,
           },
         ],
       },

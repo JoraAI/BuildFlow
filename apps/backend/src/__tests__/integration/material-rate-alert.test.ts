@@ -23,13 +23,13 @@ async function getProjectId(token: string, code: string): Promise<string> {
 
 describe('Material rate PO alerts (integration)', () => {
   let token: string;
-  /** TPK-RENO avoids polluting NH-65 last-PO variance fixtures. */
+  /** NH45 avoids polluting NH-45 last-PO variance fixtures. */
   let projectId: string;
   let cementId: string;
 
   beforeAll(async () => {
     token = await loginAs(OWNER);
-    projectId = await getProjectId(token, 'NH65');
+    projectId = await getProjectId(token, 'NH45');
     cementId = await getCementResourceId(token);
   });
 
@@ -58,7 +58,7 @@ describe('Material rate PO alerts (integration)', () => {
     const items = notifRes.body.data.items as Array<{ type: string; body: string }>;
     const alert = items.find((n) => n.type === 'MATERIAL_RATE_VARIANCE' && n.body.includes('500'));
     expect(alert).toBeTruthy();
-    expect(alert!.body).toContain('NH65');
+    expect(alert!.body).toContain('NH45');
   });
 
   it('returns material rate sheet PDF', async () => {
