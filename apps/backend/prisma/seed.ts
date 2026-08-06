@@ -1133,8 +1133,6 @@ main()
     process.exit(1);
   })
   .finally(async () => {
-    // FIX (DAT-1.1): Disconnect Redis too — otherwise the open ioredis
-    // connection keeps the process alive and the seed never exits.
     await disconnectRedis();
     await prisma.$disconnect();
   });

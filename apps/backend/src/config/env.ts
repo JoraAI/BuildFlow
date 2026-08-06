@@ -22,13 +22,21 @@ function findEnvPath(): string | undefined {
 
 dotenv.config({ path: findEnvPath() });
 
+/** Accept redis:// and rediss:// (Upstash TLS). Zod .url() rejects rediss://. */
+const redisUrlSchema = z
+  .string()
+  .min(1)
+  .refine((v) => /^rediss?:\/\/.+/i.test(v.trim()), {
+    message: 'Must be a redis:// or rediss:// URL (use Upstash "Redis" tab, not REST URL)',
+  });
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().default(4000),
 
   DATABASE_URL: z.string().url(),
 
-  REDIS_URL: z.string().url().default('redis://localhost:6379'),
+  REDIS_URL: redisUrlSchema.default('redis://localhost:6379'),
 
   // FIX (SEC-L16): Require ≥32-char JWT secrets in production; reject placeholders.
   JWT_ACCESS_SECRET: z.string().min(32),

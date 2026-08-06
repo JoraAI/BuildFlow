@@ -9,19 +9,39 @@ import { logger } from '../config/logger';
 
 const globalForRedis = globalThis as unknown as { __redis?: Redis; __redisSub?: Redis };
 
+/** Mask password in logs. */
+function redactRedisUrl(url: string): string {
+  return url.replace(/:([^:@/]+)@/, ':***@');
+}
+
+/**
+ * Upstash requires TLS. Users often paste `redis://` from `redis-cli --tls -u`;
+ * auto-upgrade to rediss:// for *.upstash.io hosts.
+ */
+function resolveRedisConnection(rawUrl: string): { url: string; tls?: Record<string, never> } {
+  let url = rawUrl.trim();
+  if (/\.upstash\.io/i.test(url) && url.startsWith('redis://')) {
+    url = `rediss://${url.slice('redis://'.length)}`;
+    logger.warn('Upstash host detected — use rediss:// in REDIS_URL (TLS required)');
+  }
+  return { url, tls: url.startsWith('rediss://') ? {} : undefined };
+}
+
 function createClient(): Redis {
-  const client = new Redis(env.REDIS_URL, {
+  const { url, tls } = resolveRedisConnection(env.REDIS_URL);
+  const client = new Redis(url, {
     maxRetriesPerRequest: 3,
     enableReadyCheck: true,
     lazyConnect: false,
     keyPrefix: 'buildflow:',
+    ...(tls ? { tls } : {}),
   });
 
   client.on('error', (err) => {
     logger.error('Redis error', { error: err.message });
   });
   client.on('connect', () => {
-    logger.info('Redis connected', { url: env.REDIS_URL });
+    logger.info('Redis connected', { url: redactRedisUrl(url) });
   });
 
   return client;
@@ -71,7 +91,9 @@ export async function cacheInvalidate(key: string): Promise<void> {
 
 export async function disconnectRedis(): Promise<void> {
   try {
-    await redis.quit();
+    redis.removeAllListeners();
+    // Force-close — quit() hangs when TLS/upstream commands are failing (seed exit).
+    redis.disconnect(false);
   } catch (err) {
     logger.error('Redis disconnect failed', { error: String(err) });
   }
