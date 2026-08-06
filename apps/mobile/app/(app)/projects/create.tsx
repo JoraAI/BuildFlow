@@ -113,14 +113,14 @@ export default function CreateProjectScreen() {
               label="Project Name"
               value={form.name}
               onChangeText={(v) => set('name', v)}
-              placeholder="e.g. NH-65 Road Widening"
+              placeholder="e.g. NH-45 Road Widening"
               error={errors.name}
             />
             <Input
               label="Project Code"
               value={form.code}
               onChangeText={(v) => set('code', v)}
-              placeholder="e.g. NH65-RW-2025"
+              placeholder="e.g. NH45-RW-2025"
               error={errors.code}
               helper="Unique code, used in BOQ and invoice references"
             />

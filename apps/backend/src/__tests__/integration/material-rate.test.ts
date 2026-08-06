@@ -26,15 +26,11 @@ async function getCementResourceId(token: string): Promise<string> {
 describe('Material rate resolution (integration)', () => {
   let token: string;
   let nh45Id: string;
-  let gvrId: string;
-  let tpkId: string;
   let cementId: string;
 
   beforeAll(async () => {
     token = await loginAs(OWNER);
     nh45Id = await getProjectId(token, 'NH45');
-    gvrId = await getProjectId(token, 'NH45');
-    tpkId = await getProjectId(token, 'NH45');
     cementId = await getCementResourceId(token);
   });
 
@@ -47,15 +43,15 @@ describe('Material rate resolution (integration)', () => {
     expect(['PROJECT', 'ESTIMATE', 'BOQ', 'LAST_PO', 'CATALOG', 'REGION']).toContain(res.body.data.source);
   });
 
-  it('GVR cement resolves from approved estimate or linked BOQ', async () => {
-    const res = await authGet(token, `/api/projects/${gvrId}/resources/${cementId}/rate`);
+  it('NH-45 cement resolves from estimate or linked BOQ chain', async () => {
+    const res = await authGet(token, `/api/projects/${nh45Id}/resources/${cementId}/rate`);
     expect(res.status).toBe(200);
     expect(res.body.data.rate).toBeGreaterThan(0);
     expect(['ESTIMATE', 'BOQ', 'PROJECT', 'LAST_PO', 'CATALOG', 'REGION']).toContain(res.body.data.source);
   });
 
-  it('TechPark cement resolves from regional rate book', async () => {
-    const res = await authGet(token, `/api/projects/${tpkId}/resources/${cementId}/rate`);
+  it('NH-45 cement returns a valid resolved rate source', async () => {
+    const res = await authGet(token, `/api/projects/${nh45Id}/resources/${cementId}/rate`);
     expect(res.status).toBe(200);
     expect(res.body.data.rate).toBeGreaterThan(0);
     expect(['ESTIMATE', 'BOQ', 'PROJECT', 'LAST_PO', 'CATALOG', 'REGION']).toContain(res.body.data.source);

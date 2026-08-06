@@ -186,7 +186,7 @@ describe('PDF report line-item completeness (RPT-C4)', () => {
     expect(issueRes.status).toBe(400);
   });
 
-  // RPT-O2: GC_SUPPLIED WO → POST material issue → list returns rows (seed stock on NH65)
+  // RPT-O2: GC_SUPPLIED WO → POST material issue → list returns rows (seed stock on NH45)
   it('issues material to GC_SUPPLIED WO when stock exists', async () => {
     const subRes = await authGet(token, '/api/subcontractors');
     const sub = (subRes.body.data as Array<{ id: string }>)[0];

@@ -2,7 +2,7 @@
  * Subcontract integration tests - summary, retention, BOQ→WO, reject flow.
  */
 import request from 'supertest';
-import { loginAs, authGet, authPost, authPut, authDelete, getSeedProjectId, getProjectId } from './test-helpers';
+import { loginAs, authGet, authPost, authPut, authDelete, getSeedProjectId } from './test-helpers';
 import { app } from '../../app';
 
 const OWNER = 'owner@reddyconst.com';
@@ -10,21 +10,19 @@ const OWNER = 'owner@reddyconst.com';
 describe('Subcontract (integration)', () => {
   let token: string;
   let projectId: string;
-  let trailProjectId: string;
 
   beforeAll(async () => {
     token = await loginAs(OWNER);
     projectId = await getSeedProjectId(token);
-    trailProjectId = await getProjectId(token, 'NH45');
   });
 
   afterAll(async () => {
-    const woRes = await authGet(token, `/api/projects/${trailProjectId}/subcontract/work-orders`);
+    const woRes = await authGet(token, `/api/projects/${projectId}/subcontract/work-orders`);
     const testWo = (woRes.body.data as Array<{ id: string; woNumber: string; _count?: { measurements: number; bills: number } }>).find(
       (w) => w.woNumber === 'WO-TEST-BOQ',
     );
     if (testWo && (testWo._count?.measurements ?? 0) === 0 && (testWo._count?.bills ?? 0) === 0) {
-      await authDelete(token, `/api/projects/${trailProjectId}/subcontract/work-orders/${testWo.id}`);
+      await authDelete(token, `/api/projects/${projectId}/subcontract/work-orders/${testWo.id}`);
     }
   });
 
@@ -135,7 +133,7 @@ describe('Subcontract (integration)', () => {
     expect(resubmit.body.data.status).toBe('SUBMITTED');
   });
 
-  it('creates work order from SUBCONTRACTOR BOQ items on Trail project', async () => {
+  it('creates work order from SUBCONTRACTOR BOQ items on NH-45', async () => {
     const projectsRes = await authGet(token, '/api/projects');
     const trail = (projectsRes.body.data as Array<{ id: string; code: string }>).find(
       (p) => p.code === 'NH45',
@@ -283,7 +281,7 @@ describe('Subcontract (integration)', () => {
   });
 
   it('issues material with boqItemId and reflects subIssuedQty on BOQ list', async () => {
-    const boqRes = await authGet(token, `/api/projects/${trailProjectId}/boq`);
+    const boqRes = await authGet(token, `/api/projects/${projectId}/boq`);
     const carpetBoq = (
       boqRes.body.data.items as Array<{
         id: string;
@@ -301,7 +299,7 @@ describe('Subcontract (integration)', () => {
     expect(sub).toBeTruthy();
 
     const ts = Date.now();
-    const woRes = await authPost(token, `/api/projects/${trailProjectId}/subcontract/work-orders`, {
+    const woRes = await authPost(token, `/api/projects/${projectId}/subcontract/work-orders`, {
       subcontractorId: sub!.id,
       woNumber: `WO-BOQ-LINK-${ts}`,
       scope: 'BOQ link material issue test',
@@ -316,7 +314,7 @@ describe('Subcontract (integration)', () => {
     const issueQty = 5;
     const issueRes = await authPost(
       token,
-      `/api/projects/${trailProjectId}/subcontract/work-orders/${woId}/material-issues`,
+      `/api/projects/${projectId}/subcontract/work-orders/${woId}/material-issues`,
       {
         resourceId: carpetBoq!.resourceId!,
         quantity: issueQty,
@@ -334,7 +332,7 @@ describe('Subcontract (integration)', () => {
     expect(issueRes.status).toBe(201);
     expect(issueRes.body.data.boqItemId).toBe(carpetBoq!.id);
 
-    const boqAfter = await authGet(token, `/api/projects/${trailProjectId}/boq`);
+    const boqAfter = await authGet(token, `/api/projects/${projectId}/boq`);
     const carpetAfter = (
       boqAfter.body.data.items as Array<{ id: string; subIssuedQty?: number }>
     ).find((i) => i.id === carpetBoq!.id);

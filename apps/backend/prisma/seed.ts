@@ -922,7 +922,7 @@ async function main(): Promise<void> {
     where: { workOrderId: wo.id },
   });
 
-  // Approved measurement → linked vendor bill (like Trail's pattern)
+  // Approved measurement → linked vendor bill
   const measApproved = await prisma.subcontractMeasurement.create({
     data: {
       workOrderId: wo.id,

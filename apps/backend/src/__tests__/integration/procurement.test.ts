@@ -347,10 +347,10 @@ describe('Procurement (integration)', () => {
     expect(res.body.error?.message).toMatch(/permission/i);
   });
 
-  it('material procurement on Trail does not auto-certify subcontract WO', async () => {
-    const trailId = await getProjectId(token, 'NH45');
+  it('material procurement on NH-45 does not auto-certify subcontract WO', async () => {
+    const nh45Id = await getProjectId(token, 'NH45');
 
-    const woRes = await authGet(token, `/api/projects/${trailId}/subcontract/work-orders`);
+    const woRes = await authGet(token, `/api/projects/${nh45Id}/subcontract/work-orders`);
     const wo = (woRes.body.data as Array<{ id: string; woNumber: string }>).find(
       (w) => w.woNumber === 'WO-001',
     );
@@ -358,12 +358,12 @@ describe('Procurement (integration)', () => {
 
     const summaryRes = await authGet(
       token,
-      `/api/projects/${trailId}/subcontract/work-orders/${wo!.id}/summary`,
+      `/api/projects/${nh45Id}/subcontract/work-orders/${wo!.id}/summary`,
     );
     expect(summaryRes.status).toBe(200);
     const certifiedTotal = Number(summaryRes.body.data.certifiedTotal);
 
-    const boqRes = await authGet(token, `/api/projects/${trailId}/boq`);
+    const boqRes = await authGet(token, `/api/projects/${nh45Id}/boq`);
     const carpet = (boqRes.body.data.items as Array<{ itemCode: string; procuredQty: number; category: string }>).find(
       (i) => i.itemCode === 'BOQ-002' && i.category === 'MATERIAL',
     );

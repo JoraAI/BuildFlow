@@ -2,6 +2,7 @@
  * BuildFlow - Company subscription / trial lifecycle.
  */
 import { SubscriptionPlan, SubscriptionStatus, Role } from '@prisma/client';
+import { getPlanLimit, type PlanLimitKey } from '@buildflow/shared';
 import { prisma } from '../lib/prisma';
 import { env } from '../config/env';
 import { notify } from './notification.service';
@@ -9,6 +10,13 @@ import { notifyInternalOps } from './ops-notification.service';
 import { logger } from '../config/logger';
 
 export const TRIAL_DAYS = env.TRIAL_DAYS;
+
+export interface SubscriptionUsage {
+  projectCount: number;
+  userCount: number;
+  maxProjects: number | null;
+  maxUsers: number | null;
+}
 
 export interface SubscriptionSummary {
   plan: SubscriptionPlan;
@@ -18,6 +26,7 @@ export interface SubscriptionSummary {
   daysRemaining: number | null;
   isTrial: boolean;
   lastPaymentAt: string | null;
+  usage: SubscriptionUsage;
 }
 
 export function trialEndDate(from: Date = new Date()): Date {
@@ -48,6 +57,17 @@ export async function getSubscriptionSummary(companyId: string): Promise<Subscri
     company.subscriptionStatus === SubscriptionStatus.TRIAL ||
     company.subscriptionStatus === SubscriptionStatus.EXPIRED;
 
+  const planKey: PlanLimitKey =
+    company.subscriptionStatus === SubscriptionStatus.TRIAL
+      ? 'STARTER'
+      : (company.subscriptionPlan as PlanLimitKey);
+  const limits = getPlanLimit(planKey);
+
+  const [projectCount, userCount] = await Promise.all([
+    prisma.project.count({ where: { companyId, isDeleted: false } }),
+    prisma.user.count({ where: { companyId, isActive: true } }),
+  ]);
+
   return {
     plan: company.subscriptionPlan,
     status: company.subscriptionStatus,
@@ -56,6 +76,12 @@ export async function getSubscriptionSummary(companyId: string): Promise<Subscri
     daysRemaining: daysUntil(company.trialEndsAt),
     isTrial,
     lastPaymentAt: company.lastPaymentAt?.toISOString() ?? null,
+    usage: {
+      projectCount,
+      userCount,
+      maxProjects: limits.maxProjects,
+      maxUsers: limits.maxUsers,
+    },
   };
 }
 

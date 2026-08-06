@@ -129,11 +129,11 @@ Add to `~/.cursor/mcp.json`:
 
 Once connected, you can ask the AI:
 
-- *"List all pending bills for the NH-65 project"* → calls `list_bills`
+- *"List all pending bills for the NH-45 project"* → calls `list_bills`
 - *"Create a new resource: TMT Steel Fe550, 12mm, rate 78/kg, GST 18%, HSN 7213"* → calls `create_resource`
 - *"What's the current rate for OPC Cement?"* → calls `list_resources` with search
 - *"Approve bill BILL-2025-003"* → calls `approve_bill`
-- *"Show me the BOQ for Greenview Residency"* → calls `list_boq`
+- *"Show me the BOQ for NH-45 Road Widening"* → calls `list_boq`
 
 If the user's role doesn't have permission for an action, the AI will explain: *"You don't have the `bill.approve` permission. Ask an OWNER to grant it."*
 

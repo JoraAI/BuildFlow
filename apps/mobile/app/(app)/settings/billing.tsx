@@ -41,6 +41,11 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function formatUsage(current: number, max: number | null): string {
+  if (max === null) return `${current} (unlimited)`;
+  return `${current} of ${max}`;
+}
+
 export default function BillingScreen() {
   const router = useRouter();
   const { isDesktop } = useViewport();
@@ -194,6 +199,14 @@ export default function BillingScreen() {
         <DetailRow label="Started" value={formatDate(data.trialStartsAt)} />
         <DetailRow label="Renews / ends" value={formatDate(data.trialEndsAt)} />
         <DetailRow label="Plan tier" value={PLAN_LABELS[data.plan] ?? data.plan} />
+        <DetailRow
+          label="Projects"
+          value={formatUsage(data.usage.projectCount, data.usage.maxProjects)}
+        />
+        <DetailRow
+          label="Team members"
+          value={formatUsage(data.usage.userCount, data.usage.maxUsers)}
+        />
         <DetailRow label="Last payment" value={formatDate(data.lastPaymentAt)} />
       </Card>
     </View>

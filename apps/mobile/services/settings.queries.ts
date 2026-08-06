@@ -441,6 +441,13 @@ export interface BillingAvailability {
   plans: Record<string, number>;
 }
 
+export interface SubscriptionUsage {
+  projectCount: number;
+  userCount: number;
+  maxProjects: number | null;
+  maxUsers: number | null;
+}
+
 export interface SubscriptionSummary {
   plan: 'STARTER' | 'PROFESSIONAL' | 'ENTERPRISE';
   status: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'CANCELLED' | 'EXPIRED';
@@ -449,6 +456,7 @@ export interface SubscriptionSummary {
   daysRemaining: number | null;
   isTrial: boolean;
   lastPaymentAt: string | null;
+  usage: SubscriptionUsage;
   billing?: BillingAvailability;
 }
 

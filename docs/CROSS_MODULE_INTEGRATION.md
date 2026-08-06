@@ -11,7 +11,7 @@ Use this checklist when adding or changing features that span backend APIs, mobi
 5. **Query invalidation bundle updated** – use shared helpers in `apps/mobile/lib/project-query-invalidation.ts`
 6. **Integration test** – happy path + at least two edge cases, or document why N/A
 7. **Seed demo reflects the flow** – seed data should exercise the primary user journey
-8. **Test cleanup** – isolated project or `afterAll` cleanup when mutating shared seed projects (e.g. Trail)
+8. **Test cleanup** – isolated project or `afterAll` cleanup when mutating shared seed projects (e.g. NH-45)
 9. **Plain-language next step** – every workflow screen shows what happens next in beginner-friendly language (see in-app Help center)
 
 ## PR review prompts
@@ -45,6 +45,5 @@ Use this checklist when adding or changing features that span backend APIs, mobi
 
 | Project | Demo |
 |---------|------|
-| NH-65 | WO-001 earthwork, measurements, VO-002 linked to WO |
-| Trail | WO-TRAIL-001 with approved bill `SC-WO-TRAIL-001-MAY` and partial `paidAmount` (₹10,000) |
-| Trail | Carpet BOQ procured via GRN – independent of subcontract certification |
+| NH-45 | WO-001 earthwork, measurements, VO-002 linked to WO |
+| NH-45 | Cement BOQ (BOQ-002) procured via GRN — independent of subcontract certification |

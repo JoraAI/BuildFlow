@@ -18,13 +18,11 @@ async function getPaintResourceId(token: string): Promise<string> {
 
 describe('Daily reports (integration)', () => {
   let token: string;
-  let tpkId: string;
-  let trailId: string;
+  let nh45Id: string;
   let paintId: string;
   beforeAll(async () => {
     token = await loginAs(OWNER);
-    tpkId = await getProjectId(token, 'NH45');
-    trailId = await getProjectId(token, 'NH45');
+    nh45Id = await getProjectId(token, 'NH45');
     paintId = await getPaintResourceId(token);
   });
 
@@ -57,15 +55,15 @@ describe('Daily reports (integration)', () => {
 
   it('rejects deductStock when project has no site stock (422, report not saved)', async () => {
     const reportDate = uniqueReportDate('07');
-    const res = await authPost(token, `/api/projects/${tpkId}/reports`, {
+    const res = await authPost(token, `/api/projects/${nh45Id}/reports`, {
       reportDate,
-      workDone: 'Paint test on archive project',
+      workDone: 'Paint test on NH-45 project',
       deductStock: true,
       materialUsages: [{ resourceId: paintId, quantityUsed: 5 }],
     });
     expect(res.status).toBe(422);
 
-    const listRes = await authGet(token, `/api/projects/${tpkId}/reports`);
+    const listRes = await authGet(token, `/api/projects/${nh45Id}/reports`);
     expect(listRes.status).toBe(200);
     const saved = (listRes.body.data as Array<{ reportDate: string }>).find(
       (r) => r.reportDate === reportDate,
@@ -75,7 +73,7 @@ describe('Daily reports (integration)', () => {
 
   it('allows report without stock deduction when deductStock is false', async () => {
     const reportDate = uniqueReportDate('08');
-    const res = await authPost(token, `/api/projects/${tpkId}/reports`, {
+    const res = await authPost(token, `/api/projects/${nh45Id}/reports`, {
       reportDate,
       workDone: 'Log usage only',
       deductStock: false,
@@ -85,8 +83,8 @@ describe('Daily reports (integration)', () => {
     expect(res.body.data.stockDeductionApplied).toBe(false);
   });
 
-  it('deducts stock on TRAIL and returns project + stockDeductionApplied', async () => {
-    const summaryBefore = await authGet(token, `/api/projects/${trailId}/procurement/stock/summary`);
+  it('deducts stock on NH-45 and returns project + stockDeductionApplied', async () => {
+    const summaryBefore = await authGet(token, `/api/projects/${nh45Id}/procurement/stock/summary`);
     const beforeRow = (
       summaryBefore.body.data as Array<{ resourceId: string; balance: number; issued: number }>
     ).find((r) => r.resourceId === paintId);
@@ -95,7 +93,7 @@ describe('Daily reports (integration)', () => {
     if (!beforeRow || beforeRow.balance <= 0) {
       // Just verify the report creates without deductStock
       const reportDate = uniqueReportDate('09');
-      const res = await authPost(token, `/api/projects/${trailId}/reports`, {
+      const res = await authPost(token, `/api/projects/${nh45Id}/reports`, {
         reportDate,
         workDone: 'Paint corridor walls',
         siteStatus: 'ON_SCHEDULE',
@@ -109,7 +107,7 @@ describe('Daily reports (integration)', () => {
     const balanceBefore = beforeRow.balance;
     const issueQty = Math.min(5, balanceBefore);
     const reportDate = uniqueReportDate('10');
-    const res = await authPost(token, `/api/projects/${trailId}/reports`, {
+    const res = await authPost(token, `/api/projects/${nh45Id}/reports`, {
       reportDate,
       workDone: 'Paint corridor walls',
       siteStatus: 'ON_SCHEDULE',
@@ -120,7 +118,7 @@ describe('Daily reports (integration)', () => {
     expect(res.body.data.stockDeductionApplied).toBe(true);
     expect(res.body.data.project?.code).toBe('NH45');
 
-    const summaryAfter = await authGet(token, `/api/projects/${trailId}/procurement/stock/summary`);
+    const summaryAfter = await authGet(token, `/api/projects/${nh45Id}/procurement/stock/summary`);
     const afterRow = (
       summaryAfter.body.data as Array<{ resourceId: string; balance: number; issued: number }>
     ).find((r) => r.resourceId === paintId);
@@ -129,7 +127,7 @@ describe('Daily reports (integration)', () => {
   });
 
   it('rejects deductStock when quantity exceeds on-hand balance', async () => {
-    const summaryRes = await authGet(token, `/api/projects/${trailId}/procurement/stock/summary`);
+    const summaryRes = await authGet(token, `/api/projects/${nh45Id}/procurement/stock/summary`);
     const row = (
       summaryRes.body.data as Array<{ resourceId: string; balance: number }>
     ).find((r) => r.resourceId === paintId);
@@ -138,7 +136,7 @@ describe('Daily reports (integration)', () => {
     const overQty = availableQty + 1000;
 
     const reportDate = uniqueReportDate('11');
-    const res = await authPost(token, `/api/projects/${trailId}/reports`, {
+    const res = await authPost(token, `/api/projects/${nh45Id}/reports`, {
       reportDate,
       workDone: 'Over-issue attempt',
       deductStock: true,
@@ -148,7 +146,7 @@ describe('Daily reports (integration)', () => {
   });
 
   it('getReport includes project and material links', async () => {
-    const listRes = await authGet(token, `/api/projects/${trailId}/reports`);
+    const listRes = await authGet(token, `/api/projects/${nh45Id}/reports`);
     expect(listRes.status).toBe(200);
     const reports = listRes.body.data as Array<{ id: string }>;
     expect(reports.length).toBeGreaterThan(0);

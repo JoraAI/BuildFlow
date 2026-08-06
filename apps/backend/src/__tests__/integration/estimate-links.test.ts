@@ -17,7 +17,7 @@ describe('Estimate procurement-link integrity (integration)', () => {
 
   beforeAll(async () => {
     // FIX: Use OWNER instead of PM — PM may not have project membership
-    // for GVR-C, causing 500 errors on project list.
+    // Seed uses a single NH-45 project; tests must not assume multiple demo projects.
     token = await loginAs(OWNER);
     projectId = await getProjectId(token, 'NH45');
 

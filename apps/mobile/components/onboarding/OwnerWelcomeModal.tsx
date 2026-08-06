@@ -37,7 +37,7 @@ export function OwnerWelcomeModal() {
               'Create or open a project',
               'Build and approve an estimate, then convert to BOQ',
               'Invite your team under Settings → Users',
-              'Explore the sample Trail project for subcontracts demo',
+              'Explore the NH-45 sample project for subcontracts demo',
             ].map((step, i) => (
               <View key={step} className="flex-row gap-2">
                 <Text className="text-sm font-bold text-primary">{i + 1}.</Text>

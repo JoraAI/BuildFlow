@@ -86,7 +86,7 @@ describe('SUB-PLAN1 Subscription limits (integration)', () => {
       })
     ).map(u => u.id);
 
-    if (deactivateIds.length === 0) return; // Skip if not enough users to test
+    expect(deactivateIds.length).toBeGreaterThan(0);
 
     await prisma.user.updateMany({
       where: { id: { in: deactivateIds } },
