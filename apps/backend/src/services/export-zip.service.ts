@@ -7,7 +7,7 @@
  *
  * Uses archiver (streaming) so memory stays flat even for large companies.
  */
-import { ZipArchive as Archiver } from 'archiver';
+import archiver from 'archiver';
 import type { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { logger } from '../config/logger';
@@ -176,25 +176,7 @@ export async function streamCompanyZip(
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.setHeader('Cache-Control', 'no-store');
 
-  const archive = new Archiver({ zlib: { level: 6 } });
-  archive.on('error', (err: Error) => {
-    logger.error('ZIP export error', { error: err.message, companyId });
-    // If headers not sent, send 500; otherwise abort.
-    if (!res.headersSent) {
-      res.status(500).json({ success: false, error: { code: 'EXPORT_FAILED', message: err.message } });
-    } else {
-      res.end();
-    }
-  });
-
-  archive.pipe(res);
-
-  // Add each JSON file
-  for (const [file, value] of Object.entries(data)) {
-    archive.append(JSON.stringify(value, null, 2), { name: file });
-  }
-
-  // Manifest
+  const archive = archiver('zip', { zlib: { level: 6 } });
   const manifest = {
     appName: 'BuildFlow',
     version: '2.0',
@@ -203,18 +185,40 @@ export async function streamCompanyZip(
     fileCount: Object.keys(data).length,
     counts,
   };
-  archive.append(JSON.stringify(manifest, null, 2), { name: 'manifest.json' });
 
-  // CSV summary
-  const csv = buildSummaryCsv(
-    (data['projects.json'] as Array<Record<string, unknown>>) ?? [],
-    (data['invoices.json'] as Array<Record<string, unknown>>) ?? [],
-    (data['bills.json'] as Array<Record<string, unknown>>) ?? [],
-    (data['estimates.json'] as Array<Record<string, unknown>>) ?? [],
-  );
-  archive.append(csv, { name: 'project-summary.csv' });
+  await new Promise<void>((resolve, reject) => {
+    archive.on('error', (err: Error) => {
+      logger.error('ZIP export error', { error: err.message, companyId });
+      // If headers not sent, send 500; otherwise abort.
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: { code: 'EXPORT_FAILED', message: err.message } });
+      } else {
+        res.end();
+      }
+      reject(err);
+    });
+    archive.on('end', resolve);
+    archive.pipe(res);
 
-  await archive.finalize();
+    // Add each JSON file
+    for (const [file, value] of Object.entries(data)) {
+      archive.append(JSON.stringify(value, null, 2), { name: file });
+    }
+
+    // Manifest
+    archive.append(JSON.stringify(manifest, null, 2), { name: 'manifest.json' });
+
+    // CSV summary
+    const csv = buildSummaryCsv(
+      (data['projects.json'] as Array<Record<string, unknown>>) ?? [],
+      (data['invoices.json'] as Array<Record<string, unknown>>) ?? [],
+      (data['bills.json'] as Array<Record<string, unknown>>) ?? [],
+      (data['estimates.json'] as Array<Record<string, unknown>>) ?? [],
+    );
+    archive.append(csv, { name: 'project-summary.csv' });
+
+    archive.finalize();
+  });
 
   return { exportedAt: manifest.exportedAt, counts };
 }

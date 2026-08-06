@@ -7,9 +7,6 @@ module.exports = {
   moduleFileExtensions: ['ts', 'js', 'json'],
   moduleNameMapper: {
     '^@buildflow/shared$': '<rootDir>/../../packages/shared/src',
-    // archiver@8 is ESM-only; Jest (CommonJS) cannot parse it when the
-    // integration tests transitively import the full Express app.
-    '^archiver$': '<rootDir>/src/__tests__/__mocks__/archiver.js',
     // FIX: Mock Bull queue so it doesn't hang on Redis connections during tests.
     '^bull$': '<rootDir>/src/__tests__/__mocks__/bull.js',
   },

@@ -234,6 +234,16 @@ Then hard-refresh the browser (`Ctrl+Shift+R`).
 
 Ensure backend includes the route-order fix: `/api/platform` must be registered **before** any catch-all `/api` router that applies `authenticateToken` (see `apps/backend/src/app.ts`). Redeploy the API after pulling latest `main`.
 
+### `ERR_UNSUPPORTED_DIR_IMPORT` or `brace-expansion` / `expand` on startup
+
+The API must compile `@buildflow/shared` to `dist/` (not load `src/*.ts` at runtime) and use **archiver v5** (CommonJS). Pull latest `main`, redeploy with build:
+
+```bash
+pnpm install && pnpm --filter @buildflow/backend exec prisma generate && pnpm --filter @buildflow/backend build
+```
+
+Optional: set `NODE_VERSION=20` in Render env for Node 20 LTS.
+
 ### CORS errors in browser
 
 Set `CORS_ORIGIN` on the backend to your exact Vercel URL (no trailing slash). Multiple origins: comma-separated.

@@ -29,7 +29,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1075.0",
     "@buildflow/shared": "workspace:*",
     "@prisma/client": "^5.16.1",
-    "archiver": "^8.0.0",
+    "archiver": "^5.3.2",
     "bcryptjs": "^2.4.3",
     "bull": "^4.16.5",
     "compression": "^1.7.4",
@@ -53,7 +53,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/archiver": "^8.0.0",
+    "@types/archiver": "^6.0.4",
     "@types/bcryptjs": "^2.4.6",
     "@types/bull": "^4.10.4",
     "@types/compression": "^1.7.5",
