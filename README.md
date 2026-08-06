@@ -206,4 +206,9 @@ The test suite includes **134 integration tests** covering all modules with an i
 
 ---
 
-*Built with ❤️ by [Jora AI](https://jora.co.in) · Hyderabad, India*
+---
+
+<p align="center">
+  <strong>A product of <a href="https://jora.co.in">Jora AI</a></strong><br/>
+  Hyderabad, India
+</p>
