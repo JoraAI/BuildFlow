@@ -171,8 +171,10 @@ curl -X POST https://your-api.onrender.com/api/platform/auth/login \
 | **Root Directory** | `apps/mobile` |
 | **Framework Preset** | Other |
 | **Install Command** | `cd ../.. && pnpm install` |
-| **Build Command** | `cd ../.. && pnpm --filter @buildflow/mobile exec expo export -p web` |
+| **Build Command** | `cd ../.. && pnpm --filter @buildflow/mobile run build:web` |
 | **Output Directory** | `dist` |
+
+> **Common mistake:** Do not put the build command in the **Install Command** field. Install must run `pnpm install` first so `tsc` and `expo` are available. These commands are also defined in `apps/mobile/vercel.json`.
 
 ### Environment variable
 
