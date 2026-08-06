@@ -3,8 +3,12 @@
  */
 import { Role } from '@buildflow/shared';
 
+/**
+ * Expo inlines `process.env.EXPO_PUBLIC_*` at build time (static dot access only).
+ * Do not use optional chaining or dynamic access — Vercel builds will keep localhost.
+ */
 export const API_BASE_URL =
-  (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_API_URL) || 'http://localhost:4000/api';
+  process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000/api';
 
 export const SECURE_STORE_KEYS = {
   ACCESS_TOKEN: 'bf_access_token',
