@@ -60,7 +60,7 @@ export const platformCompanyUpdateSchema = z.object({
 });
 
 export const platformSubscriptionUpdateSchema = z.object({
-  subscriptionPlan: z.enum(['STARTER', 'PROFESSIONAL', 'ENTERPRISE']).optional(),
+  subscriptionPlan: z.enum(['INVENTORY', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE']).optional(),
   subscriptionStatus: z.enum(['TRIAL', 'ACTIVE', 'PAST_DUE', 'CANCELLED', 'EXPIRED']).optional(),
   trialEndsAt: z.string().datetime().optional().nullable(),
 });
@@ -91,6 +91,7 @@ export const userRoleUpdateSchema = z.object({
     'SITE_SUPERVISOR',
     'SUPERVISOR',
     'ACCOUNTANT',
+    'INVENTORY_MANAGER',
   ]).optional(),
   isActive: z.boolean().optional(),
 });
@@ -137,6 +138,8 @@ export const tallyIntegrationSchema = z.object({
   sgst: z.string().optional(),
   igst: z.string().optional(),
   tdsPayable: z.string().optional(),
+  retention: z.string().optional(),
+  advanceRecovery: z.string().optional(),
   roundOff: z.string().optional(),
   bank: z.string().optional(),
 });
@@ -159,7 +162,8 @@ export const s3IntegrationSchema = z.object({
 });
 
 export const saasCheckoutSchema = z.object({
-  plan: z.enum(['STARTER', 'PROFESSIONAL', 'ENTERPRISE']),
+  // ENTERPRISE is contact-sales only (no self-serve checkout amount).
+  plan: z.enum(['INVENTORY', 'STARTER', 'PROFESSIONAL']),
   gateway: z.enum(['razorpay', 'stripe']).default('razorpay'),
 });
 

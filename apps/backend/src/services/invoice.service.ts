@@ -6,7 +6,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
 import { calculateGST, lineAmount, sumAmounts, round2 } from './gst.service';
-import { nextSequentialNumberTx } from '../lib/id-generator';
+import { nextSequentialNumber, nextSequentialNumberTx } from '../lib/id-generator';
 import type {
   CreateInvoiceInput,
   UpdateInvoiceInput,
@@ -28,6 +28,7 @@ export interface InvoiceListItem {
   tdsAmount: number;
   total: number;
   paidAmount: number;
+  stockMovementId?: string | null;
   project: { id: string; name: string };
 }
 
@@ -54,6 +55,7 @@ function serialize(inv: {
   total: Decimal;
   paidAmount: Decimal;
   notes: string | null;
+  stockMovementId?: string | null;
   invoiceType?: string;
   raSequence?: number | null;
   milestoneLabel?: string | null;
@@ -101,6 +103,8 @@ function serialize(inv: {
     total: toNum(inv.total),
     paidAmount: toNum(inv.paidAmount),
     notes: inv.notes,
+    stockMovementId: inv.stockMovementId ?? null,
+    projectId: inv.project.id,
     project: inv.project,
     lineItems: inv.lineItems.map((li) => ({
       id: li.id,
@@ -150,6 +154,7 @@ export async function listInvoices(
     tdsAmount: toNum(i.tdsAmount),
     total: toNum(i.total),
     paidAmount: toNum(i.paidAmount),
+    stockMovementId: i.stockMovementId,
     project: i.project,
   }));
 }
@@ -472,10 +477,119 @@ export async function sendInvoice(companyId: string, id: string) {
   const inv = await prisma.invoice.findFirst({ where: { id, companyId } });
   if (!inv) throw ApiError.notFound('Invoice');
   if (inv.status === 'PAID') throw ApiError.conflict('Invoice already paid');
-  return prisma.invoice.update({
+  const updated = await prisma.invoice.update({
     where: { id },
     data: { status: 'SENT' },
+    include: {
+      project: { select: { id: true, name: true } },
+      lineItems: true,
+    },
   });
+  return serialize(updated);
+}
+
+/**
+ * Inventory-only: auto-create a DRAFT sales invoice when stock is issued (OUT).
+ * Amount = qty × (unitPrice override or catalog rate); GST when company has GSTIN.
+ * Idempotent on stockMovementId.
+ */
+export async function createDraftInvoiceFromStockIssue(opts: {
+  companyId: string;
+  projectId: string;
+  stockMovementId: string;
+  resourceId: string;
+  quantity: number;
+  unitPrice?: number | null;
+  customerName?: string | null;
+  notes?: string | null;
+}) {
+  const company = await prisma.company.findFirst({
+    where: { id: opts.companyId },
+    select: { subscriptionPlan: true, gstin: true, state: true },
+  });
+  if (!company || company.subscriptionPlan !== 'INVENTORY') return null;
+
+  const existing = await prisma.invoice.findFirst({
+    where: { stockMovementId: opts.stockMovementId },
+    include: {
+      project: { select: { id: true, name: true } },
+      lineItems: true,
+    },
+  });
+  if (existing) return serialize(existing);
+
+  const resource = await prisma.resource.findFirst({
+    where: { id: opts.resourceId, companyId: opts.companyId },
+    select: { id: true, name: true, unit: true, rate: true, gstRate: true },
+  });
+  if (!resource) throw ApiError.notFound('Resource');
+
+  const rate =
+    opts.unitPrice != null && Number.isFinite(opts.unitPrice)
+      ? Number(opts.unitPrice)
+      : Number(resource.rate) || 0;
+  const lineGstRate = company.gstin ? (Number(resource.gstRate) || 18) : 0;
+  const qty = opts.quantity;
+  const amount = lineAmount(qty, rate);
+  const gst = calculateGST({
+    subtotal: amount,
+    gstRate: lineGstRate,
+    tdsEnabled: false,
+    tdsRate: 0,
+    companyState: company.state,
+    clientState: company.state,
+  });
+
+  const invoiceNumber = await nextSequentialNumber(opts.companyId, 'invoice');
+  const today = new Date();
+  const clientName = (opts.customerName ?? '').trim() || 'Walk-in customer';
+  const noteParts = [
+    'AUTO_STOCK_ISSUE',
+    opts.notes?.trim() ? opts.notes.trim() : null,
+  ].filter(Boolean);
+
+  const inv = await prisma.invoice.create({
+    data: {
+      projectId: opts.projectId,
+      companyId: opts.companyId,
+      invoiceNumber,
+      clientName,
+      invoiceDate: today,
+      dueDate: today,
+      status: 'DRAFT',
+      invoiceType: 'STANDARD',
+      subtotal: amount,
+      gstRate: lineGstRate,
+      gstAmount: gst.gstAmount,
+      cgstAmount: gst.cgstAmount,
+      sgstAmount: gst.sgstAmount,
+      igstAmount: gst.igstAmount,
+      tdsRate: 0,
+      tdsAmount: 0,
+      total: gst.netPayable,
+      paidAmount: 0,
+      notes: noteParts.join(' · '),
+      stockMovementId: opts.stockMovementId,
+      lineItems: {
+        create: [
+          {
+            description: resource.name,
+            quantity: qty,
+            unit: resource.unit,
+            rate,
+            amount,
+            gstRate: lineGstRate,
+          },
+        ],
+      },
+    },
+    include: {
+      project: { select: { id: true, name: true } },
+      lineItems: true,
+    },
+  });
+
+  return serialize(inv);
 }
 
 /**

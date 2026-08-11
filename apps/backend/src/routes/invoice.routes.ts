@@ -25,7 +25,8 @@ invoiceProjectRouter.use(authenticateToken);
 invoiceProjectRouter.get('/:id/invoices', validate({ params: idParams }), invoiceController.list);
 invoiceProjectRouter.post(
   '/:id/invoices',
-  requireRole(Role.OWNER, Role.PM, Role.ACCOUNTANT),
+  // INVENTORY_PRODUCT: INVENTORY_MANAGER creates sales invoices for the store.
+  requireRole(Role.OWNER, Role.PM, Role.ACCOUNTANT, Role.INVENTORY_MANAGER),
   validate({ params: idParams, body: createInvoiceSchema }),
   invoiceController.create,
 );
@@ -37,20 +38,27 @@ invoiceRouter.use(authenticateToken);
 invoiceRouter.get('/:id', validate({ params: idParams }), invoiceController.get);
 invoiceRouter.put(
   '/:id',
-  requireRole(Role.OWNER, Role.PM, Role.ACCOUNTANT),
+  requireRole(Role.OWNER, Role.PM, Role.ACCOUNTANT, Role.INVENTORY_MANAGER),
   validate({ params: idParams, body: updateInvoiceSchema }),
   invoiceController.update,
 );
 invoiceRouter.post('/:id/send', validate({ params: idParams }), invoiceController.send);
+// Alias `/record-payment` matches bills + mobile client; keep `/payment` for older callers.
 invoiceRouter.post(
   '/:id/payment',
-  requireRole(Role.OWNER, Role.ACCOUNTANT),
+  requireRole(Role.OWNER, Role.ACCOUNTANT, Role.INVENTORY_MANAGER),
+  validate({ params: idParams, body: recordPaymentSchema }),
+  invoiceController.recordPayment,
+);
+invoiceRouter.post(
+  '/:id/record-payment',
+  requireRole(Role.OWNER, Role.ACCOUNTANT, Role.INVENTORY_MANAGER),
   validate({ params: idParams, body: recordPaymentSchema }),
   invoiceController.recordPayment,
 );
 invoiceRouter.delete(
   '/:id',
-  requireRole(Role.OWNER, Role.PM, Role.ACCOUNTANT),
+  requireRole(Role.OWNER, Role.PM, Role.ACCOUNTANT, Role.INVENTORY_MANAGER),
   validate({ params: idParams }),
   invoiceController.remove,
 );

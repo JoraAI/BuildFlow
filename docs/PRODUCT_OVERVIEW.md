@@ -183,8 +183,8 @@ This keeps your **procured quantities** on BOQ items up to date and prevents ove
 
 ### 3.14 Accounting — Tally Export
 
-- Export your project **invoices and bills as Tally-compatible XML**.
-- **Map ledger names** in Integrations so the export matches your chart of accounts in Tally Prime.
+- Export your project **invoices and bills as Tally-compatible XML** from **Project Accounting** or **Reports Hub → Export to Tally**.
+- **Map ledger names** in **Settings → Integrations** (Sales, Purchase, GST, TDS, Retention, Advance Recovery, Bank) so the export matches your chart of accounts in Tally Prime.
 - Saves your accountant from re-entering data.
 
 ### 3.15 Journal Entries
@@ -374,14 +374,28 @@ These run the product itself. **Your team does NOT configure these** in Integrat
 
 | Plan | Monthly (pre-GST) | Annual (pre-GST) | Best for |
 |------|--------------------|-------------------|----------|
-| **Starter** | ₹4,999 / month | ₹49,999 / year | Small contractors — up to 3 projects, 5 team members |
-| **Professional** | ₹13,999 / month | ₹1,39,999 / year | Growing firms — full GST/RA, CPM, procurement, portal, Assistant (500 queries/mo) |
-| **Enterprise** | From ₹39,999 / month | Contact sales | Large firms — dedicated support, custom integrations, unlimited Assistant (fair use) |
+| **Inventory** | ₹499 / month | ₹4,990 / year | Stock & trading businesses — 1 store, procurement (Indent→PO→GRN), sales invoices, vendor bills, Tally export, 10 users |
+| **Starter** | ₹1,999 / month | ₹19,990 / year | Small contractors — up to 3 projects, 5 team members |
+| **Professional** | ₹4,999 / month | ₹49,990 / year | Growing firms — up to 25 projects, full GST/RA, CPM, procurement, portal, Assistant (500 queries/mo) |
+| **Enterprise** | Contact sales | Contact sales | Large firms — dedicated support, custom integrations, unlimited Assistant (fair use) |
 
 - **18% GST** is added on top (Indian billing).
 - **14-day free trial** on signup — no card required.
 - Reminders sent at **7, 3, and 1 day** before trial expiry.
 - Upgrade via **Settings → Billing & plan**.
+
+### 6.4 The Inventory product (BuildFlow Inventory)
+
+A separate product for **stock & trading businesses** that don't need construction modules:
+
+- Sign up from the pricing page **Inventory** card (or `/signup/company?product=inventory`).
+- The app opens directly into the **Inventory shell**: **Stock · Procurement · Invoices · Bills · Settings** — no construction "Projects" navigator.
+- Everything runs against one hidden **store** (`STORE` project) created automatically.
+- **Stock** — on-hand balances, received/issued totals, movements per item.
+- **Procurement** — Indent → Purchase Order → Goods Receipt (GRN) updates stock automatically.
+- **Invoices** — client / sales invoices (AR); **Bills** — vendor bills (AP); both can be exported to **Tally**.
+- **Team** — roles are limited to **Owner** and **Inventory Manager** (10 users max).
+- **Assistant** — same BuildFlow AI, scoped to stock, POs, GRNs, invoices, bills, and Tally.
 
 ---
 
@@ -503,7 +517,7 @@ Common goals and where to find them:
 | Record a client payment | Open the invoice → Record payment |
 | Record a vendor bill | **Accounting → Bills → Create** (Accountant) |
 | Pay a vendor | Open the bill → Record payment |
-| Export to Tally | **Accounting** or project accounting tab |
+| Export to Tally | **Project Accounting** or **Reports Hub** (XML download) |
 | Download a PDF report | **Reports hub** or project |
 | See how much we've spent | Project summary or **Dashboard** (committed vs paid) |
 | Ask the AI a question | Floating **Assistant** button (bottom-right) |

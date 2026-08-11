@@ -8,6 +8,7 @@ import { getRolePermissions } from '../lib/permissions';
 import { updateProject } from './project.service';
 import {
   getAllowedTools,
+  filterToolsByProductMode,
   type Permission,
 } from '@buildflow/shared';
 
@@ -16,6 +17,8 @@ export interface AssistantIdentity {
   userId: string;
   role: string;
   permissions: Permission[];
+  /** INVENTORY_PRODUCT: 'inventory' | 'construction' — scopes allowed tools. */
+  productMode: 'inventory' | 'construction';
 }
 
 function serialize<T>(obj: T): T {
@@ -123,8 +126,8 @@ export const ASSISTANT_TOOL_SCHEMAS: Record<
   },
 };
 
-export function buildOpenAiTools(permissions: Permission[]) {
-  const allowed = getAllowedTools(permissions);
+export function buildOpenAiTools(permissions: Permission[], productMode: 'inventory' | 'construction' = 'construction') {
+  const allowed = filterToolsByProductMode(getAllowedTools(permissions), productMode);
   return allowed
     .filter((t) => ASSISTANT_TOOL_SCHEMAS[t.id])
     .map((t) => ({
@@ -145,8 +148,18 @@ export async function resolveAssistantIdentity(
     where: { id: userId, companyId },
     select: { role: true },
   });
+  const company = await prisma.company.findUniqueOrThrow({
+    where: { id: companyId },
+    select: { subscriptionPlan: true },
+  });
   const permissions = await getRolePermissions(companyId, user.role);
-  return { companyId, userId, role: user.role, permissions };
+  return {
+    companyId,
+    userId,
+    role: user.role,
+    permissions,
+    productMode: company.subscriptionPlan === 'INVENTORY' ? 'inventory' : 'construction',
+  };
 }
 
 export async function executeAssistantTool(
@@ -154,9 +167,14 @@ export async function executeAssistantTool(
   toolName: string,
   args: Record<string, unknown>,
 ): Promise<unknown> {
-  const cap = getAllowedTools(identity.permissions).find((t) => t.id === toolName);
+  const cap = filterToolsByProductMode(
+    getAllowedTools(identity.permissions),
+    identity.productMode,
+  ).find((t) => t.id === toolName);
   if (!cap) {
-    throw new Error(`Tool "${toolName}" is not allowed for your role.`);
+    throw new Error(
+      `Tool "${toolName}" is not allowed for your role${identity.productMode === 'inventory' ? ' (inventory accounts cannot use construction tools)' : ''}.`,
+    );
   }
 
   switch (toolName) {

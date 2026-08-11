@@ -27,7 +27,8 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login(email, password);
-      router.replace('/dashboard');
+      const productMode = useAuthStore.getState().user?.productMode;
+      router.replace(productMode === 'inventory' ? '/inventory' : '/dashboard');
     } catch (err) {
       const apiErr = err as ApiError;
       setError(apiErr.message || 'Login failed. Check your credentials.');
@@ -104,12 +105,12 @@ export default function LoginScreen() {
         </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => router.push('/platform/login' as never)} className="mt-4 self-center">
+      {/* <TouchableOpacity onPress={() => router.push('/platform/login' as never)} className="mt-4 self-center">
         <Text className="text-muted text-xs">
           BuildFlow internal admin?{' '}
           <Text className="text-primary font-semibold">Platform console</Text>
         </Text>
-      </TouchableOpacity>
+      </TouchableOpacity> */}
     </AuthScreenShell>
   );
 }

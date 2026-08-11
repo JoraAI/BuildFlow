@@ -26,6 +26,13 @@ export interface AuthUser {
   companyLogoUrl?: string | null;
   /** Role-based permissions loaded at login (string permission codes). */
   permissions?: string[];
+  /** INVENTORY_PRODUCT: 'inventory' | 'construction' — drives the app shell. */
+  productMode?: 'inventory' | 'construction';
+  /** INVENTORY_PRODUCT: the hidden default STORE project id (null for construction). */
+  defaultProjectId?: string | null;
+  /** Modules enabled for the plan (drives inventory shell nav). */
+  enabledModules?: string[];
+  subscriptionPlan?: string;
 }
 
 interface AuthState {

@@ -10,7 +10,7 @@ export default function PricingPage() {
     <MarketingPageShell>
       <MarketingSection
         title="Pricing"
-        subtitle="Transparent plans for contractors of every size. All plans include a 14-day free trial."
+        subtitle="Construction ERP plans and exclusive Inventory from ₹499/mo. Every free trial is 14 days, no credit card."
       >
         <PricingPreview />
         <TrustStrip />

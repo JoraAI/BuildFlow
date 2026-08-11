@@ -8,7 +8,9 @@ export type DownloadMimeType =
   | 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   | 'application/pdf'
   | 'application/zip'
-  | 'application/json';
+  | 'application/json'
+  | 'application/xml'
+  | 'text/xml';
 
 export class ApiError extends Error {
   code: string;

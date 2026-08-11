@@ -198,17 +198,32 @@ Deploy. Open `https://your-app.vercel.app`.
 
 ## 6. Demo logins
 
-After seeding:
+After seeding (`SEED_ALLOW_TRUNCATE=1 pnpm db:seed` from `apps/backend`):
 
-### Tenant app (`/` → Login)
+### Construction tenant (`/` → Login)
 
-| Role | Email | Password |
-|------|-------|----------|
-| Owner | `owner@reddyconst.com` | `Test@1234` |
-| PM | `pm@reddyconst.com` | `Test@1234` |
-| Accountant | `accounts@reddyconst.com` | `Test@1234` |
+Company: **Reddy Constructions Pvt Ltd** — password **`Test@1234`** for all:
 
-All seeded users share password **`Test@1234`**.
+| Role | Email |
+|------|-------|
+| Owner | `owner@reddyconst.com` |
+| PM | `pm@reddyconst.com` |
+| DPM | `dpm@reddyconst.com` |
+| QC | `qc@reddyconst.com` |
+| Mechanical | `mechanical@reddyconst.com` |
+| Store | `store@reddyconst.com` |
+| Weighbridge | `weighbridge@reddyconst.com` |
+| Site Supervisor | `site@reddyconst.com` |
+| Accountant | `accounts@reddyconst.com` |
+
+### Inventory tenant (`/` → Login → `/inventory`)
+
+Company: **Hyderabad Building Materials** (INVENTORY plan) — password **`Test@1234`**:
+
+| Role | Email |
+|------|-------|
+| Owner | `owner@hydmaterials.com` |
+| Inventory Manager | `manager@hydmaterials.com` |
 
 ### Platform admin (`/platform/login`)
 

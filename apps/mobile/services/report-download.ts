@@ -7,6 +7,7 @@
 import { apiDownload } from '@/lib/api-client';
 import * as Sharing from 'expo-sharing';
 import { Alert } from 'react-native';
+import { toast } from '@/components/ui';
 
 /**
  * Download a PDF from an authenticated API path and share it via the OS share
@@ -25,6 +26,30 @@ export async function downloadReportPdf(apiPath: string, filename: string): Prom
   }
 }
 
+/**
+ * Download Tally Prime import XML for a project and share / save it.
+ * In the Inventory product this is the only data export — always framed as
+ * "Exporting to Tally" so it is never mistaken for a generic backup.
+ */
+export async function downloadTallyXml(projectId: string): Promise<void> {
+  toast.info('Exporting to Tally…');
+  try {
+    const uri = await apiDownload(
+      `/projects/${projectId}/financials/export-tally`,
+      `tally-${projectId}.xml`,
+      'application/xml',
+    );
+    if (uri && (await Sharing.isAvailableAsync())) {
+      await Sharing.shareAsync(uri, { mimeType: 'application/xml', UTI: 'public.xml' });
+      toast.success('Tally XML exported — import it in Tally Prime.');
+    } else {
+      toast.success('Tally XML downloaded to device — import it in Tally Prime.');
+    }
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'Could not export to Tally');
+  }
+}
+
 // ── Path helpers (named exports for every report type) ──────────────
 
 export const reportPaths = {
@@ -37,6 +62,7 @@ export const reportPaths = {
   materialRates: (projectId: string) => `/reports/pdf/projects/${projectId}/material-rates`,
   measurementBook: (projectId: string) => `/reports/pdf/projects/${projectId}/measurement-book`,
   abstractSheet: (projectId: string) => `/reports/pdf/projects/${projectId}/abstract-sheet`,
+  tallyExport: (projectId: string) => `/projects/${projectId}/financials/export-tally`,
   // Entity-scoped
   dailyReport: (reportId: string) => `/reports/pdf/reports/${reportId}`,
   invoice: (invoiceId: string) => `/reports/pdf/invoices/${invoiceId}`,

@@ -16,6 +16,8 @@ import { ProjectInvoicesList, ProjectBillsList } from '@/components/accounting/I
 import { dismissTo, DISMISS } from '@/utils/navigation';
 import { useViewport } from '@/hooks/useViewport';
 import { useProject } from '@/services/project.queries';
+import { usePermission } from '@/hooks/usePermission';
+import { downloadTallyXml } from '@/services/report-download';
 
 export default function ProjectAccountingScreen() {
   const { id: projectId, tab: initialTab } = useLocalSearchParams<{ id: string; tab?: string }>();
@@ -23,6 +25,7 @@ export default function ProjectAccountingScreen() {
   const router = useRouter();
   const { isDesktop } = useViewport();
   const { data: project } = useProject(projectId ?? '');
+  const canExportTally = usePermission('tally.export');
 
   const createPath = `/accounting/${tab === 'invoices' ? 'create-invoice' : 'create-bill'}?projectId=${projectId}`;
 
@@ -32,6 +35,17 @@ export default function ProjectAccountingScreen() {
       <FilterChip label="Bills" active={tab === 'bills'} onPress={() => setTab('bills')} />
     </FilterChipRow>
   );
+
+  const tallyButton =
+    canExportTally && projectId ? (
+      <Button
+        label="Export to Tally"
+        size="sm"
+        variant="secondary"
+        onPress={() => void downloadTallyXml(projectId)}
+        icon={<Ionicons name="download-outline" size={16} color="#1E3A5F" />}
+      />
+    ) : null;
 
   if (isDesktop) {
     return (
@@ -50,6 +64,7 @@ export default function ProjectAccountingScreen() {
                   onPress={() => dismissTo(DISMISS.accounting)}
                   icon={<Ionicons name="arrow-back" size={16} color="#1E3A5F" />}
                 />
+                {tallyButton}
                 <Button
                   label={tab === 'invoices' ? 'New Invoice' : 'New Bill'}
                   size="sm"
@@ -80,6 +95,7 @@ export default function ProjectAccountingScreen() {
         subtitle={project?.clientName}
         cancelLabel="Back"
         onCancel={() => dismissTo(DISMISS.accounting)}
+        right={tallyButton}
       />
       {tabChips}
       {tab === 'invoices' ? <ProjectInvoicesList projectId={projectId} /> : <ProjectBillsList projectId={projectId} />}

@@ -106,6 +106,7 @@ const STATUS_COLOR: Record<string, 'neutral' | 'warning' | 'success' | 'danger'>
 };
 
 const BILL_STATUS_COLOR: Record<string, 'neutral' | 'warning' | 'success' | 'danger' | 'primary'> = {
+  DRAFT: 'neutral',
   PENDING: 'warning',
   APPROVED: 'primary',
   PAID: 'success',

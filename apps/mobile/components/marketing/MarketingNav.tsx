@@ -48,7 +48,11 @@ export function MarketingNav() {
           >
             <Text className="text-white text-sm font-semibold">Login</Text>
           </Pressable>
-          <StartFreeTrialButton onPress={() => router.push('/signup/company')} size="sm" label="Free trial" />
+          <StartFreeTrialButton
+            onPress={() => router.push('/signup')}
+            size="sm"
+            label="Free trial"
+          />
         </View>
       </View>
     </View>

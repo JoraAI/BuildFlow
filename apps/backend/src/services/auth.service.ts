@@ -17,7 +17,8 @@ import { blacklistToken, isTokenBlacklisted } from '../lib/redis';
 import { recordAudit } from '../utils/audit';
 import { initializeTrial, notifyNewTrialSignup } from './subscription.service';
 import { env } from '../config/env';
-import { Role } from '@buildflow/shared';
+import { Role, INVENTORY_DEFAULT_PROJECT } from '@buildflow/shared';
+import { SubscriptionPlan } from '@prisma/client';
 import type { RegisterCompanyInput, LoginInput } from '@buildflow/shared';
 
 export interface AuthTokens {
@@ -37,6 +38,11 @@ export interface AuthResponse {
     phone: string | null;
     companyLogoUrl: string | null;
     permissions: string[]; // resolved permissions for this role
+    // INVENTORY_PRODUCT: product mode + modules surfaced to the app shell
+    productMode: 'construction' | 'inventory';
+    defaultProjectId: string | null;
+    enabledModules: string[];
+    subscriptionPlan: string;
   };
   accessToken: string;
   refreshToken: string;
@@ -51,7 +57,12 @@ async function toPublicUser(
     phone: string | null;
     role: Role;
     companyId: string;
-    company: { name: string; logoUrl: string | null };
+    company: {
+      name: string;
+      logoUrl: string | null;
+      subscriptionPlan: string;
+      defaultProjectId: string | null;
+    };
   },
 ) {
   const { resolveLogoDisplayUrl } = await import('./settings.service');
@@ -60,6 +71,9 @@ async function toPublicUser(
     resolveLogoDisplayUrl(user.companyId, user.company.logoUrl),
     getRolePermissions(user.companyId, user.role),
   ]);
+  const { getProductMode, PLAN_MODULES } = await import('@buildflow/shared');
+  const productMode = getProductMode(user.company.subscriptionPlan);
+  const planKey = user.company.subscriptionPlan as keyof typeof PLAN_MODULES;
   return {
     id: user.id,
     name: user.name,
@@ -70,6 +84,10 @@ async function toPublicUser(
     companyName: user.company.name,
     companyLogoUrl,
     permissions,
+    productMode,
+    defaultProjectId: user.company.defaultProjectId,
+    enabledModules: [...(PLAN_MODULES[planKey] ?? PLAN_MODULES.STARTER)],
+    subscriptionPlan: user.company.subscriptionPlan,
   };
 }
 
@@ -96,6 +114,10 @@ export async function registerCompany(input: RegisterCompanyInput, ipAddress?: s
   });
   if (existing) throw ApiError.conflict('Email already registered');
 
+  // INVENTORY_PRODUCT: dedicated inventory signup path creates an INVENTORY
+  // company (no construction modules) with a hidden default STORE project.
+  const isInventory = input.product === 'inventory';
+
   const passwordHash = await hashPassword(input.password);
 
   const company = await prisma.company.create({
@@ -105,10 +127,14 @@ export async function registerCompany(input: RegisterCompanyInput, ipAddress?: s
       pan: input.pan || '',
       address: input.address || null,
       state: input.state,
+      ...(isInventory ? { subscriptionPlan: SubscriptionPlan.INVENTORY } : {}),
     },
   });
 
-  await initializeTrial(company.id);
+  await initializeTrial(
+    company.id,
+    isInventory ? SubscriptionPlan.INVENTORY : SubscriptionPlan.STARTER,
+  );
 
   const owner = await prisma.user.create({
     data: {
@@ -120,6 +146,28 @@ export async function registerCompany(input: RegisterCompanyInput, ipAddress?: s
     },
   });
 
+  // INVENTORY_PRODUCT: auto-create the single default store project + set FK.
+  let defaultProjectId: string | null = null;
+  if (isInventory) {
+    const store = await prisma.project.create({
+      data: {
+        companyId: company.id,
+        name: INVENTORY_DEFAULT_PROJECT.name,
+        code: INVENTORY_DEFAULT_PROJECT.code,
+        type: 'MINI',
+        status: 'IN_PROGRESS',
+        clientName: input.companyName,
+        budget: 0,
+        createdBy: owner.id,
+      },
+    });
+    await prisma.company.update({
+      where: { id: company.id },
+      data: { defaultProjectId: store.id },
+    });
+    defaultProjectId = store.id;
+  }
+
   const payload = { sub: owner.id, companyId: company.id, role: Role.OWNER };
   const tokens = issueTokens(payload);
 
@@ -129,22 +177,29 @@ export async function registerCompany(input: RegisterCompanyInput, ipAddress?: s
     action: 'CREATE',
     entityType: 'company',
     entityId: company.id,
-    newValue: { name: company.name },
+    newValue: { name: company.name, product: input.product },
     ipAddress,
   });
 
   void notifyNewTrialSignup(company.id, company.name, owner.email);
 
+  const publicUser = await toPublicUser({
+    id: owner.id,
+    name: owner.name,
+    email: owner.email,
+    phone: owner.phone,
+    role: owner.role,
+    companyId: company.id,
+    company: {
+      name: company.name,
+      logoUrl: company.logoUrl ?? null,
+      subscriptionPlan: isInventory ? SubscriptionPlan.INVENTORY : SubscriptionPlan.STARTER,
+      defaultProjectId,
+    },
+  });
+
   return {
-    user: await toPublicUser({
-      id: owner.id,
-      name: owner.name,
-      email: owner.email,
-      phone: owner.phone,
-      role: owner.role,
-      companyId: company.id,
-      company: { name: company.name, logoUrl: company.logoUrl ?? null },
-    }),
+    user: publicUser,
     ...tokens,
   };
 }
@@ -159,7 +214,9 @@ export async function login(
 ): Promise<AuthResponse> {
   const user = await prisma.user.findUnique({
     where: { email: input.email },
-    include: { company: { select: { name: true, logoUrl: true } } },
+    include: {
+      company: { select: { name: true, logoUrl: true, subscriptionPlan: true, defaultProjectId: true } },
+    },
   });
   if (!user) throw ApiError.unauthorized('Invalid email or password');
 
@@ -234,7 +291,9 @@ export async function logout(refreshToken: string | undefined): Promise<void> {
 export async function me(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: { company: { select: { name: true, logoUrl: true } } },
+    include: {
+      company: { select: { name: true, logoUrl: true, subscriptionPlan: true, defaultProjectId: true } },
+    },
   });
   if (!user) throw ApiError.notFound('User not found');
   return toPublicUser(user);

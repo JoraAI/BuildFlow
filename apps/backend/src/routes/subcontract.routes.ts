@@ -9,6 +9,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import * as subcontractController from '../controllers/subcontract.controller';
 import { authenticateToken, requireRole } from '../middleware/auth';
+import { requireModule, requireModuleForPaths } from '../middleware/module-gate';
 import { validate } from '../middleware/validate';
 import { asyncHandler } from '../utils/async-handler';
 import {
@@ -40,6 +41,10 @@ const approveMeasurementSchema = z.object({ createBill: z.boolean().optional() }
 
 export const subcontractProjectRouter = Router();
 subcontractProjectRouter.use(authenticateToken);
+// Mounted at /api/projects — path-aware so only subcontract routes are gated.
+subcontractProjectRouter.use(
+  requireModuleForPaths('subcontracts', [/^\/[^/]+\/subcontract\b/]),
+);
 
 subcontractProjectRouter.get(
   '/:id/subcontract/work-orders',
@@ -178,6 +183,7 @@ subcontractProjectRouter.post(
 
 export const subcontractorRouter = Router();
 subcontractorRouter.use(authenticateToken);
+subcontractorRouter.use(requireModule('subcontracts'));
 
 subcontractorRouter.get('/', asyncHandler(subcontractController.listSubcontractors));
 subcontractorRouter.post(

@@ -15,12 +15,12 @@ const VALUES = [
   {
     icon: 'phone-portrait-outline' as const,
     title: 'Field-first',
-    text: 'Site supervisors report from mobile; owners and PMs manage from desktop.',
+    text: 'Site supervisors report from mobile; owners and store teams manage from desktop.',
   },
   {
     icon: 'layers-outline' as const,
-    title: 'One platform',
-    text: 'Projects, estimates, planning, reports, and accounting in a single system.',
+    title: 'ERP + Inventory',
+    text: 'Construction ERP for contractors, plus an exclusive Inventory product for traders and material suppliers.',
   },
 ];
 
@@ -31,11 +31,11 @@ export default function AboutPage() {
     <MarketingPageShell>
       <MarketingSection
         title="About BuildFlow"
-        subtitle="Construction ERP built for Indian contractors who need modern project management without sacrificing Tally-grade financial control."
+        subtitle="Construction ERP and exclusive Inventory for Indian businesses who need modern operations with Tally-grade financial control."
       >
         <Text className="text-muted text-base leading-relaxed mb-10">
-          We help firms move from spreadsheets and disconnected tools to a unified workflow - from
-          first estimate to final invoice.
+          We help construction firms move from spreadsheets to a unified project workflow, and give
+          trading businesses a dedicated Inventory path for stock, procurement, invoicing, and Tally.
         </Text>
 
         <View
@@ -59,9 +59,9 @@ export default function AboutPage() {
         <Card className="mt-8 bg-primary/5 border-primary/20">
           <Text className="text-base font-bold text-text mb-2">Our mission</Text>
           <Text className="text-sm text-muted leading-relaxed">
-            To give every construction company - from mini contractors to heavy civil firms - the
-            same quality of software that large enterprises use, at a price and UX that works on
-            site and in the office.
+            To give every construction company and materials business, from mini contractors to
+            heavy civil firms and local traders, software that works on site, in the store, and in
+            the office.
           </Text>
         </Card>
       </MarketingSection>

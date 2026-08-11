@@ -11,8 +11,9 @@ import {
   invalidateProjectAccounting,
   invalidateProjectBoq,
   invalidateProjectCore,
-  invalidateProjectProcurement,
   invalidateProjectSubcontract,
+  invalidateProcurementLists,
+  invalidateProcurementStock,
   invalidateAnalyticsDashboard,
 } from '@/lib/project-query-invalidation';
 import type {
@@ -180,6 +181,7 @@ export interface StockSummaryRow {
   resourceId: string;
   name: string;
   unit: string;
+  catalogRate?: number;
   received: number;
   issued: number;
   balance: number;
@@ -486,7 +488,7 @@ export function useCreateRequisition(projectId: string) {
         body: JSON.stringify(input),
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: expansionKeys.requisitions(projectId) });
+      void qc.invalidateQueries({ queryKey: expansionKeys.requisitions(projectId) });
     },
   });
 }
@@ -499,7 +501,9 @@ export function useDeleteRequisition(projectId: string) {
         `/projects/${projectId}/procurement/requisitions/${requisitionId}`,
         { method: 'DELETE' },
       ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: expansionKeys.requisitions(projectId) }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: expansionKeys.requisitions(projectId) });
+    },
   });
 }
 
@@ -511,7 +515,14 @@ export function useSubmitRequisition(projectId: string) {
         `/projects/${projectId}/procurement/requisitions/${requisitionId}/submit`,
         { method: 'POST', body: '{}' },
       ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: expansionKeys.requisitions(projectId) }),
+    onSuccess: (data) => {
+      // Cache-patch the status so the badge updates instantly; refetch in
+      // background (void so mutateAsync settles on HTTP success, not refetch).
+      qc.setQueryData<Requisition[]>(expansionKeys.requisitions(projectId), (old: Requisition[] | undefined) =>
+        old?.map((r) => (r.id === data.id ? { ...r, status: data.status } : r)),
+      );
+      void qc.invalidateQueries({ queryKey: expansionKeys.requisitions(projectId) });
+    },
   });
 }
 
@@ -523,7 +534,12 @@ export function useApproveRequisition(projectId: string) {
         `/projects/${projectId}/procurement/requisitions/${requisitionId}/approve`,
         { method: 'POST', body: '{}' },
       ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: expansionKeys.requisitions(projectId) }),
+    onSuccess: (data) => {
+      qc.setQueryData<Requisition[]>(expansionKeys.requisitions(projectId), (old: Requisition[] | undefined) =>
+        old?.map((r) => (r.id === data.id ? { ...r, status: data.status } : r)),
+      );
+      void qc.invalidateQueries({ queryKey: expansionKeys.requisitions(projectId) });
+    },
   });
 }
 
@@ -535,7 +551,13 @@ export function useCreatePurchaseOrder(projectId: string) {
         method: 'POST',
         body: JSON.stringify(input),
       }),
-    onSuccess: () => invalidateProjectProcurement(qc, projectId),
+    // PROCUREMENT_PICKER_PERF: a new PO only changes the requisition list
+    // (the indent gains a PO and leaves the New PO picker). No stock refetch.
+    // Important: void the invalidate — returning its Promise made mutateAsync
+    // wait for the full list refetch, leaving the New PO modal stuck open.
+    onSuccess: () => {
+      void invalidateProcurementLists(qc, projectId);
+    },
   });
 }
 
@@ -547,7 +569,15 @@ export function useCreateGRN(projectId: string) {
         method: 'POST',
         body: JSON.stringify(input),
       }),
-    onSuccess: () => invalidateProjectProcurement(qc, projectId),
+    // PROCUREMENT_PICKER_PERF: GRN changes the requisition list (PO receipt
+    // status) + stock summary/locations — not BOQ/shortfalls.
+    onSuccess: () => {
+      void invalidateProcurementLists(qc, projectId);
+      void invalidateProcurementStock(qc, projectId);
+      // Inventory auto-draft bills appear on GRN — refresh AP lists.
+      void qc.invalidateQueries({ queryKey: ['bills', 'list', projectId] });
+      void qc.invalidateQueries({ queryKey: ['bills', 'summary', projectId] });
+    },
   });
 }
 
@@ -575,6 +605,37 @@ export function useStockMovements(projectId: string, resourceId: string | undefi
         `/projects/${projectId}/procurement/stock/movements?resourceId=${resourceId}&limit=50`,
       ),
     enabled: !!projectId && !!resourceId,
+  });
+}
+
+export function useIssueStock(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      resourceId: string;
+      quantity: number;
+      unitPrice?: number;
+      customerName?: string;
+      notes?: string;
+    }) =>
+      apiFetch<{
+        movementId: string;
+        resourceId: string;
+        resourceName: string;
+        unit: string;
+        quantityIssued: number;
+        quantityOnHand: number;
+        draftInvoiceId: string | null;
+      }>(`/projects/${projectId}/procurement/stock/issue`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: expansionKeys.stockSummary(projectId) });
+      void qc.invalidateQueries({ queryKey: expansionKeys.stock(projectId) });
+      void qc.invalidateQueries({ queryKey: ['procurement', 'stock', 'movements', projectId] });
+      void qc.invalidateQueries({ queryKey: ['invoices', 'list', projectId] });
+    },
   });
 }
 

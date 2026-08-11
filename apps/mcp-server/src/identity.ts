@@ -25,6 +25,8 @@ export interface McpIdentity {
   companyName: string;
   userName: string;
   permissions: string[];
+  /** INVENTORY_PRODUCT: 'inventory' | 'construction' — scopes allowed tools. */
+  productMode: 'inventory' | 'construction';
   /** Token id (jti) for blacklist checking. */
   tid: string;
 }
@@ -79,7 +81,7 @@ export async function resolveIdentity(token: string): Promise<McpIdentity> {
 
   const company = await prisma.company.findFirstOrThrow({
     where: { id: user.companyId },
-    select: { name: true },
+    select: { name: true, subscriptionPlan: true },
   });
 
   // 5. Resolve permissions via the shared defaults (dynamic import to
@@ -94,6 +96,7 @@ export async function resolveIdentity(token: string): Promise<McpIdentity> {
     companyName: company.name,
     userName: user.name,
     permissions,
+    productMode: company.subscriptionPlan === 'INVENTORY' ? 'inventory' : 'construction',
     tid: payload.tid,
   };
 }

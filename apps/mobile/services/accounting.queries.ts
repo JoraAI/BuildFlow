@@ -54,7 +54,7 @@ export interface Bill {
   vendorGstin?: string | null;
   billDate: string;
   dueDate?: string | null;
-  status: 'PENDING' | 'APPROVED' | 'PAID' | 'REJECTED';
+  status: 'DRAFT' | 'PENDING' | 'APPROVED' | 'PAID' | 'REJECTED';
   subtotal: number;
   gstAmount: number;
   tdsRate: number;

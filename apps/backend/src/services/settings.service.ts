@@ -7,6 +7,7 @@
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
 import { randomUUID } from 'crypto';
+import { INVITABLE_ROLES_BY_PRODUCT, type Role } from '@buildflow/shared';
 import {
   buildS3Key,
   getPresignedUploadUrl,
@@ -220,6 +221,24 @@ export async function updateUser(
   // FIX (SEC-H8): forbid assigning the OWNER role via this endpoint (privilege
   // escalation), and block self-role-changes.
   const existing = await prisma.user.findFirstOrThrow({ where: { id: targetUserId, companyId } });
+
+  // INVENTORY_PRODUCT: enforce role allow-list on role changes too.
+  if (data.role) {
+    const company = await prisma.company.findUniqueOrThrow({
+      where: { id: companyId },
+      select: { subscriptionPlan: true },
+    });
+    const productMode = company.subscriptionPlan === 'INVENTORY' ? 'inventory' : 'construction';
+    const allowed = INVITABLE_ROLES_BY_PRODUCT[productMode];
+    if (!allowed.includes(data.role as Role)) {
+      throw new ApiError(
+        'FORBIDDEN',
+        productMode === 'inventory'
+          ? 'Inventory accounts can only have OWNER or INVENTORY_MANAGER roles.'
+          : 'This role is not available for construction accounts.',
+      );
+    }
+  }
 
   // Block self-role changes.
   if (data.role && callerUserId === targetUserId) {

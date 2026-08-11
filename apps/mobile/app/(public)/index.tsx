@@ -18,14 +18,14 @@ export default function LandingPage() {
 
       <MarketingSection
         id="features"
-        title="Everything your firm needs"
-        subtitle="From site to boardroom"
+        title="ERP for sites. Inventory for stores."
+        subtitle="Construction project suite plus an exclusive Inventory product with GST accounting"
       >
         <FeatureGrid />
       </MarketingSection>
 
       <MarketingSection
-        title="Trusted by contractors"
+        title="Trusted across construction and stock"
         subtitle="What teams say about BuildFlow"
         className="bg-card"
       >

@@ -118,7 +118,7 @@ export default function IntegrationsScreen() {
   const [razorpay, setRazorpay] = useState({ keyId: '', keySecret: '', webhookSecret: '' });
   const [stripe, setStripe] = useState({ secretKey: '', webhookSecret: '' });
   const [tally, setTally] = useState({
-    sales: '', purchase: '', cgst: '', sgst: '', igst: '', tdsPayable: '', bank: '',
+    sales: '', purchase: '', cgst: '', sgst: '', igst: '', tdsPayable: '', retention: '', advanceRecovery: '', bank: '',
   });
   const [maps, setMaps] = useState({ apiKey: '' });
   const [llm, setLlm] = useState({ apiUrl: '', apiKey: '', model: '' });
@@ -146,6 +146,8 @@ export default function IntegrationsScreen() {
       sgst: String(s(data.tally).sgst ?? ''),
       igst: String(s(data.tally).igst ?? ''),
       tdsPayable: String(s(data.tally).tdsPayable ?? ''),
+      retention: String(s(data.tally).retention ?? ''),
+      advanceRecovery: String(s(data.tally).advanceRecovery ?? ''),
       bank: String(s(data.tally).bank ?? ''),
     });
     setMaps({ apiKey: '' });
@@ -255,6 +257,8 @@ export default function IntegrationsScreen() {
           <Input label="SGST" value={tally.sgst} onChangeText={(v) => setTally((f) => ({ ...f, sgst: v }))} />
           <Input label="IGST" value={tally.igst} onChangeText={(v) => setTally((f) => ({ ...f, igst: v }))} />
           <Input label="TDS Payable" value={tally.tdsPayable} onChangeText={(v) => setTally((f) => ({ ...f, tdsPayable: v }))} />
+          <Input label="Retention Money" value={tally.retention} onChangeText={(v) => setTally((f) => ({ ...f, retention: v }))} />
+          <Input label="Advance Recovery" value={tally.advanceRecovery} onChangeText={(v) => setTally((f) => ({ ...f, advanceRecovery: v }))} />
           <Input label="Bank" value={tally.bank} onChangeText={(v) => setTally((f) => ({ ...f, bank: v }))} />
           <SaveRow slug="tally" fields={tally} onSaved={() => refetch()} />
         </IntegrationPanel>

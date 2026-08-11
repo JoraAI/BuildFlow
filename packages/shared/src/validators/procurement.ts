@@ -52,6 +52,18 @@ export const createGrnSchema = z.object({
 });
 export type CreateGrnInput = z.infer<typeof createGrnSchema>;
 
+/** Manual stock issue (OUT) for inventory / store operations. */
+export const issueStockSchema = z.object({
+  resourceId: z.string().uuid(),
+  quantity: z.coerce.number().positive(),
+  /** Selling unit price for the draft sales invoice (ex-GST). Falls back to catalog rate. */
+  unitPrice: z.coerce.number().nonnegative().optional(),
+  /** Optional buyer/customer for auto draft sales invoice (inventory). */
+  customerName: z.string().min(1).max(200).optional(),
+  notes: z.string().max(2000).optional(),
+});
+export type IssueStockInput = z.infer<typeof issueStockSchema>;
+
 export const createStockLocationSchema = z.object({
   name: z.string().min(1).max(100),
   projectId: z.string().uuid().optional(),

@@ -43,6 +43,7 @@ import {
 } from '@/components/projects/IndentDraftLineCard';
 import { alertAsync, confirmAsync } from '@/utils/confirm';
 import type { MaterialRateSource } from '@buildflow/shared';
+import { poAvailableForNewGrn, poRemainingByResource } from '@buildflow/shared';
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
@@ -237,6 +238,7 @@ function IndentsSection({
       resourceName: string;
       unit: string;
       poQty: number;
+      remainingQty: number;
       boqItem?: { itemCode: string; description: string } | null;
     }>;
   } | null>(null);
@@ -249,6 +251,8 @@ function IndentsSection({
   const [grnNumber, setGrnNumber] = useState('');
   const [grnNotes, setGrnNotes] = useState('');
   const [grnLineQtys, setGrnLineQtys] = useState<Record<string, string>>({});
+  /** In-flight submit/approve/delete on an indent — prevents double-click. */
+  const [pendingAction, setPendingAction] = useState<{ id: string; kind: 'submit' | 'approve' | 'delete' } | null>(null);
 
   // Shortfalls loaded only when modal opens
   const shortfallsQ = useBoqShortfalls(projectId, reqModal);
@@ -450,13 +454,30 @@ function IndentsSection({
             allReqs={allReqs}
             projectId={projectId}
             router={router}
-            onSubmit={() => submitReq.mutate(req.id, { onError: (e: Error) => void alertAsync('Error', e.message) })}
+            pendingAction={pendingAction}
+            onSubmit={() => {
+              setPendingAction({ id: req.id, kind: 'submit' });
+              submitReq.mutate(req.id, {
+                onSettled: () => setPendingAction(null),
+                onError: (e: Error) => void alertAsync('Error', e.message),
+              });
+            }}
             onDelete={async () => {
               const ok = await confirmAsync('Delete indent?', `Delete ${req.reqNumber}? This cannot be undone.`);
               if (!ok) return;
-              deleteReq.mutate(req.id, { onError: (e: Error) => void alertAsync('Error', e.message) });
+              setPendingAction({ id: req.id, kind: 'delete' });
+              deleteReq.mutate(req.id, {
+                onSettled: () => setPendingAction(null),
+                onError: (e: Error) => void alertAsync('Error', e.message),
+              });
             }}
-            onApprove={() => approveReq.mutate(req.id, { onError: (e: Error) => void alertAsync('Error', e.message) })}
+            onApprove={() => {
+              setPendingAction({ id: req.id, kind: 'approve' });
+              approveReq.mutate(req.id, {
+                onSettled: () => setPendingAction(null),
+                onError: (e: Error) => void alertAsync('Error', e.message),
+              });
+            }}
             onCreatePO={() => {
               const rates: Record<string, string> = {};
               req.lines.forEach((line: Requisition['lines'][number]) => {
@@ -471,16 +492,20 @@ function IndentsSection({
               const boqByResource = new Map(
                 req.lines.filter((l) => l.boqItem).map((l) => [l.resourceId, l.boqItem]),
               );
+              const remaining = poRemainingByResource(po);
               const modalLines = po.lines.map((line) => ({
                 lineId: line.id,
                 resourceId: line.resourceId,
                 resourceName: line.resource.name,
                 unit: line.unit || line.resource.unit,
                 poQty: parseFloat(line.quantity) || 0,
+                remainingQty: remaining.get(line.resourceId) ?? (parseFloat(line.quantity) || 0),
                 boqItem: boqByResource.get(line.resourceId) ?? null,
               }));
               const qtys: Record<string, string> = {};
-              modalLines.forEach((l) => { qtys[l.lineId] = String(l.poQty); });
+              modalLines.forEach((l) => {
+                if (l.remainingQty > 0) qtys[l.lineId] = String(l.remainingQty);
+              });
               setGrnNumber(suggestGrnNumber(po.poNumber));
               setGrnNotes('');
               setGrnLineQtys(qtys);
@@ -588,13 +613,16 @@ function IndentsSection({
             {line.boqItem ? (
               <Text className="text-[10px] text-muted mb-1">BOQ {line.boqItem.itemCode} · {line.boqItem.description}</Text>
             ) : null}
-            <Text className="text-xs text-muted mb-1">Ordered {line.poQty} {line.unit}</Text>
+            <Text className="text-xs text-muted mb-1">
+              Ordered {line.poQty} {line.unit}
+              {line.remainingQty < line.poQty ? ` · remaining ${line.remainingQty}` : ''}
+            </Text>
             <Input
               label={`Qty received (${line.unit})`}
               value={grnLineQtys[line.lineId] ?? ''}
               onChangeText={(v) => setGrnLineQtys((prev) => ({ ...prev, [line.lineId]: v }))}
               keyboardType="numeric"
-              placeholder={String(line.poQty)}
+              placeholder={String(line.remainingQty)}
             />
           </View>
         ))}
@@ -617,6 +645,7 @@ function IndentCard({
   allReqs,
   projectId,
   router,
+  pendingAction,
   onSubmit,
   onDelete,
   onApprove,
@@ -632,6 +661,7 @@ function IndentCard({
   allReqs: Requisition[];
   projectId: string;
   router: ReturnType<typeof useRouter>;
+  pendingAction: { id: string; kind: 'submit' | 'approve' | 'delete' } | null;
   onSubmit: () => void;
   onDelete: () => void;
   onApprove: () => void;
@@ -642,6 +672,8 @@ function IndentCard({
 
   const hasPOs = (req.purchaseOrders?.length ?? 0) > 0;
   const hasGRNs = req.purchaseOrders?.some((po) => (po.goodsReceipts?.length ?? 0) > 0) ?? false;
+  const busy = pendingAction !== null && pendingAction.id === req.id;
+  const otherBusy = pendingAction !== null && pendingAction.id !== req.id;
 
   return (
     <Card>
@@ -722,8 +754,14 @@ function IndentCard({
                 ) : (po.goodsReceipts?.length ?? 0) > 0 ? (
                   <Badge label="Vendor bill pending" color="warning" />
                 ) : null}
-                {canCreate && po.status !== 'CANCELLED' && !(po.goodsReceipts?.length ?? 0) && (
-                  <Button label="Record GRN" size="sm" variant="secondary" onPress={() => onRecordGRN(po)} />
+                {canCreate && poAvailableForNewGrn(po) && (
+                  <Button
+                    label="Record GRN"
+                    size="sm"
+                    variant="secondary"
+                    disabled={otherBusy}
+                    onPress={() => onRecordGRN(po)}
+                  />
                 )}
                 {/* PROC-B1: "Record vendor bill" (was "Create Bill") — only show if no bill yet */}
                 {canCreateBill && (po.goodsReceipts?.length ?? 0) > 0 && !(po.bills?.length) && (
@@ -750,16 +788,36 @@ function IndentCard({
       {/* Action buttons */}
       <View className="flex-row gap-2 mt-2 flex-wrap">
         {canCreate && (req.status === 'DRAFT' || req.status === 'REJECTED') && (
-          <Button label="Submit" size="sm" variant="secondary" onPress={onSubmit} />
+          <Button
+            label="Submit"
+            size="sm"
+            variant="secondary"
+            loading={busy && pendingAction.kind === 'submit'}
+            disabled={otherBusy}
+            onPress={onSubmit}
+          />
         )}
         {canCreate && req.status === 'DRAFT' && !hasPOs && (
-          <Button label="Delete" size="sm" variant="ghost" onPress={onDelete} />
+          <Button
+            label="Delete"
+            size="sm"
+            variant="ghost"
+            loading={busy && pendingAction.kind === 'delete'}
+            disabled={otherBusy}
+            onPress={onDelete}
+          />
         )}
         {canApprove && req.status === 'SUBMITTED' && (
-          <Button label="Approve" size="sm" onPress={onApprove} />
+          <Button
+            label="Approve"
+            size="sm"
+            loading={busy && pendingAction.kind === 'approve'}
+            disabled={otherBusy}
+            onPress={onApprove}
+          />
         )}
         {canCreatePO && req.status === 'APPROVED' && !hasPOs && (
-          <Button label="Create PO" size="sm" onPress={onCreatePO} />
+          <Button label="Create PO" size="sm" disabled={otherBusy} onPress={onCreatePO} />
         )}
       </View>
     </Card>

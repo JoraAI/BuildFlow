@@ -7,8 +7,8 @@ export function PricingComparisonTable() {
   const { isMarketingDesktop } = useViewport();
   if (!isMarketingDesktop) return null;
 
-  const cols = ['starter', 'professional', 'enterprise'] as const;
-  const headers = ['Starter', 'Professional', 'Enterprise'];
+  const cols = ['inventory', 'starter', 'professional', 'enterprise'] as const;
+  const headers = ['Inventory', 'Starter', 'Professional', 'Enterprise'];
 
   return (
     <View className="mt-12">

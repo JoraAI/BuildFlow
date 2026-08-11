@@ -10,6 +10,8 @@ import type {
 } from '@buildflow/shared';
 import { resolveRequisitionLineRate } from './material-rate.service';
 import { alertOnPurchaseOrderRateVariance } from './material-rate-alert.service';
+import { createDraftBillFromGrn } from './bill.service';
+import { createDraftInvoiceFromStockIssue } from './invoice.service';
 import { logger } from '../config/logger';
 import {
   createDraftIndentsFromDemand,
@@ -280,6 +282,13 @@ export async function createPO(
       where: { requisitionId: input.requisitionId },
       include: { lines: { select: { resourceId: true, quantity: true } } },
     });
+    // PROCUREMENT_PICKER_PERF (locked rule): one PO per indent. A second PO is
+    // rejected so the "New PO" picker (APPROVED + zero POs) can't dual-submit.
+    if (existingPOs.length > 0) {
+      throw ApiError.badRequest(
+        'This indent already has a purchase order. Create a new indent for additional orders.',
+      );
+    }
     const orderedQty = new Map<string, number>();
     for (const ep of existingPOs) {
       for (const l of ep.lines) {
@@ -333,7 +342,10 @@ export async function createPO(
     include: { lines: { include: { resource: { select: { id: true, name: true } } } } },
   });
 
-  await alertOnPurchaseOrderRateVariance(
+  // Fire-and-forget: rate alerts may touch Redis (Bull). Awaiting them made the
+  // HTTP response hang when Redis was slow/unreachable — PO was saved but the
+  // client never saw success (modal stuck until reload).
+  void alertOnPurchaseOrderRateVariance(
     companyId,
     projectId,
     po.id,
@@ -385,6 +397,16 @@ export async function createGRN(
     }
   }
 
+  // PROCUREMENT_PICKER_PERF (locked rule): once every PO line is fully
+  // received (±0.001), the PO drops out of the "New GRN" picker and further
+  // GRNs are rejected here (partial receipts stay allowed until then).
+  const fullyReceived = po.lines.every(
+    (l) => (cumulativeReceived.get(l.resourceId) ?? 0) >= Number(l.quantity) - 0.001,
+  );
+  if (fullyReceived) {
+    throw ApiError.badRequest('This PO is fully received.');
+  }
+
   for (const grnLine of input.lines) {
     const poLine = poLineByResource.get(grnLine.resourceId);
     if (!poLine) {
@@ -403,8 +425,8 @@ export async function createGRN(
     }
   }
 
-  return prisma.$transaction(async (tx) => {
-    const grn = await tx.goodsReceiptNote.create({
+  const grn = await prisma.$transaction(async (tx) => {
+    const created = await tx.goodsReceiptNote.create({
       data: {
         projectId,
         companyId,
@@ -448,7 +470,7 @@ export async function createGRN(
           quantity: line.quantity,
           type: 'IN',
           referenceType: 'GRN',
-          referenceId: grn.id,
+          referenceId: created.id,
         },
       });
     }
@@ -537,8 +559,30 @@ export async function createGRN(
       void allFulfilled;
     }
 
-    return grn;
+    return created;
   });
+
+  // Inventory only: draft vendor bill from received qty × PO rates.
+  // After stock is committed — failures are non-fatal (do not roll back GRN).
+  try {
+    await createDraftBillFromGrn({
+      companyId,
+      projectId,
+      purchaseOrderId: grn.purchaseOrderId,
+      goodsReceiptId: grn.id,
+      grnNumber: grn.grnNumber,
+      receivedDate: grn.receivedDate,
+      lines: grn.lines.map((l) => ({
+        resourceId: l.resourceId,
+        quantity: Number(l.quantity),
+        unit: l.unit,
+      })),
+    });
+  } catch (err) {
+    logger.warn('Auto draft bill from GRN failed (non-fatal)', { error: String(err), grnId: grn.id });
+  }
+
+  return grn;
 }
 
 type StockTx = Pick<
@@ -606,6 +650,102 @@ export async function issueStockForDailyReport(
       },
     });
   }
+}
+
+/**
+ * Manual stock issue (OUT) — inventory store operations, sales fulfilment, etc.
+ * Requires on-hand balance; throws if insufficient stock.
+ */
+export async function issueStockManual(
+  companyId: string,
+  userId: string,
+  role: string,
+  projectId: string,
+  input: {
+    resourceId: string;
+    quantity: number;
+    notes?: string;
+    customerName?: string;
+    unitPrice?: number;
+  },
+) {
+  await assertProjectAccess(companyId, userId, role as never, projectId);
+
+  const resource = await prisma.resource.findFirst({
+    where: { id: input.resourceId, companyId },
+    select: { id: true, name: true, unit: true },
+  });
+  if (!resource) throw ApiError.notFound('Resource not found');
+
+  const result = await prisma.$transaction(async (tx) => {
+    const location = await getOrCreateProjectStockLocation(companyId, projectId, tx);
+    const balance = await tx.stockBalance.findUnique({
+      where: {
+        locationId_resourceId: { locationId: location.id, resourceId: input.resourceId },
+      },
+    });
+    const onHand = balance ? Number(balance.quantity) : 0;
+    if (!balance || onHand < input.quantity) {
+      if (!balance || onHand === 0) {
+        throw ApiError.unprocessable(
+          `${resource.name}: no stock on hand — receive via GRN first`,
+        );
+      }
+      throw ApiError.unprocessable(
+        `${resource.name}: only ${onHand} ${resource.unit} on hand, requested ${input.quantity} ${resource.unit}`,
+      );
+    }
+
+    await tx.stockBalance.update({
+      where: { id: balance.id },
+      data: { quantity: { decrement: input.quantity } },
+    });
+    const movement = await tx.stockMovement.create({
+      data: {
+        locationId: location.id,
+        resourceId: input.resourceId,
+        quantity: input.quantity,
+        type: 'OUT',
+        referenceType: 'MANUAL_ISSUE',
+        referenceId: null,
+      },
+    });
+
+    return {
+      movementId: movement.id,
+      resourceId: resource.id,
+      resourceName: resource.name,
+      unit: resource.unit,
+      quantityIssued: input.quantity,
+      quantityOnHand: round3(onHand - input.quantity),
+      notes: input.notes ?? null,
+      customerName: input.customerName?.trim() || null,
+      unitPrice: input.unitPrice ?? null,
+    };
+  });
+
+  // Inventory only: draft sales invoice — non-fatal after stock is committed.
+  let draftInvoiceId: string | null = null;
+  try {
+    const draft = await createDraftInvoiceFromStockIssue({
+      companyId,
+      projectId,
+      stockMovementId: result.movementId,
+      resourceId: result.resourceId,
+      quantity: result.quantityIssued,
+      unitPrice: result.unitPrice,
+      customerName: result.customerName,
+      notes: result.notes,
+    });
+    draftInvoiceId = draft?.id ?? null;
+  } catch (err) {
+    logger.warn('Auto draft invoice from stock issue failed (non-fatal)', {
+      error: String(err),
+      movementId: result.movementId,
+    });
+  }
+
+  return { ...result, draftInvoiceId };
 }
 
 export async function getResourceUtilization(companyId: string, projectId: string) {
@@ -690,6 +830,8 @@ export interface StockSummaryRow {
   resourceId: string;
   name: string;
   unit: string;
+  /** Catalog / list rate — suggested selling price for Issue. */
+  catalogRate: number;
   received: number;
   issued: number;
   balance: number;
@@ -713,34 +855,36 @@ export async function getStockSummary(
   const [movements, balances] = await Promise.all([
     prisma.stockMovement.findMany({
       where: { locationId: { in: locationIds } },
-      include: { resource: { select: { id: true, name: true, unit: true } } },
+      include: { resource: { select: { id: true, name: true, unit: true, rate: true } } },
     }),
     prisma.stockBalance.findMany({
       where: { locationId: { in: locationIds } },
-      include: { resource: { select: { id: true, name: true, unit: true } } },
+      include: { resource: { select: { id: true, name: true, unit: true, rate: true } } },
     }),
   ]);
 
   const map = new Map<string, StockSummaryRow>();
 
-  const ensure = (resourceId: string, name: string, unit: string) => {
+  const ensure = (resourceId: string, name: string, unit: string, catalogRate: number) => {
     let row = map.get(resourceId);
     if (!row) {
-      row = { resourceId, name, unit, received: 0, issued: 0, balance: 0 };
+      row = { resourceId, name, unit, catalogRate, received: 0, issued: 0, balance: 0 };
       map.set(resourceId, row);
     }
     return row;
   };
 
   for (const m of movements) {
-    const row = ensure(m.resourceId, m.resource.name, m.resource.unit);
+    const rate = Number(m.resource.rate) || 0;
+    const row = ensure(m.resourceId, m.resource.name, m.resource.unit, rate);
     const qty = Number(m.quantity);
     if (m.type === 'IN') row.received += qty;
     else if (m.type === 'OUT') row.issued += qty;
   }
 
   for (const b of balances) {
-    const row = ensure(b.resourceId, b.resource.name, b.resource.unit);
+    const rate = Number(b.resource.rate) || 0;
+    const row = ensure(b.resourceId, b.resource.name, b.resource.unit, rate);
     row.balance += Number(b.quantity);
   }
 
@@ -838,6 +982,8 @@ export async function listStockMovements(
     } else if (m.referenceType === 'DAILY_REPORT' && m.referenceId) {
       const date = reportLabelById.get(m.referenceId);
       referenceLabel = date ? `Daily report · ${date}` : 'Daily report';
+    } else if (m.referenceType === 'MANUAL_ISSUE') {
+      referenceLabel = 'Stock issue';
     }
 
     return {

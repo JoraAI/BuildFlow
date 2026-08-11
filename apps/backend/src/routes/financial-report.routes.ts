@@ -20,25 +20,26 @@ router.use(authenticateToken);
 
 // Project-scoped reports
 // FIX (FIN-M8): Gate financial routes with requireRole for OWNER, PM, ACCOUNTANT.
-router.get('/projects/:id/financials/pl', requireRole('OWNER', 'PM', 'ACCOUNTANT'), ctrl.getProfitLoss);
-router.get('/projects/:id/financials/cashflow', requireRole('OWNER', 'PM', 'ACCOUNTANT'), ctrl.getCashFlow);
-router.get('/projects/:id/financials/estimate-vs-actual', requireRole('OWNER', 'PM', 'ACCOUNTANT'), ctrl.getEstimateVsActual);
-router.get('/projects/:id/financials/export-tally', requireRole('OWNER', 'PM', 'ACCOUNTANT'), ctrl.exportProjectTally);
+// INVENTORY_PRODUCT: INVENTORY_MANAGER needs financial reports + Tally export.
+router.get('/projects/:id/financials/pl', requireRole('OWNER', 'PM', 'ACCOUNTANT', 'INVENTORY_MANAGER'), ctrl.getProfitLoss);
+router.get('/projects/:id/financials/cashflow', requireRole('OWNER', 'PM', 'ACCOUNTANT', 'INVENTORY_MANAGER'), ctrl.getCashFlow);
+router.get('/projects/:id/financials/estimate-vs-actual', requireRole('OWNER', 'PM', 'ACCOUNTANT', 'INVENTORY_MANAGER'), ctrl.getEstimateVsActual);
+router.get('/projects/:id/financials/export-tally', requireRole('OWNER', 'PM', 'ACCOUNTANT', 'INVENTORY_MANAGER'), ctrl.exportProjectTally);
 
 // Company-wide reports
 router.get(
   '/company/financials/dashboard',
-  requireRole('OWNER', 'ACCOUNTANT'),
+  requireRole('OWNER', 'ACCOUNTANT', 'INVENTORY_MANAGER'),
   ctrl.getCompanyDashboard,
 );
 router.get(
   '/company/financials/gst-report',
-  requireRole('OWNER', 'ACCOUNTANT'),
+  requireRole('OWNER', 'ACCOUNTANT', 'INVENTORY_MANAGER'),
   ctrl.getGstReport,
 );
 router.get(
   '/company/financials/tds-report',
-  requireRole('OWNER', 'ACCOUNTANT'),
+  requireRole('OWNER', 'ACCOUNTANT', 'INVENTORY_MANAGER'),
   ctrl.getTdsReport,
 );
 

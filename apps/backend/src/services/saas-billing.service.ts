@@ -42,6 +42,10 @@ export async function createSaasCheckout(
   });
 
   const amountInr = PLAN_PRICES_INR[plan];
+  // INVENTORY_PRODUCT: ENTERPRISE is contact-sales only — no self-serve amount.
+  if (amountInr === null) {
+    throw new Error('ENTERPRISE is contact-sales only. Please contact our sales team.');
+  }
   const referenceId = `saas-${companyId}-${plan}-${Date.now()}`;
 
   if (gateway === 'stripe') {

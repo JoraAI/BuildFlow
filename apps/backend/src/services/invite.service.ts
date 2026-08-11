@@ -8,7 +8,7 @@ import { generateInviteToken, hashInviteToken } from '../utils/invite-token';
 import { recordAudit } from '../utils/audit';
 import { signAccessToken, signRefreshToken } from '../utils/jwt';
 import { env } from '../config/env';
-import { Role } from '@buildflow/shared';
+import { Role, INVITABLE_ROLES_BY_PRODUCT } from '@buildflow/shared';
 import type { AcceptInviteInput, CreateUserInviteInput } from '@buildflow/shared';
 import type { AuthResponse } from './auth.service';
 import { assertPlanAllowsUser } from './plan-enforcement.service';
@@ -21,12 +21,35 @@ function issueTokens(payload: { sub: string; companyId: string; role: Role }) {
   return { accessToken, refreshToken, expiresIn: ACCESS_EXPIRES_SECONDS };
 }
 
+/**
+ * INVENTORY_PRODUCT: enforce role allow-list per plan family.
+ *   INVENTORY → OWNER + INVENTORY_MANAGER only.
+ *   Construction → existing roles except INVENTORY_MANAGER.
+ */
+async function assertInvitableRole(companyId: string, role: string): Promise<void> {
+  const company = await prisma.company.findUniqueOrThrow({
+    where: { id: companyId },
+    select: { subscriptionPlan: true },
+  });
+  const productMode = company.subscriptionPlan === 'INVENTORY' ? 'inventory' : 'construction';
+  const allowed = INVITABLE_ROLES_BY_PRODUCT[productMode];
+  if (!allowed.includes(role as Role)) {
+    throw ApiError.badRequest(
+      productMode === 'inventory'
+        ? 'Inventory accounts can only invite OWNER or INVENTORY_MANAGER roles.'
+        : 'This role is not available for construction accounts.',
+    );
+  }
+}
+
 export async function createInvite(
   companyId: string,
   invitedById: string,
   input: CreateUserInviteInput,
 ): Promise<{ inviteId: string; token: string; inviteUrl: string; expiresAt: Date }> {
   const email = input.email.toLowerCase();
+
+  await assertInvitableRole(companyId, input.role);
 
   const existingUser = await prisma.user.findUnique({ where: { email }, select: { id: true } });
   if (existingUser) throw ApiError.conflict('A user with this email already exists');
@@ -152,7 +175,11 @@ export async function acceptInvite(
   const tokenHash = hashInviteToken(input.token);
   const invite = await prisma.userInvite.findUnique({
     where: { tokenHash },
-    include: { company: { select: { name: true, logoUrl: true } } },
+    include: {
+      company: {
+        select: { name: true, logoUrl: true, subscriptionPlan: true, defaultProjectId: true },
+      },
+    },
   });
 
   if (!invite || invite.acceptedAt) throw ApiError.notFound('Invite not found or already used');
@@ -174,6 +201,19 @@ export async function acceptInvite(
       },
     });
 
+    // INVENTORY_PRODUCT: invited users of an inventory company are auto-added
+    // as members of the single default STORE project so project-scoped routes
+    // (procurement, stock, invoices, bills) pass the project-access check.
+    if (invite.company.defaultProjectId) {
+      await tx.projectMember.create({
+        data: {
+          projectId: invite.company.defaultProjectId,
+          userId: created.id,
+          role: invite.role,
+        },
+      });
+    }
+
     await tx.userInvite.update({
       where: { id: invite.id },
       data: { acceptedAt: new Date() },
@@ -193,13 +233,20 @@ export async function acceptInvite(
   });
 
   const tokens = issueTokens({ sub: user.id, companyId: user.companyId, role: user.role });
-  const companyMeta = invite.company as { name: string; logoUrl: string | null };
+  const companyMeta = invite.company as {
+    name: string;
+    logoUrl: string | null;
+    subscriptionPlan: string;
+    defaultProjectId: string | null;
+  };
   const { resolveLogoDisplayUrl } = await import('./settings.service');
   const { getRolePermissions } = await import('../lib/permissions');
+  const { getProductMode, PLAN_MODULES } = await import('@buildflow/shared');
   const [companyLogoUrl, permissions] = await Promise.all([
     resolveLogoDisplayUrl(user.companyId, companyMeta.logoUrl),
     getRolePermissions(user.companyId, user.role),
   ]);
+  const planKey = companyMeta.subscriptionPlan as keyof typeof PLAN_MODULES;
 
   return {
     user: {
@@ -212,6 +259,10 @@ export async function acceptInvite(
       phone: user.phone,
       companyLogoUrl,
       permissions,
+      productMode: getProductMode(companyMeta.subscriptionPlan),
+      defaultProjectId: companyMeta.defaultProjectId,
+      enabledModules: [...(PLAN_MODULES[planKey] ?? PLAN_MODULES.STARTER)],
+      subscriptionPlan: companyMeta.subscriptionPlan,
     },
     ...tokens,
   };

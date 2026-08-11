@@ -419,7 +419,7 @@ See [ESTIMATES.md](./ESTIMATES.md) for the full estimation domain logic.
 | `Bill` | Vendor bills; `category` (MATERIAL/LABOUR/EQUIPMENT/SUBCONTRACTOR/OTHER), TDS, `retentionAmount`, `advanceRecoveryAmount`, `paidAmount`, `isRetentionRelease`. Links to PO / work order / measurement. |
 | `JournalEntry` | Double-entry records; auto-created on payment events. |
 
-**GST logic** in `services/gst.service.ts`: intra-state → CGST+SGST split; inter-state → IGST. **Tally export** in `services/tally.service.ts` produces Tally-Prime-compatible XML with optional ledger mapping (`TALLY_LEDGER_MAP`).
+**GST logic** in `services/gst.service.ts`: intra-state → CGST+SGST split; inter-state → IGST. **Tally export** in `services/tally.service.ts` builds Tally-Prime import XML (`GET /api/projects/:id/financials/export-tally`) using per-company ledger names (`CompanyIntegration` `TALLY`, including Retention / Advance Recovery) with `TALLY_LEDGER_MAP` env fallback. In-app download: Project Accounting and Reports Hub → **Export to Tally**.
 
 ### 8.7 Procurement & inventory
 
@@ -763,15 +763,40 @@ pnpm dev               # turbo run dev (backend + mobile concurrently)
 
 ### Seed users
 
+**Password for all tenant users:** `Test@1234`
+
+#### Construction — Reddy Constructions Pvt Ltd (PROFESSIONAL)
+
 | Role | Email | Password |
 |------|-------|----------|
 | Owner | `owner@reddyconst.com` | `Test@1234` |
 | PM | `pm@reddyconst.com` | `Test@1234` |
-| Supervisor | `site@reddyconst.com` | `Test@1234` |
+| DPM | `dpm@reddyconst.com` | `Test@1234` |
+| QC | `qc@reddyconst.com` | `Test@1234` |
+| Mechanical Manager | `mechanical@reddyconst.com` | `Test@1234` |
+| Store Incharge | `store@reddyconst.com` | `Test@1234` |
+| Weighbridge | `weighbridge@reddyconst.com` | `Test@1234` |
+| Site Supervisor | `site@reddyconst.com` | `Test@1234` |
 | Accountant | `accounts@reddyconst.com` | `Test@1234` |
+
+Login: main app `/login` → construction dashboard / projects.
+
+#### Inventory — Hyderabad Building Materials (INVENTORY plan)
+
+| Role | Email | Password |
+|------|-------|----------|
+| Owner | `owner@hydmaterials.com` | `Test@1234` |
+| Inventory Manager | `manager@hydmaterials.com` | `Test@1234` |
+
+Login: main app `/login` → redirects to **`/inventory`** shell (Stock, Materials, Procurement, Invoices, Bills, Settings). Seed includes 4 materials with opening stock.
+
+#### Platform admin
+
+| Role | Email | Password |
+|------|-------|----------|
 | Platform admin | `admin@buildflow.com` | `Admin@1234` |
 
-Sample company: **Reddy Constructions Pvt Ltd** (Hyderabad).
+Use **`/platform/login`** (not the main company login).
 
 ### Running specific targets
 
@@ -884,6 +909,21 @@ List endpoints accept `page` + `limit` query params and return `meta`. The mobil
 Proposals · Change Orders/Variations · RA Billing · Procurement (Indent→PO→GRN→Stock) · Subcontractors · Material pricing regions · Progress/Materials workflow · Cross-module integration · Client + Subcontractor portals · Bill retention release.
 
 Migration history (`prisma/migrations/`) mirrors this: `platform_expansion_pr1`, `proposals`, `progress_materials_workflow`, `cross_module_integration`, `material_pricing_regions`, `requisition_expected_rate`, `boq_procurement_links`, `daily_report_site_status`, `subcontract_enhancements`, `bill_retention_release`.
+
+### Inventory product (INVENTORY_PRODUCT_IMPL)
+
+A separate **Inventory** subscription product (₹999/mo ex-GST) for stock + procurement + AR/AP invoicing + Tally + AI, shipped without breaking construction tenants:
+
+- **Plans / modules** — `packages/shared/src/plan-modules.ts` (`ProductMode`, `AppModule`, `PLAN_MODULES`, `getProductMode`). INVENTORY gets `inventory_shell, procurement, stock, invoices, bills, tally, assistant, settings`; construction plans get every module.
+- **Default project** — inventory signup (`registerCompany` with `product: 'inventory'`) or a platform switch-to-INVENTORY (`updateSubscriptionAsAdmin`) creates **one hidden project** `code='STORE'` and sets `Company.defaultProjectId` (unique FK). `/auth/me` (+ login/accept-invite payloads) return `productMode`, `defaultProjectId`, `enabledModules`, `subscriptionPlan`.
+- **Limits** — `PLAN_LIMITS.INVENTORY = { maxProjects: 1, maxUsers: 10 }`; `assertPlanAllowsProject` keeps INVENTORY at 1 even during trial and returns a dedicated 402 message. The default STORE project cannot be soft-deleted.
+- **Role** — `INVENTORY_MANAGER` (`Role` enum + shared defaults): stock, procurement, invoices, bills, Tally, financials, reports. Hidden from construction invite dropdowns; construction roles are hidden from inventory invites (`INVITABLE_ROLES_BY_PRODUCT`, enforced in `invite.service.ts` + `settings.service.ts` role updates). Invited inventory users are auto-added to the default project's members.
+- **Module gates** — `module-gate.service.ts` (`assertModuleEnabled`) + `middleware/module-gate.ts` (`requireModule`, `requireModuleForPaths`). Path-aware gates are used on routers mounted at shared prefixes (`/api` estimate router, `/api/projects` task/report/change-order/subcontract routers) so unrelated project-scoped routes (invoices, bills, procurement, stock) pass through for inventory tenants.
+- **Shell UI** — `apps/mobile/app/inventory/` (real route segment, not a group): Stock, Procurement, Invoices, Bills, Settings. Product-aware redirects in `app/index.tsx`, `(app)/_layout.tsx`, login, and signup (`?product=inventory`). Marketing pricing (`constants/marketing.ts`) adds an Inventory ₹999 card; shared `pricing.ts` is the single source of truth.
+  - **Procurement pickers (PROCUREMENT_PICKER_PERF)** — New PO lists only APPROVED indents with zero POs (one PO per indent, enforced server-side with a 400 on a second PO); New GRN lists non-cancelled POs that are not fully received, prefill remaining qty, and reject a GRN on a fully received PO with 400. Eligibility helpers live in `@buildflow/shared` (`indentAvailableForNewPo`, `poAvailableForNewGrn`, `isPoFullyReceived`, `poRemainingByResource`) and are shared with the construction `ProcurementTab`. PO mutations invalidate only the requisition list; GRN additionally invalidates stock (never whole-project BOQ).
+- Inventory shell Stock home supports **manual stock issue (OUT)** via `POST /projects/:id/procurement/stock/issue` (`stock.manage`). **Materials** catalog screen lets OWNER / INVENTORY_MANAGER add SKUs (`POST /resources`).
+- Happy-path inventory tests assert stock balance after GRN and after issue.
+- **Pricing** — `PLAN_PRICES_INR`: INVENTORY 999 / STARTER 1999 / PROFESSIONAL 4999 / ENTERPRISE `null` (contact sales). Annual = ×10 monthly. ENTERPRISE checkout is blocked in `createSaasCheckout`.
 
 ---
 

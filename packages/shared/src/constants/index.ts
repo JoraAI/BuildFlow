@@ -71,6 +71,12 @@ export const ROLE_META: Record<
     color: '#7C3AED',
     description: 'Invoicing, GST, TDS, bills, ledgers',
   },
+  INVENTORY_MANAGER: {
+    label: 'Inventory Manager',
+    short: 'Inv. Mgr',
+    color: '#059669',
+    description: 'Stock, procurement, sales invoices, vendor bills, Tally (Inventory product)',
+  },
 };
 
 /* ------------------------------------------------------------------ */
@@ -88,6 +94,8 @@ export const ROLE_TABS: Record<Role, string[]> = {
   SITE_SUPERVISOR: ['dashboard', 'projects', 'reports'],
   SUPERVISOR: ['dashboard', 'projects', 'reports'],
   ACCOUNTANT: ['dashboard', 'accounting', 'reports'],
+  // INVENTORY_PRODUCT: inventory shell tabs are rendered by (inventory)/_layout.
+  INVENTORY_MANAGER: ['dashboard', 'accounting', 'reports'],
 };
 
 export type TabKey =

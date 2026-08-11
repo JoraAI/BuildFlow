@@ -53,10 +53,16 @@ describe('Material rate PO alerts (integration)', () => {
     });
     expect(poRes.status).toBe(201);
 
-    const notifRes = await authGet(token, '/api/notifications?limit=20');
-    expect(notifRes.status).toBe(200);
-    const items = notifRes.body.data.items as Array<{ type: string; body: string }>;
-    const alert = items.find((n) => n.type === 'MATERIAL_RATE_VARIANCE' && n.body.includes('500'));
+    // Alert is fire-and-forget after PO create; poll briefly for the in-app row.
+    let alert: { type: string; body: string } | undefined;
+    for (let i = 0; i < 20; i++) {
+      const notifRes = await authGet(token, '/api/notifications?limit=20');
+      expect(notifRes.status).toBe(200);
+      const items = notifRes.body.data.items as Array<{ type: string; body: string }>;
+      alert = items.find((n) => n.type === 'MATERIAL_RATE_VARIANCE' && n.body.includes('500'));
+      if (alert) break;
+      await new Promise((r) => setTimeout(r, 50));
+    }
     expect(alert).toBeTruthy();
     expect(alert!.body).toContain('NH45');
   });

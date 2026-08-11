@@ -20,6 +20,7 @@ export interface Resource {
   rate: string;
   gstRate: string;
   hsnSacCode: string | null;
+  brandOrSpec?: string | null;
   category: string | null;
   imageUrl: string | null;
   lastRateUpdatedAt: string | null;

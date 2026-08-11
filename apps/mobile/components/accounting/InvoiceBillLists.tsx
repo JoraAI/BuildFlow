@@ -19,6 +19,7 @@ import {
   useBills,
   useApproveBill,
   useRejectBill,
+  useSendInvoice,
   type Invoice,
   type Bill,
 } from '@/services/accounting.queries';
@@ -34,6 +35,7 @@ const INVOICE_STATUS_COLOR: Record<string, 'success' | 'warning' | 'danger' | 'p
 };
 
 const BILL_STATUS_COLOR: Record<string, 'success' | 'warning' | 'danger' | 'neutral'> = {
+  DRAFT: 'neutral',
   PENDING: 'warning',
   APPROVED: 'success',
   PAID: 'neutral',
@@ -49,7 +51,7 @@ const BILL_CATEGORY_COLOR: Record<string, 'primary' | 'warning' | 'success' | 'd
 };
 
 const INVOICE_FILTERS = ['ALL', 'DRAFT', 'SENT', 'PAID', 'OVERDUE'] as const;
-const BILL_FILTERS = ['ALL', 'PENDING', 'APPROVED', 'PAID', 'REJECTED'] as const;
+const BILL_FILTERS = ['ALL', 'DRAFT', 'PENDING', 'APPROVED', 'PAID', 'REJECTED'] as const;
 
 function FilterPills({
   options,
@@ -82,15 +84,20 @@ export function ProjectInvoicesList({
   projectId,
   embedded = false,
   returnTo,
+  buildDetailHref = invoiceDetailHref,
 }: {
   projectId: string;
   embedded?: boolean;
   /** Where back should land when opening invoice detail from this list. */
   returnTo?: string;
+  /** Override detail URL builder (inventory shell uses /inventory/invoices/:id). */
+  buildDetailHref?: (invoiceId: string, returnTo?: string) => string;
 }) {
   const router = useRouter();
   const { isDesktop } = useViewport();
+  const canSend = usePermission('invoice.create');
   const { data: invoices, isLoading, isFetching, refetch } = useInvoices(projectId);
+  const sendInvoice = useSendInvoice();
   const [filter, setFilter] = useState<string>('ALL');
 
   useEffect(() => {
@@ -113,6 +120,17 @@ export function ProjectInvoicesList({
       </View>
     );
   }
+
+  const onSend = async (id: string) => {
+    const ok = await confirmAsync(
+      'Confirm draft invoice',
+      'Mark this draft sales invoice as Sent?',
+    );
+    if (!ok) return;
+    sendInvoice.mutate(id, {
+      onError: async (e: Error) => alertAsync('Error', e.message),
+    });
+  };
 
   const listPadding =
     embedded && !isDesktop
@@ -137,7 +155,7 @@ export function ProjectInvoicesList({
         <View className={embedded || isDesktop ? 'p-8' : undefined}>
           <EmptyState
             title="No invoices"
-            description="Create a GST-compliant invoice for this project."
+            description="Create a GST-compliant invoice for this project, or issue stock to auto-create a draft."
           />
         </View>
       }
@@ -151,6 +169,7 @@ export function ProjectInvoicesList({
               <Text className="flex-1 text-xs font-semibold text-muted uppercase">Status</Text>
               <Text className="flex-1 text-xs font-semibold text-muted uppercase text-right">Total</Text>
               <Text className="flex-1 text-xs font-semibold text-muted uppercase text-right">Due</Text>
+              {canSend && <View className="w-28" />}
             </View>
           )}
         </>
@@ -158,7 +177,9 @@ export function ProjectInvoicesList({
       renderItem={({ item }) => (
         <InvoiceRow
           item={item}
-          onPress={() => router.push(invoiceDetailHref(item.id, detailReturnTo) as never)}
+          canSend={canSend}
+          onPress={() => router.push(buildDetailHref(item.id, detailReturnTo) as never)}
+          onSend={() => onSend(item.id)}
         />
       )}
     />
@@ -169,10 +190,13 @@ export function ProjectBillsList({
   projectId,
   embedded = false,
   returnTo,
+  buildDetailHref = billDetailHref,
 }: {
   projectId: string;
   embedded?: boolean;
   returnTo?: string;
+  /** Override detail URL builder (inventory shell uses /inventory/bills/:id). */
+  buildDetailHref?: (billId: string, returnTo?: string) => string;
 }) {
   const router = useRouter();
   // R10-B2: Replace role check with granular permission.
@@ -202,8 +226,13 @@ export function ProjectBillsList({
     );
   }
 
-  const onApprove = async (id: string) => {
-    const ok = await confirmAsync('Approve Bill', 'Mark this bill as approved?');
+  const onApprove = async (id: string, status: string) => {
+    const ok = await confirmAsync(
+      status === 'DRAFT' ? 'Confirm draft bill' : 'Approve Bill',
+      status === 'DRAFT'
+        ? 'Confirm this auto-created draft and mark it approved?'
+        : 'Mark this bill as approved?',
+    );
     if (!ok) return;
     approve.mutate(id, {
       onError: async (e: Error) => alertAsync('Error', e.message),
@@ -261,8 +290,8 @@ export function ProjectBillsList({
         <BillRow
           item={item}
           canApprove={canApprove}
-          onPress={() => router.push(billDetailHref(item.id, detailReturnTo) as never)}
-          onApprove={() => onApprove(item.id)}
+          onPress={() => router.push(buildDetailHref(item.id, detailReturnTo) as never)}
+          onApprove={() => onApprove(item.id, item.status)}
           onReject={() => onReject(item.id)}
         />
       )}
@@ -270,7 +299,17 @@ export function ProjectBillsList({
   );
 }
 
-function InvoiceRow({ item, onPress }: { item: Invoice; onPress: () => void }) {
+function InvoiceRow({
+  item,
+  onPress,
+  canSend,
+  onSend,
+}: {
+  item: Invoice;
+  onPress: () => void;
+  canSend?: boolean;
+  onSend?: () => void;
+}) {
   const { isDesktop } = useViewport();
   const overdueDays =
     item.status === 'OVERDUE' || (item.status === 'SENT' && new Date(item.dueDate) < new Date())
@@ -297,13 +336,28 @@ function InvoiceRow({ item, onPress }: { item: Invoice; onPress: () => void }) {
             <Text className="text-xs text-danger font-semibold">{overdueDays}d overdue</Text>
           )}
         </View>
+        {canSend && item.status === 'DRAFT' ? (
+          <View className="w-28 items-end">
+            <Button label="Confirm" size="sm" variant="primary" onPress={onSend} />
+          </View>
+        ) : canSend ? (
+          <View className="w-28" />
+        ) : null}
       </Pressable>
     );
   }
 
   return (
     <Pressable onPress={onPress}>
-      <Card className={item.status === 'OVERDUE' ? 'border-danger' : ''}>
+      <Card
+        className={
+          item.status === 'OVERDUE'
+            ? 'border-danger'
+            : item.status === 'DRAFT'
+              ? 'border-warning'
+              : ''
+        }
+      >
         <View className="flex-row justify-between items-start mb-2">
           <View className="flex-1 mr-2">
             <Text className="text-sm font-mono font-semibold text-text">{item.invoiceNumber}</Text>
@@ -337,6 +391,11 @@ function InvoiceRow({ item, onPress }: { item: Invoice; onPress: () => void }) {
             <Text className="text-xs text-danger font-semibold">{overdueDays}d overdue</Text>
           )}
         </View>
+        {canSend && item.status === 'DRAFT' && onSend ? (
+          <View className="mt-3">
+            <Button label="Confirm (Send)" variant="primary" size="sm" onPress={onSend} fullWidth />
+          </View>
+        ) : null}
       </Card>
     </Pressable>
   );
@@ -376,10 +435,10 @@ function BillRow({
             <Text className="text-xs text-success">Paid {formatINR(item.paidAmount)}</Text>
           )}
         </View>
-        {canApprove && item.status === 'PENDING' ? (
+        {canApprove && (item.status === 'PENDING' || item.status === 'DRAFT') ? (
           <View className="w-36 flex-row gap-1 justify-end">
             <Button
-              label="Approve"
+              label={item.status === 'DRAFT' ? 'Confirm' : 'Approve'}
               variant="primary"
               size="sm"
               onPress={onApprove}
@@ -395,7 +454,7 @@ function BillRow({
 
   return (
     <Pressable onPress={onPress}>
-      <Card className={item.status === 'PENDING' ? 'border-warning' : ''}>
+      <Card className={item.status === 'PENDING' || item.status === 'DRAFT' ? 'border-warning' : ''}>
         <View className="flex-row justify-between items-start mb-2">
           <View className="flex-1 mr-2">
             <Text className="text-sm font-mono font-semibold text-text">{item.billNumber}</Text>
@@ -422,10 +481,15 @@ function BillRow({
             <Text className="text-xs text-muted">{formatDate(item.billDate)}</Text>
           </View>
         </View>
-        {canApprove && item.status === 'PENDING' && (
+        {canApprove && (item.status === 'PENDING' || item.status === 'DRAFT') && (
           <View className="flex-row gap-2 mt-3">
             <View className="flex-1">
-              <Button label="Approve" variant="primary" size="sm" onPress={onApprove} />
+              <Button
+                label={item.status === 'DRAFT' ? 'Confirm' : 'Approve'}
+                variant="primary"
+                size="sm"
+                onPress={onApprove}
+              />
             </View>
             <View className="flex-1">
               <Button label="Reject" variant="danger" size="sm" onPress={onReject} />

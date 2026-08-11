@@ -43,6 +43,7 @@ import * as permissionController from '../controllers/permission.controller';
 import { authenticateToken } from '../middleware/auth';
 import { requirePermission, requireAnyPermission } from '../middleware/permission';
 import { validate } from '../middleware/validate';
+import { asyncHandler } from '../utils/async-handler';
 import { auditLog } from '../middleware/audit';
 import {
   companyUpdateSchema,
@@ -143,20 +144,20 @@ router.post(
   authenticateToken,
   requirePermission('settings.users'),
   validate({ body: createUserInviteSchema }),
-  createUserInvite,
+  asyncHandler(createUserInvite),
 );
 router.get('/users/invites', authenticateToken, requirePermission('settings.users'), listUserInvites);
 router.delete(
   '/users/invites/:inviteId',
   authenticateToken,
   requirePermission('settings.users'),
-  revokeUserInvite,
+  asyncHandler(revokeUserInvite),
 );
 router.post(
   '/users/invites/:inviteId/resend',
   authenticateToken,
   requirePermission('settings.users'),
-  resendUserInvite,
+  asyncHandler(resendUserInvite),
 );
 
 // Audit Log

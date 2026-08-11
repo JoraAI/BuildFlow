@@ -20,7 +20,7 @@ import { Role } from '@buildflow/shared';
 
 export const resourceRouter = Router();
 
-const canManageResources = requireRole(Role.OWNER, Role.PM);
+const canManageResources = requireRole(Role.OWNER, Role.PM, Role.INVENTORY_MANAGER);
 
 resourceRouter.use(authenticateToken);
 
