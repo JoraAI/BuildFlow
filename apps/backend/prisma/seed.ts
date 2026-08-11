@@ -1,13 +1,13 @@
 /**
  * BuildFlow - Database seed.
  *
- * Creates the sample company "Reddy Constructions Pvt Ltd" + 9 users (all roles),
- * realistic resources, composite rate analyses, and 1 project (NH-45 Road Widening)
- * with complete lifecycle: estimate → BOQ → procurement → stock → subcontract →
- * invoices → change orders → daily reports.
+ * Creates:
+ *  - Construction: "Reddy Constructions Pvt Ltd" + 9 users (all roles) + NH-45 lifecycle
+ *  - Inventory: "Hyderabad Building Materials" (INVENTORY plan) + owner/manager + Main Store stock
+ *  - Platform admin: admin@buildflow.com
  *
  * Catalog data (catalog-data.ts) and rate analyses (rate-analysis-data.ts) are
- * NOT changed — they remain the full ~500 item library.
+ * NOT changed — they remain the full ~500 item library for the construction tenant.
  *
  * Idempotent-ish: uses upsert on unique fields. Re-running updates in place.
  */
@@ -179,6 +179,8 @@ async function main(): Promise<void> {
         sgst: 'SGST Payable',
         igst: 'IGST Payable',
         tdsPayable: 'TDS Payable',
+        retention: 'Retention Money',
+        advanceRecovery: 'Advance Recovery',
         bank: 'HDFC Bank',
       },
     },
@@ -1118,12 +1120,164 @@ async function main(): Promise<void> {
   // eslint-disable-next-line no-console
   console.log('   Seeded 5 daily reports on NH-45');
 
+  // ----------------------------------------------------------------
+  // INVENTORY_PRODUCT demo company (stock shell — separate from construction)
+  // ----------------------------------------------------------------
+  const invCompany = await prisma.company.create({
+    data: {
+      name: 'Hyderabad Building Materials',
+      gstin: '36AABCH5678B1Z9',
+      pan: 'AABCH5678B',
+      state: 'Telangana',
+      address: 'Kukatpally, Hyderabad, Telangana 500072',
+      subscriptionPlan: 'INVENTORY',
+      subscriptionStatus: 'ACTIVE',
+      trialStartsAt: new Date(Date.now() - 7 * 86_400_000),
+      trialEndsAt: new Date(Date.now() + 358 * 86_400_000),
+      lastPaymentAt: new Date(),
+    },
+  });
+
+  const invOwner = await prisma.user.create({
+    data: {
+      companyId: invCompany.id,
+      name: 'Lakshmi Traders',
+      email: 'owner@hydmaterials.com',
+      role: Role.OWNER,
+      phone: '+919900112233',
+      passwordHash,
+    },
+  });
+
+  const invManager = await prisma.user.create({
+    data: {
+      companyId: invCompany.id,
+      name: 'Ramesh Store',
+      email: 'manager@hydmaterials.com',
+      role: Role.INVENTORY_MANAGER,
+      phone: '+919900112244',
+      passwordHash,
+    },
+  });
+
+  const storeProject = await prisma.project.create({
+    data: {
+      companyId: invCompany.id,
+      name: 'Main Store',
+      code: 'STORE',
+      type: ProjectType.MINI,
+      status: ProjectStatus.IN_PROGRESS,
+      clientName: invCompany.name,
+      budget: 0,
+      createdBy: invOwner.id,
+    },
+  });
+
+  await prisma.company.update({
+    where: { id: invCompany.id },
+    data: { defaultProjectId: storeProject.id },
+  });
+
+  await prisma.projectMember.createMany({
+    data: [
+      { projectId: storeProject.id, userId: invOwner.id, role: Role.OWNER },
+      { projectId: storeProject.id, userId: invManager.id, role: Role.INVENTORY_MANAGER },
+    ],
+  });
+
+  await prisma.companyIntegration.create({
+    data: {
+      companyId: invCompany.id,
+      provider: 'TALLY',
+      configuredBy: invOwner.id,
+      settings: {
+        sales: 'Sales',
+        purchase: 'Purchases',
+        cgst: 'CGST',
+        sgst: 'SGST',
+        igst: 'IGST',
+        tdsPayable: 'TDS Payable',
+        retention: 'Retention Money',
+        advanceRecovery: 'Advance Recovery',
+        bank: 'SBI Current',
+      },
+    },
+  });
+
+  const invMaterials = [
+    { name: 'OPC Cement 53 Grade', unit: 'bag', rate: 380, gstRate: 28 },
+    { name: 'TMT Bar 12mm Fe500', unit: 'kg', rate: 68, gstRate: 18 },
+    { name: 'River Sand', unit: 'cum', rate: 2200, gstRate: 5 },
+    { name: 'Red Bricks (Class A)', unit: 'nos', rate: 9, gstRate: 5 },
+  ] as const;
+
+  const invResources: { id: string; name: string }[] = [];
+  for (const m of invMaterials) {
+    const r = await prisma.resource.create({
+      data: {
+        companyId: invCompany.id,
+        name: m.name,
+        type: ResourceType.MATERIAL,
+        unit: m.unit,
+        rate: m.rate,
+        gstRate: m.gstRate,
+        category: 'Building materials',
+        lastRateUpdatedAt: new Date(),
+      },
+    });
+    invResources.push(r);
+  }
+
+  const invStockLoc = await prisma.stockLocation.create({
+    data: {
+      companyId: invCompany.id,
+      projectId: storeProject.id,
+      name: 'Main Store',
+    },
+  });
+
+  // Opening stock (simulate prior GRNs) — enough balance for demo Issue UI
+  for (const [i, qty] of [80, 500, 12, 2000].entries()) {
+    await applyStockIn(invStockLoc.id, `seed-opening-${i}`, [
+      { resourceId: invResources[i]!.id, quantity: qty },
+    ]);
+  }
+
+  // eslint-disable-next-line no-console
+  console.log('   Seeded inventory company: Hyderabad Building Materials (INVENTORY plan)');
+
   // eslint-disable-next-line no-console
   console.log('✅ Seed complete.');
   // eslint-disable-next-line no-console
-  console.log('   Tenant users (all roles): password', PASSWORD);
+  console.log('── Construction (Reddy Constructions) — password', PASSWORD);
   // eslint-disable-next-line no-console
-  console.log('   Platform admin: admin@buildflow.com /', PLATFORM_ADMIN_PASSWORD);
+  console.log('   owner@reddyconst.com (OWNER)');
+  // eslint-disable-next-line no-console
+  console.log('   pm@reddyconst.com (PM)');
+  // eslint-disable-next-line no-console
+  console.log('   dpm@reddyconst.com (DPM)');
+  // eslint-disable-next-line no-console
+  console.log('   qc@reddyconst.com (QC)');
+  // eslint-disable-next-line no-console
+  console.log('   mechanical@reddyconst.com (MECHANICAL_MANAGER)');
+  // eslint-disable-next-line no-console
+  console.log('   store@reddyconst.com (STORE_INCHARGE)');
+  // eslint-disable-next-line no-console
+  console.log('   weighbridge@reddyconst.com (WEIGHBRIDGE_INCHARGE)');
+  // eslint-disable-next-line no-console
+  console.log('   site@reddyconst.com (SITE_SUPERVISOR)');
+  // eslint-disable-next-line no-console
+  console.log('   accounts@reddyconst.com (ACCOUNTANT)');
+  // eslint-disable-next-line no-console
+  console.log('── Inventory (Hyderabad Building Materials) — password', PASSWORD);
+  // eslint-disable-next-line no-console
+  console.log('   owner@hydmaterials.com (OWNER) → /inventory');
+  // eslint-disable-next-line no-console
+  console.log('   manager@hydmaterials.com (INVENTORY_MANAGER) → /inventory');
+  // eslint-disable-next-line no-console
+  console.log('── Platform console (/platform/login)');
+  // eslint-disable-next-line no-console
+  console.log('   admin@buildflow.com /', PLATFORM_ADMIN_PASSWORD);
 }
 
 main()

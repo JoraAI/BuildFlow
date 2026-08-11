@@ -1,9 +1,11 @@
 /**
  * Company + owner registration (free trial).
+ * Supports the INVENTORY product signup via ?product=inventory (dedicated
+ * inventory path creates an INVENTORY company with a hidden default STORE project).
  */
 import React, { useEffect, useState } from 'react';
 import { View, Text } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Button, Input, Card } from '@/components/ui';
 import { AuthScreenShell } from '@/components/auth/AuthScreenShell';
 import { useAuthStore } from '@/stores/auth.store';
@@ -15,6 +17,11 @@ import { fetchAuthConfig } from '@/services/auth.queries';
 
 export default function SignupCompanyScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ product?: string }>();
+  // INVENTORY_PRODUCT: ?product=inventory → inventory signup path.
+  const product: 'inventory' | 'construction' =
+    params.product === 'inventory' ? 'inventory' : 'construction';
+  const isInventorySignup = product === 'inventory';
   const registerCompany = useAuthStore((s) => s.registerCompany);
   const { isDesktop } = useViewport();
 
@@ -60,8 +67,9 @@ export default function SignupCompanyScreen() {
         ownerName: form.ownerName,
         ownerEmail: form.ownerEmail,
         password: form.password,
+        product,
       });
-      router.replace('/dashboard');
+      router.replace(isInventorySignup ? '/inventory' : '/dashboard');
     } catch (err) {
       setError((err as ApiError).message || 'Registration failed');
     } finally {
@@ -70,7 +78,12 @@ export default function SignupCompanyScreen() {
   };
 
   const submitFooter = (
-    <Button label="Create account" onPress={onSubmit} loading={loading} fullWidth />
+    <Button
+      label={isInventorySignup ? 'Create inventory account' : 'Create account'}
+      onPress={onSubmit}
+      loading={loading}
+      fullWidth
+    />
   );
 
   const companyFields = isDesktop ? (
@@ -129,13 +142,21 @@ export default function SignupCompanyScreen() {
 
   return (
     <AuthScreenShell
-      heroHeadline="Start your free trial"
-      heroSubline="14 days of full access - no credit card required."
+      heroHeadline={isInventorySignup ? 'Start your inventory trial' : 'Start your free trial'}
+      heroSubline={
+        isInventorySignup
+          ? '14 days of full access to stock, procurement, invoicing & Tally - no credit card required.'
+          : '14 days of full access - no credit card required.'
+      }
       heroBenefits={TRIAL_HERO_BENEFITS}
       backHref="/"
       formWidth="wide"
-      formTitle="Register company"
-      formSubtitle="Create your company and owner account"
+      formTitle={isInventorySignup ? 'Register your store' : 'Register company'}
+      formSubtitle={
+        isInventorySignup
+          ? 'Create your inventory business and owner account (₹499/month after trial)'
+          : 'Create your company and owner account'
+      }
       footer={isDesktop ? submitFooter : undefined}
     >
       <FreeTrialBadge className="mb-5" />

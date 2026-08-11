@@ -7,6 +7,7 @@ import { Router } from 'express';
 import * as projectController from '../controllers/project.controller';
 import * as projectMaterialRateController from '../controllers/project-material-rate.controller';
 import { authenticateToken, requireRole } from '../middleware/auth';
+import { requireModule } from '../middleware/module-gate';
 import { validate } from '../middleware/validate';
 import {
   createProjectSchema,
@@ -61,20 +62,23 @@ projectRouter.put(
   projectController.setMembers,
 );
 
-// WBS
-projectRouter.get('/:id/wbs', validate({ params: projectIdParamsSchema }), projectController.getWbsTree);
+// WBS (planning module — blocked for INVENTORY tenants)
+projectRouter.get('/:id/wbs', requireModule('planning'), validate({ params: projectIdParamsSchema }), projectController.getWbsTree);
 projectRouter.post(
   '/:id/wbs',
+  requireModule('planning'),
   validate({ params: projectIdParamsSchema, body: createWbsItemSchema }),
   projectController.createWbsItem,
 );
 projectRouter.put(
   '/:id/wbs/:itemId',
+  requireModule('planning'),
   validate({ params: wbsItemParamsSchema, body: updateWbsItemSchema }),
   projectController.updateWbsItem,
 );
 projectRouter.delete(
   '/:id/wbs/:itemId',
+  requireModule('planning'),
   validate({ params: wbsItemParamsSchema }),
   projectController.deleteWbsItem,
 );

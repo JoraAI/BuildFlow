@@ -11,6 +11,7 @@ import type {
   PlatformSubscriptionUpdateInput,
   PlatformUserUpdateInput,
 } from '@buildflow/shared';
+import { INVENTORY_DEFAULT_PROJECT } from '@buildflow/shared';
 
 const ACCESS_EXPIRES_SECONDS = 15 * 60;
 
@@ -139,6 +140,36 @@ export async function updateSubscriptionAsAdmin(
       trialEndsAt: data.trialEndsAt === null ? null : data.trialEndsAt ? new Date(data.trialEndsAt) : undefined,
     },
   });
+
+  // INVENTORY_PRODUCT: when a company is switched onto the INVENTORY plan and
+  // no default store project exists yet, create one once (hidden STORE).
+  if (
+    updated.subscriptionPlan === 'INVENTORY' &&
+    !updated.defaultProjectId
+  ) {
+    const owner = await prisma.user.findFirst({
+      where: { companyId, role: 'OWNER', isActive: true },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    const store = await prisma.project.create({
+      data: {
+        companyId,
+        name: INVENTORY_DEFAULT_PROJECT.name,
+        code: INVENTORY_DEFAULT_PROJECT.code,
+        type: 'MINI',
+        status: 'IN_PROGRESS',
+        clientName: updated.name,
+        budget: 0,
+        createdBy: owner?.id ?? updated.id,
+      },
+    });
+    await prisma.company.update({
+      where: { id: companyId },
+      data: { defaultProjectId: store.id },
+    });
+  }
+
   await recordPlatformAudit(adminId, 'UPDATE_SUBSCRIPTION', {
     companyId,
     targetId: companyId,

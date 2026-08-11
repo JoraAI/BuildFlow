@@ -23,12 +23,27 @@ export function invalidateProjectSchedule(qc: QueryClient, projectId: string) {
 }
 
 export function invalidateProjectProcurement(qc: QueryClient, projectId: string) {
+  invalidateProcurementLists(qc, projectId);
+  invalidateProcurementStock(qc, projectId);
+  qc.invalidateQueries({ queryKey: ['procurement', 'boq-shortfalls', projectId] });
+  qc.invalidateQueries({ queryKey: ['projects', projectId, 'boq'] });
+}
+
+/**
+ * PROCUREMENT_PICKER_PERF: scoped invalidation. PO/GRN mutations only touch the
+ * requisition list (and stock for GRN) — never the whole project BOQ.
+ */
+
+/** Requisition list only (indents + nested POs/GRNs). */
+export function invalidateProcurementLists(qc: QueryClient, projectId: string) {
   qc.invalidateQueries({ queryKey: ['procurement', 'requisitions', projectId] });
+}
+
+/** Stock locations, summary, and movements. */
+export function invalidateProcurementStock(qc: QueryClient, projectId: string) {
   qc.invalidateQueries({ queryKey: ['procurement', 'stock', projectId] });
   qc.invalidateQueries({ queryKey: ['procurement', 'stock', 'summary', projectId] });
   qc.invalidateQueries({ queryKey: ['procurement', 'stock', 'movements', projectId] });
-  qc.invalidateQueries({ queryKey: ['procurement', 'boq-shortfalls', projectId] });
-  qc.invalidateQueries({ queryKey: ['projects', projectId, 'boq'] });
 }
 
 export function invalidateProjectSubcontract(qc: QueryClient, projectId: string) {

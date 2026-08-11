@@ -28,6 +28,8 @@ enum Role {
   /// @deprecated — kept for backward compat; use SITE_SUPERVISOR
   SUPERVISOR
   ACCOUNTANT
+  /// Inventory product role — hidden from construction companies
+  INVENTORY_MANAGER
 }
 
 enum ProjectType {
@@ -101,6 +103,7 @@ enum InvoiceStatus {
 }
 
 enum BillStatus {
+  DRAFT
   PENDING
   APPROVED
   PAID
@@ -170,6 +173,8 @@ enum TaskConstraintType {
 }
 
 enum SubscriptionPlan {
+  /// Inventory product — hidden default STORE project, inventory-only shell
+  INVENTORY
   STARTER
   PROFESSIONAL
   ENTERPRISE
@@ -237,6 +242,10 @@ model Company {
   trialEndsAt          DateTime?          @map("trial_ends_at")
   lastPaymentAt        DateTime?          @map("last_payment_at")
   saasPaymentRef       String?            @map("saas_payment_ref")
+
+  /// INVENTORY_PRODUCT: the hidden default store project (code 'STORE').
+  defaultProjectId String?   @unique @map("default_project_id") @db.Uuid
+  defaultProject   Project?  @relation("CompanyDefaultProject", fields: [defaultProjectId], references: [id], onDelete: SetNull)
 
   users               User[]
   userInvites         UserInvite[]
@@ -376,6 +385,8 @@ model Project {
   rateRegion     RateRegion? @relation(fields: [rateRegionId], references: [id], onDelete: SetNull)
   proposal       Proposal?  @relation("ProjectProposal", fields: [proposalId], references: [id], onDelete: SetNull)
   proposalAsTemp Proposal?  @relation("ProposalTempProject")
+  /// INVENTORY_PRODUCT: back-relation for a company's default store project.
+  companyAsDefault Company? @relation("CompanyDefaultProject")
   proposalAsPromoted Proposal? @relation("ProposalPromotedProject")
   createdByUser  User       @relation("ProjectCreatedBy", fields: [createdBy], references: [id])
   wbsItems       WBSItem[]
@@ -1004,6 +1015,7 @@ model Invoice {
   total         Decimal       @default(0) @db.Decimal(14, 2)
   paidAmount    Decimal       @default(0) @map("paid_amount") @db.Decimal(14, 2)
   notes         String?
+  stockMovementId String?     @map("stock_movement_id") @db.Uuid
   invoiceType   InvoiceType   @default(STANDARD) @map("invoice_type")
   raSequence    Int?          @map("ra_sequence")
   milestoneLabel String?      @map("milestone_label")
@@ -1015,9 +1027,11 @@ model Invoice {
 
   project   Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
   company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  stockMovement StockMovement? @relation(fields: [stockMovementId], references: [id], onDelete: SetNull)
   lineItems InvoiceLineItem[]
 
   @@unique([companyId, invoiceNumber])
+  @@unique([stockMovementId])
   @@index([projectId])
   @@index([companyId])
   @@index([status])
@@ -1087,6 +1101,7 @@ model Bill {
   attachmentUrl String?   @map("attachment_url")
   approvedBy  String?     @map("approved_by") @db.Uuid
   purchaseOrderId String? @map("purchase_order_id") @db.Uuid
+  goodsReceiptId String? @map("goods_receipt_id") @db.Uuid
   workOrderId String?     @map("work_order_id") @db.Uuid
   measurementId String?   @map("measurement_id") @db.Uuid
   retentionAmount Decimal @default(0) @map("retention_amount") @db.Decimal(14, 2)
@@ -1101,10 +1116,12 @@ model Bill {
   company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   approvedByUser User? @relation("BillApprovedBy", fields: [approvedBy], references: [id])
   purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  goodsReceipt GoodsReceiptNote? @relation(fields: [goodsReceiptId], references: [id], onDelete: SetNull)
   workOrder SubcontractWorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
   measurement SubcontractMeasurement? @relation(fields: [measurementId], references: [id], onDelete: SetNull)
 
   @@unique([companyId, billNumber])
+  @@unique([goodsReceiptId])
   @@index([projectId])
   @@index([status])
   // FIX (DAT-3.6): Composite index for tenant+status queries.
@@ -1462,6 +1479,7 @@ model GoodsReceiptNote {
   project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   lines         GoodsReceiptLine[]
+  bills         Bill[]
 
   @@unique([companyId, grnNumber])
   @@index([projectId])
@@ -1522,6 +1540,7 @@ model StockMovement {
 
   location StockLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
   resource Resource      @relation(fields: [resourceId], references: [id])
+  invoices Invoice[]
 
   @@index([locationId])
   // FIX (DAT-3.6): Add indexes for resource and reference lookups.

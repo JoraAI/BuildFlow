@@ -243,6 +243,87 @@ describe('Procurement (integration)', () => {
     }
   });
 
+  /* ── PROCUREMENT_PICKER_PERF locked rules (backend guards) ─────────── */
+  it('rejects a second PO on the same indent (400)', async () => {
+    const cementId = await getCementResourceId(token);
+    const reqNum = `IND-2PO-${Date.now()}`;
+    const reqRes = await authPost(token, `/api/projects/${projectId}/procurement/requisitions`, {
+      reqNumber: reqNum,
+      lines: [{ resourceId: cementId, quantity: 10, unit: 'bag' }],
+    });
+    expect(reqRes.status).toBe(201);
+    const reqId = reqRes.body.data.id as string;
+    await authPost(token, `/api/projects/${projectId}/procurement/requisitions/${reqId}/submit`);
+    await authPost(token, `/api/projects/${projectId}/procurement/requisitions/${reqId}/approve`);
+
+    const po1 = await authPost(token, `/api/projects/${projectId}/procurement/purchase-orders`, {
+      poNumber: `PO-2PO-1-${Date.now()}`,
+      vendorName: 'Vendor A',
+      requisitionId: reqId,
+      lines: [{ resourceId: cementId, quantity: 6, unit: 'bag', rate: 400 }],
+    });
+    expect(po1.status).toBe(201);
+
+    const po2 = await authPost(token, `/api/projects/${projectId}/procurement/purchase-orders`, {
+      poNumber: `PO-2PO-2-${Date.now()}`,
+      vendorName: 'Vendor B',
+      requisitionId: reqId,
+      lines: [{ resourceId: cementId, quantity: 4, unit: 'bag', rate: 410 }],
+    });
+    expect(po2.status).toBe(400);
+    expect(po2.body.error?.message).toMatch(/already has a purchase order/i);
+  });
+
+  it('allows partial GRNs until the PO is fully received, then rejects (400)', async () => {
+    const cementId = await getCementResourceId(token);
+    const reqNum = `IND-GRNPART-${Date.now()}`;
+    const reqRes = await authPost(token, `/api/projects/${projectId}/procurement/requisitions`, {
+      reqNumber: reqNum,
+      lines: [{ resourceId: cementId, quantity: 10, unit: 'bag' }],
+    });
+    expect(reqRes.status).toBe(201);
+    const reqId = reqRes.body.data.id as string;
+    await authPost(token, `/api/projects/${projectId}/procurement/requisitions/${reqId}/submit`);
+    await authPost(token, `/api/projects/${projectId}/procurement/requisitions/${reqId}/approve`);
+
+    const poRes = await authPost(token, `/api/projects/${projectId}/procurement/purchase-orders`, {
+      poNumber: `PO-GRNPART-${Date.now()}`,
+      vendorName: 'Vendor',
+      requisitionId: reqId,
+      lines: [{ resourceId: cementId, quantity: 10, unit: 'bag', rate: 400 }],
+    });
+    expect(poRes.status).toBe(201);
+    const poId = poRes.body.data.id as string;
+
+    // First partial GRN (4 of 10) → allowed.
+    const grn1 = await authPost(token, `/api/projects/${projectId}/procurement/grn`, {
+      grnNumber: `GRN-PART-1-${Date.now()}`,
+      purchaseOrderId: poId,
+      receivedDate: new Date().toISOString().slice(0, 10),
+      lines: [{ resourceId: cementId, quantity: 4, unit: 'bag' }],
+    });
+    expect(grn1.status).toBe(201);
+
+    // Second partial GRN (6 of 10) → still allowed (not fully received yet).
+    const grn2 = await authPost(token, `/api/projects/${projectId}/procurement/grn`, {
+      grnNumber: `GRN-PART-2-${Date.now()}`,
+      purchaseOrderId: poId,
+      receivedDate: new Date().toISOString().slice(0, 10),
+      lines: [{ resourceId: cementId, quantity: 6, unit: 'bag' }],
+    });
+    expect(grn2.status).toBe(201);
+
+    // PO is now fully received → further GRN rejected with 400.
+    const grn3 = await authPost(token, `/api/projects/${projectId}/procurement/grn`, {
+      grnNumber: `GRN-PART-3-${Date.now()}`,
+      purchaseOrderId: poId,
+      receivedDate: new Date().toISOString().slice(0, 10),
+      lines: [{ resourceId: cementId, quantity: 1, unit: 'bag' }],
+    });
+    expect(grn3.status).toBe(400);
+    expect(grn3.body.error?.message).toMatch(/fully received/i);
+  });
+
   it('stock summary shows received, issued, and balance after GRN', async () => {
     const resourcesRes = await authGet(token, '/api/resources?type=MATERIAL');
     const resource = resourcesRes.body.data?.[0];

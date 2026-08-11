@@ -125,10 +125,12 @@ pnpm dev
 - **Client portal**: Token-based access for clients to view project progress, invoices, and RA bills
 - **Subcontractor portal**: Token-based access for subcontractors to view work orders and measurements
 
-### Subscription & Plan Limits (SUB-PLAN1)
-- **Plan tiers**: STARTER (3 projects / 5 users), PROFESSIONAL (25 / 25), ENTERPRISE (unlimited)
+### Subscription & Plan Limits (SUB-PLAN1 + INVENTORY_PRODUCT)
+- **Plan tiers**: INVENTORY (1 store / 10 users), STARTER (3 projects / 5 users), PROFESSIONAL (25 / 25), ENTERPRISE (unlimited, contact sales)
+- **Prices (ex-GST)**: INVENTORY ₹499/mo · STARTER ₹1,999/mo · PROFESSIONAL ₹4,999/mo · ENTERPRISE custom
+- **Inventory product**: separate signup path (`?product=inventory`) → hidden default `STORE` project, inventory-only shell (Stock | Materials | Procurement | Invoices | Bills | Settings), `INVENTORY_MANAGER` role with material catalog create + stock issue
 - **Enforcement**: 402 on project create and user invite when limit reached
-- **Trial**: STARTER limits apply during TRIAL period
+- **Trial**: STARTER limits apply during TRIAL (INVENTORY keeps 1-store limits on trial)
 - **Billing UI**: Shows "X of Y projects/users used" on billing screen
 
 ### AI Assistant

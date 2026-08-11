@@ -28,6 +28,15 @@ export function invoiceDetailHref(invoiceId: string, returnTo?: string): string 
   return withReturnTo(`/accounting/invoice/${invoiceId}`, returnTo);
 }
 
+/** Inventory shell: stay under /inventory so (app) layout does not redirect to Stock. */
+export function inventoryBillDetailHref(billId: string, returnTo?: string): string {
+  return withReturnTo(`/inventory/bills/${billId}`, returnTo);
+}
+
+export function inventoryInvoiceDetailHref(invoiceId: string, returnTo?: string): string {
+  return withReturnTo(`/inventory/invoices/${invoiceId}`, returnTo);
+}
+
 export function reportDetailHref(reportId: string, returnTo?: string): string {
   return withReturnTo(`/reports/${reportId}`, returnTo);
 }

@@ -31,7 +31,11 @@ Use this checklist when adding or changing features that span backend APIs, mobi
 | WO complete | `updateWorkOrder(COMPLETED)` → retention release bill | WO summary `retentionReleased` | Subcontract + accounting |
 | Variation approve | `change-order` → BOQ + linked WO value | WO summary `variationTotal` | `invalidateChangeOrderImpact` |
 | Procurement GRN | stock in via GRN | BOQ `procuredQty` | Procurement + BOQ |
+| **Inventory GRN → draft bill** | GRN on `INVENTORY` plan → auto `BillStatus.DRAFT` (qty × PO rate; Confirm → APPROVED). Construction GRN does **not** auto-create bills | Bills list + PO `bills` on requisitions | GRN → lists + stock + `bills` list/summary |
+| **Inventory stock issue → draft invoice** | Manual stock Issue (OUT) on `INVENTORY` plan → auto `InvoiceStatus.DRAFT` (qty × catalog rate; optional customer else “Walk-in customer”; Confirm/Send → SENT). Construction unaffected | Invoices list | Issue → stock + `invoices` list |
 | Materials ≠ subcontract | GRN/daily report updates material BOQ | Does **not** auto-certify subcontract WO | Separate paths |
+| **Procurement picker rules** | New PO → only APPROVED indents with **zero** POs (one PO per indent, backend rejects a 2nd with 400); New GRN → non-cancelled POs not **fully** received (partial receipts allowed; 400 when full; remaining qty prefilled) | Eligibility helpers in `@buildflow/shared` (`indentAvailableForNewPo`, `poAvailableForNewGrn`, `isPoFullyReceived`, `poRemainingByResource`) | Create PO → `invalidateProcurementLists`; GRN → lists + `invalidateProcurementStock` (never whole-project BOQ) |
+| Tally export | `tally.service.exportProjectTallyXML` | XML download | Project Accounting + Reports Hub → Export to Tally; ledger map in Settings → Integrations |
 
 ## Spend semantics (project summary)
 

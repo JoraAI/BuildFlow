@@ -6,6 +6,8 @@ export {
   projectTabHref,
   billDetailHref,
   invoiceDetailHref,
+  inventoryBillDetailHref,
+  inventoryInvoiceDetailHref,
   reportDetailHref,
   createReportHref,
 } from './navigation-paths';

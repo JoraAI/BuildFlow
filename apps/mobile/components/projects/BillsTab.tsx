@@ -12,6 +12,7 @@ import { formatINR, formatDate } from '@/utils/format';
 import { billDetailHref, projectTabHref } from '@/utils/navigation';
 
 const BILL_STATUS_COLOR: Record<string, 'success' | 'warning' | 'danger' | 'neutral'> = {
+  DRAFT: 'neutral',
   PENDING: 'warning',
   APPROVED: 'success',
   PAID: 'neutral',

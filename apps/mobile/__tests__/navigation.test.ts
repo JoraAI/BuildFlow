@@ -7,6 +7,8 @@ import {
   projectTabHref,
   billDetailHref,
   invoiceDetailHref,
+  inventoryBillDetailHref,
+  inventoryInvoiceDetailHref,
 } from '@/utils/navigation-paths';
 
 describe('parseReturnTo', () => {
@@ -50,5 +52,12 @@ describe('href helpers', () => {
 
   it('builds invoice detail with returnTo', () => {
     expect(invoiceDetailHref('iid', '/projects/p')).toContain('/accounting/invoice/iid');
+  });
+
+  it('builds inventory bill/invoice detail under /inventory', () => {
+    expect(inventoryBillDetailHref('bid', '/inventory/bills')).toContain('/inventory/bills/bid');
+    expect(inventoryInvoiceDetailHref('iid', '/inventory/invoices')).toContain(
+      '/inventory/invoices/iid',
+    );
   });
 });

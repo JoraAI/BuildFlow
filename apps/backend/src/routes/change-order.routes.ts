@@ -7,6 +7,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import * as changeOrderController from '../controllers/change-order.controller';
 import { authenticateToken, requireRole } from '../middleware/auth';
+import { requireModuleForPaths } from '../middleware/module-gate';
 import { validate } from '../middleware/validate';
 import {
   createChangeOrderSchema,
@@ -21,6 +22,8 @@ const projectIdParams = z.object({ id: idSchema });
 
 export const changeOrderRouter = Router();
 changeOrderRouter.use(authenticateToken);
+// Mounted at /api/projects — path-aware so only change-order routes are gated.
+changeOrderRouter.use(requireModuleForPaths('change_orders', [/^\/[^/]+\/change-orders\b/]));
 
 changeOrderRouter.get(
   '/:id/change-orders',

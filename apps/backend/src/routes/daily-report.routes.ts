@@ -8,6 +8,7 @@ import { Router } from 'express';
 import * as reportController from '../controllers/daily-report.controller';
 import * as attendanceController from '../controllers/attendance.controller';
 import { authenticateToken } from '../middleware/auth';
+import { requireModule, requireModuleForPaths } from '../middleware/module-gate';
 import { validate } from '../middleware/validate';
 import {
   createDailyReportSchema,
@@ -27,6 +28,14 @@ import {
 /* ------------------------------------------------------------------ */
 export const reportRouter = Router();
 reportRouter.use(authenticateToken);
+// Mounted at /api/projects — path-aware so only reports/checkin/attendance are gated.
+reportRouter.use(
+  requireModuleForPaths('reports_ops', [
+    /^\/[^/]+\/reports\b/,
+    /^\/[^/]+\/checkin\b/,
+    /^\/[^/]+\/attendance\b/,
+  ]),
+);
 
 // Reports
 reportRouter.get(
@@ -63,6 +72,7 @@ reportRouter.get(
 /* ------------------------------------------------------------------ */
 export const reportDetailRouter = Router();
 reportDetailRouter.use(authenticateToken);
+reportDetailRouter.use(requireModule('reports_ops'));
 
 reportDetailRouter.get('/:id', validate({ params: dailyReportIdParamsSchema }), reportController.getReport);
 reportDetailRouter.put(

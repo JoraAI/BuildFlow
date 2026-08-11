@@ -4,6 +4,7 @@
 import { Router } from 'express';
 import * as proposalController from '../controllers/proposal.controller';
 import { authenticateToken, requireRole } from '../middleware/auth';
+import { requireModule } from '../middleware/module-gate';
 import { validate } from '../middleware/validate';
 import {
   createProposalSchema,
@@ -18,6 +19,7 @@ import { Role } from '@buildflow/shared';
 export const proposalRouter = Router();
 
 proposalRouter.use(authenticateToken);
+proposalRouter.use(requireModule('proposals'));
 
 proposalRouter.get('/', validate({ query: proposalQuerySchema }), proposalController.listProposals);
 proposalRouter.post('/', validate({ body: createProposalSchema }), proposalController.createProposal);

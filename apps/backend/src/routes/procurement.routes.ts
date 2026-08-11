@@ -17,6 +17,7 @@ import {
   createRequisitionSchema,
   createPurchaseOrderSchema,
   createGrnSchema,
+  issueStockSchema,
   idSchema,
 } from '@buildflow/shared';
 
@@ -137,6 +138,12 @@ procurementRouter.get(
   requirePermission('stock.view'),
   validate({ params: projectIdParams }),
   asyncHandler(procurementController.listStockMovements),
+);
+procurementRouter.post(
+  '/:id/procurement/stock/issue',
+  requirePermission('stock.manage'),
+  validate({ params: projectIdParams, body: issueStockSchema }),
+  asyncHandler(procurementController.issueStock),
 );
 procurementRouter.get(
   '/:id/procurement/stock',

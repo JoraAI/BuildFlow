@@ -30,6 +30,7 @@ import * as estimateController from '../controllers/estimate.controller';
 import * as boqController from '../controllers/boq.controller';
 import * as changeOrderService from '../services/change-order.service';
 import { authenticateToken, requireRole } from '../middleware/auth';
+import { requireModuleForPaths } from '../middleware/module-gate';
 import { validate } from '../middleware/validate';
 import { asyncHandler } from '../utils/async-handler';
 import {
@@ -58,6 +59,14 @@ const estimateCompareParamsSchema = z.object({
 export const estimateRouter = Router();
 
 estimateRouter.use(authenticateToken);
+// estimateRouter is mounted at `/api` (catch-all) — the gate must be path-aware
+// so unrelated /api/* requests (invoices, bills, settings, ...) pass through.
+estimateRouter.use(
+  requireModuleForPaths('estimates', [
+    /^\/projects\/[^/]+\/estimates\b/,
+    /^\/estimates\b/,
+  ]),
+);
 
 // FIX (R2-3): Gate estimate workflow mutations behind requireRole, matching
 // boq.routes.ts. Previously approve / convert-to-boq had no role guard, so any

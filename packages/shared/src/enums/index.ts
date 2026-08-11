@@ -17,6 +17,8 @@ export const Role = {
   /** @deprecated Use SITE_SUPERVISOR — kept for migration compatibility */
   SUPERVISOR: 'SUPERVISOR',
   ACCOUNTANT: 'ACCOUNTANT',
+  /** Inventory product role - hidden from construction companies. */
+  INVENTORY_MANAGER: 'INVENTORY_MANAGER',
 } as const;
 export type Role = (typeof Role)[keyof typeof Role];
 
@@ -31,6 +33,7 @@ export const ALL_ROLES: Role[] = [
   Role.WEIGHBRIDGE_INCHARGE,
   Role.SITE_SUPERVISOR,
   Role.ACCOUNTANT,
+  Role.INVENTORY_MANAGER,
 ];
 
 /** Roles that can access the Accounting module (default permissions). */
@@ -50,10 +53,12 @@ export const ROLE_LABELS: Record<Role, string> = {
   SITE_SUPERVISOR: 'Site Supervisor',
   SUPERVISOR: 'Site Supervisor (legacy)',
   ACCOUNTANT: 'Accountant',
+  INVENTORY_MANAGER: 'Inventory Manager',
 };
 
 /**
  * Roles that can be assigned via invite (Owner is assigned at company creation only).
+ * Construction companies — INVENTORY_MANAGER is hidden from them.
  */
 export const INVITABLE_ROLES: Role[] = [
   Role.PM,
@@ -65,6 +70,16 @@ export const INVITABLE_ROLES: Role[] = [
   Role.SITE_SUPERVISOR,
   Role.ACCOUNTANT,
 ];
+
+/**
+ * INVENTORY_PRODUCT: invitable roles per plan family.
+ *   INVENTORY: OWNER + INVENTORY_MANAGER only.
+ *   Construction: existing roles except INVENTORY_MANAGER.
+ */
+export const INVITABLE_ROLES_BY_PRODUCT: Record<'inventory' | 'construction', Role[]> = {
+  inventory: [Role.OWNER, Role.INVENTORY_MANAGER],
+  construction: INVITABLE_ROLES,
+};
 
 export const ProjectType = {
   HEAVY: 'HEAVY',
@@ -148,6 +163,7 @@ export const InvoiceStatus = {
 export type InvoiceStatus = (typeof InvoiceStatus)[keyof typeof InvoiceStatus];
 
 export const BillStatus = {
+  DRAFT: 'DRAFT',
   PENDING: 'PENDING',
   APPROVED: 'APPROVED',
   PAID: 'PAID',

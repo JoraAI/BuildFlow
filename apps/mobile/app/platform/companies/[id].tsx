@@ -98,7 +98,7 @@ export default function PlatformCompanyDetailScreen() {
 
         <Card>
           <Text className="font-bold text-text mb-3">Subscription</Text>
-          <Input label="Plan (STARTER/PROFESSIONAL/ENTERPRISE)" value={plan} onChangeText={setPlan} />
+          <Input label="Plan (INVENTORY/STARTER/PROFESSIONAL/ENTERPRISE)" value={plan} onChangeText={setPlan} />
           <View className="h-2" />
           <Input label="Status (TRIAL/ACTIVE/EXPIRED/...)" value={status} onChangeText={setStatus} />
           <Text className="text-xs text-muted mt-2">

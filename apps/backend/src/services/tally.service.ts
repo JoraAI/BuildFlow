@@ -68,7 +68,7 @@ const STATE_CODE_BY_NAME = new Map(
 /**
  * FIX (R2-7): Normalize company/vendor state to a 2-digit GST code when possible.
  */
-function normalizeStateCode(gstin: string | null | undefined, state: string | null | undefined): string {
+export function normalizeStateCode(gstin: string | null | undefined, state: string | null | undefined): string {
   const fromGstin = stateFromGstin(gstin);
   if (fromGstin) return fromGstin;
   const s = (state ?? '').trim();
@@ -77,13 +77,14 @@ function normalizeStateCode(gstin: string | null | undefined, state: string | nu
 }
 
 /** Build a single sales voucher XML (one per invoice). */
-function buildSalesVoucher(
+export function buildSalesVoucher(
   inv: {
     id: string;
     invoiceNumber: string;
     clientName: string;
     invoiceDate: Date;
     subtotal: Decimal;
+    gstAmount?: Decimal;
     cgstAmount: Decimal;
     sgstAmount: Decimal;
     igstAmount: Decimal;
@@ -115,28 +116,37 @@ function buildSalesVoucher(
   lines.push(`      <AMOUNT>-${fmtNum(inv.subtotal)}</AMOUNT>`);
   lines.push('    </ALLLEDGERENTRIES.LIST>');
 
+  // Prefer split GST fields; fall back to gstAmount when splits were never persisted (seed / legacy).
+  let cgst = Number(inv.cgstAmount);
+  let sgst = Number(inv.sgstAmount);
+  let igst = Number(inv.igstAmount);
+  const gstTotal = Number(inv.gstAmount ?? 0);
+  if (cgst + sgst + igst === 0 && gstTotal > 0) {
+    igst = gstTotal;
+  }
+
   // CGST
-  if (Number(inv.cgstAmount) > 0) {
+  if (cgst > 0) {
     lines.push('    <ALLLEDGERENTRIES.LIST>');
     lines.push(`      <LEDGERNAME>${esc(m.cgst ?? 'CGST')}</LEDGERNAME>`);
     lines.push(`      <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>`);
-    lines.push(`      <AMOUNT>-${fmtNum(inv.cgstAmount)}</AMOUNT>`);
+    lines.push(`      <AMOUNT>-${fmtNum(cgst)}</AMOUNT>`);
     lines.push('    </ALLLEDGERENTRIES.LIST>');
   }
   // SGST
-  if (Number(inv.sgstAmount) > 0) {
+  if (sgst > 0) {
     lines.push('    <ALLLEDGERENTRIES.LIST>');
     lines.push(`      <LEDGERNAME>${esc(m.sgst ?? 'SGST')}</LEDGERNAME>`);
     lines.push(`      <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>`);
-    lines.push(`      <AMOUNT>-${fmtNum(inv.sgstAmount)}</AMOUNT>`);
+    lines.push(`      <AMOUNT>-${fmtNum(sgst)}</AMOUNT>`);
     lines.push('    </ALLLEDGERENTRIES.LIST>');
   }
   // IGST
-  if (Number(inv.igstAmount) > 0) {
+  if (igst > 0) {
     lines.push('    <ALLLEDGERENTRIES.LIST>');
     lines.push(`      <LEDGERNAME>${esc(m.igst ?? 'IGST')}</LEDGERNAME>`);
     lines.push(`      <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>`);
-    lines.push(`      <AMOUNT>-${fmtNum(inv.igstAmount)}</AMOUNT>`);
+    lines.push(`      <AMOUNT>-${fmtNum(igst)}</AMOUNT>`);
     lines.push('    </ALLLEDGERENTRIES.LIST>');
   }
   // TDS deducted
@@ -147,12 +157,14 @@ function buildSalesVoucher(
     lines.push(`      <AMOUNT>${fmtNum(inv.tdsAmount)}</AMOUNT>`);
     lines.push('    </ALLLEDGERENTRIES.LIST>');
   }
-  // FIX (FIN-H5): Credit retention withheld so party debit = sales + tax + retention.
+  // FIX (FIN-H5 / Round 40): invoice.total is post-retention. Retention held by the
+  // client is a receivable asset → debit Retention Money (not credit). Balance:
+  // +total + retention + tds − subtotal − tax = 0.
   if (Number(inv.retentionAmount) > 0) {
     lines.push('    <ALLLEDGERENTRIES.LIST>');
     lines.push(`      <LEDGERNAME>${esc(m.retention ?? 'Retention Money')}</LEDGERNAME>`);
-    lines.push(`      <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>`);
-    lines.push(`      <AMOUNT>-${fmtNum(inv.retentionAmount)}</AMOUNT>`);
+    lines.push(`      <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>`);
+    lines.push(`      <AMOUNT>${fmtNum(inv.retentionAmount)}</AMOUNT>`);
     lines.push('    </ALLLEDGERENTRIES.LIST>');
   }
 
@@ -169,8 +181,12 @@ function buildSalesVoucher(
  * (first 2 digits = state code) — previously the code read a nonexistent
  * `bill.vendorState` field, so EVERY bill was mis-split as intra-state (CGST/
  * SGST) regardless of the vendor's actual state.
+ *
+ * Round 40: subcontract bills use
+ * `total = subtotal + gst − retention − advanceRecovery − tds`. Credit
+ * retention / advance-recovery ledgers so the voucher balances.
  */
-function buildPurchaseVoucher(
+export function buildPurchaseVoucher(
   bill: {
     id: string;
     billNumber: string;
@@ -180,6 +196,8 @@ function buildPurchaseVoucher(
     subtotal: Decimal;
     gstAmount: Decimal;
     tdsAmount: Decimal;
+    retentionAmount?: Decimal | null;
+    advanceRecoveryAmount?: Decimal | null;
     total: Decimal;
   },
   m: TallyLedgerMap,
@@ -239,6 +257,22 @@ function buildPurchaseVoucher(
       lines.push('    </ALLLEDGERENTRIES.LIST>');
     }
   }
+  // Retention withheld from vendor (credit / liability)
+  if (Number(bill.retentionAmount ?? 0) > 0) {
+    lines.push('    <ALLLEDGERENTRIES.LIST>');
+    lines.push(`      <LEDGERNAME>${esc(m.retention ?? 'Retention Money')}</LEDGERNAME>`);
+    lines.push(`      <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>`);
+    lines.push(`      <AMOUNT>-${fmtNum(Number(bill.retentionAmount))}</AMOUNT>`);
+    lines.push('    </ALLLEDGERENTRIES.LIST>');
+  }
+  // Advance recovered against this bill (credit)
+  if (Number(bill.advanceRecoveryAmount ?? 0) > 0) {
+    lines.push('    <ALLLEDGERENTRIES.LIST>');
+    lines.push(`      <LEDGERNAME>${esc(m.advanceRecovery ?? 'Advance Recovery')}</LEDGERNAME>`);
+    lines.push(`      <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>`);
+    lines.push(`      <AMOUNT>-${fmtNum(Number(bill.advanceRecoveryAmount))}</AMOUNT>`);
+    lines.push('    </ALLLEDGERENTRIES.LIST>');
+  }
   // TDS
   if (Number(bill.tdsAmount) > 0) {
     lines.push('    <ALLLEDGERENTRIES.LIST>');
@@ -288,4 +322,15 @@ export async function exportProjectTallyXML(companyId: string, projectId: string
   parts.push('  </BODY>');
   parts.push('</ENVELOP>');
   return parts.join('\n');
+}
+
+/** Sum all `<AMOUNT>…</AMOUNT>` values in a voucher/XML fragment (balance check). */
+export function sumLedgerAmounts(xml: string): number {
+  let sum = 0;
+  const re = /<AMOUNT>(-?\d+(?:\.\d+)?)<\/AMOUNT>/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(xml)) !== null) {
+    sum += Number(m[1]);
+  }
+  return Math.round(sum * 100) / 100;
 }

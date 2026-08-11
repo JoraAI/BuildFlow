@@ -10,7 +10,7 @@ const router = Router();
 router.post(
   '/invoices/:id/payment-link',
   authenticateToken,
-  requireRole('OWNER', 'PM', 'ACCOUNTANT'),
+  requireRole('OWNER', 'PM', 'ACCOUNTANT', 'INVENTORY_MANAGER'),
   ctrl.createLink,
 );
 

@@ -7,6 +7,7 @@
 import { Router } from 'express';
 import * as taskController from '../controllers/task.controller';
 import { authenticateToken, requireRole } from '../middleware/auth';
+import { requireModule, requireModuleForPaths } from '../middleware/module-gate';
 import { validate } from '../middleware/validate';
 import {
   createTaskSchema,
@@ -21,6 +22,14 @@ import { Role } from '@buildflow/shared';
 export const taskRouter = Router();
 
 taskRouter.use(authenticateToken);
+// Mounted at /api/projects — path-aware so only planning routes are gated.
+taskRouter.use(
+  requireModuleForPaths('planning', [
+    /^\/[^/]+\/tasks\b/,
+    /^\/[^/]+\/gantt\b/,
+    /^\/[^/]+\/critical-path\b/,
+  ]),
+);
 
 // Project-scoped task endpoints
 taskRouter.get('/:id/tasks', validate({ params: projectIdParamsSchema }), taskController.listTasks);
@@ -31,6 +40,7 @@ taskRouter.get('/:id/critical-path', validate({ params: projectIdParamsSchema })
 // Task-level endpoints (mounted at /api/tasks)
 export const taskDetailRouter = Router();
 taskDetailRouter.use(authenticateToken);
+taskDetailRouter.use(requireModule('planning'));
 
 taskDetailRouter.put('/:id', validate({ params: taskIdParamsSchema, body: updateTaskSchema }), taskController.updateTask);
 taskDetailRouter.delete('/:id', validate({ params: taskIdParamsSchema }), taskController.deleteTask);

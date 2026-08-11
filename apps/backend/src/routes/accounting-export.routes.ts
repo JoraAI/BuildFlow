@@ -4,7 +4,7 @@ import { authenticateToken, requireRole } from '../middleware/auth';
 import { Role } from '@buildflow/shared';
 export const accountingExportRouter = Router();
 accountingExportRouter.use(authenticateToken);
-const EXPORT_ROLE = requireRole(Role.OWNER, Role.ACCOUNTANT, Role.PM);
+const EXPORT_ROLE = requireRole(Role.OWNER, Role.ACCOUNTANT, Role.PM, Role.INVENTORY_MANAGER);
 accountingExportRouter.get('/journal-csv', EXPORT_ROLE, ctrl.exportJournal);
 accountingExportRouter.get('/sales-register-csv', EXPORT_ROLE, ctrl.exportSales);
 accountingExportRouter.get('/purchase-register-csv', EXPORT_ROLE, ctrl.exportPurchase);

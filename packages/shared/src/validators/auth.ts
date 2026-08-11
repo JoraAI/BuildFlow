@@ -31,6 +31,9 @@ export const registerCompanySchema = z.object({
   ownerName: z.string().trim().min(2).max(120),
   ownerEmail: emailSchema,
   password: passwordSchema,
+
+  // INVENTORY_PRODUCT: dedicated inventory signup path
+  product: z.enum(['inventory', 'construction']).default('construction'),
 });
 
 export type RegisterCompanyInput = z.infer<typeof registerCompanySchema>;
@@ -79,6 +82,7 @@ export const inviteRoleSchema = z.enum([
   'WEIGHBRIDGE_INCHARGE',
   'SITE_SUPERVISOR',
   'ACCOUNTANT',
+  'INVENTORY_MANAGER',
 ]);
 
 export const createUserInviteSchema = z.object({

@@ -18,6 +18,7 @@ export interface TallyLedgerMap {
   igst?: string;
   tdsPayable?: string;
   retention?: string;
+  advanceRecovery?: string;
   roundOff?: string;
   bank?: string;
 }

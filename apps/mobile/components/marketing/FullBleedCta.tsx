@@ -5,6 +5,7 @@ import { MarketingContent } from '@/components/marketing/MarketingContent';
 import { FreeTrialBadge } from '@/components/marketing/FreeTrialBadge';
 import { StartFreeTrialButton } from '@/components/marketing/StartFreeTrialButton';
 import { useViewport } from '@/hooks/useViewport';
+import { TRIAL_CTA } from '@/constants/marketing';
 
 export function FullBleedCta() {
   const router = useRouter();
@@ -21,24 +22,33 @@ export function FullBleedCta() {
           <Text
             className={`text-white font-bold mb-2 ${isMarketingDesktop ? 'text-3xl' : 'text-2xl'}`}
           >
-            Ready to streamline your projects?
+            Ready for ERP or exclusive Inventory?
           </Text>
           <Text className={`text-white/70 ${isMarketingDesktop ? 'text-lg max-w-xl' : 'text-base'}`}>
-            Full platform access for 14 days. No credit card required.
+            14-day free trial for Construction ERP or Inventory. No credit card.
           </Text>
           <View className={`mt-4 ${isMarketingDesktop ? 'max-w-md' : ''}`}>
             <FreeTrialBadge onDark />
           </View>
         </View>
-        <View className={`${isMarketingDesktop ? 'shrink-0 items-end' : 'w-full'}`}>
+        <View className={`${isMarketingDesktop ? 'shrink-0 items-stretch gap-3' : 'w-full gap-3'}`}>
           <StartFreeTrialButton
-            onPress={() => router.push('/signup/company')}
+            label={TRIAL_CTA.erp.label}
+            onPress={() => router.push(TRIAL_CTA.erp.href as never)}
             fullWidth={!isMarketingDesktop}
+            size={isMarketingDesktop ? 'lg' : 'md'}
+          />
+          <StartFreeTrialButton
+            variant="outline"
+            label={TRIAL_CTA.inventory.label}
+            onPress={() => router.push(TRIAL_CTA.inventory.href as never)}
+            fullWidth={!isMarketingDesktop}
+            size={isMarketingDesktop ? 'lg' : 'md'}
           />
           <Pressable
             onPress={() => router.push('/login')}
-            className={`mt-3 px-5 py-3 rounded-lg border border-white/40 active:opacity-80 ${
-              !isMarketingDesktop ? 'w-full items-center' : ''
+            className={`px-5 py-3 rounded-lg border border-white/40 active:opacity-80 ${
+              !isMarketingDesktop ? 'w-full items-center' : 'items-center'
             }`}
           >
             <Text className="text-white font-semibold text-center">Login</Text>

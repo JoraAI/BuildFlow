@@ -1,5 +1,5 @@
 /**
- * Pre-login BuildFlow Product Guide — marketing assistant (no auth).
+ * Pre-login BuildFlow Product Guide: marketing assistant (no auth).
  */
 import React, { useState } from 'react';
 import { View, Text, Pressable, Modal, TextInput, ScrollView, ActivityIndicator } from 'react-native';

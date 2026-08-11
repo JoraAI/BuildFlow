@@ -342,7 +342,7 @@ export function usePendingInvites() {
 export function useCreateInvite() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { email: string; role: 'PM' | 'SUPERVISOR' | 'ACCOUNTANT' }) =>
+    mutationFn: (data: { email: string; role: string }) =>
       apiFetch<InviteCreated>('/settings/users/invite', {
         method: 'POST',
         body: JSON.stringify(data),

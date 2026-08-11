@@ -123,6 +123,32 @@ export async function listStockMovements(req: Request, res: Response) {
   return ok(res, data);
 }
 
+export async function issueStock(req: Request, res: Response) {
+  const { companyId, id: userId, role } = req.user!;
+  const data = await procurementService.issueStockManual(
+    companyId,
+    userId,
+    role,
+    req.params.id,
+    req.body,
+  );
+  await recordAudit({
+    companyId,
+    userId,
+    action: 'CREATE',
+    entityType: 'StockMovement',
+    entityId: data.movementId,
+    newValue: {
+      type: 'OUT',
+      resourceId: data.resourceId,
+      quantity: data.quantityIssued,
+      notes: data.notes,
+    },
+    ipAddress: req.ip,
+  });
+  return created(res, data);
+}
+
 export async function getBoqShortfalls(req: Request, res: Response) {
   const { companyId, id: userId, role } = req.user!;
   const data = await procurementService.getBoqShortfalls(companyId, userId, role, req.params.id);

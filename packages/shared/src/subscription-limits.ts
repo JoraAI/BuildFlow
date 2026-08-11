@@ -7,6 +7,8 @@
  * During TRIAL status, STARTER limits apply (per §2.20.3 SUB-PLAN1 spec).
  */
 export const PLAN_LIMITS = {
+  /** INVENTORY_PRODUCT: one hidden default store project only, up to 10 users. */
+  INVENTORY: { maxProjects: 1, maxUsers: 10 },
   STARTER: { maxProjects: 3, maxUsers: 5 },
   PROFESSIONAL: { maxProjects: 25, maxUsers: 25 },
   ENTERPRISE: { maxProjects: null, maxUsers: null }, // unlimited

@@ -208,6 +208,16 @@ export async function deleteProject(
 
   await getProject(companyId, id);
 
+  // INVENTORY_PRODUCT: the default STORE project is the tenant's only project
+  // and cannot be soft-deleted / cancelled.
+  const company = await prisma.company.findUniqueOrThrow({
+    where: { id: companyId },
+    select: { defaultProjectId: true },
+  });
+  if (company.defaultProjectId === id) {
+    throw ApiError.forbidden('The default store project cannot be deleted. Upgrade to a construction plan to manage multiple projects.');
+  }
+
   // Soft delete
   await prisma.project.update({
     where: { id },

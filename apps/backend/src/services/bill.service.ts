@@ -41,6 +41,7 @@ function serializeBill(b: {
   workOrderId: string | null;
   measurementId: string | null;
   purchaseOrderId: string | null;
+  goodsReceiptId?: string | null;
   isRetentionRelease: boolean;
   project?: { id: string; name: string };
 }) {
@@ -66,6 +67,8 @@ function serializeBill(b: {
     advanceRecoveryAmount: toNum(b.advanceRecoveryAmount),
     workOrderId: b.workOrderId,
     measurementId: b.measurementId,
+    purchaseOrderId: b.purchaseOrderId,
+    goodsReceiptId: b.goodsReceiptId ?? null,
     isRetentionRelease: b.isRetentionRelease,
     ...(b.project ? { project: b.project } : {}),
   };
@@ -236,6 +239,109 @@ export async function createBill(companyId: string, _userId: string, input: Crea
   return serializeBill(bill);
 }
 
+/**
+ * Inventory-only: auto-create a DRAFT vendor bill for a GRN
+ * (received qty × PO line rate + optional 18% GST when company has GSTIN).
+ * Idempotent on goodsReceiptId. No-op for construction tenants.
+ */
+export async function createDraftBillFromGrn(opts: {
+  companyId: string;
+  projectId: string;
+  purchaseOrderId: string;
+  goodsReceiptId: string;
+  grnNumber: string;
+  receivedDate: Date;
+  lines: Array<{ resourceId: string; quantity: number; unit: string }>;
+}): Promise<BillListItem | null> {
+  const company = await prisma.company.findFirst({
+    where: { id: opts.companyId },
+    select: { subscriptionPlan: true, gstin: true },
+  });
+  if (!company || company.subscriptionPlan !== 'INVENTORY') return null;
+
+  const existing = await prisma.bill.findFirst({
+    where: { goodsReceiptId: opts.goodsReceiptId },
+    include: { project: { select: { id: true, name: true } } },
+  });
+  if (existing) return serializeBill(existing);
+
+  const po = await prisma.purchaseOrder.findFirst({
+    where: {
+      id: opts.purchaseOrderId,
+      companyId: opts.companyId,
+      projectId: opts.projectId,
+    },
+    include: { lines: true },
+  });
+  if (!po) throw ApiError.notFound('Purchase order not found in this project');
+
+  const poLineByResource = new Map(po.lines.map((l) => [l.resourceId, l]));
+  const lineBreakdown: Array<{
+    resourceId: string;
+    quantity: number;
+    unit: string;
+    rate: number;
+    amount: number;
+  }> = [];
+  let subtotal = 0;
+  for (const line of opts.lines) {
+    const poLine = poLineByResource.get(line.resourceId);
+    if (!poLine) continue;
+    const rate = Number(poLine.rate);
+    const amount = round2(line.quantity * rate);
+    subtotal = round2(subtotal + amount);
+    lineBreakdown.push({
+      resourceId: line.resourceId,
+      quantity: line.quantity,
+      unit: line.unit,
+      rate,
+      amount,
+    });
+  }
+
+  const gstAmount = company.gstin ? round2(subtotal * 0.18) : 0;
+  const tdsAmount = 0;
+  const total = netTotal(subtotal, gstAmount, tdsAmount);
+  const billNumber = await nextSequentialNumber(opts.companyId, 'bill');
+
+  const snapshot: Prisma.JsonObject = {
+    capturedAt: new Date().toISOString(),
+    source: 'AUTO_GRN',
+    grnNumber: opts.grnNumber,
+    goodsReceiptId: opts.goodsReceiptId,
+    lines: lineBreakdown,
+    purchaseOrder: {
+      poNumber: po.poNumber,
+      vendorName: po.vendorName,
+      totalAmount: Number(po.totalAmount),
+      status: po.status,
+    },
+  };
+
+  const bill = await prisma.bill.create({
+    data: {
+      projectId: opts.projectId,
+      companyId: opts.companyId,
+      billNumber,
+      vendorName: po.vendorName,
+      vendorGstin: po.vendorGstin,
+      billDate: opts.receivedDate,
+      status: 'DRAFT',
+      subtotal,
+      gstAmount,
+      tdsAmount,
+      total,
+      category: 'MATERIAL',
+      purchaseOrderId: opts.purchaseOrderId,
+      goodsReceiptId: opts.goodsReceiptId,
+      billSnapshot: snapshot,
+    },
+    include: { project: { select: { id: true, name: true } } },
+  });
+
+  return serializeBill(bill);
+}
+
 export async function updateBill(
   companyId: string,
   id: string,
@@ -273,6 +379,9 @@ export async function approveBill(companyId: string, userId: string, id: string)
   if (!bill) throw ApiError.notFound('Bill');
   if (bill.status === 'PAID') throw ApiError.conflict('Bill already paid');
   if (bill.status === 'REJECTED') throw ApiError.badRequest('Rejected bills cannot be approved');
+  if (bill.status !== 'DRAFT' && bill.status !== 'PENDING') {
+    throw ApiError.badRequest(`Cannot approve a bill with status "${bill.status}"`);
+  }
 
   const updated = await prisma.bill.update({
     where: { id },
@@ -306,7 +415,7 @@ export async function recordBillPayment(
   const bill = await prisma.bill.findFirst({ where: { id, companyId } });
   if (!bill) throw ApiError.notFound('Bill');
   if (bill.status === 'REJECTED') throw ApiError.badRequest('Cannot pay a rejected bill');
-  if (bill.status === 'PENDING') {
+  if (bill.status === 'DRAFT' || bill.status === 'PENDING') {
     throw ApiError.badRequest('Bill must be approved before recording payment');
   }
   if (bill.status === 'PAID' && toNum(bill.paidAmount) >= toNum(bill.total)) {
@@ -376,8 +485,8 @@ export async function payBill(companyId: string, userId: string, id: string) {
 export async function deleteBill(companyId: string, id: string) {
   const bill = await prisma.bill.findFirst({ where: { id, companyId } });
   if (!bill) throw ApiError.notFound('Bill');
-  if (!['PENDING', 'REJECTED'].includes(bill.status)) {
-    throw ApiError.conflict('Only PENDING or REJECTED bills can be deleted');
+  if (!['DRAFT', 'PENDING', 'REJECTED'].includes(bill.status)) {
+    throw ApiError.conflict('Only DRAFT, PENDING or REJECTED bills can be deleted');
   }
   return prisma.bill.delete({ where: { id } });
 }
@@ -401,6 +510,8 @@ export async function getBillSummary(companyId: string, projectId?: string) {
     // FIX (FIN-M11): Exclude REJECTED bills from spend totals — they are not
     // valid financial obligations.
     if (b.status === 'REJECTED') continue;
+    // Draft auto-bills are not financial obligations until confirmed.
+    if (b.status === 'DRAFT') continue;
     const total = Number(b.total);
     const paid = Number(b.paidAmount);
     const cat = b.category;

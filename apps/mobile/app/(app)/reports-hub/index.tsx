@@ -24,14 +24,16 @@ import {
   useCreateReportSchedule,
   type ReportSchedule,
 } from '@/services/expansion.queries';
-import { downloadReportPdf, reportPaths } from '@/services/report-download';
+import { downloadReportPdf, downloadTallyXml, reportPaths } from '@/services/report-download';
 import { COLORS } from '@/constants';
 import { formatINR } from '@/utils/format';
+import { usePermission } from '@/hooks/usePermission';
 
 export default function ReportsHubScreen() {
   const { isDesktop } = useViewport();
   const user = useAuthStore((s) => s.user);
   const canFinancials = user?.role === 'OWNER' || user?.role === 'ACCOUNTANT';
+  const canExportTally = usePermission('tally.export');
 
   const { data: projects } = useProjects();
   const [selectedProject, setSelectedProject] = useState('');
@@ -237,6 +239,15 @@ export default function ReportsHubScreen() {
                   downloadReportPdf(reportPaths.materialRates(selectedProject), 'material-rates.pdf')
                 }
               />
+              {canExportTally ? (
+                <ProjectReportCard
+                  accent={COLORS.primary}
+                  tag="XML"
+                  title="Export to Tally"
+                  description="Invoices & bills as Tally Prime XML"
+                  onPress={() => void downloadTallyXml(selectedProject)}
+                />
+              ) : null}
             </ResponsiveGrid>
 
             {evaQ.isLoading ? <LoadingSkeleton className="h-4" /> : null}

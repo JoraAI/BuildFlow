@@ -14,8 +14,10 @@ export * from './validators';
 export * from './constants';
 export * from './pricing';
 export * from './subscription-limits';
+export * from './plan-modules';
 export * from './permissions';
 export * from './utils/date';
+export * from './utils/procurement-eligibility';
 
 /* ------------------------------------------------------------------ */
 /* Formatting utilities (no deps - safe for RN + Node)                 */

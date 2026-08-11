@@ -40,7 +40,7 @@ import {
 import { resolveIdentity, refreshIdentity } from './identity';
 import { tools, PermissionDeniedError } from './tools';
 import { prisma, companyALS } from './prisma';
-import { buildPermissionAwarePrompt, getAllowedTools } from '@buildflow/shared';
+import { buildPermissionAwarePrompt, getAllowedTools, filterToolsByProductMode } from '@buildflow/shared';
 import { disconnectRedis } from './redis';
 
 async function main() {
@@ -57,10 +57,11 @@ async function main() {
   const identity = await resolveIdentity(token);
   console.error(`[buildflow-mcp] Identity resolved: ${identity.userName} (${identity.role}) @ ${identity.companyName}`);
 
-  // ── Filter tools by the caller's permissions ──────────────────────
-  const allowedTools = getAllowedTools(identity.permissions as never).map((cap) =>
-    tools.find((t) => t.name === cap.id),
-  ).filter(Boolean);
+  // ── Filter tools by the caller's permissions + product mode ───────
+  const allowedTools = filterToolsByProductMode(
+    getAllowedTools(identity.permissions as never),
+    identity.productMode,
+  ).map((cap) => tools.find((t) => t.name === cap.id)).filter(Boolean);
   const registeredTools = allowedTools as typeof tools;
 
   console.error(`[buildflow-mcp] ${registeredTools.length}/${tools.length} tools available for this role`);
@@ -70,6 +71,7 @@ async function main() {
     identity.permissions as never,
     identity.role,
     identity.companyName,
+    identity.productMode,
   );
 
   // ── Periodic re-validation of the token (FIX SEC-H5) ───────────────

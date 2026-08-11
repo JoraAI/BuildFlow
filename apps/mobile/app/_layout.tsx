@@ -80,6 +80,7 @@ export default function RootLayout() {
             <Stack.Screen name="(public)" />
             <Stack.Screen name="(auth)" />
             <Stack.Screen name="(app)" />
+            <Stack.Screen name="inventory" />
             <Stack.Screen name="platform" />
             <Stack.Screen name="portal" options={{ headerShown: false }} />
           </Stack>

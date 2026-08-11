@@ -148,7 +148,7 @@ async function runLlmWithTools(
   identity: Awaited<ReturnType<typeof resolveAssistantIdentity>>,
   messages: LlmMessage[],
 ): Promise<string | null> {
-  const tools = buildOpenAiTools(identity.permissions);
+  const tools = buildOpenAiTools(identity.permissions, identity.productMode);
   const working = [...messages];
   const MAX_ROUNDS = 5;
 
@@ -206,12 +206,12 @@ function cannedReply(message: string, context: string): string {
 function cannedMarketingReply(message: string): string {
   const q = message.toLowerCase();
   if (q.includes('price') || q.includes('cost') || q.includes('plan')) {
-    return 'BuildFlow plans start around ₹4,999/month (Starter, up to 3 projects). See the Pricing page for Professional and Enterprise tiers. All prices + 18% GST. Sign up for a free trial from the homepage.';
+    return 'BuildFlow plans: Inventory ₹499/month (stock + procurement + invoicing + Tally), Starter ₹1,999/month (up to 3 projects), Professional ₹4,999/month (up to 25 projects). Enterprise is custom - contact sales. All prices before 18% GST. Sign up for a free trial from the homepage.';
   }
   if (q.includes('gst') || q.includes('invoice') || q.includes('bill')) {
-    return 'BuildFlow includes GST-aware invoicing (client invoices) and vendor bills with CGST/SGST/IGST split and TDS tracking — built for Indian construction firms.';
+    return 'BuildFlow includes GST-aware invoicing (client invoices) and vendor bills with CGST/SGST/IGST split and TDS tracking — built for Indian construction firms and inventory businesses.';
   }
-  return 'BuildFlow is a construction ERP for Indian contractors: estimation, BOQ, daily site reports, procurement, subcontracts, and accounting. Sign up or log in to manage your company projects. What would you like to know?';
+  return 'BuildFlow is an all-in-one ERP for Indian construction firms (estimation, BOQ, daily site reports, procurement, subcontracts, accounting) plus a dedicated Inventory product (stock, procurement, invoices, bills, Tally). Sign up or log in to get started. What would you like to know?';
 }
 
 export interface ChatResult {
@@ -243,7 +243,12 @@ export async function handleChatMessage(
     where: { id: companyId },
     select: { name: true },
   });
-  const permissionPrompt = buildPermissionAwarePrompt(identity.permissions, identity.role, company.name);
+  const permissionPrompt = buildPermissionAwarePrompt(
+    identity.permissions,
+    identity.role,
+    company.name,
+    identity.productMode,
+  );
 
   const history = await prisma.chatMessage.findMany({
     where: { companyId, senderId: userId, ...(projectId ? { projectId } : {}) },

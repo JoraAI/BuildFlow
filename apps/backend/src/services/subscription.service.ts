@@ -86,13 +86,16 @@ export async function getSubscriptionSummary(companyId: string): Promise<Subscri
 }
 
 /** Called on public company registration - starts trial window. */
-export async function initializeTrial(companyId: string): Promise<void> {
+export async function initializeTrial(
+  companyId: string,
+  plan: SubscriptionPlan = SubscriptionPlan.STARTER,
+): Promise<void> {
   const now = new Date();
   const ends = trialEndDate(now);
   await prisma.company.update({
     where: { id: companyId },
     data: {
-      subscriptionPlan: SubscriptionPlan.STARTER,
+      subscriptionPlan: plan,
       subscriptionStatus: SubscriptionStatus.TRIAL,
       trialStartsAt: now,
       trialEndsAt: ends,
