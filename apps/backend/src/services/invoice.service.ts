@@ -64,6 +64,9 @@ function serialize(inv: {
   previousCertifiedTotal?: Decimal;
   currentCertifiedTotal?: Decimal;
   cumulativeCertifiedTotal?: Decimal;
+  clientState?: string | null;
+  clientAddress?: string | null;
+  clientPhone?: string | null;
   project: { id: string; name: string; clientName?: string };
   lineItems: Array<{
     id: string;
@@ -81,6 +84,10 @@ function serialize(inv: {
     invoiceNumber: inv.invoiceNumber,
     clientName: inv.clientName,
     clientGstin: inv.clientGstin,
+    clientState: inv.clientState ?? null,
+    // INVENTORY_UX_POLISH (D6): optional buyer contact details in responses.
+    clientAddress: inv.clientAddress ?? null,
+    clientPhone: inv.clientPhone ?? null,
     invoiceDate: inv.invoiceDate,
     dueDate: inv.dueDate,
     status: inv.status,
@@ -269,6 +276,9 @@ export async function createInvoice(companyId: string, _userId: string, input: C
         clientGstin: input.clientGstin,
         // FIX (FIN-H3): Persist clientState at create time so edits keep it.
         clientState: input.clientState ?? null,
+        // INVENTORY_UX_POLISH (D6): optional buyer contact details.
+        clientAddress: input.clientAddress ?? null,
+        clientPhone: input.clientPhone ?? null,
         invoiceDate: input.invoiceDate,
         dueDate: input.dueDate,
         status: 'DRAFT',
@@ -448,6 +458,9 @@ export async function updateInvoice(
       clientGstin: input.clientGstin,
       // FIX (FIN-H3): Persist the resolved clientState so it survives edits.
       clientState,
+      // INVENTORY_UX_POLISH (D6): optional buyer contact details (null clears).
+      clientAddress: input.clientAddress ?? null,
+      clientPhone: input.clientPhone ?? null,
       invoiceDate: input.invoiceDate,
       dueDate: input.dueDate,
       gstRate,
@@ -491,16 +504,24 @@ export async function sendInvoice(companyId: string, id: string) {
 /**
  * Inventory-only: auto-create a DRAFT sales invoice when stock is issued (OUT).
  * Amount = qty × (unitPrice override or catalog rate); GST when company has GSTIN.
- * Idempotent on stockMovementId.
+ *
+ * INVENTORY_UX_POLISH (D9): `lines[]` may contain multiple materials — the draft
+ * gets one line item per issued material, still one invoice per issue request.
+ * Idempotent on the first line's stockMovementId.
  */
 export async function createDraftInvoiceFromStockIssue(opts: {
   companyId: string;
   projectId: string;
-  stockMovementId: string;
-  resourceId: string;
-  quantity: number;
-  unitPrice?: number | null;
+  lines: Array<{
+    stockMovementId: string;
+    resourceId: string;
+    quantity: number;
+    unitPrice?: number | null;
+  }>;
   customerName?: string | null;
+  // INVENTORY_UX_POLISH (D6): optional buyer contact captured on the Issue screen.
+  customerPhone?: string | null;
+  customerAddress?: string | null;
   notes?: string | null;
 }) {
   const company = await prisma.company.findFirst({
@@ -508,9 +529,11 @@ export async function createDraftInvoiceFromStockIssue(opts: {
     select: { subscriptionPlan: true, gstin: true, state: true },
   });
   if (!company || company.subscriptionPlan !== 'INVENTORY') return null;
+  if (opts.lines.length === 0) return null;
 
+  const firstMovementId = opts.lines[0].stockMovementId;
   const existing = await prisma.invoice.findFirst({
-    where: { stockMovementId: opts.stockMovementId },
+    where: { stockMovementId: firstMovementId },
     include: {
       project: { select: { id: true, name: true } },
       lineItems: true,
@@ -518,28 +541,63 @@ export async function createDraftInvoiceFromStockIssue(opts: {
   });
   if (existing) return serialize(existing);
 
-  const resource = await prisma.resource.findFirst({
-    where: { id: opts.resourceId, companyId: opts.companyId },
+  const resources = await prisma.resource.findMany({
+    where: { id: { in: opts.lines.map((l) => l.resourceId) }, companyId: opts.companyId },
     select: { id: true, name: true, unit: true, rate: true, gstRate: true },
   });
-  if (!resource) throw ApiError.notFound('Resource');
+  const resourceById = new Map(resources.map((r) => [r.id, r]));
 
-  const rate =
-    opts.unitPrice != null && Number.isFinite(opts.unitPrice)
-      ? Number(opts.unitPrice)
-      : Number(resource.rate) || 0;
-  const lineGstRate = company.gstin ? (Number(resource.gstRate) || 18) : 0;
-  const qty = opts.quantity;
-  const amount = lineAmount(qty, rate);
-  const gst = calculateGST({
-    subtotal: amount,
-    gstRate: lineGstRate,
-    tdsEnabled: false,
-    tdsRate: 0,
-    companyState: company.state,
-    clientState: company.state,
-  });
+  const hasGst = !!company.gstin;
+  const lineItemsData: Array<{
+    description: string;
+    quantity: number;
+    unit: string;
+    rate: number;
+    amount: number;
+    gstRate: number;
+  }> = [];
+  let subtotal = 0;
+  let gstAmount = 0;
+  let cgstAmount = 0;
+  let sgstAmount = 0;
+  let igstAmount = 0;
 
+  for (const line of opts.lines) {
+    const resource = resourceById.get(line.resourceId);
+    if (!resource) throw ApiError.notFound('Resource');
+
+    const rate =
+      line.unitPrice != null && Number.isFinite(line.unitPrice)
+        ? Number(line.unitPrice)
+        : Number(resource.rate) || 0;
+    const lineGstRate = hasGst ? (Number(resource.gstRate) || 18) : 0;
+    const amount = lineAmount(line.quantity, rate);
+    const gst = calculateGST({
+      subtotal: amount,
+      gstRate: lineGstRate,
+      tdsEnabled: false,
+      tdsRate: 0,
+      companyState: company.state,
+      clientState: company.state,
+    });
+
+    subtotal += amount;
+    gstAmount += gst.gstAmount;
+    cgstAmount += gst.cgstAmount;
+    sgstAmount += gst.sgstAmount;
+    igstAmount += gst.igstAmount;
+
+    lineItemsData.push({
+      description: resource.name,
+      quantity: line.quantity,
+      unit: resource.unit,
+      rate,
+      amount,
+      gstRate: lineGstRate,
+    });
+  }
+
+  const total = subtotal + gstAmount;
   const invoiceNumber = await nextSequentialNumber(opts.companyId, 'invoice');
   const today = new Date();
   const clientName = (opts.customerName ?? '').trim() || 'Walk-in customer';
@@ -554,33 +612,28 @@ export async function createDraftInvoiceFromStockIssue(opts: {
       companyId: opts.companyId,
       invoiceNumber,
       clientName,
+      clientState: company.state ?? null,
+      // INVENTORY_UX_POLISH (D6): pass through optional buyer contact.
+      clientPhone: opts.customerPhone?.trim() ? opts.customerPhone.trim() : null,
+      clientAddress: opts.customerAddress?.trim() ? opts.customerAddress.trim() : null,
       invoiceDate: today,
       dueDate: today,
       status: 'DRAFT',
       invoiceType: 'STANDARD',
-      subtotal: amount,
-      gstRate: lineGstRate,
-      gstAmount: gst.gstAmount,
-      cgstAmount: gst.cgstAmount,
-      sgstAmount: gst.sgstAmount,
-      igstAmount: gst.igstAmount,
+      subtotal: round2(subtotal),
+      gstRate: lineItemsData[0]?.gstRate ?? 0,
+      gstAmount: round2(gstAmount),
+      cgstAmount: round2(cgstAmount),
+      sgstAmount: round2(sgstAmount),
+      igstAmount: round2(igstAmount),
       tdsRate: 0,
       tdsAmount: 0,
-      total: gst.netPayable,
+      total: round2(total),
       paidAmount: 0,
       notes: noteParts.join(' · '),
-      stockMovementId: opts.stockMovementId,
+      stockMovementId: firstMovementId,
       lineItems: {
-        create: [
-          {
-            description: resource.name,
-            quantity: qty,
-            unit: resource.unit,
-            rate,
-            amount,
-            gstRate: lineGstRate,
-          },
-        ],
+        create: lineItemsData,
       },
     },
     include: {

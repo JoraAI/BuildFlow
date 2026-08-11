@@ -84,6 +84,17 @@ export async function createPO(req: Request, res: Response) {
   return created(res, data);
 }
 
+export async function getNextDocumentNumbers(req: Request, res: Response) {
+  const { companyId, id: userId, role } = req.user!;
+  const data = await procurementService.getNextDocumentNumbers(
+    companyId,
+    userId,
+    role,
+    req.params.id,
+  );
+  return ok(res, data);
+}
+
 export async function createGRN(req: Request, res: Response) {
   const { companyId, id: userId, role } = req.user!;
   const data = await procurementService.createGRN(companyId, userId, role, req.params.id, req.body);

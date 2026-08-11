@@ -8,6 +8,7 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, Modal, Pressable } from 'react-native';
 import { Button, Input } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
+import { useViewport } from '@/hooks/useViewport';
 import { ProjectInvoicesList } from '@/components/accounting/InvoiceBillLists';
 import { downloadTallyXml } from '@/services/report-download';
 import { useCreateInvoice } from '@/services/accounting.queries';
@@ -16,21 +17,22 @@ import { inventoryInvoiceDetailHref } from '@/utils/navigation';
 
 export default function InventoryInvoicesScreen() {
   const user = useAuthStore((s) => s.user);
+  const { isPhone } = useViewport();
   const projectId = user?.defaultProjectId ?? '';
   const [createOpen, setCreateOpen] = useState(false);
   const createInvoice = useCreateInvoice();
 
   return (
     <View className="flex-1 bg-surface">
-      <View className="px-4 pt-4 pb-2 flex-row items-center justify-between">
-        <View>
+      <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between">
+        <View className="flex-1 mr-2 min-w-[160px]">
           <Text className="text-2xl font-bold text-text">Sales invoices</Text>
           <Text className="text-sm text-muted mt-0.5">Client invoices (AR) · {user?.companyName}</Text>
           <Text className="text-xs text-muted mt-1">
             Draft invoices are created automatically when you issue stock. Confirm them here to mark as Sent.
           </Text>
         </View>
-        <View className="flex-row gap-2">
+        <View className={`flex-row gap-2 ${isPhone ? 'mt-2 w-full' : ''}`}>
           <Button
             label="Export to Tally"
             variant="secondary"
@@ -72,12 +74,17 @@ function NewInvoiceModal({
   onClose: () => void;
   onSubmit: (input: {
     clientName: string;
+    clientPhone?: string;
+    clientAddress?: string;
     invoiceDate: string;
     dueDate: string;
     lineItems: Array<{ description: string; quantity: number; unit: string; rate: number; gstRate: number }>;
   }) => Promise<void>;
 }) {
+  const { isPhone } = useViewport();
   const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  const [clientAddress, setClientAddress] = useState('');
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
   const [description, setDescription] = useState('');
@@ -98,6 +105,8 @@ function NewInvoiceModal({
     try {
       await onSubmit({
         clientName,
+        clientPhone: clientPhone.trim() || undefined,
+        clientAddress: clientAddress.trim() || undefined,
         invoiceDate,
         dueDate,
         lineItems: [
@@ -105,6 +114,8 @@ function NewInvoiceModal({
         ],
       });
       setClientName('');
+      setClientPhone('');
+      setClientAddress('');
       setDescription('');
       setQuantity('1');
       setRate('');
@@ -116,11 +127,21 @@ function NewInvoiceModal({
   };
 
   return (
-    <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable className="flex-1 bg-black/40 items-center justify-center p-4" onPress={onClose}>
+    <Modal
+      visible={open}
+      transparent
+      animationType={isPhone ? 'slide' : 'fade'}
+      onRequestClose={onClose}
+    >
+      <Pressable
+        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : 'items-center justify-center p-4'}`}
+        onPress={onClose}
+      >
         <Pressable
           onPress={(e) => e.stopPropagation()}
-          className="bg-card rounded-2xl w-full max-w-lg max-h-[85%]"
+          className={`bg-card w-full ${
+            isPhone ? 'rounded-t-2xl max-h-[90%]' : 'rounded-2xl max-w-lg max-h-[85%]'
+          }`}
         >
           <View className="px-5 pt-4 pb-3 border-b border-border flex-row items-center justify-between">
             <Text className="text-base font-bold text-text">New sales invoice</Text>
@@ -130,6 +151,20 @@ function NewInvoiceModal({
           </View>
           <ScrollView className="p-5">
             <Input label="Client name" value={clientName} onChangeText={setClientName} />
+            <Input
+              label="Phone (optional)"
+              value={clientPhone}
+              onChangeText={setClientPhone}
+              keyboardType="phone-pad"
+              placeholder="e.g. 98XXXXXXXX"
+            />
+            <Input
+              label="Address (optional)"
+              value={clientAddress}
+              onChangeText={setClientAddress}
+              multiline
+              placeholder="Street, city, state"
+            />
             <Input label="Invoice date" value={invoiceDate} onChangeText={setInvoiceDate} />
             <Input label="Due date" value={dueDate} onChangeText={setDueDate} />
             <Text className="text-sm font-bold text-text mb-1.5 mt-2">Line item</Text>

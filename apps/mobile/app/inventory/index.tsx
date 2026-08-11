@@ -16,7 +16,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { Card, Badge, Button, EmptyState, LoadingSkeleton, Input, toast } from '@/components/ui';
+import { Card, Badge, Button, EmptyState, LoadingSkeleton, Input, Select, toast } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
 import { useRouter } from 'expo-router';
@@ -53,7 +53,9 @@ export default function InventoryStockScreen() {
 
   const { data: summary, isLoading, isFetching, refetch } = useStockSummary(projectId);
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
-  const [issueRow, setIssueRow] = useState<StockSummaryRow | null>(null);
+  const [issueOpen, setIssueOpen] = useState(false);
+  /** When opened from a row CTA, prefill the multi sheet with this one material. */
+  const [issueInitialResourceId, setIssueInitialResourceId] = useState<string | null>(null);
   const [buffering, setBuffering] = useState(false);
   const {
     data: movements,
@@ -70,6 +72,12 @@ export default function InventoryStockScreen() {
       issued: rows.reduce((acc: number, r: StockSummaryRow) => acc + (Number(r.issued) || 0), 0),
     };
   }, [summary]);
+
+  /** Any material with on-hand stock is issuable. */
+  const hasIssuableStock = useMemo(
+    () => (summary ?? []).some((r: StockSummaryRow) => Number(r.balance) > 0),
+    [summary],
+  );
 
   const onRefresh = () => {
     void refetch();
@@ -93,18 +101,37 @@ export default function InventoryStockScreen() {
         </Modal>
       ) : null}
 
-      <View className="px-4 pt-4 pb-2 flex-row items-start justify-between">
-        <View className="flex-1 mr-2">
+      <View
+        className={`px-4 pt-4 pb-2 ${
+          isDesktop ? 'flex-row items-center justify-between gap-4' : 'gap-3'
+        }`}
+      >
+        <View className={isDesktop ? 'flex-1 min-w-0' : undefined}>
           <Text className="text-2xl font-bold text-text">Stock</Text>
           <Text className="text-sm text-muted mt-0.5">{user?.companyName} · 1 store</Text>
         </View>
-        <Button
-          label="Materials"
-          variant="secondary"
-          size="sm"
-          disabled={buffering}
-          onPress={() => router.push('/inventory/materials' as never)}
-        />
+        {/* Desktop: compact toolbar (Materials + Bulk issue). Phone: same actions, wrap neatly. */}
+        <View
+          className={`flex-row items-center gap-2 ${isDesktop ? '' : 'flex-wrap'}`}
+        >
+          <Button
+            label="Materials"
+            variant="secondary"
+            size="sm"
+            disabled={buffering}
+            onPress={() => router.push('/inventory/materials' as never)}
+          />
+          <Button
+            label="Bulk issue"
+            variant="accent"
+            size="sm"
+            disabled={buffering || !hasIssuableStock}
+            onPress={() => {
+              setIssueInitialResourceId(null);
+              setIssueOpen(true);
+            }}
+          />
+        </View>
       </View>
 
       {isLoading ? (
@@ -203,7 +230,10 @@ export default function InventoryStockScreen() {
                       size="sm"
                       variant="secondary"
                       disabled={buffering || Number(item.balance) <= 0}
-                      onPress={() => setIssueRow(item)}
+                      onPress={() => {
+                        setIssueInitialResourceId(item.resourceId);
+                        setIssueOpen(true);
+                      }}
                     />
                   </View>
                 </View>
@@ -220,30 +250,30 @@ export default function InventoryStockScreen() {
         />
       )}
 
-      <IssueStockModal
-        row={issueRow}
-        open={!!issueRow}
+      <MultiIssueStockModal
+        open={issueOpen}
         submitting={issueStock.isPending || buffering}
+        rows={summary ?? []}
+        initialResourceId={issueInitialResourceId}
         onClose={() => {
-          if (!buffering) setIssueRow(null);
+          if (!buffering) {
+            setIssueOpen(false);
+            setIssueInitialResourceId(null);
+          }
         }}
-        onSubmit={async (qty, unitPrice, customerName, notes) => {
-          if (!issueRow) return;
-          const resourceId = issueRow.resourceId;
-          const prevBalance = Number(issueRow.balance);
+        onSubmit={async (input) => {
+          const prevBalances = new Map<string, number>();
+          for (const l of input.lines) {
+            const row = (summary ?? []).find((r: StockSummaryRow) => r.resourceId === l.resourceId);
+            prevBalances.set(l.resourceId, row ? Number(row.balance) : 0);
+          }
           setBuffering(true);
           try {
-            const result = await issueStock.mutateAsync({
-              resourceId,
-              quantity: qty,
-              unitPrice,
-              customerName,
-              notes,
-            });
+            const result = await issueStock.mutateAsync(input);
             await bufferUntil(
               async () => {
                 await refetch();
-                if (selectedResourceId === resourceId) await refetchMovements();
+                if (selectedResourceId) await refetchMovements();
                 await qc.refetchQueries({ queryKey: ['invoices', 'list', projectId] });
               },
               () => {
@@ -251,17 +281,22 @@ export default function InventoryStockScreen() {
                   (qc.getQueryData(expansionKeys.stockSummary(projectId)) as
                     | StockSummaryRow[]
                     | undefined) ?? [];
-                const row = rows.find((r) => r.resourceId === resourceId);
-                if (!row) return false;
-                return Number(row.balance) <= prevBalance - qty + 0.001;
+                return input.lines.every((l) => {
+                  const prev = prevBalances.get(l.resourceId) ?? 0;
+                  const row = rows.find((r) => r.resourceId === l.resourceId);
+                  if (!row) return false;
+                  return Number(row.balance) <= prev - l.quantity + 0.001;
+                });
               },
             );
+            const names = result.lines
+              .map((l) => `${l.resourceName} ${l.quantityIssued} ${l.unit}`)
+              .join(', ');
             toast.success(
-              result.draftInvoiceId
-                ? `Issued ${qty} ${issueRow.unit} · draft invoice created`
-                : `Issued ${qty} ${issueRow.unit} of ${issueRow.name}`,
+              result.draftInvoiceId ? `Issued ${names} · draft invoice created` : `Issued ${names}`,
             );
-            setIssueRow(null);
+            setIssueOpen(false);
+            setIssueInitialResourceId(null);
           } catch (e) {
             toast.error(e instanceof Error ? e.message : 'Issue failed');
             throw e;
@@ -274,71 +309,247 @@ export default function InventoryStockScreen() {
   );
 }
 
-function IssueStockModal({
-  row,
+function MultiIssueStockModal({
   open,
   submitting,
+  rows,
+  initialResourceId,
   onClose,
   onSubmit,
 }: {
-  row: StockSummaryRow | null;
   open: boolean;
   submitting: boolean;
+  rows: StockSummaryRow[];
+  initialResourceId?: string | null;
   onClose: () => void;
-  onSubmit: (
-    qty: number,
-    unitPrice: number,
-    customerName?: string,
-    notes?: string,
-  ) => Promise<void>;
+  onSubmit: (input: {
+    lines: Array<{ resourceId: string; quantity: number; unitPrice?: number }>;
+    customerName?: string;
+    customerPhone?: string;
+    customerAddress?: string;
+    notes?: string;
+  }) => Promise<void>;
 }) {
-  const [qty, setQty] = useState('');
-  const [unitPrice, setUnitPrice] = useState('');
+  const { isPhone } = useViewport();
+
+  type DraftIssueLine = { key: string; resourceId: string; quantity: string; unitPrice: string };
+  const newKey = () => `line-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  const [lines, setLines] = useState<DraftIssueLine[]>([]);
   const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerAddress, setCustomerAddress] = useState('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
 
+  // Reset the draft each time the sheet opens. Keyed on open so refetching rows
+  // mid-submit (buffering) does not wipe the user's entries.
   useEffect(() => {
-    if (open && row) {
-      setQty('');
-      setUnitPrice(
-        row.catalogRate != null && Number(row.catalogRate) > 0 ? String(row.catalogRate) : '',
-      );
-      setCustomerName('');
-      setNotes('');
-      setError(null);
+    if (!open) return;
+    if (initialResourceId) {
+      const row = rows.find((r) => r.resourceId === initialResourceId);
+      setLines([
+        {
+          key: newKey(),
+          resourceId: initialResourceId,
+          quantity: '',
+          unitPrice:
+            row && row.catalogRate != null && Number(row.catalogRate) > 0
+              ? String(row.catalogRate)
+              : '',
+        },
+      ]);
+    } else {
+      setLines([{ key: newKey(), resourceId: '', quantity: '', unitPrice: '' }]);
     }
-  }, [open, row?.resourceId, row?.catalogRate]);
+    setCustomerName('');
+    setCustomerPhone('');
+    setCustomerAddress('');
+    setNotes('');
+    setError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialResourceId]);
+
+  /** Only materials with on-hand stock can be issued. */
+  const issuable = rows.filter((r) => Number(r.balance) > 0);
+
+  const rowFor = (resourceId: string) => rows.find((r) => r.resourceId === resourceId);
+
+  const updateLine = (key: string, patch: Partial<DraftIssueLine>) =>
+    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+
+  const addLine = () => {
+    setError(null);
+    setLines((prev) => [...prev, { key: newKey(), resourceId: '', quantity: '', unitPrice: '' }]);
+  };
+
+  const removeLine = (key: string) =>
+    setLines((prev) => (prev.length > 1 ? prev.filter((l) => l.key !== key) : prev));
+
+  /** Options for one line exclude materials already picked on other lines. */
+  const optionsFor = (line: DraftIssueLine) => {
+    const taken = new Set(lines.filter((l) => l.key !== line.key).map((l) => l.resourceId));
+    return issuable
+      .filter((r) => !taken.has(r.resourceId))
+      .map((r) => ({ title: `${r.name} (${r.balance} ${r.unit})`, value: r.resourceId }));
+  };
+
+  const submit = () => {
+    setError(null);
+    const payload: Array<{ resourceId: string; quantity: number; unitPrice?: number }> = [];
+    for (const l of lines) {
+      if (!l.resourceId) {
+        setError('Choose a material for every line.');
+        return;
+      }
+      const row = rowFor(l.resourceId);
+      const qty = Number(l.quantity);
+      if (!Number.isFinite(qty) || qty <= 0) {
+        setError(`Enter a positive quantity for ${row?.name ?? 'material'}.`);
+        return;
+      }
+      if (row && qty > Number(row.balance)) {
+        setError(`Only ${row.balance} ${row.unit} of ${row.name} available.`);
+        return;
+      }
+      const price = l.unitPrice === '' ? undefined : Number(l.unitPrice);
+      if (price !== undefined && (!Number.isFinite(price) || price < 0)) {
+        setError(`Enter a selling price (0 or more) for ${row?.name ?? 'material'}.`);
+        return;
+      }
+      payload.push({
+        resourceId: l.resourceId,
+        quantity: qty,
+        ...(price !== undefined ? { unitPrice: price } : {}),
+      });
+    }
+    void onSubmit({
+      lines: payload,
+      customerName: customerName.trim() || undefined,
+      customerPhone: customerPhone.trim() || undefined,
+      customerAddress: customerAddress.trim() || undefined,
+      notes: notes.trim() || undefined,
+    });
+  };
 
   return (
-    <Modal visible={open} animationType="slide" transparent onRequestClose={submitting ? undefined : onClose}>
+    <Modal
+      visible={open}
+      animationType={isPhone ? 'slide' : 'fade'}
+      transparent
+      onRequestClose={submitting ? undefined : onClose}
+    >
       <Pressable
-        className="flex-1 bg-black/40 justify-end"
+        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : 'items-center justify-center p-4'}`}
         onPress={submitting ? undefined : onClose}
       >
-        <Pressable className="bg-card rounded-t-2xl p-4" onPress={(e) => e.stopPropagation()}>
-          <Text className="text-lg font-bold text-text mb-1">Issue stock</Text>
+        <Pressable
+          className={`bg-card w-full ${
+            isPhone ? 'rounded-t-2xl max-h-[92%] p-4' : 'rounded-2xl max-w-2xl max-h-[85%] p-5'
+          }`}
+          onPress={(e) => e.stopPropagation()}
+        >
+          <Text className="text-lg font-bold text-text mb-1">
+            {initialResourceId ? 'Issue stock' : 'Bulk issue'}
+          </Text>
           <Text className="text-sm text-muted mb-3">
-            {row?.name} · on hand {row?.balance} {row?.unit}. Set your selling price for the draft
-            invoice (ex-GST).
+            {initialResourceId
+              ? 'Set quantity and selling price. Creates a stock OUT and draft sales invoice.'
+              : 'Add multiple materials and quantities. One submit creates stock OUTs and one draft sales invoice.'}
           </Text>
           <ScrollView keyboardShouldPersistTaps="handled">
-            <Input
-              label={`Quantity (${row?.unit ?? ''})`}
-              value={qty}
-              onChangeText={setQty}
-              keyboardType="decimal-pad"
-              placeholder="0"
-            />
-            <Input
-              label="Selling price / unit (₹, ex-GST)"
-              value={unitPrice}
-              onChangeText={setUnitPrice}
-              keyboardType="decimal-pad"
-              placeholder={
-                row?.catalogRate != null ? `Catalog ₹${row.catalogRate}` : 'Enter your price'
-              }
-            />
+            {lines.map((line, idx) => {
+              const row = rowFor(line.resourceId);
+              return (
+                <View key={line.key} className="rounded-xl border border-border p-3 mb-2">
+                  <View className="flex-row items-center justify-between mb-1">
+                    <Text className="text-xs font-bold text-text">
+                      {initialResourceId ? 'Material' : `Material ${idx + 1}`}
+                    </Text>
+                    {!initialResourceId && lines.length > 1 ? (
+                      <Pressable
+                        disabled={submitting}
+                        onPress={() => removeLine(line.key)}
+                        className="px-2 py-1"
+                      >
+                        <Text className="text-xs font-semibold text-danger">Remove</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                  <Select
+                    label="Material"
+                    value={line.resourceId || undefined}
+                    onChange={(v) => {
+                      if (!v) return;
+                      // Double-guard duplicates (options already exclude them).
+                      if (lines.some((l) => l.key !== line.key && l.resourceId === v)) {
+                        setError('Each material can be issued only once.');
+                        return;
+                      }
+                      const selected = rowFor(v);
+                      setError(null);
+                      updateLine(line.key, {
+                        resourceId: v,
+                        unitPrice:
+                          selected &&
+                          selected.catalogRate != null &&
+                          Number(selected.catalogRate) > 0
+                            ? String(selected.catalogRate)
+                            : line.unitPrice,
+                      });
+                    }}
+                    options={optionsFor(line)}
+                    placeholder="Choose material"
+                    // Per-row Issue: material is fixed; Bulk issue: editable.
+                    disabled={submitting || !!initialResourceId}
+                  />
+                  <View className="flex-row gap-2 mt-2">
+                    <View className="flex-1">
+                      <Input
+                        label={`Quantity (${row?.unit ?? ''})`}
+                        value={line.quantity}
+                        onChangeText={(t) => updateLine(line.key, { quantity: t })}
+                        keyboardType="decimal-pad"
+                        placeholder="0"
+                      />
+                    </View>
+                    <View className="flex-1">
+                      <Input
+                        label="Selling ₹ / unit"
+                        value={line.unitPrice}
+                        onChangeText={(t) => updateLine(line.key, { unitPrice: t })}
+                        keyboardType="decimal-pad"
+                        placeholder={
+                          row?.catalogRate != null ? `Catalog ₹${row.catalogRate}` : 'Price'
+                        }
+                      />
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+            {/* Bulk issue only — hidden when opened from a per-row Issue CTA. */}
+            {!initialResourceId ? (
+              <>
+                <Button
+                  label="+ Add material"
+                  variant="secondary"
+                  size="sm"
+                  fullWidth
+                  disabled={
+                    submitting ||
+                    !issuable.some((r) => !lines.some((l) => l.resourceId === r.resourceId))
+                  }
+                  onPress={addLine}
+                />
+                <Text className="text-[11px] text-muted mt-1 mb-1">
+                  {!issuable.some((r) => !lines.some((l) => l.resourceId === r.resourceId))
+                    ? 'All on-hand materials are already on this list.'
+                    : 'Add another on-hand material to this same issue.'}
+                </Text>
+              </>
+            ) : null}
+            <View className="h-3" />
             <Input
               label="Customer (optional)"
               value={customerName}
@@ -346,9 +557,23 @@ function IssueStockModal({
               placeholder="Defaults to Walk-in customer"
             />
             <Input
+              label="Customer phone (optional)"
+              value={customerPhone}
+              onChangeText={setCustomerPhone}
+              keyboardType="phone-pad"
+              placeholder="+91 …"
+            />
+            <Input
+              label="Customer address (optional)"
+              value={customerAddress}
+              onChangeText={setCustomerAddress}
+              placeholder="Billing address"
+            />
+            <Input
               label="Notes (optional)"
               value={notes}
               onChangeText={setNotes}
+              multiline
               placeholder="e.g. Delivery ref / site"
             />
             {error ? <Text className="text-sm text-danger mt-2">{error}</Text> : null}
@@ -361,34 +586,14 @@ function IssueStockModal({
                 onPress={onClose}
               />
               <Button
-                label={submitting ? 'Issuing…' : 'Issue'}
+                label={
+                  submitting ? 'Issuing…' : initialResourceId ? 'Issue' : 'Bulk issue'
+                }
                 variant="accent"
                 className="flex-1"
                 disabled={submitting}
                 loading={submitting}
-                onPress={() => {
-                  const n = Number(qty);
-                  const price = Number(unitPrice);
-                  if (!Number.isFinite(n) || n <= 0) {
-                    setError('Enter a positive quantity');
-                    return;
-                  }
-                  if (row && n > Number(row.balance)) {
-                    setError(`Only ${row.balance} ${row.unit} available`);
-                    return;
-                  }
-                  if (!Number.isFinite(price) || price < 0) {
-                    setError('Enter a selling price (0 or more)');
-                    return;
-                  }
-                  setError(null);
-                  void onSubmit(
-                    n,
-                    price,
-                    customerName.trim() || undefined,
-                    notes.trim() || undefined,
-                  );
-                }}
+                onPress={submit}
               />
             </View>
           </ScrollView>

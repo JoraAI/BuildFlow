@@ -88,6 +88,9 @@ export default function CreateInvoiceScreen() {
   const [clientName, setClientName] = useState('');
   const [clientGstin, setClientGstin] = useState('');
   const [clientState, setClientState] = useState('');
+  // INVENTORY_UX_POLISH (D6): optional buyer contact (construction parity).
+  const [clientPhone, setClientPhone] = useState('');
+  const [clientAddress, setClientAddress] = useState('');
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState(
     new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
@@ -183,6 +186,8 @@ export default function CreateInvoiceScreen() {
         clientName: effectiveClientName.trim(),
         clientGstin: clientGstin.trim() || undefined,
         clientState: clientState.trim() || undefined,
+        clientPhone: clientPhone.trim() || undefined,
+        clientAddress: clientAddress.trim() || undefined,
         invoiceDate,
         dueDate,
         gstRate: parseFloat(gstRate) || 0,
@@ -357,6 +362,25 @@ export default function CreateInvoiceScreen() {
                   onChangeText={setClientState}
                   placeholder="Telangana"
                   autoCapitalize="characters"
+                />
+              </View>
+            </View>
+            <View className="flex-row gap-2">
+              <View className="flex-1">
+                <Input
+                  label="Client Phone (optional)"
+                  value={clientPhone}
+                  onChangeText={setClientPhone}
+                  placeholder="98XXXXXXXX"
+                  keyboardType="phone-pad"
+                />
+              </View>
+              <View className="flex-1">
+                <Input
+                  label="Client Address (optional)"
+                  value={clientAddress}
+                  onChangeText={setClientAddress}
+                  placeholder="Street, city, state"
                 />
               </View>
             </View>

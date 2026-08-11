@@ -7,6 +7,8 @@
  *  - Invite allow-lists (both directions)
  *  - Module API gates (estimates / subcontract / planning / daily reports → 403)
  *  - Indent → PO → GRN → vendor bill → sales invoice happy path (INVENTORY_MANAGER)
+ *  - INVENTORY_UX_POLISH D9: multi-material indent → PO → GRN → multi-line issue
+ *    → one draft sales invoice with N line items; over-issue rollback; legacy body
  *  - Tally export for the store project
  *  - Pricing constants (499 / 1999 / 4999, ENTERPRISE contact-sales)
  *  - Assistant tool scoping (estimate tools denied for inventory accounts)
@@ -199,15 +201,15 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     expect(resourceRes.status).toBe(201);
     const resourceId = resourceRes.body.data.id as string;
 
-    // Indent → submit → approve → PO → GRN
+    // INVENTORY_UX_POLISH (D2): inventory indent auto-reaches APPROVED on create
+    // (no Submit/Approve steps) — PO is creatable immediately.
     const reqRes = await authPost(imToken, `/api/projects/${defaultProjectId}/procurement/requisitions`, {
       reqNumber: `IND-${suffix}`,
       lines: [{ resourceId, quantity: 10, unit: 'bag' }],
     });
     expect(reqRes.status).toBe(201);
+    expect(reqRes.body.data.status).toBe('APPROVED');
     const reqId = reqRes.body.data.id as string;
-    await authPost(imToken, `/api/projects/${defaultProjectId}/procurement/requisitions/${reqId}/submit`);
-    await authPost(imToken, `/api/projects/${defaultProjectId}/procurement/requisitions/${reqId}/approve`);
 
     const poRes = await authPost(imToken, `/api/projects/${defaultProjectId}/procurement/purchase-orders`, {
       poNumber: `PO-${suffix}`,
@@ -324,9 +326,9 @@ describe('INVENTORY_PRODUCT (integration)', () => {
       reqNumber: `IND-${suffix}`,
       lines: [{ resourceId, quantity: 10, unit: 'bag' }],
     });
+    expect(reqRes.status).toBe(201);
+    expect(reqRes.body.data.status).toBe('APPROVED'); // inventory auto-approve
     const reqId = reqRes.body.data.id as string;
-    await authPost(invToken, `/api/projects/${defaultProjectId}/procurement/requisitions/${reqId}/submit`);
-    await authPost(invToken, `/api/projects/${defaultProjectId}/procurement/requisitions/${reqId}/approve`);
 
     const poRes = await authPost(invToken, `/api/projects/${defaultProjectId}/procurement/purchase-orders`, {
       poNumber: `PO-${suffix}`,
@@ -394,6 +396,159 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     await expect(
       executeAssistantTool(identity, 'list_estimates', { projectId: defaultProjectId }),
     ).rejects.toThrow(/not allowed/i);
+  });
+
+  /* ── INVENTORY_UX_POLISH D9: multi-material procure + retrieve ────── */
+  it('procures and issues multiple materials in one go (D9)', async () => {
+    const suffix = `D9-${Date.now()}`;
+    const mk = async (name: string, unit: string, rate: number) => {
+      const res = await authPost(invToken, '/api/resources', {
+        name: `${name} ${suffix}`,
+        type: 'MATERIAL',
+        unit,
+        rate,
+        gstRate: 18,
+      });
+      expect(res.status).toBe(201);
+      return res.body.data.id as string;
+    };
+    const cementId = await mk('D9 Cement', 'bag', 350);
+    const steelId = await mk('D9 Steel', 'kg', 90);
+
+    // 1. Multi-material indent → ONE APPROVED indent with 2 lines.
+    const reqRes = await authPost(
+      invToken,
+      `/api/projects/${defaultProjectId}/procurement/requisitions`,
+      {
+        lines: [
+          { resourceId: cementId, quantity: 10, unit: 'bag' },
+          { resourceId: steelId, quantity: 100, unit: 'kg' },
+        ],
+      },
+    );
+    expect(reqRes.status).toBe(201);
+    expect(reqRes.body.data.status).toBe('APPROVED');
+    expect(reqRes.body.data.lines).toHaveLength(2);
+    const reqId = reqRes.body.data.id as string;
+
+    // 2. One PO covering both lines.
+    const poRes = await authPost(
+      invToken,
+      `/api/projects/${defaultProjectId}/procurement/purchase-orders`,
+      {
+        poNumber: `PO-${suffix}`,
+        vendorName: 'D9 Vendor',
+        requisitionId: reqId,
+        lines: [
+          { resourceId: cementId, quantity: 10, unit: 'bag', rate: 340 },
+          { resourceId: steelId, quantity: 100, unit: 'kg', rate: 88 },
+        ],
+      },
+    );
+    expect(poRes.status).toBe(201);
+    expect(poRes.body.data.lines).toHaveLength(2);
+    const poId = poRes.body.data.id as string;
+
+    // 3. One GRN receiving both lines → stock per material.
+    const grnRes = await authPost(
+      invToken,
+      `/api/projects/${defaultProjectId}/procurement/grn`,
+      {
+        grnNumber: `GRN-${suffix}`,
+        purchaseOrderId: poId,
+        receivedDate: new Date().toISOString().slice(0, 10),
+        lines: [
+          { resourceId: cementId, quantity: 10, unit: 'bag' },
+          { resourceId: steelId, quantity: 100, unit: 'kg' },
+        ],
+      },
+    );
+    expect(grnRes.status).toBe(201);
+
+    const balOf = async (resourceId: string): Promise<number> => {
+      const res = await authGet(
+        invToken,
+        `/api/projects/${defaultProjectId}/procurement/stock/summary`,
+      );
+      const row = (res.body.data as Array<{ resourceId: string; balance: number }>).find(
+        (r) => r.resourceId === resourceId,
+      );
+      return row ? Number(row.balance) : 0;
+    };
+    expect(await balOf(cementId)).toBeCloseTo(10, 3);
+    expect(await balOf(steelId)).toBeCloseTo(100, 3);
+
+    // 4. Multi-material issue → balances decrement + ONE draft invoice with 2 lines.
+    const issueRes = await authPost(
+      invToken,
+      `/api/projects/${defaultProjectId}/procurement/stock/issue`,
+      {
+        lines: [
+          { resourceId: cementId, quantity: 3, unitPrice: 420 },
+          { resourceId: steelId, quantity: 20, unitPrice: 100 },
+        ],
+        customerName: 'D9 Buyer',
+        notes: 'bulk sale',
+      },
+    );
+    expect(issueRes.status).toBe(201);
+    expect(issueRes.body.data.lines).toHaveLength(2);
+    expect(issueRes.body.data.movementIds).toHaveLength(2);
+    expect(issueRes.body.data.draftInvoiceId).toBeTruthy();
+    expect(await balOf(cementId)).toBeCloseTo(7, 3);
+    expect(await balOf(steelId)).toBeCloseTo(80, 3);
+
+    const invoicesAfterIssue = await authGet(
+      invToken,
+      `/api/projects/${defaultProjectId}/invoices`,
+    );
+    expect(invoicesAfterIssue.status).toBe(200);
+    const draftId = issueRes.body.data.draftInvoiceId as string;
+    const listHit = (invoicesAfterIssue.body.data as Array<{
+      id: string;
+      clientName: string;
+      stockMovementId?: string | null;
+    }>).find((i) => i.id === draftId);
+    expect(listHit).toBeTruthy();
+    expect(listHit!.clientName).toBe('D9 Buyer');
+    expect(listHit!.stockMovementId).toBe(issueRes.body.data.movementId);
+
+    // Detail endpoint carries line items (list omits them).
+    const draftDetail = await authGet(invToken, `/api/invoices/${draftId}`);
+    expect(draftDetail.status).toBe(200);
+    const draft = draftDetail.body.data as {
+      subtotal: number;
+      lineItems: Array<{ description: string }>;
+    };
+    expect(draft.lineItems).toHaveLength(2);
+    expect(Number(draft.subtotal)).toBeCloseTo(3 * 420 + 20 * 100, 2);
+
+    // 5. Over-issue on ONE line rolls back the whole request (nothing partial).
+    const overRes = await authPost(
+      invToken,
+      `/api/projects/${defaultProjectId}/procurement/stock/issue`,
+      {
+        lines: [
+          { resourceId: cementId, quantity: 1 }, // fine on its own
+          { resourceId: steelId, quantity: 999999 }, // exceeds on-hand
+        ],
+      },
+    );
+    expect(overRes.status).toBe(422);
+    expect(String(overRes.body.error?.message ?? '')).toMatch(/on hand/i);
+    expect(await balOf(cementId)).toBeCloseTo(7, 3); // untouched by failed request
+    expect(await balOf(steelId)).toBeCloseTo(80, 3);
+
+    // 6. Legacy single-resource body still works (backward compatibility).
+    const legacyRes = await authPost(
+      invToken,
+      `/api/projects/${defaultProjectId}/procurement/stock/issue`,
+      { resourceId: cementId, quantity: 1, unitPrice: 420 },
+    );
+    expect(legacyRes.status).toBe(201);
+    expect(legacyRes.body.data.movementIds).toHaveLength(1);
+    expect(legacyRes.body.data.lines).toHaveLength(1);
+    expect(await balOf(cementId)).toBeCloseTo(6, 3);
   });
 });
 

@@ -362,6 +362,11 @@ function InvoiceRow({
           <View className="flex-1 mr-2">
             <Text className="text-sm font-mono font-semibold text-text">{item.invoiceNumber}</Text>
             <Text className="text-xs text-muted">{item.clientName}</Text>
+            {(item.clientPhone || item.clientAddress) ? (
+              <Text className="text-[11px] text-muted mt-0.5" numberOfLines={1}>
+                {[item.clientPhone, item.clientAddress].filter(Boolean).join(' · ')}
+              </Text>
+            ) : null}
           </View>
           <Badge color={INVOICE_STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
         </View>

@@ -27,6 +27,9 @@ export const createInvoiceSchema = z.object({
   clientName: z.string().min(1).max(200),
   clientGstin: z.string().max(15).optional(),
   clientState: z.string().max(40).optional(),
+  // INVENTORY_UX_POLISH (D6): optional buyer contact details.
+  clientAddress: z.string().max(500).optional(),
+  clientPhone: z.string().max(20).optional(),
   invoiceDate: z.coerce.date(),
   dueDate: z.coerce.date(),
   gstRate: z.coerce.number().min(0).max(28).default(18),
@@ -45,6 +48,9 @@ export const updateInvoiceSchema = z.object({
   clientName: z.string().min(1).max(200).optional(),
   clientGstin: z.string().max(15).optional(),
   clientState: z.string().max(40).optional(),
+  // INVENTORY_UX_POLISH (D6): optional buyer contact details.
+  clientAddress: z.string().max(500).optional().nullable(),
+  clientPhone: z.string().max(20).optional().nullable(),
   invoiceDate: z.coerce.date().optional(),
   dueDate: z.coerce.date().optional(),
   gstRate: z.coerce.number().min(0).max(28).optional(),

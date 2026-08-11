@@ -91,6 +91,13 @@ interface LlmResponse {
   toolCalls: ToolCall[];
 }
 
+/**
+ * Single LLM turn for production chat — applies to Construction AND Inventory.
+ * D10: when a tenant/platform has a configured content LLM (`resolveLlmConfig` /
+ * `resolvePlatformLlmConfig`), THAT model owns chat + future upload AI for both
+ * product modes. Deepseek-v4-flash is the coding agent, never a hard-coded
+ * in-app chat model when a content LLM is configured.
+ */
 async function callLLMOnce(
   companyId: string | null,
   messages: LlmMessage[],

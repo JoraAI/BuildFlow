@@ -1001,6 +1001,9 @@ model Invoice {
   // CGST/SGST → IGST (previously clientState was never stored, so on update it
   // resolved to undefined → always inter-state).
   clientState   String?       @map("client_state")
+  // INVENTORY_UX_POLISH (D6): optional buyer contact details for store sales invoices.
+  clientAddress String?       @map("client_address")
+  clientPhone   String?       @map("client_phone")
   invoiceDate   DateTime      @map("invoice_date") @db.Date
   dueDate       DateTime      @map("due_date") @db.Date
   status        InvoiceStatus @default(DRAFT)

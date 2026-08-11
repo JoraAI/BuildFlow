@@ -129,8 +129,8 @@ export default function InventorySettingsScreen() {
         <Card className="p-5 mb-4">
           <Text className="text-base font-bold text-text mb-2">Company</Text>
           <Text className="text-sm text-text">{company?.name ?? user?.companyName}</Text>
-          <Text className="text-xs text-muted mt-1">GSTIN: {company?.gstin ?? '—'}</Text>
-          <Text className="text-xs text-muted mt-0.5">State: {company?.state ?? '—'}</Text>
+          <Text className="text-xs text-muted mt-1">GSTIN: {company?.gstin ?? '-'}</Text>
+          <Text className="text-xs text-muted mt-0.5">State: {company?.state ?? '-'}</Text>
         </Card>
 
 
@@ -138,7 +138,7 @@ export default function InventorySettingsScreen() {
           <Text className="text-sm font-bold text-text mb-1">Tally</Text>
           <Text className="text-xs text-muted mb-3">
             Exporting to Tally generates a Tally Prime XML of your sales + purchase vouchers
-            against your store ledger. This is the only data export in the inventory product —
+            against your store ledger. This is the only data export in the inventory product -
             it is not a full data backup.
           </Text>
           <Button

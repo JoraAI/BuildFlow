@@ -8,6 +8,7 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, Modal, Pressable } from 'react-native';
 import { Button, Input, Select } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
+import { useViewport } from '@/hooks/useViewport';
 import { ProjectBillsList } from '@/components/accounting/InvoiceBillLists';
 import { downloadTallyXml } from '@/services/report-download';
 import { useCreateBill, type Bill } from '@/services/accounting.queries';
@@ -24,21 +25,22 @@ const BILL_CATEGORIES = [
 
 export default function InventoryBillsScreen() {
   const user = useAuthStore((s) => s.user);
+  const { isPhone } = useViewport();
   const projectId = user?.defaultProjectId ?? '';
   const [createOpen, setCreateOpen] = useState(false);
   const createBill = useCreateBill();
 
   return (
     <View className="flex-1 bg-surface">
-      <View className="px-4 pt-4 pb-2 flex-row items-center justify-between">
-        <View>
+      <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between">
+        <View className="flex-1 mr-2 min-w-[160px]">
           <Text className="text-2xl font-bold text-text">Vendor bills</Text>
           <Text className="text-sm text-muted mt-0.5">Supplier bills (AP) · {user?.companyName}</Text>
           <Text className="text-xs text-muted mt-1">
             Draft bills are created automatically when you record a GRN. Confirm them here before payment.
           </Text>
         </View>
-        <View className="flex-row gap-2">
+        <View className={`flex-row gap-2 ${isPhone ? 'mt-2 w-full' : ''}`}>
           <Button
             label="Export to Tally"
             variant="secondary"
@@ -92,6 +94,7 @@ function NewBillModal({
     gstAmount?: number;
   }) => Promise<void>;
 }) {
+  const { isPhone } = useViewport();
   const [vendorName, setVendorName] = useState('');
   const [billNumber, setBillNumber] = useState('');
   const [billDate, setBillDate] = useState(new Date().toISOString().slice(0, 10));
@@ -131,11 +134,21 @@ function NewBillModal({
   };
 
   return (
-    <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable className="flex-1 bg-black/40 items-center justify-center p-4" onPress={onClose}>
+    <Modal
+      visible={open}
+      transparent
+      animationType={isPhone ? 'slide' : 'fade'}
+      onRequestClose={onClose}
+    >
+      <Pressable
+        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : 'items-center justify-center p-4'}`}
+        onPress={onClose}
+      >
         <Pressable
           onPress={(e) => e.stopPropagation()}
-          className="bg-card rounded-2xl w-full max-w-lg max-h-[85%]"
+          className={`bg-card w-full ${
+            isPhone ? 'rounded-t-2xl max-h-[90%]' : 'rounded-2xl max-w-lg max-h-[85%]'
+          }`}
         >
           <View className="px-5 pt-4 pb-3 border-b border-border flex-row items-center justify-between">
             <Text className="text-base font-bold text-text">New vendor bill</Text>

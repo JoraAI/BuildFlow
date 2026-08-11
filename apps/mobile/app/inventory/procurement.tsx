@@ -5,19 +5,19 @@
  * default STORE project. Reuses the same backend endpoints as the construction
  * ProcurementTab, without the project picker.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, Pressable, Modal, ScrollView, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, Badge, Button, Input, EmptyState, LoadingSkeleton, Select, toast } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
+import { useViewport } from '@/hooks/useViewport';
 import { indentAvailableForNewPo, poAvailableForNewGrn, poRemainingByResource } from '@buildflow/shared';
 import {
   useRequisitions,
   useCreateRequisition,
-  useSubmitRequisition,
-  useApproveRequisition,
   useCreatePurchaseOrder,
   useCreateGRN,
+  useNextProcurementNumbers,
   type Requisition,
 } from '@/services/expansion.queries';
 import { useResources } from '@/services/estimate.queries';
@@ -56,34 +56,59 @@ export default function InventoryProcurementScreen() {
   const [createIndentOpen, setCreateIndentOpen] = useState(false);
   const [createPoOpen, setCreatePoOpen] = useState(false);
   const [recordGrnOpen, setRecordGrnOpen] = useState(false);
-  /** id of the indent whose Submit/Approve is in flight (prevents double-click). */
-  const [actionId, setActionId] = useState<string | null>(null);
+  /** Preselects for the Create PO / Record GRN modals opened from row CTAs. */
+  const [prefillRequisitionId, setPrefillRequisitionId] = useState<string | null>(null);
+  const [prefillPurchaseOrderId, setPrefillPurchaseOrderId] = useState<string | null>(null);
   /** True while waiting for list refetch to show the new/updated row. */
   const [buffering, setBuffering] = useState(false);
 
   const { data: requisitions, isLoading: reqLoading, refetch } = useRequisitions(projectId);
   const { data: resources } = useResources();
   const createRequisition = useCreateRequisition(projectId);
-  const submitRequisition = useSubmitRequisition(projectId);
-  const approveRequisition = useApproveRequisition(projectId);
   const createPo = useCreatePurchaseOrder(projectId);
   const createGrn = useCreateGRN(projectId);
 
   const resourceList = resources?.data ?? [];
 
-  // Locked picker rules (PROCUREMENT_PICKER_PERF): New PO lists only APPROVED
-  // indents with zero POs; New GRN lists POs that still have qty to receive.
+  // Locked picker rules (PROCUREMENT_PICKER_PERF + INVENTORY_UX_POLISH D3/D4):
+  // New PO lists APPROVED indents with zero POs; Record GRN lists POs with qty left.
   const eligiblePoIndents = (requisitions ?? []).filter(indentAvailableForNewPo);
   const eligibleGrnPos = allPurchaseOrders(requisitions ?? []).filter(poAvailableForNewGrn);
+
+  /** D3: jump to Purchase orders tab + open Create PO prefilled for this indent. */
+  const openCreatePoForIndent = (requisitionId: string) => {
+    setPrefillRequisitionId(requisitionId);
+    setSection('orders');
+    setCreatePoOpen(true);
+  };
+
+  /** D4: jump to Goods receipts tab + open Record GRN prefilled for this PO. */
+  const openRecordGrnForPo = (purchaseOrderId: string) => {
+    setPrefillPurchaseOrderId(purchaseOrderId);
+    setSection('grns');
+    setRecordGrnOpen(true);
+  };
+
+  const closeCreatePo = () => {
+    if (buffering) return;
+    setCreatePoOpen(false);
+    setPrefillRequisitionId(null);
+  };
+
+  const closeRecordGrn = () => {
+    if (buffering) return;
+    setRecordGrnOpen(false);
+    setPrefillPurchaseOrderId(null);
+  };
 
   return (
     <View className="flex-1 bg-surface">
       <View className="px-4 pt-4 pb-2">
         <Text className="text-2xl font-bold text-text">Procurement</Text>
-        <Text className="text-sm text-muted mt-0.5">Indent → PO → GRN</Text>
+        <Text className="text-sm text-muted mt-0.5">Create indent → Create PO → Record GRN</Text>
       </View>
 
-      <View className="flex-row px-4 pb-2 gap-2">
+      <View className="flex-row flex-wrap px-4 pb-2 gap-2 items-center">
         {(['indents', 'orders', 'grns'] as Section[]).map((s) => (
           <Pressable
             key={s}
@@ -99,26 +124,39 @@ export default function InventoryProcurementScreen() {
           </Pressable>
         ))}
         <View className="flex-1" />
-        <Button
-          label={
-            section === 'indents' ? 'New indent' : section === 'orders' ? 'New PO' : 'Record GRN'
-          }
-          variant="accent"
-          size="sm"
-          disabled={
-            buffering ||
-            (section === 'orders'
-              ? eligiblePoIndents.length === 0
-              : section === 'grns'
-                ? eligibleGrnPos.length === 0
-                : false)
-          }
-          onPress={() => {
-            if (section === 'indents') setCreateIndentOpen(true);
-            else if (section === 'orders') setCreatePoOpen(true);
-            else setRecordGrnOpen(true);
-          }}
-        />
+        {section === 'indents' && (
+          <Button
+            label="New indent"
+            variant="accent"
+            size="sm"
+            disabled={buffering}
+            onPress={() => setCreateIndentOpen(true)}
+          />
+        )}
+        {section === 'orders' && (
+          <Button
+            label="New PO"
+            variant="accent"
+            size="sm"
+            disabled={buffering || eligiblePoIndents.length === 0}
+            onPress={() => {
+              setPrefillRequisitionId(null);
+              setCreatePoOpen(true);
+            }}
+          />
+        )}
+        {section === 'grns' && (
+          <Button
+            label="Record GRN"
+            variant="accent"
+            size="sm"
+            disabled={buffering || eligibleGrnPos.length === 0}
+            onPress={() => {
+              setPrefillPurchaseOrderId(null);
+              setRecordGrnOpen(true);
+            }}
+          />
+        )}
       </View>
 
       {buffering ? (
@@ -139,43 +177,7 @@ export default function InventoryProcurementScreen() {
         <IndentsSection
           isLoading={reqLoading}
           requisitions={requisitions ?? []}
-          actionId={actionId}
-          onSubmit={(id) => {
-            setActionId(id);
-            setBuffering(true);
-            void (async () => {
-              try {
-                await submitRequisition.mutateAsync(id);
-                await bufferUntilVisible(refetch, (list) =>
-                  list.some((r) => r.id === id && r.status === 'SUBMITTED'),
-                );
-                toast.success('Indent submitted for approval');
-              } catch (e) {
-                toast.error(e instanceof Error ? e.message : 'Submit failed');
-              } finally {
-                setActionId(null);
-                setBuffering(false);
-              }
-            })();
-          }}
-          onApprove={(id) => {
-            setActionId(id);
-            setBuffering(true);
-            void (async () => {
-              try {
-                await approveRequisition.mutateAsync(id);
-                await bufferUntilVisible(refetch, (list) =>
-                  list.some((r) => r.id === id && r.status === 'APPROVED'),
-                );
-                toast.success('Indent approved');
-              } catch (e) {
-                toast.error(e instanceof Error ? e.message : 'Approve failed');
-              } finally {
-                setActionId(null);
-                setBuffering(false);
-              }
-            })();
-          }}
+          onCreatePo={openCreatePoForIndent}
         />
       )}
 
@@ -183,7 +185,8 @@ export default function InventoryProcurementScreen() {
         <OrdersSection
           requisitions={requisitions ?? []}
           isLoading={reqLoading}
-          onOpenCreate={() => setCreatePoOpen(true)}
+          onRecordGrn={openRecordGrnForPo}
+          onGoToIndents={() => setSection('indents')}
         />
       )}
 
@@ -191,7 +194,7 @@ export default function InventoryProcurementScreen() {
         <GrnsSection
           requisitions={requisitions ?? []}
           isLoading={reqLoading}
-          onOpenCreate={() => setRecordGrnOpen(true)}
+          onGoToOrders={() => setSection('orders')}
         />
       )}
 
@@ -206,7 +209,7 @@ export default function InventoryProcurementScreen() {
           try {
             const created = await createRequisition.mutateAsync({ lines, notes });
             await bufferUntilVisible(refetch, (list) => list.some((r) => r.id === created.id));
-            toast.success('Indent created');
+            toast.success('Indent created & approved');
             setCreateIndentOpen(false);
             setSection('indents');
           } finally {
@@ -217,10 +220,10 @@ export default function InventoryProcurementScreen() {
 
       <CreatePOModal
         open={createPoOpen}
-        onClose={() => {
-          if (!buffering) setCreatePoOpen(false);
-        }}
+        onClose={closeCreatePo}
+        projectId={projectId}
         requisitions={requisitions ?? []}
+        initialRequisitionId={prefillRequisitionId}
         onSubmit={async (input) => {
           setBuffering(true);
           try {
@@ -234,6 +237,7 @@ export default function InventoryProcurementScreen() {
             );
             toast.success('Purchase order created');
             setCreatePoOpen(false);
+            setPrefillRequisitionId(null);
             setSection('orders');
           } finally {
             setBuffering(false);
@@ -243,10 +247,10 @@ export default function InventoryProcurementScreen() {
 
       <RecordGrnModal
         open={recordGrnOpen}
-        onClose={() => {
-          if (!buffering) setRecordGrnOpen(false);
-        }}
+        onClose={closeRecordGrn}
+        projectId={projectId}
         requisitions={requisitions ?? []}
+        initialPurchaseOrderId={prefillPurchaseOrderId}
         onSubmit={async (input) => {
           setBuffering(true);
           try {
@@ -262,6 +266,7 @@ export default function InventoryProcurementScreen() {
             );
             toast.success('GRN recorded · draft vendor bill created');
             setRecordGrnOpen(false);
+            setPrefillPurchaseOrderId(null);
             setSection('grns');
           } finally {
             setBuffering(false);
@@ -275,55 +280,46 @@ export default function InventoryProcurementScreen() {
 function IndentsSection({
   isLoading,
   requisitions,
-  actionId,
-  onSubmit,
-  onApprove,
+  onCreatePo,
 }: {
   isLoading: boolean;
   requisitions: Requisition[];
-  actionId: string | null;
-  onSubmit: (id: string) => void;
-  onApprove: (id: string) => void;
+  onCreatePo: (requisitionId: string) => void;
 }) {
   return (
     <FlatList
       className="flex-1 px-4"
       data={requisitions}
       keyExtractor={(r) => r.id}
-      renderItem={({ item }) => (
-        <Card className="mb-3 p-4">
-          <View className="flex-row items-center justify-between">
-            <Text className="text-sm font-bold text-text">{item.reqNumber}</Text>
-            <Badge color={APPROVAL_COLOR[item.status] ?? 'neutral'} label={item.status} />
-          </View>
-          {item.notes ? <Text className="text-xs text-muted mt-1">{item.notes}</Text> : null}
-          <Text className="text-xs text-muted mt-1">
-            {item.lines.length} line{item.lines.length === 1 ? '' : 's'} ·{' '}
-            {new Date(item.createdAt).toLocaleDateString('en-IN')}
-          </Text>
-          <View className="flex-row gap-2 mt-3">
-            {item.status === 'DRAFT' && (
-              <Button
-                size="sm"
-                label="Submit"
-                loading={actionId === item.id}
-                disabled={actionId !== null && actionId !== item.id}
-                onPress={() => onSubmit(item.id)}
-              />
-            )}
-            {item.status === 'SUBMITTED' && (
-              <Button
-                size="sm"
-                variant="accent"
-                label="Approve"
-                loading={actionId === item.id}
-                disabled={actionId !== null && actionId !== item.id}
-                onPress={() => onApprove(item.id)}
-              />
-            )}
-          </View>
-        </Card>
-      )}
+      renderItem={({ item }) => {
+        const canCreatePo = indentAvailableForNewPo(item);
+        return (
+          <Card className="mb-3 p-4">
+            <View className="flex-row items-center justify-between">
+              <Text className="text-sm font-bold text-text">{item.reqNumber}</Text>
+              <Badge color={APPROVAL_COLOR[item.status] ?? 'neutral'} label={item.status} />
+            </View>
+            {item.notes ? <Text className="text-xs text-muted mt-1">{item.notes}</Text> : null}
+            <Text className="text-xs text-muted mt-1">
+              {item.lines.length} line{item.lines.length === 1 ? '' : 's'} ·{' '}
+              {new Date(item.createdAt).toLocaleDateString('en-IN')}
+            </Text>
+            {canCreatePo ? (
+              <View className="mt-3">
+                <Button
+                  label="Create PO"
+                  size="sm"
+                  onPress={() => onCreatePo(item.id)}
+                />
+              </View>
+            ) : item.status === 'APPROVED' ? (
+              <Text className="text-xs text-muted mt-3">
+                Purchase order already created for this indent.
+              </Text>
+            ) : null}
+          </Card>
+        );
+      }}
       ListEmptyComponent={
         isLoading ? (
           <View className="gap-3">
@@ -332,7 +328,7 @@ function IndentsSection({
         ) : (
           <EmptyState
             title="No indents yet"
-            description="Create an indent (material requisition), then approve it and raise a purchase order."
+            description="Create an indent and it is approved instantly - then raise a purchase order against it."
           />
         )
       }
@@ -352,26 +348,72 @@ function CreateIndentModal({
   resources: Array<{ id: string; name: string; unit: string }>;
   onSubmit: (lines: Array<{ resourceId: string; quantity: number; unit: string }>, notes?: string) => Promise<void>;
 }) {
-  const [resourceId, setResourceId] = useState('');
-  const [quantity, setQuantity] = useState('1');
+  type DraftIndentLine = { key: string; resourceId: string; quantity: string };
+  const newKey = () => `line-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  const [lines, setLines] = useState<DraftIndentLine[]>([]);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  // INVENTORY_UX_POLISH (D9): multi-material draft editor. Reset each open.
+  useEffect(() => {
+    if (!open) return;
+    setLines([{ key: newKey(), resourceId: '', quantity: '1' }]);
+    setNotes('');
+    setError('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const updateLine = (key: string, patch: Partial<DraftIndentLine>) =>
+    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+
+  const addLine = () => {
+    setError('');
+    setLines((prev) => [...prev, { key: newKey(), resourceId: '', quantity: '1' }]);
+  };
+
+  const removeLine = (key: string) =>
+    setLines((prev) => (prev.length > 1 ? prev.filter((l) => l.key !== key) : prev));
+
+  /** Options for one line exclude materials already picked on other lines. */
+  const optionsFor = (line: DraftIndentLine) => {
+    const taken = new Set(lines.filter((l) => l.key !== line.key).map((l) => l.resourceId));
+    return resources
+      .filter((r) => !taken.has(r.id))
+      .map((r) => ({ title: `${r.name} (${r.unit})`, value: r.id }));
+  };
+
   const submit = async () => {
     setError('');
-    if (!resourceId || !Number(quantity)) {
-      setError('Choose a resource and enter a quantity.');
-      return;
+    const used = new Set<string>();
+    for (const l of lines) {
+      if (!l.resourceId) {
+        setError('Choose a material for every line.');
+        return;
+      }
+      if (used.has(l.resourceId)) {
+        setError('Each material can appear only once per indent.');
+        return;
+      }
+      used.add(l.resourceId);
+      const qty = Number(l.quantity);
+      if (!Number.isFinite(qty) || qty <= 0) {
+        setError('Enter a positive quantity for every line.');
+        return;
+      }
     }
     setSaving(true);
     try {
       await onSubmit(
-        [{ resourceId, quantity: Number(quantity), unit: resources.find((r) => r.id === resourceId)?.unit ?? 'no' }],
+        lines.map((l) => ({
+          resourceId: l.resourceId,
+          quantity: Number(l.quantity),
+          unit: resources.find((r) => r.id === l.resourceId)?.unit ?? 'no',
+        })),
         notes || undefined,
       );
-      setResourceId('');
-      setQuantity('1');
+      setLines([{ key: newKey(), resourceId: '', quantity: '1' }]);
       setNotes('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create indent');
@@ -383,20 +425,60 @@ function CreateIndentModal({
   return (
     <ModalShell open={open} onClose={onClose} title="New indent" closeDisabled={saving}>
       <Text className="text-xs text-muted mb-3">
-        Create a material requisition. After approval you can raise a purchase order against it.
+        Create a material requisition. It is approved instantly - you can raise a purchase order
+        against it right away. Add multiple materials to procure them in one go.
       </Text>
-      <Select
-        label="Resource"
-        value={resourceId}
-        onChange={(v) => v && setResourceId(v)}
-        options={resources.map((r) => ({ title: `${r.name} (${r.unit})`, value: r.id }))}
-      />
-      <View className="h-3" />
-      <Input
-        label="Quantity"
-        value={quantity}
-        onChangeText={setQuantity}
-        keyboardType="numeric"
+      {lines.map((line, idx) => {
+        const unit = resources.find((r) => r.id === line.resourceId)?.unit;
+        return (
+          <View key={line.key} className="rounded-xl border border-border p-3 mb-2">
+            <View className="flex-row items-center justify-between mb-1">
+              <Text className="text-xs font-bold text-text">Material {idx + 1}</Text>
+              {lines.length > 1 ? (
+                <Pressable
+                  disabled={saving}
+                  onPress={() => removeLine(line.key)}
+                  className="px-2 py-1"
+                >
+                  <Text className="text-xs font-semibold text-danger">Remove</Text>
+                </Pressable>
+              ) : null}
+            </View>
+            <Select
+              label="Material"
+              value={line.resourceId || undefined}
+              onChange={(v) => {
+                if (!v) return;
+                // Double-guard duplicates (options already exclude them).
+                if (lines.some((l) => l.key !== line.key && l.resourceId === v)) {
+                  setError('Each material can appear only once per indent.');
+                  return;
+                }
+                setError('');
+                updateLine(line.key, { resourceId: v });
+              }}
+              options={optionsFor(line)}
+              placeholder="Choose material"
+              disabled={saving}
+            />
+            <View className="mt-2">
+              <Input
+                label={unit ? `Quantity (${unit})` : 'Quantity'}
+                value={line.quantity}
+                onChangeText={(t) => updateLine(line.key, { quantity: t })}
+                keyboardType="numeric"
+              />
+            </View>
+          </View>
+        );
+      })}
+      <Button
+        label="+ Add material"
+        variant="secondary"
+        size="sm"
+        fullWidth
+        disabled={saving || lines.some((l) => !l.resourceId)}
+        onPress={addLine}
       />
       <View className="h-3" />
       <Input label="Notes (optional)" value={notes} onChangeText={setNotes} multiline />
@@ -420,15 +502,26 @@ function ModalShell({
   children: React.ReactNode;
   closeDisabled?: boolean;
 }) {
+  const { isPhone } = useViewport();
   const dismiss = () => {
     if (!closeDisabled) onClose();
   };
   return (
-    <Modal visible={open} transparent animationType="fade" onRequestClose={dismiss}>
-      <Pressable className="flex-1 bg-black/40 items-center justify-center p-4" onPress={dismiss}>
+    <Modal
+      visible={open}
+      transparent
+      animationType={isPhone ? 'slide' : 'fade'}
+      onRequestClose={dismiss}
+    >
+      <Pressable
+        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : 'items-center justify-center p-4'}`}
+        onPress={dismiss}
+      >
         <Pressable
           onPress={(e) => e.stopPropagation()}
-          className="bg-card rounded-2xl w-full max-w-lg max-h-[85%]"
+          className={`bg-card w-full ${
+            isPhone ? 'rounded-t-2xl max-h-[90%]' : 'rounded-2xl max-w-lg max-h-[85%]'
+          }`}
         >
           <View className="px-5 pt-4 pb-3 border-b border-border flex-row items-center justify-between">
             <Text className="text-base font-bold text-text">{title}</Text>
@@ -455,11 +548,13 @@ function allPurchaseOrders(requisitions: Requisition[]) {
 function OrdersSection({
   requisitions,
   isLoading,
-  onOpenCreate,
+  onRecordGrn,
+  onGoToIndents,
 }: {
   requisitions: Requisition[];
   isLoading?: boolean;
-  onOpenCreate: () => void;
+  onRecordGrn: (purchaseOrderId: string) => void;
+  onGoToIndents: () => void;
 }) {
   const router = useRouter();
   const pos = allPurchaseOrders(requisitions);
@@ -470,6 +565,7 @@ function OrdersSection({
       keyExtractor={(po) => po.id}
       renderItem={({ item }) => {
         const draftBills = (item.bills ?? []).filter((b) => b.status === 'DRAFT');
+        const canRecordGrn = poAvailableForNewGrn(item);
         return (
           <Card className="mb-3 p-4">
             <View className="flex-row items-center justify-between">
@@ -495,6 +591,11 @@ function OrdersSection({
                 />
               </View>
             ) : null}
+            {canRecordGrn ? (
+              <View className="mt-3">
+                <Button label="Record GRN" size="sm" onPress={() => onRecordGrn(item.id)} />
+              </View>
+            ) : null}
           </Card>
         );
       }}
@@ -508,22 +609,14 @@ function OrdersSection({
         ) : (
           <EmptyState
             title="No purchase orders"
-            description="Approve an indent, then create a PO against it to order materials."
+            description="Create a PO from an approved indent to order materials."
+            action={
+              <Button label="Go to Indents" variant="secondary" size="sm" onPress={onGoToIndents} />
+            }
           />
         )
       }
-      ListFooterComponent={
-        <View className="pb-24">
-          <Button
-            label="New purchase order"
-            variant="accent"
-            onPress={onOpenCreate}
-            disabled={!!isLoading}
-            fullWidth
-          />
-        </View>
-      }
-      contentContainerStyle={{ paddingBottom: 8 }}
+      contentContainerStyle={{ paddingBottom: 24 }}
     />
   );
 }
@@ -531,11 +624,11 @@ function OrdersSection({
 function GrnsSection({
   requisitions,
   isLoading,
-  onOpenCreate,
+  onGoToOrders,
 }: {
   requisitions: Requisition[];
   isLoading?: boolean;
-  onOpenCreate: () => void;
+  onGoToOrders: () => void;
 }) {
   const grns = allPurchaseOrders(requisitions).flatMap((po) =>
     (po.goodsReceipts ?? []).map((g) => ({ ...g, poNumber: po.poNumber })),
@@ -569,16 +662,14 @@ function GrnsSection({
         ) : (
           <EmptyState
             title="No goods receipts"
-            description="When stock arrives, record a GRN against the purchase order to update on-hand stock."
+            description="Record a GRN against a purchase order to bring stock in. Every PO is fully received or cancelled."
+            action={
+              <Button label="Go to Purchase orders" variant="secondary" size="sm" onPress={onGoToOrders} />
+            }
           />
         )
       }
-      ListFooterComponent={
-        <View className="pb-24">
-          <Button label="Record GRN" variant="accent" onPress={onOpenCreate} disabled={!!isLoading} fullWidth />
-        </View>
-      }
-      contentContainerStyle={{ paddingBottom: 8 }}
+      contentContainerStyle={{ paddingBottom: 24 }}
     />
   );
 }
@@ -586,14 +677,18 @@ function GrnsSection({
 function CreatePOModal({
   open,
   onClose,
+  projectId,
   requisitions,
+  initialRequisitionId,
   onSubmit,
 }: {
   open: boolean;
   onClose: () => void;
+  projectId: string;
   requisitions: Requisition[];
+  initialRequisitionId?: string | null;
   onSubmit: (input: {
-    poNumber: string;
+    poNumber?: string;
     vendorName: string;
     requisitionId: string;
     lines: Array<{ resourceId: string; quantity: number; unit: string; rate: number }>;
@@ -606,13 +701,44 @@ function CreatePOModal({
   const [rates, setRates] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const nextNumbers = useNextProcurementNumbers(projectId, open);
 
   const req = approved.find((r) => r.id === requisitionId);
 
+  // Prefill suggested PO number when the modal opens (user may still edit).
+  useEffect(() => {
+    if (open && nextNumbers.data?.po) {
+      setPoNumber(nextNumbers.data.po);
+    }
+  }, [open, nextNumbers.data?.po]);
+
+  // D3: when opened from an indent row CTA, preselect that indent (and prefill
+  // its expected rates). Clear everything when the modal closes.
+  useEffect(() => {
+    if (open && initialRequisitionId) {
+      setRequisitionId(initialRequisitionId);
+      const target = approved.find((r) => r.id === initialRequisitionId);
+      const next: Record<string, string> = {};
+      target?.lines.forEach((l) => {
+        if (l.resourceId) next[l.resourceId] = l.expectedRate ?? '';
+      });
+      setRates(next);
+    }
+  }, [open, initialRequisitionId]);
+  useEffect(() => {
+    if (!open) {
+      setRequisitionId('');
+      setPoNumber('');
+      setVendorName('');
+      setRates({});
+      setError('');
+    }
+  }, [open]);
+
   const submit = async () => {
     setError('');
-    if (!requisitionId || !poNumber || !vendorName) {
-      setError('Choose an approved indent, PO number and vendor.');
+    if (!requisitionId || !vendorName) {
+      setError('Choose an approved indent and vendor.');
       return;
     }
     if (!req) return;
@@ -627,7 +753,12 @@ function CreatePOModal({
     });
     setSaving(true);
     try {
-      await onSubmit({ poNumber, vendorName, requisitionId, lines });
+      await onSubmit({
+        poNumber: poNumber.trim() || undefined,
+        vendorName,
+        requisitionId,
+        lines,
+      });
       setRequisitionId('');
       setPoNumber('');
       setVendorName('');
@@ -647,7 +778,7 @@ function CreatePOModal({
       {approved.length === 0 ? (
         <EmptyState
           title="No indents available"
-          description="Only approved indents without a purchase order can be ordered. Create and approve a new indent first."
+          description="Only approved indents without a purchase order can be ordered. Create a new indent first - it is approved instantly."
         />
       ) : (
         <>
@@ -661,7 +792,16 @@ function CreatePOModal({
             options={approved.map((r) => ({ title: `${r.reqNumber} (${r.lines.length} lines)`, value: r.id }))}
           />
           <View className="h-3" />
-          <Input label="PO number" value={poNumber} onChangeText={setPoNumber} autoCapitalize="characters" />
+          <Input
+            label="PO number"
+            value={poNumber}
+            onChangeText={setPoNumber}
+            autoCapitalize="characters"
+            placeholder={nextNumbers.data?.po ?? 'Auto'}
+          />
+          <Text className="text-[11px] text-muted mt-1 mb-1">
+            Suggested automatically — edit if you need a custom number.
+          </Text>
           <View className="h-3" />
           <Input label="Vendor name" value={vendorName} onChangeText={setVendorName} />
           {req ? (
@@ -699,14 +839,18 @@ function CreatePOModal({
 function RecordGrnModal({
   open,
   onClose,
+  projectId,
   requisitions,
+  initialPurchaseOrderId,
   onSubmit,
 }: {
   open: boolean;
   onClose: () => void;
+  projectId: string;
   requisitions: Requisition[];
+  initialPurchaseOrderId?: string | null;
   onSubmit: (input: {
-    grnNumber: string;
+    grnNumber?: string;
     purchaseOrderId: string;
     receivedDate: Date;
     lines: Array<{ resourceId: string; quantity: number; unit: string }>;
@@ -720,6 +864,7 @@ function RecordGrnModal({
   const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const nextNumbers = useNextProcurementNumbers(projectId, open);
 
   const selectedPo = eligiblePos.find((po) => po.id === poId) ?? null;
 
@@ -739,10 +884,34 @@ function RecordGrnModal({
     setQuantities(next);
   };
 
+  // Prefill suggested GRN number when the modal opens (user may still edit).
+  useEffect(() => {
+    if (open && nextNumbers.data?.grn) {
+      setGrnNumber(nextNumbers.data.grn);
+    }
+  }, [open, nextNumbers.data?.grn]);
+
+  // D4: when opened from a PO row CTA, preselect that PO and prefill remaining
+  // quantities. Clear everything when the modal closes.
+  useEffect(() => {
+    if (open && initialPurchaseOrderId) {
+      onSelectPo(initialPurchaseOrderId);
+    }
+  }, [open, initialPurchaseOrderId]);
+  useEffect(() => {
+    if (!open) {
+      setPoId('');
+      setGrnNumber('');
+      setQuantities({});
+      setError('');
+      setReceivedDate(new Date().toISOString().slice(0, 10));
+    }
+  }, [open]);
+
   const submit = async () => {
     setError('');
-    if (!poId || !grnNumber) {
-      setError('Choose a purchase order and enter a GRN number.');
+    if (!poId) {
+      setError('Choose a purchase order.');
       return;
     }
     if (!selectedPo) return;
@@ -758,7 +927,12 @@ function RecordGrnModal({
     }
     setSaving(true);
     try {
-      await onSubmit({ grnNumber, purchaseOrderId: poId, receivedDate: new Date(receivedDate), lines });
+      await onSubmit({
+        grnNumber: grnNumber.trim() || undefined,
+        purchaseOrderId: poId,
+        receivedDate: new Date(receivedDate),
+        lines,
+      });
       setPoId('');
       setGrnNumber('');
       setQuantities({});
@@ -793,7 +967,16 @@ function RecordGrnModal({
             }))}
           />
           <View className="h-3" />
-          <Input label="GRN number" value={grnNumber} onChangeText={setGrnNumber} autoCapitalize="characters" />
+          <Input
+            label="GRN number"
+            value={grnNumber}
+            onChangeText={setGrnNumber}
+            autoCapitalize="characters"
+            placeholder={nextNumbers.data?.grn ?? 'Auto'}
+          />
+          <Text className="text-[11px] text-muted mt-1 mb-1">
+            Suggested automatically — edit if you need a custom number.
+          </Text>
           <View className="h-3" />
           <Input label="Received date" value={receivedDate} onChangeText={setReceivedDate} />
           {selectedPo ? (

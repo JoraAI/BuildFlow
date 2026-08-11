@@ -121,6 +121,12 @@ procurementRouter.post(
   validate({ params: projectIdParams, body: createPurchaseOrderSchema }),
   asyncHandler(procurementController.createPO),
 );
+procurementRouter.get(
+  '/:id/procurement/next-numbers',
+  requirePermission('procurement.view'),
+  validate({ params: projectIdParams }),
+  asyncHandler(procurementController.getNextDocumentNumbers),
+);
 procurementRouter.post(
   '/:id/procurement/grn',
   requirePermission('procurement.record_grn'),
