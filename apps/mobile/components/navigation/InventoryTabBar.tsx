@@ -7,8 +7,9 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, usePathname } from 'expo-router';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useViewport } from '@/hooks/useViewport';
 
 export const INVENTORY_TABS = [
   { key: 'index', label: 'Stock', icon: 'cube-outline', href: '/inventory' },
@@ -26,49 +27,64 @@ function isActiveTab(tab: InventoryTab, pathname: string): boolean {
   return pathname.startsWith(tab.href);
 }
 
-/** Bottom tab bar for inventory shell (mobile). */
+/** Bottom tab bar for inventory shell (mobile/tablet). */
 export function InventoryMobileTabBar() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const pathname = usePathname();
+  const { isPhone } = useViewport();
+
+  const renderTab = (tab: InventoryTab, widthClass: string) => {
+    const isActive = isActiveTab(tab, pathname);
+    return (
+      <Pressable
+        key={tab.key}
+        onPress={() => router.push(tab.href as never)}
+        className={`${widthClass} items-center py-2 active:opacity-70`}
+        accessibilityRole="button"
+        accessibilityLabel={tab.label}
+        accessibilityState={{ selected: isActive }}
+      >
+        <View
+          className={`w-10 h-7 items-center justify-center rounded-full mb-0.5 ${
+            isActive ? 'bg-primary/10' : ''
+          }`}
+        >
+          <Ionicons name={tab.icon} size={22} color={isActive ? '#1E3A5F' : '#64748B'} />
+        </View>
+        <Text
+          className={`text-[10px] font-semibold ${
+            isActive ? 'text-primary' : 'text-muted'
+          }`}
+          numberOfLines={1}
+        >
+          {tab.label}
+        </Text>
+        {isActive && <View className="w-1 h-1 rounded-full bg-accent mt-0.5" />}
+      </Pressable>
+    );
+  };
 
   return (
     <View
       className="bg-card border-t border-border"
       style={{ paddingBottom: Math.max(insets.bottom, 8) }}
     >
-      <View className="flex-row items-stretch px-1 pt-1.5">
-        {INVENTORY_TABS.map((tab) => {
-          const isActive = isActiveTab(tab, pathname);
-          return (
-            <Pressable
-              key={tab.key}
-              onPress={() => router.push(tab.href as never)}
-              className="flex-1 items-center py-2 active:opacity-70"
-              accessibilityRole="button"
-              accessibilityLabel={tab.label}
-              accessibilityState={{ selected: isActive }}
-            >
-              <View
-                className={`w-10 h-7 items-center justify-center rounded-full mb-0.5 ${
-                  isActive ? 'bg-primary/10' : ''
-                }`}
-              >
-                <Ionicons name={tab.icon} size={22} color={isActive ? '#1E3A5F' : '#64748B'} />
-              </View>
-              <Text
-                className={`text-[10px] font-semibold ${
-                  isActive ? 'text-primary' : 'text-muted'
-                }`}
-                numberOfLines={1}
-              >
-                {tab.label}
-              </Text>
-              {isActive && <View className="w-1 h-1 rounded-full bg-accent mt-0.5" />}
-            </Pressable>
-          );
-        })}
-      </View>
+      {isPhone ? (
+        // INVENTORY_UX_POLISH (§1.4.1): horizontal scroll so all 6 tabs stay
+        // reachable on narrow phones instead of clipping.
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 4, paddingTop: 6 }}
+        >
+          {INVENTORY_TABS.map((tab) => renderTab(tab, 'w-[76px] shrink-0'))}
+        </ScrollView>
+      ) : (
+        <View className="flex-row items-stretch px-1 pt-1.5">
+          {INVENTORY_TABS.map((tab) => renderTab(tab, 'flex-1'))}
+        </View>
+      )}
     </View>
   );
 }

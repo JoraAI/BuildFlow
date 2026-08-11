@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
@@ -23,6 +23,7 @@ import {
   useApproveRequisition,
   useCreatePurchaseOrder,
   useCreateGRN,
+  useNextProcurementNumbers,
   useStockSummary,
   useStockMovements,
   useBoqShortfalls,
@@ -76,22 +77,6 @@ function sourceBadge(req: Requisition): string | null {
   };
   const label = labels[req.sourceType] ?? req.sourceType;
   return req.sourceRef ? `${label}: ${req.sourceRef}` : label;
-}
-
-function suggestPoNumber(req: Requisition, allReqs: Requisition[]): string {
-  const used = new Set(allReqs.flatMap((r) => r.purchaseOrders?.map((po) => po.poNumber) ?? []));
-  const base = `PO-${req.reqNumber.replace(/^IND-/, '')}`;
-  if (!used.has(base)) return base;
-  for (let n = 2; n < 1000; n++) {
-    const candidate = `${base}-${n}`;
-    if (!used.has(candidate)) return candidate;
-  }
-  return `PO-${Date.now()}`;
-}
-
-function suggestGrnNumber(poNumber: string): string {
-  if (poNumber.startsWith('PO-')) return `GRN-${poNumber.slice(3)}`;
-  return `GRN-${poNumber.replace(/^PO/, '')}`;
 }
 
 type SubTab = 'indents' | 'pos' | 'stock' | 'shortfalls';
@@ -254,6 +239,20 @@ function IndentsSection({
   /** In-flight submit/approve/delete on an indent — prevents double-click. */
   const [pendingAction, setPendingAction] = useState<{ id: string; kind: 'submit' | 'approve' | 'delete' } | null>(null);
 
+  const nextNumbers = useNextProcurementNumbers(projectId, !!poModal || !!grnModal);
+
+  // Prefill suggested document numbers when create modals open (editable).
+  useEffect(() => {
+    if (poModal && nextNumbers.data?.po && !poNumber) {
+      setPoNumber(nextNumbers.data.po);
+    }
+  }, [poModal, nextNumbers.data?.po, poNumber]);
+  useEffect(() => {
+    if (grnModal && nextNumbers.data?.grn && !grnNumber) {
+      setGrnNumber(nextNumbers.data.grn);
+    }
+  }, [grnModal, nextNumbers.data?.grn, grnNumber]);
+
   // Shortfalls loaded only when modal opens
   const shortfallsQ = useBoqShortfalls(projectId, reqModal);
   const shortfalls = shortfallsQ.data ?? [];
@@ -343,8 +342,8 @@ function IndentsSection({
   };
 
   const onCreatePO = () => {
-    if (!poModal || !poNumber.trim() || !vendorName.trim() || poModal.lines.length === 0) {
-      void alertAsync('Required', 'Fill PO number, vendor, and requisition lines.');
+    if (!poModal || !vendorName.trim() || poModal.lines.length === 0) {
+      void alertAsync('Required', 'Fill vendor and requisition lines.');
       return;
     }
     const lines = poModal.lines.map((l: Requisition['lines'][number]) => {
@@ -366,7 +365,7 @@ function IndentsSection({
     }
     createPO.mutate(
       {
-        poNumber: poNumber.trim(),
+        poNumber: poNumber.trim() || undefined,
         vendorName: vendorName.trim(),
         requisitionId: poModal.id,
         lines: lines.map(({ lineId: _id, materialName: _n, ...line }) => line),
@@ -378,7 +377,12 @@ function IndentsSection({
           setPoNumber('');
           setVendorName('');
           setPoLineRates({});
-          void alertAsync('PO created', `Purchase order ${num} created. Record GRN when goods arrive.`);
+          void alertAsync(
+            'PO created',
+            num
+              ? `Purchase order ${num} created. Record GRN when goods arrive.`
+              : 'Purchase order created. Record GRN when goods arrive.',
+          );
         },
         onError: (e: Error) => void alertAsync('Error', e.message),
       },
@@ -386,8 +390,8 @@ function IndentsSection({
   };
 
   const onCreateGRN = () => {
-    if (!grnModal || !grnNumber.trim()) {
-      void alertAsync('Required', 'Enter a GRN number.');
+    if (!grnModal) {
+      void alertAsync('Required', 'Choose a purchase order.');
       return;
     }
     const lines = grnModal.lines
@@ -403,7 +407,7 @@ function IndentsSection({
     }
     createGRN.mutate(
       {
-        grnNumber: grnNumber.trim(),
+        grnNumber: grnNumber.trim() || undefined,
         purchaseOrderId: grnModal.poId,
         receivedDate: new Date(),
         notes: grnNotes.trim() || undefined,
@@ -416,7 +420,7 @@ function IndentsSection({
           setGrnNumber('');
           setGrnNotes('');
           setGrnLineQtys({});
-          void alertAsync('GRN recorded', `${num} saved. Site stock updated.`);
+          void alertAsync('GRN recorded', num ? `${num} saved. Site stock updated.` : 'GRN saved. Site stock updated.');
         },
         onError: (e: Error) => void alertAsync('Error', e.message),
       },
@@ -483,7 +487,7 @@ function IndentsSection({
               req.lines.forEach((line: Requisition['lines'][number]) => {
                 rates[line.id] = line.expectedRate ? String(parseFloat(line.expectedRate)) : '';
               });
-              setPoNumber(suggestPoNumber(req, allReqs));
+              setPoNumber('');
               setVendorName('');
               setPoLineRates(rates);
               setPoModal(req);
@@ -506,7 +510,7 @@ function IndentsSection({
               modalLines.forEach((l) => {
                 if (l.remainingQty > 0) qtys[l.lineId] = String(l.remainingQty);
               });
-              setGrnNumber(suggestGrnNumber(po.poNumber));
+              setGrnNumber('');
               setGrnNotes('');
               setGrnLineQtys(qtys);
               setGrnModal({ poId: po.id, poNumber: po.poNumber, lines: modalLines });
@@ -573,7 +577,16 @@ function IndentsSection({
         size="lg"
         footer={<Button label="Create PO" loading={createPO.isPending} onPress={onCreatePO} />}
       >
-        <Input label="PO Number" value={poNumber} onChangeText={setPoNumber} placeholder="PO-002" />
+        <Input
+          label="PO Number"
+          value={poNumber}
+          onChangeText={setPoNumber}
+          placeholder={nextNumbers.data?.po ?? 'Auto'}
+          autoCapitalize="characters"
+        />
+        <Text className="text-[11px] text-muted -mt-1 mb-2">
+          Suggested automatically — edit if you need a custom number.
+        </Text>
         <Input label="Vendor" value={vendorName} onChangeText={setVendorName} placeholder="Supplier name" />
         {poModal?.lines.map((l: Requisition['lines'][number]) => (
           <View key={l.id} className="py-2 border-b border-border/60">
@@ -604,7 +617,16 @@ function IndentsSection({
         size="lg"
         footer={<Button label="Record GRN" loading={createGRN.isPending} onPress={onCreateGRN} />}
       >
-        <Input label="GRN Number" value={grnNumber} onChangeText={setGrnNumber} placeholder="GRN-002" />
+        <Input
+          label="GRN Number"
+          value={grnNumber}
+          onChangeText={setGrnNumber}
+          placeholder={nextNumbers.data?.grn ?? 'Auto'}
+          autoCapitalize="characters"
+        />
+        <Text className="text-[11px] text-muted -mt-1 mb-2">
+          Suggested automatically — edit if you need a custom number.
+        </Text>
         <Input label="Notes (optional)" value={grnNotes} onChangeText={setGrnNotes} multiline />
         <Text className="text-sm font-bold text-text mt-2">PO line items</Text>
         {grnModal?.lines.map((line) => (

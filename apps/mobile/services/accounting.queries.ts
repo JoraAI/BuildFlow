@@ -29,6 +29,9 @@ export interface Invoice {
   invoiceNumber: string;
   clientName: string;
   clientGstin?: string | null;
+  clientState?: string | null;
+  clientAddress?: string | null;
+  clientPhone?: string | null;
   invoiceDate: string;
   dueDate: string;
   status: 'DRAFT' | 'SENT' | 'PAID' | 'OVERDUE';
@@ -79,6 +82,8 @@ export interface InvoiceInput {
   clientName: string;
   clientGstin?: string;
   clientState?: string;
+  clientAddress?: string;
+  clientPhone?: string;
   invoiceDate: string;
   dueDate: string;
   projectId: string;

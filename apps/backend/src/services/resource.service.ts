@@ -251,17 +251,43 @@ export async function deleteResource(
 ) {
   await getResource(companyId, id);
 
-  const [rateAnalysisRefs, estimateItemRefs] = await Promise.all([
+  // INVENTORY_UX_POLISH (§1.3): keep soft-delete available for historical usage.
+  // Blocks only what would truly orphan/strand data:
+  //   - rate-analysis components & estimate lines (live costing references)
+  //   - non-zero on-hand stock
+  //   - lines on OPEN indents (DRAFT/SUBMITTED, or APPROVED with zero POs,
+  //     i.e. still eligible for a new PO). APPROVED indents that already have a
+  //     PO are historical and do NOT block. Historical PO lines never block:
+  //     FKs stay valid under soft-delete, so once stock is zero and no open
+  //     indent lines remain, the material may be soft-deleted.
+  const [rateAnalysisRefs, estimateItemRefs, openIndentLines, stockBalances] = await Promise.all([
     prisma.rateAnalysisComponent.count({ where: { resourceId: id } }),
     prisma.estimateItem.count({ where: { resourceId: id } }),
+    prisma.materialRequisitionLine.count({
+      where: {
+        resourceId: id,
+        OR: [
+          // Open in the approval workflow.
+          { requisition: { status: { in: ['DRAFT', 'SUBMITTED'] } } },
+          // Approved but still eligible for New PO (zero POs) = still "open".
+          { requisition: { status: 'APPROVED', purchaseOrders: { none: {} } } },
+        ],
+      },
+    }),
+    // Non-zero on-hand stock cannot be deleted - it would orphan the balance.
+    prisma.stockBalance.count({
+      where: { resourceId: id, quantity: { gt: 0 } },
+    }),
   ]);
 
-  if (rateAnalysisRefs > 0 || estimateItemRefs > 0) {
+  if (rateAnalysisRefs > 0 || estimateItemRefs > 0 || openIndentLines > 0 || stockBalances > 0) {
     const parts: string[] = [];
     if (rateAnalysisRefs > 0) parts.push(`${rateAnalysisRefs} rate analysis component(s)`);
     if (estimateItemRefs > 0) parts.push(`${estimateItemRefs} estimate line item(s)`);
+    if (openIndentLines > 0) parts.push(`${openIndentLines} open indent line(s)`);
+    if (stockBalances > 0) parts.push(`on-hand stock (${stockBalances} item(s))`);
     throw ApiError.conflict(
-      `Cannot delete this material - it is used in ${parts.join(' and ')}. Remove those references first.`,
+      `Cannot delete this material - it is used in ${parts.join(' and ')}. Receive/use it first, then try again.`,
     );
   }
 

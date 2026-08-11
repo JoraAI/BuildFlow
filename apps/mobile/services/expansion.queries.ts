@@ -38,6 +38,7 @@ import type { Role } from '@buildflow/shared';
 export const expansionKeys = {
   changeOrders: (projectId: string) => ['change-orders', projectId] as const,
   requisitions: (projectId: string) => ['procurement', 'requisitions', projectId] as const,
+  nextNumbers: (projectId: string) => ['procurement', 'next-numbers', projectId] as const,
   stock: (projectId: string) => ['procurement', 'stock', projectId] as const,
   stockSummary: (projectId: string) => ['procurement', 'stock', 'summary', projectId] as const,
   stockMovements: (projectId: string, resourceId: string) =>
@@ -557,7 +558,18 @@ export function useCreatePurchaseOrder(projectId: string) {
     // wait for the full list refetch, leaving the New PO modal stuck open.
     onSuccess: () => {
       void invalidateProcurementLists(qc, projectId);
+      void qc.invalidateQueries({ queryKey: expansionKeys.nextNumbers(projectId) });
     },
+  });
+}
+
+export function useNextProcurementNumbers(projectId: string, enabled = true) {
+  return useQuery({
+    queryKey: expansionKeys.nextNumbers(projectId),
+    queryFn: () =>
+      apiFetch<{ po: string; grn: string }>(`/projects/${projectId}/procurement/next-numbers`),
+    enabled: !!projectId && enabled,
+    staleTime: 0,
   });
 }
 
@@ -577,6 +589,7 @@ export function useCreateGRN(projectId: string) {
       // Inventory auto-draft bills appear on GRN — refresh AP lists.
       void qc.invalidateQueries({ queryKey: ['bills', 'list', projectId] });
       void qc.invalidateQueries({ queryKey: ['bills', 'summary', projectId] });
+      void qc.invalidateQueries({ queryKey: expansionKeys.nextNumbers(projectId) });
     },
   });
 }
@@ -608,25 +621,39 @@ export function useStockMovements(projectId: string, resourceId: string | undefi
   });
 }
 
+export interface StockIssueLineResult {
+  movementId: string;
+  resourceId: string;
+  resourceName: string;
+  unit: string;
+  quantityIssued: number;
+  quantityOnHand: number;
+  unitPrice: number | null;
+}
+
+export interface StockIssueResult extends StockIssueLineResult {
+  movementIds: string[];
+  lines: StockIssueLineResult[];
+  notes: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  customerAddress: string | null;
+  draftInvoiceId: string | null;
+}
+
+export interface IssueStockInput {
+  lines: Array<{ resourceId: string; quantity: number; unitPrice?: number }>;
+  customerName?: string;
+  customerPhone?: string;
+  customerAddress?: string;
+  notes?: string;
+}
+
 export function useIssueStock(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: {
-      resourceId: string;
-      quantity: number;
-      unitPrice?: number;
-      customerName?: string;
-      notes?: string;
-    }) =>
-      apiFetch<{
-        movementId: string;
-        resourceId: string;
-        resourceName: string;
-        unit: string;
-        quantityIssued: number;
-        quantityOnHand: number;
-        draftInvoiceId: string | null;
-      }>(`/projects/${projectId}/procurement/stock/issue`, {
+    mutationFn: (input: IssueStockInput) =>
+      apiFetch<StockIssueResult>(`/projects/${projectId}/procurement/stock/issue`, {
         method: 'POST',
         body: JSON.stringify(input),
       }),

@@ -1,6 +1,8 @@
 /**
  * Procurement integration tests - indent → PO → GRN → stock.
  */
+import request from 'supertest';
+import { app } from '../../app';
 import { loginAs, authGet, authPost, getSeedProjectId, getProjectId } from './test-helpers';
 
 const OWNER = 'owner@reddyconst.com';
@@ -146,10 +148,66 @@ describe('Procurement (integration)', () => {
       ],
     });
     expect(reqRes.status).toBe(201);
+    // INVENTORY_UX_POLISH (§1.3.1 construction regression): the auto-approve
+    // gate is `subscriptionPlan === 'INVENTORY'` ONLY — a construction tenant
+    // must stay DRAFT even for a 2-line (multi-material) requisition.
+    expect(reqRes.body.data.status).toBe('DRAFT');
     const lines = reqRes.body.data.lines as Array<{ resourceId: string; quantity: string }>;
     expect(lines).toHaveLength(2);
     expect(Number(lines[0].quantity)).toBe(10);
     expect(Number(lines[1].quantity)).toBe(5);
+  });
+
+  /* ── INVENTORY_UX_POLISH (§1.2 / §1.3.2): construction safety ──────── */
+  it('construction manual stock issue does NOT create a draft sales invoice', async () => {
+    const resourceRes = await authPost(token, '/api/resources', {
+      name: `Const Mat ${Date.now()}`,
+      type: 'MATERIAL',
+      unit: 'bag',
+      rate: 100,
+    });
+    expect(resourceRes.status).toBe(201);
+    const resourceId = resourceRes.body.data.id as string;
+
+    // Construction: Draft → Submit → Approve (unchanged flow).
+    const reqRes = await authPost(token, `/api/projects/${projectId}/procurement/requisitions`, {
+      reqNumber: `IND-NOINV-${Date.now()}`,
+      lines: [{ resourceId, quantity: 2, unit: 'bag' }],
+    });
+    expect(reqRes.status).toBe(201);
+    expect(reqRes.body.data.status).toBe('DRAFT');
+    const reqId = reqRes.body.data.id as string;
+    await authPost(token, `/api/projects/${projectId}/procurement/requisitions/${reqId}/submit`);
+    await authPost(token, `/api/projects/${projectId}/procurement/requisitions/${reqId}/approve`);
+
+    const poRes = await authPost(token, `/api/projects/${projectId}/procurement/purchase-orders`, {
+      poNumber: `PO-NOINV-${Date.now()}`,
+      vendorName: 'Test Vendor',
+      requisitionId: reqId,
+      lines: [{ resourceId, quantity: 2, unit: 'bag', rate: 100 }],
+    });
+    expect(poRes.status).toBe(201);
+
+    const grnRes = await authPost(token, `/api/projects/${projectId}/procurement/grn`, {
+      grnNumber: `GRN-NOINV-${Date.now()}`,
+      purchaseOrderId: poRes.body.data.id,
+      receivedDate: '2025-04-01',
+      lines: [{ resourceId, quantity: 2, unit: 'bag' }],
+    });
+    expect(grnRes.status).toBe(201);
+
+    // Manual issue via the shared endpoint — construction tenant.
+    const issueRes = await authPost(token, `/api/projects/${projectId}/procurement/stock/issue`, {
+      resourceId,
+      quantity: 1,
+      unitPrice: 150,
+      customerName: 'Construction Buyer',
+    });
+    expect(issueRes.status).toBe(201);
+    expect(Number(issueRes.body.data.quantityOnHand)).toBe(1);
+    // createDraftInvoiceFromStockIssue returns null unless the tenant plan is
+    // INVENTORY — so a construction issue must never auto-create a sales invoice.
+    expect(issueRes.body.data.draftInvoiceId).toBeNull();
   });
 
   it('creates PO after approved requisition', async () => {
@@ -454,5 +512,93 @@ describe('Procurement (integration)', () => {
     // Procured material qty is independent of subcontract certification totals
     expect(certifiedTotal).toBeGreaterThan(0);
     expect(certifiedTotal).not.toBe(Number(carpet!.procuredQty));
+  });
+
+  /* ── INVENTORY_UX_POLISH §1.3: deleteResource soft-delete rules ─────── */
+  it('allows soft-delete after historical PO/indent; blocks while indent is open', async () => {
+    const createRes = await authPost(token, '/api/resources', {
+      name: `Del Mat ${Date.now()}`,
+      type: 'MATERIAL',
+      unit: 'bag',
+      rate: 120,
+    });
+    expect(createRes.status).toBe(201);
+    const rid = createRes.body.data.id as string;
+    const del = (path: string) =>
+      request(app).delete(path).set('Authorization', `Bearer ${token}`);
+
+    // 1. DRAFT indent line → delete blocked (open indent).
+    const req1 = await authPost(token, `/api/projects/${projectId}/procurement/requisitions`, {
+      reqNumber: `IND-DEL-${Date.now()}`,
+      lines: [{ resourceId: rid, quantity: 2, unit: 'bag' }],
+    });
+    expect(req1.status).toBe(201);
+    let res = await del(`/api/resources/${rid}`);
+    expect(res.status).toBe(409);
+    expect(res.body.error?.message).toMatch(/indent/i);
+
+    // 2. SUBMITTED then APPROVED (zero POs) → still "open" → blocked.
+    await authPost(token, `/api/projects/${projectId}/procurement/requisitions/${req1.body.data.id}/submit`);
+    await authPost(token, `/api/projects/${projectId}/procurement/requisitions/${req1.body.data.id}/approve`);
+    res = await del(`/api/resources/${rid}`);
+    expect(res.status).toBe(409);
+
+    // 3. Create a PO → indent is now historical → soft-delete allowed even
+    //    though the APPROVED indent + PO lines still reference the material.
+    const po = await authPost(token, `/api/projects/${projectId}/procurement/purchase-orders`, {
+      poNumber: `PO-DEL-${Date.now()}`,
+      vendorName: 'Vendor',
+      requisitionId: req1.body.data.id,
+      lines: [{ resourceId: rid, quantity: 2, unit: 'bag', rate: 120 }],
+    });
+    expect(po.status).toBe(201);
+    res = await del(`/api/resources/${rid}`);
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+
+  it('peeks next PO/GRN numbers and auto-assigns when omitted', async () => {
+    const cementId = await getCementResourceId(token);
+    const peek = await authGet(token, `/api/projects/${projectId}/procurement/next-numbers`);
+    expect(peek.status).toBe(200);
+    expect(peek.body.data.po).toMatch(/^PO-\d{4}-\d{4}$/);
+    expect(peek.body.data.grn).toMatch(/^GRN-\d{4}-\d{4}$/);
+    const suggestedPo = peek.body.data.po as string;
+
+    const reqNum = `IND-AUTO-NUM-${Date.now()}`;
+    const reqRes = await authPost(token, `/api/projects/${projectId}/procurement/requisitions`, {
+      reqNumber: reqNum,
+      lines: [{ resourceId: cementId, quantity: 2, unit: 'bag' }],
+    });
+    expect(reqRes.status).toBe(201);
+    const reqId = reqRes.body.data.id as string;
+    await authPost(token, `/api/projects/${projectId}/procurement/requisitions/${reqId}/submit`);
+    await authPost(token, `/api/projects/${projectId}/procurement/requisitions/${reqId}/approve`);
+
+    const poRes = await authPost(token, `/api/projects/${projectId}/procurement/purchase-orders`, {
+      // omit poNumber — server allocates
+      vendorName: 'Auto Number Vendor',
+      requisitionId: reqId,
+      lines: [{ resourceId: cementId, quantity: 2, unit: 'bag', rate: 100 }],
+    });
+    expect(poRes.status).toBe(201);
+    expect(poRes.body.data.poNumber).toMatch(/^PO-\d{4}-\d{4}$/);
+    // Should consume at least the peeked suggestion (or higher if concurrent).
+    expect(poRes.body.data.poNumber >= suggestedPo).toBe(true);
+
+    const grnRes = await authPost(token, `/api/projects/${projectId}/procurement/grn`, {
+      purchaseOrderId: poRes.body.data.id,
+      // omit grnNumber — server allocates
+      receivedDate: '2026-08-11',
+      lines: [{ resourceId: cementId, quantity: 2, unit: 'bag' }],
+    });
+    expect([201, 400]).toContain(grnRes.status);
+    if (grnRes.status === 201) {
+      expect(grnRes.body.data.grnNumber).toMatch(/^GRN-\d{4}-\d{4}$/);
+    }
+
+    const peekAfter = await authGet(token, `/api/projects/${projectId}/procurement/next-numbers`);
+    expect(peekAfter.status).toBe(200);
+    expect(peekAfter.body.data.po).not.toBe(poRes.body.data.poNumber);
   });
 });

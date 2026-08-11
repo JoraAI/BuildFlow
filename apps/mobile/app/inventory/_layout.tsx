@@ -6,7 +6,7 @@
  * "Projects" navigator. Construction users are redirected to /dashboard.
  */
 import React from 'react';
-import { Redirect, Stack } from 'expo-router';
+import { Redirect, Stack, usePathname } from 'expo-router';
 import { View, Text, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/auth.store';
@@ -22,6 +22,7 @@ export default function InventoryLayout() {
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { isDesktop } = useViewport();
+  const pathname = usePathname();
 
   if (!isAuthenticated) return <Redirect href="/login" />;
   if (!user) return null;
@@ -31,6 +32,11 @@ export default function InventoryLayout() {
     return <Redirect href="/dashboard" />;
   }
 
+  // Detail routes (invoices/[id], bills/[id]) render their own back-header —
+  // hide the shell top bar so headers don't double-pad. Bottom nav stays.
+  const isDetailRoute =
+    pathname.startsWith('/inventory/invoices/') || pathname.startsWith('/inventory/bills/');
+
   return (
     <View className="flex-1 bg-surface min-h-0">
       <OfflineBanner />
@@ -38,30 +44,32 @@ export default function InventoryLayout() {
         {isDesktop && <InventorySidebar />}
 
         <View className="flex-1 flex-col min-w-0 min-h-0">
-          {/* Top bar */}
-          <View
-            className="bg-card border-b border-border px-6 flex-row items-center gap-3 shrink-0"
-            style={{
-              zIndex: 100,
-              elevation: 8,
-              paddingTop: Platform.OS !== 'web' ? insets.top : 0,
-              minHeight: 56 + (Platform.OS !== 'web' ? insets.top : 0),
-            }}
-          >
-            <View className="flex-row items-center gap-2 shrink-0">
-              <View className="w-8 h-8 rounded-lg bg-primary items-center justify-center">
-                <Text className="text-accent font-bold text-sm">BF</Text>
+          {/* Top bar (hidden on detail routes which render their own header) */}
+          {!isDetailRoute ? (
+            <View
+              className="bg-card border-b border-border px-6 flex-row items-center gap-3 shrink-0"
+              style={{
+                zIndex: 100,
+                elevation: 8,
+                paddingTop: Platform.OS !== 'web' ? insets.top : 0,
+                minHeight: 56 + (Platform.OS !== 'web' ? insets.top : 0),
+              }}
+            >
+              <View className="flex-row items-center gap-2 shrink-0">
+                <View className="w-8 h-8 rounded-lg bg-primary items-center justify-center">
+                  <Text className="text-accent font-bold text-sm">BF</Text>
+                </View>
+                <Text className="text-sm font-bold text-text">BuildFlow · Inventory</Text>
               </View>
-              <Text className="text-sm font-bold text-text">BuildFlow · Inventory</Text>
+              <View className="flex-1" />
+              <View className="flex-row items-center bg-surface rounded-lg px-3 py-1.5 border border-border gap-2 max-w-[220px]">
+                <CompanyLogo name={user.companyName} logoUrl={user.companyLogoUrl} size={26} />
+                <Text className="text-sm font-semibold text-text" numberOfLines={1}>
+                  {user.companyName}
+                </Text>
+              </View>
             </View>
-            <View className="flex-1" />
-            <View className="flex-row items-center bg-surface rounded-lg px-3 py-1.5 border border-border gap-2 max-w-[220px]">
-              <CompanyLogo name={user.companyName} logoUrl={user.companyLogoUrl} size={26} />
-              <Text className="text-sm font-semibold text-text" numberOfLines={1}>
-                {user.companyName}
-              </Text>
-            </View>
-          </View>
+          ) : null}
 
           <View className="flex-1 min-h-0">
             <Stack screenOptions={{ headerShown: false }}>

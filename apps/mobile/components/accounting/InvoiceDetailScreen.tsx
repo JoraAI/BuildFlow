@@ -201,9 +201,15 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
               {invoice.invoiceNumber}
             </Text>
             <Text className="text-sm text-muted mt-1">{invoice.clientName}</Text>
+            {invoice.clientPhone ? (
+              <Text className="text-xs text-muted">Phone: {invoice.clientPhone}</Text>
+            ) : null}
             {invoice.clientGstin && (
               <Text className="text-xs text-muted font-mono">GSTIN: {invoice.clientGstin}</Text>
             )}
+            {invoice.clientAddress ? (
+              <Text className="text-xs text-muted mt-0.5">{invoice.clientAddress}</Text>
+            ) : null}
           </View>
           <Badge color={STATUS_COLOR[invoice.status] ?? 'neutral'} label={invoice.status} />
         </View>

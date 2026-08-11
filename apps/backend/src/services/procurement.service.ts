@@ -1,12 +1,18 @@
 import { prisma } from '../lib/prisma';
+import { Prisma } from '@prisma/client';
 import { ApiError } from '../utils/errors';
-import { nextSequentialNumber } from '../lib/id-generator';
+import {
+  nextSequentialNumber,
+  peekNextSequentialNumber,
+  resolveSequentialNumber,
+} from '../lib/id-generator';
 import { assertProjectAccess } from '../middleware/project-access.middleware';
 import { getProject } from './project.service';
 import type {
   CreateRequisitionInput,
   CreatePurchaseOrderInput,
   CreateGrnInput,
+  IssueStockInput,
 } from '@buildflow/shared';
 import { resolveRequisitionLineRate } from './material-rate.service';
 import { alertOnPurchaseOrderRateVariance } from './material-rate-alert.service';
@@ -18,6 +24,10 @@ import {
   fetchBoqMaterialDemands,
   previewBoqShortfalls,
 } from './material-demand.service';
+
+function isUniqueViolation(err: unknown): boolean {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
+}
 
 function round2(n: number) {
   return Math.round(n * 100) / 100;
@@ -170,6 +180,14 @@ export async function createRequisition(
     }),
   );
 
+  // INVENTORY_UX_POLISH (D2): inventory indents auto-reach APPROVED on create —
+  // no DRAFT → SUBMITTED → APPROVED clicks. Construction keeps the full flow.
+  const company = await prisma.company.findUniqueOrThrow({
+    where: { id: companyId },
+    select: { subscriptionPlan: true },
+  });
+  const autoApprove = company.subscriptionPlan === 'INVENTORY';
+
   return prisma.materialRequisition.create({
     data: {
       projectId,
@@ -179,6 +197,8 @@ export async function createRequisition(
       reqNumber: await nextSequentialNumber(companyId, 'indent'),
       notes: input.notes,
       requestedBy: userId,
+      status: autoApprove ? 'APPROVED' : undefined,
+      approvedBy: autoApprove ? userId : undefined,
       lines: { create: lineCreates },
     },
     include: {
@@ -321,26 +341,36 @@ export async function createPO(
   }));
   const totalAmount = round2(lines.reduce((s, l) => s + l.amount, 0));
 
-  // FIX (EST-M6): Generate poNumber server-side if not provided.
-  const poNumber = input.poNumber || await nextSequentialNumber(companyId, 'po');
+  // Generate poNumber server-side if not provided; sync counter when user keeps/overrides a sequential suggestion.
+  const poNumber = await resolveSequentialNumber(companyId, 'po', input.poNumber);
 
-  const po = await prisma.purchaseOrder.create({
-    data: {
-      projectId,
-      companyId,
-      requisitionId: input.requisitionId,
-      poNumber,
-      vendorName: input.vendorName,
-      totalAmount,
-      // FIX (PROCGRN-1): PO is created from an already-approved requisition,
-      // so it starts as APPROVED — no separate PO approval step needed.
-      // Without this, the GRN endpoint rejects with "Cannot create GRN
-      // against a PO with status DRAFT" because the schema defaults to DRAFT.
-      status: 'APPROVED',
-      lines: { create: lines },
-    },
-    include: { lines: { include: { resource: { select: { id: true, name: true } } } } },
-  });
+  let po;
+  try {
+    po = await prisma.purchaseOrder.create({
+      data: {
+        projectId,
+        companyId,
+        requisitionId: input.requisitionId,
+        poNumber,
+        vendorName: input.vendorName,
+        totalAmount,
+        // FIX (PROCGRN-1): PO is created from an already-approved requisition,
+        // so it starts as APPROVED — no separate PO approval step needed.
+        // Without this, the GRN endpoint rejects with "Cannot create GRN
+        // against a PO with status DRAFT" because the schema defaults to DRAFT.
+        status: 'APPROVED',
+        lines: { create: lines },
+      },
+      include: { lines: { include: { resource: { select: { id: true, name: true } } } } },
+    });
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      throw ApiError.conflict(
+        `PO number "${poNumber}" already exists. Edit the number or clear it to auto-assign.`,
+      );
+    }
+    throw err;
+  }
 
   // Fire-and-forget: rate alerts may touch Redis (Bull). Awaiting them made the
   // HTTP response hang when Redis was slow/unreachable — PO was saved but the
@@ -356,6 +386,20 @@ export async function createPO(
   );
 
   return po;
+}
+
+export async function getNextDocumentNumbers(
+  companyId: string,
+  userId: string,
+  role: string,
+  projectId: string,
+) {
+  await assertProjectAccess(companyId, userId, role as never, projectId);
+  const [po, grn] = await Promise.all([
+    peekNextSequentialNumber(companyId, 'po'),
+    peekNextSequentialNumber(companyId, 'grn'),
+  ]);
+  return { po, grn };
 }
 
 export async function createGRN(
@@ -425,13 +469,17 @@ export async function createGRN(
     }
   }
 
-  const grn = await prisma.$transaction(async (tx) => {
+  const grnNumber = await resolveSequentialNumber(companyId, 'grn', input.grnNumber);
+
+  let grn;
+  try {
+    grn = await prisma.$transaction(async (tx) => {
     const created = await tx.goodsReceiptNote.create({
       data: {
         projectId,
         companyId,
         purchaseOrderId: input.purchaseOrderId,
-        grnNumber: input.grnNumber,
+        grnNumber,
         receivedDate: input.receivedDate,
         notes: input.notes,
         lines: { create: input.lines },
@@ -561,6 +609,14 @@ export async function createGRN(
 
     return created;
   });
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      throw ApiError.conflict(
+        `GRN number "${grnNumber}" already exists. Edit the number or clear it to auto-assign.`,
+      );
+    }
+    throw err;
+  }
 
   // Inventory only: draft vendor bill from received qty × PO rates.
   // After stock is committed — failures are non-fatal (do not roll back GRN).
@@ -652,8 +708,32 @@ export async function issueStockForDailyReport(
   }
 }
 
+export interface IssueStockLineResult {
+  movementId: string;
+  resourceId: string;
+  resourceName: string;
+  unit: string;
+  quantityIssued: number;
+  quantityOnHand: number;
+  unitPrice: number | null;
+}
+
+export interface IssueStockResult extends IssueStockLineResult {
+  /** All OUT movement ids (one per issued material). */
+  movementIds: string[];
+  /** One result per issued material line. */
+  lines: IssueStockLineResult[];
+  notes: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  customerAddress: string | null;
+  draftInvoiceId: string | null;
+}
+
 /**
  * Manual stock issue (OUT) — inventory store operations, sales fulfilment, etc.
+ * INVENTORY_UX_POLISH (D9): processes ALL lines in one DB transaction; fails
+ * (rolling back the whole request) if any line exceeds on-hand stock.
  * Requires on-hand balance; throws if insufficient stock.
  */
 export async function issueStockManual(
@@ -661,91 +741,128 @@ export async function issueStockManual(
   userId: string,
   role: string,
   projectId: string,
-  input: {
-    resourceId: string;
-    quantity: number;
-    notes?: string;
-    customerName?: string;
-    unitPrice?: number;
-  },
-) {
+  input: IssueStockInput,
+): Promise<IssueStockResult> {
   await assertProjectAccess(companyId, userId, role as never, projectId);
 
-  const resource = await prisma.resource.findFirst({
-    where: { id: input.resourceId, companyId },
+  // Normalize legacy single-resource body to the multi-line shape.
+  const rawLines: Array<{ resourceId: string; quantity: number; unitPrice?: number }> =
+    input.lines && input.lines.length > 0
+      ? input.lines
+      : [
+          {
+            resourceId: input.resourceId!,
+            quantity: input.quantity!,
+            unitPrice: input.unitPrice,
+          },
+        ];
+
+  // Defensive server-side duplicate block (UI also blocks duplicates).
+  const seen = new Set<string>();
+  for (const l of rawLines) {
+    if (seen.has(l.resourceId)) {
+      throw ApiError.badRequest('Each material can be issued only once per request.');
+    }
+    seen.add(l.resourceId);
+  }
+
+  const resources = await prisma.resource.findMany({
+    where: { id: { in: rawLines.map((l) => l.resourceId) }, companyId },
     select: { id: true, name: true, unit: true },
   });
-  if (!resource) throw ApiError.notFound('Resource not found');
+  const resourceById = new Map(resources.map((r) => [r.id, r]));
+  for (const l of rawLines) {
+    if (!resourceById.has(l.resourceId)) throw ApiError.notFound('Resource not found');
+  }
 
-  const result = await prisma.$transaction(async (tx) => {
+  const lineResults = await prisma.$transaction(async (tx) => {
     const location = await getOrCreateProjectStockLocation(companyId, projectId, tx);
-    const balance = await tx.stockBalance.findUnique({
-      where: {
-        locationId_resourceId: { locationId: location.id, resourceId: input.resourceId },
-      },
-    });
-    const onHand = balance ? Number(balance.quantity) : 0;
-    if (!balance || onHand < input.quantity) {
-      if (!balance || onHand === 0) {
+    const results: IssueStockLineResult[] = [];
+    for (const l of rawLines) {
+      const resource = resourceById.get(l.resourceId)!;
+      const balance = await tx.stockBalance.findUnique({
+        where: {
+          locationId_resourceId: { locationId: location.id, resourceId: l.resourceId },
+        },
+      });
+      const onHand = balance ? Number(balance.quantity) : 0;
+      if (!balance || onHand < l.quantity) {
+        if (!balance || onHand === 0) {
+          throw ApiError.unprocessable(
+            `${resource.name}: no stock on hand — receive via GRN first`,
+          );
+        }
         throw ApiError.unprocessable(
-          `${resource.name}: no stock on hand — receive via GRN first`,
+          `${resource.name}: only ${onHand} ${resource.unit} on hand, requested ${l.quantity} ${resource.unit}`,
         );
       }
-      throw ApiError.unprocessable(
-        `${resource.name}: only ${onHand} ${resource.unit} on hand, requested ${input.quantity} ${resource.unit}`,
-      );
+
+      await tx.stockBalance.update({
+        where: { id: balance.id },
+        data: { quantity: { decrement: l.quantity } },
+      });
+      const movement = await tx.stockMovement.create({
+        data: {
+          locationId: location.id,
+          resourceId: l.resourceId,
+          quantity: l.quantity,
+          type: 'OUT',
+          referenceType: 'MANUAL_ISSUE',
+          referenceId: null,
+        },
+      });
+
+      results.push({
+        movementId: movement.id,
+        resourceId: resource.id,
+        resourceName: resource.name,
+        unit: resource.unit,
+        quantityIssued: l.quantity,
+        quantityOnHand: round3(onHand - l.quantity),
+        unitPrice: l.unitPrice ?? null,
+      });
     }
-
-    await tx.stockBalance.update({
-      where: { id: balance.id },
-      data: { quantity: { decrement: input.quantity } },
-    });
-    const movement = await tx.stockMovement.create({
-      data: {
-        locationId: location.id,
-        resourceId: input.resourceId,
-        quantity: input.quantity,
-        type: 'OUT',
-        referenceType: 'MANUAL_ISSUE',
-        referenceId: null,
-      },
-    });
-
-    return {
-      movementId: movement.id,
-      resourceId: resource.id,
-      resourceName: resource.name,
-      unit: resource.unit,
-      quantityIssued: input.quantity,
-      quantityOnHand: round3(onHand - input.quantity),
-      notes: input.notes ?? null,
-      customerName: input.customerName?.trim() || null,
-      unitPrice: input.unitPrice ?? null,
-    };
+    return results;
   });
 
+  const first = lineResults[0];
+
   // Inventory only: draft sales invoice — non-fatal after stock is committed.
+  // D9: one draft invoice with one line item per issued material.
   let draftInvoiceId: string | null = null;
   try {
     const draft = await createDraftInvoiceFromStockIssue({
       companyId,
       projectId,
-      stockMovementId: result.movementId,
-      resourceId: result.resourceId,
-      quantity: result.quantityIssued,
-      unitPrice: result.unitPrice,
-      customerName: result.customerName,
-      notes: result.notes,
+      customerName: input.customerName,
+      customerPhone: input.customerPhone,
+      customerAddress: input.customerAddress,
+      notes: input.notes,
+      lines: lineResults.map((r) => ({
+        stockMovementId: r.movementId,
+        resourceId: r.resourceId,
+        quantity: r.quantityIssued,
+        unitPrice: r.unitPrice,
+      })),
     });
     draftInvoiceId = draft?.id ?? null;
   } catch (err) {
     logger.warn('Auto draft invoice from stock issue failed (non-fatal)', {
       error: String(err),
-      movementId: result.movementId,
+      movementId: first.movementId,
     });
   }
 
-  return { ...result, draftInvoiceId };
+  return {
+    ...first,
+    movementIds: lineResults.map((r) => r.movementId),
+    lines: lineResults,
+    notes: input.notes?.trim() || null,
+    customerName: input.customerName?.trim() || null,
+    customerPhone: input.customerPhone?.trim() || null,
+    customerAddress: input.customerAddress?.trim() || null,
+    draftInvoiceId,
+  };
 }
 
 export async function getResourceUtilization(companyId: string, projectId: string) {
