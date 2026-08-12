@@ -25,7 +25,8 @@ export function FullBleedCta() {
             Ready for ERP or exclusive Inventory?
           </Text>
           <Text className={`text-white/70 ${isMarketingDesktop ? 'text-lg max-w-xl' : 'text-base'}`}>
-            14-day free trial for Construction ERP or Inventory. No credit card.
+            14-day free trial for Construction ERP or Inventory (retail through equipment profiles). No
+            credit card.
           </Text>
           <View className={`mt-4 ${isMarketingDesktop ? 'max-w-md' : ''}`}>
             <FreeTrialBadge onDark />

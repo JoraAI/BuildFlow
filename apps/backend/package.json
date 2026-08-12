@@ -47,6 +47,7 @@
     "pdf-parse": "^2.4.5",
     "pdfkit": "^0.19.1",
     "razorpay": "^2.9.6",
+    "tesseract.js": "^7.0.0",
     "twilio": "^6.0.2",
     "uuid": "^11.1.0",
     "winston": "^3.13.0",

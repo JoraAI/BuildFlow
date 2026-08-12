@@ -781,14 +781,22 @@ pnpm dev               # turbo run dev (backend + mobile concurrently)
 
 Login: main app `/login` → construction dashboard / projects.
 
-#### Inventory — Hyderabad Building Materials (INVENTORY plan)
+#### Inventory demos (INVENTORY plan) — all profiles
 
-| Role | Email | Password |
-|------|-------|----------|
-| Owner | `owner@hydmaterials.com` | `Test@1234` |
-| Inventory Manager | `manager@hydmaterials.com` | `Test@1234` |
+Password **`Test@1234`**. Login → **`/inventory`**.
 
-Login: main app `/login` → redirects to **`/inventory`** shell (Stock, Materials, Procurement, Invoices, Bills, Settings). Seed includes 4 materials with opening stock.
+| Profile | Company | Owner email |
+|---------|---------|-------------|
+| MATERIAL_SUPPLIER (rich: 2 warehouses, parties, price override) | Hyderabad Building Materials | `owner@hydmaterials.com` |
+| (manager) | same | `manager@hydmaterials.com` |
+| RETAIL | City Hardware Retail | `owner@cityhardware.com` |
+| WHOLESALE | Deccan Wholesale Mart | `owner@deccanwholesale.com` |
+| DISTRIBUTION | South Distro Spares | `owner@southdistro.com` |
+| TRADING | Apex Trading Co | `owner@apextrading.com` |
+| EQUIPMENT | Forge Equipment Dealers | `owner@forgeequip.com` |
+| GENERAL | General Goods Store | `owner@generalstore.com` |
+
+Rich materials demo also seeds SKUs, reorder points, customer/vendor, and opening stock across Main Store + Branch — Uppal.
 
 #### Platform admin
 

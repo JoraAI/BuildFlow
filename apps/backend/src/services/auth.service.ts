@@ -17,7 +17,7 @@ import { blacklistToken, isTokenBlacklisted } from '../lib/redis';
 import { recordAudit } from '../utils/audit';
 import { initializeTrial, notifyNewTrialSignup } from './subscription.service';
 import { env } from '../config/env';
-import { Role, INVENTORY_DEFAULT_PROJECT } from '@buildflow/shared';
+import { Role, INVENTORY_DEFAULT_PROJECT, InventoryBusinessProfile } from '@buildflow/shared';
 import { SubscriptionPlan } from '@prisma/client';
 import type { RegisterCompanyInput, LoginInput } from '@buildflow/shared';
 
@@ -43,6 +43,8 @@ export interface AuthResponse {
     defaultProjectId: string | null;
     enabledModules: string[];
     subscriptionPlan: string;
+    // INVENTORY_HORIZONTAL_PLATFORM (Phase 0): null on construction plans.
+    inventoryProfile: InventoryBusinessProfile | null;
   };
   accessToken: string;
   refreshToken: string;
@@ -62,6 +64,7 @@ async function toPublicUser(
       logoUrl: string | null;
       subscriptionPlan: string;
       defaultProjectId: string | null;
+      inventoryProfile: InventoryBusinessProfile | null;
     };
   },
 ) {
@@ -88,6 +91,11 @@ async function toPublicUser(
     defaultProjectId: user.company.defaultProjectId,
     enabledModules: [...(PLAN_MODULES[planKey] ?? PLAN_MODULES.STARTER)],
     subscriptionPlan: user.company.subscriptionPlan,
+    // Hidden (null) for construction; inventory tenants get their profile.
+    inventoryProfile:
+      productMode === 'inventory'
+        ? (user.company.inventoryProfile ?? InventoryBusinessProfile.GENERAL)
+        : null,
   };
 }
 
@@ -195,6 +203,9 @@ export async function registerCompany(input: RegisterCompanyInput, ipAddress?: s
       logoUrl: company.logoUrl ?? null,
       subscriptionPlan: isInventory ? SubscriptionPlan.INVENTORY : SubscriptionPlan.STARTER,
       defaultProjectId,
+      inventoryProfile: isInventory
+        ? (company.inventoryProfile ?? InventoryBusinessProfile.GENERAL)
+        : null,
     },
   });
 
@@ -215,7 +226,15 @@ export async function login(
   const user = await prisma.user.findUnique({
     where: { email: input.email },
     include: {
-      company: { select: { name: true, logoUrl: true, subscriptionPlan: true, defaultProjectId: true } },
+      company: {
+        select: {
+          name: true,
+          logoUrl: true,
+          subscriptionPlan: true,
+          defaultProjectId: true,
+          inventoryProfile: true,
+        },
+      },
     },
   });
   if (!user) throw ApiError.unauthorized('Invalid email or password');
@@ -292,7 +311,15 @@ export async function me(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: {
-      company: { select: { name: true, logoUrl: true, subscriptionPlan: true, defaultProjectId: true } },
+      company: {
+        select: {
+          name: true,
+          logoUrl: true,
+          subscriptionPlan: true,
+          defaultProjectId: true,
+          inventoryProfile: true,
+        },
+      },
     },
   });
   if (!user) throw ApiError.notFound('User not found');

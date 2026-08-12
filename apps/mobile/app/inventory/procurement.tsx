@@ -11,16 +11,28 @@ import { useRouter } from 'expo-router';
 import { Card, Badge, Button, Input, EmptyState, LoadingSkeleton, Select, toast } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
-import { indentAvailableForNewPo, poAvailableForNewGrn, poRemainingByResource } from '@buildflow/shared';
+import {
+  indentAvailableForNewPo,
+  poAvailableForNewGrn,
+  poRemainingByResource,
+  getInventoryLabel,
+  getInventoryLabelMode,
+  getIndentPlural,
+} from '@buildflow/shared';
 import {
   useRequisitions,
   useCreateRequisition,
   useCreatePurchaseOrder,
+  useApprovePurchaseOrder,
   useCreateGRN,
   useNextProcurementNumbers,
   type Requisition,
 } from '@/services/expansion.queries';
 import { useResources } from '@/services/estimate.queries';
+import { useWarehouses, type Warehouse } from '@/services/warehouse.queries';
+import { downloadReportPdf } from '@/services/report-download';
+import { useReorderSuggestions, useOrderReorderItems, type ReorderSuggestion } from '@/services/reorder.queries';
+import { confirmAsync } from '@/utils/confirm';
 
 const APPROVAL_COLOR: Record<string, 'warning' | 'success' | 'danger' | 'neutral'> = {
   DRAFT: 'neutral',
@@ -29,7 +41,7 @@ const APPROVAL_COLOR: Record<string, 'warning' | 'success' | 'danger' | 'neutral
   REJECTED: 'danger',
 };
 
-type Section = 'indents' | 'orders' | 'grns';
+type Section = 'indents' | 'orders' | 'grns' | 'reorder';
 
 /** Poll refetch until the list shows the expected change (or timeout). */
 async function bufferUntilVisible(
@@ -66,9 +78,19 @@ export default function InventoryProcurementScreen() {
   const { data: resources } = useResources();
   const createRequisition = useCreateRequisition(projectId);
   const createPo = useCreatePurchaseOrder(projectId);
+  const approvePo = useApprovePurchaseOrder(projectId);
   const createGrn = useCreateGRN(projectId);
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.2/4.3): low-stock reorder queue.
+  const { data: suggestions, isLoading: reorderLoading, refetch: refetchReorder } = useReorderSuggestions();
+  const orderReorder = useOrderReorderItems();
 
   const resourceList = resources?.data ?? [];
+
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 0): profile-based wording.
+  // Generic tenants see "Purchase request(s)"; MATERIAL_SUPPLIER keeps "Indent(s)".
+  const labelMode = getInventoryLabelMode(user?.inventoryProfile ?? null);
+  const indentLabel = getInventoryLabel('indent', labelMode);
+  const indentLabelPlural = getIndentPlural(labelMode);
 
   // Locked picker rules (PROCUREMENT_PICKER_PERF + INVENTORY_UX_POLISH D3/D4):
   // New PO lists APPROVED indents with zero POs; Record GRN lists POs with qty left.
@@ -105,11 +127,11 @@ export default function InventoryProcurementScreen() {
     <View className="flex-1 bg-surface">
       <View className="px-4 pt-4 pb-2">
         <Text className="text-2xl font-bold text-text">Procurement</Text>
-        <Text className="text-sm text-muted mt-0.5">Create indent → Create PO → Record GRN</Text>
+        <Text className="text-sm text-muted mt-0.5">{indentLabel} → Create PO → Record GRN</Text>
       </View>
 
       <View className="flex-row flex-wrap px-4 pb-2 gap-2 items-center">
-        {(['indents', 'orders', 'grns'] as Section[]).map((s) => (
+        {(['indents', 'orders', 'grns', 'reorder'] as Section[]).map((s) => (
           <Pressable
             key={s}
             disabled={buffering}
@@ -119,14 +141,20 @@ export default function InventoryProcurementScreen() {
             } ${buffering ? 'opacity-50' : ''}`}
           >
             <Text className={`text-xs font-medium ${section === s ? 'text-white' : 'text-muted'}`}>
-              {s === 'indents' ? 'Indents' : s === 'orders' ? 'Purchase orders' : 'Goods receipts'}
+              {s === 'indents'
+                ? indentLabelPlural
+                : s === 'orders'
+                  ? 'Purchase orders'
+                  : s === 'grns'
+                    ? 'Goods receipts'
+                    : 'Reorder'}
             </Text>
           </Pressable>
         ))}
         <View className="flex-1" />
         {section === 'indents' && (
           <Button
-            label="New indent"
+            label={`New ${indentLabel}`}
             variant="accent"
             size="sm"
             disabled={buffering}
@@ -177,6 +205,8 @@ export default function InventoryProcurementScreen() {
         <IndentsSection
           isLoading={reqLoading}
           requisitions={requisitions ?? []}
+          indentLabel={indentLabel}
+          indentLabelPlural={indentLabelPlural}
           onCreatePo={openCreatePoForIndent}
         />
       )}
@@ -186,7 +216,15 @@ export default function InventoryProcurementScreen() {
           requisitions={requisitions ?? []}
           isLoading={reqLoading}
           onRecordGrn={openRecordGrnForPo}
+          onApprovePo={async (poId) => {
+            await approvePo.mutateAsync(poId);
+            toast.success('Purchase order approved');
+            void refetch();
+          }}
           onGoToIndents={() => setSection('indents')}
+          indentLabel={indentLabel}
+          indentLabelPlural={indentLabelPlural}
+          itemLabel={getInventoryLabel('item', labelMode)}
         />
       )}
 
@@ -198,18 +236,48 @@ export default function InventoryProcurementScreen() {
         />
       )}
 
+      {section === 'reorder' && (
+        <ReorderSection
+          suggestions={suggestions ?? []}
+          isLoading={reorderLoading}
+          ordering={orderReorder.isPending}
+          itemLabel={getInventoryLabel('item', labelMode)}
+          onOrder={async (resourceIds) => {
+            const ok = await confirmAsync(
+              'Create purchase order?',
+              'An auto-approved purchase request plus a PO (preferred vendor + reorder qty) will be created for the selected low-stock items.',
+            );
+            if (!ok) return;
+            try {
+              const result = await orderReorder.mutateAsync(resourceIds);
+              toast.success(
+                result.purchaseOrder.status === 'APPROVED'
+                  ? `${result.suggestionCount} item(s) ordered — ${result.purchaseOrder.poNumber} approved`
+                  : `${result.suggestionCount} item(s) ordered — ${result.purchaseOrder.poNumber} pending approval`,
+              );
+              setSection('orders');
+              void refetch();
+            } catch (e) {
+              toast.error(e instanceof Error ? e.message : 'Could not create purchase order');
+            }
+          }}
+        />
+      )}
+
       <CreateIndentModal
         open={createIndentOpen}
         onClose={() => {
           if (!buffering) setCreateIndentOpen(false);
         }}
         resources={resourceList}
+        indentLabel={indentLabel}
+        itemLabel={getInventoryLabel('item', labelMode)}
         onSubmit={async (lines, notes) => {
           setBuffering(true);
           try {
             const created = await createRequisition.mutateAsync({ lines, notes });
             await bufferUntilVisible(refetch, (list) => list.some((r) => r.id === created.id));
-            toast.success('Indent created & approved');
+            toast.success(`${indentLabel} created & approved`);
             setCreateIndentOpen(false);
             setSection('indents');
           } finally {
@@ -224,6 +292,9 @@ export default function InventoryProcurementScreen() {
         projectId={projectId}
         requisitions={requisitions ?? []}
         initialRequisitionId={prefillRequisitionId}
+        indentLabel={indentLabel}
+        indentLabelPlural={indentLabelPlural}
+        itemLabel={getInventoryLabel('item', labelMode)}
         onSubmit={async (input) => {
           setBuffering(true);
           try {
@@ -280,10 +351,14 @@ export default function InventoryProcurementScreen() {
 function IndentsSection({
   isLoading,
   requisitions,
+  indentLabel,
+  indentLabelPlural,
   onCreatePo,
 }: {
   isLoading: boolean;
   requisitions: Requisition[];
+  indentLabel: string;
+  indentLabelPlural: string;
   onCreatePo: (requisitionId: string) => void;
 }) {
   return (
@@ -314,7 +389,7 @@ function IndentsSection({
               </View>
             ) : item.status === 'APPROVED' ? (
               <Text className="text-xs text-muted mt-3">
-                Purchase order already created for this indent.
+                Purchase order already created for this {indentLabel.toLowerCase()}.
               </Text>
             ) : null}
           </Card>
@@ -327,8 +402,8 @@ function IndentsSection({
           </View>
         ) : (
           <EmptyState
-            title="No indents yet"
-            description="Create an indent and it is approved instantly - then raise a purchase order against it."
+            title={`No ${indentLabelPlural.toLowerCase()} yet`}
+            description={`Create a ${indentLabel.toLowerCase()} and it is approved instantly - then raise a purchase order against it.`}
           />
         )
       }
@@ -341,11 +416,17 @@ function CreateIndentModal({
   open,
   onClose,
   resources,
+  indentLabel,
+  itemLabel,
   onSubmit,
 }: {
   open: boolean;
   onClose: () => void;
   resources: Array<{ id: string; name: string; unit: string }>;
+  /** INVENTORY_HORIZONTAL_PLATFORM (Phase 0): 'Indent' | 'Purchase request'. */
+  indentLabel: string;
+  /** INVENTORY_HORIZONTAL_PLATFORM (Phase 0): 'Material' | 'Item'. */
+  itemLabel: string;
   onSubmit: (lines: Array<{ resourceId: string; quantity: number; unit: string }>, notes?: string) => Promise<void>;
 }) {
   type DraftIndentLine = { key: string; resourceId: string; quantity: string };
@@ -386,14 +467,16 @@ function CreateIndentModal({
 
   const submit = async () => {
     setError('');
+    const itemLower = itemLabel.toLowerCase();
+    const indentLower = indentLabel.toLowerCase();
     const used = new Set<string>();
     for (const l of lines) {
       if (!l.resourceId) {
-        setError('Choose a material for every line.');
+        setError(`Choose a ${itemLower} for every line.`);
         return;
       }
       if (used.has(l.resourceId)) {
-        setError('Each material can appear only once per indent.');
+        setError(`Each ${itemLower} can appear only once per ${indentLower}.`);
         return;
       }
       used.add(l.resourceId);
@@ -423,17 +506,18 @@ function CreateIndentModal({
   };
 
   return (
-    <ModalShell open={open} onClose={onClose} title="New indent" closeDisabled={saving}>
+    <ModalShell open={open} onClose={onClose} title={`New ${indentLabel}`} closeDisabled={saving}>
       <Text className="text-xs text-muted mb-3">
-        Create a material requisition. It is approved instantly - you can raise a purchase order
-        against it right away. Add multiple materials to procure them in one go.
+        Create a {indentLabel === 'Indent' ? 'material requisition' : 'purchase request'}. It is
+        approved instantly - you can raise a purchase order against it right away. Add multiple{' '}
+        {indentLabel === 'Indent' ? 'materials' : 'items'} to procure them in one go.
       </Text>
       {lines.map((line, idx) => {
         const unit = resources.find((r) => r.id === line.resourceId)?.unit;
         return (
           <View key={line.key} className="rounded-xl border border-border p-3 mb-2">
             <View className="flex-row items-center justify-between mb-1">
-              <Text className="text-xs font-bold text-text">Material {idx + 1}</Text>
+              <Text className="text-xs font-bold text-text">{itemLabel} {idx + 1}</Text>
               {lines.length > 1 ? (
                 <Pressable
                   disabled={saving}
@@ -445,20 +529,20 @@ function CreateIndentModal({
               ) : null}
             </View>
             <Select
-              label="Material"
+              label={itemLabel}
               value={line.resourceId || undefined}
               onChange={(v) => {
                 if (!v) return;
                 // Double-guard duplicates (options already exclude them).
                 if (lines.some((l) => l.key !== line.key && l.resourceId === v)) {
-                  setError('Each material can appear only once per indent.');
+                  setError(`Each ${itemLabel.toLowerCase()} can appear only once per ${indentLabel.toLowerCase()}.`);
                   return;
                 }
                 setError('');
                 updateLine(line.key, { resourceId: v });
               }}
               options={optionsFor(line)}
-              placeholder="Choose material"
+              placeholder={`Choose ${itemLabel.toLowerCase()}`}
               disabled={saving}
             />
             <View className="mt-2">
@@ -473,7 +557,7 @@ function CreateIndentModal({
         );
       })}
       <Button
-        label="+ Add material"
+        label={`+ Add ${itemLabel.toLowerCase()}`}
         variant="secondary"
         size="sm"
         fullWidth
@@ -484,7 +568,7 @@ function CreateIndentModal({
       <Input label="Notes (optional)" value={notes} onChangeText={setNotes} multiline />
       {error ? <Text className="text-danger text-sm mt-2">{error}</Text> : null}
       <View className="h-4" />
-      <Button label="Create indent" onPress={submit} loading={saving} fullWidth />
+      <Button label={`Create ${indentLabel.toLowerCase()}`} onPress={submit} loading={saving} fullWidth />
     </ModalShell>
   );
 }
@@ -549,12 +633,20 @@ function OrdersSection({
   requisitions,
   isLoading,
   onRecordGrn,
+  onApprovePo,
   onGoToIndents,
+  indentLabel,
+  indentLabelPlural,
+  itemLabel,
 }: {
   requisitions: Requisition[];
   isLoading?: boolean;
   onRecordGrn: (purchaseOrderId: string) => void;
+  onApprovePo: (purchaseOrderId: string) => Promise<void>;
   onGoToIndents: () => void;
+  indentLabel: string;
+  indentLabelPlural: string;
+  itemLabel: string;
 }) {
   const router = useRouter();
   const pos = allPurchaseOrders(requisitions);
@@ -570,7 +662,7 @@ function OrdersSection({
           <Card className="mb-3 p-4">
             <View className="flex-row items-center justify-between">
               <Text className="text-sm font-bold text-text">{item.poNumber}</Text>
-              <Badge label={item.status ?? 'DRAFT'} />
+              <Badge label={item.status ?? 'DRAFT'} color={item.status === 'SUBMITTED' ? 'warning' : undefined} />
             </View>
             <Text className="text-xs text-muted mt-1">
               {item.vendorName ?? 'Vendor'} · ₹{Number(item.totalAmount ?? 0).toLocaleString('en-IN')}
@@ -591,6 +683,20 @@ function OrdersSection({
                 />
               </View>
             ) : null}
+            {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 4.4): approve a SUBMITTED PO. */}
+            {item.status === 'SUBMITTED' ? (
+              <View className="mt-3 flex-row flex-wrap gap-2">
+                <Button
+                  label="Approve PO"
+                  size="sm"
+                  variant="accent"
+                  onPress={() => void onApprovePo(item.id)}
+                />
+                <Text className="text-[11px] text-muted w-full">
+                  This order is above your auto-approve threshold and needs approval before a GRN can be recorded.
+                </Text>
+              </View>
+            ) : null}
             {canRecordGrn ? (
               <View className="mt-3">
                 <Button label="Record GRN" size="sm" onPress={() => onRecordGrn(item.id)} />
@@ -609,9 +715,14 @@ function OrdersSection({
         ) : (
           <EmptyState
             title="No purchase orders"
-            description="Create a PO from an approved indent to order materials."
+            description={`Create a PO from an approved ${indentLabel.toLowerCase()} to order ${itemLabel.toLowerCase()}s.`}
             action={
-              <Button label="Go to Indents" variant="secondary" size="sm" onPress={onGoToIndents} />
+              <Button
+                label={`Go to ${indentLabelPlural}`}
+                variant="secondary"
+                size="sm"
+                onPress={onGoToIndents}
+              />
             }
           />
         )
@@ -650,6 +761,15 @@ function GrnsSection({
             {item.poNumber ? `PO ${item.poNumber} · ` : ''}
             {item.lines.length} line{item.lines.length === 1 ? '' : 's'}
           </Text>
+          {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 9.3): printable GRN PDF. */}
+          <View className="flex-row flex-wrap gap-2 mt-3">
+            <Button
+              label="PDF"
+              size="sm"
+              variant="ghost"
+              onPress={() => void downloadReportPdf(`/inventory/pdf/grn/${item.id}`, `grn-${item.grnNumber}.pdf`)}
+            />
+          </View>
         </Card>
       )}
       ListEmptyComponent={
@@ -674,12 +794,119 @@ function GrnsSection({
   );
 }
 
+/** INVENTORY_HORIZONTAL_PLATFORM (Phase 4.2/4.3): low-stock reorder queue. */
+function ReorderSection({
+  suggestions,
+  isLoading,
+  ordering,
+  itemLabel,
+  onOrder,
+}: {
+  suggestions: ReorderSuggestion[];
+  isLoading?: boolean;
+  ordering: boolean;
+  itemLabel: string;
+  onOrder: (resourceIds: string[]) => Promise<void>;
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  return (
+    <FlatList
+      className="flex-1 px-4"
+      data={suggestions}
+      keyExtractor={(s) => s.resourceId}
+      ListHeaderComponent={
+        <View className="pb-2">
+          <Text className="text-xs text-muted">
+            Items below their reorder point. Tap items, then “Order selected” to create an
+            auto-approved purchase request + PO (preferred vendor, reorder qty).
+          </Text>
+          {suggestions.length > 0 ? (
+            <View className="flex-row flex-wrap gap-2 mt-3">
+              <Button
+                label={`Order all (${suggestions.length})`}
+                variant="accent"
+                size="sm"
+                disabled={ordering}
+                onPress={() => void onOrder(suggestions.map((s) => s.resourceId))}
+              />
+              {selected.size > 0 ? (
+                <Button
+                  label={`Order selected (${selected.size})`}
+                  variant="secondary"
+                  size="sm"
+                  disabled={ordering}
+                  onPress={() => void onOrder([...selected])}
+                />
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+      }
+      renderItem={({ item }) => {
+        const isSelected = selected.has(item.resourceId);
+        return (
+          <Pressable
+            onPress={() =>
+              setSelected((prev) => {
+                const next = new Set(prev);
+                if (next.has(item.resourceId)) next.delete(item.resourceId);
+                else next.add(item.resourceId);
+                return next;
+              })
+            }
+            className={`mb-2 rounded-xl border ${isSelected ? 'border-primary bg-primary/5' : 'border-border bg-card'}`}
+          >
+            <View className="p-4">
+              <View className="flex-row items-start justify-between gap-2">
+                <View className="flex-1 min-w-0">
+                  <Text className="text-sm font-bold text-text">{item.name}</Text>
+                  <Text className="text-xs text-muted mt-0.5">
+                    On hand {item.onHand} {item.unit} · reorder point {item.reorderPoint} · ₹{item.catalogRate}/unit
+                  </Text>
+                  <View className="flex-row flex-wrap gap-2 mt-2">
+                    <Badge color="danger" label={`Suggested qty ${item.suggestedQty}`} />
+                    {item.preferredVendor ? (
+                      <Badge color="neutral" label={`Preferred: ${item.preferredVendor.name}`} />
+                    ) : null}
+                    {item.leadTimeDays ? <Badge color="neutral" label={`Lead ${item.leadTimeDays}d`} /> : null}
+                  </View>
+                </View>
+                <View className={`w-5 h-5 rounded border items-center justify-center mt-1 ${isSelected ? 'bg-primary border-primary' : 'border-border'}`}>
+                  {isSelected ? <Text className="text-white text-xs font-bold">✓</Text> : null}
+                </View>
+              </View>
+            </View>
+          </Pressable>
+        );
+      }}
+      ListEmptyComponent={
+        isLoading ? (
+          <View className="gap-3">
+            {[1, 2].map((i) => (
+              <LoadingSkeleton key={i} className="rounded-xl h-20" />
+            ))}
+          </View>
+        ) : (
+          <EmptyState
+            title="No reorder suggestions"
+            description={`Every ${itemLabel.toLowerCase()} is above its reorder point. Set a reorder point on an item to get purchase suggestions here.`}
+          />
+        )
+      }
+      contentContainerStyle={{ paddingBottom: 24 }}
+    />
+  );
+}
+
 function CreatePOModal({
   open,
   onClose,
   projectId,
   requisitions,
   initialRequisitionId,
+  indentLabel,
+  indentLabelPlural,
+  itemLabel,
   onSubmit,
 }: {
   open: boolean;
@@ -687,6 +914,9 @@ function CreatePOModal({
   projectId: string;
   requisitions: Requisition[];
   initialRequisitionId?: string | null;
+  indentLabel: string;
+  indentLabelPlural: string;
+  itemLabel: string;
   onSubmit: (input: {
     poNumber?: string;
     vendorName: string;
@@ -738,7 +968,7 @@ function CreatePOModal({
   const submit = async () => {
     setError('');
     if (!requisitionId || !vendorName) {
-      setError('Choose an approved indent and vendor.');
+      setError(`Choose an approved ${indentLabel.toLowerCase()} and vendor.`);
       return;
     }
     if (!req) return;
@@ -773,17 +1003,18 @@ function CreatePOModal({
   return (
     <ModalShell open={open} onClose={onClose} title="New purchase order" closeDisabled={saving}>
       <Text className="text-xs text-muted mb-3">
-        Raise a PO against an approved indent. Each indent can have only one PO.
+        Raise a PO against an approved {indentLabel.toLowerCase()}. Each{' '}
+        {indentLabel.toLowerCase()} can have only one PO.
       </Text>
       {approved.length === 0 ? (
         <EmptyState
-          title="No indents available"
-          description="Only approved indents without a purchase order can be ordered. Create a new indent first - it is approved instantly."
+          title={`No ${indentLabelPlural.toLowerCase()} available`}
+          description={`Only approved ${indentLabelPlural.toLowerCase()} without a purchase order can be ordered. Create a new ${indentLabel.toLowerCase()} first — it is approved instantly.`}
         />
       ) : (
         <>
           <Select
-            label="Approved indent"
+            label={`Approved ${indentLabel.toLowerCase()}`}
             value={requisitionId}
             onChange={(v) => {
               setRequisitionId(v ?? '');
@@ -853,7 +1084,15 @@ function RecordGrnModal({
     grnNumber?: string;
     purchaseOrderId: string;
     receivedDate: Date;
-    lines: Array<{ resourceId: string; quantity: number; unit: string }>;
+    lines: Array<{ resourceId: string; quantity: number; unit: string; batchCode?: string }>;
+    // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.1): landed costs.
+    freightCost?: number;
+    insuranceCost?: number;
+    handlingCost?: number;
+    customsCost?: number;
+    landedCostAllocation?: 'QUANTITY' | 'VALUE';
+    // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.6): receiving warehouse.
+    locationId?: string;
   }) => Promise<void>;
 }) {
   // Locked rule: list only non-cancelled POs that are NOT yet fully received.
@@ -862,6 +1101,16 @@ function RecordGrnModal({
   const [grnNumber, setGrnNumber] = useState('');
   const [receivedDate, setReceivedDate] = useState(new Date().toISOString().slice(0, 10));
   const [quantities, setQuantities] = useState<Record<string, string>>({});
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.1): landed cost allocation.
+  const [freight, setFreight] = useState('');
+  const [insurance, setInsurance] = useState('');
+  const [handling, setHandling] = useState('');
+  const [customs, setCustoms] = useState('');
+  const [allocation, setAllocation] = useState<'QUANTITY' | 'VALUE'>('QUANTITY');
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.6/9.6): receiving warehouse + per-line batch codes.
+  const [batchCodes, setBatchCodes] = useState<Record<string, string>>({});
+  const [locationId, setLocationId] = useState('');
+  const { data: warehouses } = useWarehouses();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const nextNumbers = useNextProcurementNumbers(projectId, open);
@@ -905,6 +1154,8 @@ function RecordGrnModal({
       setQuantities({});
       setError('');
       setReceivedDate(new Date().toISOString().slice(0, 10));
+      setBatchCodes({});
+      setLocationId('');
     }
   }, [open]);
 
@@ -918,7 +1169,13 @@ function RecordGrnModal({
     const lines = selectedPo.lines
       .map((l) => {
         const qty = Number(quantities[l.resourceId] ?? 0) || 0;
-        return { resourceId: l.resourceId, quantity: qty, unit: l.unit };
+        return {
+          resourceId: l.resourceId,
+          quantity: qty,
+          unit: l.unit,
+          // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3/9.6): per-line batch code.
+          batchCode: batchCodes[l.resourceId]?.trim() || undefined,
+        };
       })
       .filter((l) => l.quantity > 0);
     if (lines.length === 0) {
@@ -932,10 +1189,23 @@ function RecordGrnModal({
         purchaseOrderId: poId,
         receivedDate: new Date(receivedDate),
         lines,
+        freightCost: freight === '' ? undefined : Number(freight),
+        insuranceCost: insurance === '' ? undefined : Number(insurance),
+        handlingCost: handling === '' ? undefined : Number(handling),
+        customsCost: customs === '' ? undefined : Number(customs),
+        landedCostAllocation: allocation,
+        // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.6): receiving warehouse.
+        locationId: locationId || undefined,
       });
       setPoId('');
       setGrnNumber('');
       setQuantities({});
+      setFreight('');
+      setInsurance('');
+      setHandling('');
+      setCustoms('');
+      setBatchCodes({});
+      setLocationId('');
       setReceivedDate(new Date().toISOString().slice(0, 10));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to record GRN');
@@ -979,6 +1249,15 @@ function RecordGrnModal({
           </Text>
           <View className="h-3" />
           <Input label="Received date" value={receivedDate} onChangeText={setReceivedDate} />
+          {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 8.6): receiving warehouse picker. */}
+          <Select
+            label="Receive into warehouse (optional)"
+            value={locationId || undefined}
+            onChange={(v) => setLocationId(v ?? '')}
+            options={(warehouses ?? []).map((w: Warehouse) => ({ title: w.name, value: w.id }))}
+            placeholder="Company default warehouse"
+          />
+          {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3/9.6): per-line batch codes. */}
           {selectedPo ? (
             <View className="mt-3">
               <Text className="text-sm font-bold text-text mb-2">Items to receive (remaining)</Text>
@@ -986,24 +1265,65 @@ function RecordGrnModal({
                 const rem = remaining.get(l.resourceId) ?? 0;
                 if (rem <= 0) return null;
                 return (
-                  <View key={l.id} className="flex-row items-center mb-2 gap-2">
-                    <Text className="flex-1 text-xs text-text" numberOfLines={1}>
-                      {l.resource?.name ?? l.resourceId} (remaining {rem} {l.unit})
-                    </Text>
-                    <View className="w-24">
-                      <Input
-                        label=""
-                        placeholder="Qty"
-                        value={quantities[l.resourceId] ?? String(rem)}
-                        onChangeText={(v) => setQuantities((prev) => ({ ...prev, [l.resourceId]: v }))}
-                        keyboardType="numeric"
-                      />
+                  <View key={l.id} className="mb-2">
+                    <View className="flex-row items-center mb-1 gap-2">
+                      <Text className="flex-1 text-xs text-text" numberOfLines={1}>
+                        {l.resource?.name ?? l.resourceId} (remaining {rem} {l.unit})
+                      </Text>
+                      <View className="w-24">
+                        <Input
+                          label=""
+                          placeholder="Qty"
+                          value={quantities[l.resourceId] ?? String(rem)}
+                          onChangeText={(v) => setQuantities((prev) => ({ ...prev, [l.resourceId]: v }))}
+                          keyboardType="numeric"
+                        />
+                      </View>
                     </View>
+                    {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3/9.6): per-line batch. */}
+                    <Input
+                      label="Batch / lot code (optional)"
+                      value={batchCodes[l.resourceId] ?? ''}
+                      onChangeText={(v) => setBatchCodes((prev) => ({ ...prev, [l.resourceId]: v }))}
+                      autoCapitalize="characters"
+                      placeholder="e.g. LOT-2026-A"
+                    />
                   </View>
                 );
               })}
             </View>
           ) : null}
+          {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 5.1): landed costs. */}
+          <View className="mt-4 p-3 rounded-xl border border-border bg-surface">
+            <Text className="text-sm font-bold text-text mb-1">Landed costs (optional)</Text>
+            <Text className="text-[11px] text-muted mb-2">
+              Extra acquisition costs are added to each item's unit cost (by quantity or by value)
+              and update the weighted-average cost.
+            </Text>
+            <View className="flex-row flex-wrap gap-2">
+              <View className="flex-1 min-w-[130px]">
+                <Input label="Freight (₹)" value={freight} onChangeText={setFreight} keyboardType="numeric" placeholder="0" />
+              </View>
+              <View className="flex-1 min-w-[130px]">
+                <Input label="Insurance (₹)" value={insurance} onChangeText={setInsurance} keyboardType="numeric" placeholder="0" />
+              </View>
+              <View className="flex-1 min-w-[130px]">
+                <Input label="Handling (₹)" value={handling} onChangeText={setHandling} keyboardType="numeric" placeholder="0" />
+              </View>
+              <View className="flex-1 min-w-[130px]">
+                <Input label="Customs (₹)" value={customs} onChangeText={setCustoms} keyboardType="numeric" placeholder="0" />
+              </View>
+            </View>
+            <Select
+              label="Allocate by"
+              value={allocation}
+              onChange={(v) => v && setAllocation(v as 'QUANTITY' | 'VALUE')}
+              options={[
+                { title: 'Quantity (same per unit)', value: 'QUANTITY' },
+                { title: 'Value (proportional to line value)', value: 'VALUE' },
+              ]}
+            />
+          </View>
           {error ? <Text className="text-danger text-sm mt-2">{error}</Text> : null}
           <View className="h-4" />
           <Button label="Record GRN" onPress={submit} loading={saving} fullWidth />

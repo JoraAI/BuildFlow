@@ -124,6 +124,16 @@ export async function createResource(
   input: CreateResourceInput,
   ipAddress?: string,
 ) {
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): preferred vendor must belong to
+  // the same company (FK only checks existence, not tenancy).
+  if (input.preferredVendorId) {
+    const vendor = await prisma.vendor.findFirst({
+      where: { id: input.preferredVendorId, companyId },
+      select: { id: true },
+    });
+    if (!vendor) throw ApiError.notFound('Vendor not found');
+  }
+
   const resource = await prisma.resource.create({
     data: {
       companyId,
@@ -136,6 +146,17 @@ export async function createResource(
       brandOrSpec: input.brandOrSpec ?? null,
       category: input.category ?? null,
       imageUrl: input.imageUrl ?? null,
+      // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.2): optional item master fields.
+      sku: input.sku ?? null,
+      itemCode: input.itemCode ?? null,
+      barcode: input.barcode ?? null,
+      secondaryUnit: input.secondaryUnit ?? null,
+      conversionFactor: input.conversionFactor ?? 1,
+      reorderPoint: input.reorderPoint ?? 0,
+      // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): procurement automation.
+      preferredVendorId: input.preferredVendorId ?? null,
+      reorderQty: input.reorderQty ?? null,
+      leadTimeDays: input.leadTimeDays ?? null,
       lastRateUpdatedAt: new Date(),
     },
   });
@@ -176,6 +197,15 @@ export async function updateResource(
 ) {
   const existing = await getResource(companyId, id);
 
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): validate preferred vendor tenancy.
+  if (input.preferredVendorId) {
+    const vendor = await prisma.vendor.findFirst({
+      where: { id: input.preferredVendorId, companyId },
+      select: { id: true },
+    });
+    if (!vendor) throw ApiError.notFound('Vendor not found');
+  }
+
   // If rate changed, archive old rate to price history (handled separately by
   // price-history endpoint; here we just update the master).
   // FIX (EST-H7): Write a MaterialPriceHistory row when rate changes so
@@ -194,6 +224,16 @@ export async function updateResource(
       ...(input.brandOrSpec !== undefined && { brandOrSpec: input.brandOrSpec }),
       ...(input.category !== undefined && { category: input.category }),
       ...(input.imageUrl !== undefined && { imageUrl: input.imageUrl }),
+      ...(input.sku !== undefined && { sku: input.sku }),
+      ...(input.itemCode !== undefined && { itemCode: input.itemCode }),
+      ...(input.barcode !== undefined && { barcode: input.barcode }),
+      ...(input.secondaryUnit !== undefined && { secondaryUnit: input.secondaryUnit }),
+      ...(input.conversionFactor !== undefined && { conversionFactor: input.conversionFactor }),
+      ...(input.reorderPoint !== undefined && { reorderPoint: input.reorderPoint }),
+      // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): procurement automation fields.
+      ...(input.preferredVendorId !== undefined && { preferredVendorId: input.preferredVendorId ?? null }),
+      ...(input.reorderQty !== undefined && { reorderQty: input.reorderQty ?? null }),
+      ...(input.leadTimeDays !== undefined && { leadTimeDays: input.leadTimeDays ?? null }),
       ...(rateChanged && { lastRateUpdatedAt: new Date() }),
     },
   });

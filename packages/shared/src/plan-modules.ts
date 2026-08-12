@@ -94,3 +94,52 @@ export const INVENTORY_DEFAULT_PROJECT = {
   code: 'STORE',
   name: 'Main Store',
 } as const;
+
+/* ------------------------------------------------------------------ */
+/* Inventory horizontal feature flags (INVENTORY_HORIZONTAL_PLATFORM)  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Phase-gated inventory features. All are OFF for every plan until their
+ * roadmap phase ships (see docs/INVENTORY_HORIZONTAL_PLATFORM.md §4):
+ *   - parties           → Phase 1.1 Customer/Vendor master
+ *   - multi_warehouse   → Phase 3.1 multiple StockLocation per company
+ *   - sales_orders      → Phase 2 sales order → challan → invoice path
+ *   - stock_adjustments → Phase 1.3 ADJUST workflow (flip true when shipped)
+ *   - barcode           → Phase 3.4 barcode scan / item codes
+ * UI must gate new entry points behind `hasInventoryFeature` so no phase is
+ * half-visible before its backend + tests land.
+ */
+export type InventoryFeatureFlag =
+  | 'parties'
+  | 'multi_warehouse'
+  | 'sales_orders'
+  | 'stock_adjustments'
+  | 'barcode';
+
+/** True only for the INVENTORY plan, and only for flags whose phase shipped. */
+const INVENTORY_FEATURE_FLAGS: Record<InventoryFeatureFlag, boolean> = {
+  // Phase 1.1 shipped: Customer/Vendor master + invoice/bill links (this pass).
+  parties: true,
+  // Phase 3.1 shipped: multi-warehouse + transfers + stock counts (this pass).
+  multi_warehouse: true,
+  // Phase 2.1 shipped: sales order + delivery challan → invoice (this pass).
+  sales_orders: true,
+  // Phase 1.3 shipped: ADJUST workflow + reasons (this pass).
+  stock_adjustments: true,
+  // Phase 3.4 shipped: barcode identify (this pass).
+  barcode: true,
+};
+
+/**
+ * Whether the given plan currently has access to an inventory feature flag.
+ * Construction plans always return false (these are inventory-horizontal
+ * features). Roll each flag to `true` in `INVENTORY_FEATURE_FLAGS` only when
+ * its phase (backend + tests + UI) actually ships.
+ */
+export function hasInventoryFeature(
+  plan: SubscriptionPlanKey,
+  flag: InventoryFeatureFlag,
+): boolean {
+  return plan === 'INVENTORY' && INVENTORY_FEATURE_FLAGS[flag];
+}

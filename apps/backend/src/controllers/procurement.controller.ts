@@ -84,6 +84,28 @@ export async function createPO(req: Request, res: Response) {
   return created(res, data);
 }
 
+/** INVENTORY_HORIZONTAL_PLATFORM (Phase 4.4): approve a SUBMITTED inventory PO. */
+export async function approvePO(req: Request, res: Response) {
+  const { companyId, id: userId, role } = req.user!;
+  const data = await procurementService.approvePurchaseOrder(
+    companyId,
+    userId,
+    role,
+    req.params.id,
+    req.params.poId,
+  );
+  await recordAudit({
+    companyId,
+    userId,
+    action: 'APPROVE',
+    entityType: 'PurchaseOrder',
+    entityId: data.id,
+    newValue: { poNumber: data.poNumber },
+    ipAddress: req.ip,
+  });
+  return ok(res, data);
+}
+
 export async function getNextDocumentNumbers(req: Request, res: Response) {
   const { companyId, id: userId, role } = req.user!;
   const data = await procurementService.getNextDocumentNumbers(
@@ -112,23 +134,27 @@ export async function createGRN(req: Request, res: Response) {
 
 export async function listStock(req: Request, res: Response) {
   const { companyId, id: userId, role } = req.user!;
-  const data = await procurementService.listStock(companyId, userId, role, req.params.id);
+  const locationId = typeof req.query.locationId === 'string' ? req.query.locationId : undefined;
+  const data = await procurementService.listStock(companyId, userId, role, req.params.id, { locationId });
   return ok(res, data);
 }
 
 export async function getStockSummary(req: Request, res: Response) {
   const { companyId, id: userId, role } = req.user!;
-  const data = await procurementService.getStockSummary(companyId, userId, role, req.params.id);
+  const locationId = typeof req.query.locationId === 'string' ? req.query.locationId : undefined;
+  const data = await procurementService.getStockSummary(companyId, userId, role, req.params.id, { locationId });
   return ok(res, data);
 }
 
 export async function listStockMovements(req: Request, res: Response) {
   const { companyId, id: userId, role } = req.user!;
   const resourceId = typeof req.query.resourceId === 'string' ? req.query.resourceId : undefined;
+  const locationId = typeof req.query.locationId === 'string' ? req.query.locationId : undefined;
   const limit =
     typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : undefined;
   const data = await procurementService.listStockMovements(companyId, userId, role, req.params.id, {
     resourceId,
+    locationId,
     limit: Number.isFinite(limit) ? limit : undefined,
   });
   return ok(res, data);

@@ -30,7 +30,19 @@ type EntityType =
   | 'grn'
   | 'petty-cash'
   | 'rfi'
-  | 'submittal';
+  | 'submittal'
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 2): transaction engine doc numbers.
+  | 'so'
+  | 'dc'
+  | 'sales-return'
+  | 'purchase-return'
+  | 'credit-note'
+  | 'debit-note'
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 3): warehouse ops doc numbers.
+  | 'transfer'
+  | 'stock-count'
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 9.2): quote document numbers.
+  | 'quote';
 
 const PREFIXES: Record<EntityType, string> = {
   indent: 'IND',
@@ -41,6 +53,15 @@ const PREFIXES: Record<EntityType, string> = {
   'petty-cash': 'PC',
   rfi: 'RFI',
   submittal: 'SUB',
+  so: 'SO',
+  dc: 'DC',
+  'sales-return': 'SRET',
+  'purchase-return': 'PRET',
+  'credit-note': 'CN',
+  'debit-note': 'DN',
+  transfer: 'TF',
+  'stock-count': 'SC',
+  quote: 'QT',
 };
 
 function formatNumber(prefix: string, year: number, seq: number): string {

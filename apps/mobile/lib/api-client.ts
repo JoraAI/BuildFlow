@@ -68,7 +68,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   } catch {
     throw new ApiError(
       'NETWORK_ERROR',
-      'Unable to connect. Check your internet connection.',
+      'Unable to reach the API at localhost:4000. Is `pnpm run dev` still running (backend + web)?',
       0,
     );
   }
@@ -154,7 +154,7 @@ export async function apiFetchList<T>(
   try {
     res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
   } catch {
-    throw new ApiError('NETWORK_ERROR', 'Unable to connect. Check your internet connection.', 0);
+    throw new ApiError('NETWORK_ERROR', 'Unable to reach the API at localhost:4000. Is `pnpm run dev` still running (backend + web)?', 0);
   }
 
   // FIX (NR-10): Route the 401 retry through the shared mutex instead of
@@ -188,7 +188,7 @@ export async function apiFetchList<T>(
       try {
         res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
       } catch {
-        throw new ApiError('NETWORK_ERROR', 'Unable to connect. Check your internet connection.', 0);
+        throw new ApiError('NETWORK_ERROR', 'Unable to reach the API at localhost:4000. Is `pnpm run dev` still running (backend + web)?', 0);
       }
     }
   }
@@ -227,7 +227,7 @@ async function fetchWithAuthRetry(path: string, init: RequestInit = {}): Promise
   } catch {
     throw new ApiError(
       'NETWORK_ERROR',
-      'Unable to connect. Check your internet connection.',
+      'Unable to reach the API at localhost:4000. Is `pnpm run dev` still running (backend + web)?',
       0,
     );
   }

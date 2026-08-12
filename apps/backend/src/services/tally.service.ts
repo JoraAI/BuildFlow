@@ -286,6 +286,93 @@ export function buildPurchaseVoucher(
   return lines.join('\n');
 }
 
+/**
+ * INVENTORY_HORIZONTAL_PLATFORM (Phase 2.4): Tally export hook — sales returns
+ * appear as "Credit Note" vouchers and purchase returns as "Debit Note".
+ * GST-aware: reduces/raises the party balance with the reverse GST split.
+ */
+function buildCreditNoteVoucher(
+  cn: { creditNoteNumber: string; creditDate: Date; customerName: string; subtotal: Decimal; gstAmount: Decimal; cgstAmount?: Decimal; sgstAmount?: Decimal; igstAmount?: Decimal; total: Decimal },
+  m: TallyLedgerMap,
+): string {
+  const party = cn.customerName;
+  const lines: string[] = [];
+  lines.push('  <VOUCHER VCHTYPE="Credit Note" ACTION="Create">');
+  lines.push(`    <NAME>${esc(cn.creditNoteNumber)}</NAME>`);
+  lines.push(`    <DATE>${fmtDate(cn.creditDate)}</DATE>`);
+  lines.push(`    <PARTYNAME>${esc(party)}</PARTYNAME>`);
+  lines.push('    <NARRATION>BuildFlow credit note (sales return)</NARRATION>');
+  lines.push('    <ALLLEDGERENTRIES.LIST>');
+  lines.push(`      <LEDGERNAME>${esc(party)}</LEDGERNAME>`);
+  lines.push(`      <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>`);
+  lines.push(`      <AMOUNT>-${fmtNum(cn.total)}</AMOUNT>`);
+  lines.push('    </ALLLEDGERENTRIES.LIST>');
+  lines.push('    <ALLLEDGERENTRIES.LIST>');
+  lines.push(`      <LEDGERNAME>${esc(m.sales ?? 'Sales')}</LEDGERNAME>`);
+  lines.push(`      <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>`);
+  lines.push(`      <AMOUNT>${fmtNum(cn.subtotal)}</AMOUNT>`);
+  lines.push('    </ALLLEDGERENTRIES.LIST>');
+  pushNoteGstEntries(lines, m, cn, false);
+  lines.push('  </VOUCHER>');
+  return lines.join('\n');
+}
+
+/**
+ * INVENTORY_HORIZONTAL_PLATFORM (Phase 5.5): emit the note's GST split
+ * (CGST/SGST same-state, IGST inter-state). Falls back to flat IGST for notes
+ * created before the split columns existed.
+ */
+function pushNoteGstEntries(
+  lines: string[],
+  m: TallyLedgerMap,
+  gst: { gstAmount: Decimal | number; cgstAmount?: Decimal | number | null; sgstAmount?: Decimal | number | null; igstAmount?: Decimal | number | null },
+  positive: boolean,
+): void {
+  let cgst = Number(gst.cgstAmount ?? 0);
+  let sgst = Number(gst.sgstAmount ?? 0);
+  let igst = Number(gst.igstAmount ?? 0);
+  const gstTotal = Number(gst.gstAmount ?? 0);
+  if (cgst + sgst + igst === 0 && gstTotal > 0) igst = gstTotal;
+  const deem = positive ? 'Yes' : 'No';
+  const push = (ledger: string | undefined, name: string, amount: number) => {
+    if (amount <= 0) return;
+    lines.push('    <ALLLEDGERENTRIES.LIST>');
+    lines.push(`      <LEDGERNAME>${esc(ledger ?? name)}</LEDGERNAME>`);
+    lines.push(`      <ISDEEMEDPOSITIVE>${deem}</ISDEEMEDPOSITIVE>`);
+    lines.push(`      <AMOUNT>${fmtNum(amount)}</AMOUNT>`);
+    lines.push('    </ALLLEDGERENTRIES.LIST>');
+  };
+  push(m.cgst, 'CGST', cgst);
+  push(m.sgst, 'SGST', sgst);
+  push(m.igst, 'IGST', igst);
+}
+
+function buildDebitNoteVoucher(
+  dn: { debitNoteNumber: string; debitDate: Date; vendorName: string; subtotal: Decimal; gstAmount: Decimal; cgstAmount?: Decimal; sgstAmount?: Decimal; igstAmount?: Decimal; total: Decimal },
+  m: TallyLedgerMap,
+): string {
+  const party = dn.vendorName;
+  const lines: string[] = [];
+  lines.push('  <VOUCHER VCHTYPE="Debit Note" ACTION="Create">');
+  lines.push(`    <NAME>${esc(dn.debitNoteNumber)}</NAME>`);
+  lines.push(`    <DATE>${fmtDate(dn.debitDate)}</DATE>`);
+  lines.push(`    <PARTYNAME>${esc(party)}</PARTYNAME>`);
+  lines.push('    <NARRATION>BuildFlow debit note (purchase return)</NARRATION>');
+  lines.push('    <ALLLEDGERENTRIES.LIST>');
+  lines.push(`      <LEDGERNAME>${esc(party)}</LEDGERNAME>`);
+  lines.push(`      <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>`);
+  lines.push(`      <AMOUNT>-${fmtNum(dn.total)}</AMOUNT>`);
+  lines.push('    </ALLLEDGERENTRIES.LIST>');
+  lines.push('    <ALLLEDGERENTRIES.LIST>');
+  lines.push(`      <LEDGERNAME>${esc(m.purchase ?? 'Purchases')}</LEDGERNAME>`);
+  lines.push(`      <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>`);
+  lines.push(`      <AMOUNT>${fmtNum(dn.subtotal)}</AMOUNT>`);
+  lines.push('    </ALLLEDGERENTRIES.LIST>');
+  pushNoteGstEntries(lines, m, dn, true);
+  lines.push('  </VOUCHER>');
+  return lines.join('\n');
+}
+
 /** Export a project's invoices and bills as Tally Prime import XML. */
 export async function exportProjectTallyXML(companyId: string, projectId: string): Promise<string> {
   const m = await resolveTallyLedgerMap(companyId);
@@ -294,12 +381,21 @@ export async function exportProjectTallyXML(companyId: string, projectId: string
   const company = await prisma.company.findUnique({ where: { id: companyId }, select: { gstin: true, state: true } });
   const companyStateCode = normalizeStateCode(company?.gstin, company?.state);
 
-  const [invoices, bills] = await Promise.all([
+  const [invoices, bills, creditNotes, debitNotes] = await Promise.all([
     prisma.invoice.findMany({
       where: { companyId, projectId, status: { in: ['SENT', 'PAID', 'OVERDUE'] } },
     }),
     prisma.bill.findMany({
       where: { companyId, projectId, status: { in: ['APPROVED', 'PAID'] } },
+    }),
+    // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.4): sales-return credit notes.
+    prisma.creditNote.findMany({
+      where: { companyId, projectId, status: 'ISSUED' },
+      select: { creditNoteNumber: true, creditDate: true, customerName: true, subtotal: true, gstAmount: true, cgstAmount: true, sgstAmount: true, igstAmount: true, total: true },
+    }),
+    prisma.debitNote.findMany({
+      where: { companyId, projectId, status: 'ISSUED' },
+      select: { debitNoteNumber: true, debitDate: true, vendorName: true, subtotal: true, gstAmount: true, cgstAmount: true, sgstAmount: true, igstAmount: true, total: true },
     }),
   ]);
 
@@ -313,10 +409,14 @@ export async function exportProjectTallyXML(companyId: string, projectId: string
   parts.push('      <REQUESTDESC>');
   parts.push('        <TALLYIMPORTVCHTYPE>Sales</TALLYIMPORTVCHTYPE>');
   parts.push('        <TALLYIMPORTVCHTYPE>Purchase</TALLYIMPORTVCHTYPE>');
+  parts.push('        <TALLYIMPORTVCHTYPE>Credit Note</TALLYIMPORTVCHTYPE>');
+  parts.push('        <TALLYIMPORTVCHTYPE>Debit Note</TALLYIMPORTVCHTYPE>');
   parts.push('      </REQUESTDESC>');
   parts.push('      <REQUESTDATA>');
   for (const inv of invoices) parts.push(buildSalesVoucher(inv, m));
   for (const bill of bills) parts.push(buildPurchaseVoucher(bill, m, companyStateCode));
+  for (const cn of creditNotes) parts.push(buildCreditNoteVoucher(cn, m));
+  for (const dn of debitNotes) parts.push(buildDebitNoteVoucher(dn, m));
   parts.push('      </REQUESTDATA>');
   parts.push('    </IMPORTDATA>');
   parts.push('  </BODY>');

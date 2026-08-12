@@ -6,6 +6,10 @@
 import { prisma } from '../lib/prisma';
 import { getRolePermissions } from '../lib/permissions';
 import { updateProject } from './project.service';
+// INVENTORY_HORIZONTAL_PLATFORM (Phase 7.4): inventory assistant tools read the
+// Phase 6 analytics pipeline (safe — analytics does not import assistant-tools).
+import { getStockHealthReport } from './inventory-analytics.service';
+import { getDefaultProjectId } from './module-gate.service';
 import {
   getAllowedTools,
   filterToolsByProductMode,
@@ -123,6 +127,30 @@ export const ASSISTANT_TOOL_SCHEMAS: Record<
     type: 'object',
     properties: { projectId: { type: 'string' }, category: { type: 'string' } },
     required: ['projectId'],
+  },
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 7.4): inventory-only tool schemas.
+  // Wired to Phase 6 analytics / Phase 4 reorder data. Construction tenants are
+  // filtered out via INVENTORY_ONLY_TOOL_IDS in packages/shared.
+  get_low_stock: {
+    type: 'object',
+    properties: {
+      limit: { type: 'number' },
+    },
+  },
+  get_stock_health: {
+    type: 'object',
+    properties: {
+      days: { type: 'number' },
+      locationId: { type: 'string' },
+    },
+  },
+  get_vendor_purchases: {
+    type: 'object',
+    properties: {
+      vendorName: { type: 'string' },
+      month: { type: 'string', description: 'YYYY-MM (defaults to the current month)' },
+    },
+    required: ['vendorName'],
   },
 };
 
@@ -424,6 +452,101 @@ export async function executeAssistantTool(
           orderBy: { itemCode: 'asc' },
         }),
       );
+    }
+    case 'get_low_stock': {
+      guard(identity, 'stock.view');
+      const { limit = 20 } = args as { limit?: number };
+      // Phase 7.4: low stock by warehouse — on-hand per location below reorderPoint.
+      const projectId = await getDefaultProjectId(identity.companyId);
+      if (!projectId) throw new Error('No default store configured for this account.');
+      const [locations, balances, resources] = await Promise.all([
+        prisma.stockLocation.findMany({
+          where: { companyId: identity.companyId, projectId, isActive: true },
+          select: { id: true, name: true, isDefault: true },
+          orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+        }),
+        prisma.stockBalance.findMany({
+          where: { location: { companyId: identity.companyId, projectId } },
+          select: { locationId: true, resourceId: true, quantity: true },
+        }),
+        prisma.resource.findMany({
+          where: { companyId: identity.companyId, isDeleted: false, reorderPoint: { gt: 0 } },
+          select: { id: true, name: true, unit: true, reorderPoint: true },
+        }),
+      ]);
+      const locById = new Map(locations.map((l) => [l.id, l.name]));
+      const byLocation = new Map<string, Array<Record<string, unknown>>>();
+      for (const b of balances) {
+        const locName = locById.get(b.locationId);
+        if (!locName) continue;
+        const qty = Number(b.quantity);
+        const res = resources.find((r) => r.id === b.resourceId);
+        if (!res || Number(res.reorderPoint) <= 0) continue;
+        if (qty >= Number(res.reorderPoint)) continue;
+        const arr = byLocation.get(locName) ?? [];
+        arr.push({
+          item: res.name,
+          unit: res.unit,
+          onHand: qty,
+          reorderPoint: Number(res.reorderPoint),
+          shortfall: Math.max(0, Number(res.reorderPoint) - qty),
+        });
+        byLocation.set(locName, arr);
+      }
+      const rows: Array<Record<string, unknown>> = [];
+      for (const loc of locations) {
+        const items = byLocation.get(loc.name) ?? [];
+        if (items.length === 0) continue;
+        rows.push({ warehouse: loc.name, lowStockItems: items.slice(0, Math.min(Number(limit) || 20, 50)) });
+      }
+      return serialize(rows);
+    }
+    case 'get_stock_health': {
+      guard(identity, 'stock.view');
+      const { days, locationId } = args as { days?: number; locationId?: string };
+      return serialize(
+        await getStockHealthReport(identity.companyId, identity.userId, identity.role, { days, locationId }),
+      );
+    }
+    case 'get_vendor_purchases': {
+      guard(identity, 'procurement.view');
+      const { vendorName, month } = args as { vendorName?: string; month?: string };
+      if (!vendorName) throw new Error('vendorName is required');
+      const match = { contains: vendorName.trim(), mode: 'insensitive' as const };
+      const start = month && /^\d{4}-\d{2}$/.test(month) ? new Date(`${month}-01T00:00:00.000Z`) : new Date(Date.now() - 30 * 86400000);
+      const end = month && /^\d{4}-\d{2}$/.test(month)
+        ? new Date(new Date(start.getTime()).setMonth(start.getMonth() + 1))
+        : new Date();
+      const [bills, grns] = await Promise.all([
+        prisma.bill.findMany({
+          where: {
+            companyId: identity.companyId,
+            billDate: { gte: start, lt: end },
+            OR: [{ vendorName: match }, { vendor: { name: match } }],
+          },
+          select: { id: true, billNumber: true, billDate: true, status: true, total: true },
+          orderBy: { billDate: 'desc' },
+        }),
+        prisma.goodsReceiptNote.findMany({
+          where: {
+            companyId: identity.companyId,
+            receivedDate: { gte: start, lt: end },
+            purchaseOrder: { vendorName: match },
+          },
+          select: { id: true, grnNumber: true, receivedDate: true, purchaseOrder: { select: { poNumber: true } } },
+          orderBy: { receivedDate: 'desc' },
+        }),
+      ]);
+      const total = bills.reduce((s, b) => s + Number(b.total), 0);
+      return serialize({
+        vendor: vendorName,
+        month: month ?? 'last 30 days',
+        billCount: bills.length,
+        billTotal: total,
+        bills,
+        grnCount: grns.length,
+        grns,
+      });
     }
     default:
       throw new Error(`Tool "${toolName}" is not implemented on the server yet.`);

@@ -36,7 +36,7 @@ export const MARKETING_FEATURES: {
     icon: 'cube-outline',
     title: 'Exclusive Inventory',
     description:
-      'Dedicated stock product for traders & material suppliers: Indent→PO→GRN, sales invoices, vendor bills, Tally export.',
+      'Stock product for retail, wholesale, distribution, trading, material supply & equipment: multi-warehouse, SO→challan, parties, Tally.',
   },
 ];
 
@@ -73,14 +73,14 @@ export const MARKETING_PRICING = [
     price: '₹499',
     period: '/month',
     annualPrice: '₹4,990/yr',
-    description: 'Exclusive inventory product: stock, procurement, and GST accounting for traders',
+    description: 'Stock & trading product with business profiles (retail → equipment) and GST accounting',
     features: [
-      '1 store (Stock + movements)',
+      'Business profiles (retail, wholesale, distribution, trading, materials, equipment)',
+      'Multi-warehouse, transfers & stock counts',
       'Procurement: Indent → PO → GRN',
-      'Sales invoices & vendor bills',
-      'Tally export',
-      '10 team members',
-      'BuildFlow Assistant (inventory scope)',
+      'Sales orders, challans, quotes & returns',
+      'Parties, price lists, invoices & vendor bills',
+      'Tally export · 10 team members · inventory Assistant',
     ],
     highlighted: false,
     trialHref: '/signup/company?product=inventory',
@@ -146,7 +146,7 @@ export const HERO_STATS = [
   { value: '14 days', label: 'Free trial' },
 ];
 
-export const TRUST_PILLS = ['GST invoicing', 'TDS on bills', 'Daily reports', 'BOQ & Estimation'];
+export const TRUST_PILLS = ['GST invoicing', 'Inventory profiles', 'Daily reports', 'BOQ & Estimation'];
 
 export const TRIAL_BENEFITS = [
   '14-day free trial, no credit card',
@@ -156,8 +156,8 @@ export const TRIAL_BENEFITS = [
 
 export const INVENTORY_TRIAL_BENEFITS = [
   '14-day free trial, no credit card',
-  '1 store with stock, PO, GRN & invoices',
-  'Tally export included',
+  'Pick a business profile — retail, wholesale, trading, materials & more',
+  'Warehouses, SO→challan, parties, PO/GRN, invoices & Tally',
 ];
 
 export const TRIAL_CTA = {
@@ -173,7 +173,7 @@ export const TRIAL_CTA = {
     href: '/signup/company?product=inventory',
     hoverTitle: 'Inventory free trial',
     hoverBody:
-      '14 days of 1 store: stock, Indent→PO→GRN, sales invoices, vendor bills, Tally export, and inventory Assistant. For traders & material suppliers.',
+      '14 days for stock businesses: choose a profile (retail, wholesale, distribution, trading, materials, equipment), then warehouses, procurement, sales, parties, invoices, and Tally.',
   },
 } as const;
 
@@ -197,7 +197,7 @@ export const PRICING_FAQ = [
   },
   {
     q: 'Do you offer annual billing?',
-    a: 'Yes. Inventory is ₹4,990/year, Starter is ₹19,990/year and Professional is ₹49,990/year (2 months free vs monthly). Enterprise pricing is custom - contact sales. All prices are before 18% GST.',
+    a: 'Yes. Inventory is ₹4,990/year, Starter is ₹19,990/year and Professional is ₹49,990/year (2 months free vs monthly). Enterprise pricing is custom - contact sales. All prices are before 18% GST. Inventory includes business profiles and multi-warehouse ops.',
   },
   {
     q: 'Is GST included in the listed price?',
@@ -216,7 +216,10 @@ export const PRICING_COMPARISON: Array<{
 }> = [
   { feature: 'Projects / stores', inventory: '1 store', starter: 'Up to 3', professional: '25', enterprise: 'Unlimited' },
   { feature: 'Team members', inventory: '10', starter: '5', professional: '25', enterprise: 'Unlimited' },
+  { feature: 'Business profiles (retail→equipment)', inventory: 'Yes', starter: '-', professional: '-', enterprise: '-' },
+  { feature: 'Warehouses & stock counts', inventory: 'Yes', starter: '-', professional: 'Site stock', enterprise: 'Site stock' },
   { feature: 'Stock & procurement', inventory: 'Yes', starter: '-', professional: 'Yes', enterprise: 'Yes' },
+  { feature: 'SO / challan / quotes', inventory: 'Yes', starter: '-', professional: '-', enterprise: '-' },
   { feature: 'Sales invoices & vendor bills', inventory: 'Yes', starter: 'Basic', professional: 'Full', enterprise: 'Full' },
   { feature: 'Tally export', inventory: 'Yes', starter: '-', professional: 'Yes', enterprise: 'Yes' },
   { feature: 'Estimation & BOQ', inventory: '-', starter: 'Yes', professional: 'Yes', enterprise: 'Yes' },
@@ -247,11 +250,11 @@ export const MARKETING_FAQ = [
   },
   {
     q: 'How do inventory / trading businesses sign up?',
-    a: 'Choose “Start Inventory trial” on the homepage or Pricing, or open Sign up → Inventory free trial. That creates an Inventory account (stock, procurement, invoices, bills, Tally), not the construction project ERP.',
+    a: 'Choose “Inventory trial” on the homepage or Pricing, or Sign up → Inventory. You pick a business profile (retail, wholesale, distribution, trading, material supplier, equipment, or general) so labels and workflows match your store — not the construction ERP.',
   },
   {
     q: 'What’s the difference between Construction ERP and Inventory?',
-    a: 'Construction ERP covers projects, estimates, site reports, and project accounting. Inventory is an exclusive product for stores and traders: one store, Indent→PO→GRN, sales invoices, vendor bills, and Tally, without construction modules.',
+    a: 'Construction ERP covers projects, estimates, site reports, and project accounting. Inventory is a separate product for stock businesses: multi-warehouse, Indent→PO→GRN, sales orders & challans, parties, invoices, bills, and Tally — without construction modules.',
   },
   {
     q: 'Who can sign up for BuildFlow?',

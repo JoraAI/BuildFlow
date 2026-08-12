@@ -453,7 +453,9 @@ describe('Procurement (integration)', () => {
       materialUsages: [{ resourceId: cementId, quantityUsed: issueQty }],
     });
     // FIX (DAT-2.2): Report may return 422 if stock is depleted by other tests.
-    expect([201, 422]).toContain(reportRes.status);
+    // Also accept 409 — the random reportDate can collide with a date recorded
+    // by a previous test run against the shared seed project.
+    expect([201, 422, 409]).toContain(reportRes.status);
 
     if (reportRes.status === 201) {
       const summaryAfter = await authGet(token, `/api/projects/${projectId}/procurement/stock/summary`);
@@ -555,6 +557,57 @@ describe('Procurement (integration)', () => {
     res = await del(`/api/resources/${rid}`);
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+  });
+
+  /* ── INVENTORY_HORIZONTAL_PLATFORM (Phase 0): construction isolation ── */
+  it('construction ignores inventoryProfile updates (hidden field)', async () => {
+    const putRes = await request(app)
+      .put('/api/settings/company')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ inventoryProfile: 'WHOLESALE' });
+    expect(putRes.status).toBe(200);
+    expect(putRes.body.data.inventoryProfile).toBeNull();
+
+    const getRes = await authGet(token, '/api/settings/company');
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.data.inventoryProfile).toBeNull();
+  });
+
+  /* ── INVENTORY_HORIZONTAL_PLATFORM Phase 1: feature-gated routes ──── */
+  it('construction cannot access party master or stock adjustments (403)', async () => {
+    const parties = await authGet(token, '/api/inventory/parties/customers');
+    expect(parties.status).toBe(403);
+
+    const vendors = await authGet(token, '/api/inventory/parties/vendors');
+    expect(vendors.status).toBe(403);
+
+    const adjust = await authPost(token, '/api/inventory/stock/adjust', {
+      resourceId: '00000000-0000-4000-8000-000000000000',
+      delta: 1,
+      reason: 'CORRECTION',
+    });
+    expect(adjust.status).toBe(403);
+
+    const opening = await authPost(token, '/api/inventory/stock/opening-stock', {
+      lines: [{ name: 'Anything', quantity: 1 }],
+    });
+    expect(opening.status).toBe(403);
+  });
+
+  /* ── INVENTORY_HORIZONTAL_PLATFORM Phase 2: feature-gated routes ──── */
+  it('construction cannot access Phase 2 transaction routes (403)', async () => {
+    const so = await authGet(token, '/api/inventory/transactions/sales-orders');
+    expect(so.status).toBe(403);
+    const returns = await authGet(token, '/api/inventory/transactions/returns/sales');
+    expect(returns.status).toBe(403);
+    const notes = await authGet(token, '/api/inventory/transactions/notes/credit');
+    expect(notes.status).toBe(403);
+    const createSo = await authPost(token, '/api/inventory/transactions/sales-orders', {
+      customerName: 'x',
+      orderDate: '2026-08-12',
+      lines: [{ resourceId: '00000000-0000-4000-8000-000000000000', quantity: 1, unit: 'bag', rate: 1 }],
+    });
+    expect(createSo.status).toBe(403);
   });
 
   it('peeks next PO/GRN numbers and auto-assigns when omitted', async () => {

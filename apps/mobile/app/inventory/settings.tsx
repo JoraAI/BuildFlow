@@ -4,13 +4,15 @@
  * Company profile, plan/limits, team invites (OWNER + INVENTORY_MANAGER only),
  * pending invites, and logout. Tally export entry point included.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Modal, Pressable } from 'react-native';
 import { Card, Badge, Button, Input, Select, LoadingSkeleton } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
+import { useRouter } from 'expo-router';
 import {
   useCompany,
+  useUpdateCompany,
   useSubscription,
   useUsers,
   usePendingInvites,
@@ -19,18 +21,80 @@ import {
 } from '@/services/settings.queries';
 import { downloadTallyXml } from '@/services/report-download';
 import { toast } from '@/components/ui';
-import { PLAN_PRICES_INR } from '@buildflow/shared';
+import {
+  PLAN_PRICES_INR,
+  INVENTORY_PROFILE_OPTIONS,
+  INVENTORY_PROFILE_LABELS,
+  type InventoryBusinessProfile,
+} from '@buildflow/shared';
 
 export default function InventorySettingsScreen() {
+  const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  const refreshUser = useAuthStore((s) => s.refreshUser);
   const { data: company } = useCompany();
   const { data: subscription } = useSubscription();
   const { data: users } = useUsers();
   const { data: invites } = usePendingInvites();
   const createInvite = useCreateInvite();
   const revokeInvite = useRevokeInvite();
+  const updateCompany = useUpdateCompany();
   const [inviteOpen, setInviteOpen] = useState(false);
+  /** INVENTORY_HORIZONTAL_PLATFORM (Phase 0): business profile picker (OWNER). */
+  const [profile, setProfile] = useState<string>('GENERAL');
+  /** INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): credit-limit policy (OWNER). */
+  const [creditPolicy, setCreditPolicy] = useState<'ALLOW' | 'WARN' | 'BLOCK'>('WARN');
+  /** INVENTORY_HORIZONTAL_PLATFORM (Phase 4.4): PO approval thresholds (OWNER). */
+  const [poAutoApproveBelow, setPoAutoApproveBelow] = useState('');
+  const [poOwnerApproveAbove, setPoOwnerApproveAbove] = useState('');
+
+  useEffect(() => {
+    if (company?.inventoryProfile) setProfile(company.inventoryProfile);
+  }, [company?.inventoryProfile]);
+
+  useEffect(() => {
+    if (company?.creditLimitPolicy) setCreditPolicy(company.creditLimitPolicy);
+  }, [company?.creditLimitPolicy]);
+
+  useEffect(() => {
+    if (company?.poAutoApproveBelow != null) setPoAutoApproveBelow(String(company.poAutoApproveBelow));
+    if (company?.poOwnerApproveAbove != null) setPoOwnerApproveAbove(String(company.poOwnerApproveAbove));
+  }, [company?.poAutoApproveBelow, company?.poOwnerApproveAbove]);
+
+  const savePoApproval = async () => {
+    try {
+      const below = poAutoApproveBelow === '' ? 0 : Number(poAutoApproveBelow);
+      const above = poOwnerApproveAbove === '' ? 0 : Number(poOwnerApproveAbove);
+      if (!Number.isFinite(below) || below < 0 || !Number.isFinite(above) || above < 0) {
+        toast.error('Enter valid amounts (₹).');
+        return;
+      }
+      await updateCompany.mutateAsync({ poAutoApproveBelow: below, poOwnerApproveAbove: above });
+      toast.success('PO approval thresholds saved');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not save thresholds');
+    }
+  };
+
+  const saveProfile = async () => {
+    try {
+      await updateCompany.mutateAsync({ inventoryProfile: profile });
+      await refreshUser();
+      toast.success('Business profile saved');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not save profile');
+    }
+  };
+
+  const saveCreditPolicy = async () => {
+    try {
+      await updateCompany.mutateAsync({ creditLimitPolicy: creditPolicy });
+      toast.success('Credit limit policy saved');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not save credit policy');
+    }
+  };
 
   return (
     <View className="flex-1 bg-surface">
@@ -65,6 +129,105 @@ export default function InventorySettingsScreen() {
               </Text>
             </View>
           </View>
+        </Card>
+        {/* Business profile (INVENTORY_HORIZONTAL_PLATFORM Phase 0) */}
+        <Card className="p-5 mb-4">
+          <Text className="text-base font-bold text-text mb-1">Business profile</Text>
+          <Text className="text-xs text-muted mb-3">
+            Tells BuildFlow how to label your items and which features to surface as they roll out.
+            Material suppliers keep construction-style wording (“Materials” / “Indent”).
+          </Text>
+          <Select
+            label="Profile"
+            value={profile}
+            onChange={(v) => v && setProfile(v)}
+            options={INVENTORY_PROFILE_OPTIONS.map((o) => ({ title: o.label, value: o.value }))}
+            disabled={user?.role !== 'OWNER'}
+          />
+          <Text className="text-[11px] text-muted mt-1">
+            {INVENTORY_PROFILE_LABELS[profile as InventoryBusinessProfile] ?? 'General business'}
+          </Text>
+          {user?.role === 'OWNER' ? (
+            <View className="mt-3">
+              <Button
+                label="Save profile"
+                variant="secondary"
+                size="sm"
+                loading={updateCompany.isPending}
+                onPress={saveProfile}
+              />
+            </View>
+          ) : null}
+        </Card>
+        {/* Credit limit policy (INVENTORY_HORIZONTAL_PLATFORM Phase 2.5) */}
+        <Card className="p-5 mb-4">
+          <Text className="text-base font-bold text-text mb-1">Credit limit policy</Text>
+          <Text className="text-xs text-muted mb-3">
+            When a customer’s open invoices plus a new invoice exceed their credit limit: allow,
+            warn (toast), or block the invoice.
+          </Text>
+          <Select
+            label="Policy"
+            value={creditPolicy}
+            onChange={(v) => v && setCreditPolicy(v as 'ALLOW' | 'WARN' | 'BLOCK')}
+            options={[
+              { title: 'Allow (no check)', value: 'ALLOW' },
+              { title: 'Warn (default)', value: 'WARN' },
+              { title: 'Block over-limit invoices', value: 'BLOCK' },
+            ]}
+            disabled={user?.role !== 'OWNER'}
+          />
+          {user?.role === 'OWNER' ? (
+            <View className="mt-3">
+              <Button
+                label="Save credit policy"
+                variant="secondary"
+                size="sm"
+                loading={updateCompany.isPending}
+                onPress={saveCreditPolicy}
+              />
+            </View>
+          ) : null}
+        </Card>
+        {/* PO approval thresholds (INVENTORY_HORIZONTAL_PLATFORM Phase 4.4) */}
+        <Card className="p-5 mb-4">
+          <Text className="text-base font-bold text-text mb-1">Purchase order approvals</Text>
+          <Text className="text-xs text-muted mb-3">
+            Inventory purchase orders are auto-approved below the first threshold, need a manager's
+            approval in the middle band, and only the owner can approve above the second threshold.
+            Set both to 0 to keep every PO auto-approved.
+          </Text>
+          <View className="flex-row flex-wrap gap-3">
+            <View className="flex-1 min-w-[140px]">
+              <Input
+                label="Auto-approve below (₹)"
+                value={poAutoApproveBelow}
+                onChangeText={setPoAutoApproveBelow}
+                keyboardType="numeric"
+                placeholder="e.g. 10000"
+              />
+            </View>
+            <View className="flex-1 min-w-[140px]">
+              <Input
+                label="Owner approval above (₹)"
+                value={poOwnerApproveAbove}
+                onChangeText={setPoOwnerApproveAbove}
+                keyboardType="numeric"
+                placeholder="e.g. 100000"
+              />
+            </View>
+          </View>
+          {user?.role === 'OWNER' ? (
+            <View className="mt-1">
+              <Button
+                label="Save thresholds"
+                variant="secondary"
+                size="sm"
+                loading={updateCompany.isPending}
+                onPress={savePoApproval}
+              />
+            </View>
+          ) : null}
         </Card>
         {/* Team */}
         <Card className="p-5 mb-4">
@@ -133,6 +296,16 @@ export default function InventorySettingsScreen() {
           <Text className="text-xs text-muted mt-0.5">State: {company?.state ?? '-'}</Text>
         </Card>
 
+
+        {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 6): analytics reports entry. */}
+        <Card className="p-5 mb-4">
+          <Text className="text-sm font-bold text-text mb-1">Reports & analytics</Text>
+          <Text className="text-xs text-muted mb-3">
+            Dead/slow stock, per-warehouse value, sales margins (revenue − WAC) and last buy price vs
+            current WAC.
+          </Text>
+          <Button label="Open reports" variant="secondary" onPress={() => router.push('/inventory/reports' as never)} />
+        </Card>
 
         <Card className="p-5 mb-6">
           <Text className="text-sm font-bold text-text mb-1">Tally</Text>

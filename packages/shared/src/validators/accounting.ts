@@ -9,6 +9,9 @@ import { z } from 'zod';
 
 export const invoiceLineItemSchema = z.object({
   boqItemId: z.string().uuid().optional(),
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.4): optional link to the item catalog
+  // so margin reports can use billed amounts instead of the catalog rate.
+  resourceId: z.string().uuid().optional(),
   description: z.string().min(1).max(500),
   quantity: z.coerce.number().nonnegative(),
   unit: z.string().min(1).max(20),
@@ -25,6 +28,11 @@ export const createInvoiceSchema = z.object({
   projectId: z.string().uuid(),
   invoiceNumber: z.string().min(1).max(50),
   clientName: z.string().min(1).max(200),
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.1): optional link to the party master
+  // (legacy rows keep free-text clientName). Company-scoped on the backend.
+  customerId: z.string().uuid().optional(),
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.1): invoice created from a sales order.
+  salesOrderId: z.string().uuid().optional(),
   clientGstin: z.string().max(15).optional(),
   clientState: z.string().max(40).optional(),
   // INVENTORY_UX_POLISH (D6): optional buyer contact details.
@@ -77,6 +85,8 @@ export const createBillSchema = z.object({
   projectId: z.string().uuid(),
   billNumber: z.string().min(1).max(50).optional(),
   vendorName: z.string().min(1).max(200),
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.1): optional link to the party master.
+  vendorId: z.string().uuid().optional(),
   vendorGstin: z.string().max(15).optional(),
   vendorState: z.string().max(40).optional(),
   billDate: z.coerce.date(),

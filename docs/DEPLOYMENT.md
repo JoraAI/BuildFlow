@@ -216,14 +216,19 @@ Company: **Reddy Constructions Pvt Ltd** — password **`Test@1234`** for all:
 | Site Supervisor | `site@reddyconst.com` |
 | Accountant | `accounts@reddyconst.com` |
 
-### Inventory tenant (`/` → Login → `/inventory`)
+### Inventory tenants (`/` → Login → `/inventory`)
 
-Company: **Hyderabad Building Materials** (INVENTORY plan) — password **`Test@1234`**:
+Password **`Test@1234`** for all. One demo company per business profile:
 
-| Role | Email |
-|------|-------|
-| Owner | `owner@hydmaterials.com` |
-| Inventory Manager | `manager@hydmaterials.com` |
+| Profile | Owner email |
+|---------|-------------|
+| MATERIAL_SUPPLIER (rich) | `owner@hydmaterials.com` (+ `manager@hydmaterials.com`) |
+| RETAIL | `owner@cityhardware.com` |
+| WHOLESALE | `owner@deccanwholesale.com` |
+| DISTRIBUTION | `owner@southdistro.com` |
+| TRADING | `owner@apextrading.com` |
+| EQUIPMENT | `owner@forgeequip.com` |
+| GENERAL | `owner@generalstore.com` |
 
 ### Platform admin (`/platform/login`)
 

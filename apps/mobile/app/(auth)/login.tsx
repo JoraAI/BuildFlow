@@ -44,10 +44,10 @@ export default function LoginScreen() {
   return (
     <AuthScreenShell
       heroHeadline="Welcome back"
-      heroSubline="Sign in to manage your projects, estimates, and accounts."
+      heroSubline="Sign in to Construction ERP or Inventory — stock profiles, warehouses, sales & GST."
       backHref="/"
       formTitle="Sign in"
-      formSubtitle="Enter your company account credentials"
+      formSubtitle="Company account for ERP or Inventory (retail, wholesale, trading, materials & more)"
       footer={
         isDesktop ? (
           <>
@@ -104,6 +104,21 @@ export default function LoginScreen() {
           <Text className="text-primary font-semibold">Sign up</Text>
         </Text>
       </TouchableOpacity>
+
+      <View className="mt-6 rounded-lg border border-border bg-surface px-3 py-3">
+        <Text className="text-[11px] font-semibold text-text mb-1">Products</Text>
+        <Text className="text-[11px] text-muted leading-relaxed">
+          Construction ERP for projects & estimates. Inventory for stock businesses — retail, wholesale,
+          distribution, trading, material supply, equipment, or general — with warehouses, sales, and GST.
+        </Text>
+        {__DEV__ ? (
+          <Text className="text-[11px] text-muted leading-relaxed mt-2">
+            Seed demos (password Test@1234): owner@reddyconst.com · owner@hydmaterials.com ·
+            owner@cityhardware.com · owner@deccanwholesale.com · owner@southdistro.com ·
+            owner@apextrading.com · owner@forgeequip.com · owner@generalstore.com
+          </Text>
+        ) : null}
+      </View>
 
       {/* <TouchableOpacity onPress={() => router.push('/platform/login' as never)} className="mt-4 self-center">
         <Text className="text-muted text-xs">

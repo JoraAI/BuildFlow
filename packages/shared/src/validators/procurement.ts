@@ -54,11 +54,23 @@ export const createGrnSchema = z.object({
   purchaseOrderId: z.string().uuid(),
   receivedDate: z.coerce.date(),
   notes: z.string().max(2000).optional(),
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.1): optional receiving warehouse.
+  // Omit for construction (project location) or the inventory default location.
+  locationId: z.string().uuid().optional(),
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.1): landed costs — extra acquisition
+  // costs allocated to lines and added to unit cost (default: by quantity).
+  freightCost: z.coerce.number().nonnegative().optional(),
+  insuranceCost: z.coerce.number().nonnegative().optional(),
+  handlingCost: z.coerce.number().nonnegative().optional(),
+  customsCost: z.coerce.number().nonnegative().optional(),
+  landedCostAllocation: z.enum(['QUANTITY', 'VALUE']).optional(),
   lines: z.array(
     z.object({
       resourceId: z.string().uuid(),
       quantity: z.coerce.number().positive(),
       unit: z.string().min(1).max(20),
+      // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3): optional batch / lot code (lite).
+      batchCode: z.string().max(50).optional(),
     }),
   ).min(1),
 });
@@ -70,6 +82,8 @@ export const issueStockLineSchema = z.object({
   quantity: z.coerce.number().positive(),
   /** Selling unit price for the draft sales invoice (ex-GST). Falls back to catalog rate. */
   unitPrice: z.coerce.number().nonnegative().optional(),
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3): optional batch / lot code (lite).
+  batchCode: z.string().max(50).optional(),
 });
 export type IssueStockLineInput = z.infer<typeof issueStockLineSchema>;
 
@@ -92,10 +106,15 @@ export const issueStockSchema = z
     lines: z.array(issueStockLineSchema).min(1).optional(),
     /** Optional buyer/customer for auto draft sales invoice (inventory). */
     customerName: z.string().min(1).max(200).optional(),
+    // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): optional party-master link on issue.
+    customerId: z.string().uuid().optional(),
     // INVENTORY_UX_POLISH (D6): optional buyer contact for the draft invoice.
     customerPhone: z.string().max(20).optional(),
     customerAddress: z.string().max(500).optional(),
     notes: z.string().max(2000).optional(),
+    // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.1): issue from a specific warehouse
+    // (inventory only; omitted = company default location).
+    locationId: z.string().uuid().optional(),
   })
   .superRefine((val, ctx) => {
     // Multi-line shape is self-sufficient; legacy requires resourceId + quantity.

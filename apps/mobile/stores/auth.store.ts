@@ -3,7 +3,7 @@
  */
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
-import { Role } from '@buildflow/shared';
+import { Role, type InventoryBusinessProfile } from '@buildflow/shared';
 import type { RegisterCompanyInput } from '@buildflow/shared';
 import { SECURE_STORE_KEYS } from '@/constants';
 import {
@@ -33,6 +33,8 @@ export interface AuthUser {
   /** Modules enabled for the plan (drives inventory shell nav). */
   enabledModules?: string[];
   subscriptionPlan?: string;
+  /** INVENTORY_HORIZONTAL_PLATFORM (Phase 0): null on construction plans. */
+  inventoryProfile?: InventoryBusinessProfile | null;
 }
 
 interface AuthState {

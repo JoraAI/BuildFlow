@@ -27,6 +27,19 @@ export const createResourceSchema = z.object({
   brandOrSpec: z.string().max(200).optional(),
   category: z.string().max(100).optional(),
   imageUrl: resourceImageUrlSchema.optional(),
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.2): item master fields — all optional
+  // so construction resource/estimate flows are unaffected.
+  sku: z.string().max(100).optional(),
+  itemCode: z.string().max(100).optional(),
+  barcode: z.string().max(100).optional(),
+  secondaryUnit: z.string().max(20).optional(),
+  conversionFactor: z.number().positive().optional(),
+  reorderPoint: z.number().nonnegative().optional(),
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): procurement automation fields —
+  // all optional so construction resource/estimate flows are unaffected.
+  preferredVendorId: z.string().uuid().optional(),
+  reorderQty: z.number().positive().optional(),
+  leadTimeDays: z.number().int().positive().optional(),
 });
 
 export type CreateResourceInput = z.infer<typeof createResourceSchema>;

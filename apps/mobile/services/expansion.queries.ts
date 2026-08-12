@@ -183,9 +183,14 @@ export interface StockSummaryRow {
   name: string;
   unit: string;
   catalogRate?: number;
+  /** Phase 1.5: low-stock threshold. */
+  reorderPoint?: number;
   received: number;
   issued: number;
   balance: number;
+  /** Phase 5.2: WAC unit cost + inventory value (balance × WAC). */
+  unitCost?: number;
+  inventoryValue?: number;
 }
 
 export interface StockMovementRow {
@@ -198,6 +203,11 @@ export interface StockMovementRow {
   referenceId: string | null;
   referenceLabel: string | null;
   locationName: string;
+  /** Phase 1.3: adjustment audit. */
+  reason: string | null;
+  notes: string | null;
+  /** INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3): batch / lot code on history. */
+  batchCode: string | null;
 }
 
 export interface Subcontractor {
@@ -563,6 +573,20 @@ export function useCreatePurchaseOrder(projectId: string) {
   });
 }
 
+/** INVENTORY_HORIZONTAL_PLATFORM (Phase 4.4): approve a SUBMITTED inventory PO. */
+export function useApprovePurchaseOrder(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (poId: string) =>
+      apiFetch<PurchaseOrderSummary>(`/projects/${projectId}/procurement/purchase-orders/${poId}/approve`, {
+        method: 'POST',
+      }),
+    onSuccess: () => {
+      void invalidateProcurementLists(qc, projectId);
+    },
+  });
+}
+
 export function useNextProcurementNumbers(projectId: string, enabled = true) {
   return useQuery({
     queryKey: expansionKeys.nextNumbers(projectId),
@@ -602,20 +626,23 @@ export function useStock(projectId: string) {
   });
 }
 
-export function useStockSummary(projectId: string) {
+export function useStockSummary(projectId: string, locationId?: string) {
   return useQuery({
-    queryKey: expansionKeys.stockSummary(projectId),
-    queryFn: () => apiFetch<StockSummaryRow[]>(`/projects/${projectId}/procurement/stock/summary`),
+    queryKey: [...expansionKeys.stockSummary(projectId), locationId ?? 'all'],
+    queryFn: () =>
+      apiFetch<StockSummaryRow[]>(
+        `/projects/${projectId}/procurement/stock/summary${locationId ? `?locationId=${locationId}` : ''}`,
+      ),
     enabled: !!projectId,
   });
 }
 
-export function useStockMovements(projectId: string, resourceId: string | undefined) {
+export function useStockMovements(projectId: string, resourceId: string | undefined, locationId?: string) {
   return useQuery({
-    queryKey: expansionKeys.stockMovements(projectId, resourceId ?? ''),
+    queryKey: [...expansionKeys.stockMovements(projectId, resourceId ?? ''), locationId ?? 'all'],
     queryFn: () =>
       apiFetch<StockMovementRow[]>(
-        `/projects/${projectId}/procurement/stock/movements?resourceId=${resourceId}&limit=50`,
+        `/projects/${projectId}/procurement/stock/movements?resourceId=${resourceId}&locationId=${locationId ?? ''}&limit=50`,
       ),
     enabled: !!projectId && !!resourceId,
   });
@@ -646,6 +673,10 @@ export interface IssueStockInput {
   customerName?: string;
   customerPhone?: string;
   customerAddress?: string;
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): optional party-master link.
+  customerId?: string;
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.1): issue from a specific warehouse.
+  locationId?: string;
   notes?: string;
 }
 
@@ -662,6 +693,85 @@ export function useIssueStock(projectId: string) {
       void qc.invalidateQueries({ queryKey: expansionKeys.stock(projectId) });
       void qc.invalidateQueries({ queryKey: ['procurement', 'stock', 'movements', projectId] });
       void qc.invalidateQueries({ queryKey: ['invoices', 'list', projectId] });
+    },
+  });
+}
+
+export interface AdjustStockInput {
+  resourceId: string;
+  delta: number;
+  reason:
+    | 'DAMAGE'
+    | 'LOSS'
+    | 'THEFT'
+    | 'EXPIRY'
+    | 'STOCKTAKE'
+    | 'OPENING_STOCK'
+    | 'FOUND_STOCK'
+    | 'CORRECTION'
+    | 'OTHER';
+  notes?: string;
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.1): adjust a specific warehouse.
+  locationId?: string;
+}
+
+export interface AdjustStockResult {
+  movementId: string;
+  resourceId: string;
+  resourceName: string;
+  unit: string;
+  delta: number;
+  previousOnHand: number;
+  quantityOnHand: number;
+  reason: string;
+  notes: string | null;
+}
+
+/** INVENTORY_HORIZONTAL_PLATFORM (Phase 1.3): stock adjustment. */
+export function useAdjustStock() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: AdjustStockInput) =>
+      apiFetch<AdjustStockResult>('/inventory/stock/adjust', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['procurement', 'stock', 'summary'] });
+      void qc.invalidateQueries({ queryKey: ['procurement', 'stock', 'movements'] });
+    },
+  });
+}
+
+export interface OpeningStockLine {
+  resourceId?: string;
+  sku?: string;
+  itemCode?: string;
+  name?: string;
+  quantity: number;
+  rate?: number;
+}
+
+export interface OpeningStockResult {
+  applied: number;
+  missed: number;
+  lines: Array<{ resourceId: string; resourceName: string; unit: string; delta: number; quantityOnHand: number }>;
+  unmatched: Array<{ key: string; reason: string }>;
+}
+
+/** INVENTORY_HORIZONTAL_PLATFORM (Phase 1.4): opening stock import. */
+export function useImportOpeningStock() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { lines: OpeningStockLine[]; locationId?: string }) =>
+      apiFetch<OpeningStockResult>('/inventory/stock/opening-stock', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['procurement', 'stock', 'summary'] });
+      void qc.invalidateQueries({ queryKey: ['procurement', 'stock', 'movements'] });
+      void qc.invalidateQueries({ queryKey: ['resources'] });
     },
   });
 }

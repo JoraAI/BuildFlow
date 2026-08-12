@@ -50,8 +50,8 @@ export function DesktopHero() {
             Construction ERP and exclusive inventory.
           </Text>
           <Text className="text-white/75 mt-4 leading-relaxed text-base">
-            Run projects with GST accounting, or stock & trading with a dedicated Inventory product
-            (Indent→PO→GRN, invoices, Tally).
+            Run projects with GST accounting, or stock with Inventory profiles — retail, wholesale,
+            trading, materials, equipment — plus warehouses, SO→challan, invoices & Tally.
           </Text>
           {ctaRow('md')}
           <View className="mt-4 self-start">
@@ -74,8 +74,9 @@ export function DesktopHero() {
               One platform for sites and stores.
             </Text>
             <Text className="text-white/75 mt-5 leading-relaxed text-xl max-w-xl">
-              Construction firms get full ERP and GST accounting. Traders and material suppliers get
-              an exclusive Inventory product: stock, procurement, invoices, bills, and Tally.
+              Construction firms get full ERP and GST accounting. Stock businesses get Inventory with
+              profiles (retail through equipment), multi-warehouse, sales orders & challans, parties,
+              procurement, invoices, bills, and Tally.
             </Text>
             {ctaRow('lg')}
             <View className="mt-5 max-w-md">

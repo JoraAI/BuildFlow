@@ -9,7 +9,11 @@ import { recordAudit } from '../utils/audit';
 import { signAccessToken, signRefreshToken } from '../utils/jwt';
 import { env } from '../config/env';
 import { Role, INVITABLE_ROLES_BY_PRODUCT } from '@buildflow/shared';
-import type { AcceptInviteInput, CreateUserInviteInput } from '@buildflow/shared';
+import type {
+  AcceptInviteInput,
+  CreateUserInviteInput,
+  InventoryBusinessProfile,
+} from '@buildflow/shared';
 import type { AuthResponse } from './auth.service';
 import { assertPlanAllowsUser } from './plan-enforcement.service';
 
@@ -177,7 +181,13 @@ export async function acceptInvite(
     where: { tokenHash },
     include: {
       company: {
-        select: { name: true, logoUrl: true, subscriptionPlan: true, defaultProjectId: true },
+        select: {
+          name: true,
+          logoUrl: true,
+          subscriptionPlan: true,
+          defaultProjectId: true,
+          inventoryProfile: true,
+        },
       },
     },
   });
@@ -238,10 +248,11 @@ export async function acceptInvite(
     logoUrl: string | null;
     subscriptionPlan: string;
     defaultProjectId: string | null;
+    inventoryProfile: InventoryBusinessProfile | null;
   };
   const { resolveLogoDisplayUrl } = await import('./settings.service');
   const { getRolePermissions } = await import('../lib/permissions');
-  const { getProductMode, PLAN_MODULES } = await import('@buildflow/shared');
+  const { getProductMode, PLAN_MODULES, InventoryBusinessProfile } = await import('@buildflow/shared');
   const [companyLogoUrl, permissions] = await Promise.all([
     resolveLogoDisplayUrl(user.companyId, companyMeta.logoUrl),
     getRolePermissions(user.companyId, user.role),
@@ -263,6 +274,11 @@ export async function acceptInvite(
       defaultProjectId: companyMeta.defaultProjectId,
       enabledModules: [...(PLAN_MODULES[planKey] ?? PLAN_MODULES.STARTER)],
       subscriptionPlan: companyMeta.subscriptionPlan,
+      // INVENTORY_HORIZONTAL_PLATFORM (Phase 0): hidden (null) on construction.
+      inventoryProfile:
+        getProductMode(companyMeta.subscriptionPlan) === 'inventory'
+          ? (companyMeta.inventoryProfile ?? InventoryBusinessProfile.GENERAL)
+          : null,
     },
     ...tokens,
   };

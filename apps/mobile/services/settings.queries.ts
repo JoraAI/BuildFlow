@@ -19,6 +19,13 @@ export interface CompanyProfile {
   logoDisplayUrl?: string | null;
   state: string;
   createdAt: string;
+  /** INVENTORY_HORIZONTAL_PLATFORM (Phase 0): null on construction plans. */
+  inventoryProfile?: string | null;
+  /** INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): ALLOW | WARN | BLOCK; null on construction. */
+  creditLimitPolicy?: 'ALLOW' | 'WARN' | 'BLOCK' | null;
+  /** INVENTORY_HORIZONTAL_PLATFORM (Phase 4.4): PO approval thresholds (₹); null on construction. */
+  poAutoApproveBelow?: number | null;
+  poOwnerApproveAbove?: number | null;
 }
 
 export interface MyProfile {

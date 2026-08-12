@@ -7,7 +7,7 @@
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
 import { randomUUID } from 'crypto';
-import { INVITABLE_ROLES_BY_PRODUCT, type Role } from '@buildflow/shared';
+import { INVITABLE_ROLES_BY_PRODUCT, type Role, type InventoryBusinessProfile } from '@buildflow/shared';
 import {
   buildS3Key,
   getPresignedUploadUrl,
@@ -103,10 +103,31 @@ export async function getCompanyProfile(companyId: string) {
       logoUrl: true,
       state: true,
       createdAt: true,
+      subscriptionPlan: true,
+      inventoryProfile: true,
+      creditLimitPolicy: true,
+      poAutoApproveBelow: true,
+      poOwnerApproveAbove: true,
     },
   });
   const logoDisplayUrl = await resolveLogoDisplayUrl(companyId, company.logoUrl);
-  return { ...company, logoDisplayUrl };
+  return {
+    ...company,
+    logoDisplayUrl,
+    // INVENTORY_HORIZONTAL_PLATFORM (Phase 0): hidden on construction plans.
+    inventoryProfile:
+      company.subscriptionPlan === 'INVENTORY'
+        ? (company.inventoryProfile ?? 'GENERAL')
+        : null,
+    // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): inventory-only policy.
+    creditLimitPolicy:
+      company.subscriptionPlan === 'INVENTORY' ? company.creditLimitPolicy : null,
+    // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.4): inventory-only PO thresholds.
+    poAutoApproveBelow:
+      company.subscriptionPlan === 'INVENTORY' ? Number(company.poAutoApproveBelow) : null,
+    poOwnerApproveAbove:
+      company.subscriptionPlan === 'INVENTORY' ? Number(company.poOwnerApproveAbove) : null,
+  };
 }
 
 export interface CompanyUpdateInput {
@@ -116,6 +137,13 @@ export interface CompanyUpdateInput {
   address?: string;
   logoUrl?: string;
   state?: string;
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 0): inventory-only field.
+  inventoryProfile?: InventoryBusinessProfile;
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): credit-limit policy (inventory only).
+  creditLimitPolicy?: 'ALLOW' | 'WARN' | 'BLOCK';
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.4): PO approval thresholds (₹).
+  poAutoApproveBelow?: number;
+  poOwnerApproveAbove?: number;
 }
 
 // RPT-C2a: Report settings API
@@ -144,9 +172,29 @@ export async function updateReportSettings(companyId: string, settings: Record<s
 }
 
 export async function updateCompanyProfile(companyId: string, data: CompanyUpdateInput) {
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 0/2.5/4.4): inventory-only fields.
+  // Construction companies must ignore them (hidden fields) — never write them.
+  let write: Record<string, unknown> = { ...data };
+  if (
+    data.inventoryProfile !== undefined ||
+    data.creditLimitPolicy !== undefined ||
+    data.poAutoApproveBelow !== undefined ||
+    data.poOwnerApproveAbove !== undefined
+  ) {
+    const current = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: { subscriptionPlan: true },
+    });
+    if (current?.subscriptionPlan !== 'INVENTORY') {
+      delete (write as { inventoryProfile?: unknown; creditLimitPolicy?: unknown; poAutoApproveBelow?: unknown; poOwnerApproveAbove?: unknown }).inventoryProfile;
+      delete (write as { inventoryProfile?: unknown; creditLimitPolicy?: unknown; poAutoApproveBelow?: unknown; poOwnerApproveAbove?: unknown }).creditLimitPolicy;
+      delete (write as { inventoryProfile?: unknown; creditLimitPolicy?: unknown; poAutoApproveBelow?: unknown; poOwnerApproveAbove?: unknown }).poAutoApproveBelow;
+      delete (write as { inventoryProfile?: unknown; creditLimitPolicy?: unknown; poAutoApproveBelow?: unknown; poOwnerApproveAbove?: unknown }).poOwnerApproveAbove;
+    }
+  }
   const company = await prisma.company.update({
     where: { id: companyId },
-    data,
+    data: write as CompanyUpdateInput,
     select: {
       id: true,
       name: true,
@@ -155,10 +203,28 @@ export async function updateCompanyProfile(companyId: string, data: CompanyUpdat
       address: true,
       logoUrl: true,
       state: true,
+      subscriptionPlan: true,
+      inventoryProfile: true,
+      creditLimitPolicy: true,
+      poAutoApproveBelow: true,
+      poOwnerApproveAbove: true,
     },
   });
   const logoDisplayUrl = await resolveLogoDisplayUrl(companyId, company.logoUrl);
-  return { ...company, logoDisplayUrl };
+  return {
+    ...company,
+    logoDisplayUrl,
+    inventoryProfile:
+      company.subscriptionPlan === 'INVENTORY'
+        ? (company.inventoryProfile ?? 'GENERAL')
+        : null,
+    creditLimitPolicy:
+      company.subscriptionPlan === 'INVENTORY' ? company.creditLimitPolicy : null,
+    poAutoApproveBelow:
+      company.subscriptionPlan === 'INVENTORY' ? Number(company.poAutoApproveBelow) : null,
+    poOwnerApproveAbove:
+      company.subscriptionPlan === 'INVENTORY' ? Number(company.poOwnerApproveAbove) : null,
+  };
 }
 
 // ---------------------------------------------------------------------------

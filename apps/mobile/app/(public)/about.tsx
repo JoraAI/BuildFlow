@@ -20,7 +20,7 @@ const VALUES = [
   {
     icon: 'layers-outline' as const,
     title: 'ERP + Inventory',
-    text: 'Construction ERP for contractors, plus an exclusive Inventory product for traders and material suppliers.',
+    text: 'Construction ERP for contractors, plus Inventory with business profiles for retail, wholesale, distribution, trading, materials, and equipment.',
   },
 ];
 

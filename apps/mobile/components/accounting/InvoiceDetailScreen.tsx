@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
-import { Card, Badge, Button, Input, EmptyState, LoadingSkeleton } from '@/components/ui';
+import { Card, Badge, Button, Input, EmptyState, LoadingSkeleton, toast } from '@/components/ui';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { useViewport } from '@/hooks/useViewport';
@@ -24,6 +24,8 @@ import {
   useRecordPayment,
   type InvoiceLineItem,
 } from '@/services/accounting.queries';
+import { useRemindInvoice } from '@/services/inventory-gtm.queries';
+import { useAuthStore } from '@/stores/auth.store';
 import { formatINR, formatDate } from '@/utils/format';
 import { downloadReportPdf, reportPaths } from '@/services/report-download';
 
@@ -42,6 +44,10 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
   const { data: invoice, isLoading } = useInvoice(id);
   const sendInvoice = useSendInvoice();
   const recordPayment = useRecordPayment();
+  const remindInvoice = useRemindInvoice();
+  const isInventoryShell =
+    useAuthStore((s) => s.user?.subscriptionPlan === 'INVENTORY') ||
+    fallbackBackHref.startsWith('/inventory');
   const [showPayment, setShowPayment] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
@@ -156,6 +162,21 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
           }}
         />
       )}
+
+      {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 9.4): manual payment reminder (inventory only). */}
+      {isInventoryShell && !isFullyPaid && invoice.status !== 'DRAFT' ? (
+        <Button
+          label={remindInvoice.isPending ? 'Sending reminder…' : 'Send payment reminder'}
+          variant="ghost"
+          disabled={remindInvoice.isPending}
+          onPress={() => {
+            remindInvoice.mutate(invoice.id, {
+              onSuccess: () => toast.success('Payment reminder sent to store owners'),
+              onError: (e: Error) => toast.error(e.message),
+            });
+          }}
+        />
+      ) : null}
 
       {showPayment && (
         <Card>
