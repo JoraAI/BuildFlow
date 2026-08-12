@@ -187,7 +187,7 @@ export async function getInvoice(companyId: string, id: string) {
  * FIX (FIN-H4): Wrap the entire RA sequence lookup + invoice create in a
  * $transaction so two concurrent RA invoice creations can't produce duplicate
  * raSequence values or incorrect previousCertifiedTotal. Also compute retention
- * on the current certified delta (currentCertifiedTotal), not the cumulative —
+ * on the current certified delta (currentCertifiedTotal), not the cumulative -
  * retention is held back from THIS payment, not re-deducted from prior totals.
  */
 export async function createInvoice(companyId: string, _userId: string, input: CreateInvoiceInput) {
@@ -292,7 +292,7 @@ export async function createInvoice(companyId: string, _userId: string, input: C
     let raSequence = input.raSequence;
     if (invoiceType === 'RUNNING_ACCOUNT') {
       // FIX (NR-23): The partial unique index on (project_id, ra_sequence)
-      // counts ALL non-null values — including DRAFT invoices. Previously the
+      // counts ALL non-null values - including DRAFT invoices. Previously the
       // max was computed over non-DRAFT only, so re-running the test produced
       // a DRAFT with the same raSequence as the previous run's DRAFT → P2002.
       // Now compute max over ALL RA invoices (incl. DRAFT) for the sequence,
@@ -596,7 +596,7 @@ export async function sendInvoice(companyId: string, id: string) {
  * Inventory-only: auto-create a DRAFT sales invoice when stock is issued (OUT).
  * Amount = qty × (unitPrice override or catalog rate); GST when company has GSTIN.
  *
- * INVENTORY_UX_POLISH (D9): `lines[]` may contain multiple materials — the draft
+ * INVENTORY_UX_POLISH (D9): `lines[]` may contain multiple materials - the draft
  * gets one line item per issued material, still one invoice per issue request.
  * Idempotent on the first line's stockMovementId.
  */
@@ -705,7 +705,7 @@ export async function createDraftInvoiceFromStockIssue(opts: {
   const invoiceNumber = await nextSequentialNumber(opts.companyId, 'invoice');
   const today = new Date();
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): optional party-master link on the
-  // issue path — the draft invoice records customerId and copies party contact.
+  // issue path - the draft invoice records customerId and copies party contact.
   let customerId = opts.customerId ?? null;
   let clientName = (opts.customerName ?? '').trim() || 'Walk-in customer';
   let clientPhone = opts.customerPhone;
@@ -801,7 +801,7 @@ export async function recordPayment(
       );
     }
 
-    // NR-11: Guarded relative increment — only applies if paidAmount is still
+    // NR-11: Guarded relative increment - only applies if paidAmount is still
     // the value we read. count === 0 means a concurrent payment changed it; we
     // throw a conflict so the caller can retry rather than silently overwriting.
     const isFullyPaid = expectedPaidAfter >= total;

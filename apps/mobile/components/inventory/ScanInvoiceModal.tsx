@@ -1,7 +1,7 @@
 /**
  * BuildFlow - "Scan / upload invoice" modal (INVENTORY_HORIZONTAL_PLATFORM Phase 7.1).
  *
- * Uploads a purchase invoice (PDF/Excel/text — images without OCR get a clear
+ * Uploads a purchase invoice (PDF/Excel/text - images without OCR get a clear
  * note) and runs it through the shared content-LLM document pipeline to build a
  * DRAFT vendor bill (vendor, number, date, lines with GST/HSN), matched against
  * the company's PO/GRN + catalog. Review, then "Create draft bill".
@@ -117,7 +117,7 @@ export function ScanInvoiceModal({
           </View>
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text className="text-sm text-muted mb-3">
-              Upload a supplier tax invoice (PDF, Excel, text or a photo of a scan) — AI extracts the vendor
+              Upload a supplier tax invoice (PDF, Excel, text or a photo of a scan) - AI extracts the vendor
               bill and matches it against your POs, GRNs and catalog. Scanned images are read server-side by OCR
               (Tesseract) before the same extraction pipeline.
             </Text>

@@ -502,7 +502,7 @@ function MeasurementsPanel({
             {m.rejectionReason ? (
               <Text className="text-xs text-danger mt-1">Rejected: {m.rejectionReason}</Text>
             ) : null}
-            {/* SUB-UX2: Expandable lines — show first 2 when collapsed, all when expanded */}
+            {/* SUB-UX2: Expandable lines - show first 2 when collapsed, all when expanded */}
             {(m.lines ?? []).slice(0, isExpandedMeas ? undefined : 2).map((l) => (
               <Text key={l.id} className="text-xs text-muted" numberOfLines={isExpandedMeas ? undefined : 1}>
                 {l.description} · {l.quantity} {l.unit} @ {formatINR(parseFloat(l.rate))}
@@ -755,7 +755,7 @@ function MeasurementsPanel({
             {balance && (
               <Text className={`text-[10px] ${qtyOverBalance ? 'text-warning' : 'text-muted'}`}>
                 Balance: {balance.qty} {balance.unit}
-                {qtyOverBalance && ` — exceeds remaining (warn only)`}
+                {qtyOverBalance && ` - exceeds remaining (warn only)`}
               </Text>
             )}
           </View>
@@ -878,7 +878,7 @@ function MaterialsPanel({
   const selectedOnHand = selectedResource ? projectMaterials.find((m) => m.id === selectedResource.id)?.balance : undefined;
   const qtyOverOnHand = selectedOnHand !== undefined && qty !== '' && (parseFloat(qty) || 0) > selectedOnHand;
 
-  // Group issues by resourceId for ledger display (must run before any early return — Rules of Hooks)
+  // Group issues by resourceId for ledger display (must run before any early return - Rules of Hooks)
   const groupedIssues = useMemo(() => {
     const allIssues: SubcontractorMaterialIssue[] = issues ?? [];
     const groups = new Map<string, {
@@ -916,7 +916,7 @@ function MaterialsPanel({
   const grandIssued = groupedIssues.reduce((s, g) => s + g.totalIssuedAmt, 0);
   const grandRecovered = groupedIssues.reduce((s, g) => s + g.totalRecoveredAmt, 0);
 
-  // Hide when NONE — after all hooks
+  // Hide when NONE - after all hooks
   if (materialSupplyMode === 'NONE' || !materialSupplyMode) return null;
 
   const onIssue = () => {
@@ -1084,7 +1084,7 @@ function MaterialsPanel({
                       <View key={mi.id} className="py-1.5 border-b border-border/30">
                         <View className="flex-row justify-between">
                           <Text className="text-xs text-muted">
-                            {mi.issueDate} · {mi.issuedByUser?.name ?? '—'}
+                            {mi.issueDate} · {mi.issuedByUser?.name ?? '-'}
                           </Text>
                           <Text className="text-xs text-muted">
                             {mi.quantity} {mi.unit} @ {formatINR(parseFloat(mi.rate))}
@@ -1166,7 +1166,7 @@ function MaterialsPanel({
         })
       )}
 
-      {/* Issue modal — MaterialPicker + review step (SUB-UX3) */}
+      {/* Issue modal - MaterialPicker + review step (SUB-UX3) */}
       <AdaptiveSheet
         visible={issueModal}
         onClose={() => {
@@ -1518,7 +1518,7 @@ export function SubcontractsTab({ projectId }: { projectId: string }) {
         steps={[
           'Create a work order with contract scope and retention %',
           'Add a measurement sheet for work done in a period',
-          'Submit the sheet — PM approves it and a linked bill is created',
+          'Submit the sheet - PM approves it and a linked bill is created',
           'Accountant approves the bill and records payment in Accounts',
           'When all work is certified, complete the WO to release retention',
         ]}

@@ -92,7 +92,7 @@ interface LlmResponse {
 }
 
 /**
- * Single LLM turn for production chat — applies to Construction AND Inventory.
+ * Single LLM turn for production chat - applies to Construction AND Inventory.
  * D10: when a tenant/platform has a configured content LLM (`resolveLlmConfig` /
  * `resolvePlatformLlmConfig`), THAT model owns chat + future upload AI for both
  * product modes. Deepseek-v4-flash is the coding agent, never a hard-coded
@@ -216,7 +216,7 @@ function cannedMarketingReply(message: string): string {
     return 'BuildFlow plans: Inventory ₹499/month (stock + procurement + invoicing + Tally), Starter ₹1,999/month (up to 3 projects), Professional ₹4,999/month (up to 25 projects). Enterprise is custom - contact sales. All prices before 18% GST. Sign up for a free trial from the homepage.';
   }
   if (q.includes('gst') || q.includes('invoice') || q.includes('bill')) {
-    return 'BuildFlow includes GST-aware invoicing (client invoices) and vendor bills with CGST/SGST/IGST split and TDS tracking — built for Indian construction firms and inventory businesses.';
+    return 'BuildFlow includes GST-aware invoicing (client invoices) and vendor bills with CGST/SGST/IGST split and TDS tracking - built for Indian construction firms and inventory businesses.';
   }
   return 'BuildFlow is an all-in-one ERP for Indian construction firms (estimation, BOQ, daily site reports, procurement, subcontracts, accounting) plus a dedicated Inventory product (stock, procurement, invoices, bills, Tally). Sign up or log in to get started. What would you like to know?';
 }
@@ -267,7 +267,7 @@ export async function handleChatMessage(
   const llmMessages: LlmMessage[] = [
     {
       role: 'system',
-      content: `${permissionPrompt}\n\n--- LIVE CONTEXT (may be stale — prefer tools for numbers) ---\n${context}`,
+      content: `${permissionPrompt}\n\n--- LIVE CONTEXT (may be stale - prefer tools for numbers) ---\n${context}`,
     },
     ...history.reverse().map((h) => ({
       role: (h.isBot ? 'assistant' : 'user') as 'assistant' | 'user',
@@ -292,7 +292,7 @@ export async function handleChatMessage(
   return { userMessageId: userMsg.id, botMessageId: botMsg.id, reply };
 }
 
-/** Pre-login product guide — stateless, no DB persistence. */
+/** Pre-login product guide - stateless, no DB persistence. */
 export async function handlePublicChatMessage(message: string): Promise<{ reply: string }> {
   const systemPrompt = buildProductMarketingPrompt();
   const llmMessages: LlmMessage[] = [

@@ -28,14 +28,14 @@ if (process.env.NODE_ENV !== 'production') {
 /**
  * Check whether a token id (jti) has been blacklisted via logout.
  * Returns false if Redis is unreachable (fail-open for availability of the
- * MCP server — the token signature + type check in identity.ts still apply).
+ * MCP server - the token signature + type check in identity.ts still apply).
  */
 export async function isTokenBlacklisted(tokenId: string): Promise<boolean> {
   try {
     const v = await redis.get(`${BLACKLIST_PREFIX}${tokenId}`);
     return v === '1';
   } catch {
-    // Redis unreachable — fail open for MCP availability. The access token
+    // Redis unreachable - fail open for MCP availability. The access token
     // is still signature-verified, type-checked, and expiry-enforced.
     return false;
   }

@@ -2,7 +2,7 @@
  * BuildFlow - Transaction engine routes (INVENTORY_HORIZONTAL_PLATFORM Phase 2).
  *
  * Mounted at /api/inventory/transactions and gated to the INVENTORY plan via the
- * `sales_orders` feature flag — construction tenants get 403.
+ * `sales_orders` feature flag - construction tenants get 403.
  */
 import { Router } from 'express';
 import * as transactionController from '../controllers/transaction.controller';

@@ -601,7 +601,7 @@ export async function bulkUpsertResources(
             companyId,
             rate: row.rate,
             effectiveDate: new Date(),
-            notes: 'Bulk upsert — rate updated',
+            notes: 'Bulk upsert - rate updated',
             recordedBy: userId,
           },
         });
@@ -632,7 +632,7 @@ export async function bulkUpsertResources(
           companyId,
           rate: resource.rate,
           effectiveDate: new Date(),
-          notes: 'Bulk upsert — initial rate',
+          notes: 'Bulk upsert - initial rate',
           recordedBy: userId,
         },
       });

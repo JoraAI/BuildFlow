@@ -30,7 +30,7 @@ billProjectRouter.post(
   asyncHandler(billController.create),
 );
 
-// PROC-B9: Bill extraction endpoints (LLM) — requires bill.create
+// PROC-B9: Bill extraction endpoints (LLM) - requires bill.create
 billProjectRouter.post(
   '/:id/bills/extract',
   requirePermission('bill.create'),

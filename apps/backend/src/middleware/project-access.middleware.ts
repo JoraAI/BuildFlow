@@ -27,7 +27,7 @@ export async function assertProjectAccess(
 
   if (allowedRoles && !allowedRoles.includes(member.role)) {
     // INVENTORY_PRODUCT: construction-specific project role allow-lists
-    // (OWNER/PM/SUPERVISOR/ACCOUNTANT) do not apply to inventory companies —
+    // (OWNER/PM/SUPERVISOR/ACCOUNTANT) do not apply to inventory companies -
     // they have a single default STORE project and the permission gates
     // (procurement.create_indent, stock.manage, ...) already scope what
     // INVENTORY_MANAGER can do.

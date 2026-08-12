@@ -223,7 +223,7 @@ export async function createRequisition(
     }),
   );
 
-  // INVENTORY_UX_POLISH (D2): inventory indents auto-reach APPROVED on create —
+  // INVENTORY_UX_POLISH (D2): inventory indents auto-reach APPROVED on create -
   // no DRAFT → SUBMITTED → APPROVED clicks. Construction keeps the full flow.
   const company = await prisma.company.findUniqueOrThrow({
     where: { id: companyId },
@@ -235,7 +235,7 @@ export async function createRequisition(
     data: {
       projectId,
       companyId,
-      // Always auto-generate reqNumber — it must not be client-editable.
+      // Always auto-generate reqNumber - it must not be client-editable.
       // Format: IND-{YYYY}-{NNNN} (scoped per company + year).
       reqNumber: await nextSequentialNumber(companyId, 'indent'),
       notes: input.notes,
@@ -436,7 +436,7 @@ export async function createPO(
   }
 
   // Fire-and-forget: rate alerts may touch Redis (Bull). Awaiting them made the
-  // HTTP response hang when Redis was slow/unreachable — PO was saved but the
+  // HTTP response hang when Redis was slow/unreachable - PO was saved but the
   // client never saw success (modal stuck until reload).
   void alertOnPurchaseOrderRateVariance(
     companyId,
@@ -479,7 +479,7 @@ export async function getNextDocumentNumbers(
  * Banding (enabled when poAutoApproveBelow > 0):
  *   - total ≤ poOwnerApproveAbove → manager approval (OWNER/PM/INVENTORY_MANAGER)
  *   - total >  poOwnerApproveAbove → OWNER only (403 otherwise)
- * Construction POs are always created APPROVED, so this returns 400 for them —
+ * Construction POs are always created APPROVED, so this returns 400 for them -
  * the construction Draft→Submit→Approve path is unchanged.
  */
 export async function approvePurchaseOrder(
@@ -511,7 +511,7 @@ export async function approvePurchaseOrder(
     const ownerAbove = Math.max(Number(company.poOwnerApproveAbove), Number(company.poAutoApproveBelow));
     if (Number(po.totalAmount) > ownerAbove && role !== 'OWNER') {
       throw ApiError.forbidden(
-        'This purchase order exceeds your approval authority — only the owner can approve it.',
+        'This purchase order exceeds your approval authority - only the owner can approve it.',
       );
     }
   }
@@ -545,7 +545,7 @@ export async function createGRN(
     );
   }
 
-  // FIX (EST-H3): Validate each GRN line against the PO — the resource must be
+  // FIX (EST-H3): Validate each GRN line against the PO - the resource must be
   // on the PO, and the cumulative received quantity must not exceed the PO
   // line quantity (prevent over-receiving).
   const poLineByResource = new Map(po.lines.map((l) => [l.resourceId, l]));
@@ -762,7 +762,7 @@ export async function createGRN(
 
     // FIX (EST-M1): After GRN is created, check if the requisition is fully
     // fulfilled (all lines received). NOTE: status is intentionally left as
-    // APPROVED — there is no CLOSED state in the requisition state machine yet
+    // APPROVED - there is no CLOSED state in the requisition state machine yet
     // (transition would require a schema migration). Tracking fulfillment via
     // received-vs-ordered quantities only; no cosmetic no-op write here.
     if (po.requisition?.lines.length) {
@@ -783,7 +783,7 @@ export async function createGRN(
         const received = receivedByResource.get(rl.resourceId) ?? 0;
         return received >= Number(rl.quantity) - 0.001; // tolerance
       });
-      // No status transition — see note above. A CLOSED enum can be added in a
+      // No status transition - see note above. A CLOSED enum can be added in a
       // future migration if business logic requires marking requisitions done.
       void allFulfilled;
     }
@@ -800,7 +800,7 @@ export async function createGRN(
   }
 
   // Inventory only: draft vendor bill from received qty × PO rates.
-  // After stock is committed — failures are non-fatal (do not roll back GRN).
+  // After stock is committed - failures are non-fatal (do not roll back GRN).
   try {
     await createDraftBillFromGrn({
       companyId,
@@ -912,7 +912,7 @@ export interface IssueStockResult extends IssueStockLineResult {
 }
 
 /**
- * Manual stock issue (OUT) — inventory store operations, sales fulfilment, etc.
+ * Manual stock issue (OUT) - inventory store operations, sales fulfilment, etc.
  * INVENTORY_UX_POLISH (D9): processes ALL lines in one DB transaction; fails
  * (rolling back the whole request) if any line exceeds on-hand stock.
  * Requires on-hand balance; throws if insufficient stock.
@@ -973,7 +973,7 @@ export async function issueStockManual(
       if (!balance || onHand < l.quantity) {
         if (!balance || onHand === 0) {
           throw ApiError.unprocessable(
-            `${resource.name}: no stock on hand — receive via GRN first`,
+            `${resource.name}: no stock on hand - receive via GRN first`,
           );
         }
         throw ApiError.unprocessable(
@@ -1016,7 +1016,7 @@ export async function issueStockManual(
 
   const first = lineResults[0];
 
-  // Inventory only: draft sales invoice — non-fatal after stock is committed.
+  // Inventory only: draft sales invoice - non-fatal after stock is committed.
   // D9: one draft invoice with one line item per issued material.
   let draftInvoiceId: string | null = null;
   try {
@@ -1159,7 +1159,7 @@ export async function importOpeningStock(
   role: string,
   input: OpeningStockImportInput,
 ) {
-  // Phase 1.4 — opening stock import. Also gated to INVENTORY (STORE project).
+  // Phase 1.4 - opening stock import. Also gated to INVENTORY (STORE project).
   const projectId = await getDefaultProjectId(companyId);
   if (!projectId) throw ApiError.forbidden('Opening stock import is not available on this plan.');
   await assertProjectAccess(companyId, userId, role as never, projectId);
@@ -1191,7 +1191,7 @@ export async function importOpeningStock(
   }
   if (missed.length > 0 && resolved.length === 0) {
     throw ApiError.unprocessable(
-      `Opening stock import failed — no items matched. ${missed.map((m) => m.key).join('; ')}`,
+      `Opening stock import failed - no items matched. ${missed.map((m) => m.key).join('; ')}`,
     );
   }
 
@@ -1358,7 +1358,7 @@ export interface StockSummaryRow {
   resourceId: string;
   name: string;
   unit: string;
-  /** Catalog / list rate — suggested selling price for Issue. */
+  /** Catalog / list rate - suggested selling price for Issue. */
   catalogRate: number;
   /** Low-stock threshold (Phase 1.5): balance below this = needs reorder. */
   reorderPoint: number;

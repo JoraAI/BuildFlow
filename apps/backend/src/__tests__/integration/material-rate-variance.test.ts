@@ -34,7 +34,7 @@ describe('Material rate variance (integration)', () => {
     }>;
     const cement = rows.find((r) => r.name.includes('OPC'));
     expect(cement).toBeTruthy();
-    // FIX (DAT-2.2): Don't assert exact rates — derive dynamically.
+    // FIX (DAT-2.2): Don't assert exact rates - derive dynamically.
     expect(Number(cement!.plannedRate)).toBeGreaterThan(0);
     expect(['PROJECT', 'ESTIMATE', 'BOQ', 'LAST_PO', 'CATALOG', 'REGION']).toContain(cement!.plannedSource);
   });

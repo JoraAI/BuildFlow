@@ -1,5 +1,5 @@
 /**
- * INVENTORY_HORIZONTAL_PLATFORM (Phase 0) — unit tests for the terminology
+ * INVENTORY_HORIZONTAL_PLATFORM (Phase 0) - unit tests for the terminology
  * map and inventory feature flags (pure shared helpers, no DB required).
  */
 import {

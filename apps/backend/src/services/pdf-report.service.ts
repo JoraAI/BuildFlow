@@ -119,7 +119,7 @@ function drawHeader(
     try {
       doc.image(company!.logoUrl!, PAGE_W - MARGIN - 60, 20, { width: 60, height: 40, fit: [60, 40], align: 'right' });
     } catch {
-      // Logo load failed — fall back to text
+      // Logo load failed - fall back to text
       doc.fillColor(NAVY).fontSize(18).font('Helvetica-Bold').text(company?.name ?? 'BuildFlow', MARGIN, 24);
     }
   } else {
@@ -295,7 +295,7 @@ function drawBrandedWatermark(doc: PDFKit.PDFDocument, company?: PdfCompany | nu
       doc.restore();
     } catch {
       doc.restore();
-      // Logo fetch/decode failed — skip watermark for this page
+      // Logo fetch/decode failed - skip watermark for this page
     }
   }
 }
@@ -536,7 +536,7 @@ export async function reportInvoice(companyId: string, invoiceId: string): Promi
 
 // ===========================================================================
 // 3b. INVENTORY DOCUMENT PDFs (INVENTORY_HORIZONTAL_PLATFORM Phase 9.3)
-//     Sales Order / Delivery Challan / Goods Receipt — same PDF pipeline.
+//     Sales Order / Delivery Challan / Goods Receipt - same PDF pipeline.
 // ===========================================================================
 
 export async function reportSalesOrder(companyId: string, salesOrderId: string): Promise<PdfResult> {

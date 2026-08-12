@@ -564,7 +564,7 @@ export function useCreatePurchaseOrder(projectId: string) {
       }),
     // PROCUREMENT_PICKER_PERF: a new PO only changes the requisition list
     // (the indent gains a PO and leaves the New PO picker). No stock refetch.
-    // Important: void the invalidate — returning its Promise made mutateAsync
+    // Important: void the invalidate - returning its Promise made mutateAsync
     // wait for the full list refetch, leaving the New PO modal stuck open.
     onSuccess: () => {
       void invalidateProcurementLists(qc, projectId);
@@ -606,11 +606,11 @@ export function useCreateGRN(projectId: string) {
         body: JSON.stringify(input),
       }),
     // PROCUREMENT_PICKER_PERF: GRN changes the requisition list (PO receipt
-    // status) + stock summary/locations — not BOQ/shortfalls.
+    // status) + stock summary/locations - not BOQ/shortfalls.
     onSuccess: () => {
       void invalidateProcurementLists(qc, projectId);
       void invalidateProcurementStock(qc, projectId);
-      // Inventory auto-draft bills appear on GRN — refresh AP lists.
+      // Inventory auto-draft bills appear on GRN - refresh AP lists.
       void qc.invalidateQueries({ queryKey: ['bills', 'list', projectId] });
       void qc.invalidateQueries({ queryKey: ['bills', 'summary', projectId] });
       void qc.invalidateQueries({ queryKey: expansionKeys.nextNumbers(projectId) });

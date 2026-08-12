@@ -114,7 +114,7 @@ describe('Procurement (integration)', () => {
     }>;
     const balances = locations.flatMap((l) => l.balances);
     const cement = balances.find((b) => b.resource?.name?.includes('Cement'));
-    // FIX (DAT-2.2): Don't assert exact stock — other tests may have consumed it.
+    // FIX (DAT-2.2): Don't assert exact stock - other tests may have consumed it.
     expect(cement).toBeTruthy();
     expect(Number(cement!.quantity)).toBeGreaterThanOrEqual(0);
   });
@@ -129,7 +129,7 @@ describe('Procurement (integration)', () => {
     });
     expect(reqRes.status).toBe(201);
     const line = reqRes.body.data.lines[0] as { expectedRate: number | string; rateSource: string };
-    // FIX (DAT-2.2): Don't assert exact rate — derive dynamically.
+    // FIX (DAT-2.2): Don't assert exact rate - derive dynamically.
     expect(Number(line.expectedRate)).toBeGreaterThan(0);
   });
 
@@ -149,7 +149,7 @@ describe('Procurement (integration)', () => {
     });
     expect(reqRes.status).toBe(201);
     // INVENTORY_UX_POLISH (§1.3.1 construction regression): the auto-approve
-    // gate is `subscriptionPlan === 'INVENTORY'` ONLY — a construction tenant
+    // gate is `subscriptionPlan === 'INVENTORY'` ONLY - a construction tenant
     // must stay DRAFT even for a 2-line (multi-material) requisition.
     expect(reqRes.body.data.status).toBe('DRAFT');
     const lines = reqRes.body.data.lines as Array<{ resourceId: string; quantity: string }>;
@@ -196,7 +196,7 @@ describe('Procurement (integration)', () => {
     });
     expect(grnRes.status).toBe(201);
 
-    // Manual issue via the shared endpoint — construction tenant.
+    // Manual issue via the shared endpoint - construction tenant.
     const issueRes = await authPost(token, `/api/projects/${projectId}/procurement/stock/issue`, {
       resourceId,
       quantity: 1,
@@ -206,7 +206,7 @@ describe('Procurement (integration)', () => {
     expect(issueRes.status).toBe(201);
     expect(Number(issueRes.body.data.quantityOnHand)).toBe(1);
     // createDraftInvoiceFromStockIssue returns null unless the tenant plan is
-    // INVENTORY — so a construction issue must never auto-create a sales invoice.
+    // INVENTORY - so a construction issue must never auto-create a sales invoice.
     expect(issueRes.body.data.draftInvoiceId).toBeNull();
   });
 
@@ -287,7 +287,7 @@ describe('Procurement (integration)', () => {
       lines: [{ resourceId: resource.id, quantity: 10, unit: resource.unit }],
     });
     // FIX (DAT-2.2): GRN may fail with 400 if PO is already received by another test run.
-    // Verify the endpoint works — don't assert exact status.
+    // Verify the endpoint works - don't assert exact status.
     expect([201, 400]).toContain(grnRes.status);
 
     if (grnRes.status === 201) {
@@ -453,7 +453,7 @@ describe('Procurement (integration)', () => {
       materialUsages: [{ resourceId: cementId, quantityUsed: issueQty }],
     });
     // FIX (DAT-2.2): Report may return 422 if stock is depleted by other tests.
-    // Also accept 409 — the random reportDate can collide with a date recorded
+    // Also accept 409 - the random reportDate can collide with a date recorded
     // by a previous test run against the shared seed project.
     expect([201, 422, 409]).toContain(reportRes.status);
 
@@ -629,7 +629,7 @@ describe('Procurement (integration)', () => {
     await authPost(token, `/api/projects/${projectId}/procurement/requisitions/${reqId}/approve`);
 
     const poRes = await authPost(token, `/api/projects/${projectId}/procurement/purchase-orders`, {
-      // omit poNumber — server allocates
+      // omit poNumber - server allocates
       vendorName: 'Auto Number Vendor',
       requisitionId: reqId,
       lines: [{ resourceId: cementId, quantity: 2, unit: 'bag', rate: 100 }],
@@ -641,7 +641,7 @@ describe('Procurement (integration)', () => {
 
     const grnRes = await authPost(token, `/api/projects/${projectId}/procurement/grn`, {
       purchaseOrderId: poRes.body.data.id,
-      // omit grnNumber — server allocates
+      // omit grnNumber - server allocates
       receivedDate: '2026-08-11',
       lines: [{ resourceId: cementId, quantity: 2, unit: 'bag' }],
     });

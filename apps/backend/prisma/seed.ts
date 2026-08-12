@@ -3,7 +3,7 @@
  *
  * Creates:
  *  - Construction: "Reddy Constructions Pvt Ltd" + 9 users (all roles) + NH-45 lifecycle
- *  - Inventory demos (all business profiles) — password Test@1234:
+ *  - Inventory demos (all business profiles) - password Test@1234:
  *      MATERIAL_SUPPLIER  owner@hydmaterials.com   (rich demo: parties, 2 warehouses, SKUs)
  *      RETAIL             owner@cityhardware.com
  *      WHOLESALE          owner@deccanwholesale.com
@@ -14,7 +14,7 @@
  *  - Platform admin: admin@buildflow.com
  *
  * Catalog data (catalog-data.ts) and rate analyses (rate-analysis-data.ts) are
- * NOT changed — they remain the full ~500 item library for the construction tenant.
+ * NOT changed - they remain the full ~500 item library for the construction tenant.
  *
  * Idempotent-ish: uses upsert on unique fields. Re-running updates in place.
  */
@@ -95,7 +95,7 @@ async function main(): Promise<void> {
   // FIX (DAT-3.1): Refuse to TRUNCATE unless NODE_ENV !== 'production'
   // AND an explicit SEED_ALLOW_TRUNCATE=1 is set. This prevents accidental
   // data loss in production. The misleading "idempotent-ish" comment is
-  // corrected: the seed TRUNCATES (not upserts) — it's a full reset.
+  // corrected: the seed TRUNCATES (not upserts) - it's a full reset.
   // ----------------------------------------------------------------
   if (process.env.NODE_ENV === 'production' && process.env.SEED_ALLOW_TRUNCATE !== '1') {
     throw new Error(
@@ -218,14 +218,14 @@ async function main(): Promise<void> {
   });
 
   // ----------------------------------------------------------------
-  // Resources — comprehensive catalog (~500+ items)
+  // Resources - comprehensive catalog (~500+ items)
   // ----------------------------------------------------------------
   const resources: Record<string, { id: string }> = {};
   let resourceCount = 0;
   // Auto-assign SAC codes for services (LABOUR/EQUIPMENT) if no HSN provided
   // 9954 = Construction services | 9973 = Leasing/rental services without operator
   const resolveHsnSac = (item: CatalogItem): string | undefined => {
-    // LABOUR and EQUIPMENT are services — always use SAC codes (not HSN)
+    // LABOUR and EQUIPMENT are services - always use SAC codes (not HSN)
     if (item.type === "LABOUR") return "9954";
     if (item.type === "EQUIPMENT") return "9973";
     // MATERIAL uses HSN codes from the catalog
@@ -276,7 +276,7 @@ async function main(): Promise<void> {
     console.log('   Flushed Redis cache for resources + rate analyses');
   } catch {
     // eslint-disable-next-line no-console
-    console.log('   (Redis not available — cache will expire via TTL)');
+    console.log('   (Redis not available - cache will expire via TTL)');
   }
 
   // ----------------------------------------------------------------
@@ -372,7 +372,7 @@ async function main(): Promise<void> {
         totalRate: total,
         components: {
           create: components.map((c) => ({
-            // MISC items must NEVER link to catalog resources — they are standalone labels.
+            // MISC items must NEVER link to catalog resources - they are standalone labels.
             // Always store the name as miscName so the mobile MISC section displays it.
             resourceId: c.type === 'MISC' ? null : (c.resourceName ? (resources[c.resourceName]?.id ?? null) : null),
             miscName: c.type === 'MISC'
@@ -467,7 +467,7 @@ async function main(): Promise<void> {
   });
 
   // ----------------------------------------------------------------
-  // Project 1 - NH-45 Road Widening (ONLY project — complete lifecycle)
+  // Project 1 - NH-45 Road Widening (ONLY project - complete lifecycle)
   // ----------------------------------------------------------------
   const project1 = await prisma.project.create({
     data: {
@@ -577,7 +577,7 @@ async function main(): Promise<void> {
       description: 'Earthwork excavation in ordinary soil',
       unit: 'cum', quantity: 5000, rate: 145, amount: 725_000,
       type: CostType.MATERIAL,
-      // Earthwork has no direct catalog resource — leave resourceId null (was wrongly cement before)
+      // Earthwork has no direct catalog resource - leave resourceId null (was wrongly cement before)
     },
   });
 
@@ -1033,7 +1033,7 @@ async function main(): Promise<void> {
     },
   });
 
-  // Second measurement is DRAFT (not duplicate APPROVED — spec §2.20.2.C nit #1)
+  // Second measurement is DRAFT (not duplicate APPROVED - spec §2.20.2.C nit #1)
   await prisma.subcontractMeasurement.create({
     data: {
       workOrderId: wo.id,
@@ -1128,7 +1128,7 @@ async function main(): Promise<void> {
   console.log('   Seeded 5 daily reports on NH-45');
 
   // ----------------------------------------------------------------
-  // INVENTORY demos — one tenant per business profile (terminology + catalog)
+  // INVENTORY demos - one tenant per business profile (terminology + catalog)
   // ----------------------------------------------------------------
   type InvCatalogItem = {
     name: string;
@@ -1285,7 +1285,7 @@ async function main(): Promise<void> {
         data: {
           companyId: company.id,
           projectId: storeProject.id,
-          name: 'Branch — Uppal',
+          name: 'Branch - Uppal',
           code: 'UPP',
           address: 'Uppal Industrial Area, Hyderabad',
           isDefault: false,
@@ -1333,7 +1333,7 @@ async function main(): Promise<void> {
     }
 
     // eslint-disable-next-line no-console
-    console.log(`   Seeded inventory (${opts.profile}): ${opts.companyName} — ${opts.ownerEmail}`);
+    console.log(`   Seeded inventory (${opts.profile}): ${opts.companyName} - ${opts.ownerEmail}`);
   }
 
   await seedInventoryTenant({
@@ -1497,7 +1497,7 @@ async function main(): Promise<void> {
   // eslint-disable-next-line no-console
   console.log('✅ Seed complete.');
   // eslint-disable-next-line no-console
-  console.log('── Construction (Reddy Constructions) — password', PASSWORD);
+  console.log('── Construction (Reddy Constructions) - password', PASSWORD);
   // eslint-disable-next-line no-console
   console.log('   owner@reddyconst.com (OWNER)');
   // eslint-disable-next-line no-console
@@ -1517,7 +1517,7 @@ async function main(): Promise<void> {
   // eslint-disable-next-line no-console
   console.log('   accounts@reddyconst.com (ACCOUNTANT)');
   // eslint-disable-next-line no-console
-  console.log('── Inventory demos — password', PASSWORD);
+  console.log('── Inventory demos - password', PASSWORD);
   // eslint-disable-next-line no-console
   console.log('   owner@hydmaterials.com (MATERIAL_SUPPLIER, rich) → /inventory');
   // eslint-disable-next-line no-console

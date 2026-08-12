@@ -21,7 +21,7 @@ import { recordAudit } from '../utils/audit';
 import { env } from '../config/env';
 
 /**
- * FIX (SEC-M12): Previously used bare `createHash('sha256')` — anyone who
+ * FIX (SEC-M12): Previously used bare `createHash('sha256')` - anyone who
  * knew the hash algorithm could recompute a valid hash after editing a signed
  * document. Now we use HMAC keyed with the server's JWT access secret, which
  * an attacker cannot forge.

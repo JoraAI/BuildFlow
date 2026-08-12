@@ -59,7 +59,7 @@ const estimateCompareParamsSchema = z.object({
 export const estimateRouter = Router();
 
 estimateRouter.use(authenticateToken);
-// estimateRouter is mounted at `/api` (catch-all) — the gate must be path-aware
+// estimateRouter is mounted at `/api` (catch-all) - the gate must be path-aware
 // so unrelated /api/* requests (invoices, bills, settings, ...) pass through.
 estimateRouter.use(
   requireModuleForPaths('estimates', [

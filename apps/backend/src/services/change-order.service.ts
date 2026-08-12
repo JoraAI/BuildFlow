@@ -8,7 +8,7 @@ import { assertProjectAccess } from '../middleware/project-access.middleware';
 import { notify } from './notification.service';
 import { logger } from '../config/logger';
 
-// VO-B2: MaterialDemandLine import removed — auto-indent creation on approve
+// VO-B2: MaterialDemandLine import removed - auto-indent creation on approve
 // was replaced by a single shortfall path. After approve, shortfalls are
 // computed from live BOQ qty (which now includes the variation delta) via
 // fetchBoqMaterialDemands. This avoids the qty mismatch where auto-indent
@@ -394,7 +394,7 @@ export async function convertChangeOrderToBoq(
 }
 
 /**
- * VO-B4: Revised scope summary — original estimate + approved variations.
+ * VO-B4: Revised scope summary - original estimate + approved variations.
  * Does NOT mutate estimate lines; derives a read-only revised total.
  */
 export async function getProjectScopeSummary(companyId: string, projectId: string) {
@@ -431,7 +431,7 @@ export async function getProjectScopeSummary(companyId: string, projectId: strin
 }
 
 /**
- * VO-B1: Post-approve impact summary — what the approve changed.
+ * VO-B1: Post-approve impact summary - what the approve changed.
  */
 export async function getChangeOrderImpact(companyId: string, changeOrderId: string) {
   const co = await prisma.changeOrder.findFirst({

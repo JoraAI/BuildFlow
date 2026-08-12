@@ -22,7 +22,7 @@ const projectIdParams = z.object({ id: idSchema });
 
 export const changeOrderRouter = Router();
 changeOrderRouter.use(authenticateToken);
-// Mounted at /api/projects — path-aware so only change-order routes are gated.
+// Mounted at /api/projects - path-aware so only change-order routes are gated.
 changeOrderRouter.use(requireModuleForPaths('change_orders', [/^\/[^/]+\/change-orders\b/]));
 
 changeOrderRouter.get(
@@ -63,7 +63,7 @@ changeOrderRouter.post(
   asyncHandler(changeOrderController.convertToBoq),
 );
 
-// Variation BOQ picker — list eligible items + bulk-attach as variation lines
+// Variation BOQ picker - list eligible items + bulk-attach as variation lines
 changeOrderRouter.get(
   '/:id/change-orders/:changeOrderId/eligible-boq',
   requireRole(Role.OWNER, Role.PM),

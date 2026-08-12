@@ -67,7 +67,7 @@ describe('INVENTORY_PRODUCT (integration)', () => {
       // Delete in dependency order to avoid FK violations.
       await prisma.materialPriceHistory.deleteMany({ where: { companyId } });
       // INVENTORY_HORIZONTAL_PLATFORM (Phase 3): warehouse ops reference
-      // stock_locations (RESTRICT) — remove transfers + counts first.
+      // stock_locations (RESTRICT) - remove transfers + counts first.
       await prisma.transferOrder.deleteMany({ where: { companyId } });
       await prisma.stockCount.deleteMany({ where: { companyId } });
       // Stock locations cascade stock balances + movements.
@@ -212,7 +212,7 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     const resourceId = resourceRes.body.data.id as string;
 
     // INVENTORY_UX_POLISH (D2): inventory indent auto-reaches APPROVED on create
-    // (no Submit/Approve steps) — PO is creatable immediately.
+    // (no Submit/Approve steps) - PO is creatable immediately.
     const reqRes = await authPost(imToken, `/api/projects/${defaultProjectId}/procurement/requisitions`, {
       reqNumber: `IND-${suffix}`,
       lines: [{ resourceId, quantity: 10, unit: 'bag' }],
@@ -271,7 +271,7 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     expect(stockRow).toBeTruthy();
     expect(Number(stockRow!.balance)).toBeCloseTo(10, 3);
 
-    // Issue 3 bags — balance 7 + auto draft sales invoice
+    // Issue 3 bags - balance 7 + auto draft sales invoice
     const issueRes = await authPost(imToken, `/api/projects/${defaultProjectId}/procurement/stock/issue`, {
       resourceId,
       quantity: 3,
@@ -915,7 +915,7 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     );
     expect(defaultWh).toBeTruthy();
 
-    // Second location — not the default.
+    // Second location - not the default.
     const mk = await authPost(invToken, '/api/inventory/warehouses', {
       name: 'Secondary Store',
       code: `SEC-${suffix.slice(-4)}`,
@@ -1993,7 +1993,7 @@ describe('INVENTORY_PRODUCT (integration)', () => {
       filename: 'invoice.txt',
       contentType: 'text/plain',
     });
-    // LLM may be configured (platform env) or not — either way the route must
+    // LLM may be configured (platform env) or not - either way the route must
     // return 200 with `{ draft, notes }` and never write a bill.
     expect(res.status).toBe(200);
     const data = res.body.data as { draft: { vendorName: string } | null; notes: string };
@@ -2118,7 +2118,7 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     });
     expect(grn1.status).toBe(201);
 
-    // PO at 300 (200% above WAC 100) — must be flagged.
+    // PO at 300 (200% above WAC 100) - must be flagged.
     const req2 = await authPost(invToken, `/api/projects/${defaultProjectId}/procurement/requisitions`, {
       lines: [{ resourceId: itemId, quantity: 5, unit: 'bag' }],
     });
@@ -2246,7 +2246,7 @@ describe('INVENTORY_PRODUCT (integration)', () => {
       name: `MarginBilled Item ${suffix}`,
       type: 'MATERIAL',
       unit: 'bag',
-      rate: 150, // catalog rate — must NOT drive revenue once linked
+      rate: 150, // catalog rate - must NOT drive revenue once linked
       gstRate: 18,
     });
     expect(itemRes.status).toBe(201);

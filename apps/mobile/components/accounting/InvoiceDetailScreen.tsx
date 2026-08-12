@@ -1,5 +1,5 @@
 /**
- * Invoice detail body — used by construction (/accounting/invoice/[id])
+ * Invoice detail body - used by construction (/accounting/invoice/[id])
  * and inventory (/inventory/invoices/[id]) route wrappers.
  */
 import React, { useState } from 'react';

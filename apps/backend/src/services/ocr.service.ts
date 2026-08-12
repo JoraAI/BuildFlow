@@ -3,7 +3,7 @@
  *
  * Tesseract.js (eng) turns scanned invoice images (JPG/PNG/WebP) into text that
  * the Phase 7 `extractInvoiceDraft` pipeline can run through the content LLM.
- * The worker + language data are downloaded lazily on first use; never throws —
+ * The worker + language data are downloaded lazily on first use; never throws -
  * returns the extracted text or an empty string on failure. Exported as a
  * function so tests can mock it (jest.mock) without spinning up Tesseract.
  */

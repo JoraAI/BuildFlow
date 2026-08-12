@@ -2,7 +2,7 @@
  * BuildFlow - Bill extraction service (PROC-B9).
  *
  * Reuses extractText + callLlmForExtraction from tender-extract.service.ts.
- * Does NOT write to DB — returns draft for human review before create.
+ * Does NOT write to DB - returns draft for human review before create.
  */
 import { extractText, callLlmForExtraction } from './tender-extract.service';
 import { logger } from '../config/logger';
@@ -25,7 +25,7 @@ function buildBillExtractPrompt(text: string): string {
 
 /**
  * Extract a single vendor bill draft from an uploaded file.
- * Does NOT write to DB — returns draft for review.
+ * Does NOT write to DB - returns draft for review.
  */
 export async function extractBillFromFile(
   companyId: string,
@@ -64,7 +64,7 @@ export async function extractBillFromFile(
       draft,
       notes: draft.confidence > 0.7
         ? 'High confidence extraction. Review before saving.'
-        : 'Low confidence — please verify all fields carefully.',
+        : 'Low confidence - please verify all fields carefully.',
     };
   } catch (err) {
     logger.warn('Bill extract JSON parse failed', { error: String(err), companyId });
@@ -77,7 +77,7 @@ export async function extractBillFromFile(
 
 /**
  * Extract multiple vendor bills from uploaded files (bulk import).
- * Does NOT write to DB — returns drafts for review.
+ * Does NOT write to DB - returns drafts for review.
  */
 export async function extractBillsFromFiles(
   companyId: string,

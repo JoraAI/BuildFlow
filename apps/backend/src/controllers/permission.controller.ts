@@ -8,7 +8,7 @@ import * as permService from '../services/permission.service';
 import type { Role, Permission } from '@buildflow/shared';
 
 /* ------------------------------------------------------------------ */
-/* GET /api/settings/permissions — full permission state               */
+/* GET /api/settings/permissions - full permission state               */
 /* ------------------------------------------------------------------ */
 
 export async function getPermissions(req: Request, res: Response) {
@@ -17,7 +17,7 @@ export async function getPermissions(req: Request, res: Response) {
 }
 
 /* ------------------------------------------------------------------ */
-/* PUT /api/settings/permissions/:role — update role permissions       */
+/* PUT /api/settings/permissions/:role - update role permissions       */
 /* ------------------------------------------------------------------ */
 
 export async function updateRolePermissions(req: Request, res: Response) {
@@ -44,7 +44,7 @@ export async function updateRolePermissions(req: Request, res: Response) {
 }
 
 /* ------------------------------------------------------------------ */
-/* POST /api/settings/permissions/:role/reset — reset to default       */
+/* POST /api/settings/permissions/:role/reset - reset to default       */
 /* ------------------------------------------------------------------ */
 
 export async function resetRolePermissions(req: Request, res: Response) {
@@ -64,7 +64,7 @@ export async function resetRolePermissions(req: Request, res: Response) {
 }
 
 /* ------------------------------------------------------------------ */
-/* POST /api/settings/permissions/reset — reset ALL to defaults        */
+/* POST /api/settings/permissions/reset - reset ALL to defaults        */
 /* ------------------------------------------------------------------ */
 
 export async function resetAllRolePermissions(req: Request, res: Response) {

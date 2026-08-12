@@ -67,7 +67,7 @@ export function PermissionGate({
  */
 export function AmountGate({
   children,
-  fallback = <>{'—'}</>,
+  fallback = <>{'-'}</>,
 }: {
   children: React.ReactNode;
   fallback?: React.ReactNode;

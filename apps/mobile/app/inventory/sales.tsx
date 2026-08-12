@@ -88,7 +88,7 @@ export default function InventorySalesScreen() {
             <Button label="Confirm" size="sm" variant="secondary" onPress={() => void soAction.mutateAsync({ id: item.id, action: 'confirm' }).then(() => toast.success('Order confirmed'))} />
           ) : null}
           {item.status === 'CONFIRMED' ? (
-            <Button label="Create challan" size="sm" variant="secondary" onPress={() => void createChallan.mutateAsync({ salesOrderId: item.id }).then(() => toast.success('Challan created — dispatch to move stock'))} />
+            <Button label="Create challan" size="sm" variant="secondary" onPress={() => void createChallan.mutateAsync({ salesOrderId: item.id }).then(() => toast.success('Challan created - dispatch to move stock'))} />
           ) : null}
           {(item.status === 'CONFIRMED' || item.status === 'DELIVERED') && delivered ? (
             <Button label="Invoice delivered qty" size="sm" variant="accent" onPress={() => void invoiceFromSO.mutateAsync({ id: item.id }).then((r) => {
@@ -122,7 +122,7 @@ export default function InventorySalesScreen() {
         ) : null}
         {item.status === 'SENT' ? (
           <>
-            <Button label="Accept" size="sm" variant="accent" onPress={() => void quoteAction.mutateAsync({ id: item.id, action: 'accept' }).then(() => toast.success('Quote accepted — convert to a sales order'))} />
+            <Button label="Accept" size="sm" variant="accent" onPress={() => void quoteAction.mutateAsync({ id: item.id, action: 'accept' }).then(() => toast.success('Quote accepted - convert to a sales order'))} />
             <Button label="Reject" size="sm" variant="secondary" onPress={() => void quoteAction.mutateAsync({ id: item.id, action: 'reject' }).then(() => toast.info('Quote rejected'))} />
           </>
         ) : null}
@@ -203,7 +203,7 @@ export default function InventorySalesScreen() {
             onPress={() =>
               void (item.kind === 'credit' ? issueCreditNote : issueDebitNote)
                 .mutateAsync(item.id)
-                .then(() => toast.success('Note issued — included in Tally export'))
+                .then(() => toast.success('Note issued - included in Tally export'))
             }
           />
           <Text className="text-[11px] text-muted w-full">
@@ -360,7 +360,7 @@ export default function InventorySalesScreen() {
               action: 'dispatch',
               locationId,
             });
-            toast.success('Dispatched — stock moved OUT');
+            toast.success('Dispatched - stock moved OUT');
             setDispatchChallan(null);
           }}
         />
@@ -372,7 +372,7 @@ export default function InventorySalesScreen() {
           onClose={() => setSalesReturnOpen(false)}
           onSubmit={async (input) => {
             const r = await createSalesReturn.mutateAsync(input);
-            toast.success(`Return ${r.salesReturn.returnNumber} recorded — draft credit note created`);
+            toast.success(`Return ${r.salesReturn.returnNumber} recorded - draft credit note created`);
             setSalesReturnOpen(false);
           }}
         />
@@ -384,7 +384,7 @@ export default function InventorySalesScreen() {
           onClose={() => setPurchaseReturnOpen(false)}
           onSubmit={async (input) => {
             const r = await createPurchaseReturn.mutateAsync(input);
-            toast.success(`Return ${r.purchaseReturn.returnNumber} recorded — draft debit note created`);
+            toast.success(`Return ${r.purchaseReturn.returnNumber} recorded - draft debit note created`);
             setPurchaseReturnOpen(false);
           }}
         />

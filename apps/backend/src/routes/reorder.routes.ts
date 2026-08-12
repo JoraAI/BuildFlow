@@ -1,7 +1,7 @@
 /**
  * BuildFlow - Reorder automation routes (INVENTORY_HORIZONTAL_PLATFORM Phase 4).
  *
- * Mounted at /api/inventory/reorder and gated by `stock_adjustments` — construction
+ * Mounted at /api/inventory/reorder and gated by `stock_adjustments` - construction
  * tenants get 403 on every route.
  */
 import { Router } from 'express';

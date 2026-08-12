@@ -1,7 +1,7 @@
 /**
  * BuildFlow - Inventory analytics routes (INVENTORY_HORIZONTAL_PLATFORM Phase 6).
  *
- * Mounted at /api/inventory/analytics and gated by `stock_adjustments` — the
+ * Mounted at /api/inventory/analytics and gated by `stock_adjustments` - the
  * analytics build on low-stock (Phase 1.5) + WAC (Phase 5) data. Construction
  * tenants get 403 on every route.
  */

@@ -7,7 +7,7 @@
  *   - Backend `hasPermission()` for service-level checks
  *   - Frontend `usePermission()` hook for UI gating
  *
- * Permission strings are stable identifiers — do NOT rename them once shipped
+ * Permission strings are stable identifiers - do NOT rename them once shipped
  * (they are stored in the `CompanyRolePermission.permissions[]` column).
  */
 
@@ -54,18 +54,18 @@ export const PERMISSIONS = {
   'subcontract.create_wo': 'Create subcontractor work orders',
   'subcontract.approve_measurement': 'Approve subcontractor measurements',
 
-  // ── Accounting — Invoices ──────────────────────────────────────────
+  // ── Accounting - Invoices ──────────────────────────────────────────
   'invoice.view': 'View client invoices',
   'invoice.create': 'Create client invoices (Standard / RA / Milestone)',
   'invoice.record_payment': 'Record client payments',
 
-  // ── Accounting — Bills ─────────────────────────────────────────────
+  // ── Accounting - Bills ─────────────────────────────────────────────
   'bill.view': 'View vendor bills',
   'bill.create': 'Create vendor bills',
   'bill.approve': 'Approve vendor bills',
   'bill.record_payment': 'Pay vendor bills',
 
-  // ── Accounting — Export ────────────────────────────────────────────
+  // ── Accounting - Export ────────────────────────────────────────────
   'tally.export': 'Export invoices & bills to Tally XML',
 
   // ── Financials / Sensitive Amounts ─────────────────────────────────
@@ -107,7 +107,7 @@ export type Permission = keyof typeof PERMISSIONS;
 export const ALL_PERMISSIONS: Permission[] = Object.keys(PERMISSIONS) as Permission[];
 
 /**
- * Permissions grouped by module — used by the settings UI to render
+ * Permissions grouped by module - used by the settings UI to render
  * a grouped permission matrix.
  */
 export const PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] = [

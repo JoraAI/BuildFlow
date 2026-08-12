@@ -72,7 +72,7 @@ export interface GstSplit {
 
 /**
  * Split a GST amount into CGST/SGST (same-state party) or IGST (inter-state).
- * Party state may be a 2-digit GST code, a full state name, or a GSTIN —
+ * Party state may be a 2-digit GST code, a full state name, or a GSTIN -
  * normalized the same way the tally export does.
  */
 export function splitGstByState(

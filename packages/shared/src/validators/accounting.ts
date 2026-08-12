@@ -98,7 +98,7 @@ export const createBillSchema = z.object({
   notes: z.string().max(2000).optional(),
   // PROC-B3: Link bill to purchase order for procurement workflow.
   purchaseOrderId: z.string().uuid().optional(),
-  // R10-B4: PO number hint from AI extract — service resolves to purchaseOrderId.
+  // R10-B4: PO number hint from AI extract - service resolves to purchaseOrderId.
   poNumberHint: z.string().max(100).optional(),
   // PROC-B5: Vendor invoice attachment (PDF/image URL from storage).
   attachmentUrl: z.string().max(2000).optional(),

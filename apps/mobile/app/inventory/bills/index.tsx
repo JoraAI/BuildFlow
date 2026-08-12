@@ -174,7 +174,7 @@ function NewBillModal({
           </View>
           <ScrollView className="p-5">
             <Select
-              label="Vendor (optional — from Parties)"
+              label="Vendor (optional - from Parties)"
               value={vendorId || undefined}
               onChange={(v) => {
                 setVendorId(v ?? '');

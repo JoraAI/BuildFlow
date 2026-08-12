@@ -76,7 +76,7 @@ export default function ProjectDetailScreen() {
     if (tabFromUrl && TABS.some((t) => t.value === tabFromUrl)) {
       setTabState(tabFromUrl as Tab);
     } else if (!tabFromUrl && tab !== 'overview') {
-      // URL has no tab param but state does — keep state, but update URL
+      // URL has no tab param but state does - keep state, but update URL
       router.setParams({ tab });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

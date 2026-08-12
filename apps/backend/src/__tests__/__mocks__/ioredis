@@ -1,5 +1,5 @@
 /**
- * Mock for ioredis — prevents Redis connections during tests.
+ * Mock for ioredis - prevents Redis connections during tests.
  * Mapped via jest.config.js moduleNameMapper.
  */
 function createMockRedis() {

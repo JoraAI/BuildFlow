@@ -22,7 +22,7 @@ function resolveRedisConnection(rawUrl: string): { url: string; tls?: Record<str
   let url = rawUrl.trim();
   if (/\.upstash\.io/i.test(url) && url.startsWith('redis://')) {
     url = `rediss://${url.slice('redis://'.length)}`;
-    logger.warn('Upstash host detected — use rediss:// in REDIS_URL (TLS required)');
+    logger.warn('Upstash host detected - use rediss:// in REDIS_URL (TLS required)');
   }
   return { url, tls: url.startsWith('rediss://') ? {} : undefined };
 }
@@ -92,7 +92,7 @@ export async function cacheInvalidate(key: string): Promise<void> {
 export async function disconnectRedis(): Promise<void> {
   try {
     redis.removeAllListeners();
-    // Force-close — quit() hangs when TLS/upstream commands are failing (seed exit).
+    // Force-close - quit() hangs when TLS/upstream commands are failing (seed exit).
     redis.disconnect(false);
   } catch (err) {
     logger.error('Redis disconnect failed', { error: String(err) });

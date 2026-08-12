@@ -1,9 +1,9 @@
-# BuildFlow — Inventory UX Polish — Implementation Plan (Deepseek-Flash-V4)
+# BuildFlow - Inventory UX Polish - Implementation Plan (Deepseek-Flash-V4)
 
 > **Audience:** Deepseek-Flash-V4 (coding agent)  
 > **Repo:** `/home/prasanna/work/BuildFlow`  
-> **Products in scope for AI (D10):** **both** Construction ERP **and** Inventory — same assistant stack, product-scoped prompts/tools.  
-> **Pricing:** Inventory **₹499/mo** / **₹4,990/yr** — do not regress.  
+> **Products in scope for AI (D10):** **both** Construction ERP **and** Inventory - same assistant stack, product-scoped prompts/tools.  
+> **Pricing:** Inventory **₹499/mo** / **₹4,990/yr** - do not regress.  
 > **Construction safety:** Indent auto-approve **only** when `subscriptionPlan === 'INVENTORY'`. Construction `ProcurementTab` keeps Draft → Submit → Approve.  
 
 ---
@@ -21,13 +21,13 @@
 | D7 | Materials edit rate + delete |
 | D8 | PO/GRN numbers auto-suggested (`PO/GRN-YYYY-NNNN`); user may edit before save |
 | D9 | Multi-material procure + retrieve (Indent / PO / GRN / Issue with multiple lines) |
-| **D10** | **LLM routing (Construction + Inventory):** when a tenant/platform has a configured content LLM (or uploaded knowledge), **that** LLM owns chatbot + upload-related AI for **both** product modes — not a hard-coded Deepseek product model. Deepseek-v4-flash = coding agent only. |
+| **D10** | **LLM routing (Construction + Inventory):** when a tenant/platform has a configured content LLM (or uploaded knowledge), **that** LLM owns chatbot + upload-related AI for **both** product modes - not a hard-coded Deepseek product model. Deepseek-v4-flash = coding agent only. |
 
 ---
 
 ## 1. Verification status (re-verified 2026-08-11)
 
-### 1.1 D1–D10 — CODE + DOC COMPLETE
+### 1.1 D1–D10 - CODE + DOC COMPLETE
 
 | Item | Evidence | Construction impact |
 |------|----------|---------------------|
@@ -40,15 +40,15 @@
 
 **`ProcurementTab.tsx`:** D8 number prefill only. Draft → Submit → Approve **intact**.
 
-### 1.2 Construction ERP — verified safe
+### 1.2 Construction ERP - verified safe
 
 | Risk | Status |
 |------|--------|
-| Auto-APPROVE leak | **No** — plan gate + DRAFT assertion in tests |
-| Issue creates sales invoice | **No** — inventory-only draft invoice + construction issue test |
+| Auto-APPROVE leak | **No** - plan gate + DRAFT assertion in tests |
+| Issue creates sales invoice | **No** - inventory-only draft invoice + construction issue test |
 | Chatbot / LLM | **Content LLM via `resolveLlmConfig`** for Construction + Inventory; Deepseek = coding agent |
 
-### 1.3 Remaining gaps (THIS Deepseek pass — smoke / ops only)
+### 1.3 Remaining gaps (THIS Deepseek pass - smoke / ops only)
 
 Do **not** reimplement D1–D10. Only:
 
@@ -61,8 +61,8 @@ Do **not** reimplement D1–D10. Only:
 
 ### 1.4 Non-issues
 
-- Multi-issue `stockMovementId` = first movement — intentional.  
-- Duplicate PO 409 console noise in tests — expected.  
+- Multi-issue `stockMovementId` = first movement - intentional.  
+- Duplicate PO 409 console noise in tests - expected.  
 - §6 line numbers may drift; prefer symbol names (`callLLMOnce`, `resolveLlmConfig`) over fragile Lxx cites.
 
 ---
@@ -95,7 +95,7 @@ cd /home/prasanna/work/BuildFlow/apps/backend && npm test -- --testPathPattern='
 
 ## 3. Checklist
 
-### Implementation — done
+### Implementation - done
 
 - [x] D1–D9  
 - [x] Construction multi-line indent → **DRAFT** regression  
@@ -131,19 +131,19 @@ cd /home/prasanna/work/BuildFlow/apps/backend && npm test -- --testPathPattern='
 
 ---
 
-## 6. Deepseek-v4-flash feasibility vs existing content LLM (D10) — DONE
+## 6. Deepseek-v4-flash feasibility vs existing content LLM (D10) - DONE
 
 ### 6.1 What exists today (repo fact)
 
 | Piece | Path / mechanism |
 |-------|------------------|
-| In-app assistant | `chatbot.service.ts` — OpenAI-compatible `/chat/completions` |
+| In-app assistant | `chatbot.service.ts` - OpenAI-compatible `/chat/completions` |
 | Tool calling | `assistant-tools.service.ts` + `buildPermissionAwarePrompt` |
 | Config | `resolveLlmConfig(companyId)` → company Settings LLM, else platform `LLM_API_URL` / `LLM_API_KEY` / `LLM_MODEL` via `resolvePlatformLlmConfig()` |
 | Construction shell | `apps/mobile/app/(app)/_layout.tsx` → `AssistantOverlay` |
 | Inventory shell | `apps/mobile/app/inventory/_layout.tsx` → same `AssistantOverlay` |
 | Marketing | `MarketingAssistantFab` → public chatbot; platform LLM; no tenant data |
-| Settings | `llmIntegrationSchema` — any OpenAI-compatible host |
+| Settings | `llmIntegrationSchema` - any OpenAI-compatible host |
 
 **Wiring:** `callLLMOnce` uses `resolveLlmConfig(companyId)` when logged-in, else `resolvePlatformLlmConfig()`, then `POST {cfg.apiUrl}/chat/completions` with `model: cfg.model`. Tools: `buildOpenAiTools(identity.permissions, identity.productMode)` so Inventory cannot call construction-only tools on the shared service.
 
@@ -151,7 +151,7 @@ cd /home/prasanna/work/BuildFlow/apps/backend && npm test -- --testPathPattern='
 
 | Role | Recommendation |
 |------|----------------|
-| Coding agent | **Primary** — implement features for both products |
+| Coding agent | **Primary** - implement features for both products |
 | Default in-app chat model | **Do not force** if content LLM configured |
 | Upload / doc AI answers | Always **content LLM** (`resolveLlmConfig`) when configured |
 | RAG / embeddings | Out of scope until a dedicated design |
@@ -198,7 +198,7 @@ flowchart TD
 
 1. Reuse `callLLMOnce` / `resolveLlmConfig` for both products.  
 2. Respect `productMode` + `buildOpenAiTools(...)`.  
-3. One assistant service — no product fork.  
+3. One assistant service - no product fork.  
 4. No RAG DB / embedding service / silent `.env` model swap without ops consent in polish pass.
 
 ---

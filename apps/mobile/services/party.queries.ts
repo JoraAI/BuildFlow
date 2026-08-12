@@ -1,6 +1,6 @@
 /**
  * BuildFlow - Party master hooks (INVENTORY_HORIZONTAL_PLATFORM Phase 1.1).
- * Customers (AR) + Vendors (AP) — company-scoped, INVENTORY plan only.
+ * Customers (AR) + Vendors (AP) - company-scoped, INVENTORY plan only.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';

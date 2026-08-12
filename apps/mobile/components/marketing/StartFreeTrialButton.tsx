@@ -158,7 +158,7 @@ export function StartFreeTrialButton({
   );
 }
 
-/** Pricing-card CTA (no hover tips — homepage hero owns those). */
+/** Pricing-card CTA (no hover tips - homepage hero owns those). */
 export function StartFreeTrialCardButton({
   onPress,
   highlighted = false,

@@ -64,7 +64,7 @@ export async function webhook(req: Request, res: Response) {
     return res.status(200).json({ success: true, data: { handled, type: 'saas' } });
   }
 
-  // Do NOT fall through to handlePaymentCaptured here — that was the forgery.
+  // Do NOT fall through to handlePaymentCaptured here - that was the forgery.
   return res
     .status(401)
     .json({ success: false, error: { code: 'INVALID_SIGNATURE', message: 'Invalid signature' } });

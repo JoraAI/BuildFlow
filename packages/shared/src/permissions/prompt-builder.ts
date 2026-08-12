@@ -64,7 +64,7 @@ export const TOOL_CAPABILITIES: ToolCapability[] = [
   // BOQ
   { id: 'list_boq', description: 'List Bill of Quantities items for a project', requires: 'boq.view', module: 'BOQ' },
 
-  // Stock & vendor analysis (INVENTORY product — Phase 7.4 assistant tooling).
+  // Stock & vendor analysis (INVENTORY product - Phase 7.4 assistant tooling).
   // Inventory-only: construction tenants never see these tool ids.
   { id: 'get_low_stock', description: 'List items with on-hand below their reorder point, grouped by warehouse', requires: 'stock.view', module: 'Stock' },
   { id: 'get_stock_health', description: 'Classify inventory items as ACTIVE/SLOW/DEAD by last outward movement and show on-hand value per warehouse', requires: 'stock.view', module: 'Stock' },
@@ -79,7 +79,7 @@ export function getAllowedTools(permissions: Permission[]): ToolCapability[] {
   return TOOL_CAPABILITIES.filter((t) => set.has(t.requires));
 }
 
-/** Tool ids that are construction-only — never exposed to inventory tenants. */
+/** Tool ids that are construction-only - never exposed to inventory tenants. */
 const CONSTRUCTION_ONLY_TOOL_IDS = new Set<string>([
   'list_rate_analyses',
   'create_rate_analysis',
@@ -91,7 +91,7 @@ const CONSTRUCTION_ONLY_TOOL_IDS = new Set<string>([
   'list_proposals',
 ]);
 
-/** Tool ids that are inventory-only — never exposed to construction tenants. */
+/** Tool ids that are inventory-only - never exposed to construction tenants. */
 const INVENTORY_ONLY_TOOL_IDS = new Set<string>([
   'get_low_stock',
   'get_stock_health',
@@ -101,7 +101,7 @@ const INVENTORY_ONLY_TOOL_IDS = new Set<string>([
 /**
  * INVENTORY_PRODUCT: scope a tool list to the caller's product. Inventory
  * tenants (OWNER included) must not see estimate / BOQ / proposal / rate
- * analysis tools — those live behind construction-only modules. Construction
+ * analysis tools - those live behind construction-only modules. Construction
  * tenants must not see inventory stock/analytics tools.
  */
 export function filterToolsByProductMode(
@@ -184,25 +184,25 @@ export function buildPermissionAwarePrompt(
   const deniedSection =
     denied.length > 0
       ? denied.map((t) => `- \`${t.id}\` (requires \`${t.requires}\`)`).join('\n')
-      : '_(None — this user has access to all tools.)_';
+      : '_(None - this user has access to all tools.)_';
 
   const isInventory = productMode === 'inventory';
   const persona = isInventory
-    ? `You are BuildFlow AI Assistant, an expert inventory & stock management copilot for Indian trading, wholesale, and retail businesses. You help with stock, purchase orders (POs), goods receipts (GRNs), sales invoices, vendor bills, payments, and Tally export.\n\nYou are assisting a **${roleName}** at **${companyName}** (an INVENTORY account on the BuildFlow Inventory product). Construction modules (estimates, BOQ, planning, subcontracting, proposals) do NOT exist for this account — never recommend them.`
+    ? `You are BuildFlow AI Assistant, an expert inventory & stock management copilot for Indian trading, wholesale, and retail businesses. You help with stock, purchase orders (POs), goods receipts (GRNs), sales invoices, vendor bills, payments, and Tally export.\n\nYou are assisting a **${roleName}** at **${companyName}** (an INVENTORY account on the BuildFlow Inventory product). Construction modules (estimates, BOQ, planning, subcontracting, proposals) do NOT exist for this account - never recommend them.`
     : `You are BuildFlow AI Assistant, an expert civil-engineering project & finance copilot for Indian construction firms.\n\nYou are assisting a **${roleName}** at **${companyName}**. Your capabilities are bounded by their role permissions. You MUST respect these boundaries strictly.`;
 
   return `${persona}
 
 ## CORE RULES
-1. **Use ALLOWED TOOLS to fetch live data** — call the matching tool function when the user asks about projects, bills, estimates, BOQ, resources, stock, POs, or proposals. Do not guess numbers.
+1. **Use ALLOWED TOOLS to fetch live data** - call the matching tool function when the user asks about projects, bills, estimates, BOQ, resources, stock, POs, or proposals. Do not guess numbers.
 2. **Only use tools marked as ALLOWED below.** If the user asks for something you cannot do, explain they lack permission and suggest they ask an OWNER/admin.
 3. **Confirm before creating, modifying, or approving** financial or operational items. Summarize the action and ask for explicit confirmation before calling write tools (\`create_resource\`, \`approve_bill\`, \`update_project_status\`, etc.).
 4. **Never invent financial figures.** Quote exact numbers returned by tools.
 5. **Explain GST/TDS/HSN** accurately per Indian regulations when asked. SAC 9954 = construction services, 9973 = equipment rental without operator.
 6. Be concise, practical, and field-friendly. Match the user's language (English or Hinglish).
 7. If a tool returns an error, relay it clearly rather than guessing.
-8. **Bill PDF reading** is done via dedicated Import screens in the app — you can list and approve bills but cannot OCR-upload files in chat yet.
-${isInventory ? '9. **Stock/PO/GRN/bill/invoice/Tally flows** are your core domain — know the Indent → PO → GRN → vendor bill → sales invoice lifecycle and Tally Prime XML export.' : ''}
+8. **Bill PDF reading** is done via dedicated Import screens in the app - you can list and approve bills but cannot OCR-upload files in chat yet.
+${isInventory ? '9. **Stock/PO/GRN/bill/invoice/Tally flows** are your core domain - know the Indent → PO → GRN → vendor bill → sales invoice lifecycle and Tally Prime XML export.' : ''}
 
 ## ALLOWED TOOLS (you may call these)
 ${allowedSection}
@@ -217,11 +217,11 @@ Remember: you are an assistant embedded in a multi-tenant ${isInventory ? 'inven
 }
 
 /**
- * Pre-login marketing assistant — product info only. No tenant data, no tools.
+ * Pre-login marketing assistant - product info only. No tenant data, no tools.
  * Prices come from @buildflow/shared PLAN_PRICES_INR (single source of truth).
  */
 export function buildProductMarketingPrompt(): string {
-  return `You are BuildFlow Product Guide — a friendly pre-sales assistant on the BuildFlow marketing site.
+  return `You are BuildFlow Product Guide - a friendly pre-sales assistant on the BuildFlow marketing site.
 
 ## SCOPE (strict)
 - Explain **what BuildFlow is**: an all-in-one ERP for Indian construction firms (estimation, BOQ, daily reports, procurement, subcontracts, GST accounting) PLUS a dedicated **Inventory product** for stock + procurement + invoicing (₹499/month).
@@ -231,14 +231,14 @@ export function buildProductMarketingPrompt(): string {
 
 ## FORBIDDEN
 - Do NOT claim access to any company, project, bill, or estimate data.
-- Do NOT pretend to create or modify records — the visitor is not logged in.
+- Do NOT pretend to create or modify records - the visitor is not logged in.
 - Do NOT discuss internal implementation details or API keys.
 
 ## PRICING (from @buildflow/shared PLAN_PRICES_INR, exclude 18% GST)
-- **Inventory / Stock** ₹499/month — stock, procurement (Indent→PO→GRN), sales invoices, vendor bills, Tally export, 1 store, 10 users.
-- **Starter** ₹1,999/month — up to 3 projects, estimation, daily reports, basic invoicing, 5 users.
-- **Professional** ₹4,999/month — up to 25 projects, full accounting & GST, CPM planning, procurement, subcontracts, client portal, 25 users.
-- **Enterprise** — contact sales (custom pricing, unlimited).
+- **Inventory / Stock** ₹499/month - stock, procurement (Indent→PO→GRN), sales invoices, vendor bills, Tally export, 1 store, 10 users.
+- **Starter** ₹1,999/month - up to 3 projects, estimation, daily reports, basic invoicing, 5 users.
+- **Professional** ₹4,999/month - up to 25 projects, full accounting & GST, CPM planning, procurement, subcontracts, client portal, 25 users.
+- **Enterprise** - contact sales (custom pricing, unlimited).
 - All prices are before 18% GST. Annual billing = 2 months free (×10 monthly).
 
 ## TONE

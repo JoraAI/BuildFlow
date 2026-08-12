@@ -142,7 +142,7 @@ describe('PDF report line-item completeness (RPT-C4)', () => {
     );
     expect(issuesRes.status).toBe(200);
     expect(Array.isArray(issuesRes.body.data)).toBe(true);
-    // RPT-C4b: Assert list length is 0 (no issues created yet — stock may not exist in test)
+    // RPT-C4b: Assert list length is 0 (no issues created yet - stock may not exist in test)
     expect((issuesRes.body.data as unknown[]).length).toBe(0);
   });
 
@@ -171,7 +171,7 @@ describe('PDF report line-item completeness (RPT-C4)', () => {
     const resource = (resRes.body.data as Array<{ id: string }>)[0];
     if (!resource) return;
 
-    // Attempt to issue material — should be rejected with 400
+    // Attempt to issue material - should be rejected with 400
     const issueRes = await authPost(
       token,
       `/api/projects/${projectId}/subcontract/work-orders/${woId}/material-issues`,
@@ -221,7 +221,7 @@ describe('PDF report line-item completeness (RPT-C4)', () => {
       },
     );
     if (issueRes.status === 400) {
-      // Test DB may lack stock location — skip rather than fail CI
+      // Test DB may lack stock location - skip rather than fail CI
       const msg = issueRes.body.message ?? issueRes.body.error?.message ?? JSON.stringify(issueRes.body.error ?? issueRes.body);
       expect(String(msg)).toMatch(/stock|Insufficient/i);
       return;

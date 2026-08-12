@@ -17,7 +17,7 @@ export interface CompanyStore {
 export const companyALS = new AsyncLocalStorage<CompanyStore>();
 
 /**
- * Tenant-scoped models — must match the backend's list. Any model with a
+ * Tenant-scoped models - must match the backend's list. Any model with a
  * direct `companyId` column that is owned by a single tenant.
  *
  * FIX (NR-15): Removed models that do NOT have a direct `companyId` column.
@@ -53,7 +53,7 @@ const TENANT_SCOPED_MODELS = new Set([
   'Subcontractor',
   'ReportSchedule',
   'DocumentCounter',
-  // FIX (§2.2C / NR-43): Phase 5 models — list MUST match backend lib/prisma.ts.
+  // FIX (§2.2C / NR-43): Phase 5 models - list MUST match backend lib/prisma.ts.
   'PunchItem',
   'RFI',
   'Submittal',

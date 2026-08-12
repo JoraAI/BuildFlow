@@ -67,7 +67,7 @@ export function ProjectSetupChecklist({ projectId, onGoToTab }: ProjectSetupChec
         <View className="flex-1">
           <Text className="text-sm font-bold text-text">Project setup guide</Text>
           <Text className="text-xs text-muted mt-0.5">
-            {doneCount} of {steps.length} steps done — follow this path for a new project
+            {doneCount} of {steps.length} steps done - follow this path for a new project
           </Text>
         </View>
         <Pressable onPress={() => void dismiss(dismissKey)} hitSlop={8}>

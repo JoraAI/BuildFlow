@@ -210,7 +210,7 @@ describe('Change orders (integration)', () => {
 
   // EST-VO-11a: Variation create links estimateId to approved parent estimate.
   it('createChangeOrder sets estimateId to latest approved parent estimate', async () => {
-    // Get the approved estimate — the list API only returns top-level estimates
+    // Get the approved estimate - the list API only returns top-level estimates
     const estRes = await authGet(token, `/api/projects/${projectId}/estimates`);
     expect(estRes.status).toBe(200);
     const allEstimates = estRes.body.data as Array<{ id: string; status: string }>;
@@ -274,7 +274,7 @@ describe('Change orders (integration)', () => {
 
     await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/submit`);
     await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/approve`);
-    // VAR-D2: Convert to BOQ after approve — shortfalls need BOQ rows to exist
+    // VAR-D2: Convert to BOQ after approve - shortfalls need BOQ rows to exist
     await authPost(token, `/api/projects/${projectId}/change-orders/${coId}/convert-to-boq`);
 
     // Shortfalls should include demands from the RA-exploded BOQ row

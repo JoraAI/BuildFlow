@@ -410,7 +410,7 @@ export function NewChallanModal({
                     value={batchByLine[l.id] ?? ''}
                     onChangeText={(v) => setBatchByLine((prev) => ({ ...prev, [l.id]: v }))}
                     autoCapitalize="characters"
-                    placeholder="e.g. LOT-2026-A — copied to the OUT movement on dispatch"
+                    placeholder="e.g. LOT-2026-A - copied to the OUT movement on dispatch"
                   />
                 </View>
               );

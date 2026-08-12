@@ -238,7 +238,7 @@ export async function createBill(companyId: string, _userId: string, input: Crea
       tdsAmount: input.tdsAmount,
       total,
       category: input.category,
-      // PROC-B3: Persist purchaseOrderId FK (was missing — snapshot had it but row didn't).
+      // PROC-B3: Persist purchaseOrderId FK (was missing - snapshot had it but row didn't).
       ...(input.purchaseOrderId ? { purchaseOrderId: input.purchaseOrderId } : {}),
       // PROC-B5: Persist vendor invoice attachment URL.
       ...(input.attachmentUrl ? { attachmentUrl: input.attachmentUrl } : {}),
@@ -518,7 +518,7 @@ export async function getBillSummary(companyId: string, projectId?: string) {
   let totalPaid = 0;
 
   for (const b of bills) {
-    // FIX (FIN-M11): Exclude REJECTED bills from spend totals — they are not
+    // FIX (FIN-M11): Exclude REJECTED bills from spend totals - they are not
     // valid financial obligations.
     if (b.status === 'REJECTED') continue;
     // Draft auto-bills are not financial obligations until confirmed.

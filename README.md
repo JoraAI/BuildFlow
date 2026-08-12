@@ -1,7 +1,7 @@
 # BuildFlow
 
 **Civil Engineering Project Planning & Accounting Platform**
-*India's construction industry — built for the field, designed for the boardroom.*
+*India's construction industry - built for the field, designed for the boardroom.*
 
 Product by **Jora AI** (jora.co.in) · Hyderabad, India
 
@@ -12,7 +12,7 @@ Product by **Jora AI** (jora.co.in) · Hyderabad, India
 - **Monorepo:** Turborepo + pnpm workspaces
 - **Mobile:** React Native (Expo SDK 52) · NativeWind 4 · Expo Router · Zustand · React Query
 - **Backend:** Node.js 20 · Express · TypeScript · Prisma · PostgreSQL 15 · Redis 7
-- **Shared:** `packages/shared` — Zod schemas, types, enums, constants, pricing, subscription limits
+- **Shared:** `packages/shared` - Zod schemas, types, enums, constants, pricing, subscription limits
 - **AI:** OpenAI-compatible LLM proxy with permission-aware prompting
 
 ## Structure
@@ -42,7 +42,7 @@ pnpm db:up
 
 # 3. Configure env
 cp .env.example .env
-# Edit .env — generate JWT secrets:
+# Edit .env - generate JWT secrets:
 #   openssl rand -hex 32   (run twice: access + refresh)
 
 # 4. Run database migrations + seed
@@ -86,7 +86,7 @@ pnpm dev
 ## Feature Highlights
 
 ### Estimation & BOQ
-- **Composite Rate Analysis** library (119 RAs — PCC, RCC, plastering, painting, etc.) with material/labour/equipment components
+- **Composite Rate Analysis** library (119 RAs - PCC, RCC, plastering, painting, etc.) with material/labour/equipment components
 - **Estimate builder**: Multi-section estimates with margins (overhead, contingency, profit), DRAFT → REVIEWED → APPROVED workflow
 - **Estimate → BOQ conversion**: Items linked bidirectionally; project budget auto-updated
 - **BOQ with Sections & Categories**: View toggle between section grouping and category grouping (MATERIAL, LABOUR, EQUIPMENT, SUBCONTRACTOR)

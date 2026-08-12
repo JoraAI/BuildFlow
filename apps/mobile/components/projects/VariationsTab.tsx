@@ -3,14 +3,14 @@
  *
  * VAR-C9: One line per BOQ, one line per RA. No Split/BOM expansion on this form.
  * RA/component explosion for procurement happens after approve (backend only,
- * fetchBoqMaterialDemands — VAR-C6b).
+ * fetchBoqMaterialDemands - VAR-C6b).
  *
  * VAR-C2: Remove line (min 1).
  * VAR-C3: All five cost types (MATERIAL, LABOUR, EQUIPMENT, SUBCONTRACTOR, MISC)
  * VAR-C3a: MaterialPicker for new-scope MATERIAL lines
  * VAR-C3b: RateAnalysisPicker for new-scope non-MISC lines
  * VAR-C4: Adjust vs new scope copy + FlowHint
- * VAR-C9b: BOQ dedupe — each BOQ chip usable on at most one draft line
+ * VAR-C9b: BOQ dedupe - each BOQ chip usable on at most one draft line
  */
 import React, { useMemo, useState } from 'react';
 import { View, Text, Alert, Pressable, ScrollView } from 'react-native';
@@ -121,7 +121,7 @@ function formatLineSummary(line: ChangeOrderLine): string {
 }
 
 /**
- * R13-VO1: Approved variation impact section — shows BOQ before→after,
+ * R13-VO1: Approved variation impact section - shows BOQ before→after,
  * budget delta, and next-step CTAs (View BOQ / Review shortfalls).
  */
 function ApprovedImpactSection({ projectId, co }: { projectId: string; co: ChangeOrder }) {
@@ -270,7 +270,7 @@ export function VariationsTab({ projectId, highlightChangeOrderId }: { projectId
     }, { onSuccess: () => { setModalOpen(false); resetForm(); }, onError: (e: Error) => void alertAsync('Error', e.message) });
   };
 
-  // VAR-C2: Remove line — keep at least one; confirm if line has data
+  // VAR-C2: Remove line - keep at least one; confirm if line has data
   const removeLine = async (id: string) => {
     const line = lines.find((l) => l.id === id);
     const hasData = line && (line.description.trim() || parseFloat(line.qtyDelta) > 0 || parseFloat(line.rate) > 0);
@@ -312,12 +312,12 @@ export function VariationsTab({ projectId, highlightChangeOrderId }: { projectId
 
   return (
     <View className="gap-3">
-      {/* VAR-C9c: FlowHint — single line per BOQ/RA, all 5 types, no split */}
+      {/* VAR-C9c: FlowHint - single line per BOQ/RA, all 5 types, no split */}
       <FlowHintCard title="When to use variations" steps={[
         'Use when the client agrees to extra scope or quantity after BOQ was approved',
         'PM creates a variation → Owner approves → Convert to BOQ updates sanctioned qty (budget on approve)',
-        'Approved estimate stays as original baseline — see Estimate tab for revised scope',
-        'Material needs are NOT auto-indented — review Procurement → Shortfalls after convert',
+        'Approved estimate stays as original baseline - see Estimate tab for revised scope',
+        'Material needs are NOT auto-indented - review Procurement → Shortfalls after convert',
         'Link to a subcontract work order to bump contract value when scope is subcontracted',
         'One line per BOQ chip (qty Δ) or one line per new scope item (type + material/RA)',
       ]} defaultCollapsed />
@@ -354,12 +354,12 @@ export function VariationsTab({ projectId, highlightChangeOrderId }: { projectId
             </ScrollView>
           </View>
         ) : null}
-        {/* VAR-C9c: Section copy — single line per BOQ/RA */}
+        {/* VAR-C9c: Section copy - single line per BOQ/RA */}
         <Text className="text-sm font-bold text-text -mb-2">Line items</Text>
         <View className="rounded-lg bg-primary/5 border border-primary/20 p-2 mb-1">
           <Text className="text-[10px] text-muted leading-4">
             <Text className="font-semibold text-text">Adjust existing BOQ:</Text> Link one BOQ chip per line → qty Δ.{'\n'}
-            <Text className="font-semibold text-text">Add new scope:</Text> Pick type (Material, Labour, Equipment, Subcontractor, Misc) + material or RA — one line each.
+            <Text className="font-semibold text-text">Add new scope:</Text> Pick type (Material, Labour, Equipment, Subcontractor, Misc) + material or RA - one line each.
           </Text>
         </View>
         {lines.map((line, idx) => {
@@ -402,12 +402,12 @@ export function VariationsTab({ projectId, highlightChangeOrderId }: { projectId
                   )}
                 </View>
               ) : null}
-              {/* VAR-C9: BOQ-linked line — show RA badge if composite, no split/expansion */}
+              {/* VAR-C9: BOQ-linked line - show RA badge if composite, no split/expansion */}
               {line.boqItemId && linkedBoq?.rateAnalysisId ? (
                 <View className="flex-row items-center gap-2">
                   <Badge color="primary" label={line.type} />
                   <Badge color="accent" label="Composite (RA linked)" />
-                  <Text className="text-[10px] text-muted">One line — materials explode after approve</Text>
+                  <Text className="text-[10px] text-muted">One line - materials explode after approve</Text>
                 </View>
               ) : line.boqItemId && linkedBoq?.resourceId ? (
                 <View className="flex-row items-center gap-2">
@@ -465,7 +465,7 @@ export function VariationsTab({ projectId, highlightChangeOrderId }: { projectId
               )}
               {/* VAR-C9: New scope helper */}
               {isNewScope && (
-                <Text className="text-[10px] text-muted italic">New scope — creates a BOQ line on approve. RA materials explode in Procurement → Shortfalls.</Text>
+                <Text className="text-[10px] text-muted italic">New scope - creates a BOQ line on approve. RA materials explode in Procurement → Shortfalls.</Text>
               )}
               <View className="flex-row gap-2">
                 <View className="flex-1"><Input label="Qty Δ" value={line.qtyDelta} onChangeText={(v: string) => setLines((prev) => prev.map((l) => (l.id === line.id ? { ...l, qtyDelta: v } : l)))} keyboardType="decimal-pad" fullWidth /></View>

@@ -24,7 +24,7 @@ function round3(n: number) {
  * canonical stock unit. NR-6 regression: previously this just relabeled the
  * unit without converting the quantity (5 MT became "5 kg"), corrupting stock.
  * Now we apply a small conversion factor for common Indian construction units,
- * or reject (return null) if the units are incompatible — the caller skips
+ * or reject (return null) if the units are incompatible - the caller skips
  * the line rather than writing wrong quantities to StockBalance.
  */
 const UNIT_CONVERSIONS: Record<string, number> = {
@@ -68,7 +68,7 @@ export async function resolveCanonicalUnitAndQty(
   if (factor !== undefined) {
     return { unit: resourceUnit, quantity: round3(demandQty * factor) };
   }
-  // NR-6: Cannot safely convert — reject rather than relabel.
+  // NR-6: Cannot safely convert - reject rather than relabel.
   return null;
 }
 
@@ -139,7 +139,7 @@ async function getOpenRequisitionQty(
     if (receivedQty < reqQty) {
       total += reqQty - receivedQty;
     }
-    // If fully received (receivedQty >= reqQty), skip — this requisition is fulfilled
+    // If fully received (receivedQty >= reqQty), skip - this requisition is fulfilled
   }
   return round3(total);
 }
@@ -598,7 +598,7 @@ export async function previewBoqShortfalls(
     shortfallByResource.set(resourceId, resourceShortfall);
   }
 
-  // Build preview rows — each demand line shows its proportional shortfall
+  // Build preview rows - each demand line shows its proportional shortfall
   const previews: BoqShortfallPreview[] = [];
   for (const demand of demands) {
     const resourceShortfall = shortfallByResource.get(demand.resourceId) ?? 0;

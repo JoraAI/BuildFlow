@@ -31,8 +31,8 @@ const WORKFLOWS = [
       'Create an indent (material request) on Procurement',
       'Submit the indent; PM or Owner approves it',
       'Create a purchase order (PO) from the approved indent',
-      'When goods arrive, record a GRN — site stock and BOQ procured qty update',
-      'Note: GRN does not certify subcontract work — that is a separate flow',
+      'When goods arrive, record a GRN - site stock and BOQ procured qty update',
+      'Note: GRN does not certify subcontract work - that is a separate flow',
     ],
   },
   {
@@ -40,7 +40,7 @@ const WORKFLOWS = [
     steps: [
       'Create a work order on the Subcontracts tab (or import from BOQ)',
       'Add a measurement sheet for work done in a period',
-      'Submit the sheet; PM approves it — a linked bill is created automatically',
+      'Submit the sheet; PM approves it - a linked bill is created automatically',
       'Accountant approves the bill and records payment',
       'When all work is certified, complete the work order to release retention',
     ],
@@ -63,7 +63,7 @@ export default function HelpCenterScreen() {
       <Card>
         <Text className="text-sm text-text leading-5">
           BuildFlow connects estimation, site operations, procurement, subcontracts, and accounting.
-          Use this guide when you are new — or tap the <Text className="font-semibold">(i)</Text> icons
+          Use this guide when you are new - or tap the <Text className="font-semibold">(i)</Text> icons
           next to terms like BOQ and GRN anywhere in the app.
         </Text>
       </Card>

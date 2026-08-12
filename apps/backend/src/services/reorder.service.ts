@@ -1,9 +1,9 @@
 /**
  * BuildFlow - Reorder automation service (INVENTORY_HORIZONTAL_PLATFORM Phase 4).
  *
- * 4.2 Reorder suggestions — items whose TOTAL on-hand (across all warehouses)
+ * 4.2 Reorder suggestions - items whose TOTAL on-hand (across all warehouses)
  *     is below reorderPoint, with preferred vendor + suggested qty.
- * 4.3 One-click purchase — creates an auto-approved indent (INVENTORY) and then
+ * 4.3 One-click purchase - creates an auto-approved indent (INVENTORY) and then
  *     a PO from it (reusing createRequisition / createPO; procurement is NOT
  *     forked). The PO goes through the 4.4 approval banding.
  *
@@ -119,7 +119,7 @@ export async function createReorderPurchase(
   const projectId = await resolveDefaultProject(companyId, userId, role);
   const suggestions = await getReorderSuggestions(companyId, userId, role, resourceIds);
   if (suggestions.length === 0) {
-    throw ApiError.unprocessable('No low-stock items found to order — all selected items are above their reorder point.');
+    throw ApiError.unprocessable('No low-stock items found to order - all selected items are above their reorder point.');
   }
 
   const lines = suggestions.map((s) => ({
@@ -141,7 +141,7 @@ export async function createReorderPurchase(
 
   // 2) PO from the approved indent (preferred vendor + catalog rate). Goes
   //    through the 4.4 approval banding automatically inside createPO.
-  const vendorName = suggestions[0]?.preferredVendor?.name ?? '—';
+  const vendorName = suggestions[0]?.preferredVendor?.name ?? '-';
   const purchaseOrder = await createPO(companyId, userId, role, projectId, {
     requisitionId: requisition.id,
     vendorName,

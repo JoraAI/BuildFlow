@@ -98,7 +98,7 @@ describe('SUB-PLAN1 Subscription limits (integration)', () => {
       data: { subscriptionPlan: 'STARTER', subscriptionStatus: 'ACTIVE' },
     });
 
-    // Call createInvite directly — should throw ApiError 402
+    // Call createInvite directly - should throw ApiError 402
     const { createInvite } = await import('../../services/invite.service');
     await expect(
       createInvite(companyId, '00000000-0000-0000-0000-000000000000', {

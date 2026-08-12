@@ -22,7 +22,7 @@ import { formatINR, formatDate } from '@/utils/format';
 import { useProjectScopeSummary, useConvertChangeOrderToBoq, type ProjectScopeSummary } from '@/services/expansion.queries';
 
 /**
- * VO-B4: Revised scope banner — shows original estimate + approved variations
+ * VO-B4: Revised scope banner - shows original estimate + approved variations
  * as a read-only derived total. Does not mutate estimate lines.
  */
 function ScopeSummaryBanner({ projectId }: { projectId: string }) {
@@ -68,7 +68,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 /**
- * Sub-estimates section — shows child estimates (additional scope) with an
+ * Sub-estimates section - shows child estimates (additional scope) with an
  * "Add Sub-Estimate" button. Each sub-estimate is a full estimate that can be
  * independently edited, approved, and converted to BOQ.
  */
@@ -226,7 +226,7 @@ function LineItemWithBreakdown({ item }: { item: EstimateItem }) {
 }
 
 /**
- * EST-VO-11c / VAR-D2b: Variations linked to this estimate — amber accent,
+ * EST-VO-11c / VAR-D2b: Variations linked to this estimate - amber accent,
  * distinct from sub-estimates. Convert to BOQ when approved and not yet applied.
  */
 function VariationsSection({ estimateId, projectId }: { estimateId: string; projectId: string }) {
@@ -523,10 +523,10 @@ export default function EstimateDetailScreen() {
             </Card>
           )}
 
-          {/* Sub-Estimates section — only on parent estimates, not on sub-estimates */}
+          {/* Sub-Estimates section - only on parent estimates, not on sub-estimates */}
           {!estimate.parentId && <SubEstimatesSection parentEstimateId={id} />}
 
-          {/* EST-VO-11c: Variations section — amber accent, distinct from sub-estimates */}
+          {/* EST-VO-11c: Variations section - amber accent, distinct from sub-estimates */}
           {!estimate.parentId && <VariationsSection estimateId={id} projectId={estimate.projectId} />}
 
           {/* Line items detail */}
@@ -620,7 +620,7 @@ export default function EstimateDetailScreen() {
         </ActionBar>
       </KeyboardAvoidingView>
 
-      {/* Rejection reason sheet — AdaptiveSheet overlay so it's always visible */}
+      {/* Rejection reason sheet - AdaptiveSheet overlay so it's always visible */}
       <AdaptiveSheet
         visible={showReject}
         onClose={() => {

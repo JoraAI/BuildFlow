@@ -1,5 +1,5 @@
 /**
- * BuildFlow — Shared report PDF download helper.
+ * BuildFlow - Shared report PDF download helper.
  *
  * Centralizes the download + share pattern used by Reports Hub, Subcontracts,
  * Resources, and entity detail screens.
@@ -28,7 +28,7 @@ export async function downloadReportPdf(apiPath: string, filename: string): Prom
 
 /**
  * Download Tally Prime import XML for a project and share / save it.
- * In the Inventory product this is the only data export — always framed as
+ * In the Inventory product this is the only data export - always framed as
  * "Exporting to Tally" so it is never mistaken for a generic backup.
  */
 export async function downloadTallyXml(projectId: string): Promise<void> {
@@ -41,9 +41,9 @@ export async function downloadTallyXml(projectId: string): Promise<void> {
     );
     if (uri && (await Sharing.isAvailableAsync())) {
       await Sharing.shareAsync(uri, { mimeType: 'application/xml', UTI: 'public.xml' });
-      toast.success('Tally XML exported — import it in Tally Prime.');
+      toast.success('Tally XML exported - import it in Tally Prime.');
     } else {
-      toast.success('Tally XML downloaded to device — import it in Tally Prime.');
+      toast.success('Tally XML downloaded to device - import it in Tally Prime.');
     }
   } catch (e) {
     toast.error(e instanceof Error ? e.message : 'Could not export to Tally');

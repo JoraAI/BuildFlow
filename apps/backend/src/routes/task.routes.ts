@@ -22,7 +22,7 @@ import { Role } from '@buildflow/shared';
 export const taskRouter = Router();
 
 taskRouter.use(authenticateToken);
-// Mounted at /api/projects — path-aware so only planning routes are gated.
+// Mounted at /api/projects - path-aware so only planning routes are gated.
 taskRouter.use(
   requireModuleForPaths('planning', [
     /^\/[^/]+\/tasks\b/,

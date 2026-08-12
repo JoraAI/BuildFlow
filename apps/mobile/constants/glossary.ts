@@ -23,7 +23,7 @@ export interface GlossaryEntry {
 export const GLOSSARY: Record<GlossaryTermId, GlossaryEntry> = {
   BOQ: {
     title: 'BOQ (Bill of Quantities)',
-    plain: 'The approved list of work items, quantities, and rates for a project — your contract scope.',
+    plain: 'The approved list of work items, quantities, and rates for a project - your contract scope.',
     inApp: 'Created from an approved estimate. Used for client billing, procurement, and tracking progress.',
   },
   GRN: {
@@ -33,7 +33,7 @@ export const GLOSSARY: Record<GlossaryTermId, GlossaryEntry> = {
   },
   INDENT: {
     title: 'Indent (Material requisition)',
-    plain: 'A site request to buy materials — the first step before placing a purchase order.',
+    plain: 'A site request to buy materials - the first step before placing a purchase order.',
     inApp: 'Create on Procurement tab → Submit → PM/Owner approves → Create PO → Record GRN.',
   },
   WORK_ORDER: {
@@ -53,13 +53,13 @@ export const GLOSSARY: Record<GlossaryTermId, GlossaryEntry> = {
   },
   CERTIFIED: {
     title: 'Certified (Subcontract)',
-    plain: 'Work quantity formally approved on a measurement sheet — this is what you owe the subcontractor.',
+    plain: 'Work quantity formally approved on a measurement sheet - this is what you owe the subcontractor.',
     inApp: 'Shown on work order summary. Increases when PM approves a measurement sheet.',
   },
   PROCURED: {
     title: 'Procured quantity',
     plain: 'Materials physically received on site (via GRN), not work done by a subcontractor.',
-    inApp: 'Shown on BOQ material lines. Updated by procurement — separate from subcontract certification.',
+    inApp: 'Shown on BOQ material lines. Updated by procurement - separate from subcontract certification.',
   },
   EXECUTED: {
     title: 'Executed quantity',
@@ -68,12 +68,12 @@ export const GLOSSARY: Record<GlossaryTermId, GlossaryEntry> = {
   },
   INVOICE: {
     title: 'Invoice (Client)',
-    plain: 'Money you bill to your client — revenue coming in.',
+    plain: 'Money you bill to your client - revenue coming in.',
     inApp: 'Accounting → Invoices. Can include GST, TDS, and running-account progress billing.',
   },
   BILL: {
     title: 'Bill (Vendor / subcontractor)',
-    plain: 'Money you owe to a vendor or subcontractor — cost going out.',
+    plain: 'Money you owe to a vendor or subcontractor - cost going out.',
     inApp: 'Accounting → Bills, or auto-created when a subcontract measurement is approved.',
   },
   VARIATION: {

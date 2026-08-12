@@ -6,7 +6,7 @@
  *  - a composite rate analysis (rateAnalysisId)
  *
  * Mutual exclusion: setting one clears the other.
- * Single SearchBar + AdaptiveSheet browse — replaces stacked MaterialPicker + RateAnalysisPicker.
+ * Single SearchBar + AdaptiveSheet browse - replaces stacked MaterialPicker + RateAnalysisPicker.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator, Switch } from 'react-native';

@@ -598,7 +598,7 @@ Webhook routes capture the **raw body** before JSON parsing (see [§4](#4-backen
 | `lib/queue.ts` | BullMQ queue(s) on Redis |
 | `jobs/notification.worker.ts` | Processes notification dispatch (Expo push, WhatsApp, SMS) |
 | `jobs/subscription.cron.ts` | Trial expiry checks (sends reminders at 7/3/1 days), auto-EXPIRED status |
-| `services/plan-enforcement.service.ts` | SUB-PLAN1: Enforces `PLAN_LIMITS` (maxProjects, maxUsers) on project create (`project.service.ts`) + user invite (`invite.service.ts`) — 402 on limit reached. Trial uses STARTER limits. |
+| `services/plan-enforcement.service.ts` | SUB-PLAN1: Enforces `PLAN_LIMITS` (maxProjects, maxUsers) on project create (`project.service.ts`) + user invite (`invite.service.ts`) - 402 on limit reached. Trial uses STARTER limits. |
 | `services/report-schedule.service.ts` | Cron-driven report generation (`ReportSchedule`) |
 
 Jobs run within `runInCompanyContext()` so the ALS-based Prisma scoping applies.
@@ -765,7 +765,7 @@ pnpm dev               # turbo run dev (backend + mobile concurrently)
 
 **Password for all tenant users:** `Test@1234`
 
-#### Construction — Reddy Constructions Pvt Ltd (PROFESSIONAL)
+#### Construction - Reddy Constructions Pvt Ltd (PROFESSIONAL)
 
 | Role | Email | Password |
 |------|-------|----------|
@@ -781,7 +781,7 @@ pnpm dev               # turbo run dev (backend + mobile concurrently)
 
 Login: main app `/login` → construction dashboard / projects.
 
-#### Inventory demos (INVENTORY plan) — all profiles
+#### Inventory demos (INVENTORY plan) - all profiles
 
 Password **`Test@1234`**. Login → **`/inventory`**.
 
@@ -796,7 +796,7 @@ Password **`Test@1234`**. Login → **`/inventory`**.
 | EQUIPMENT | Forge Equipment Dealers | `owner@forgeequip.com` |
 | GENERAL | General Goods Store | `owner@generalstore.com` |
 
-Rich materials demo also seeds SKUs, reorder points, customer/vendor, and opening stock across Main Store + Branch — Uppal.
+Rich materials demo also seeds SKUs, reorder points, customer/vendor, and opening stock across Main Store + Branch - Uppal.
 
 #### Platform admin
 
@@ -922,16 +922,16 @@ Migration history (`prisma/migrations/`) mirrors this: `platform_expansion_pr1`,
 
 A separate **Inventory** subscription product (₹999/mo ex-GST) for stock + procurement + AR/AP invoicing + Tally + AI, shipped without breaking construction tenants:
 
-- **Plans / modules** — `packages/shared/src/plan-modules.ts` (`ProductMode`, `AppModule`, `PLAN_MODULES`, `getProductMode`). INVENTORY gets `inventory_shell, procurement, stock, invoices, bills, tally, assistant, settings`; construction plans get every module.
-- **Default project** — inventory signup (`registerCompany` with `product: 'inventory'`) or a platform switch-to-INVENTORY (`updateSubscriptionAsAdmin`) creates **one hidden project** `code='STORE'` and sets `Company.defaultProjectId` (unique FK). `/auth/me` (+ login/accept-invite payloads) return `productMode`, `defaultProjectId`, `enabledModules`, `subscriptionPlan`.
-- **Limits** — `PLAN_LIMITS.INVENTORY = { maxProjects: 1, maxUsers: 10 }`; `assertPlanAllowsProject` keeps INVENTORY at 1 even during trial and returns a dedicated 402 message. The default STORE project cannot be soft-deleted.
-- **Role** — `INVENTORY_MANAGER` (`Role` enum + shared defaults): stock, procurement, invoices, bills, Tally, financials, reports. Hidden from construction invite dropdowns; construction roles are hidden from inventory invites (`INVITABLE_ROLES_BY_PRODUCT`, enforced in `invite.service.ts` + `settings.service.ts` role updates). Invited inventory users are auto-added to the default project's members.
-- **Module gates** — `module-gate.service.ts` (`assertModuleEnabled`) + `middleware/module-gate.ts` (`requireModule`, `requireModuleForPaths`). Path-aware gates are used on routers mounted at shared prefixes (`/api` estimate router, `/api/projects` task/report/change-order/subcontract routers) so unrelated project-scoped routes (invoices, bills, procurement, stock) pass through for inventory tenants.
-- **Shell UI** — `apps/mobile/app/inventory/` (real route segment, not a group): Stock, Procurement, Invoices, Bills, Settings. Product-aware redirects in `app/index.tsx`, `(app)/_layout.tsx`, login, and signup (`?product=inventory`). Marketing pricing (`constants/marketing.ts`) adds an Inventory ₹999 card; shared `pricing.ts` is the single source of truth.
-  - **Procurement pickers (PROCUREMENT_PICKER_PERF)** — New PO lists only APPROVED indents with zero POs (one PO per indent, enforced server-side with a 400 on a second PO); New GRN lists non-cancelled POs that are not fully received, prefill remaining qty, and reject a GRN on a fully received PO with 400. Eligibility helpers live in `@buildflow/shared` (`indentAvailableForNewPo`, `poAvailableForNewGrn`, `isPoFullyReceived`, `poRemainingByResource`) and are shared with the construction `ProcurementTab`. PO mutations invalidate only the requisition list; GRN additionally invalidates stock (never whole-project BOQ).
+- **Plans / modules** - `packages/shared/src/plan-modules.ts` (`ProductMode`, `AppModule`, `PLAN_MODULES`, `getProductMode`). INVENTORY gets `inventory_shell, procurement, stock, invoices, bills, tally, assistant, settings`; construction plans get every module.
+- **Default project** - inventory signup (`registerCompany` with `product: 'inventory'`) or a platform switch-to-INVENTORY (`updateSubscriptionAsAdmin`) creates **one hidden project** `code='STORE'` and sets `Company.defaultProjectId` (unique FK). `/auth/me` (+ login/accept-invite payloads) return `productMode`, `defaultProjectId`, `enabledModules`, `subscriptionPlan`.
+- **Limits** - `PLAN_LIMITS.INVENTORY = { maxProjects: 1, maxUsers: 10 }`; `assertPlanAllowsProject` keeps INVENTORY at 1 even during trial and returns a dedicated 402 message. The default STORE project cannot be soft-deleted.
+- **Role** - `INVENTORY_MANAGER` (`Role` enum + shared defaults): stock, procurement, invoices, bills, Tally, financials, reports. Hidden from construction invite dropdowns; construction roles are hidden from inventory invites (`INVITABLE_ROLES_BY_PRODUCT`, enforced in `invite.service.ts` + `settings.service.ts` role updates). Invited inventory users are auto-added to the default project's members.
+- **Module gates** - `module-gate.service.ts` (`assertModuleEnabled`) + `middleware/module-gate.ts` (`requireModule`, `requireModuleForPaths`). Path-aware gates are used on routers mounted at shared prefixes (`/api` estimate router, `/api/projects` task/report/change-order/subcontract routers) so unrelated project-scoped routes (invoices, bills, procurement, stock) pass through for inventory tenants.
+- **Shell UI** - `apps/mobile/app/inventory/` (real route segment, not a group): Stock, Procurement, Invoices, Bills, Settings. Product-aware redirects in `app/index.tsx`, `(app)/_layout.tsx`, login, and signup (`?product=inventory`). Marketing pricing (`constants/marketing.ts`) adds an Inventory ₹999 card; shared `pricing.ts` is the single source of truth.
+  - **Procurement pickers (PROCUREMENT_PICKER_PERF)** - New PO lists only APPROVED indents with zero POs (one PO per indent, enforced server-side with a 400 on a second PO); New GRN lists non-cancelled POs that are not fully received, prefill remaining qty, and reject a GRN on a fully received PO with 400. Eligibility helpers live in `@buildflow/shared` (`indentAvailableForNewPo`, `poAvailableForNewGrn`, `isPoFullyReceived`, `poRemainingByResource`) and are shared with the construction `ProcurementTab`. PO mutations invalidate only the requisition list; GRN additionally invalidates stock (never whole-project BOQ).
 - Inventory shell Stock home supports **manual stock issue (OUT)** via `POST /projects/:id/procurement/stock/issue` (`stock.manage`). **Materials** catalog screen lets OWNER / INVENTORY_MANAGER add SKUs (`POST /resources`).
 - Happy-path inventory tests assert stock balance after GRN and after issue.
-- **Pricing** — `PLAN_PRICES_INR`: INVENTORY 999 / STARTER 1999 / PROFESSIONAL 4999 / ENTERPRISE `null` (contact sales). Annual = ×10 monthly. ENTERPRISE checkout is blocked in `createSaasCheckout`.
+- **Pricing** - `PLAN_PRICES_INR`: INVENTORY 999 / STARTER 1999 / PROFESSIONAL 4999 / ENTERPRISE `null` (contact sales). Annual = ×10 monthly. ENTERPRISE checkout is blocked in `createSaasCheckout`.
 
 ---
 

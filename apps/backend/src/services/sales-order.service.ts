@@ -254,7 +254,7 @@ export async function dispatchDeliveryChallan(
       const qty = Number(line.quantity);
       if (!balance || onHand < qty) {
         throw ApiError.unprocessable(
-          `${line.itemName}: only ${onHand} on hand, challan requires ${qty} — dispatch aborted.`,
+          `${line.itemName}: only ${onHand} on hand, challan requires ${qty} - dispatch aborted.`,
         );
       }
       await tx.stockBalance.update({ where: { id: balance.id }, data: { quantity: { decrement: qty } } });
@@ -375,7 +375,7 @@ export async function createInvoiceFromSalesOrder(
     }
   }
   if (deliveredByResource.size === 0) {
-    throw ApiError.badRequest('No delivered quantities to invoice — dispatch a delivery challan first.');
+    throw ApiError.badRequest('No delivered quantities to invoice - dispatch a delivery challan first.');
   }
 
   const lineItems = so.lines

@@ -2,7 +2,7 @@
  * BuildFlow - Party master routes (INVENTORY_HORIZONTAL_PLATFORM Phase 1.1).
  *
  * Mounted at /api/inventory/parties and gated to the INVENTORY plan via the
- * `parties` feature flag — construction tenants get 403.
+ * `parties` feature flag - construction tenants get 403.
  */
 import { Router } from 'express';
 import * as partyController from '../controllers/party.controller';

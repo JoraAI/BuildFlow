@@ -110,7 +110,7 @@ export function computeSummary(
   // overhead + contingency + profit), not just the raw item amount. In Indian
   // construction contracts, GST is levied on the total value of supply after
   // adding overheads and profit margins. Previously GST was computed only on
-  // `item.amount`, ignoring the markup — understating the GST liability.
+  // `item.amount`, ignoring the markup - understating the GST liability.
   const markupMultiplier = subtotal > 0 ? grandTotalBeforeGST / subtotal : 1;
   const gstAmount = round2(
     items.reduce((sum, item) => {
@@ -168,7 +168,7 @@ function resolveProcurementLinks(
 ): { resourceId: string | null; rateAnalysisId: string | null } {
   const rid = resourceId ?? null;
   const raid = rateAnalysisId ?? null;
-  // Keep BOTH if provided — resourceId links to the catalog material,
+  // Keep BOTH if provided - resourceId links to the catalog material,
   // rateAnalysisId links to the composite rate analysis. Both are needed:
   // resourceId for procurement/stock, rateAnalysisId for component explosion.
   if (rid && raid) return { resourceId: rid, rateAnalysisId: raid };
@@ -278,7 +278,7 @@ export async function listEstimates(companyId: string, projectId: string) {
   // Only return top-level estimates (exclude sub-estimates which have parentId).
   // Sub-estimates are listed separately via listSubEstimates() and rendered
   // nested under their parent. Without this filter, sub-estimates would appear
-  // both as standalone cards AND nested — causing confusing duplicates.
+  // both as standalone cards AND nested - causing confusing duplicates.
   const estimates = await prisma.estimate.findMany({
     where: { projectId, companyId, parentId: null },
     orderBy: { version: 'desc' },
@@ -684,7 +684,7 @@ export async function submitForReview(
 
   // Hard validation: every MATERIAL line must have a procurement link
   // (catalog resourceId OR rateAnalysisId). Without one, the item cannot
-  // be exploded into procurement indents when converted to BOQ — silently
+  // be exploded into procurement indents when converted to BOQ - silently
   // dropping material demand. Block submission and surface the offenders.
   const materialItems = await prisma.estimateItem.findMany({
     where: { estimateId, type: 'MATERIAL' },
@@ -786,7 +786,7 @@ export async function approveEstimate(
       throw ApiError.conflict('This estimate was modified by another user. Please refresh and try again.');
     }
 
-    // Supersede previous approved versions — but ONLY for top-level estimates.
+    // Supersede previous approved versions - but ONLY for top-level estimates.
     if (!estimate.parentId) {
       await tx.estimate.updateMany({
         where: {

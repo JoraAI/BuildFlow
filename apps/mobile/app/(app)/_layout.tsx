@@ -69,7 +69,7 @@ export default function AppLayout() {
     );
   }
 
-  // INVENTORY_PRODUCT: inventory tenants live in the inventory shell — never
+  // INVENTORY_PRODUCT: inventory tenants live in the inventory shell - never
   // show the construction sidebar / tab bar or let them land on construction tabs.
   if (user.productMode === 'inventory') {
     return <Redirect href="/inventory" />;

@@ -119,7 +119,7 @@ export async function optionalAuth(
   const token = extractBearerToken(req);
   if (!token) return next();
   try {
-    // FIX (SEC-M10): require type === 'access' — previously a refresh token
+    // FIX (SEC-M10): require type === 'access' - previously a refresh token
     // was accepted wherever optionalAuth granted access.
     const decoded = verifyAccessToken(token);
     if (

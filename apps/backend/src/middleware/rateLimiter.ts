@@ -7,7 +7,7 @@
  *
  * Backed by Redis (sliding window via INCR + EXPIRE).
  *
- * FIX (SEC-H3): Removed manual X-Forwarded-For parsing — Express's `req.ip`
+ * FIX (SEC-H3): Removed manual X-Forwarded-For parsing - Express's `req.ip`
  * respects `app.set('trust proxy')` and is the correct, non-spoofable source.
  * FIX (SEC-H4): The auth limiter now FAILS CLOSED when Redis is unreachable
  * (returns 503), preventing brute-force when Redis is down. The general API
@@ -29,7 +29,7 @@ interface LimiterOptions {
 }
 
 /**
- * FIX (SEC-H3): Use Express's `req.ip` directly — it respects the configured
+ * FIX (SEC-H3): Use Express's `req.ip` directly - it respects the configured
  * `trust proxy` setting and is the safe, non-spoofable source. Previously this
  * read `X-Forwarded-For` directly, allowing an attacker to rotate IPs per
  * request to bypass brute-force limits.
@@ -67,7 +67,7 @@ export function rateLimiter(opts: LimiterOptions) {
       next();
     } catch (err) {
       if (opts.failClosed) {
-        // FIX (SEC-H4): auth limiter FAILS CLOSED — Redis down must not
+        // FIX (SEC-H4): auth limiter FAILS CLOSED - Redis down must not
         // disable brute-force protection on login/register/forgot-password.
         return next(
           ApiError.rateLimited(

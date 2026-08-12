@@ -107,7 +107,7 @@ export async function createSalesReturn(
         where: { locationId_resourceId: { locationId: location.id, resourceId: l.resourceId } },
       });
       const qty = Number(l.quantity);
-      // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.2): restock at the current WAC —
+      // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.2): restock at the current WAC -
       // this keeps the running average unchanged (WAC-neutral return).
       const res = await tx.resource.findUnique({
         where: { id: l.resourceId },
@@ -275,7 +275,7 @@ export async function createPurchaseReturn(
       const qty = Number(l.quantity);
       if (!balance || onHand < qty) {
         throw ApiError.unprocessable(
-          `${l.itemName}: only ${onHand} on hand, return requires ${qty} — purchase return aborted.`,
+          `${l.itemName}: only ${onHand} on hand, return requires ${qty} - purchase return aborted.`,
         );
       }
       await tx.stockBalance.update({ where: { id: balance.id }, data: { quantity: { decrement: qty } } });

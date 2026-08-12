@@ -31,7 +31,7 @@ export function invalidateProjectProcurement(qc: QueryClient, projectId: string)
 
 /**
  * PROCUREMENT_PICKER_PERF: scoped invalidation. PO/GRN mutations only touch the
- * requisition list (and stock for GRN) — never the whole project BOQ.
+ * requisition list (and stock for GRN) - never the whole project BOQ.
  */
 
 /** Requisition list only (indents + nested POs/GRNs). */
@@ -72,7 +72,7 @@ export function invalidateAnalyticsDashboard(qc: QueryClient) {
 /**
  * EST-VO-11e: Invalidate estimate variations query when change orders are
  * created/submitted/approved/rejected. estimateId is unknown at call site
- * (it's on the ChangeOrder), so we invalidate the prefix broadly — React
+ * (it's on the ChangeOrder), so we invalidate the prefix broadly - React
  * Query will refetch any active ['estimates', *, 'variations'] queries.
  */
 export function invalidateEstimateVariations(qc: QueryClient) {

@@ -1,4 +1,4 @@
-# BuildFlow — Deployment Guide (Free Testing)
+# BuildFlow - Deployment Guide (Free Testing)
 
 This guide covers hosting BuildFlow for **free-tier testing**: web UI on **Vercel**, API on a small Node host, plus managed Postgres and Redis.
 
@@ -116,7 +116,7 @@ LOG_LEVEL=info
 
 ### File storage (pick one)
 
-**Option A — Cloudflare R2 (recommended for free testing)**
+**Option A - Cloudflare R2 (recommended for free testing)**
 
 ```env
 FILE_STORAGE_PROVIDER=s3
@@ -124,10 +124,10 @@ AWS_REGION=auto
 AWS_S3_BUCKET=buildflow-test
 AWS_ACCESS_KEY_ID=<r2 access key>
 AWS_SECRET_ACCESS_KEY=<r2 secret>
-# Set S3 endpoint in storage config if your code supports R2 endpoint env — otherwise use AWS S3.
+# Set S3 endpoint in storage config if your code supports R2 endpoint env - otherwise use AWS S3.
 ```
 
-**Option B — Google Drive**
+**Option B - Google Drive**
 
 ```env
 FILE_STORAGE_PROVIDER=drive
@@ -202,7 +202,7 @@ After seeding (`SEED_ALLOW_TRUNCATE=1 pnpm db:seed` from `apps/backend`):
 
 ### Construction tenant (`/` → Login)
 
-Company: **Reddy Constructions Pvt Ltd** — password **`Test@1234`** for all:
+Company: **Reddy Constructions Pvt Ltd** - password **`Test@1234`** for all:
 
 | Role | Email |
 |------|-------|
@@ -236,7 +236,7 @@ Password **`Test@1234`** for all. One demo company per business profile:
 |-------|----------|
 | `admin@buildflow.com` | `Admin@1234` |
 
-> **Important:** Platform admin is **not** the same as company login. Do **not** use `admin@buildflow.com` on the main `/login` screen — you will get *"Invalid email or password"*. Open **`/platform/login`** instead (or use the "Platform console" link on the sign-in page).
+> **Important:** Platform admin is **not** the same as company login. Do **not** use `admin@buildflow.com` on the main `/login` screen - you will get *"Invalid email or password"*. Open **`/platform/login`** instead (or use the "Platform console" link on the sign-in page).
 
 ---
 

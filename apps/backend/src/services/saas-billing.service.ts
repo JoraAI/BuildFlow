@@ -42,7 +42,7 @@ export async function createSaasCheckout(
   });
 
   const amountInr = PLAN_PRICES_INR[plan];
-  // INVENTORY_PRODUCT: ENTERPRISE is contact-sales only — no self-serve amount.
+  // INVENTORY_PRODUCT: ENTERPRISE is contact-sales only - no self-serve amount.
   if (amountInr === null) {
     throw new Error('ENTERPRISE is contact-sales only. Please contact our sales team.');
   }
@@ -214,7 +214,7 @@ export async function handleSaasRazorpayWebhook(rawBody: string): Promise<boolea
   const plan = notes.plan as SubscriptionPlan | undefined;
   if (!companyId || !plan || !ref?.startsWith('saas-')) return false;
 
-  // FIX (FIN-M10): Idempotency — check Redis before activating. A replayed
+  // FIX (FIN-M10): Idempotency - check Redis before activating. A replayed
   // webhook (Razorpay retries up to 5x) would re-activate the subscription
   // and potentially duplicate the audit log + notifications.
   const { redis } = await import('../lib/redis');
@@ -237,7 +237,7 @@ export async function handleSaasStripeWebhook(rawBody: string): Promise<boolean>
   const event = JSON.parse(rawBody) as StripeEvent;
   if (event.type !== 'checkout.session.completed') return false;
 
-  // FIX (FIN-M10): Check payment_status — Stripe fires checkout.session.completed
+  // FIX (FIN-M10): Check payment_status - Stripe fires checkout.session.completed
   // even for unpaid sessions (e.g. deferred payment, Boleto, SEPA). Only activate
   // when the session is actually paid.
   const paymentStatus = event.data?.object?.payment_status;
@@ -249,7 +249,7 @@ export async function handleSaasStripeWebhook(rawBody: string): Promise<boolean>
   const ref = meta.referenceId;
   if (!companyId || !plan || !ref) return false;
 
-  // FIX (FIN-M10): Idempotency — same Redis dedup as Razorpay.
+  // FIX (FIN-M10): Idempotency - same Redis dedup as Razorpay.
   const { redis } = await import('../lib/redis');
   const idempKey = `saas:webhook:stripe:${ref}`;
   const alreadyHandled = await redis.get(idempKey);

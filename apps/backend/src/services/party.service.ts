@@ -105,7 +105,7 @@ export async function updateCustomer(companyId: string, id: string, input: Parti
   });
 }
 
-/** Soft delete (deactivate) — keeps history for invoices that reference it. */
+/** Soft delete (deactivate) - keeps history for invoices that reference it. */
 export async function deleteCustomer(companyId: string, id: string) {
   await getCustomer(companyId, id);
   return prisma.customer.update({ where: { id }, data: { isActive: false } });
@@ -153,7 +153,7 @@ export async function updateVendor(companyId: string, id: string, input: Partial
   });
 }
 
-/** Soft delete (deactivate) — keeps history for bills that reference it. */
+/** Soft delete (deactivate) - keeps history for bills that reference it. */
 export async function deleteVendor(companyId: string, id: string) {
   await getVendor(companyId, id);
   return prisma.vendor.update({ where: { id }, data: { isActive: false } });

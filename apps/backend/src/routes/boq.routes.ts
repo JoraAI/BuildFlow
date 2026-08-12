@@ -48,5 +48,5 @@ boqDetailRouter.post(
 export const estimateToBoqRouter = Router();
 estimateToBoqRouter.use(authenticateToken);
 // FIX (EST-M13): Conversion is a high-impact mutation (archives + rebuilds BOQ,
-// sets budget) — restrict to OWNER/PM/ESTIMATOR.
+// sets budget) - restrict to OWNER/PM/ESTIMATOR.
 estimateToBoqRouter.post('/:id/convert-to-boq', BOQ_MUTATION_ROLES, validate({ params: boqItemIdParamsSchema }), boqController.convertEstimateToBoq);

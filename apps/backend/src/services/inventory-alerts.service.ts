@@ -1,7 +1,7 @@
 /**
  * BuildFlow - Inventory alerts (INVENTORY_HORIZONTAL_PLATFORM Phase 8.5).
  *
- * Lightweight hooks into the EXISTING notification infra (in-app first — no new
+ * Lightweight hooks into the EXISTING notification infra (in-app first - no new
  * notification product). All functions are non-fatal (never throw) and only run
  * for INVENTORY tenants. D10 is untouched: these are rules + the shared notify()
  * pipeline, no chat model involved.
@@ -11,7 +11,7 @@ import { logger } from '../config/logger';
 import { notifyMany } from './notification.service';
 import { ApiError } from '../utils/errors';
 
-/** PO rate vs WAC/last-buy flag band — mirrors inventory-ai.service (8.1-8.3). */
+/** PO rate vs WAC/last-buy flag band - mirrors inventory-ai.service (8.1-8.3). */
 const PO_RATE_BAND_PCT = 0.15;
 const ANOMALY_WINDOW_MS = 30 * 86400000;
 
@@ -64,7 +64,7 @@ export async function notifyLowStock(
   }
 }
 
-/** PO-rate anomaly alert — fires when a PO line is above WAC/last-buy band. */
+/** PO-rate anomaly alert - fires when a PO line is above WAC/last-buy band. */
 export async function notifyPoRateAnomaly(
   companyId: string,
   opts: {
@@ -159,7 +159,7 @@ export async function notifyCountVariance(
 
 export { ANOMALY_WINDOW_MS };
 
-/** Overdue-invoice reminders (Phase 9.4) — deduped to once per invoice per week. */
+/** Overdue-invoice reminders (Phase 9.4) - deduped to once per invoice per week. */
 export async function notifyOverdueInvoices(companyId: string): Promise<void> {
   try {
     if (!(await isInventoryTenant(companyId))) return;
@@ -196,7 +196,7 @@ export async function notifyOverdueInvoices(companyId: string): Promise<void> {
   }
 }
 
-/** Manual "Remind" action on an invoice — in-app nudge for OWNER/INVENTORY_MANAGER. */
+/** Manual "Remind" action on an invoice - in-app nudge for OWNER/INVENTORY_MANAGER. */
 export async function remindOverdueInvoice(companyId: string, invoiceId: string): Promise<void> {
   const invoice = await prisma.invoice.findFirst({
     where: { id: invoiceId, companyId },
@@ -207,7 +207,7 @@ export async function remindOverdueInvoice(companyId: string, invoiceId: string)
   if (recipients.length === 0) return;
   await notifyMany(recipients, {
     companyId,
-    title: `Invoice ${invoice.invoiceNumber} — payment reminder`,
+    title: `Invoice ${invoice.invoiceNumber} - payment reminder`,
     body: `${invoice.clientName} · ₹${Number(invoice.total)} · due ${invoice.dueDate.toISOString().slice(0, 10)}. Send the reminder.`,
     type: 'INVENTORY_OVERDUE_INVOICE',
     referenceId: invoiceId,

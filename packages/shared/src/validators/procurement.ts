@@ -57,7 +57,7 @@ export const createGrnSchema = z.object({
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.1): optional receiving warehouse.
   // Omit for construction (project location) or the inventory default location.
   locationId: z.string().uuid().optional(),
-  // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.1): landed costs — extra acquisition
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.1): landed costs - extra acquisition
   // costs allocated to lines and added to unit cost (default: by quantity).
   freightCost: z.coerce.number().nonnegative().optional(),
   insuranceCost: z.coerce.number().nonnegative().optional(),

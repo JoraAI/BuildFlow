@@ -143,9 +143,9 @@ The same permission-aware prompt is also injected into the BuildFlow in-app assi
 
 ## Security notes
 
-- The JWT is verified against `JWT_SECRET` at startup — invalid/expired tokens are rejected.
+- The JWT is verified against `JWT_SECRET` at startup - invalid/expired tokens are rejected.
 - The server connects to the same database as the backend using the same Prisma schema.
-- All tool queries are scoped to `identity.companyId` — cross-company data access is impossible.
+- All tool queries are scoped to `identity.companyId` - cross-company data access is impossible.
 - Every write operation (create/approve) is executed under the user's identity, so audit trails are accurate.
 - The server runs as a **single-identity** process (one JWT per server instance). For multi-user scenarios, run multiple server instances or implement per-request identity via the MCP session header.
 

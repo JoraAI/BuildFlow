@@ -27,7 +27,7 @@ function esc(s: string): string {
 /**
  * FIX (FIN-M3): Format a date in IST (Asia/Kolkata) for Tally, which expects
  * YYYYMMDD. Previously this used the server's local timezone (getMonth/
- * getDate), causing off-by-one-day errors when the server ran in UTC — a
+ * getDate), causing off-by-one-day errors when the server ran in UTC - a
  * voucher dated 2025-04-30 IST would export as 20250429 if the server was
  * still on 2025-04-29 UTC.
  */
@@ -178,7 +178,7 @@ export function buildSalesVoucher(
  * FIX (FIN-H5, FIN-L5, NR-4): Split bill GST into CGST/SGST vs IGST based on
  * whether the vendor is in the same state as the company (intra-state) or a
  * different state (inter-state). The vendor state is derived from vendorGstin
- * (first 2 digits = state code) — previously the code read a nonexistent
+ * (first 2 digits = state code) - previously the code read a nonexistent
  * `bill.vendorState` field, so EVERY bill was mis-split as intra-state (CGST/
  * SGST) regardless of the vendor's actual state.
  *
@@ -287,7 +287,7 @@ export function buildPurchaseVoucher(
 }
 
 /**
- * INVENTORY_HORIZONTAL_PLATFORM (Phase 2.4): Tally export hook — sales returns
+ * INVENTORY_HORIZONTAL_PLATFORM (Phase 2.4): Tally export hook - sales returns
  * appear as "Credit Note" vouchers and purchase returns as "Debit Note".
  * GST-aware: reduces/raises the party balance with the reverse GST split.
  */

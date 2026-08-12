@@ -39,7 +39,7 @@ export async function create(req: Request, res: Response, next: NextFunction) {
       newValue: { invoiceNumber: data.invoiceNumber, total: data.total },
       ipAddress: req.ip,
     });
-    // FIX: createInvoice can now throw (e.g. Phase 2.5 credit-limit BLOCK) — the
+    // FIX: createInvoice can now throw (e.g. Phase 2.5 credit-limit BLOCK) - the
     // invoice routes don't use asyncHandler, so route errors through next().
     return created(res, data);
   } catch (err) {

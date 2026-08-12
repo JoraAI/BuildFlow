@@ -13,7 +13,7 @@ import { useViewport } from '@/hooks/useViewport';
 import { useImportPreview, useImportConfirm, type ImportMappingPreview } from '@/services/inventory-ai.queries';
 
 const FIELDS: Array<{ key: keyof ImportMappingPreview['mapping']; label: string; hint: string; required?: boolean }> = [
-  { key: 'name', label: 'Item name', hint: 'Required — matched or created', required: true },
+  { key: 'name', label: 'Item name', hint: 'Required - matched or created', required: true },
   { key: 'qty', label: 'Qty / opening qty', hint: 'Opening stock only' },
   { key: 'unit', label: 'Unit', hint: 'e.g. bag, kg' },
   { key: 'rate', label: 'Rate / price', hint: 'Catalog rate (₹)' },
@@ -150,7 +150,7 @@ export function ImportMappingModal({
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text className="text-sm text-muted mb-3">
               Upload a CSV/Excel file with column headers. AI maps the columns (Product Name, HSN, Qty,
-              Rate, ...) — review the mapping below, then confirm.
+              Rate, ...) - review the mapping below, then confirm.
             </Text>
 
             {!preview ? (
@@ -207,7 +207,7 @@ export function ImportMappingModal({
                   {preview.sampleRows.map((row, i) => (
                     <View key={i} className="py-1 border-b border-border/60 last:border-b-0">
                       <Text className="text-sm text-text" numberOfLines={1}>
-                        {row[mapping.name || preview.headers[0] || ''] || '—'}
+                        {row[mapping.name || preview.headers[0] || ''] || '-'}
                       </Text>
                       <Text className="text-xs text-muted" numberOfLines={1}>
                         {Object.entries(row)

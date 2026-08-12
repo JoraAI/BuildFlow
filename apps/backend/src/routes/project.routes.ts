@@ -62,7 +62,7 @@ projectRouter.put(
   projectController.setMembers,
 );
 
-// WBS (planning module — blocked for INVENTORY tenants)
+// WBS (planning module - blocked for INVENTORY tenants)
 projectRouter.get('/:id/wbs', requireModule('planning'), validate({ params: projectIdParamsSchema }), projectController.getWbsTree);
 projectRouter.post(
   '/:id/wbs',

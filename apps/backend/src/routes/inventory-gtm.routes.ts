@@ -1,7 +1,7 @@
 /**
  * BuildFlow - Inventory GTM routes (INVENTORY_HORIZONTAL_PLATFORM Phase 9).
  *
- * Mounted at /api/inventory (after the warehouse router) — every Phase 9 route
+ * Mounted at /api/inventory (after the warehouse router) - every Phase 9 route
  * is gated by `requireInventoryFeature('stock_adjustments')` so construction
  * tenants get 403. Writes require OWNER / INVENTORY_MANAGER.
  */

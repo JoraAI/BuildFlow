@@ -116,7 +116,7 @@ app.use('/api/portal/sub', subPortalPublicRouter);
 // --- Routes ---
 app.use('/api/auth', authRouter);
 // Platform admin MUST mount before any catch-all `/api` routers that apply
-// authenticateToken globally (e.g. estimateRouter) — otherwise POST
+// authenticateToken globally (e.g. estimateRouter) - otherwise POST
 // /api/platform/auth/login is blocked with "Missing authorization token".
 app.use('/api/platform', platformRouter);
 app.use('/api/projects', projectRouter);
@@ -157,7 +157,7 @@ app.use('/api/proposals', proposalRouter);
 app.use('/api/petty-cash', pettyCashRouter);
 app.use('/api/punch-list', punchListRouter);
 app.use('/api', rfiSubmittalRouter);
-// §2.8: /api/sync UNMOUNTED — the offline-first delta-sync feature requires
+// §2.8: /api/sync UNMOUNTED - the offline-first delta-sync feature requires
 // `updatedAt` columns on Task/DailyReport (not present) and a mobile replay
 // pipeline (offline-sync.service.ts URLs don't match real attendance routes).
 // The service (sync.service.ts) still compiles and is documented as a stub;

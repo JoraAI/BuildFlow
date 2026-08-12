@@ -1,7 +1,7 @@
 /**
  * BuildFlow - Race-safe sequential ID generator.
  *
- * FIX: SEC-M14 / FIN-H1 / DAT-1.2 / EST-M5 — Replaces the old count()-based
+ * FIX: SEC-M14 / FIN-H1 / DAT-1.2 / EST-M5 - Replaces the old count()-based
  * approach (which raced under concurrency and reused numbers after deletion)
  * with an atomic per-company, per-year DocumentCounter row.
  *
@@ -14,12 +14,12 @@
  *
  * The counter is incremented atomically via Prisma `upsert` with
  * `update: { increment: 1 }` inside a transaction, which serializes on the
- * `@@unique([companyId, type, year])` row — guaranteeing no gaps and no reuse.
+ * `@@unique([companyId, type, year])` row - guaranteeing no gaps and no reuse.
  */
 import { prisma } from './prisma';
 import { Prisma } from '@prisma/client';
 
-// FIX (NR-32): Dedicated counter types for RFIs and submittals — previously
+// FIX (NR-32): Dedicated counter types for RFIs and submittals - previously
 // these reused the 'invoice' counter and string-replaced the prefix, which
 // raced with invoice numbering and could collide.
 type EntityType =
@@ -70,7 +70,7 @@ function formatNumber(prefix: string, year: number, seq: number): string {
 
 /**
  * Preview the next number without consuming the counter.
- * Safe for form prefills — create still allocates via nextSequentialNumber
+ * Safe for form prefills - create still allocates via nextSequentialNumber
  * or resolveSequentialNumber.
  */
 export async function peekNextSequentialNumber(

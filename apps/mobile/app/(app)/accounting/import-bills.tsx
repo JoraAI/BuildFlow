@@ -16,7 +16,7 @@ import { dismissTo, DISMISS } from '@/utils/navigation';
 import { alertAsync } from '@/utils/confirm';
 import { formatINR } from '@/utils/format';
 
-// R9-B3: File picker — uses expo-document-picker
+// R9-B3: File picker - uses expo-document-picker
 async function pickInvoiceFiles(): Promise<Array<{ fileContent: string; filename: string; contentType: string }>> {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { getDocumentAsync } = require('expo-document-picker');

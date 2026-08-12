@@ -33,7 +33,7 @@ async function main() {
     ` as any[];
 
     if (components.length === 1) {
-      // Single material — set resourceId
+      // Single material - set resourceId
       const resourceId = components[0].resource_id;
       await prisma.$executeRaw`
         UPDATE estimate_items SET resource_id = ${resourceId}::uuid WHERE id = ${item.id}::uuid
@@ -41,10 +41,10 @@ async function main() {
       updated++;
       console.log(`  ✓ ${item.description?.slice(0, 40)} → ${resourceId.slice(0, 8)}...`);
     } else if (components.length > 1) {
-      // Multiple materials — leave as composite
+      // Multiple materials - leave as composite
       skipped++;
     } else {
-      // No MATERIAL components — leave as-is
+      // No MATERIAL components - leave as-is
       skipped++;
     }
   }

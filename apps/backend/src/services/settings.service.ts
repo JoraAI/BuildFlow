@@ -173,7 +173,7 @@ export async function updateReportSettings(companyId: string, settings: Record<s
 
 export async function updateCompanyProfile(companyId: string, data: CompanyUpdateInput) {
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 0/2.5/4.4): inventory-only fields.
-  // Construction companies must ignore them (hidden fields) — never write them.
+  // Construction companies must ignore them (hidden fields) - never write them.
   let write: Record<string, unknown> = { ...data };
   if (
     data.inventoryProfile !== undefined ||
@@ -258,7 +258,7 @@ export async function listUsers(companyId: string): Promise<UserRow[]> {
 }
 
 export async function getUserAuditStats(userId: string, companyId: string) {
-  // FIX (SEC-M15): add companyId to the lastActive lookup — previously filtered
+  // FIX (SEC-M15): add companyId to the lastActive lookup - previously filtered
   // by userId only, so a caller could learn another tenant's user's last-activity.
   const [actionCount, lastActive] = await Promise.all([
     prisma.auditLog.count({ where: { userId, companyId } }),
@@ -311,12 +311,12 @@ export async function updateUser(
     throw new ApiError('FORBIDDEN', 'You cannot change your own role');
   }
 
-  // Forbid assigning OWNER — only company creation can create an OWNER.
+  // Forbid assigning OWNER - only company creation can create an OWNER.
   if (data.role === 'OWNER') {
     throw new ApiError('FORBIDDEN', 'Cannot assign the OWNER role via this endpoint');
   }
   // FIX (NR-16): Normalize the legacy SUPERVISOR enum value to the current
-  // SITE_SUPERVISOR (DAT-4.2 intent). The previous code was inverted — it
+  // SITE_SUPERVISOR (DAT-4.2 intent). The previous code was inverted - it
   // mapped the NEW value back to the DEPRECATED one.
   if (data.role === 'SUPERVISOR') {
     data.role = 'SITE_SUPERVISOR';

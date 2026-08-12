@@ -1,7 +1,7 @@
 /**
- * Mock for Bull queue — prevents Redis connections during tests.
+ * Mock for Bull queue - prevents Redis connections during tests.
  * Mapped via jest.config.js moduleNameMapper.
- * NOTE: Don't use jest.fn() — clearMocks:true resets them between tests.
+ * NOTE: Don't use jest.fn() - clearMocks:true resets them between tests.
  */
 function createMockQueue() {
   return {

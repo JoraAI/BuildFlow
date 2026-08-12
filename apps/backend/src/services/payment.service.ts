@@ -2,7 +2,7 @@
  * BuildFlow - Razorpay payment service (tenant invoice collection).
  *
  * SECURITY (SEC-H7/FIN-C2): Webhook verification requires a PER-COMPANY
- * webhook secret — there is no platform fallback for tenant invoice payments.
+ * webhook secret - there is no platform fallback for tenant invoice payments.
  * `handlePaymentCaptured` is scoped to the verified `companyId`, requires an
  * explicit captured amount from the payload (never defaults to invoice.total),
  * dedupes on the Razorpay payment id for idempotency, and only transitions
@@ -97,7 +97,7 @@ export async function createPaymentLink(
  * Verify the per-company Razorpay webhook HMAC signature.
  *
  * SECURITY (SEC-H7): A per-company `webhookSecret` is REQUIRED. We do NOT fall
- * back to the platform secret for tenant invoice payments — otherwise one
+ * back to the platform secret for tenant invoice payments - otherwise one
  * tenant could settle another's invoices.
  */
 export async function verifyWebhookSignature(
@@ -180,7 +180,7 @@ export async function handlePaymentCaptured(
     if (already) return { handled: true, invoiceId: invoice.id };
   }
 
-  // SECURITY (FIN-C2): require an explicit captured amount — never default to total.
+  // SECURITY (FIN-C2): require an explicit captured amount - never default to total.
   const capturedPaise = parsed.payload?.payment?.entity?.amount;
   if (capturedPaise === undefined || capturedPaise === null || !Number.isFinite(capturedPaise)) {
     logger.warn('Razorpay webhook rejected: missing/invalid captured amount', {
@@ -211,7 +211,7 @@ export async function handlePaymentCaptured(
       data: { paidAmount: newPaid, status: newStatus },
     });
     if (updated.count === 0) {
-      // Already PAID — treat as already-handled (idempotent).
+      // Already PAID - treat as already-handled (idempotent).
       return;
     }
     await tx.journalEntry.create({

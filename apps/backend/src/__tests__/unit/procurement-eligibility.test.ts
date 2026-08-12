@@ -1,5 +1,5 @@
 /**
- * PROCUREMENT_PICKER_PERF — unit tests for the shared procurement picker
+ * PROCUREMENT_PICKER_PERF - unit tests for the shared procurement picker
  * eligibility helpers (no DB required).
  */
 import {

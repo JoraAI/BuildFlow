@@ -32,7 +32,7 @@ async function main() {
       console.log(`  - ${c.resource?.name ?? c.miscName ?? 'Unknown'}: ${c.quantityPerUnit} ${c.unit} @ ${c.rate} (${c.type})`);
     }
   } else {
-    console.log('\n⚠️  No rateAnalysisId linked — this BOQ item CANNOT explode');
+    console.log('\n⚠️  No rateAnalysisId linked - this BOQ item CANNOT explode');
   }
 }
 

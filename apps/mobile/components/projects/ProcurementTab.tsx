@@ -236,7 +236,7 @@ function IndentsSection({
   const [grnNumber, setGrnNumber] = useState('');
   const [grnNotes, setGrnNotes] = useState('');
   const [grnLineQtys, setGrnLineQtys] = useState<Record<string, string>>({});
-  /** In-flight submit/approve/delete on an indent — prevents double-click. */
+  /** In-flight submit/approve/delete on an indent - prevents double-click. */
   const [pendingAction, setPendingAction] = useState<{ id: string; kind: 'submit' | 'approve' | 'delete' } | null>(null);
 
   const nextNumbers = useNextProcurementNumbers(projectId, !!poModal || !!grnModal);
@@ -257,7 +257,7 @@ function IndentsSection({
   const shortfallsQ = useBoqShortfalls(projectId, reqModal);
   const shortfalls = shortfallsQ.data ?? [];
 
-  // Stock summary — build a map of resourceId → on-hand balance for
+  // Stock summary - build a map of resourceId → on-hand balance for
   // showing per-material stock info on exploded lines.
   const stockSummaryQ = useStockSummary(projectId);
   const stockByResource = useMemo(() => {
@@ -585,7 +585,7 @@ function IndentsSection({
           autoCapitalize="characters"
         />
         <Text className="text-[11px] text-muted -mt-1 mb-2">
-          Suggested automatically — edit if you need a custom number.
+          Suggested automatically - edit if you need a custom number.
         </Text>
         <Input label="Vendor" value={vendorName} onChangeText={setVendorName} placeholder="Supplier name" />
         {poModal?.lines.map((l: Requisition['lines'][number]) => (
@@ -625,7 +625,7 @@ function IndentsSection({
           autoCapitalize="characters"
         />
         <Text className="text-[11px] text-muted -mt-1 mb-2">
-          Suggested automatically — edit if you need a custom number.
+          Suggested automatically - edit if you need a custom number.
         </Text>
         <Input label="Notes (optional)" value={grnNotes} onChangeText={setGrnNotes} multiline />
         <Text className="text-sm font-bold text-text mt-2">PO line items</Text>
@@ -728,7 +728,7 @@ function IndentCard({
             return (
               <View key={l.id}>
                 <Text className="text-xs text-text">
-                  · {l.resource?.name ?? 'Material'} — {qty} {l.unit}
+                  · {l.resource?.name ?? 'Material'} - {qty} {l.unit}
                   {lineTotal != null ? ` · Rs ${lineTotal.toFixed(0)}` : ''}
                 </Text>
                 {l.boqItem ? (
@@ -785,7 +785,7 @@ function IndentCard({
                     onPress={() => onRecordGRN(po)}
                   />
                 )}
-                {/* PROC-B1: "Record vendor bill" (was "Create Bill") — only show if no bill yet */}
+                {/* PROC-B1: "Record vendor bill" (was "Create Bill") - only show if no bill yet */}
                 {canCreateBill && (po.goodsReceipts?.length ?? 0) > 0 && !(po.bills?.length) && (
                   <Button
                     label="Record vendor bill"
@@ -899,7 +899,7 @@ function StockSection({ projectId }: { projectId: string }) {
       <AdaptiveSheet
         visible={!!stockHistoryResource}
         onClose={() => setStockHistoryResource(null)}
-        title={stockHistoryResource ? `${stockHistoryResource.name} — movements` : 'Movements'}
+        title={stockHistoryResource ? `${stockHistoryResource.name} - movements` : 'Movements'}
         size="md"
       >
         {stockHistoryResource ? (

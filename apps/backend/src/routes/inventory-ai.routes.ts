@@ -1,7 +1,7 @@
 /**
  * BuildFlow - Inventory AI routes (INVENTORY_HORIZONTAL_PLATFORM Phase 7).
  *
- * Mounted at /api/inventory/ai — company-scoped, gated to the INVENTORY plan via
+ * Mounted at /api/inventory/ai - company-scoped, gated to the INVENTORY plan via
  * `requireInventoryFeature('stock_adjustments')`; construction tenants get 403.
  * Mutations require OWNER / INVENTORY_MANAGER; the anomalies strip is read-only.
  */

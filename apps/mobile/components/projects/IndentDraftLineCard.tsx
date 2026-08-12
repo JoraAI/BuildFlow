@@ -29,14 +29,14 @@ export interface IndentDraftLine {
   /** True when this line was auto-created by exploding a composite BOQ item.
    *  When true, the card shows material-level info instead of BOQ wrapper. */
   isExploded?: boolean;
-  /** The BOQ description — shown as a subtitle for exploded material lines
+  /** The BOQ description - shown as a subtitle for exploded material lines
    *  so the user knows which BOQ item it came from. */
   boqDescription?: string;
   /** The original quantity required by the BOQ rate analysis (fixed).
    *  Used in the stock info box so the user sees what the BOQ needs
    *  regardless of what they type in the editable quantity field. */
   boqQty?: string;
-  /** The material name from the RA component — used when the catalog
+  /** The material name from the RA component - used when the catalog
    *  material list doesn't include this resource (different company,
    *  not loaded, etc.). Falls back to this for display. */
   resourceName?: string;
@@ -232,7 +232,7 @@ export function IndentDraftLineCard({
           // Only include components that resolve to a catalog material
           // or are MISC-type (consumables). Skip equipment/labour.
           // Only explode MATERIAL and MISC types (skip EQUIPMENT, LABOUR, SUBCONTRACTOR)
-          // Only MATERIAL — skip MISC (overheads like formwork, electricity),
+          // Only MATERIAL - skip MISC (overheads like formwork, electricity),
           // EQUIPMENT, LABOUR, SUBCONTRACTOR (handled via other workflows)
           return c.type === 'MATERIAL';
         })
@@ -339,10 +339,10 @@ export function IndentDraftLineCard({
       // - Plain BOQ (no links): explode NOW into single line with BOQ desc as name
       if (onExplode) {
         if (boq.rateAnalysisId) {
-          // Composite — need RA detail to load first, then explode via effect
+          // Composite - need RA detail to load first, then explode via effect
           setPendingExplodeBoqId(boq.id);
         } else {
-          // Simple material or plain line — explode immediately.
+          // Simple material or plain line - explode immediately.
           // Resolve the material name from the catalog if the BOQ has a resourceId.
           const linkedMat = boq.resourceId ? materials.find((m) => m.id === boq.resourceId) : undefined;
           const explodedLine: IndentDraftLine = {
@@ -408,7 +408,7 @@ export function IndentDraftLineCard({
         ) : null}
       </View>
 
-      {/* Hide the Select dropdown for exploded lines — they show static material info */}
+      {/* Hide the Select dropdown for exploded lines - they show static material info */}
       {!line.isExploded ? (
         <Select
           label="Select Item"
@@ -422,7 +422,7 @@ export function IndentDraftLineCard({
         />
       ) : null}
 
-      {/* For exploded lines — unified display using line data */}
+      {/* For exploded lines - unified display using line data */}
       {line.isExploded ? (
         <View className="gap-1 -mt-1">
           {/* Unified display: use line.resourceName or fall back to catalog */}
@@ -479,7 +479,7 @@ export function IndentDraftLineCard({
               {selectedBoq.itemCode} · {selectedBoq.description}
             </Text>
           </View>
-          {/* Stock info box — shows what's already on hand so the user
+          {/* Stock info box - shows what's already on hand so the user
               knows how much to procure. */}
           {(() => {
             const onHand = selectedBoq.stockQty ?? 0;
@@ -569,7 +569,7 @@ export function IndentDraftLineCard({
         </Text>
       ) : null}
 
-      {/* Rate Analysis Component Breakdown — hidden for exploded lines */}
+      {/* Rate Analysis Component Breakdown - hidden for exploded lines */}
       {line.components.length > 0 && !line.isExploded && (
         <View className="mt-1 border border-accent/30 rounded-lg bg-accent/5 overflow-hidden">
           <Pressable

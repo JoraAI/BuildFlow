@@ -41,7 +41,7 @@ const processQueue = (token: string | null) => {
 
 /**
  * Auth endpoints that should NEVER trigger a token refresh cycle.
- * `/auth/me` is intentionally excluded — it's a protected endpoint that
+ * `/auth/me` is intentionally excluded - it's a protected endpoint that
  * must be retryable with a refreshed token (otherwise tab duplication /
  * page reload with an expired access token causes premature sign-out).
  * `/auth/accept-invite` also needs refresh for the same reason.
@@ -75,7 +75,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   const body: ApiResponse<T> = await res.json().catch(() => ({ success: false, data: null as T }));
 
   if (res.status === 401 && !shouldSkipRefresh(path)) {
-    // Try refresh once (also applies to /auth/me — otherwise tab duplication
+    // Try refresh once (also applies to /auth/me - otherwise tab duplication
     // with an expired access token causes a premature sign-out).
     if (!isRefreshing) {
       isRefreshing = true;
@@ -99,7 +99,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
         processQueue(null);
         // FIX (MOB-C2): Only logout if the error is actually a refresh failure
         // (token expired). If refresh succeeded but the retry itself returned
-        // an ApiError (403/422/500), rethrow that error — don't force-logout.
+        // an ApiError (403/422/500), rethrow that error - don't force-logout.
         if (refreshErr instanceof ApiError && refreshErr.status !== 401) {
           throw refreshErr;
         }
@@ -136,7 +136,7 @@ export interface ApiListMeta {
  * so paginated list screens survive an expired access token. NR-10: the refresh
  * now goes through the SHARED isRefreshing/failedQueue mutex (previously
  * apiFetchList called refreshAccessToken() directly, so concurrent list calls
- * at token expiry fired parallel /auth/refresh requests — the loser submitted a
+ * at token expiry fired parallel /auth/refresh requests - the loser submitted a
  * consumed refresh token and could invalidate the session).
  */
 export async function apiFetchList<T>(

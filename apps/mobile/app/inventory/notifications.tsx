@@ -92,7 +92,7 @@ export default function InventoryNotificationsScreen() {
         <View className="flex-1 mr-2">
           <Text className="text-2xl font-bold text-text">Notifications</Text>
           <Text className="text-sm text-muted mt-0.5">
-            Low stock, price anomalies and count variances — no separate product.
+            Low stock, price anomalies and count variances - no separate product.
           </Text>
         </View>
         {data?.notifications?.length ? (

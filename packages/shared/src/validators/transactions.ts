@@ -34,7 +34,7 @@ export const createDeliveryChallanSchema = z.object({
   salesOrderId: z.string().uuid(),
   notes: z.string().max(2000).optional(),
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3): one batch code for the whole
-  // challan (lite) — applied to every DC line → copied to each OUT movement.
+  // challan (lite) - applied to every DC line → copied to each OUT movement.
   batchCode: z.string().max(50).optional(),
   // Optional: restrict to a subset of SO lines (defaults to all undelivered).
   lines: z

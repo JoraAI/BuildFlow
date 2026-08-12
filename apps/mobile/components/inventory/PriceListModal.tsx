@@ -55,7 +55,7 @@ export function PriceListModal({
     setSaving(true);
     try {
       await upsert.mutateAsync({ customerId: customerId || null, resourceId, rate: rateNum });
-      toast.success('Price saved — overrides the catalog rate for this customer');
+      toast.success('Price saved - overrides the catalog rate for this customer');
       setResourceId('');
       setCustomerId('');
       setRate('');
@@ -121,7 +121,7 @@ export function PriceListModal({
             {isLoading ? (
               <Text className="text-sm text-muted">Loading prices…</Text>
             ) : (rows ?? []).length === 0 ? (
-              <Text className="text-sm text-muted">No price overrides yet — add one above.</Text>
+              <Text className="text-sm text-muted">No price overrides yet - add one above.</Text>
             ) : (
               (rows ?? []).map((r: PriceRow) => (
                 <View key={r.id} className="flex-row items-center justify-between rounded-xl border border-border bg-surface p-3 mb-2">

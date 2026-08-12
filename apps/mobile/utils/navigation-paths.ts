@@ -1,4 +1,4 @@
-/** Pure URL helpers (no expo-router) — safe for unit tests. */
+/** Pure URL helpers (no expo-router) - safe for unit tests. */
 
 export function parseReturnTo(param: string | string[] | undefined): string | null {
   const raw = Array.isArray(param) ? param[0] : param;

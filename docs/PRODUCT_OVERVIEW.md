@@ -28,7 +28,7 @@ Companion documents:
 
 ## 1. What BuildFlow is
 
-BuildFlow is a **single software platform that helps an Indian construction firm run its entire business** — from the first cost estimate, to the site work, to the final invoice and accounts. It is designed for **small, medium, and large** contracting and civil-engineering companies.
+BuildFlow is a **single software platform that helps an Indian construction firm run its entire business** - from the first cost estimate, to the site work, to the final invoice and accounts. It is designed for **small, medium, and large** contracting and civil-engineering companies.
 
 It replaces the patchwork of Excel sheets, WhatsApp groups, paper measurement books, and separate accounting tools that most firms use today. Instead, everything lives in one connected system:
 
@@ -41,7 +41,7 @@ It replaces the patchwork of Excel sheets, WhatsApp groups, paper measurement bo
 - **Export to Tally** for your books.
 - **Ask the BuildFlow Assistant** questions in plain English about your projects and money.
 
-The same app works on **mobile phones, tablets, and desktop computers (web browser)** — site supervisors use it on their phones, owners and accountants use it on a laptop.
+The same app works on **mobile phones, tablets, and desktop computers (web browser)** - site supervisors use it on their phones, owners and accountants use it on a laptop.
 
 Built by **Jora AI** (Hyderabad, India).
 
@@ -58,7 +58,7 @@ Every person in your company gets a login with a **role**. The role decides what
 | **Supervisor** | Site engineer / supervisor | Dashboard, their projects (site view), and daily reports. Logs work done, materials, attendance. Cannot edit estimates or accounting. |
 | **Accountant** | Accounts / finance person | Dashboard, accounting (invoices, bills, payments, GST, TDS, Tally export), and reports. |
 
-There is also a separate **BuildFlow Platform Admin** login — this is for **Jora AI / BuildFlow staff only**, not for construction companies. They help with trials, billing, and escalations.
+There is also a separate **BuildFlow Platform Admin** login - this is for **Jora AI / BuildFlow staff only**, not for construction companies. They help with trials, billing, and escalations.
 
 ### Rule of thumb
 > Only the **Owner** manages company-wide things: settings, team invites, subscription billing, integrations, and the audit log. Everyone else works within their projects and modules.
@@ -67,39 +67,39 @@ There is also a separate **BuildFlow Platform Admin** login — this is for **Jo
 
 ## 3. Every module, in plain English
 
-Below is a plain-language explanation of **every part of BuildFlow** — what it does and why it matters to your business.
+Below is a plain-language explanation of **every part of BuildFlow** - what it does and why it matters to your business.
 
 ### 3.1 Dashboard & Analytics
 
-- **Owner/Accountant dashboard** — a one-screen summary of your company: active projects, revenue, outstanding invoices, vendor bills due, budget usage, and project health.
-- **Project analytics** — per-project profit & loss, estimate vs actual spend, and progress.
+- **Owner/Accountant dashboard** - a one-screen summary of your company: active projects, revenue, outstanding invoices, vendor bills due, budget usage, and project health.
+- **Project analytics** - per-project profit & loss, estimate vs actual spend, and progress.
 - Helps you answer "How is the business doing?" and "Which projects are making or losing money?" in seconds.
 
 ### 3.2 Projects
 
 - Create and track construction **projects** with a name, code, client, location, budget, and status (Planning, In Progress, On Hold, Completed, Cancelled).
 - Each project has **tabs**: Overview, Estimate, BOQ, Planning, Reports, Procurement, Subcontract, Accounting, Portals.
-- **Project members** — assign PMs and supervisors to specific projects so they only see what's relevant to them.
-- **Soft delete** — projects are never truly destroyed; they're hidden but kept for audit.
+- **Project members** - assign PMs and supervisors to specific projects so they only see what's relevant to them.
+- **Soft delete** - projects are never truly destroyed; they're hidden but kept for audit.
 
 ### 3.3 Proposals (pre-project quoting)
 
-- Before a project is official, you can create a **Proposal** — a quote you send to a prospective client.
+- Before a project is official, you can create a **Proposal** - a quote you send to a prospective client.
 - A proposal creates a **temporary project** so you can build an estimate for it.
-- When you **win** the job, you "promote" the proposal into a real project — your estimate carries over.
+- When you **win** the job, you "promote" the proposal into a real project - your estimate carries over.
 - Statuses: Draft → In Review → Approved → Sent → Won / Lost / Archived.
 
 ### 3.4 Estimation & Rate Analysis
 
-This is where you build **cost estimates** — the project's budget plan — before work begins. (Full detail in [ESTIMATES.md](./ESTIMATES.md).)
+This is where you build **cost estimates** - the project's budget plan - before work begins. (Full detail in [ESTIMATES.md](./ESTIMATES.md).)
 
 - **3-step wizard**: (1) Setup (name + margins), (2) Build (sections + line items, or load a template), (3) Review.
 - **Cost types**: Material, Labour, Equipment, Subcontractor, Misc.
 - **Margins**: add Overhead %, Contingency %, and Profit % on top of the line items.
 - **GST** is calculated automatically based on each item's resource rate.
-- **Rate Analysis library** — reusable composite rates (e.g. "RCC M25 footing") built from material + labour + equipment components, so estimators stay consistent.
-- **Material Prices** — your company's master list of cement, steel, labour rates, etc., with GST and HSN codes.
-- **Versions & comparison** — every estimate gets a version number (v1, v2…); you can compare two versions side by side to see what changed.
+- **Rate Analysis library** - reusable composite rates (e.g. "RCC M25 footing") built from material + labour + equipment components, so estimators stay consistent.
+- **Material Prices** - your company's master list of cement, steel, labour rates, etc., with GST and HSN codes.
+- **Versions & comparison** - every estimate gets a version number (v1, v2…); you can compare two versions side by side to see what changed.
 - **Approval workflow**: PM builds → submits → Owner **approves** or rejects. Only then can it become the project's BOQ.
 - **Statuses**: Draft → Reviewed → Approved / Rejected → (older approved ones become) Superseded.
 
@@ -108,12 +108,12 @@ This is where you build **cost estimates** — the project's budget plan — bef
 - After an estimate is **approved**, the Owner **converts it to BOQ**.
 - The BOQ is the **working quantity schedule** the team executes against on site.
 - Each BOQ line tracks: contract quantity, **executed quantity** (done on site), and **procured quantity** (bought/purchased).
-- Old BOQ lines are **archived** (not deleted) when a new estimate is converted — full history is kept.
+- Old BOQ lines are **archived** (not deleted) when a new estimate is converted - full history is kept.
 - Converting to BOQ also **updates the project budget** to the approved estimate total.
 
 ### 3.6 Planning (tasks, schedule, dependencies)
 
-- Break the project into a **Work Breakdown Structure (WBS)** — a hierarchy of phases and sub-phases.
+- Break the project into a **Work Breakdown Structure (WBS)** - a hierarchy of phases and sub-phases.
 - Add **tasks** under WBS items: start/end dates, duration, progress %, assigned person, status (Not Started, In Progress, Completed, Delayed, On Hold).
 - **Dependencies** between tasks (Finish-to-Start, Start-to-Start, etc.) with optional lag days.
 - **Milestones** mark key checkpoints.
@@ -131,16 +131,16 @@ This is where you build **cost estimates** — the project's budget plan — bef
 
 - Supervisors **check in** on site using their phone's location.
 - The system records distance from the project location and whether they were **within the geo-fence**.
-- Check-out is recorded too — giving you a verifiable attendance log per site.
+- Check-out is recorded too - giving you a verifiable attendance log per site.
 
 ### 3.9 Procurement (buying materials)
 
 A proper, auditable chain for buying materials:
 
-1. **Indent (Material Requisition)** — site raises a request for materials (quantity, expected rate).
-2. **Purchase Order (PO)** — the request becomes a formal PO to a vendor.
-3. **Goods Receipt Note (GRN)** — when material arrives, record receipt against the PO.
-4. **Stock** — material goes into your site or company **stock** (Stock Locations, Balances, Movements in/out/adjust).
+1. **Indent (Material Requisition)** - site raises a request for materials (quantity, expected rate).
+2. **Purchase Order (PO)** - the request becomes a formal PO to a vendor.
+3. **Goods Receipt Note (GRN)** - when material arrives, record receipt against the PO.
+4. **Stock** - material goes into your site or company **stock** (Stock Locations, Balances, Movements in/out/adjust).
 
 This keeps your **procured quantities** on BOQ items up to date and prevents over- or under-ordering.
 
@@ -148,8 +148,8 @@ This keeps your **procured quantities** on BOQ items up to date and prevents ove
 
 - Maintain a **directory of subcontractors** (with GSTIN, contact, default TDS rate).
 - Issue **Work Orders** with scope, contract value, retention %, and advance amount.
-- **Measurement sheets** — periodically record the work the subcontractor has done.
-- On **approval** of a measurement, BuildFlow **automatically creates a vendor Bill** (with retention held back) — no manual double entry.
+- **Measurement sheets** - periodically record the work the subcontractor has done.
+- On **approval** of a measurement, BuildFlow **automatically creates a vendor Bill** (with retention held back) - no manual double entry.
 - When a work order is **completed**, the **retention is released** as a final bill.
 - Subcontractors can be given **portal access** to view their own work orders and measurements.
 
@@ -161,19 +161,19 @@ This keeps your **procured quantities** on BOQ items up to date and prevents ove
 - On approval, the **BOQ and project budget update automatically**.
 - Change orders can be linked to specific tasks or subcontract work orders.
 
-### 3.12 Accounting — Invoices (money in)
+### 3.12 Accounting - Invoices (money in)
 
 - Create **invoices to your clients** from a project.
 - **GST handled correctly**: intra-state splits into CGST + SGST; inter-state becomes IGST. HSN/SAC codes per line.
 - **TDS** deduction supported.
 - **Three invoice types**:
-  - **Standard** — a regular one-time invoice.
-  - **Running Account (RA)** — cumulative progress billing with certified quantities, retention %, and running totals (previous / current / cumulative). Generates an **RA bill PDF** and **measurement book** for audit.
-  - **Milestone** — billed against a project milestone.
+  - **Standard** - a regular one-time invoice.
+  - **Running Account (RA)** - cumulative progress billing with certified quantities, retention %, and running totals (previous / current / cumulative). Generates an **RA bill PDF** and **measurement book** for audit.
+  - **Milestone** - billed against a project milestone.
 - **Payments**: record client payments; optionally send a **payment link** (Razorpay for India, Stripe for international) if your company has connected those integrations.
 - **Statuses**: Draft → Sent → Paid / Overdue.
 
-### 3.13 Accounting — Bills (money out)
+### 3.13 Accounting - Bills (money out)
 
 - Record **vendor and supplier bills** with GST and TDS where applicable.
 - Bills can be linked to a **Purchase Order**, a **subcontract work order**, or a **measurement**.
@@ -181,7 +181,7 @@ This keeps your **procured quantities** on BOQ items up to date and prevents ove
 - **Retention release** bills are generated automatically when a subcontract work order completes.
 - **Statuses**: Pending → Approved → Paid (or Rejected).
 
-### 3.14 Accounting — Tally Export
+### 3.14 Accounting - Tally Export
 
 - Export your project **invoices and bills as Tally-compatible XML** from **Project Accounting** or **Reports Hub → Export to Tally**.
 - **Map ledger names** in **Settings → Integrations** (Sales, Purchase, GST, TDS, Retention, Advance Recovery, Bank) so the export matches your chart of accounts in Tally Prime.
@@ -207,16 +207,16 @@ This keeps your **procured quantities** on BOQ items up to date and prevents ove
 
 ### 3.18 Client Portal & Subcontractor Portal
 
-- **Client portal** — generate a secure, time-limited link for a client to view project progress, invoices, and make a payment. The client doesn't need a login — they use the token link.
-- **Subcontractor portal** — give a subcontractor scoped access to see only their work orders and measurement sheets.
+- **Client portal** - generate a secure, time-limited link for a client to view project progress, invoices, and make a payment. The client doesn't need a login - they use the token link.
+- **Subcontractor portal** - give a subcontractor scoped access to see only their work orders and measurement sheets.
 - Links have **scopes** (what they can see) and **expiry dates**.
 
 ### 3.19 Reports & Exports
 
-- **PDF reports** — 12 downloadable reports (project financials, GST summary, TDS, P&L, etc.).
-- **Excel exports** — estimates, BOQ, accounting data for offline work.
-- **Data Export** — the Owner can download a **full backup** of company data (zip).
-- **Scheduled reports** — set up recurring reports (GST summary, TDS, dashboard) emailed to recipients on a schedule.
+- **PDF reports** - 12 downloadable reports (project financials, GST summary, TDS, P&L, etc.).
+- **Excel exports** - estimates, BOQ, accounting data for offline work.
+- **Data Export** - the Owner can download a **full backup** of company data (zip).
+- **Scheduled reports** - set up recurring reports (GST summary, TDS, dashboard) emailed to recipients on a schedule.
 
 ### 3.20 Settings (Owner only, mostly)
 
@@ -274,13 +274,13 @@ flowchart TB
 6. **The PM plans the work**: WBS, tasks, dependencies, milestones. The system calculates the **critical path**.
 7. **Materials are procured**: site raises an **Indent** → it becomes a **PO** → on delivery a **GRN** is recorded → stock updates → BOQ **procured quantities** update.
 8. **Subcontractors are engaged** with work orders; they submit **measurement sheets** which, on approval, auto-create **bills** (with retention held).
-9. **Supervisors file daily reports** from site — work done, materials used (linked to BOQ → **executed quantities** update), attendance via geo-fenced check-in.
+9. **Supervisors file daily reports** from site - work done, materials used (linked to BOQ → **executed quantities** update), attendance via geo-fenced check-in.
 10. **If scope changes**, the PM raises a **Change Order**; the Owner approves; BOQ and budget update.
-11. **You bill the client** — typically a **Running Account (RA) invoice** with cumulative certified quantities and retention; or milestone invoices.
+11. **You bill the client** - typically a **Running Account (RA) invoice** with cumulative certified quantities and retention; or milestone invoices.
 12. **The client pays** (optionally via a Razorpay/Stripe payment link); you **record the payment**.
 13. **You pay vendors and subcontractors**; retention is released when work completes.
 14. **The accountant exports to Tally**, generates **PDF reports**, and the **Owner reviews the dashboard** for project P&L.
-15. **Project completes** — final accounts and full audit trail are preserved.
+15. **Project completes** - final accounts and full audit trail are preserved.
 
 ---
 
@@ -304,7 +304,7 @@ Construction money can be confusing. Here's how BuildFlow thinks about it.
 
 ### 5.3 Retention (explained)
 
-Retention is a **percentage of payment withheld** until a job is fully done — it protects you against defective or incomplete work.
+Retention is a **percentage of payment withheld** until a job is fully done - it protects you against defective or incomplete work.
 
 - On **client RA invoices**: you hold back retention % from the client (standard construction practice).
 - On **subcontractor bills**: you hold back retention % from the subcontractor.
@@ -328,8 +328,8 @@ On the project summary and dashboard, you'll see two important numbers:
 
 | Term | What it means |
 |------|---------------|
-| **Committed spend** | The total of all **approved and paid** vendor bills — money you **owe or have obligated**. |
-| **Paid spend** | The total of **paid amounts** on those bills — money that has actually **left your bank**. |
+| **Committed spend** | The total of all **approved and paid** vendor bills - money you **owe or have obligated**. |
+| **Paid spend** | The total of **paid amounts** on those bills - money that has actually **left your bank**. |
 | **Budget utilization** | Committed spend as a percentage of the project **budget**. |
 
 > **Why this matters:** Committed spend tells you your total exposure (even bills not yet paid). Paid spend tells you actual cash out. Budget utilization tells you if you're on track financially.
@@ -342,7 +342,7 @@ This is **one of the most important distinctions** to understand. There are two 
 
 ### 6.1 Your company's integrations (YOU set these up)
 
-These use **your firm's accounts** to talk to **your clients and vendors** — not to pay BuildFlow.
+These use **your firm's accounts** to talk to **your clients and vendors** - not to pay BuildFlow.
 
 | Integration | What it does for your business |
 |-------------|-------------------------------|
@@ -374,13 +374,13 @@ These run the product itself. **Your team does NOT configure these** in Integrat
 
 | Plan | Monthly (pre-GST) | Annual (pre-GST) | Best for |
 |------|--------------------|-------------------|----------|
-| **Inventory** | ₹499 / month | ₹4,990 / year | Stock & trading businesses — 1 store, procurement (Indent→PO→GRN), sales invoices, vendor bills, Tally export, 10 users |
-| **Starter** | ₹1,999 / month | ₹19,990 / year | Small contractors — up to 3 projects, 5 team members |
-| **Professional** | ₹4,999 / month | ₹49,990 / year | Growing firms — up to 25 projects, full GST/RA, CPM, procurement, portal, Assistant (500 queries/mo) |
-| **Enterprise** | Contact sales | Contact sales | Large firms — dedicated support, custom integrations, unlimited Assistant (fair use) |
+| **Inventory** | ₹499 / month | ₹4,990 / year | Stock & trading businesses - 1 store, procurement (Indent→PO→GRN), sales invoices, vendor bills, Tally export, 10 users |
+| **Starter** | ₹1,999 / month | ₹19,990 / year | Small contractors - up to 3 projects, 5 team members |
+| **Professional** | ₹4,999 / month | ₹49,990 / year | Growing firms - up to 25 projects, full GST/RA, CPM, procurement, portal, Assistant (500 queries/mo) |
+| **Enterprise** | Contact sales | Contact sales | Large firms - dedicated support, custom integrations, unlimited Assistant (fair use) |
 
 - **18% GST** is added on top (Indian billing).
-- **14-day free trial** on signup — no card required.
+- **14-day free trial** on signup - no card required.
 - Reminders sent at **7, 3, and 1 day** before trial expiry.
 - Upgrade via **Settings → Billing & plan**.
 
@@ -389,13 +389,13 @@ These run the product itself. **Your team does NOT configure these** in Integrat
 A separate product for **stock & trading businesses** that don't need construction modules:
 
 - Sign up from the pricing page **Inventory** card (or `/signup/company?product=inventory`).
-- The app opens directly into the **Inventory shell**: **Stock · Procurement · Invoices · Bills · Settings** — no construction "Projects" navigator.
+- The app opens directly into the **Inventory shell**: **Stock · Procurement · Invoices · Bills · Settings** - no construction "Projects" navigator.
 - Everything runs against one hidden **store** (`STORE` project) created automatically.
-- **Stock** — on-hand balances, received/issued totals, movements per item.
-- **Procurement** — Indent → Purchase Order → Goods Receipt (GRN) updates stock automatically.
-- **Invoices** — client / sales invoices (AR); **Bills** — vendor bills (AP); both can be exported to **Tally**.
-- **Team** — roles are limited to **Owner** and **Inventory Manager** (10 users max).
-- **Assistant** — same BuildFlow AI, scoped to stock, POs, GRNs, invoices, bills, and Tally.
+- **Stock** - on-hand balances, received/issued totals, movements per item.
+- **Procurement** - Indent → Purchase Order → Goods Receipt (GRN) updates stock automatically.
+- **Invoices** - client / sales invoices (AR); **Bills** - vendor bills (AP); both can be exported to **Tally**.
+- **Team** - roles are limited to **Owner** and **Inventory Manager** (10 users max).
+- **Assistant** - same BuildFlow AI, scoped to stock, POs, GRNs, invoices, bills, and Tally.
 
 ---
 
@@ -422,13 +422,13 @@ The **Owner** is responsible for company-wide configuration. Here's what each se
 
 Anyone can raise a ticket; the Owner resolves company-scope ones, and BuildFlow support handles platform-scope ones:
 
-- **Profile / role change** — "Make me PM on all projects"
-- **Company info change** — GSTIN or address update
-- **Integration setup** — "Help connect WhatsApp Business"
-- **Billing & subscription** — extend trial, upgrade, invoice query
-- **Bug report** — something not working
-- **Data correction** — fix wrong figures
-- **Other** — general questions
+- **Profile / role change** - "Make me PM on all projects"
+- **Company info change** - GSTIN or address update
+- **Integration setup** - "Help connect WhatsApp Business"
+- **Billing & subscription** - extend trial, upgrade, invoice query
+- **Bug report** - something not working
+- **Data correction** - fix wrong figures
+- **Other** - general questions
 
 ---
 
@@ -441,13 +441,13 @@ Anyone can raise a ticket; the Owner resolves company-scope ones, and BuildFlow 
 
 ### The six implementation phases
 
-1. ✅ **Phase 1** — Foundation: multi-tenant auth, roles, company setup
-2. ✅ **Phase 2** — Projects, WBS, Tasks, Gantt/CPM, BOQ
-3. ✅ **Phase 2.5** — Rate Analysis, Estimates, Excel/PDF export
-4. ✅ **Phase 3** — Daily reports, geo-fenced attendance, material usage
-5. ✅ **Phase 4** — Invoices (incl. RA & Milestone), Bills, GST/TDS, Tally export, journals
-6. ✅ **Phase 5** — Notifications, AI assistant, integrations, SaaS billing, tickets, audit, exports
-7. 🔄 **Phase 6** — Reports, analytics polish, UX refinements
+1. ✅ **Phase 1** - Foundation: multi-tenant auth, roles, company setup
+2. ✅ **Phase 2** - Projects, WBS, Tasks, Gantt/CPM, BOQ
+3. ✅ **Phase 2.5** - Rate Analysis, Estimates, Excel/PDF export
+4. ✅ **Phase 3** - Daily reports, geo-fenced attendance, material usage
+5. ✅ **Phase 4** - Invoices (incl. RA & Milestone), Bills, GST/TDS, Tally export, journals
+6. ✅ **Phase 5** - Notifications, AI assistant, integrations, SaaS billing, tickets, audit, exports
+7. 🔄 **Phase 6** - Reports, analytics polish, UX refinements
 
 > **For production rollout:** Plan a short **pilot on 1-2 real projects** with Owner + PM + Supervisor + Accountant before company-wide adoption.
 
@@ -459,19 +459,19 @@ Construction and software both have jargon. Here's what everything means in plai
 
 | Term | Plain-English meaning |
 |------|------------------------|
-| **BOQ** (Bill of Quantities) | The list of work items with quantities and rates — the "shopping list" for the project, created from an approved estimate |
-| **Estimate** | A cost plan prepared before work starts — what the project *should* cost, including margins and GST |
+| **BOQ** (Bill of Quantities) | The list of work items with quantities and rates - the "shopping list" for the project, created from an approved estimate |
+| **Estimate** | A cost plan prepared before work starts - what the project *should* cost, including margins and GST |
 | **Rate Analysis** | A composite rate built from materials + labour + equipment (e.g. the rate for "1 cubic meter of RCC M25") |
 | **WBS** (Work Breakdown Structure) | A tree of project phases and sub-phases (e.g. Substructure → Foundation → Footing) |
 | **CPM** (Critical Path Method) | The calculation that finds which tasks directly affect the project finish date |
 | **Gantt** | A visual timeline of tasks |
 | **Milestone** | A key checkpoint in a project (e.g. "Foundation complete") |
-| **RA Bill** (Running Account bill) | A cumulative progress invoice — shows previous, current, and total work billed, with retention held |
+| **RA Bill** (Running Account bill) | A cumulative progress invoice - shows previous, current, and total work billed, with retention held |
 | **Retention** | A % of payment withheld until the job is fully completed and verified |
-| **Measurement Book (MB)** | An auditable record of measured quantities — used in RA billing for transparency |
+| **Measurement Book (MB)** | An auditable record of measured quantities - used in RA billing for transparency |
 | **GST** | Goods & Services Tax (India). Splits into CGST+SGST (same state) or IGST (different state) |
 | **CGST / SGST / IGST** | Central / State / Integrated GST components |
-| **TDS** | Tax Deducted at Source — tax you deduct when paying vendors |
+| **TDS** | Tax Deducted at Source - tax you deduct when paying vendors |
 | **HSN / SAC** | Codes that classify goods (HSN) and services (SAC) for GST |
 | **GSTIN** | A company's GST identification number |
 | **PAN** | A company's Permanent Account Number (income tax) |
@@ -483,12 +483,12 @@ Construction and software both have jargon. Here's what everything means in plai
 | **Work Order** | The contract document issued to a subcontractor |
 | **Change Order / Variation** | A formal change to scope/quantities after the BOQ is set |
 | **Portal** | A secure link giving an outsider (client/subcontractor) limited, temporary access |
-| **BYOK** | Bring Your Own Key — you provide your own API keys (e.g. for AI) |
+| **BYOK** | Bring Your Own Key - you provide your own API keys (e.g. for AI) |
 | **Trial** | The free 14-day period after signup |
 | **Dashboard** | The home screen with key summaries |
-| **Audit Log** | A record of who changed what, when — for compliance |
-| **SaaS** | Software as a Service — software you rent monthly/yearly (like BuildFlow) |
-| **Tenant** | Your company's isolated space in BuildFlow — your data cannot be seen by other companies |
+| **Audit Log** | A record of who changed what, when - for compliance |
+| **SaaS** | Software as a Service - software you rent monthly/yearly (like BuildFlow) |
+| **Tenant** | Your company's isolated space in BuildFlow - your data cannot be seen by other companies |
 
 ---
 

@@ -16,7 +16,7 @@ describe('Estimate procurement-link integrity (integration)', () => {
   let resourceId: string;
 
   beforeAll(async () => {
-    // FIX: Use OWNER instead of PM — PM may not have project membership
+    // FIX: Use OWNER instead of PM - PM may not have project membership
     // Seed uses a single NH-45 project; tests must not assume multiple demo projects.
     token = await loginAs(OWNER);
     projectId = await getProjectId(token, 'NH45');
@@ -24,7 +24,7 @@ describe('Estimate procurement-link integrity (integration)', () => {
     // FIX (DAT-2.2): Fetch rate analyses and resources, handle 404 gracefully.
     const raRes = await authGet(token, '/api/rate-analyses');
     if (raRes.status !== 200) {
-      // Rate analysis endpoint may not exist in test env — skip RA link
+      // Rate analysis endpoint may not exist in test env - skip RA link
       rateAnalysisId = '';
     } else {
       const ra = raRes.body.data?.rows?.[0] ?? raRes.body.data?.[0];
@@ -163,7 +163,7 @@ describe('Estimate procurement-link integrity (integration)', () => {
     });
     expect(item2Res.status).toBe(201);
 
-    // Submit should succeed — both items have links
+    // Submit should succeed - both items have links
     const submitRes = await authPost(token, `/api/estimates/${estimateId}/submit`);
     expect(submitRes.status).toBe(200);
     expect(submitRes.body.data.status).toBe('REVIEWED');
