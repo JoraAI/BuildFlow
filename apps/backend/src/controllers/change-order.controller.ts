@@ -132,7 +132,7 @@ export async function updateLine(req: Request, res: Response) {
 }
 
 /**
- * VO-B1: Post-approve impact summary — BOQ changes + indents + budget delta.
+ * VO-B1: Post-approve impact summary - BOQ changes + indents + budget delta.
  * Route: GET /api/projects/:id/change-orders/:changeOrderId/impact
  */
 export async function impact(req: Request, res: Response) {
@@ -142,7 +142,7 @@ export async function impact(req: Request, res: Response) {
 }
 
 /**
- * VO-B4: Revised scope summary — original estimate + approved variations.
+ * VO-B4: Revised scope summary - original estimate + approved variations.
  * Route: GET /api/projects/:id/scope-summary
  */
 export async function scopeSummary(req: Request, res: Response) {

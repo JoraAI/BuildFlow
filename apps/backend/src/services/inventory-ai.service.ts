@@ -2,14 +2,14 @@
  * BuildFlow - Inventory AI service (INVENTORY_HORIZONTAL_PLATFORM Phase 7).
  *
  * 7.1 Document OCR → draft vendor bill: reuses `extractText` + `callLlmForExtraction`
- *     (the same shared LLM/document pipeline as construction bill extract — D10),
+ *     (the same shared LLM/document pipeline as construction bill extract - D10),
  *     but returns line items with GST/HSN and soft-matches PO / GRN / catalog items.
  * 7.2 AI-assisted import column mapping for catalog / opening-stock CSV|XLSX.
  * 7.3 Anomaly hints (rules-first: PO rate vs WAC/last-buy band, stock-count
  *     variance, overdue invoice aging).
  *
  * Inventory routes are gated by `requireInventoryFeature('stock_adjustments')`
- * at the route layer — construction tenants get 403.
+ * at the route layer - construction tenants get 403.
  */
 import { prisma } from '../lib/prisma';
 import { logger } from '../config/logger';
@@ -113,7 +113,7 @@ export async function extractInvoiceDraft(
     if (!text.trim()) {
       return {
         draft: null,
-        notes: 'OCR could not read this scanned image — the invoice may be blurry or low-contrast. Retake the photo or upload a text-based PDF/Excel invoice.',
+        notes: 'OCR could not read this scanned image - the invoice may be blurry or low-contrast. Retake the photo or upload a text-based PDF/Excel invoice.',
       };
     }
   } else {
@@ -226,10 +226,10 @@ export async function extractInvoiceDraft(
       notes:
         (draft.confidence > 0.7
           ? 'High confidence extraction. Review before saving.'
-          : 'Low confidence — please verify all fields carefully.') +
+          : 'Low confidence - please verify all fields carefully.') +
         (draft.matchedPO || draft.matchedGRN
           ? ` Matched ${[draft.matchedPO?.poNumber, draft.matchedGRN?.grnNumber].filter(Boolean).join(' + ')}.`
-          : ' No PO/GRN match found — the bill will be created unlinked.'),
+          : ' No PO/GRN match found - the bill will be created unlinked.'),
     };
   } catch (err) {
     logger.warn('Inventory invoice extract JSON parse failed', { error: String(err), companyId });
@@ -284,7 +284,7 @@ export async function createBillFromDraft(
       where: { id: draft.matchedGRN.id, companyId, projectId },
       select: { id: true },
     });
-    // `@@unique([goodsReceiptId])` — the auto GRN draft bill may already exist.
+    // `@@unique([goodsReceiptId])` - the auto GRN draft bill may already exist.
     const existingBill = grn
       ? await prisma.bill.findFirst({ where: { goodsReceiptId: grn.id }, select: { id: true } })
       : null;
@@ -452,7 +452,7 @@ async function parseSpreadsheet(contentType: string, base64: string): Promise<st
   return parseCsv(buf.toString('utf8'));
 }
 
-/** Optional LLM refinement — only when the item-name column is ambiguous. */
+/** Optional LLM refinement - only when the item-name column is ambiguous. */
 async function llmRefineMapping(
   companyId: string,
   headers: string[],
@@ -498,7 +498,7 @@ export async function previewImportMapping(companyId: string, input: ImportPrevi
       sampleRows: [],
       rowCount: 0,
       purpose: input.purpose,
-      notes: 'No header row detected — the first row must contain column names.',
+      notes: 'No header row detected - the first row must contain column names.',
     };
   }
 
@@ -583,7 +583,7 @@ export async function confirmImport(
     return { mode: 'CATALOG', created, skipped };
   }
 
-  // OPENING — reuse Phase 1 opening-stock import (name/SKU matching + WAC on IN).
+  // OPENING - reuse Phase 1 opening-stock import (name/SKU matching + WAC on IN).
   const lines = input.rows
     .map((row) => {
       const qty = num(row[input.mapping.qty ?? '']);

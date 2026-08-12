@@ -28,7 +28,7 @@ import {
 /* ------------------------------------------------------------------ */
 export const reportRouter = Router();
 reportRouter.use(authenticateToken);
-// Mounted at /api/projects — path-aware so only reports/checkin/attendance are gated.
+// Mounted at /api/projects - path-aware so only reports/checkin/attendance are gated.
 reportRouter.use(
   requireModuleForPaths('reports_ops', [
     /^\/[^/]+\/reports\b/,

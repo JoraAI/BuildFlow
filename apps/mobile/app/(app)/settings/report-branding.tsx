@@ -107,7 +107,7 @@ export default function ReportBrandingScreen() {
           label="Custom footer text (optional)"
           value={footerText}
           onChangeText={setFooterText}
-          placeholder="e.g. Confidential — For internal use"
+          placeholder="e.g. Confidential - For internal use"
           multiline
         />
         <Text className="text-[10px] text-muted mt-1">

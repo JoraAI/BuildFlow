@@ -1,5 +1,5 @@
 /**
- * Tally Prime XML export — voucher balance + GST split (Round 40 TALLY-1).
+ * Tally Prime XML export - voucher balance + GST split (Round 40 TALLY-1).
  */
 import { Decimal } from '@prisma/client/runtime/library';
 import {
@@ -179,7 +179,7 @@ describe('Tally export API (integration)', () => {
       expect(Math.abs(sumLedgerAmounts(v))).toBeLessThanOrEqual(0.01);
     }
 
-    // Seed RA has retention — debit Retention Money present
+    // Seed RA has retention - debit Retention Money present
     const ra = vouchers.find((v) => v.includes('RA-2025-001'));
     expect(ra).toBeTruthy();
     expect(ra!).toContain('Retention Money');

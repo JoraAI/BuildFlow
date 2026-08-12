@@ -4,7 +4,7 @@ import { Card } from '@/components/ui';
 
 const ROLE_TASKS: Record<string, { title: string; tasks: string[] }> = {
   OWNER: {
-    title: 'Owner — typical tasks',
+    title: 'Owner - typical tasks',
     tasks: [
       'Approve estimates and variations',
       'Convert approved estimates to BOQ',
@@ -13,7 +13,7 @@ const ROLE_TASKS: Record<string, { title: string; tasks: string[] }> = {
     ],
   },
   PM: {
-    title: 'Project Manager — typical tasks',
+    title: 'Project Manager - typical tasks',
     tasks: [
       'Submit and track material indents',
       'Approve measurement sheets and indents',
@@ -22,7 +22,7 @@ const ROLE_TASKS: Record<string, { title: string; tasks: string[] }> = {
     ],
   },
   SUPERVISOR: {
-    title: 'Supervisor — typical tasks',
+    title: 'Supervisor - typical tasks',
     tasks: [
       'Submit daily site reports with photos',
       'Draft subcontract measurement sheets',
@@ -30,7 +30,7 @@ const ROLE_TASKS: Record<string, { title: string; tasks: string[] }> = {
     ],
   },
   ACCOUNTANT: {
-    title: 'Accountant — typical tasks',
+    title: 'Accountant - typical tasks',
     tasks: [
       'Approve and pay vendor bills',
       'Record client invoice payments',

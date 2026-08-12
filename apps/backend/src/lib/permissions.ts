@@ -46,7 +46,7 @@ export async function getRolePermissions(
       return JSON.parse(cached) as Permission[];
     }
   } catch {
-    // Redis may be unavailable in tests — fall through to memory cache
+    // Redis may be unavailable in tests - fall through to memory cache
   }
 
   // 2. Try memory cache
@@ -68,7 +68,7 @@ export async function getRolePermissions(
       permissions = DEFAULT_ROLE_PERMISSIONS[role] ?? [];
     }
   } catch {
-    // FIX (SEC-L19): Fail CLOSED in production — return empty permissions (deny
+    // FIX (SEC-L19): Fail CLOSED in production - return empty permissions (deny
     // all) so a DB outage doesn't grant users potentially broader default
     // permissions than the company had customized. In test/dev, fall back to
     // defaults so the test suite isn't blocked by DB connectivity.
@@ -230,6 +230,6 @@ async function cachePermissions(key: string, permissions: Permission[]): Promise
   try {
     await redis.setex(key, CACHE_TTL_SEC, JSON.stringify(permissions));
   } catch {
-    // ignore — memory cache is the fallback
+    // ignore - memory cache is the fallback
   }
 }

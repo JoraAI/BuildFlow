@@ -12,7 +12,7 @@ ALTER TABLE "stock_locations"
 CREATE INDEX "stock_locations_company_id_is_default_idx" ON "stock_locations"("company_id", "is_default");
 
 -- Keep the existing default STORE location as isDefault=true for inventory tenants
--- (construction companies keep is_default=false — their flows are unchanged).
+-- (construction companies keep is_default=false - their flows are unchanged).
 UPDATE "stock_locations" sl
 SET "is_default" = true
 FROM "companies" c

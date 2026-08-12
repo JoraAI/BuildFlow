@@ -67,7 +67,7 @@ export function calculateGST(input: GSTCalcInput): GSTBreakdown {
 
   if (isIntraState) {
     // CGST + SGST = gstRate% split evenly. Compute total GST first in paise,
-    // then split — avoids rounding twice.
+    // then split - avoids rounding twice.
     const totalGstPaise = Math.round((subtotalPaise * gstRate) / 100);
     cgstPaise = Math.round(totalGstPaise / 2);
     sgstPaise = totalGstPaise - cgstPaise;
@@ -120,7 +120,7 @@ export function amountInWords(amount: number): string {
   }
 
   // FIX (NR-14/FIN-L8): Handle amounts ≥ 1 arab (100 crore) and ≥ 1 kharab
-  // correctly. The previous "fix" used 10^10/10^12 for arab/kharab — that's
+  // correctly. The previous "fix" used 10^10/10^12 for arab/kharab - that's
   // 10x too large, so values from 1,000 crore upward rendered wrong words
   // (e.g. 1 arab = 10^9, not 10^10). Correct Indian grouping:
   //   1 crore  = 10^7

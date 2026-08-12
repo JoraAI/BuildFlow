@@ -25,7 +25,7 @@ export interface McpIdentity {
   companyName: string;
   userName: string;
   permissions: string[];
-  /** INVENTORY_PRODUCT: 'inventory' | 'construction' — scopes allowed tools. */
+  /** INVENTORY_PRODUCT: 'inventory' | 'construction' - scopes allowed tools. */
   productMode: 'inventory' | 'construction';
   /** Token id (jti) for blacklist checking. */
   tid: string;

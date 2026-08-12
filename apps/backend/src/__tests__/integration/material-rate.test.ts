@@ -34,7 +34,7 @@ describe('Material rate resolution (integration)', () => {
     cementId = await getCementResourceId(token);
   });
 
-  // FIX (DAT-2.2): Don't assert exact rates — derive dynamically.
+  // FIX (DAT-2.2): Don't assert exact rates - derive dynamically.
   // Other test suites (resource-bulk) may mutate the catalog rate.
   it('NH-45 cement resolves from project override', async () => {
     const res = await authGet(token, `/api/projects/${nh45Id}/resources/${cementId}/rate`);

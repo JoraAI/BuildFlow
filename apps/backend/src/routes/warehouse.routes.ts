@@ -1,7 +1,7 @@
 /**
  * BuildFlow - Warehouse ops routes (INVENTORY_HORIZONTAL_PLATFORM Phase 3).
  *
- * Mounted at /api/inventory — warehouses / transfers / stock-counts gated by
+ * Mounted at /api/inventory - warehouses / transfers / stock-counts gated by
  * `multi_warehouse`, barcode identify gated by `barcode`. Construction tenants
  * get 403 on every route.
  */

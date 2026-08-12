@@ -3,7 +3,7 @@
  *
  * INVENTORY_PRODUCT: a separate Inventory subscription product. Inventory
  * companies get a hidden default project (code `STORE`) and an inventory-only
- * app shell — no construction "Projects" concept for end users. Construction
+ * app shell - no construction "Projects" concept for end users. Construction
  * plans (STARTER / PROFESSIONAL / ENTERPRISE) get every module.
  */
 import type { SubscriptionPlanKey } from './pricing';

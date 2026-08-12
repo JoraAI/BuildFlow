@@ -688,7 +688,7 @@ export function useEstimateMutations(estimateId: string) {
         invalidate();
         qc.invalidateQueries({ queryKey: ['proposals'] });
         qc.invalidateQueries({ queryKey: ['projects', data.projectId, 'estimates'] });
-        // Invalidate ALL sub-estimate caches — approving a new version
+        // Invalidate ALL sub-estimate caches - approving a new version
         // supersedes old parent estimates AND cascades to their sub-estimates.
         // Without this, stale "APPROVED" status shows for superseded sub-estimates.
         qc.invalidateQueries({ queryKey: ['estimates'] });

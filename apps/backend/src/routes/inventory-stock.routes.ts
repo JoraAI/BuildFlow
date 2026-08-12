@@ -1,7 +1,7 @@
 /**
  * BuildFlow - Inventory stock routes (INVENTORY_HORIZONTAL_PLATFORM Phase 1.3/1.4).
  *
- * Mounted at /api/inventory/stock — company-scoped (resolves the default STORE
+ * Mounted at /api/inventory/stock - company-scoped (resolves the default STORE
  * project server-side). Gated to the INVENTORY plan via the `stock_adjustments`
  * feature flag; construction tenants get 403.
  */

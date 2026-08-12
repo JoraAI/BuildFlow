@@ -85,7 +85,7 @@ export async function notify(payload: NotifyPayload): Promise<void> {
     }
 
     if (jobs.length > 0) {
-      // Never await Redis/Bull — a stalled Redis connection would hang the whole
+      // Never await Redis/Bull - a stalled Redis connection would hang the whole
       // request (e.g. create PO) even after the business row was committed.
       void getQueue('notification')
         .addBulk(jobs.map((j) => ({ name: j.name, data: j.data })))

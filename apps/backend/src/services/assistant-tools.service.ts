@@ -7,7 +7,7 @@ import { prisma } from '../lib/prisma';
 import { getRolePermissions } from '../lib/permissions';
 import { updateProject } from './project.service';
 // INVENTORY_HORIZONTAL_PLATFORM (Phase 7.4): inventory assistant tools read the
-// Phase 6 analytics pipeline (safe — analytics does not import assistant-tools).
+// Phase 6 analytics pipeline (safe - analytics does not import assistant-tools).
 import { getStockHealthReport } from './inventory-analytics.service';
 import { getDefaultProjectId } from './module-gate.service';
 import {
@@ -21,7 +21,7 @@ export interface AssistantIdentity {
   userId: string;
   role: string;
   permissions: Permission[];
-  /** INVENTORY_PRODUCT: 'inventory' | 'construction' — scopes allowed tools. */
+  /** INVENTORY_PRODUCT: 'inventory' | 'construction' - scopes allowed tools. */
   productMode: 'inventory' | 'construction';
 }
 
@@ -456,7 +456,7 @@ export async function executeAssistantTool(
     case 'get_low_stock': {
       guard(identity, 'stock.view');
       const { limit = 20 } = args as { limit?: number };
-      // Phase 7.4: low stock by warehouse — on-hand per location below reorderPoint.
+      // Phase 7.4: low stock by warehouse - on-hand per location below reorderPoint.
       const projectId = await getDefaultProjectId(identity.companyId);
       if (!projectId) throw new Error('No default store configured for this account.');
       const [locations, balances, resources] = await Promise.all([

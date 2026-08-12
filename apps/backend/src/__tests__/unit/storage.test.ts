@@ -24,7 +24,7 @@ const COMPANY_B = '00000000-0000-0000-0000-000000000002';
 
 describe('encryption (lib/crypto)', () => {
   it('round-trips plaintext for the same company', async () => {
-    const plaintext = Buffer.from('BuildFlow tender document — confidential', 'utf8');
+    const plaintext = Buffer.from('BuildFlow tender document - confidential', 'utf8');
     const envelope = await encryptForCompany(COMPANY_A, plaintext);
     // Envelope must be larger than plaintext (version + iv + tag overhead).
     expect(envelope.length).toBeGreaterThan(plaintext.length);

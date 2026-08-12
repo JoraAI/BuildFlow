@@ -148,7 +148,7 @@ const RESOURCE_TYPE_LABELS: Record<string, string> = {
  * All BOQ lines are shown (a resource can legitimately link to a rate-analysis
  * work item like "Emulsion paint" or a labour line). When `resourceId` is
  * provided, BOQ lines whose linked estimate item references that catalog
- * resource are sorted to the top so the best match is surfaced first — without
+ * resource are sorted to the top so the best match is surfaced first - without
  * hiding everything else. */
 function boqToOptions(items: BoqItem[], resourceId?: string): SelectOption[] {
   const toOption = (b: BoqItem): SelectOption => {
@@ -630,7 +630,7 @@ export default function CreateReportScreen() {
                                 t.selected ? 'border-primary bg-primary/5' : 'border-border bg-card'
                               }`}
                             >
-                              {/* Toggle area — only this part toggles selection */}
+                              {/* Toggle area - only this part toggles selection */}
                               <Pressable
                                 onPress={() =>
                                   setTaskDrafts((prev) =>
@@ -658,7 +658,7 @@ export default function CreateReportScreen() {
                                   <Text className="text-xs text-muted w-9 text-right">{pct}%</Text>
                                 </View>
                               </Pressable>
-                              {/* Progress input — sibling of the toggle Pressable,
+                              {/* Progress input - sibling of the toggle Pressable,
                                   so tapping it cannot deselect the task */}
                               {t.selected && (
                                 <View className="mt-1">

@@ -889,7 +889,7 @@ export async function approveMeasurement(
   // idempotent (it only posts lines where boqMeasurementPosted is false), so a
   // retry on next access or manual re-run will pick up any unposted lines.
   //
-  // NR-9: Don't silently swallow — log via the structured logger and surface a
+  // NR-9: Don't silently swallow - log via the structured logger and surface a
   // `postedToBoq: false` flag so the caller/UI can prompt reconciliation,
   // rather than letting executedQty silently drift from approved measurements.
   let postedToBoq = true;
@@ -897,7 +897,7 @@ export async function approveMeasurement(
     await postApprovedMeasurementToBoq(companyId, userId, measurementId, ipAddress);
   } catch (err) {
     postedToBoq = false;
-    logger.warn('BOQ posting failed for approved measurement — reconciliation needed', {
+    logger.warn('BOQ posting failed for approved measurement - reconciliation needed', {
       measurementId,
       error: String(err),
     });
@@ -1001,7 +1001,7 @@ export async function issueMaterialToWorkOrder(
   });
   if (!stockLoc) throw ApiError.notFound('No stock location found for this project');
 
-  // SUB-BOQ1B: Validate boqItemId if provided — project MATERIAL line linked to resource
+  // SUB-BOQ1B: Validate boqItemId if provided - project MATERIAL line linked to resource
   if (input.boqItemId) {
     const boqItem = await prisma.bOQItem.findFirst({
       where: { id: input.boqItemId, projectId, isSuperseded: false },

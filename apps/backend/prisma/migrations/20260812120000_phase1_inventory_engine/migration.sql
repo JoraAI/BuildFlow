@@ -44,7 +44,7 @@ CREATE TABLE "vendors" (
 ALTER TABLE "invoices" ADD COLUMN "customer_id" UUID;
 ALTER TABLE "bills" ADD COLUMN "vendor_id" UUID;
 
--- 3) Item master 1.5 fields on Resource (all optional — construction unaffected).
+-- 3) Item master 1.5 fields on Resource (all optional - construction unaffected).
 ALTER TABLE "resources"
   ADD COLUMN "sku" TEXT,
   ADD COLUMN "item_code" TEXT,

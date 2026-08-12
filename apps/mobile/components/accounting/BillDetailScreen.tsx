@@ -1,5 +1,5 @@
 /**
- * Bill detail body — used by construction (/accounting/bill/[id])
+ * Bill detail body - used by construction (/accounting/bill/[id])
  * and inventory (/inventory/bills/[id]) route wrappers.
  */
 import React, { useState } from 'react';
@@ -191,7 +191,7 @@ export function BillDetailScreen({
       {returnTo?.includes('subcontracts') && (
         <View className="flex-row items-center gap-2 px-3 py-2 rounded-lg bg-primary/5 border border-primary/20">
           <Ionicons name="arrow-back-circle-outline" size={18} color="#1E3A5F" />
-          <Text className="text-xs text-primary flex-1">Opened from project Subcontracts — Back returns there</Text>
+          <Text className="text-xs text-primary flex-1">Opened from project Subcontracts - Back returns there</Text>
         </View>
       )}
       <BillContextBanner bill={bill} />
@@ -280,11 +280,11 @@ function openWorkOrder(router: ReturnType<typeof useRouter>, bill: Bill) {
 function BillContextBanner({ bill }: { bill: Bill }) {
   let message: string;
   if (bill.isRetentionRelease) {
-    message = 'Retention release — final payment of withheld retention after the work order was completed.';
+    message = 'Retention release - final payment of withheld retention after the work order was completed.';
   } else if (bill.measurementId) {
-    message = 'From subcontract measurement — created when a measurement sheet was approved. Approve here, then record payment.';
+    message = 'From subcontract measurement - created when a measurement sheet was approved. Approve here, then record payment.';
   } else {
-    message = 'Vendor bill — recorded directly in Accounts (materials, labour, or other costs).';
+    message = 'Vendor bill - recorded directly in Accounts (materials, labour, or other costs).';
   }
 
   return (

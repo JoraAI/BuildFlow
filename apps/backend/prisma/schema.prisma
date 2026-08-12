@@ -25,10 +25,10 @@ enum Role {
   STORE_INCHARGE
   WEIGHBRIDGE_INCHARGE
   SITE_SUPERVISOR
-  /// @deprecated — kept for backward compat; use SITE_SUPERVISOR
+  /// @deprecated - kept for backward compat; use SITE_SUPERVISOR
   SUPERVISOR
   ACCOUNTANT
-  /// Inventory product role — hidden from construction companies
+  /// Inventory product role - hidden from construction companies
   INVENTORY_MANAGER
 }
 
@@ -223,7 +223,7 @@ enum TaskConstraintType {
 }
 
 enum SubscriptionPlan {
-  /// Inventory product — hidden default STORE project, inventory-only shell
+  /// Inventory product - hidden default STORE project, inventory-only shell
   INVENTORY
   STARTER
   PROFESSIONAL
@@ -309,7 +309,7 @@ model Company {
   defaultProjectId String?   @unique @map("default_project_id") @db.Uuid
   defaultProject   Project?  @relation("CompanyDefaultProject", fields: [defaultProjectId], references: [id], onDelete: SetNull)
 
-  /// INVENTORY_HORIZONTAL_PLATFORM (Phase 0): optional business profile —
+  /// INVENTORY_HORIZONTAL_PLATFORM (Phase 0): optional business profile -
   /// RETAIL/WHOLESALE/DISTRIBUTION/TRADING/MATERIAL_SUPPLIER/EQUIPMENT/GENERAL.
   /// Hidden/ignored on construction plans (service returns null). DB default
   /// GENERAL backfills existing rows; new inventory tenants start GENERAL.
@@ -373,10 +373,10 @@ model Company {
 }
 
 // ------------------------------------------------------------------
-// INVENTORY_HORIZONTAL_PLATFORM (Phase 1.1) — Party master
+// INVENTORY_HORIZONTAL_PLATFORM (Phase 1.1) - Party master
 // ------------------------------------------------------------------
 
-/// Customer master (AR) — inventory tenants pick a customer instead of retyping
+/// Customer master (AR) - inventory tenants pick a customer instead of retyping
 /// client name/phone/address/GSTIN on every sales invoice. Free-text invoice
 /// clientName stays for legacy rows; `Invoice.customerId` links when set.
 model Customer {
@@ -413,10 +413,10 @@ model Customer {
 }
 
 // ------------------------------------------------------------------
-// INVENTORY_HORIZONTAL_PLATFORM (Phase 9.1) — Customer price lists
+// INVENTORY_HORIZONTAL_PLATFORM (Phase 9.1) - Customer price lists
 // ------------------------------------------------------------------
 // Per-customer rate override for a resource. `customerId = null` is the
-// company-default price for that resource (one row per resource — enforced by
+// company-default price for that resource (one row per resource - enforced by
 // the service with an upsert-style lookup, since Postgres unique constraints
 // treat NULLs as distinct).
 model CustomerPrice {
@@ -438,7 +438,7 @@ model CustomerPrice {
 }
 
 // ------------------------------------------------------------------
-// INVENTORY_HORIZONTAL_PLATFORM (Phase 9.2) — Quote → Sales Order
+// INVENTORY_HORIZONTAL_PLATFORM (Phase 9.2) - Quote → Sales Order
 // ------------------------------------------------------------------
 enum QuoteStatus {
   DRAFT
@@ -493,7 +493,7 @@ model QuoteLine {
   @@map("quote_lines")
 }
 
-/// Vendor master (AP) — inventory tenants pick a vendor instead of retyping
+/// Vendor master (AP) - inventory tenants pick a vendor instead of retyping
 /// vendor name/GSTIN on every bill. Free-text bill vendorName stays for legacy
 /// rows; `Bill.vendorId` links when set.
 model Vendor {
@@ -799,7 +799,7 @@ model Resource {
   hsnSacCode       String?  @map("hsn_sac_code")
   brandOrSpec      String?  @map("brand_or_spec")
   category         String?
-  // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.2): item master fields — all optional
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.2): item master fields - all optional
   // so construction resource/estimate flows are unaffected.
   sku              String?  @map("sku")
   itemCode         String?  @map("item_code")
@@ -808,7 +808,7 @@ model Resource {
   conversionFactor Decimal? @default(1) @map("conversion_factor") @db.Decimal(12, 4)
   /// Low-stock threshold for basic reorder reports (Phase 1.5).
   reorderPoint     Decimal? @default(0) @map("reorder_point") @db.Decimal(12, 3)
-  // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): procurement automation fields —
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): procurement automation fields -
   // all optional so construction resource/estimate flows are unaffected.
   preferredVendorId String?  @map("preferred_vendor_id") @db.Uuid
   /// Reorder quantity for one-click purchase (fallback = reorderPoint - onHand).
@@ -1324,7 +1324,7 @@ model Invoice {
   // ra_sequence IS NOT NULL is created in migration 20260730120100. It is NOT
   // declared here as a Prisma @@unique because Prisma cannot express partial
   // unique indexes (filtered). Do NOT regenerate migrations for this model
-  // without preserving this index — it guards against duplicate RA sequences.
+  // without preserving this index - it guards against duplicate RA sequences.
   // Raw SQL to recreate if dropped:
   //   CREATE UNIQUE INDEX "invoices_projectid_rasequence_unique"
   //     ON "invoices" ("project_id", "ra_sequence") WHERE "ra_sequence" IS NOT NULL;
@@ -1426,7 +1426,7 @@ model Bill {
 }
 
 // ------------------------------------------------------------------
-// INVENTORY_HORIZONTAL_PLATFORM (Phase 2) — Transaction engine
+// INVENTORY_HORIZONTAL_PLATFORM (Phase 2) - Transaction engine
 // ------------------------------------------------------------------
 
 model SalesOrder {
@@ -1710,7 +1710,7 @@ model CreditNote {
   subtotal         Decimal   @default(0) @db.Decimal(14, 2)
   gstAmount        Decimal   @default(0) @map("gst_amount") @db.Decimal(14, 2)
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.5): GST state split on the note
-  // (CGST/SGST when same-state, IGST otherwise) — mirrors invoice/bill logic.
+  // (CGST/SGST when same-state, IGST otherwise) - mirrors invoice/bill logic.
   cgstAmount       Decimal   @default(0) @map("cgst_amount") @db.Decimal(14, 2)
   sgstAmount       Decimal   @default(0) @map("sgst_amount") @db.Decimal(14, 2)
   igstAmount       Decimal   @default(0) @map("igst_amount") @db.Decimal(14, 2)
@@ -2140,7 +2140,7 @@ model GoodsReceiptNote {
   grnNumber       String   @map("grn_number")
   receivedDate    DateTime @map("received_date") @db.Date
   notes           String?
-  // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.1): landed costs — extra acquisition
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.1): landed costs - extra acquisition
   // costs allocated to lines (by quantity or value) and added to unit cost.
   freightCost         Decimal @default(0) @map("freight_cost") @db.Decimal(14, 2)
   insuranceCost       Decimal @default(0) @map("insurance_cost") @db.Decimal(14, 2)
@@ -2227,11 +2227,11 @@ model StockMovement {
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.3): adjustment audit trail.
   reason        String?           @map("reason")
   notes         String?           @map("notes")
-  // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.2): cost metadata on movements —
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.2): cost metadata on movements -
   // unitCost is the WAC at the time of the movement; inventoryValue = qty × WAC.
   unitCost       Decimal           @default(0) @map("unit_cost") @db.Decimal(14, 4)
   inventoryValue Decimal           @default(0) @map("inventory_value") @db.Decimal(14, 2)
-  // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3): optional batch / lot code (lite —
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3): optional batch / lot code (lite -
   // no serial numbers, expiry or FEFO yet). Copied from the GRN/issue/DC line.
   batchCode     String?            @map("batch_code")
   createdAt     DateTime          @default(now()) @map("created_at")
@@ -2487,7 +2487,7 @@ model PlatformAuditLog {
 }
 
 // ------------------------------------------------------------------
-// RFIs & Submittals (Phase 5 — §8.2)
+// RFIs & Submittals (Phase 5 - §8.2)
 // Requests for Information and technical submittals with answer tracking,
 // document attachments, and approval workflow.
 // ------------------------------------------------------------------
@@ -2558,7 +2558,7 @@ model Submittal {
 }
 
 // ------------------------------------------------------------------
-// Punch List / Snag List (Phase 5 — §8.4)
+// Punch List / Snag List (Phase 5 - §8.4)
 // Plan/location-anchored snags with photo capture, assignee, priority, due
 // date, status (open → in-progress → ready-for-review → closed).
 // ------------------------------------------------------------------
@@ -2597,7 +2597,7 @@ model PunchItem {
 }
 
 // ------------------------------------------------------------------
-// Petty Cash / Site Expenses (Phase 5 — §8.9)
+// Petty Cash / Site Expenses (Phase 5 - §8.9)
 // Tracks small cash expenditures at site with receipt tracking and
 // categorized reconciliation. Each entry is company+project scoped.
 // ------------------------------------------------------------------
@@ -2633,7 +2633,7 @@ model PettyCashEntry {
 
 // ------------------------------------------------------------------
 // Document Counter (race-safe, per-company, per-year sequential numbers)
-// FIX: SEC-M14 / FIN-H1 / DAT-1.2 — replaces count()-based numbering.
+// FIX: SEC-M14 / FIN-H1 / DAT-1.2 - replaces count()-based numbering.
 // ------------------------------------------------------------------
 
 model DocumentCounter {
@@ -2654,7 +2654,7 @@ model DocumentCounter {
 }
 
 // ------------------------------------------------------------------
-// Drawing & Document Version Control (Phase 5 — §8.3)
+// Drawing & Document Version Control (Phase 5 - §8.3)
 // Version-tracked drawings with discipline, status workflow, and revision history.
 // ------------------------------------------------------------------
 

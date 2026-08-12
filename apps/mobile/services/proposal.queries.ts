@@ -134,7 +134,7 @@ export function useDeleteProposal() {
 }
 
 // ---------------------------------------------------------------------------
-// Tender AI import — upload a client tender (PDF/Excel), extract BOQ items
+// Tender AI import - upload a client tender (PDF/Excel), extract BOQ items
 // ---------------------------------------------------------------------------
 
 export interface TenderExtractedItem {

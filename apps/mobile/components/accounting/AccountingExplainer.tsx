@@ -35,13 +35,13 @@ export function AccountingExplainer() {
         <View className="flex-row items-start gap-2">
           <TermHint term="INVOICE" />
           <Text className="text-xs text-muted flex-1">
-            <Text className="font-semibold text-text">Invoices</Text> — bill your client (revenue coming in)
+            <Text className="font-semibold text-text">Invoices</Text> - bill your client (revenue coming in)
           </Text>
         </View>
         <View className="flex-row items-start gap-2">
           <TermHint term="BILL" />
           <Text className="text-xs text-muted flex-1">
-            <Text className="font-semibold text-text">Bills</Text> — pay vendors and subcontractors (cost going out).
+            <Text className="font-semibold text-text">Bills</Text> - pay vendors and subcontractors (cost going out).
             Subcontract bills are also created from measurement sheet approval.
           </Text>
         </View>

@@ -3,7 +3,7 @@
  *
  * INVENTORY_HORIZONTAL_PLATFORM (Phase 0): optional per-company profile that
  * describes what kind of physical-goods business an inventory tenant runs.
- * Today it only drives *terminology* (see `inventory-labels.ts` — e.g. a
+ * Today it only drives *terminology* (see `inventory-labels.ts` - e.g. a
  * MATERIAL_SUPPLIER keeps construction-style "Materials" wording). Future phases
  * (price lists, barcode, batch/serial, reorder) will branch on it.
  *

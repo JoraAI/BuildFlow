@@ -14,7 +14,7 @@ export const Role = {
   STORE_INCHARGE: 'STORE_INCHARGE',
   WEIGHBRIDGE_INCHARGE: 'WEIGHBRIDGE_INCHARGE',
   SITE_SUPERVISOR: 'SITE_SUPERVISOR',
-  /** @deprecated Use SITE_SUPERVISOR — kept for migration compatibility */
+  /** @deprecated Use SITE_SUPERVISOR - kept for migration compatibility */
   SUPERVISOR: 'SUPERVISOR',
   ACCOUNTANT: 'ACCOUNTANT',
   /** Inventory product role - hidden from construction companies. */
@@ -58,7 +58,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 /**
  * Roles that can be assigned via invite (Owner is assigned at company creation only).
- * Construction companies — INVENTORY_MANAGER is hidden from them.
+ * Construction companies - INVENTORY_MANAGER is hidden from them.
  */
 export const INVITABLE_ROLES: Role[] = [
   Role.PM,

@@ -1,12 +1,12 @@
-# BuildFlow — Inventory Stock Product — Implementation Prompt (Deepseek-V4-Flash)
+# BuildFlow - Inventory Stock Product - Implementation Prompt (Deepseek-V4-Flash)
 
 > **Audience:** Deepseek-V4-Flash (or any coding agent)  
 > **Repo:** BuildFlow monorepo (`apps/backend`, `apps/mobile`, `packages/shared`)  
-> **Goal:** Ship a separate **Inventory** subscription product (stock + procurement + AR/AP invoicing + Tally + AI) with a hidden default project and inventory-only UI shell — without breaking construction tenants.  
+> **Goal:** Ship a separate **Inventory** subscription product (stock + procurement + AR/AP invoicing + Tally + AI) with a hidden default project and inventory-only UI shell - without breaking construction tenants.  
 > **Also:** Cut SaaS prices to India-friendly levels (ex-GST).
 >
-> **Follow-up UX polish (post-ship):** see [`docs/INVENTORY_UX_POLISH.md`](./INVENTORY_UX_POLISH.md) — D1–D10 **code/doc complete**.  
-> **Horizontal platform roadmap:** see [`docs/INVENTORY_HORIZONTAL_PLATFORM.md`](./INVENTORY_HORIZONTAL_PLATFORM.md) — **Phases 0–10 complete & verified** (agent release pre-flight done, incl. expo-camera plugin); **operator** still runs physical-device §31.4 smoke after native rebuild — see `INVENTORY_HORIZONTAL_PLATFORM.md` §10 / §31.4).  
+> **Follow-up UX polish (post-ship):** see [`docs/INVENTORY_UX_POLISH.md`](./INVENTORY_UX_POLISH.md) - D1–D10 **code/doc complete**.  
+> **Horizontal platform roadmap:** see [`docs/INVENTORY_HORIZONTAL_PLATFORM.md`](./INVENTORY_HORIZONTAL_PLATFORM.md) - **Phases 0–10 complete & verified** (agent release pre-flight done, incl. expo-camera plugin); **operator** still runs physical-device §31.4 smoke after native rebuild - see `INVENTORY_HORIZONTAL_PLATFORM.md` §10 / §31.4).  
 > **Current Inventory price is ₹499/mo** (see `packages/shared/src/pricing.ts`); ignore outdated ₹999 figures in sections below if they conflict.
 
 Do **not** recreate deleted `AUDIT_FINDINGS.md`. Prefer minimal diffs; match existing patterns.
@@ -18,7 +18,7 @@ Do **not** recreate deleted `AUDIT_FINDINGS.md`. Prefer minimal diffs; match exi
 | Decision | Choice |
 |----------|--------|
 | Product | Separate **Inventory** plan / product mode |
-| UX | Inventory **shell** — no construction “Projects” concept for end users |
+| UX | Inventory **shell** - no construction “Projects” concept for end users |
 | Data model | Auto-create **one hidden default project** (`STORE`) under the hood |
 | Commerce | **Vendor bills (AP) + client/sales invoices (AR)** + payments |
 | Tally | Sales + Purchase XML export against default project |
@@ -29,7 +29,7 @@ Do **not** recreate deleted `AUDIT_FINDINGS.md`. Prefer minimal diffs; match exi
 
 ---
 
-## 1. Pricing update (India — aggressive, ex-GST)
+## 1. Pricing update (India - aggressive, ex-GST)
 
 Update **all** of: [`packages/shared/src/pricing.ts`](../packages/shared/src/pricing.ts), [`apps/mobile/constants/marketing.ts`](../apps/mobile/constants/marketing.ts), assistant [`prompt-builder.ts`](../packages/shared/src/permissions/prompt-builder.ts), billing UI, and docs that quote old figures.
 
@@ -37,12 +37,12 @@ Update **all** of: [`packages/shared/src/pricing.ts`](../packages/shared/src/pri
 
 | Plan | Old | **New** |
 |------|-----|---------|
-| **INVENTORY** (new) | — | **₹999** |
+| **INVENTORY** (new) | - | **₹999** |
 | STARTER | ₹4,999 | **₹1,999** |
 | PROFESSIONAL | ₹13,999 | **₹4,999** |
-| ENTERPRISE | ₹39,999 | **Contact sales** — keep `null` / omit from self-serve checkout; marketing shows “Custom” |
+| ENTERPRISE | ₹39,999 | **Contact sales** - keep `null` / omit from self-serve checkout; marketing shows “Custom” |
 
-### Annual (`PLAN_ANNUAL_INR`) — 2 months free = ×10 monthly
+### Annual (`PLAN_ANNUAL_INR`) - 2 months free = ×10 monthly
 
 | Plan | New annual |
 |------|------------|
@@ -54,8 +54,8 @@ Update **all** of: [`packages/shared/src/pricing.ts`](../packages/shared/src/pri
 ### Copy rules
 
 - Always show `+ 18% GST` (keep `GST_PRICING_NOTE`).
-- Align FAQ / assistant pricing text with `@buildflow/shared` — **single source of truth is `pricing.ts`**.
-- Marketing Professional feature list currently says “Unlimited projects” while code limits PROFESSIONAL to 25 — **prefer code truth** (25 projects / 25 users) unless product later opens ENTERPRISE-only unlimited.
+- Align FAQ / assistant pricing text with `@buildflow/shared` - **single source of truth is `pricing.ts`**.
+- Marketing Professional feature list currently says “Unlimited projects” while code limits PROFESSIONAL to 25 - **prefer code truth** (25 projects / 25 users) unless product later opens ENTERPRISE-only unlimited.
 
 ### Limits (`PLAN_LIMITS`)
 
@@ -93,13 +93,13 @@ Construction companies (`STARTER` / `PROFESSIONAL` / `ENTERPRISE`) unchanged: fu
 
 1. `SubscriptionPlan` add `INVENTORY`.
 2. `Role` add `INVENTORY_MANAGER`.
-3. `Company` add optional `defaultProjectId String? @map("default_project_id")` (+ relation to `Project` if clean; otherwise resolve by `code === 'STORE'` — **prefer explicit FK**).
+3. `Company` add optional `defaultProjectId String? @map("default_project_id")` (+ relation to `Project` if clean; otherwise resolve by `code === 'STORE'` - **prefer explicit FK**).
 
 Migration + regenerate client.
 
 ### 3.2 Shared package
 
-- [`packages/shared/src/enums/index.ts`](../packages/shared/src/enums/index.ts) — `Role.INVENTORY_MANAGER`, labels; **do not** put it on construction invite lists.
+- [`packages/shared/src/enums/index.ts`](../packages/shared/src/enums/index.ts) - `Role.INVENTORY_MANAGER`, labels; **do not** put it on construction invite lists.
 - New [`packages/shared/src/plan-modules.ts`](../packages/shared/src/plan-modules.ts):
 
 ```ts
@@ -230,7 +230,7 @@ On INVENTORY plan return **403** for:
 
 Allow: procurement, stock, invoice, bill, payment, tally export, settings (subset), chatbot.
 
-Prefer injecting `defaultProjectId` when inventory clients omit `projectId` on list/create — or require mobile to always pass it from `/auth/me`. Pick one; document in code comments.
+Prefer injecting `defaultProjectId` when inventory clients omit `projectId` on list/create - or require mobile to always pass it from `/auth/me`. Pick one; document in code comments.
 
 SaaS billing: support checkout for `INVENTORY` / `STARTER` / `PROFESSIONAL`; Enterprise remains contact-sales (no Razorpay amount or platform-only).
 
@@ -240,8 +240,8 @@ SaaS billing: support checkout for `INVENTORY` / `STARTER` / `PROFESSIONAL`; Ent
 
 Existing chatbot / MCP tools should respect `productMode`:
 
-1. System prompt branch: inventory companies get inventory persona (“You help with stock, POs, GRNs, sales invoices, vendor bills, and Tally export”) — no estimation/WBS advice.
-2. Tool allow-list for inventory: stock summary, procurement status, invoices, bills, payments, tally export help — **deny** estimate/BOQ/subcontract/planning tools.
+1. System prompt branch: inventory companies get inventory persona (“You help with stock, POs, GRNs, sales invoices, vendor bills, and Tally export”) - no estimation/WBS advice.
+2. Tool allow-list for inventory: stock summary, procurement status, invoices, bills, payments, tally export help - **deny** estimate/BOQ/subcontract/planning tools.
 3. Marketing assistant may mention Inventory plan + new prices.
 
 Reuse [`resolveLlmConfig`](../apps/backend/src/services/integration.service.ts) / company BYOK; no separate LLM product unless already env-based.
@@ -259,7 +259,7 @@ Reuse [`resolveLlmConfig`](../apps/backend/src/services/integration.service.ts) 
 ## 10. Signup & subscription UX
 
 1. Construction register → STARTER trial (existing) with **new** trial pricing display.
-2. Inventory register → `subscriptionPlan=INVENTORY`, trial optional (same `TRIAL_DAYS` or document if inventory starts ACTIVE — **default: same trial as construction**), create STORE project, land on inventory home.
+2. Inventory register → `subscriptionPlan=INVENTORY`, trial optional (same `TRIAL_DAYS` or document if inventory starts ACTIVE - **default: same trial as construction**), create STORE project, land on inventory home.
 3. Billing settings: show plan name, limits (1 store / 10 users), upgrade path to construction plans if desired (optional stretch: “Upgrade to Starter/Pro for full construction ERP”).
 4. Platform admin: can set plan to INVENTORY / update prices via shared constants only.
 
@@ -298,8 +298,8 @@ Reuse [`resolveLlmConfig`](../apps/backend/src/services/integration.service.ts) 
 
 ## 13. Docs to update after code
 
-- [`docs/PRODUCT_OVERVIEW.md`](./PRODUCT_OVERVIEW.md) — Inventory product section  
-- [`docs/TECHNICAL_OVERVIEW.md`](./TECHNICAL_OVERVIEW.md) — plan modules + default project  
+- [`docs/PRODUCT_OVERVIEW.md`](./PRODUCT_OVERVIEW.md) - Inventory product section  
+- [`docs/TECHNICAL_OVERVIEW.md`](./TECHNICAL_OVERVIEW.md) - plan modules + default project  
 - [`docs/DEPLOYMENT.md`](./DEPLOYMENT.md) if env/checkout notes needed  
 - [`README.md`](../README.md) pricing / plans table  
 - Mark this prompt’s checklist done when shipping  
@@ -310,7 +310,7 @@ Reuse [`resolveLlmConfig`](../apps/backend/src/services/integration.service.ts) 
 
 - Do not fork a second repo or duplicate Prisma models for “inventory project”.
 - Do not show construction sidebar to `productMode=inventory`.
-- Do not hardcode prices in mobile only — `pricing.ts` is source of truth.
+- Do not hardcode prices in mobile only - `pricing.ts` is source of truth.
 - Do not allow unlimited projects on INVENTORY.
 - Do not force construction onboarding on inventory signup.
 - Do not expose `INVENTORY_MANAGER` in construction invite dropdowns.
@@ -330,7 +330,7 @@ Reuse [`resolveLlmConfig`](../apps/backend/src/services/integration.service.ts) 
 
 ---
 
-## Quick reference — key existing files
+## Quick reference - key existing files
 
 | Area | Path |
 |------|------|

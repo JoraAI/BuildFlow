@@ -52,7 +52,7 @@ describe('Bill extract permissions & bulk-create (PROC-B12)', () => {
       contentType: 'application/pdf',
     });
     // Extract endpoint requires bill.create (OWNER has it).
-    // Returns 200 with { draft, notes } — draft may be null if no LLM configured.
+    // Returns 200 with { draft, notes } - draft may be null if no LLM configured.
     expect([200, 500]).toContain(res.status);
     if (res.status === 200) {
       const data = res.body.data as { draft: unknown; notes: string };
@@ -93,7 +93,7 @@ describe('Bill extract permissions & bulk-create (PROC-B12)', () => {
   });
 
   it('STORE_INCHARGE cannot access bill write endpoints', async () => {
-    // STORE_INCHARGE should not have bill.create — verified via extract + bulk-create tests above.
+    // STORE_INCHARGE should not have bill.create - verified via extract + bulk-create tests above.
     // This test confirms the STORE_INCHARGE role is properly denied on bill mutations.
     const extractRes = await authPost(storeToken, `/api/projects/${projectId}/bills/extract`, {
       fileContent: 'dGVzdA==',

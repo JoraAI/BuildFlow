@@ -5,7 +5,7 @@
  * 7.2 AI import column mapping (preview + confirm).
  * 7.3 Anomaly hints (dashboard strip).
  *
- * Company-scoped — the default STORE project is resolved server-side.
+ * Company-scoped - the default STORE project is resolved server-side.
  */
 import { NextFunction, Request, Response } from 'express';
 import {

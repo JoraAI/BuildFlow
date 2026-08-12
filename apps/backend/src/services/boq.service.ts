@@ -88,7 +88,7 @@ export async function listBoq(companyId: string, projectId: string) {
     }
   }
 
-  // SUB-BOQ1B: Aggregate subcontract material issues — linked by boqItemId, unlinked by resourceId
+  // SUB-BOQ1B: Aggregate subcontract material issues - linked by boqItemId, unlinked by resourceId
   const boqItemIdList = enrichedItems.map((i) => i.id);
   const subIssuedByBoqItem = new Map<string, number>();
   const subIssuedUnlinkedByResource = new Map<string, number>();
@@ -132,7 +132,7 @@ export async function listBoq(companyId: string, projectId: string) {
     };
   });
 
-  // R14-VO1: Resolve variation provenance — which approved change orders touched
+  // R14-VO1: Resolve variation provenance - which approved change orders touched
   // each BOQ line? A line is touched if a ChangeOrderLine references it by
   // boqItemId, or if the BOQ line was created as new scope (itemCode = VO-{number}).
   const boqItemIds = itemsWithStock.map((i) => i.id);
@@ -492,7 +492,7 @@ export async function convertEstimateToBoq(
     }));
     const created = await tx.bOQItem.createMany({ data: boqData });
 
-    // Budget update — consistent basis (sum of new BOQ amounts vs old).
+    // Budget update - consistent basis (sum of new BOQ amounts vs old).
     const newBoqTotal = boqData.reduce((s, b) => s + b.amount, 0);
     if (isSubEstimate) {
       // FIX (EST-C2): delta on a consistent basis (BOQ item sums), not
@@ -527,7 +527,7 @@ export async function convertEstimateToBoq(
   const created = { count: createdCount };
   const boqByEstimateItemId = newBoqItemLinks;
 
-  // FIX (EST-C1): Use topLevelEstimateItems (parentId null) only — not ALL
+  // FIX (EST-C1): Use topLevelEstimateItems (parentId null) only - not ALL
   // estimate.items. Sub-items are exploded from their parents' rate analyses,
   // so passing them too double-counts material demand.
   const materialDemands = await buildMaterialDemandsFromEstimateItems(

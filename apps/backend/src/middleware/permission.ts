@@ -108,7 +108,7 @@ export async function loadPermissions(
     }
     next();
   } catch (err) {
-    // Don't fail the request if permission loading fails — services will
+    // Don't fail the request if permission loading fails - services will
     // fall back to deny-by-default or use the async hasPermission() helper.
     next();
   }

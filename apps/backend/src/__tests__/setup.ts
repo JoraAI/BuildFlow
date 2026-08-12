@@ -18,7 +18,7 @@ process.env.JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET ?? 'test-access-se
 process.env.JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET ?? 'test-refresh-secret-at-least-32-characters-long';
 process.env.CORS_ORIGIN = process.env.CORS_ORIGIN ?? 'http://localhost:8081';
 
-// FIX (DAT-3.8): Safety check — refuse to run if DB doesn't end in _test
+// FIX (DAT-3.8): Safety check - refuse to run if DB doesn't end in _test
 const dbName = process.env.DATABASE_URL.split('/').pop()?.split('?')[0];
 if (dbName && !dbName.endsWith('_test')) {
   throw new Error(

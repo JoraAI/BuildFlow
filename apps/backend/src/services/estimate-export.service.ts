@@ -91,7 +91,7 @@ function styleTableHeaderCell(cell: ExcelJS.Cell) {
   cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY_ARGB } };
 }
 
-/** RPT-O4: Branded header block on Summary sheet — returns first content row index. */
+/** RPT-O4: Branded header block on Summary sheet - returns first content row index. */
 function applySummaryBranding(
   ws: ExcelJS.Worksheet,
   wb: ExcelJS.Workbook,
@@ -145,7 +145,7 @@ function applySummaryBranding(
   return titleRow + 3;
 }
 
-/** Compact branded row on secondary sheets — returns row index for table headers. */
+/** Compact branded row on secondary sheets - returns row index for table headers. */
 function applySheetBranding(
   ws: ExcelJS.Worksheet,
   wb: ExcelJS.Workbook,
@@ -162,7 +162,7 @@ function applySheetBranding(
   };
 
   ws.mergeCells('A2:E2');
-  ws.getCell('A2').value = `${company.name} — ${sheetTitle}`;
+  ws.getCell('A2').value = `${company.name} - ${sheetTitle}`;
   ws.getCell('A2').font = { bold: true, size: 11, color: { argb: NAVY_ARGB } };
 
   if (branding.logoImage) {

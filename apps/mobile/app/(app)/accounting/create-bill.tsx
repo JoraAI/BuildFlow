@@ -79,7 +79,7 @@ export default function CreateBillScreen() {
   const screenTitle = prePurchaseOrderId ? 'Record vendor bill' : 'New Bill';
   const saveLabel = prePurchaseOrderId ? 'Save vendor bill' : 'Save bill';
 
-  // R10-B2: Full permission guard — block screen, not just AI card.
+  // R10-B2: Full permission guard - block screen, not just AI card.
   const canCreateBill = usePermission('bill.create');
 
   // R10-B3: GRN suggested subtotal from requisitions/PO payload.
@@ -231,7 +231,7 @@ export default function CreateBillScreen() {
         category,
         // PROC-B3: Link bill to purchase order
         purchaseOrderId: prePurchaseOrderId || undefined,
-        // R10-B4: Pass AI metadata on save — notes flag + PO hint from extract draft.
+        // R10-B4: Pass AI metadata on save - notes flag + PO hint from extract draft.
         notes: lastWasExtract ? 'source:AI_EXTRACT' : undefined,
         poNumberHint: !prePurchaseOrderId && lastExtractPoHint ? lastExtractPoHint : undefined,
       },
@@ -275,7 +275,7 @@ export default function CreateBillScreen() {
             <View className="flex-1 pr-2">
               <Text className="text-xs font-semibold text-text">Suggested from GRN</Text>
               <Text className="text-xs text-muted">
-                {formatINR(grnSuggestedSubtotal)} — received qty × PO line rates
+                {formatINR(grnSuggestedSubtotal)} - received qty × PO line rates
               </Text>
             </View>
             <Button

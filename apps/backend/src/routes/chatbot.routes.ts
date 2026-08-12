@@ -9,7 +9,7 @@ import { publicChatMessageSchema, sendMessageSchema } from '@buildflow/shared';
 
 const router = Router();
 
-/** Pre-login product guide — no auth, no tenant data. */
+/** Pre-login product guide - no auth, no tenant data. */
 router.post('/public/message', validate({ body: publicChatMessageSchema }), ctrl.publicMessage);
 
 router.use(authenticateToken);

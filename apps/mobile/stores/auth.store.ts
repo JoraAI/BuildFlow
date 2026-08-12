@@ -26,7 +26,7 @@ export interface AuthUser {
   companyLogoUrl?: string | null;
   /** Role-based permissions loaded at login (string permission codes). */
   permissions?: string[];
-  /** INVENTORY_PRODUCT: 'inventory' | 'construction' — drives the app shell. */
+  /** INVENTORY_PRODUCT: 'inventory' | 'construction' - drives the app shell. */
   productMode?: 'inventory' | 'construction';
   /** INVENTORY_PRODUCT: the hidden default STORE project id (null for construction). */
   defaultProjectId?: string | null;
@@ -130,7 +130,7 @@ export const useAuthStore = create<AuthState>((set) => ({
           } catch (err) {
             // FIX (MOB-H5): If the error is a NETWORK_ERROR (status 0), keep the
             // cached user and tokens and continue in a degraded/offline mode.
-            // This is essential for field use in dead zones — the user should
+            // This is essential for field use in dead zones - the user should
             // NOT be logged out just because they're offline.
             const isNetworkError =
               err instanceof Error && (err.message.includes('NETWORK_ERROR') || (err as { status?: number }).status === 0);
@@ -143,7 +143,7 @@ export const useAuthStore = create<AuthState>((set) => ({
               });
               return;
             }
-            // Genuine auth failure (401 after refresh attempt) — log out.
+            // Genuine auth failure (401 after refresh attempt) - log out.
             queryClient.clear();
             await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.ACCESS_TOKEN);
             await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.REFRESH_TOKEN);

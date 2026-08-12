@@ -795,7 +795,7 @@ function PriceHistoryPanel({
         <Card className="max-w-md w-full self-center">
           <Text className="text-lg font-bold text-text mb-1">Update Rate</Text>
           <Text className="text-sm text-muted mb-4">
-            {res?.name} — current: {formatINR(parseFloat(res?.rate ?? '0'))}/{res?.unit}
+            {res?.name} - current: {formatINR(parseFloat(res?.rate ?? '0'))}/{res?.unit}
           </Text>
           <View className="gap-2">
             <DateField

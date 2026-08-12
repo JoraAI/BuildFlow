@@ -50,4 +50,4 @@ Use this checklist when adding or changing features that span backend APIs, mobi
 | Project | Demo |
 |---------|------|
 | NH-45 | WO-001 earthwork, measurements, VO-002 linked to WO |
-| NH-45 | Cement BOQ (BOQ-002) procured via GRN — independent of subcontract certification |
+| NH-45 | Cement BOQ (BOQ-002) procured via GRN - independent of subcontract certification |

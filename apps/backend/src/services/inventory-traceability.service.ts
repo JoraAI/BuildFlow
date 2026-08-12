@@ -68,7 +68,7 @@ export async function getResourceTraceability(
 
   // FIX (NR-33): Scope requisition lines by companyId too (via the requisition
   // relation) so cross-tenant lines can't leak. Removed the .catch(() => [])
-  // swallow — failures now propagate as real errors.
+  // swallow - failures now propagate as real errors.
   const requisitions = await prisma.materialRequisitionLine.findMany({
     where: { requisition: { projectId, companyId }, resourceId },
     include: { requisition: { select: { reqNumber: true, createdAt: true, status: true } } },

@@ -2,9 +2,9 @@
  * BuildFlow Inventory shell - Warehouse hub (INVENTORY_HORIZONTAL_PLATFORM Phase 3).
  *
  * Three sub-tabs:
- *   Locations — warehouse CRUD (create / edit / deactivate / set default).
- *   Transfers — stock transfer orders (dispatch = stock OUT, receive = stock IN).
- *   Counts    — stock counts / stocktake (approve writes STOCKTAKE adjustments).
+ *   Locations - warehouse CRUD (create / edit / deactivate / set default).
+ *   Transfers - stock transfer orders (dispatch = stock OUT, receive = stock IN).
+ *   Counts    - stock counts / stocktake (approve writes STOCKTAKE adjustments).
  * Responsive: useViewport modals (phone bottom sheet, desktop max-w-lg).
  */
 import React, { useState } from 'react';
@@ -137,7 +137,7 @@ export default function InventoryWarehouseScreen() {
               size="sm"
               variant="accent"
               onPress={() => void confirmAsync('Dispatch this transfer?', 'Stock will leave the source warehouse.').then((ok) => {
-                if (ok) void transferAction.mutateAsync({ id: item.id, action: 'dispatch' }).then(() => toast.success('Dispatched — stock moved OUT'));
+                if (ok) void transferAction.mutateAsync({ id: item.id, action: 'dispatch' }).then(() => toast.success('Dispatched - stock moved OUT'));
               })}
             />
             <Button
@@ -154,7 +154,7 @@ export default function InventoryWarehouseScreen() {
             size="sm"
             variant="accent"
             onPress={() => void confirmAsync('Receive this transfer?', 'Stock will land in the destination warehouse.').then((ok) => {
-              if (ok) void transferAction.mutateAsync({ id: item.id, action: 'receive' }).then(() => toast.success('Received — stock landed at destination'));
+              if (ok) void transferAction.mutateAsync({ id: item.id, action: 'receive' }).then(() => toast.success('Received - stock landed at destination'));
             })}
           />
         ) : null}
@@ -263,7 +263,7 @@ export default function InventoryWarehouseScreen() {
               }
               description={
                 tab === 'locations' ? 'Create a second warehouse to split stock across locations.'
-                : tab === 'transfers' ? 'Move stock between warehouses — dispatch then receive.'
+                : tab === 'transfers' ? 'Move stock between warehouses - dispatch then receive.'
                 : 'Count a warehouse and approve to write stock adjustments.'
               }
             />
@@ -300,7 +300,7 @@ export default function InventoryWarehouseScreen() {
           onClose={() => setTransferOpen(false)}
           onSubmit={async (input) => {
             await createTransfer.mutateAsync(input);
-            toast.success('Transfer created — dispatch to move stock');
+            toast.success('Transfer created - dispatch to move stock');
             setTransferOpen(false);
           }}
         />
@@ -312,7 +312,7 @@ export default function InventoryWarehouseScreen() {
           onClose={() => setCountOpen(false)}
           onSubmit={async (input) => {
             await createCount.mutateAsync(input);
-            toast.success('Stock count created — approve to write adjustments');
+            toast.success('Stock count created - approve to write adjustments');
             setCountOpen(false);
           }}
         />

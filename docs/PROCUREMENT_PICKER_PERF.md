@@ -1,9 +1,9 @@
-# BuildFlow — Procurement picker UX + mutation performance
+# BuildFlow - Procurement picker UX + mutation performance
 
 > **Audience:** Deepseek-V4-Flash  
 > **Scope:** Inventory shell **and** construction `ProcurementTab`  
 > **Repo paths:** `apps/mobile/app/inventory/procurement.tsx`, `apps/mobile/components/projects/ProcurementTab.tsx`, `apps/mobile/services/expansion.queries.ts`, `apps/mobile/lib/project-query-invalidation.ts`, `apps/backend/src/services/procurement.service.ts`  
-> **Do not** re-break inventory product shell routing (`app/inventory/` is a real path segment — not `(inventory)`).
+> **Do not** re-break inventory product shell routing (`app/inventory/` is a real path segment - not `(inventory)`).
 
 ---
 
@@ -11,7 +11,7 @@
 
 ### A. Duplicate pickers (UX bug)
 
-**New PO — inventory** ([`CreatePOModal`](../apps/mobile/app/inventory/procurement.tsx)):
+**New PO - inventory** ([`CreatePOModal`](../apps/mobile/app/inventory/procurement.tsx)):
 
 ```ts
 const approved = requisitions.filter((r) => r.status === 'APPROVED');
@@ -19,7 +19,7 @@ const approved = requisitions.filter((r) => r.status === 'APPROVED');
 
 This keeps showing an indent after a PO already exists for it.
 
-**New GRN — inventory** (`RecordGrnModal`):
+**New GRN - inventory** (`RecordGrnModal`):
 
 ```ts
 const pos = allPurchaseOrders(requisitions).filter((po) => po.status !== 'CANCELLED');
@@ -29,8 +29,8 @@ This keeps showing a PO after it is already (fully) received.
 
 **Construction** ([`ProcurementTab.tsx`](../apps/mobile/components/projects/ProcurementTab.tsx)):
 
-- Create PO button already gated with `req.status === 'APPROVED' && !hasPOs` — good for **actions** on list rows.
-- GRN button is hidden when `goodsReceipts.length > 0` (any GRN) — **too strict** vs product rule; should allow **partial** receipts until fully received.
+- Create PO button already gated with `req.status === 'APPROVED' && !hasPOs` - good for **actions** on list rows.
+- GRN button is hidden when `goodsReceipts.length > 0` (any GRN) - **too strict** vs product rule; should allow **partial** receipts until fully received.
 - Ensure any shared / modal pickers for PO↔indent and GRN↔PO match the rules below in **both** UIs.
 
 ### B. Slow submit / approve / PO / GRN (performance)
@@ -39,10 +39,10 @@ Symptoms: UI feels stuck when submitting or approving an indent, creating PO, or
 
 Likely causes to investigate and fix:
 
-1. **Over-invalidation** — `useCreatePurchaseOrder` / `useCreateGRN` call `invalidateProjectProcurement`, which refetches stock, stock summary, stock movements, BOQ shortfalls, and BOQ on every PO create (even when inventory users don't need BOQ).
-2. **Heavy `listRequisitions` payload** — nested `purchaseOrders → lines → resource`, `goodsReceipts`, bills; refetched on every mutation.
-3. **Missing / weak loading feedback** — buttons should use `isPending` and prevent double-submit.
-4. **No optimistic / cache update** — await full list refetch before UI settles.
+1. **Over-invalidation** - `useCreatePurchaseOrder` / `useCreateGRN` call `invalidateProjectProcurement`, which refetches stock, stock summary, stock movements, BOQ shortfalls, and BOQ on every PO create (even when inventory users don't need BOQ).
+2. **Heavy `listRequisitions` payload** - nested `purchaseOrders → lines → resource`, `goodsReceipts`, bills; refetched on every mutation.
+3. **Missing / weak loading feedback** - buttons should use `isPending` and prevent double-submit.
+4. **No optimistic / cache update** - await full list refetch before UI settles.
 5. Backend: confirm `submitRequisition` / `approveRequisition` stay cheap (no gratuitous includes or N+1). Optional: return updated list row shaped for cache patch.
 
 ---
@@ -108,7 +108,7 @@ In `createPO` when `requisitionId` is set:
 
 - If requisition already has ≥1 PO, reject with **400**  
   `"This indent already has a purchase order. Create a new indent for additional orders."`  
-  (Matches “zero POs” rule — do **not** allow a second PO on the same indent in this round.)
+  (Matches “zero POs” rule - do **not** allow a second PO on the same indent in this round.)
 
 In `createGRN`:
 
@@ -120,13 +120,13 @@ Add integration tests for both rejections + happy path still allowing second **p
 
 ### 5. Performance fixes (both products)
 
-**Client invalidation** — replace blunt bundles:
+**Client invalidation** - replace blunt bundles:
 
 | Mutation | Invalidate |
 |----------|------------|
-| Submit / approve indent | requisitions only (already OK) — optionally `setQueryData` with returned row |
+| Submit / approve indent | requisitions only (already OK) - optionally `setQueryData` with returned row |
 | Create PO | requisitions (+ stock **not** needed) |
-| Create GRN | requisitions + stock summary (+ stock locations if shown) — **not** BOQ / shortfalls for inventory |
+| Create GRN | requisitions + stock summary (+ stock locations if shown) - **not** BOQ / shortfalls for inventory |
 
 Refine `invalidateProjectProcurement` into scoped helpers, e.g.:
 
@@ -166,7 +166,7 @@ Refine `invalidateProjectProcurement` into scoped helpers, e.g.:
 - Do not hide POs from GRN after the **first** partial GRN.  
 - Do not allow multiple POs per indent in this round (product rule locked).  
 - Do not invalidate entire project BOQ on every inventory PO create.  
-- Do not introduce a second inventory route group `(inventory)` — keep `app/inventory/`.  
+- Do not introduce a second inventory route group `(inventory)` - keep `app/inventory/`.  
 - Do not change GST/Tally/seed credentials in this round.
 
 ---

@@ -49,7 +49,7 @@ export default function InventoryMaterialsScreen() {
       await deleteResource.mutateAsync(item.id);
       toast.success(`${itemLabel} deleted`);
     } catch (e) {
-      // Surface the API error (e.g. "used in rate analysis") — do not soft-fail.
+      // Surface the API error (e.g. "used in rate analysis") - do not soft-fail.
       toast.error(e instanceof Error ? e.message : 'Could not delete material');
     }
   };
@@ -368,7 +368,7 @@ function MaterialFormModal({
               value={reorderPoint}
               onChangeText={setReorderPoint}
               keyboardType="decimal-pad"
-              placeholder="0 — low-stock alert threshold"
+              placeholder="0 - low-stock alert threshold"
             />
             {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): procurement automation */}
             <Select

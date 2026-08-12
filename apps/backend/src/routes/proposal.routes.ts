@@ -46,7 +46,7 @@ proposalRouter.delete(
   proposalController.deleteProposal,
 );
 
-// Tender AI import — upload a client tender (PDF/Excel), extract BOQ items via LLM.
+// Tender AI import - upload a client tender (PDF/Excel), extract BOQ items via LLM.
 proposalRouter.post(
   '/:id/import-tender',
   validate({ params: proposalIdParamsSchema, body: tenderUploadSchema }),

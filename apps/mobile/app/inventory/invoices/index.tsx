@@ -162,7 +162,7 @@ function NewInvoiceModal({
           </View>
           <ScrollView className="p-5">
             <Select
-              label="Customer (optional — from Parties)"
+              label="Customer (optional - from Parties)"
               value={customerId || undefined}
               onChange={(v) => {
                 setCustomerId(v ?? '');

@@ -41,7 +41,7 @@ const approveMeasurementSchema = z.object({ createBill: z.boolean().optional() }
 
 export const subcontractProjectRouter = Router();
 subcontractProjectRouter.use(authenticateToken);
-// Mounted at /api/projects — path-aware so only subcontract routes are gated.
+// Mounted at /api/projects - path-aware so only subcontract routes are gated.
 subcontractProjectRouter.use(
   requireModuleForPaths('subcontracts', [/^\/[^/]+\/subcontract\b/]),
 );

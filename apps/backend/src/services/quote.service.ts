@@ -3,7 +3,7 @@
  *
  * Optional quote path: DRAFT → SENT → ACCEPTED/REJECTED. An ACCEPTED quote can be
  * converted to a Sales Order (lines/rates/customer copied) via the existing
- * `createSalesOrder` — the Issue → Invoice and SO → DC → Invoice paths are kept.
+ * `createSalesOrder` - the Issue → Invoice and SO → DC → Invoice paths are kept.
  */
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';

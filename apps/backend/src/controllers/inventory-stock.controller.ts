@@ -1,6 +1,6 @@
 /**
  * BuildFlow - Inventory stock controller (INVENTORY_HORIZONTAL_PLATFORM Phase 1.3/1.4).
- * Stock adjustments + opening stock import — company-scoped (uses the STORE project).
+ * Stock adjustments + opening stock import - company-scoped (uses the STORE project).
  */
 import { NextFunction, Request, Response } from 'express';
 import { adjustStock, importOpeningStock } from '../services/procurement.service';

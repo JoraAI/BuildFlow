@@ -10,10 +10,10 @@
  *   - OWNER: full access (every permission)
  *   - PM: project management + estimation + planning (no company admin)
  *   - DPM: PM minus final approvals (submit, not approve estimates)
- *   - QC: quality control — reports, measurements, BOQ view
+ *   - QC: quality control - reports, measurements, BOQ view
  *   - MECHANICAL_MANAGER: equipment + reports + limited planning view
  *   - STORE_INCHARGE: procurement + stock + GRN (no approvals beyond PO)
- *   - WEIGHBRIDGE_INCHARGE: material weighing — limited procurement/report creation
+ *   - WEIGHBRIDGE_INCHARGE: material weighing - limited procurement/report creation
  *   - SITE_SUPERVISOR: daily reports + attendance + project view (no amounts)
  *   - ACCOUNTANT: invoices + bills + Tally + financial amounts (no project editing)
  */
@@ -39,7 +39,7 @@ const PROJECT_VIEW_WITH_FINANCIALS: Permission[] = [
 ];
 
 export const DEFAULT_ROLE_PERMISSIONS: Record<Role, Permission[]> = {
-  // ── OWNER / MD — full access ──────────────────────────────────────
+  // ── OWNER / MD - full access ──────────────────────────────────────
   OWNER: [...ALL_PERMISSIONS],
 
   // ── Project Manager ────────────────────────────────────────────────

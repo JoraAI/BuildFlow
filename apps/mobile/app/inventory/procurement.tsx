@@ -252,8 +252,8 @@ export default function InventoryProcurementScreen() {
               const result = await orderReorder.mutateAsync(resourceIds);
               toast.success(
                 result.purchaseOrder.status === 'APPROVED'
-                  ? `${result.suggestionCount} item(s) ordered — ${result.purchaseOrder.poNumber} approved`
-                  : `${result.suggestionCount} item(s) ordered — ${result.purchaseOrder.poNumber} pending approval`,
+                  ? `${result.suggestionCount} item(s) ordered - ${result.purchaseOrder.poNumber} approved`
+                  : `${result.suggestionCount} item(s) ordered - ${result.purchaseOrder.poNumber} pending approval`,
               );
               setSection('orders');
               void refetch();
@@ -1009,7 +1009,7 @@ function CreatePOModal({
       {approved.length === 0 ? (
         <EmptyState
           title={`No ${indentLabelPlural.toLowerCase()} available`}
-          description={`Only approved ${indentLabelPlural.toLowerCase()} without a purchase order can be ordered. Create a new ${indentLabel.toLowerCase()} first — it is approved instantly.`}
+          description={`Only approved ${indentLabelPlural.toLowerCase()} without a purchase order can be ordered. Create a new ${indentLabel.toLowerCase()} first - it is approved instantly.`}
         />
       ) : (
         <>
@@ -1031,7 +1031,7 @@ function CreatePOModal({
             placeholder={nextNumbers.data?.po ?? 'Auto'}
           />
           <Text className="text-[11px] text-muted mt-1 mb-1">
-            Suggested automatically — edit if you need a custom number.
+            Suggested automatically - edit if you need a custom number.
           </Text>
           <View className="h-3" />
           <Input label="Vendor name" value={vendorName} onChangeText={setVendorName} />
@@ -1245,7 +1245,7 @@ function RecordGrnModal({
             placeholder={nextNumbers.data?.grn ?? 'Auto'}
           />
           <Text className="text-[11px] text-muted mt-1 mb-1">
-            Suggested automatically — edit if you need a custom number.
+            Suggested automatically - edit if you need a custom number.
           </Text>
           <View className="h-3" />
           <Input label="Received date" value={receivedDate} onChangeText={setReceivedDate} />

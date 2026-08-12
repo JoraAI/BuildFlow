@@ -27,7 +27,7 @@ export const ROLE_META: Record<
     label: 'Deputy Project Manager',
     short: 'DPM',
     color: '#3B82F6',
-    description: 'Deputy PM — project ops without final approvals',
+    description: 'Deputy PM - project ops without final approvals',
   },
   QC: {
     label: 'Senior QC Engineer',
@@ -63,7 +63,7 @@ export const ROLE_META: Record<
     label: 'Site Supervisor (legacy)',
     short: 'Supervisor',
     color: '#10B981',
-    description: 'Legacy supervisor role — use Site Supervisor',
+    description: 'Legacy supervisor role - use Site Supervisor',
   },
   ACCOUNTANT: {
     label: 'Accountant / Finance',

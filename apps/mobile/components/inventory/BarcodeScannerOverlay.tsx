@@ -3,7 +3,7 @@
  *
  * Device camera barcode scan for Stock Find / issue. Phone = full-bleed overlay;
  * desktop = centered max-w-lg. Keyboard/paste stays the primary input path (the
- * Find button remains). Gated to native platforms — the web build falls back to
+ * Find button remains). Gated to native platforms - the web build falls back to
  * a "use keyboard/paste" note (expo-camera is a native module).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';

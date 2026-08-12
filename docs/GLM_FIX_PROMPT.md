@@ -1,12 +1,12 @@
-# BuildFlow — Standalone Fix Prompt for GLM-5.2 (Round 40 TALLY-1)
+# BuildFlow - Standalone Fix Prompt for GLM-5.2 (Round 40 TALLY-1)
 
 > **Baseline:** `fdc1271` · main  
-> **Active work:** **§2.21 Round 40 — Tally Prime export** — **COMPLETE**  
+> **Active work:** **§2.21 Round 40 - Tally Prime export** - **COMPLETE**  
 > **Do not re-break:** Round 40 deliverables or Rounds 12–39.
 
 ---
 
-## 2.21 Round 40 — TALLY-1 (COMPLETE)
+## 2.21 Round 40 - TALLY-1 (COMPLETE)
 
 ### Verification
 

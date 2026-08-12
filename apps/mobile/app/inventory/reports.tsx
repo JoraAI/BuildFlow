@@ -4,10 +4,10 @@
  * Route: /inventory/reports (entry from Settings → "Reports & analytics").
  *
  * Tabs:
- *   1. Stock health — dead/slow/active classification with days + warehouse filters.
- *   2. Warehouse value — per-location inventory value (qty × WAC).
- *   3. Margins — revenue − WAC×qty sold per item.
- *   4. Purchase history — last buy rate vs current WAC.
+ *   1. Stock health - dead/slow/active classification with days + warehouse filters.
+ *   2. Warehouse value - per-location inventory value (qty × WAC).
+ *   3. Margins - revenue − WAC×qty sold per item.
+ *   4. Purchase history - last buy rate vs current WAC.
  *
  * Responsive: cards flex-wrap / min-w, phone-stacked (no desktop-only tables).
  */
@@ -233,7 +233,7 @@ export default function InventoryReportsScreen() {
                 <View className="flex-row justify-between mt-2">
                   <Text className="text-xs text-muted">Last buy</Text>
                   <Text className="text-sm font-semibold text-text">
-                    {row.lastBuyRate ? formatINR(row.lastBuyRate) : '—'}
+                    {row.lastBuyRate ? formatINR(row.lastBuyRate) : '-'}
                     {row.lastBuyDate ? ` · ${formatDate(row.lastBuyDate)}` : ''}
                   </Text>
                 </View>

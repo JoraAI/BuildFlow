@@ -29,8 +29,8 @@ const TENANT_SCOPED_MODELS = new Set([
   'RateAnalysis',
   'MaterialPriceHistory',
   'RateRegion',
-  // FIX: RegionalMaterialRate has no companyId column — scoped via regionId
-  // FIX: ProjectMaterialRate has no companyId column — scoped via projectId
+  // FIX: RegionalMaterialRate has no companyId column - scoped via regionId
+  // FIX: ProjectMaterialRate has no companyId column - scoped via projectId
   'Invoice',
   'Bill',
   'JournalEntry',
@@ -41,7 +41,7 @@ const TENANT_SCOPED_MODELS = new Set([
   'CompanyIntegration',
   'CompanyRolePermission',
   'SupportTicket',
-  // FIX: ProjectMember has no companyId column — scoped via projectId+userId
+  // FIX: ProjectMember has no companyId column - scoped via projectId+userId
   'ChangeOrder',
   'MaterialRequisition',
   'PurchaseOrder',
@@ -74,7 +74,7 @@ const READ_ACTIONS = new Set([
   'groupBy',
 ]);
 
-/** Write actions that filter via `where` (update/delete) — inject companyId there. */
+/** Write actions that filter via `where` (update/delete) - inject companyId there. */
 const WHERE_WRITE_ACTIONS = new Set(['update', 'updateMany', 'delete', 'deleteMany']);
 
 const globalForPrisma = globalThis as unknown as { __prisma?: PrismaClient };
@@ -131,7 +131,7 @@ function createPrisma(): PrismaClient {
         }
       }
     } catch (err) {
-      // If scoping fails for any reason, fail CLOSED — do not run unscoped.
+      // If scoping fails for any reason, fail CLOSED - do not run unscoped.
       logger.error('Tenant scoping middleware failed (failing closed)', {
         model,
         action: params.action,

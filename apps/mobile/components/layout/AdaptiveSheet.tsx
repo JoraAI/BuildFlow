@@ -60,7 +60,7 @@ export function AdaptiveSheet({
 }: AdaptiveSheetProps) {
   // FIX (UI-M8): Use dialog presentation from tablet width up (≥768px), not
   // just desktop (≥1024px). Previously a native iPad at 768-1023px would show
-  // a bottom sheet instead of a centered dialog — feeling like a phone app.
+  // a bottom sheet instead of a centered dialog - feeling like a phone app.
   const { isPhone } = useViewport();
   const useDialog = !isPhone; // tablet + desktop
   const bodyScrollable = scrollable || !!footer;

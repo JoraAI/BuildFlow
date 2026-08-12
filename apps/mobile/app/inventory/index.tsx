@@ -62,7 +62,7 @@ export default function InventoryStockScreen() {
   const { isDesktop } = useViewport();
   const projectId = user?.defaultProjectId ?? '';
 
-  // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.1): multi-warehouse — the stock
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.1): multi-warehouse - the stock
   // home shows one warehouse at a time (default = company default location).
   const multiWarehouseEnabled = hasInventoryFeature(
     (user?.subscriptionPlan ?? 'INVENTORY') as SubscriptionPlanKey,
@@ -92,7 +92,7 @@ export default function InventoryStockScreen() {
     refetch: refetchMovements,
   } = useStockMovements(projectId, selectedResourceId ?? undefined, selectedLocationId);
 
-  // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.4): barcode identify — type/paste a
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.4): barcode identify - type/paste a
   // barcode to jump to its item row.
   const [barcodeQuery, setBarcodeQuery] = useState('');
   const [barcodeInput, setBarcodeInput] = useState('');
@@ -104,7 +104,7 @@ export default function InventoryStockScreen() {
       setSelectedResourceId(barcodeLookup.data.id);
       setBarcodeQuery('');
       setBarcodeInput('');
-      toast.success(`${barcodeLookup.data.name} found — highlighted below`);
+      toast.success(`${barcodeLookup.data.name} found - highlighted below`);
     }
   }, [barcodeLookup.data]);
   useEffect(() => {
@@ -120,7 +120,7 @@ export default function InventoryStockScreen() {
   const importOpening = useImportOpeningStock();
   const [adjustRow, setAdjustRow] = useState<StockSummaryRow | null>(null);
   const [openingOpen, setOpeningOpen] = useState(false);
-  // Phase 1.3/1.4 flags — shipped for INVENTORY this pass.
+  // Phase 1.3/1.4 flags - shipped for INVENTORY this pass.
   const stockAdjustEnabled = hasInventoryFeature(
     (user?.subscriptionPlan ?? 'INVENTORY') as SubscriptionPlanKey,
     'stock_adjustments',
@@ -514,7 +514,7 @@ export default function InventoryStockScreen() {
               result.applied > 0
                 ? `Opening stock applied to ${result.applied} item(s)` +
                     (result.missed > 0 ? ` · ${result.missed} not matched` : '')
-                : 'No items matched — check names/SKUs',
+                : 'No items matched - check names/SKUs',
             );
             setOpeningOpen(false);
           } catch (e) {
@@ -534,7 +534,7 @@ export default function InventoryStockScreen() {
           setBarcodeInput(code);
           setBarcodeQuery(code);
           setScannerOpen(false);
-          toast.success(`Scanned ${code} — finding item…`);
+          toast.success(`Scanned ${code} - finding item…`);
         }}
       />
     </View>
@@ -800,7 +800,7 @@ function MultiIssueStockModal({
                 </View>
               );
             })}
-            {/* Bulk issue only — hidden when opened from a per-row Issue CTA. */}
+            {/* Bulk issue only - hidden when opened from a per-row Issue CTA. */}
             {!initialResourceId ? (
               <>
                 <Button

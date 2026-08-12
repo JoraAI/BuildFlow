@@ -156,7 +156,7 @@ export const TRIAL_BENEFITS = [
 
 export const INVENTORY_TRIAL_BENEFITS = [
   '14-day free trial, no credit card',
-  'Pick a business profile — retail, wholesale, trading, materials & more',
+  'Pick a business profile - retail, wholesale, trading, materials & more',
   'Warehouses, SO→challan, parties, PO/GRN, invoices & Tally',
 ];
 
@@ -250,11 +250,11 @@ export const MARKETING_FAQ = [
   },
   {
     q: 'How do inventory / trading businesses sign up?',
-    a: 'Choose “Inventory trial” on the homepage or Pricing, or Sign up → Inventory. You pick a business profile (retail, wholesale, distribution, trading, material supplier, equipment, or general) so labels and workflows match your store — not the construction ERP.',
+    a: 'Choose “Inventory trial” on the homepage or Pricing, or Sign up → Inventory. You pick a business profile (retail, wholesale, distribution, trading, material supplier, equipment, or general) so labels and workflows match your store - not the construction ERP.',
   },
   {
     q: 'What’s the difference between Construction ERP and Inventory?',
-    a: 'Construction ERP covers projects, estimates, site reports, and project accounting. Inventory is a separate product for stock businesses: multi-warehouse, Indent→PO→GRN, sales orders & challans, parties, invoices, bills, and Tally — without construction modules.',
+    a: 'Construction ERP covers projects, estimates, site reports, and project accounting. Inventory is a separate product for stock businesses: multi-warehouse, Indent→PO→GRN, sales orders & challans, parties, invoices, bills, and Tally - without construction modules.',
   },
   {
     q: 'Who can sign up for BuildFlow?',

@@ -1,5 +1,5 @@
 /**
- * Phase 5 integration smoke tests — petty cash, punch list, RFI, drawings, portal scope.
+ * Phase 5 integration smoke tests - petty cash, punch list, RFI, drawings, portal scope.
  */
 import request from 'supertest';
 import { app } from '../../app';

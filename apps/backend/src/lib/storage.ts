@@ -16,7 +16,7 @@
  *   key = `${companyId}/${entityType}/${projectId?}/${filename}`
  *
  * Logical URL form (stored in DB columns like Resource.imageUrl):
- *   `bfstore://<provider>/<key>`  — provider-agnostic reference.
+ *   `bfstore://<provider>/<key>`  - provider-agnostic reference.
  *   Resolution: parse → fetch (with the right provider) → decrypt → return bytes.
  */
 import { createHash, randomUUID } from 'crypto';
@@ -140,7 +140,7 @@ class S3FileStore implements FileStore {
   constructor() {
     if (!env.AWS_S3_BUCKET) throw new Error('AWS_S3_BUCKET required for S3 file store');
     this.bucket = env.AWS_S3_BUCKET;
-    // Lazily create the S3 client (heavy import) — keep types loose to avoid
+    // Lazily create the S3 client (heavy import) - keep types loose to avoid
     // importing the SDK here for non-S3 builds.
     this.clientPromise = import('@aws-sdk/client-s3').then(
       ({ S3Client }) =>
@@ -298,7 +298,7 @@ class DriveFileStore implements FileStore {
 }
 
 // ────────────────────────────────────────────────────────────────────
-// Façade — pick the provider once, at module load.
+// Façade - pick the provider once, at module load.
 // ────────────────────────────────────────────────────────────────────
 
 let cachedStore: FileStore | null = null;
@@ -361,7 +361,7 @@ export async function fetchEncryptedFile(companyId: string, url: string): Promis
   // require the provider in the URL to match the active one.
   if (parsed.provider !== store.name) {
     throw new Error(
-      `File URL provider "${parsed.provider}" does not match active store "${store.name}" — run the migration job first.`,
+      `File URL provider "${parsed.provider}" does not match active store "${store.name}" - run the migration job first.`,
     );
   }
   return store.getEncrypted(companyId, parsed.key);

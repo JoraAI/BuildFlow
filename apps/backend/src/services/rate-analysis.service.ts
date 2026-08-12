@@ -166,7 +166,7 @@ export async function getRateAnalysis(companyId: string, id: string) {
     },
   });
   if (!r) throw ApiError.notFound('Rate analysis not found');
-  // Serialize components — convert Prisma Decimal to number and include the
+  // Serialize components - convert Prisma Decimal to number and include the
   // `type` field so the frontend can filter by MATERIAL/EQUIPMENT/LABOUR.
   return {
     ...r,

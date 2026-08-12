@@ -1,7 +1,7 @@
 /**
  * BuildFlow - Health check route.
  *
- * FIX (SEC-L18): Don't expose the `env` value — it leaks deployment info
+ * FIX (SEC-L18): Don't expose the `env` value - it leaks deployment info
  * (production/staging) to anyone hitting `/health`.
  */
 import { Router } from 'express';

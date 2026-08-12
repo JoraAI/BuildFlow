@@ -36,7 +36,7 @@ async function shutdown(signal: string): Promise<void> {
   });
   await Promise.allSettled([disconnectPrisma(), disconnectRedis()]);
   // Exit only for interactive stop (Ctrl+C). Under `tsx watch`, SIGTERM is used
-  // for hot-reload — calling process.exit here can leave the watcher with no
+  // for hot-reload - calling process.exit here can leave the watcher with no
   // child and nothing listening on :4000 (UI stays up; create-store then fails).
   if (signal === 'SIGINT') {
     process.exit(0);

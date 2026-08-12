@@ -2,7 +2,7 @@
  * Inventory shell layout (INVENTORY_PRODUCT).
  *
  * Inventory tenants land here instead of the construction app shell. The shell
- * exposes Stock | Procurement | Invoices | Bills | Settings — no construction
+ * exposes Stock | Procurement | Invoices | Bills | Settings - no construction
  * "Projects" navigator. Construction users are redirected to /dashboard.
  */
 import React from 'react';
@@ -38,7 +38,7 @@ export default function InventoryLayout() {
     return <Redirect href="/dashboard" />;
   }
 
-  // Detail routes (invoices/[id], bills/[id]) render their own back-header —
+  // Detail routes (invoices/[id], bills/[id]) render their own back-header -
   // hide the shell top bar so headers don't double-pad. Bottom nav stays.
   // Reports (/inventory/reports) renders its own back-header too.
   const isDetailRoute =

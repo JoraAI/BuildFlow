@@ -1,5 +1,5 @@
 -- AlterTable: change invoice_number from globally unique to tenant-scoped unique.
--- FIX: FIN-H1 / DAT-1.2 — Invoice numbers were globally unique, causing cross-tenant
+-- FIX: FIN-H1 / DAT-1.2 - Invoice numbers were globally unique, causing cross-tenant
 -- P2002 collisions and forcing the generator into a count-based race.
 DROP INDEX IF EXISTS "invoices_invoice_number_key";
 
@@ -7,7 +7,7 @@ CREATE UNIQUE INDEX "invoices_company_id_invoice_number_key"
   ON "invoices"("company_id", "invoice_number");
 
 -- CreateTable: DocumentCounter (race-safe per-company, per-year sequential numbers)
--- FIX: SEC-M14 / FIN-H1 / EST-M5 — replaces count()-based document numbering.
+-- FIX: SEC-M14 / FIN-H1 / EST-M5 - replaces count()-based document numbering.
 CREATE TABLE "document_counters" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "company_id" UUID NOT NULL,

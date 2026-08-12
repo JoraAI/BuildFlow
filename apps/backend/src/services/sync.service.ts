@@ -24,7 +24,7 @@ export interface DeltaSyncResult {
 
 /**
  * LIMITATION (§2.3 #3 / NR-38): DailyReport and Task have no `updatedAt`
- * column. Delta sync therefore uses `createdAt` only — edits to existing
+ * column. Delta sync therefore uses `createdAt` only - edits to existing
  * records are NOT surfaced by this endpoint. The full offline-first spec
  * (§8.1) requires adding `updatedAt` to these models; until then `/api/sync`
  * is unmounted in app.ts (see §2.8).

@@ -50,8 +50,8 @@ export function DesktopHero() {
             Construction ERP and exclusive inventory.
           </Text>
           <Text className="text-white/75 mt-4 leading-relaxed text-base">
-            Run projects with GST accounting, or stock with Inventory profiles — retail, wholesale,
-            trading, materials, equipment — plus warehouses, SO→challan, invoices & Tally.
+            Run projects with GST accounting, or stock with Inventory profiles - retail, wholesale,
+            trading, materials, equipment - plus warehouses, SO→challan, invoices & Tally.
           </Text>
           {ctaRow('md')}
           <View className="mt-4 self-start">

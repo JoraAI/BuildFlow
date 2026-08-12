@@ -36,7 +36,7 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
       {
         name: '3. Earthwork & Embankment',
         items: [
-          // Composite items — each RA bundles excavator + operator + labour.
+          // Composite items - each RA bundles excavator + operator + labour.
           // Do NOT list equipment separately; that double-counts the RA components.
           { itemCode: 'HW-E-001', description: 'Excavation in ordinary soil for road formation', unit: 'cum', quantity: 8000, rate: 280, type: 'MATERIAL', rateAnalysisName: 'Excavation in Ordinary Soil' },
           { itemCode: 'HW-E-002', description: 'Excavation in hard rock (if required)', unit: 'cum', quantity: 1500, rate: 850, type: 'MATERIAL', rateAnalysisName: 'Excavation in Hard Rock (Chiselling)' },
@@ -47,14 +47,14 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
       {
         name: '4. Granular Sub-Base (GSB)',
         items: [
-          // Single composite line — the RA bundles GSB material + grader + roller + labour.
+          // Single composite line - the RA bundles GSB material + grader + roller + labour.
           { itemCode: 'HW-G-002', description: 'GSB layer 200mm (supply, spread & compact)', unit: 'sqm', quantity: 8500, rate: 550, type: 'MATERIAL', rateAnalysisName: 'GSB Layer 200mm' },
         ],
       },
       {
         name: '5. Wet Mix Macadam (WMM)',
         items: [
-          // Single composite line — the RA bundles WMM material + plant + roller + labour.
+          // Single composite line - the RA bundles WMM material + plant + roller + labour.
           { itemCode: 'HW-W-002', description: 'WMM layer 250mm (supply, spread & compact)', unit: 'sqm', quantity: 8500, rate: 850, type: 'MATERIAL', rateAnalysisName: 'WMM Layer 250mm' },
         ],
       },
@@ -70,14 +70,14 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
       {
         name: '7. Dense Bituminous Macadam (DBM)',
         items: [
-          // Single composite line — the RA bundles DBM mix + hot mix plant + paver + roller + labour.
+          // Single composite line - the RA bundles DBM mix + hot mix plant + paver + roller + labour.
           { itemCode: 'HW-D-001', description: 'DBM 75mm binder course (supply, mix, lay & compact)', unit: 'sqm', quantity: 8500, rate: 650, type: 'MATERIAL', rateAnalysisName: 'DBM 75mm (Dense Bituminous Macadam)' },
         ],
       },
       {
         name: '8. Bituminous Concrete (BC) Wearing Course',
         items: [
-          // Single composite line — the RA bundles BC mix + hot mix plant + paver + roller + labour.
+          // Single composite line - the RA bundles BC mix + hot mix plant + paver + roller + labour.
           { itemCode: 'HW-B-001', description: 'BC 40mm wearing course (supply, mix, lay & compact)', unit: 'sqm', quantity: 8500, rate: 520, type: 'MATERIAL', rateAnalysisName: 'Bituminous Concrete 40mm' },
         ],
       },
@@ -176,7 +176,7 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
       {
         name: '2. Earthwork & Sub-grade',
         items: [
-          // Composite items — RA bundles excavator + operator + labour.
+          // Composite items - RA bundles excavator + operator + labour.
           { itemCode: 'RP-E-001', description: 'Excavation in soil', unit: 'cum', quantity: 6000, rate: 280, type: 'MATERIAL', rateAnalysisName: 'Excavation in Ordinary Soil' },
           { itemCode: 'RP-E-002', description: 'Embankment fill with selected soil (compacted)', unit: 'cum', quantity: 5000, rate: 380, type: 'MATERIAL', rateAnalysisName: 'Backfilling with Sand' },
         ],
@@ -262,7 +262,7 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
       {
         name: '2. Excavation & Embankment',
         items: [
-          // Composite items — each RA bundles the excavator + operator + labour.
+          // Composite items - each RA bundles the excavator + operator + labour.
           // Do NOT list equipment separately; that double-counts the RA components.
           { itemCode: 'CN-E-001', description: 'Excavation in ordinary soil (canal section)', unit: 'cum', quantity: 12000, rate: 280, type: 'MATERIAL', rateAnalysisName: 'Excavation in Ordinary Soil' },
           { itemCode: 'CN-E-002', description: 'Excavation in hard soil', unit: 'cum', quantity: 3500, rate: 450, type: 'MATERIAL', rateAnalysisName: 'Excavation in Hard Soil' },
@@ -453,10 +453,10 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
       {
         name: '2. Excavation',
         items: [
-          // Composite items — RA bundles excavator + operator + labour.
+          // Composite items - RA bundles excavator + operator + labour.
           { itemCode: 'DR-E-001', description: 'Trench excavation in ordinary soil', unit: 'cum', quantity: 2500, rate: 280, type: 'MATERIAL', rateAnalysisName: 'Excavation in Ordinary Soil' },
           { itemCode: 'DR-E-002', description: 'Trench excavation in hard soil', unit: 'cum', quantity: 800, rate: 450, type: 'MATERIAL', rateAnalysisName: 'Excavation in Hard Soil' },
-          // Dewatering & shoring are NOT part of the excavation RA — keep as separate lines.
+          // Dewatering & shoring are NOT part of the excavation RA - keep as separate lines.
           { itemCode: 'DR-E-004', description: 'Dewatering pump 5HP', unit: 'day', quantity: 25, rate: 800, type: 'EQUIPMENT', resourceName: 'Dewatering Pump 5HP' },
           { itemCode: 'DR-E-005', description: 'Timber shoring for deep trenches', unit: 'sqm', quantity: 450, rate: 280, type: 'MATERIAL', resourceName: 'Sal Wood' },
         ],
@@ -485,7 +485,7 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
       {
         name: '5. Backfilling & Restoration',
         items: [
-          // Composite item — RA bundles sand + plate compactor + labour.
+          // Composite item - RA bundles sand + plate compactor + labour.
           { itemCode: 'DR-BF-002', description: 'Backfilling with sand around pipes (compacted)', unit: 'cum', quantity: 350, rate: 1700, type: 'MATERIAL', rateAnalysisName: 'Backfilling with Sand' },
           { itemCode: 'DR-BF-004', description: 'Road surface restoration (BC)', unit: 'sqm', quantity: 1800, rate: 420, type: 'MATERIAL', rateAnalysisName: 'BC 40mm (Bituminous Concrete)' },
         ],

@@ -39,7 +39,7 @@ export type TenderExtractedItem = z.infer<typeof tenderExtractedItemSchema>;
 export const tenderUploadSchema = z.object({
   /** Base64-encoded file content (without the data-URL prefix). */
   fileContent: z.string().min(1, 'File content is required'),
-  /** Original filename — used for extension detection + storage naming. */
+  /** Original filename - used for extension detection + storage naming. */
   filename: z.string().min(1).max(255),
   /** MIME type, e.g. 'application/pdf' or 'application/vnd.openxmlformats…'. */
   contentType: z.string().min(1),

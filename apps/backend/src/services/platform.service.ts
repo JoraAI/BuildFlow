@@ -43,13 +43,13 @@ export async function platformLogin(input: PlatformLoginInput): Promise<Platform
   const admin = await prisma.platformAdmin.findUnique({ where: { email } });
   if (!admin || !admin.isActive) {
     throw ApiError.unauthorized(
-      'Invalid platform admin credentials. Use /platform/login — not the company sign-in page.',
+      'Invalid platform admin credentials. Use /platform/login - not the company sign-in page.',
     );
   }
   const ok = await verifyPassword(input.password, admin.passwordHash);
   if (!ok) {
     throw ApiError.unauthorized(
-      'Invalid platform admin credentials. Use /platform/login — not the company sign-in page.',
+      'Invalid platform admin credentials. Use /platform/login - not the company sign-in page.',
     );
   }
 

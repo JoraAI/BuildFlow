@@ -3,7 +3,7 @@
  * Serves translation dictionary and role dashboard configs via API.
  */
 export async function getTranslations(lang: string) {
-  // Read from mobile constants — in a real app this would be shared package
+  // Read from mobile constants - in a real app this would be shared package
   // For now, return the supported languages + role dashboard config
   const supportedLanguages = [
     { code: 'en', label: 'English', flag: '🇬🇧' },

@@ -9,7 +9,7 @@
  *   - Per-company data keys are HKDF-derived from the master + companyId salt.
  *     This gives tenant isolation without managing many keys, and centralizes
  *     rotation (rotate the master + re-derive; old ciphertext stays readable
- *     as long as the derivation stays deterministic — see "Rotation" below).
+ *     as long as the derivation stays deterministic - see "Rotation" below).
  *
  * Ciphertext layout (Buffer):
  *   [ 1 byte version | 12-byte IV | N-byte ciphertext | 16-byte GCM tag ]
@@ -67,7 +67,7 @@ function getMasterKey(): Buffer {
 
   // Dev/test fallback: deterministic so local files stay readable across restarts.
   logger.warn(
-    'FILE_ENCRYPTION_MASTER_KEY not set — using insecure deterministic dev key. Set the env var before production.',
+    'FILE_ENCRYPTION_MASTER_KEY not set - using insecure deterministic dev key. Set the env var before production.',
   );
   const seed = Buffer.from('buildflow-dev-master-key-do-not-use-in-prod', 'utf8').subarray(
     0,
@@ -115,7 +115,7 @@ export async function encryptForCompany(companyId: string, plaintext: Buffer): P
  */
 export async function decryptForCompany(companyId: string, envelope: Buffer): Promise<Buffer> {
   if (envelope.length < 1 + IV_LEN + TAG_LEN) {
-    throw new Error('Ciphertext too short — corrupted or not a BuildFlow file envelope');
+    throw new Error('Ciphertext too short - corrupted or not a BuildFlow file envelope');
   }
   const version = envelope[0];
   if (version !== VERSION) {

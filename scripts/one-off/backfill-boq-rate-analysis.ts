@@ -42,7 +42,7 @@ async function main() {
 
     // Case 1: The estimate item already has rateAnalysisId (direct link)
     if (estItem?.rateAnalysisId) {
-      // BOQ items don't have rateAnalysisId column — it's resolved via estimateItem
+      // BOQ items don't have rateAnalysisId column - it's resolved via estimateItem
       // But we can verify it's accessible
       alreadyLinked++;
       continue;

@@ -111,9 +111,9 @@ export async function updateWarehouse(
   if (!loc) throw ApiError.notFound('Warehouse not found');
 
   // Deactivating the last active location would leave the company without a
-  // warehouse — block it.
+  // warehouse - block it.
   if (input.isActive === false && (loc.isDefault || (await countActive(companyId)) <= 1)) {
-    throw ApiError.badRequest('Cannot deactivate the default warehouse — set another default first.');
+    throw ApiError.badRequest('Cannot deactivate the default warehouse - set another default first.');
   }
 
   if (input.code?.trim()) {
@@ -161,7 +161,7 @@ export async function deactivateWarehouse(companyId: string, userId: string, rol
   const loc = await prisma.stockLocation.findFirst({ where: { id, companyId } });
   if (!loc) throw ApiError.notFound('Warehouse not found');
   if (loc.isDefault || (await countActive(companyId)) <= 1) {
-    throw ApiError.badRequest('Cannot deactivate the default warehouse — set another default first.');
+    throw ApiError.badRequest('Cannot deactivate the default warehouse - set another default first.');
   }
   return prisma.stockLocation.update({ where: { id }, data: { isActive: false } });
 }
@@ -255,7 +255,7 @@ export async function dispatchTransfer(companyId: string, userId: string, role: 
       const qty = Number(line.quantity);
       if (!balance || onHand < qty) {
         throw ApiError.unprocessable(
-          `${line.itemName}: only ${onHand} ${line.unit} on hand at source, transfer requires ${qty} ${line.unit} — dispatch aborted.`,
+          `${line.itemName}: only ${onHand} ${line.unit} on hand at source, transfer requires ${qty} ${line.unit} - dispatch aborted.`,
         );
       }
       await tx.stockBalance.update({ where: { id: balance.id }, data: { quantity: { decrement: qty } } });
@@ -351,7 +351,7 @@ export async function cancelTransfer(companyId: string, userId: string, role: st
   await resolveDefaultProject(companyId, userId, role);
   const transfer = await prisma.transferOrder.findFirst({ where: { id, companyId } });
   if (!transfer) throw ApiError.notFound('Transfer order not found');
-  // Stock has already left the source once dispatched — only drafts can cancel.
+  // Stock has already left the source once dispatched - only drafts can cancel.
   if (transfer.status !== 'DRAFT') {
     throw ApiError.badRequest(
       `Only draft transfers can be cancelled. For an in-transit transfer, receive or reverse it.`,

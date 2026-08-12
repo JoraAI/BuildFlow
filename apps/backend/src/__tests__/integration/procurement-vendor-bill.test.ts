@@ -71,7 +71,7 @@ describe('Procurement vendor bill (PROC-B7 integration)', () => {
     });
     expect(grnRes.status).toBe(201);
 
-    // 5. Assert NO bill auto-created — list bills for project, none should reference this PO
+    // 5. Assert NO bill auto-created - list bills for project, none should reference this PO
     const billsRes = await authGet(token, `/api/projects/${projectId}/bills`);
     expect(billsRes.status).toBe(200);
     const bills = billsRes.body.data as Array<{ purchaseOrderId?: string | null }>;

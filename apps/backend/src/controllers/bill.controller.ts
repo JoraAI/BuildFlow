@@ -139,7 +139,7 @@ export async function summary(req: Request, res: Response) {
   const data = await billService.getBillSummary(req.user!.companyId, resolveProjectId(req));
   return ok(res, data);
 }
-// PROC-B9: Bill extraction (LLM) — returns draft for review, does NOT persist
+// PROC-B9: Bill extraction (LLM) - returns draft for review, does NOT persist
 
 export async function extract(req: Request, res: Response) {
   const { companyId } = req.user!;

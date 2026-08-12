@@ -2,13 +2,13 @@
  * BuildFlow - Tender import extraction service.
  *
  * Two-stage pipeline:
- *   1. extractText() — parse PDF (pdf-parse) or Excel (exceljs) to raw text.
- *   2. extractItemsFromText() — call the LLM with a strict JSON-schema prompt
+ *   1. extractText() - parse PDF (pdf-parse) or Excel (exceljs) to raw text.
+ *   2. extractItemsFromText() - call the LLM with a strict JSON-schema prompt
  *      to produce structured line items (description, unit, qty, rate, type,
  *      section, optional resourceId/rateAnalysisId match, confidence).
  *
  * The LLM call is delegated to `callLlmForExtraction` which reads the company's
- * BYOK config via `resolveLlmConfig` — same resolution as the assistant. When no
+ * BYOK config via `resolveLlmConfig` - same resolution as the assistant. When no
  * LLM is configured, the service returns an empty items list with a note so the
  * caller can surface a clear "AI not configured" message.
  *
@@ -205,7 +205,7 @@ async function softMatchResource(
 ): Promise<string | null> {
   // FIX (EST-M9): The match direction was inverted. It searched for resources
   // whose NAME CONTAINS the description (e.g. a 50-char description would need
-  // to be a substring of a resource name — almost never true). The correct
+  // to be a substring of a resource name - almost never true). The correct
   // direction is: find resources whose NAME appears within the description.
   // We fetch candidate resources and filter in JS since Prisma can't express
   // "description contains name" as a WHERE clause.
