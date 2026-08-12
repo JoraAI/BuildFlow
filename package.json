@@ -8,7 +8,9 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "turbo run dev --filter=!@buildflow/mcp-server",
+    "dev:mcp": "pnpm --filter @buildflow/mcp-server dev",
+    "dev:kill": "bash -c 'for p in 4000 8081 8082 19000 19001; do fuser -k ${p}/tcp 2>/dev/null || true; done; pkill -f \"turbo run dev\" 2>/dev/null || true; pkill -f \"expo start\" 2>/dev/null || true; pkill -f \"tsx watch src/server\" 2>/dev/null || true; echo Ports/processes cleared'",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test",

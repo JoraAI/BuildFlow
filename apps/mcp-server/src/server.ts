@@ -47,10 +47,12 @@ async function main() {
   // ── Resolve identity from BUILDFLOW_TOKEN ──────────────────────────
   const token = process.env.BUILDFLOW_TOKEN;
   if (!token) {
-    console.error('ERROR: BUILDFLOW_TOKEN environment variable is required.');
-    console.error('Obtain a JWT by logging into BuildFlow and copying it from the auth store,');
-    console.error('or use the /api/auth/login endpoint to get one.');
-    process.exit(1);
+    console.error('[buildflow-mcp] Skipping: BUILDFLOW_TOKEN is not set.');
+    console.error('Set BUILDFLOW_TOKEN (JWT from /api/auth/login) to run the MCP server.');
+    console.error('Root `pnpm run dev` excludes this package; use `pnpm run dev:mcp` when needed.');
+    // Stay alive so `tsx watch` / turbo persistent tasks do not exit as failures.
+    await new Promise(() => {});
+    return;
   }
 
   console.error('[buildflow-mcp] Resolving identity...');

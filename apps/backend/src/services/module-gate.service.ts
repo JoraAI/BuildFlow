@@ -9,7 +9,13 @@
  * Construction plans (STARTER / PROFESSIONAL / ENTERPRISE) are never blocked.
  */
 import { prisma } from '../lib/prisma';
-import { isModuleEnabled, type AppModule } from '@buildflow/shared';
+import {
+  hasInventoryFeature,
+  isModuleEnabled,
+  type AppModule,
+  type InventoryFeatureFlag,
+  type SubscriptionPlanKey,
+} from '@buildflow/shared';
 import { ApiError } from '../utils/errors';
 
 /**
@@ -29,6 +35,28 @@ export async function assertModuleEnabled(
       'FORBIDDEN',
       `This feature is not included in your ${company.subscriptionPlan} plan. ` +
         `Upgrade to a construction plan to use ${module.replace(/_/g, ' ')}.`,
+    );
+  }
+}
+
+/**
+ * INVENTORY_HORIZONTAL_PLATFORM: assert a phase-gated inventory feature is
+ * enabled for the company's plan (see `hasInventoryFeature`). Throws 403 when
+ * the feature has not shipped for the plan (construction always blocked).
+ */
+export async function assertInventoryFeature(
+  companyId: string,
+  flag: InventoryFeatureFlag,
+): Promise<void> {
+  const company = await prisma.company.findUniqueOrThrow({
+    where: { id: companyId },
+    select: { subscriptionPlan: true },
+  });
+  const plan = company.subscriptionPlan as SubscriptionPlanKey;
+  if (!hasInventoryFeature(plan, flag)) {
+    throw new ApiError(
+      'FORBIDDEN',
+      `This inventory feature is not available on your ${plan} plan yet.`,
     );
   }
 }

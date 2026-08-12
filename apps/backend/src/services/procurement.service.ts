@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma';
-import { Prisma } from '@prisma/client';
+import { Prisma, type ApprovalStatus } from '@prisma/client';
 import { ApiError } from '../utils/errors';
 import {
   nextSequentialNumber,
@@ -7,17 +7,23 @@ import {
   resolveSequentialNumber,
 } from '../lib/id-generator';
 import { assertProjectAccess } from '../middleware/project-access.middleware';
+import { getDefaultProjectId } from './module-gate.service';
 import { getProject } from './project.service';
 import type {
   CreateRequisitionInput,
   CreatePurchaseOrderInput,
   CreateGrnInput,
   IssueStockInput,
+  AdjustStockInput,
+  OpeningStockImportInput,
 } from '@buildflow/shared';
+import { StockAdjustReason } from '@buildflow/shared';
 import { resolveRequisitionLineRate } from './material-rate.service';
 import { alertOnPurchaseOrderRateVariance } from './material-rate-alert.service';
 import { createDraftBillFromGrn } from './bill.service';
 import { createDraftInvoiceFromStockIssue } from './invoice.service';
+import { updateWacOnIn } from './finance.service';
+import { notifyLowStock, notifyPoRateAnomaly } from './inventory-alerts.service';
 import { logger } from '../config/logger';
 import {
   createDraftIndentsFromDemand,
@@ -33,17 +39,54 @@ function round2(n: number) {
   return Math.round(n * 100) / 100;
 }
 
-async function getOrCreateProjectStockLocation(
+function round4(n: number) {
+  return Math.round(n * 10000) / 10000;
+}
+
+export async function getOrCreateProjectStockLocation(
   companyId: string,
   projectId: string,
   tx: Pick<typeof prisma, 'stockLocation'>,
+  opts?: { locationId?: string },
 ) {
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.1): an explicit location wins.
+  if (opts?.locationId) {
+    const loc = await tx.stockLocation.findFirst({
+      where: { id: opts.locationId, companyId },
+    });
+    if (!loc) throw ApiError.notFound('Stock location not found');
+    return loc;
+  }
+  // Phase 3.1: inventory tenants resolve the company default location. The
+  // lazy-created first location for an inventory company becomes the default.
+  const isInventory =
+    (
+      await prisma.company.findUnique({
+        where: { id: companyId },
+        select: { subscriptionPlan: true },
+      })
+    )?.subscriptionPlan === 'INVENTORY';
+  if (isInventory) {
+    const def = await tx.stockLocation.findFirst({
+      where: { companyId, projectId, isDefault: true },
+    });
+    if (def) return def;
+    const any = await tx.stockLocation.findFirst({
+      where: { companyId, projectId },
+    });
+    if (any) return any;
+  }
   const existing = await tx.stockLocation.findFirst({
     where: { companyId, projectId },
   });
   if (existing) return existing;
   return tx.stockLocation.create({
-    data: { companyId, projectId, name: 'Site Store' },
+    data: {
+      companyId,
+      projectId,
+      name: isInventory ? 'Main Store' : 'Site Store',
+      isDefault: isInventory,
+    },
   });
 }
 
@@ -344,6 +387,28 @@ export async function createPO(
   // Generate poNumber server-side if not provided; sync counter when user keeps/overrides a sequential suggestion.
   const poNumber = await resolveSequentialNumber(companyId, 'po', input.poNumber);
 
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.4): simple approval thresholds for
+  // inventory POs. Off (0) by default → auto-approve like today. When enabled:
+  //   total <  poAutoApproveBelow → APPROVED (auto)
+  //   total <= poOwnerApproveAbove → SUBMITTED (manager approves)
+  //   total >  poOwnerApproveAbove → SUBMITTED (OWNER only, enforced in approve)
+  let poStatus: ApprovalStatus = 'APPROVED';
+  const company = await prisma.company.findUniqueOrThrow({
+    where: { id: companyId },
+    select: { subscriptionPlan: true, poAutoApproveBelow: true, poOwnerApproveAbove: true },
+  });
+  if (company.subscriptionPlan === 'INVENTORY' && Number(company.poAutoApproveBelow) > 0) {
+    const autoBelow = Number(company.poAutoApproveBelow);
+    const ownerAbove = Math.max(Number(company.poOwnerApproveAbove), autoBelow);
+    if (totalAmount < autoBelow) {
+      poStatus = 'APPROVED';
+    } else if (totalAmount <= ownerAbove) {
+      poStatus = 'SUBMITTED';
+    } else {
+      poStatus = 'SUBMITTED';
+    }
+  }
+
   let po;
   try {
     po = await prisma.purchaseOrder.create({
@@ -354,11 +419,9 @@ export async function createPO(
         poNumber,
         vendorName: input.vendorName,
         totalAmount,
-        // FIX (PROCGRN-1): PO is created from an already-approved requisition,
-        // so it starts as APPROVED — no separate PO approval step needed.
-        // Without this, the GRN endpoint rejects with "Cannot create GRN
-        // against a PO with status DRAFT" because the schema defaults to DRAFT.
-        status: 'APPROVED',
+        // POs are created from an already-approved requisition, so they start
+        // APPROVED for construction; inventory applies the 4.4 banding above.
+        status: poStatus,
         lines: { create: lines },
       },
       include: { lines: { include: { resource: { select: { id: true, name: true } } } } },
@@ -385,6 +448,14 @@ export async function createPO(
     logger.warn('PO rate alert failed (non-fatal)', { error: String(err) }),
   );
 
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.5): in-app anomaly alert (inventory only).
+  void notifyPoRateAnomaly(companyId, {
+    poId: po.id,
+    poNumber: po.poNumber,
+    vendorName: po.vendorName,
+    lines: input.lines.map((l) => ({ resourceId: l.resourceId, rate: l.rate })),
+  }).catch((err) => logger.warn('Inventory PO rate notify failed (non-fatal)', { error: String(err) }));
+
   return po;
 }
 
@@ -400,6 +471,56 @@ export async function getNextDocumentNumbers(
     peekNextSequentialNumber(companyId, 'grn'),
   ]);
   return { po, grn };
+}
+
+/**
+ * INVENTORY_HORIZONTAL_PLATFORM (Phase 4.4): approve a SUBMITTED inventory PO.
+ *
+ * Banding (enabled when poAutoApproveBelow > 0):
+ *   - total ≤ poOwnerApproveAbove → manager approval (OWNER/PM/INVENTORY_MANAGER)
+ *   - total >  poOwnerApproveAbove → OWNER only (403 otherwise)
+ * Construction POs are always created APPROVED, so this returns 400 for them —
+ * the construction Draft→Submit→Approve path is unchanged.
+ */
+export async function approvePurchaseOrder(
+  companyId: string,
+  userId: string,
+  role: string,
+  projectId: string,
+  poId: string,
+) {
+  await assertProjectAccess(companyId, userId, role as never, projectId, [
+    'OWNER',
+    'PM',
+    'INVENTORY_MANAGER',
+  ]);
+
+  const po = await prisma.purchaseOrder.findFirst({
+    where: { id: poId, companyId, projectId },
+  });
+  if (!po) throw ApiError.notFound('Purchase order not found');
+  if (po.status !== 'SUBMITTED') {
+    throw ApiError.badRequest(`Only submitted purchase orders can be approved (current: ${po.status}).`);
+  }
+
+  const company = await prisma.company.findUniqueOrThrow({
+    where: { id: companyId },
+    select: { subscriptionPlan: true, poAutoApproveBelow: true, poOwnerApproveAbove: true },
+  });
+  if (company.subscriptionPlan === 'INVENTORY' && Number(company.poAutoApproveBelow) > 0) {
+    const ownerAbove = Math.max(Number(company.poOwnerApproveAbove), Number(company.poAutoApproveBelow));
+    if (Number(po.totalAmount) > ownerAbove && role !== 'OWNER') {
+      throw ApiError.forbidden(
+        'This purchase order exceeds your approval authority — only the owner can approve it.',
+      );
+    }
+  }
+
+  return prisma.purchaseOrder.update({
+    where: { id: poId },
+    data: { status: 'APPROVED' },
+    include: { lines: { include: { resource: { select: { id: true, name: true } } } } },
+  });
 }
 
 export async function createGRN(
@@ -471,6 +592,39 @@ export async function createGRN(
 
   const grnNumber = await resolveSequentialNumber(companyId, 'grn', input.grnNumber);
 
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.1): landed cost allocation. Extra
+  // acquisition costs (freight/insurance/handling/customs) are added to the PO
+  // rate per line, allocated by quantity (default) or by line value.
+  const landedCosts = {
+    freightCost: input.freightCost ?? 0,
+    insuranceCost: input.insuranceCost ?? 0,
+    handlingCost: input.handlingCost ?? 0,
+    customsCost: input.customsCost ?? 0,
+  };
+  const totalExtra = landedCosts.freightCost + landedCosts.insuranceCost + landedCosts.handlingCost + landedCosts.customsCost;
+  const allocation = input.landedCostAllocation ?? 'QUANTITY';
+  const unitCostByResource = new Map<string, number>();
+  if (totalExtra > 0 && allocation === 'VALUE') {
+    const totalValue = input.lines.reduce(
+      (s, l) => s + Number(poLineByResource.get(l.resourceId)?.rate ?? 0) * l.quantity,
+      0,
+    );
+    for (const l of input.lines) {
+      const poRate = Number(poLineByResource.get(l.resourceId)?.rate ?? 0);
+      const share = totalValue > 0 ? totalExtra * ((poRate * l.quantity) / totalValue) : 0;
+      unitCostByResource.set(l.resourceId, poRate + (l.quantity > 0 ? share / l.quantity : 0));
+    }
+  } else {
+    const totalQty = input.lines.reduce((s, l) => s + l.quantity, 0);
+    const extraPerUnit = totalQty > 0 ? totalExtra / totalQty : 0;
+    for (const l of input.lines) {
+      unitCostByResource.set(
+        l.resourceId,
+        Number(poLineByResource.get(l.resourceId)?.rate ?? 0) + extraPerUnit,
+      );
+    }
+  }
+
   let grn;
   try {
     grn = await prisma.$transaction(async (tx) => {
@@ -482,12 +636,25 @@ export async function createGRN(
         grnNumber,
         receivedDate: input.receivedDate,
         notes: input.notes,
-        lines: { create: input.lines },
+        // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.1): landed cost metadata.
+        freightCost: landedCosts.freightCost,
+        insuranceCost: landedCosts.insuranceCost,
+        handlingCost: landedCosts.handlingCost,
+        customsCost: landedCosts.customsCost,
+        landedCostAllocation: allocation,
+        lines: {
+          create: input.lines.map((l) => ({
+            ...l,
+            unitCost: unitCostByResource.get(l.resourceId) ?? 0,
+          })),
+        },
       },
       include: { lines: true },
     });
 
-    const location = await getOrCreateProjectStockLocation(companyId, projectId, tx);
+    const location = await getOrCreateProjectStockLocation(companyId, projectId, tx, {
+      locationId: input.locationId,
+    });
 
     for (const line of input.lines) {
       const balance = await tx.stockBalance.findUnique({
@@ -495,6 +662,7 @@ export async function createGRN(
           locationId_resourceId: { locationId: location.id, resourceId: line.resourceId },
         },
       });
+      const unitCost = unitCostByResource.get(line.resourceId) ?? 0;
 
       if (balance) {
         await tx.stockBalance.update({
@@ -519,8 +687,21 @@ export async function createGRN(
           type: 'IN',
           referenceType: 'GRN',
           referenceId: created.id,
+          // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.1/5.2): cost metadata + WAC.
+          unitCost,
+          inventoryValue: round2(unitCost * line.quantity),
+          // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3): optional batch / lot code.
+          batchCode: line.batchCode,
         },
       });
+
+      await updateWacOnIn(
+        tx,
+        line.resourceId,
+        balance ? Number(balance.quantity) : 0,
+        line.quantity,
+        unitCost,
+      );
     }
 
     // FIX (EST-H4): Apportion GRN quantity across ALL matching requisition lines
@@ -746,7 +927,7 @@ export async function issueStockManual(
   await assertProjectAccess(companyId, userId, role as never, projectId);
 
   // Normalize legacy single-resource body to the multi-line shape.
-  const rawLines: Array<{ resourceId: string; quantity: number; unitPrice?: number }> =
+  const rawLines: Array<{ resourceId: string; quantity: number; unitPrice?: number; batchCode?: string }> =
     input.lines && input.lines.length > 0
       ? input.lines
       : [
@@ -754,6 +935,7 @@ export async function issueStockManual(
             resourceId: input.resourceId!,
             quantity: input.quantity!,
             unitPrice: input.unitPrice,
+            batchCode: (input as { batchCode?: string }).batchCode,
           },
         ];
 
@@ -768,7 +950,7 @@ export async function issueStockManual(
 
   const resources = await prisma.resource.findMany({
     where: { id: { in: rawLines.map((l) => l.resourceId) }, companyId },
-    select: { id: true, name: true, unit: true },
+    select: { id: true, name: true, unit: true, avgCost: true, reorderPoint: true },
   });
   const resourceById = new Map(resources.map((r) => [r.id, r]));
   for (const l of rawLines) {
@@ -776,7 +958,9 @@ export async function issueStockManual(
   }
 
   const lineResults = await prisma.$transaction(async (tx) => {
-    const location = await getOrCreateProjectStockLocation(companyId, projectId, tx);
+    const location = await getOrCreateProjectStockLocation(companyId, projectId, tx, {
+      locationId: input.locationId,
+    });
     const results: IssueStockLineResult[] = [];
     for (const l of rawLines) {
       const resource = resourceById.get(l.resourceId)!;
@@ -809,6 +993,11 @@ export async function issueStockManual(
           type: 'OUT',
           referenceType: 'MANUAL_ISSUE',
           referenceId: null,
+          // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.2): cost at WAC.
+          unitCost: Number(resource.avgCost ?? 0),
+          inventoryValue: round2(Number(resource.avgCost ?? 0) * l.quantity),
+          // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3): optional batch / lot code.
+          batchCode: l.batchCode,
         },
       });
 
@@ -834,6 +1023,7 @@ export async function issueStockManual(
     const draft = await createDraftInvoiceFromStockIssue({
       companyId,
       projectId,
+      customerId: input.customerId,
       customerName: input.customerName,
       customerPhone: input.customerPhone,
       customerAddress: input.customerAddress,
@@ -853,6 +1043,22 @@ export async function issueStockManual(
     });
   }
 
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.5): low-stock alert when an issue
+  // pushes an item below its reorder point (inventory only, non-fatal).
+  void notifyLowStock(
+    companyId,
+    lineResults.map((r) => {
+      const res = resourceById.get(r.resourceId);
+      return {
+        resourceId: r.resourceId,
+        name: r.resourceName,
+        unit: res?.unit ?? null,
+        onHand: r.quantityOnHand,
+        reorderPoint: Number(res?.reorderPoint ?? 0),
+      };
+    }),
+  ).catch((err) => logger.warn('Low-stock notify failed (non-fatal)', { error: String(err) }));
+
   return {
     ...first,
     movementIds: lineResults.map((r) => r.movementId),
@@ -862,6 +1068,210 @@ export async function issueStockManual(
     customerPhone: input.customerPhone?.trim() || null,
     customerAddress: input.customerAddress?.trim() || null,
     draftInvoiceId,
+  };
+}
+
+export async function adjustStock(
+  companyId: string,
+  userId: string,
+  role: string,
+  input: AdjustStockInput,
+) {
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.3): gated to INVENTORY plan by the
+  // `stock_adjustments` feature flag at the route layer. Uses the single default
+  // STORE project (inventory has no project picker).
+  const projectId = await getDefaultProjectId(companyId);
+  if (!projectId) throw ApiError.forbidden('Stock adjustments are not available on this plan.');
+  await assertProjectAccess(companyId, userId, role as never, projectId);
+
+  const resource = await prisma.resource.findFirst({
+    where: { id: input.resourceId, companyId },
+    select: { id: true, name: true, unit: true, avgCost: true },
+  });
+  if (!resource) throw ApiError.notFound('Resource not found');
+
+  return prisma.$transaction(async (tx) => {
+    const location = await getOrCreateProjectStockLocation(companyId, projectId, tx, {
+      locationId: input.locationId,
+    });
+    const balance = await tx.stockBalance.findUnique({
+      where: {
+        locationId_resourceId: { locationId: location.id, resourceId: input.resourceId },
+      },
+    });
+    const onHand = balance ? Number(balance.quantity) : 0;
+    const newOnHand = round3(onHand + input.delta);
+    if (newOnHand < 0) {
+      throw ApiError.unprocessable(
+        `${resource.name}: adjustment would leave ${newOnHand} ${resource.unit} on hand ` +
+          `(currently ${onHand} ${resource.unit}, delta ${input.delta}).`,
+      );
+    }
+
+    const movement = await tx.stockMovement.create({
+      data: {
+        locationId: location.id,
+        resourceId: input.resourceId,
+        quantity: Math.abs(input.delta),
+        type: 'ADJUST',
+        referenceType: 'STOCK_ADJUSTMENT',
+        referenceId: null,
+        reason: input.reason,
+        notes: input.notes?.trim() || null,
+        // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.2): carry current WAC metadata.
+        unitCost: Number(resource.avgCost ?? 0),
+        inventoryValue: round2(Number(resource.avgCost ?? 0) * Math.abs(input.delta)),
+      },
+    });
+
+    if (!balance) {
+      await tx.stockBalance.create({
+        data: {
+          locationId: location.id,
+          resourceId: input.resourceId,
+          quantity: newOnHand,
+        },
+      });
+    } else {
+      await tx.stockBalance.update({
+        where: { id: balance.id },
+        data: { quantity: newOnHand },
+      });
+    }
+
+    return {
+      movementId: movement.id,
+      resourceId: resource.id,
+      resourceName: resource.name,
+      unit: resource.unit,
+      delta: input.delta,
+      previousOnHand: onHand,
+      quantityOnHand: newOnHand,
+      reason: input.reason,
+      notes: input.notes?.trim() || null,
+    };
+  });
+}
+
+export async function importOpeningStock(
+  companyId: string,
+  userId: string,
+  role: string,
+  input: OpeningStockImportInput,
+) {
+  // Phase 1.4 — opening stock import. Also gated to INVENTORY (STORE project).
+  const projectId = await getDefaultProjectId(companyId);
+  if (!projectId) throw ApiError.forbidden('Opening stock import is not available on this plan.');
+  await assertProjectAccess(companyId, userId, role as never, projectId);
+
+  // Resolve each line to a company resource by id / sku / itemCode / name.
+  const resolved: Array<{ resourceId: string; quantity: number; rate?: number; key: string }> = [];
+  const missed: Array<{ key: string; reason: string }> = [];
+  for (const [i, line] of input.lines.entries()) {
+    const key = `line ${i + 1} (${line.sku ?? line.itemCode ?? line.name ?? line.resourceId ?? '?'})`;
+    const resource = await prisma.resource.findFirst({
+      where: {
+        companyId,
+        isDeleted: false,
+        ...(line.resourceId
+          ? { id: line.resourceId }
+          : line.sku
+            ? { sku: line.sku }
+            : line.itemCode
+              ? { itemCode: line.itemCode }
+              : { name: line.name! }),
+      },
+      select: { id: true, name: true, unit: true },
+    });
+    if (!resource) {
+      missed.push({ key, reason: 'item not found in catalog' });
+      continue;
+    }
+    resolved.push({ resourceId: resource.id, quantity: line.quantity, rate: line.rate, key });
+  }
+  if (missed.length > 0 && resolved.length === 0) {
+    throw ApiError.unprocessable(
+      `Opening stock import failed — no items matched. ${missed.map((m) => m.key).join('; ')}`,
+    );
+  }
+
+  const applied: Array<{ resourceId: string; resourceName: string; unit: string; delta: number; quantityOnHand: number }> = [];
+
+  await prisma.$transaction(async (tx) => {
+    const location = await getOrCreateProjectStockLocation(companyId, projectId, tx, {
+      locationId: input.locationId,
+    });
+    for (const item of resolved) {
+      if (item.rate !== undefined) {
+        await tx.resource.update({
+          where: { id: item.resourceId },
+          data: { rate: item.rate },
+        });
+      }
+      const balance = await tx.stockBalance.findUnique({
+        where: {
+          locationId_resourceId: { locationId: location.id, resourceId: item.resourceId },
+        },
+      });
+      const onHand = balance ? Number(balance.quantity) : 0;
+      const delta = round3(item.quantity - onHand);
+      const resource = await tx.resource.findUniqueOrThrow({
+        where: { id: item.resourceId },
+        select: { name: true, unit: true, avgCost: true },
+      });
+      // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.1/5.2): opening stock cost = the
+      // per-line rate when supplied, else the current average cost.
+      const unitCost = item.rate !== undefined ? item.rate : Number(resource.avgCost ?? 0);
+      if (Math.abs(delta) > 0.0001) {
+        await tx.stockMovement.create({
+          data: {
+            locationId: location.id,
+            resourceId: item.resourceId,
+            quantity: Math.abs(delta),
+            type: 'ADJUST',
+            referenceType: 'OPENING_STOCK',
+            referenceId: null,
+            reason: StockAdjustReason.OPENING_STOCK,
+            notes: `Opening stock import · ${item.key}`,
+            unitCost,
+            inventoryValue: round2(unitCost * Math.abs(delta)),
+          },
+        });
+        if (!balance) {
+          await tx.stockBalance.create({
+            data: {
+              locationId: location.id,
+              resourceId: item.resourceId,
+              quantity: item.quantity,
+            },
+          });
+        } else {
+          await tx.stockBalance.update({
+            where: { id: balance.id },
+            data: { quantity: item.quantity },
+          });
+        }
+        // Only positive opening stock moves the WAC (adds cost); reductions
+        // (delta < 0) leave the running average unchanged.
+        if (delta > 0) {
+          await updateWacOnIn(tx, item.resourceId, onHand, delta, unitCost);
+        }
+      }
+      applied.push({
+        resourceId: item.resourceId,
+        resourceName: resource.name,
+        unit: resource.unit,
+        delta,
+        quantityOnHand: round3(item.quantity),
+      });
+    }
+  });
+
+  return {
+    applied: applied.length,
+    missed: missed.length,
+    lines: applied,
+    unmatched: missed,
   };
 }
 
@@ -924,11 +1334,12 @@ export async function listStock(
   userId: string,
   role: string,
   projectId: string,
+  opts: { locationId?: string } = {},
 ) {
   await assertProjectAccess(companyId, userId, role as never, projectId);
 
   const locations = await prisma.stockLocation.findMany({
-    where: { companyId, projectId },
+    where: { companyId, projectId, ...(opts.locationId ? { id: opts.locationId } : {}) },
     include: {
       balances: {
         include: { resource: { select: { id: true, name: true, unit: true } } },
@@ -949,9 +1360,14 @@ export interface StockSummaryRow {
   unit: string;
   /** Catalog / list rate — suggested selling price for Issue. */
   catalogRate: number;
+  /** Low-stock threshold (Phase 1.5): balance below this = needs reorder. */
+  reorderPoint: number;
   received: number;
   issued: number;
   balance: number;
+  /** INVENTORY_HORIZONTAL_PLATFORM (Phase 5.2): WAC unit cost + inventory value. */
+  unitCost: number;
+  inventoryValue: number;
 }
 
 export async function getStockSummary(
@@ -959,11 +1375,12 @@ export async function getStockSummary(
   userId: string,
   role: string,
   projectId: string,
+  opts: { locationId?: string } = {},
 ): Promise<StockSummaryRow[]> {
   await assertProjectAccess(companyId, userId, role as never, projectId);
 
   const locations = await prisma.stockLocation.findMany({
-    where: { companyId, projectId },
+    where: { companyId, projectId, ...(opts.locationId ? { id: opts.locationId } : {}) },
     select: { id: true },
   });
   const locationIds = locations.map((l) => l.id);
@@ -972,20 +1389,31 @@ export async function getStockSummary(
   const [movements, balances] = await Promise.all([
     prisma.stockMovement.findMany({
       where: { locationId: { in: locationIds } },
-      include: { resource: { select: { id: true, name: true, unit: true, rate: true } } },
+      include: { resource: { select: { id: true, name: true, unit: true, rate: true, reorderPoint: true, avgCost: true } } },
     }),
     prisma.stockBalance.findMany({
       where: { locationId: { in: locationIds } },
-      include: { resource: { select: { id: true, name: true, unit: true, rate: true } } },
+      include: { resource: { select: { id: true, name: true, unit: true, rate: true, reorderPoint: true, avgCost: true } } },
     }),
   ]);
 
   const map = new Map<string, StockSummaryRow>();
 
-  const ensure = (resourceId: string, name: string, unit: string, catalogRate: number) => {
+  const ensure = (resourceId: string, name: string, unit: string, catalogRate: number, reorderPoint: number, avgCost: number) => {
     let row = map.get(resourceId);
     if (!row) {
-      row = { resourceId, name, unit, catalogRate, received: 0, issued: 0, balance: 0 };
+      row = {
+        resourceId,
+        name,
+        unit,
+        catalogRate,
+        reorderPoint,
+        received: 0,
+        issued: 0,
+        balance: 0,
+        unitCost: avgCost,
+        inventoryValue: 0,
+      };
       map.set(resourceId, row);
     }
     return row;
@@ -993,7 +1421,8 @@ export async function getStockSummary(
 
   for (const m of movements) {
     const rate = Number(m.resource.rate) || 0;
-    const row = ensure(m.resourceId, m.resource.name, m.resource.unit, rate);
+    const reorder = Number(m.resource.reorderPoint) || 0;
+    const row = ensure(m.resourceId, m.resource.name, m.resource.unit, rate, reorder, Number(m.resource.avgCost) || 0);
     const qty = Number(m.quantity);
     if (m.type === 'IN') row.received += qty;
     else if (m.type === 'OUT') row.issued += qty;
@@ -1001,8 +1430,11 @@ export async function getStockSummary(
 
   for (const b of balances) {
     const rate = Number(b.resource.rate) || 0;
-    const row = ensure(b.resourceId, b.resource.name, b.resource.unit, rate);
+    const reorder = Number(b.resource.reorderPoint) || 0;
+    const avgCost = Number(b.resource.avgCost) || 0;
+    const row = ensure(b.resourceId, b.resource.name, b.resource.unit, rate, reorder, avgCost);
     row.balance += Number(b.quantity);
+    row.unitCost = avgCost;
   }
 
   return Array.from(map.values())
@@ -1013,6 +1445,8 @@ export async function getStockSummary(
       received: round3(r.received),
       issued: round3(r.issued),
       balance: round3(r.balance),
+      unitCost: round4(r.unitCost),
+      inventoryValue: round2(r.unitCost * r.balance),
     }));
 }
 
@@ -1026,6 +1460,9 @@ export interface StockMovementRow {
   referenceId: string | null;
   referenceLabel: string | null;
   locationName: string;
+  /** INVENTORY_HORIZONTAL_PLATFORM (Phase 1.3): adjustment audit. */
+  reason: string | null;
+  notes: string | null;
 }
 
 export async function listStockMovements(
@@ -1033,14 +1470,14 @@ export async function listStockMovements(
   userId: string,
   role: string,
   projectId: string,
-  opts: { resourceId?: string; limit?: number } = {},
+  opts: { resourceId?: string; locationId?: string; limit?: number } = {},
 ): Promise<StockMovementRow[]> {
   await assertProjectAccess(companyId, userId, role as never, projectId);
 
   const limit = Math.min(Math.max(opts.limit ?? 50, 1), 100);
 
   const locations = await prisma.stockLocation.findMany({
-    where: { companyId, projectId },
+    where: { companyId, projectId, ...(opts.locationId ? { id: opts.locationId } : {}) },
     select: { id: true, name: true },
   });
   const locationIds = locations.map((l) => l.id);
@@ -1101,6 +1538,22 @@ export async function listStockMovements(
       referenceLabel = date ? `Daily report · ${date}` : 'Daily report';
     } else if (m.referenceType === 'MANUAL_ISSUE') {
       referenceLabel = 'Stock issue';
+    } else if (m.referenceType === 'STOCK_ADJUSTMENT') {
+      referenceLabel = m.reason ? `Adjustment · ${m.reason.replace(/_/g, ' ')}` : 'Stock adjustment';
+    } else if (m.referenceType === 'OPENING_STOCK') {
+      referenceLabel = 'Opening stock';
+    } else if (m.referenceType === 'TRANSFER_OUT') {
+      referenceLabel = 'Transfer out';
+    } else if (m.referenceType === 'TRANSFER_IN') {
+      referenceLabel = 'Transfer in';
+    } else if (m.referenceType === 'DELIVERY_CHALLAN') {
+      referenceLabel = 'Dispatch / challan';
+    } else if (m.referenceType === 'SALES_RETURN') {
+      referenceLabel = 'Sales return';
+    } else if (m.referenceType === 'PURCHASE_RETURN') {
+      referenceLabel = 'Purchase return';
+    } else if (m.referenceType === 'STOCK_COUNT') {
+      referenceLabel = 'Stock count';
     }
 
     return {
@@ -1113,6 +1566,10 @@ export async function listStockMovements(
       referenceId: m.referenceId,
       referenceLabel,
       locationName: locationNameById.get(m.locationId) ?? '',
+      reason: m.reason,
+      notes: m.notes,
+      // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3): batch / lot code on history.
+      batchCode: m.batchCode,
     };
   });
 }

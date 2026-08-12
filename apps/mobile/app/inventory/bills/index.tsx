@@ -12,8 +12,10 @@ import { useViewport } from '@/hooks/useViewport';
 import { ProjectBillsList } from '@/components/accounting/InvoiceBillLists';
 import { downloadTallyXml } from '@/services/report-download';
 import { useCreateBill, type Bill } from '@/services/accounting.queries';
+import { useVendors, type PartyRow } from '@/services/party.queries';
 import { toast } from '@/components/ui';
 import { inventoryBillDetailHref } from '@/utils/navigation';
+import { ScanInvoiceModal } from '@/components/inventory/ScanInvoiceModal';
 
 const BILL_CATEGORIES = [
   { title: 'Material', value: 'MATERIAL' },
@@ -28,6 +30,7 @@ export default function InventoryBillsScreen() {
   const { isPhone } = useViewport();
   const projectId = user?.defaultProjectId ?? '';
   const [createOpen, setCreateOpen] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
   const createBill = useCreateBill();
 
   return (
@@ -48,6 +51,12 @@ export default function InventoryBillsScreen() {
             onPress={() => {
               if (projectId) void downloadTallyXml(projectId);
             }}
+          />
+          <Button
+            label="Scan invoice"
+            variant="secondary"
+            size="sm"
+            onPress={() => setScanOpen(true)}
           />
           <Button label="New bill" variant="accent" size="sm" onPress={() => setCreateOpen(true)} />
         </View>
@@ -73,6 +82,7 @@ export default function InventoryBillsScreen() {
           setCreateOpen(false);
         }}
       />
+      <ScanInvoiceModal open={scanOpen} onClose={() => setScanOpen(false)} />
     </View>
   );
 }
@@ -85,6 +95,7 @@ function NewBillModal({
   open: boolean;
   onClose: () => void;
   onSubmit: (input: {
+    vendorId?: string;
     vendorName: string;
     billNumber: string;
     billDate: string;
@@ -95,6 +106,8 @@ function NewBillModal({
   }) => Promise<void>;
 }) {
   const { isPhone } = useViewport();
+  const { data: vendors } = useVendors();
+  const [vendorId, setVendorId] = useState('');
   const [vendorName, setVendorName] = useState('');
   const [billNumber, setBillNumber] = useState('');
   const [billDate, setBillDate] = useState(new Date().toISOString().slice(0, 10));
@@ -115,6 +128,8 @@ function NewBillModal({
     try {
       const gstAmount = (Number(subtotal) * Number(gstRate || 0)) / 100;
       await onSubmit({
+        // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.1): optional party-master link.
+        ...(vendorId ? { vendorId } : {}),
         vendorName,
         billNumber,
         billDate,
@@ -123,6 +138,7 @@ function NewBillModal({
         subtotal: Number(subtotal),
         gstAmount: gstAmount > 0 ? gstAmount : undefined,
       });
+      setVendorId('');
       setVendorName('');
       setBillNumber('');
       setSubtotal('');
@@ -157,6 +173,19 @@ function NewBillModal({
             </Pressable>
           </View>
           <ScrollView className="p-5">
+            <Select
+              label="Vendor (optional — from Parties)"
+              value={vendorId || undefined}
+              onChange={(v) => {
+                setVendorId(v ?? '');
+                const vd = (vendors ?? []).find((x: PartyRow) => x.id === v);
+                if (vd) setVendorName(vd.name);
+              }}
+              options={(vendors ?? [])
+                .filter((x: PartyRow) => x.isActive)
+                .map((x: PartyRow) => ({ title: x.name, subtitle: [x.phone, x.gstin].filter(Boolean).join(' · '), value: x.id }))}
+              placeholder="Pick a saved vendor"
+            />
             <Input label="Vendor name" value={vendorName} onChangeText={setVendorName} />
             <Input
               label="Bill number"

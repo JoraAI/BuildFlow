@@ -22,11 +22,25 @@ const server = app.listen(env.PORT, () => {
   startReportScheduleCron();
 });
 
+let shuttingDown = false;
+
 async function shutdown(signal: string): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
   logger.info(`Received ${signal}, shutting down gracefully...`);
-  server.close(() => logger.info('HTTP server closed'));
+  await new Promise<void>((resolve) => {
+    server.close(() => {
+      logger.info('HTTP server closed');
+      resolve();
+    });
+  });
   await Promise.allSettled([disconnectPrisma(), disconnectRedis()]);
-  process.exit(0);
+  // Exit only for interactive stop (Ctrl+C). Under `tsx watch`, SIGTERM is used
+  // for hot-reload — calling process.exit here can leave the watcher with no
+  // child and nothing listening on :4000 (UI stays up; create-store then fails).
+  if (signal === 'SIGINT') {
+    process.exit(0);
+  }
 }
 
 process.on('SIGINT', () => void shutdown('SIGINT'));
@@ -37,5 +51,9 @@ process.on('unhandledRejection', (reason) => {
 });
 process.on('uncaughtException', (err) => {
   logger.error('Uncaught exception', { error: err.message, stack: err.stack });
-  process.exit(1);
+  // In development, keep the process alive so `tsx watch` can recover on the
+  // next change instead of leaving a dead watcher with no listener on :4000.
+  if (env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
 });

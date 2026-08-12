@@ -6,12 +6,13 @@
  */
 import React, { useState } from 'react';
 import { View, Text, ScrollView, Modal, Pressable } from 'react-native';
-import { Button, Input } from '@/components/ui';
+import { Button, Input, Select } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
 import { ProjectInvoicesList } from '@/components/accounting/InvoiceBillLists';
 import { downloadTallyXml } from '@/services/report-download';
 import { useCreateInvoice } from '@/services/accounting.queries';
+import { useCustomers, type PartyRow } from '@/services/party.queries';
 import { toast } from '@/components/ui';
 import { inventoryInvoiceDetailHref } from '@/utils/navigation';
 
@@ -56,7 +57,11 @@ export default function InventoryInvoicesScreen() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onSubmit={async (input) => {
-          await createInvoice.mutateAsync({ ...input, projectId });
+          const inv = (await createInvoice.mutateAsync({ ...input, projectId })) as
+            | { creditLimitWarning?: string }
+            | undefined;
+          // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): WARN policy surfaces a toast.
+          if (inv?.creditLimitWarning) toast.warning(inv.creditLimitWarning);
           toast.success('Invoice created');
           setCreateOpen(false);
         }}
@@ -73,6 +78,7 @@ function NewInvoiceModal({
   open: boolean;
   onClose: () => void;
   onSubmit: (input: {
+    customerId?: string;
     clientName: string;
     clientPhone?: string;
     clientAddress?: string;
@@ -82,6 +88,8 @@ function NewInvoiceModal({
   }) => Promise<void>;
 }) {
   const { isPhone } = useViewport();
+  const { data: customers } = useCustomers();
+  const [customerId, setCustomerId] = useState('');
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [clientAddress, setClientAddress] = useState('');
@@ -104,6 +112,8 @@ function NewInvoiceModal({
     setSaving(true);
     try {
       await onSubmit({
+        // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.1): optional party-master link.
+        ...(customerId ? { customerId } : {}),
         clientName,
         clientPhone: clientPhone.trim() || undefined,
         clientAddress: clientAddress.trim() || undefined,
@@ -113,6 +123,7 @@ function NewInvoiceModal({
           { description, quantity: Number(quantity), unit, rate: Number(rate), gstRate: Number(gstRate) || 0 },
         ],
       });
+      setCustomerId('');
       setClientName('');
       setClientPhone('');
       setClientAddress('');
@@ -150,6 +161,23 @@ function NewInvoiceModal({
             </Pressable>
           </View>
           <ScrollView className="p-5">
+            <Select
+              label="Customer (optional — from Parties)"
+              value={customerId || undefined}
+              onChange={(v) => {
+                setCustomerId(v ?? '');
+                const c = (customers ?? []).find((x: PartyRow) => x.id === v);
+                if (c) {
+                  setClientName(c.name);
+                  setClientPhone(c.phone ?? '');
+                  setClientAddress(c.billingAddress ?? '');
+                }
+              }}
+              options={(customers ?? [])
+                .filter((c: PartyRow) => c.isActive)
+                .map((c: PartyRow) => ({ title: c.name, subtitle: [c.phone, c.gstin].filter(Boolean).join(' · '), value: c.id }))}
+              placeholder="Pick a saved customer"
+            />
             <Input label="Client name" value={clientName} onChangeText={setClientName} />
             <Input
               label="Phone (optional)"

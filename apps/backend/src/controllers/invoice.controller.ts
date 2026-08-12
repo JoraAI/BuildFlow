@@ -1,7 +1,7 @@
 /**
  * BuildFlow - Invoice controller (thin handlers).
  */
-import type { Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import * as invoiceService from '../services/invoice.service';
 import { ok, created } from '../utils/response';
 import { recordAudit } from '../utils/audit';
@@ -25,20 +25,26 @@ export async function get(req: Request, res: Response) {
   return ok(res, data);
 }
 
-export async function create(req: Request, res: Response) {
-  const { companyId, id: userId } = req.user!;
-  const projectId = (req.body.projectId as string | undefined) ?? (req.params.id as string | undefined);
-  const data = await invoiceService.createInvoice(companyId, userId, { ...req.body, projectId });
-  await recordAudit({
-    companyId,
-    userId,
-    action: 'CREATE',
-    entityType: 'Invoice',
-    entityId: data.id,
-    newValue: { invoiceNumber: data.invoiceNumber, total: data.total },
-    ipAddress: req.ip,
-  });
-  return created(res, data);
+export async function create(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { companyId, id: userId } = req.user!;
+    const projectId = (req.body.projectId as string | undefined) ?? (req.params.id as string | undefined);
+    const data = await invoiceService.createInvoice(companyId, userId, { ...req.body, projectId });
+    await recordAudit({
+      companyId,
+      userId,
+      action: 'CREATE',
+      entityType: 'Invoice',
+      entityId: data.id,
+      newValue: { invoiceNumber: data.invoiceNumber, total: data.total },
+      ipAddress: req.ip,
+    });
+    // FIX: createInvoice can now throw (e.g. Phase 2.5 credit-limit BLOCK) — the
+    // invoice routes don't use asyncHandler, so route errors through next().
+    return created(res, data);
+  } catch (err) {
+    return next(err);
+  }
 }
 
 export async function update(req: Request, res: Response) {

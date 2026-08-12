@@ -137,6 +137,56 @@ enum StockMovementType {
   ADJUST
 }
 
+/// INVENTORY_HORIZONTAL_PLATFORM (Phase 2): transaction engine enums.
+enum SalesOrderStatus {
+  DRAFT
+  CONFIRMED
+  DELIVERED
+  INVOICED
+  CANCELLED
+}
+
+enum DeliveryChallanStatus {
+  DRAFT
+  DISPATCHED
+  DELIVERED
+  CANCELLED
+}
+
+/// Line-level condition when goods come back from a customer.
+enum ReturnKind {
+  GOOD
+  DAMAGED
+}
+
+enum NoteStatus {
+  DRAFT
+  ISSUED
+  VOID
+}
+
+/// Customer credit-limit enforcement policy (Phase 2.5).
+enum CreditLimitPolicy {
+  ALLOW
+  WARN
+  BLOCK
+}
+
+/// INVENTORY_HORIZONTAL_PLATFORM (Phase 3.2): inter-location stock transfer.
+enum TransferOrderStatus {
+  DRAFT
+  IN_TRANSIT
+  RECEIVED
+  CANCELLED
+}
+
+/// INVENTORY_HORIZONTAL_PLATFORM (Phase 3.3): stock-count / stocktake workflow.
+enum StockCountStatus {
+  DRAFT
+  APPROVED
+  CANCELLED
+}
+
 enum WorkOrderStatus {
   DRAFT
   ACTIVE
@@ -178,6 +228,18 @@ enum SubscriptionPlan {
   STARTER
   PROFESSIONAL
   ENTERPRISE
+}
+
+/// INVENTORY_HORIZONTAL_PLATFORM (Phase 0): optional business profile for
+/// inventory tenants (drives terminology + future phase branches).
+enum InventoryBusinessProfile {
+  RETAIL
+  WHOLESALE
+  DISTRIBUTION
+  TRADING
+  MATERIAL_SUPPLIER
+  EQUIPMENT
+  GENERAL
 }
 
 enum SubscriptionStatus {
@@ -247,6 +309,22 @@ model Company {
   defaultProjectId String?   @unique @map("default_project_id") @db.Uuid
   defaultProject   Project?  @relation("CompanyDefaultProject", fields: [defaultProjectId], references: [id], onDelete: SetNull)
 
+  /// INVENTORY_HORIZONTAL_PLATFORM (Phase 0): optional business profile —
+  /// RETAIL/WHOLESALE/DISTRIBUTION/TRADING/MATERIAL_SUPPLIER/EQUIPMENT/GENERAL.
+  /// Hidden/ignored on construction plans (service returns null). DB default
+  /// GENERAL backfills existing rows; new inventory tenants start GENERAL.
+  inventoryProfile InventoryBusinessProfile? @default(GENERAL) @map("inventory_profile")
+
+  /// INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): credit-limit enforcement policy.
+  creditLimitPolicy CreditLimitPolicy @default(WARN) @map("credit_limit_policy")
+
+  /// INVENTORY_HORIZONTAL_PLATFORM (Phase 4.4): PO approval thresholds (₹).
+  /// 0 (default) = feature off → inventory POs auto-approve like today.
+  /// total < poAutoApproveBelow → APPROVED; ≤ poOwnerApproveAbove → manager
+  /// approves; > poOwnerApproveAbove → OWNER only.
+  poAutoApproveBelow Decimal @default(0) @map("po_auto_approve_below") @db.Decimal(14, 2)
+  poOwnerApproveAbove Decimal @default(0) @map("po_owner_approve_above") @db.Decimal(14, 2)
+
   users               User[]
   userInvites         UserInvite[]
   projects            Project[]
@@ -275,8 +353,175 @@ model Company {
   submittals          Submittal[]
   drawings            Drawing[]
   subcontractWorkOrders SubcontractWorkOrder[]
+  /// INVENTORY_HORIZONTAL_PLATFORM (Phase 1.1): party master.
+  customers           Customer[]
+  vendors             Vendor[]
+  /// INVENTORY_HORIZONTAL_PLATFORM (Phase 2): transaction engine relations.
+  salesOrders         SalesOrder[]
+  /// INVENTORY_HORIZONTAL_PLATFORM (Phase 9.2): quotes.
+  quotes              Quote[] @relation("QuoteCompany")
+  deliveryChallans    DeliveryChallan[]
+  salesReturns        SalesReturn[]
+  purchaseReturns     PurchaseReturn[]
+  creditNotes         CreditNote[]
+  debitNotes          DebitNote[]
+  /// INVENTORY_HORIZONTAL_PLATFORM (Phase 3.2/3.3): warehouse ops.
+  transferOrders      TransferOrder[]
+  stockCounts         StockCount[]
 
   @@map("companies")
+}
+
+// ------------------------------------------------------------------
+// INVENTORY_HORIZONTAL_PLATFORM (Phase 1.1) — Party master
+// ------------------------------------------------------------------
+
+/// Customer master (AR) — inventory tenants pick a customer instead of retyping
+/// client name/phone/address/GSTIN on every sales invoice. Free-text invoice
+/// clientName stays for legacy rows; `Invoice.customerId` links when set.
+model Customer {
+  id             String   @id @default(uuid()) @db.Uuid
+  companyId      String   @map("company_id") @db.Uuid
+  name           String
+  businessName   String?  @map("business_name")
+  gstin          String?
+  pan            String?
+  billingAddress String?  @map("billing_address")
+  shippingAddress String? @map("shipping_address")
+  phone          String?
+  email          String?
+  paymentTerms   String?  @map("payment_terms")
+  creditLimit    Decimal? @default(0) @map("credit_limit") @db.Decimal(14, 2)
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 2): transaction engine relations.
+  salesOrders SalesOrder[]
+  deliveryChallans DeliveryChallan[]
+  salesReturns SalesReturn[]
+  creditNotes CreditNote[]
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 9.1): per-customer price overrides.
+  priceList CustomerPrice[] @relation("CustomerPrice")
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 9.2): quotes for a customer.
+  quotes Quote[] @relation("QuoteCustomer")
+
+  @@index([companyId])
+  @@map("customers")
+}
+
+// ------------------------------------------------------------------
+// INVENTORY_HORIZONTAL_PLATFORM (Phase 9.1) — Customer price lists
+// ------------------------------------------------------------------
+// Per-customer rate override for a resource. `customerId = null` is the
+// company-default price for that resource (one row per resource — enforced by
+// the service with an upsert-style lookup, since Postgres unique constraints
+// treat NULLs as distinct).
+model CustomerPrice {
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @map("company_id") @db.Uuid
+  customerId String?  @map("customer_id") @db.Uuid
+  resourceId String   @map("resource_id") @db.Uuid
+  rate       Decimal  @db.Decimal(12, 2)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  customer Customer? @relation("CustomerPrice", fields: [customerId], references: [id], onDelete: Cascade)
+  resource Resource  @relation("CustomerPrice", fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([resourceId])
+  @@index([customerId])
+  @@map("customer_prices")
+}
+
+// ------------------------------------------------------------------
+// INVENTORY_HORIZONTAL_PLATFORM (Phase 9.2) — Quote → Sales Order
+// ------------------------------------------------------------------
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+}
+
+model Quote {
+  id           String      @id @default(uuid()) @db.Uuid
+  companyId    String      @map("company_id") @db.Uuid
+  projectId    String      @map("project_id") @db.Uuid
+  quoteNumber  String      @map("quote_number")
+  customerId   String?     @map("customer_id") @db.Uuid
+  customerName String      @map("customer_name")
+  status       QuoteStatus @default(DRAFT)
+  quoteDate    DateTime    @map("quote_date") @db.Date
+  validUntil   DateTime?   @map("valid_until") @db.Date
+  subtotal     Decimal     @default(0) @db.Decimal(14, 2)
+  gstAmount    Decimal     @default(0) @map("gst_amount") @db.Decimal(14, 2)
+  total        Decimal     @default(0) @db.Decimal(14, 2)
+  notes        String?
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  company  Company     @relation("QuoteCompany", fields: [companyId], references: [id], onDelete: Cascade)
+  project  Project     @relation("QuoteProject", fields: [projectId], references: [id], onDelete: Cascade)
+  customer Customer?   @relation("QuoteCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+  lines    QuoteLine[]
+  salesOrder SalesOrder? @relation("QuoteSalesOrder", fields: [salesOrderId], references: [id], onDelete: SetNull)
+  salesOrderId String?  @unique @map("sales_order_id") @db.Uuid
+
+  @@unique([companyId, quoteNumber])
+  @@index([projectId])
+  @@map("quotes")
+}
+
+model QuoteLine {
+  id         String  @id @default(uuid()) @db.Uuid
+  quoteId    String  @map("quote_id") @db.Uuid
+  resourceId String  @map("resource_id") @db.Uuid
+  itemName   String  @map("item_name")
+  unit       String
+  quantity   Decimal @db.Decimal(12, 3)
+  rate       Decimal @db.Decimal(12, 2)
+  amount     Decimal @default(0) @db.Decimal(14, 2)
+  gstRate    Decimal @default(0) @map("gst_rate") @db.Decimal(5, 2)
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId])
+  @@map("quote_lines")
+}
+
+/// Vendor master (AP) — inventory tenants pick a vendor instead of retyping
+/// vendor name/GSTIN on every bill. Free-text bill vendorName stays for legacy
+/// rows; `Bill.vendorId` links when set.
+model Vendor {
+  id             String   @id @default(uuid()) @db.Uuid
+  companyId      String   @map("company_id") @db.Uuid
+  name           String
+  businessName   String?  @map("business_name")
+  gstin          String?
+  pan            String?
+  billingAddress String?  @map("billing_address")
+  shippingAddress String? @map("shipping_address")
+  phone          String?
+  email          String?
+  paymentTerms   String?  @map("payment_terms")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bills   Bill[]
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 2): transaction engine relations.
+  purchaseReturns PurchaseReturn[]
+  debitNotes DebitNote[]
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): preferred vendor on resources.
+  preferredResources Resource[] @relation("ResourcePreferredVendor")
+
+  @@index([companyId])
+  @@map("vendors")
 }
 
 // ------------------------------------------------------------------
@@ -404,6 +649,8 @@ model Project {
   materialRequisitions MaterialRequisition[]
   purchaseOrders       PurchaseOrder[]
   goodsReceiptNotes    GoodsReceiptNote[]
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 9.2): quotes belong to the store project.
+  quotes               Quote[] @relation("QuoteProject")
   stockLocations       StockLocation[]
   subcontractWorkOrders SubcontractWorkOrder[]
   portalAccess         ClientPortalAccess[]
@@ -552,6 +799,26 @@ model Resource {
   hsnSacCode       String?  @map("hsn_sac_code")
   brandOrSpec      String?  @map("brand_or_spec")
   category         String?
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.2): item master fields — all optional
+  // so construction resource/estimate flows are unaffected.
+  sku              String?  @map("sku")
+  itemCode         String?  @map("item_code")
+  barcode          String?  @map("barcode")
+  secondaryUnit    String?  @map("secondary_unit")
+  conversionFactor Decimal? @default(1) @map("conversion_factor") @db.Decimal(12, 4)
+  /// Low-stock threshold for basic reorder reports (Phase 1.5).
+  reorderPoint     Decimal? @default(0) @map("reorder_point") @db.Decimal(12, 3)
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): procurement automation fields —
+  // all optional so construction resource/estimate flows are unaffected.
+  preferredVendorId String?  @map("preferred_vendor_id") @db.Uuid
+  /// Reorder quantity for one-click purchase (fallback = reorderPoint - onHand).
+  reorderQty       Decimal? @map("reorder_qty") @db.Decimal(12, 3)
+  /// Procurement lead time in days (informational; no planning engine yet).
+  leadTimeDays     Int?     @map("lead_time_days")
+  /// INVENTORY_HORIZONTAL_PLATFORM (Phase 5.2): running weighted-average unit
+  /// cost per company (v1). Updated on stock IN; OUT movements carry it as
+  /// metadata. `rate` remains the catalog/selling price.
+  avgCost          Decimal  @default(0) @map("avg_cost") @db.Decimal(14, 4)
   imageUrl         String?  @map("image_url")
   lastRateUpdatedAt DateTime? @map("last_rate_updated_at")
   isActive         Boolean  @default(true) @map("is_active")
@@ -559,6 +826,7 @@ model Resource {
   createdAt        DateTime @default(now()) @map("created_at")
 
   company            Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  preferredVendor    Vendor?              @relation("ResourcePreferredVendor", fields: [preferredVendorId], references: [id], onDelete: SetNull)
   taskResources      TaskResource[]
   estimateItems      EstimateItem[]
   rateAnalysisComponents RateAnalysisComponent[]
@@ -570,6 +838,10 @@ model Resource {
   subcontractorMaterialIssues SubcontractorMaterialIssue[]
   stockBalances      StockBalance[]
   stockMovements     StockMovement[]
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.4): invoice line links for true margins.
+  invoiceLineItems   InvoiceLineItem[]
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 9.1): customer price overrides.
+  customerPrices     CustomerPrice[] @relation("CustomerPrice")
   changeOrderLines   ChangeOrderLine[]
   regionalMaterialRates RegionalMaterialRate[]
   projectMaterialRates ProjectMaterialRate[]
@@ -1032,6 +1304,15 @@ model Invoice {
   company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   stockMovement StockMovement? @relation(fields: [stockMovementId], references: [id], onDelete: SetNull)
   lineItems InvoiceLineItem[]
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.1): optional party-master link.
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerId String? @map("customer_id") @db.Uuid
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.1): invoice created from a sales order.
+  salesOrder SalesOrder? @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+  salesOrderId String? @map("sales_order_id") @db.Uuid
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.2/2.4): returns + credit notes.
+  salesReturns SalesReturn[]
+  creditNotes  CreditNote[]
 
   @@unique([companyId, invoiceNumber])
   @@unique([stockMovementId])
@@ -1071,13 +1352,19 @@ model InvoiceLineItem {
   currentQty  Decimal @default(0) @map("current_qty") @db.Decimal(12, 3)
   cumulativeQty Decimal @default(0) @map("cumulative_qty") @db.Decimal(12, 3)
   certifiedAmount Decimal @default(0) @map("certified_amount") @db.Decimal(14, 2)
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.4): optional link to the item catalog
+  // so margin reports can use billed amounts instead of the catalog rate.
+  resourceId  String? @map("resource_id") @db.Uuid
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   boqItem BOQItem? @relation(fields: [boqItemId], references: [id])
+  resource Resource? @relation(fields: [resourceId], references: [id], onDelete: SetNull)
 
   @@index([invoiceId])
   // FIX (DAT-3.6): Add index for BOQ item lookups.
   @@index([boqItemId])
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.4): margin rollups by item.
+  @@index([resourceId])
   @@map("invoice_line_items")
 }
 
@@ -1122,6 +1409,12 @@ model Bill {
   goodsReceipt GoodsReceiptNote? @relation(fields: [goodsReceiptId], references: [id], onDelete: SetNull)
   workOrder SubcontractWorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
   measurement SubcontractMeasurement? @relation(fields: [measurementId], references: [id], onDelete: SetNull)
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.1): optional party-master link.
+  vendor Vendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  vendorId String? @map("vendor_id") @db.Uuid
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.3/2.4): returns + debit notes.
+  purchaseReturns PurchaseReturn[]
+  debitNotes      DebitNote[]
 
   @@unique([companyId, billNumber])
   @@unique([goodsReceiptId])
@@ -1130,6 +1423,376 @@ model Bill {
   // FIX (DAT-3.6): Composite index for tenant+status queries.
   @@index([companyId, status])
   @@map("bills")
+}
+
+// ------------------------------------------------------------------
+// INVENTORY_HORIZONTAL_PLATFORM (Phase 2) — Transaction engine
+// ------------------------------------------------------------------
+
+model SalesOrder {
+  id             String            @id @default(uuid()) @db.Uuid
+  companyId      String            @map("company_id") @db.Uuid
+  projectId      String            @map("project_id") @db.Uuid
+  soNumber       String            @map("so_number")
+  customerId     String?           @map("customer_id") @db.Uuid
+  customerName   String            @map("customer_name")
+  status         SalesOrderStatus  @default(DRAFT)
+  orderDate      DateTime          @map("order_date") @db.Date
+  expectedDelivery DateTime?       @map("expected_delivery") @db.Date
+  notes          String?
+  subtotal       Decimal           @default(0) @db.Decimal(14, 2)
+  gstAmount      Decimal           @default(0) @map("gst_amount") @db.Decimal(14, 2)
+  total          Decimal           @default(0) @db.Decimal(14, 2)
+  createdBy      String?           @map("created_by") @db.Uuid
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  company          Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer         Customer?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  lines            SalesOrderLine[]
+  deliveryChallans DeliveryChallan[]
+  invoices         Invoice[]
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 9.2): sales order created from an accepted quote.
+  quote            Quote?             @relation("QuoteSalesOrder")
+
+  @@index([companyId])
+  @@unique([companyId, soNumber])
+  @@map("sales_orders")
+}
+
+model SalesOrderLine {
+  id            String  @id @default(uuid()) @db.Uuid
+  salesOrderId  String  @map("sales_order_id") @db.Uuid
+  resourceId    String  @map("resource_id") @db.Uuid
+  itemName      String  @map("item_name")
+  unit          String
+  quantity      Decimal @db.Decimal(12, 3)
+  rate          Decimal @default(0) @db.Decimal(12, 2)
+  amount        Decimal @default(0) @db.Decimal(14, 2)
+  gstRate       Decimal @default(0) @map("gst_rate") @db.Decimal(5, 2)
+  deliveredQty  Decimal @default(0) @map("delivered_qty") @db.Decimal(12, 3)
+
+  salesOrder SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  @@index([salesOrderId])
+  @@map("sales_order_lines")
+}
+
+model DeliveryChallan {
+  id           String                @id @default(uuid()) @db.Uuid
+  companyId    String                @map("company_id") @db.Uuid
+  projectId    String                @map("project_id") @db.Uuid
+  dcNumber     String                @map("dc_number")
+  salesOrderId String?               @map("sales_order_id") @db.Uuid
+  customerId   String?               @map("customer_id") @db.Uuid
+  customerName String                @map("customer_name")
+  status       DeliveryChallanStatus @default(DRAFT)
+  dispatchedAt DateTime?             @map("dispatched_at")
+  deliveredAt  DateTime?             @map("delivered_at")
+  notes        String?
+  createdBy    String?               @map("created_by") @db.Uuid
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  salesOrder SalesOrder? @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  lines    DeliveryChallanLine[]
+
+  @@index([companyId])
+  @@unique([companyId, dcNumber])
+  @@map("delivery_challans")
+}
+
+model DeliveryChallanLine {
+  id                String  @id @default(uuid()) @db.Uuid
+  deliveryChallanId String  @map("delivery_challan_id") @db.Uuid
+  salesOrderLineId  String? @map("sales_order_line_id") @db.Uuid
+  resourceId        String  @map("resource_id") @db.Uuid
+  itemName          String  @map("item_name")
+  unit              String
+  quantity          Decimal @db.Decimal(12, 3)
+  rate              Decimal @default(0) @db.Decimal(12, 2)
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3): optional batch / lot code (lite).
+  batchCode         String? @map("batch_code")
+
+  deliveryChallan DeliveryChallan @relation(fields: [deliveryChallanId], references: [id], onDelete: Cascade)
+  @@index([deliveryChallanId])
+  @@map("delivery_challan_lines")
+}
+
+model SalesReturn {
+  id           String        @id @default(uuid()) @db.Uuid
+  companyId    String        @map("company_id") @db.Uuid
+  projectId    String        @map("project_id") @db.Uuid
+  returnNumber String        @map("return_number")
+  invoiceId    String?       @map("invoice_id") @db.Uuid
+  customerId   String?       @map("customer_id") @db.Uuid
+  customerName String        @map("customer_name")
+  returnDate   DateTime      @map("return_date") @db.Date
+  status       NoteStatus    @default(DRAFT)
+  reason       String?
+  subtotal     Decimal       @default(0) @db.Decimal(14, 2)
+  gstAmount    Decimal       @default(0) @map("gst_amount") @db.Decimal(14, 2)
+  total        Decimal       @default(0) @db.Decimal(14, 2)
+  createdBy    String?       @map("created_by") @db.Uuid
+  createdAt    DateTime      @default(now()) @map("created_at")
+
+  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoice    Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  lines      SalesReturnLine[]
+  creditNote CreditNote?
+
+  @@index([companyId])
+  @@unique([companyId, returnNumber])
+  @@map("sales_returns")
+}
+
+model SalesReturnLine {
+  id               String    @id @default(uuid()) @db.Uuid
+  salesReturnId    String    @map("sales_return_id") @db.Uuid
+  invoiceLineItemId String?  @map("invoice_line_item_id") @db.Uuid
+  resourceId       String    @map("resource_id") @db.Uuid
+  itemName         String    @map("item_name")
+  unit             String
+  quantity         Decimal   @db.Decimal(12, 3)
+  returnKind       ReturnKind @map("return_kind") @default(GOOD)
+  rate             Decimal   @default(0) @db.Decimal(12, 2)
+  amount           Decimal   @default(0) @db.Decimal(14, 2)
+  gstRate          Decimal   @default(0) @map("gst_rate") @db.Decimal(5, 2)
+
+  salesReturn SalesReturn @relation(fields: [salesReturnId], references: [id], onDelete: Cascade)
+  @@index([salesReturnId])
+  @@map("sales_return_lines")
+}
+
+model PurchaseReturn {
+  id           String     @id @default(uuid()) @db.Uuid
+  companyId    String     @map("company_id") @db.Uuid
+  projectId    String     @map("project_id") @db.Uuid
+  returnNumber String     @map("return_number")
+  billId       String?    @map("bill_id") @db.Uuid
+  grnId        String?    @map("grn_id") @db.Uuid
+  vendorId     String?    @map("vendor_id") @db.Uuid
+  vendorName   String     @map("vendor_name")
+  returnDate   DateTime   @map("return_date") @db.Date
+  status       NoteStatus @default(DRAFT)
+  reason       String?
+  subtotal     Decimal    @default(0) @db.Decimal(14, 2)
+  gstAmount    Decimal    @default(0) @map("gst_amount") @db.Decimal(14, 2)
+  total        Decimal    @default(0) @db.Decimal(14, 2)
+  createdBy    String?    @map("created_by") @db.Uuid
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bill     Bill?     @relation(fields: [billId], references: [id], onDelete: SetNull)
+  vendor   Vendor?   @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  lines    PurchaseReturnLine[]
+  debitNote DebitNote?
+
+  @@index([companyId])
+  @@unique([companyId, returnNumber])
+  @@map("purchase_returns")
+}
+
+model PurchaseReturnLine {
+  id              String  @id @default(uuid()) @db.Uuid
+  purchaseReturnId String @map("purchase_return_id") @db.Uuid
+  goodsReceiptLineId String? @map("goods_receipt_line_id") @db.Uuid
+  resourceId      String  @map("resource_id") @db.Uuid
+  itemName        String  @map("item_name")
+  unit            String
+  quantity        Decimal @db.Decimal(12, 3)
+  rate            Decimal @default(0) @db.Decimal(12, 2)
+  amount          Decimal @default(0) @db.Decimal(14, 2)
+  gstRate         Decimal @default(0) @map("gst_rate") @db.Decimal(5, 2)
+
+  purchaseReturn PurchaseReturn @relation(fields: [purchaseReturnId], references: [id], onDelete: Cascade)
+  @@index([purchaseReturnId])
+  @@map("purchase_return_lines")
+}
+
+// ------------------------------------------------------------------
+// INVENTORY_HORIZONTAL_PLATFORM (Phase 3.2): stock transfers
+// ------------------------------------------------------------------
+
+model TransferOrder {
+  id             String              @id @default(uuid()) @db.Uuid
+  companyId      String              @map("company_id") @db.Uuid
+  projectId      String              @map("project_id") @db.Uuid
+  transferNumber String              @map("transfer_number")
+  fromLocationId String              @map("from_location_id") @db.Uuid
+  toLocationId   String              @map("to_location_id") @db.Uuid
+  status         TransferOrderStatus @default(DRAFT)
+  dispatchedAt   DateTime?           @map("dispatched_at")
+  receivedAt     DateTime?           @map("received_at")
+  notes          String?
+  createdBy      String?             @map("created_by") @db.Uuid
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+
+  company      Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fromLocation StockLocation       @relation("TransferFromLocation", fields: [fromLocationId], references: [id])
+  toLocation   StockLocation       @relation("TransferToLocation", fields: [toLocationId], references: [id])
+  lines        TransferOrderLine[]
+
+  @@index([companyId])
+  @@unique([companyId, transferNumber])
+  @@map("transfer_orders")
+}
+
+model TransferOrderLine {
+  id              String  @id @default(uuid()) @db.Uuid
+  transferOrderId String  @map("transfer_order_id") @db.Uuid
+  resourceId      String  @map("resource_id") @db.Uuid
+  itemName        String  @map("item_name")
+  unit            String
+  quantity        Decimal @db.Decimal(12, 3)
+  receivedQty     Decimal @default(0) @map("received_qty") @db.Decimal(12, 3)
+
+  transferOrder TransferOrder @relation(fields: [transferOrderId], references: [id], onDelete: Cascade)
+  @@index([transferOrderId])
+  @@map("transfer_order_lines")
+}
+
+// ------------------------------------------------------------------
+// INVENTORY_HORIZONTAL_PLATFORM (Phase 3.3): stock count / stocktake
+// ------------------------------------------------------------------
+
+model StockCount {
+  id          String           @id @default(uuid()) @db.Uuid
+  companyId   String           @map("company_id") @db.Uuid
+  projectId   String           @map("project_id") @db.Uuid
+  locationId  String           @map("location_id") @db.Uuid
+  countNumber String           @map("count_number")
+  status      StockCountStatus @default(DRAFT)
+  countDate   DateTime         @map("count_date") @db.Date
+  notes       String?
+  approvedAt  DateTime?        @map("approved_at")
+  createdBy   String?          @map("created_by") @db.Uuid
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  company  Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  location StockLocation   @relation(fields: [locationId], references: [id])
+  lines    StockCountLine[]
+
+  @@index([companyId])
+  @@unique([companyId, countNumber])
+  @@map("stock_counts")
+}
+
+model StockCountLine {
+  id           String  @id @default(uuid()) @db.Uuid
+  stockCountId String  @map("stock_count_id") @db.Uuid
+  resourceId   String  @map("resource_id") @db.Uuid
+  itemName     String  @map("item_name")
+  unit         String
+  systemQty    Decimal @default(0) @map("system_qty") @db.Decimal(12, 3)
+  countedQty   Decimal @map("counted_qty") @db.Decimal(12, 3)
+  variance     Decimal @default(0) @db.Decimal(12, 3)
+
+  stockCount StockCount @relation(fields: [stockCountId], references: [id], onDelete: Cascade)
+  @@index([stockCountId])
+  @@map("stock_count_lines")
+}
+
+model CreditNote {
+  id               String    @id @default(uuid()) @db.Uuid
+  companyId        String    @map("company_id") @db.Uuid
+  projectId        String    @map("project_id") @db.Uuid
+  creditNoteNumber String    @map("credit_note_number")
+  invoiceId        String?   @map("invoice_id") @db.Uuid
+  salesReturnId    String?   @unique @map("sales_return_id") @db.Uuid
+  customerId       String?   @map("customer_id") @db.Uuid
+  customerName     String    @map("customer_name")
+  creditDate       DateTime  @map("credit_date") @db.Date
+  status           NoteStatus @default(DRAFT)
+  subtotal         Decimal   @default(0) @db.Decimal(14, 2)
+  gstAmount        Decimal   @default(0) @map("gst_amount") @db.Decimal(14, 2)
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.5): GST state split on the note
+  // (CGST/SGST when same-state, IGST otherwise) — mirrors invoice/bill logic.
+  cgstAmount       Decimal   @default(0) @map("cgst_amount") @db.Decimal(14, 2)
+  sgstAmount       Decimal   @default(0) @map("sgst_amount") @db.Decimal(14, 2)
+  igstAmount       Decimal   @default(0) @map("igst_amount") @db.Decimal(14, 2)
+  total            Decimal   @default(0) @db.Decimal(14, 2)
+  notes            String?
+  createdBy        String?   @map("created_by") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoice     Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  salesReturn SalesReturn? @relation(fields: [salesReturnId], references: [id], onDelete: SetNull)
+  customer    Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  lines       CreditNoteLine[]
+
+  @@index([companyId])
+  @@unique([companyId, creditNoteNumber])
+  @@map("credit_notes")
+}
+
+model CreditNoteLine {
+  id           String  @id @default(uuid()) @db.Uuid
+  creditNoteId String  @map("credit_note_id") @db.Uuid
+  resourceId   String? @map("resource_id") @db.Uuid
+  description  String
+  quantity     Decimal @db.Decimal(12, 3)
+  unit         String
+  rate         Decimal @default(0) @db.Decimal(12, 2)
+  amount       Decimal @default(0) @db.Decimal(14, 2)
+  gstRate      Decimal @default(0) @map("gst_rate") @db.Decimal(5, 2)
+
+  creditNote CreditNote @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
+  @@index([creditNoteId])
+  @@map("credit_note_lines")
+}
+
+model DebitNote {
+  id            String    @id @default(uuid()) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  projectId     String    @map("project_id") @db.Uuid
+  debitNoteNumber String  @map("debit_note_number")
+  billId        String?   @map("bill_id") @db.Uuid
+  purchaseReturnId String? @unique @map("purchase_return_id") @db.Uuid
+  vendorId      String?   @map("vendor_id") @db.Uuid
+  vendorName    String    @map("vendor_name")
+  debitDate     DateTime  @map("debit_date") @db.Date
+  status        NoteStatus @default(DRAFT)
+  subtotal      Decimal   @default(0) @db.Decimal(14, 2)
+  gstAmount     Decimal   @default(0) @map("gst_amount") @db.Decimal(14, 2)
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.5): GST state split on the note.
+  cgstAmount    Decimal   @default(0) @map("cgst_amount") @db.Decimal(14, 2)
+  sgstAmount    Decimal   @default(0) @map("sgst_amount") @db.Decimal(14, 2)
+  igstAmount    Decimal   @default(0) @map("igst_amount") @db.Decimal(14, 2)
+  total         Decimal   @default(0) @db.Decimal(14, 2)
+  notes         String?
+  createdBy     String?   @map("created_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bill       Bill?    @relation(fields: [billId], references: [id], onDelete: SetNull)
+  purchaseReturn PurchaseReturn? @relation(fields: [purchaseReturnId], references: [id], onDelete: SetNull)
+  vendor     Vendor?  @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  lines      DebitNoteLine[]
+
+  @@index([companyId])
+  @@unique([companyId, debitNoteNumber])
+  @@map("debit_notes")
+}
+
+model DebitNoteLine {
+  id          String  @id @default(uuid()) @db.Uuid
+  debitNoteId String  @map("debit_note_id") @db.Uuid
+  resourceId  String? @map("resource_id") @db.Uuid
+  description String
+  quantity    Decimal @db.Decimal(12, 3)
+  unit        String
+  rate        Decimal @default(0) @db.Decimal(12, 2)
+  amount      Decimal @default(0) @db.Decimal(14, 2)
+  gstRate     Decimal @default(0) @map("gst_rate") @db.Decimal(5, 2)
+
+  debitNote DebitNote @relation(fields: [debitNoteId], references: [id], onDelete: Cascade)
+  @@index([debitNoteId])
+  @@map("debit_note_lines")
 }
 
 // ------------------------------------------------------------------
@@ -1477,6 +2140,13 @@ model GoodsReceiptNote {
   grnNumber       String   @map("grn_number")
   receivedDate    DateTime @map("received_date") @db.Date
   notes           String?
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.1): landed costs — extra acquisition
+  // costs allocated to lines (by quantity or value) and added to unit cost.
+  freightCost         Decimal @default(0) @map("freight_cost") @db.Decimal(14, 2)
+  insuranceCost       Decimal @default(0) @map("insurance_cost") @db.Decimal(14, 2)
+  handlingCost        Decimal @default(0) @map("handling_cost") @db.Decimal(14, 2)
+  customsCost         Decimal @default(0) @map("customs_cost") @db.Decimal(14, 2)
+  landedCostAllocation String @default("QUANTITY") @map("landed_cost_allocation")
   createdAt       DateTime @default(now()) @map("created_at")
 
   project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -1495,6 +2165,11 @@ model GoodsReceiptLine {
   resourceId String  @map("resource_id") @db.Uuid
   quantity   Decimal @db.Decimal(12, 3)
   unit       String
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.1): landed unit cost (PO rate +
+  // allocated extras) for this receipt.
+  unitCost   Decimal @default(0) @map("unit_cost") @db.Decimal(14, 4)
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3): optional batch / lot code (lite).
+  batchCode  String? @map("batch_code")
 
   grn      GoodsReceiptNote @relation(fields: [grnId], references: [id], onDelete: Cascade)
   resource Resource         @relation(fields: [resourceId], references: [id])
@@ -1508,13 +2183,23 @@ model StockLocation {
   companyId String  @map("company_id") @db.Uuid
   projectId String? @map("project_id") @db.Uuid
   name      String
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.1): multi-warehouse fields.
+  code      String?
+  address   String?
+  isDefault Boolean @default(false) @map("is_default")
+  isActive  Boolean @default(true) @map("is_active")
 
   company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   project  Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   balances StockBalance[]
   movements StockMovement[]
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.2/3.3): transfer + stock-count relations.
+  transferOrdersFrom TransferOrder[] @relation("TransferFromLocation")
+  transferOrdersTo   TransferOrder[] @relation("TransferToLocation")
+  stockCounts        StockCount[]
 
   @@index([companyId])
+  @@index([companyId, isDefault])
   @@map("stock_locations")
 }
 
@@ -1539,6 +2224,16 @@ model StockMovement {
   type          StockMovementType
   referenceType String?           @map("reference_type")
   referenceId   String?           @map("reference_id")
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.3): adjustment audit trail.
+  reason        String?           @map("reason")
+  notes         String?           @map("notes")
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.2): cost metadata on movements —
+  // unitCost is the WAC at the time of the movement; inventoryValue = qty × WAC.
+  unitCost       Decimal           @default(0) @map("unit_cost") @db.Decimal(14, 4)
+  inventoryValue Decimal           @default(0) @map("inventory_value") @db.Decimal(14, 2)
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3): optional batch / lot code (lite —
+  // no serial numbers, expiry or FEFO yet). Copied from the GRN/issue/DC line.
+  batchCode     String?            @map("batch_code")
   createdAt     DateTime          @default(now()) @map("created_at")
 
   location StockLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)

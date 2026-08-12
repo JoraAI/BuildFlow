@@ -121,6 +121,14 @@ procurementRouter.post(
   validate({ params: projectIdParams, body: createPurchaseOrderSchema }),
   asyncHandler(procurementController.createPO),
 );
+// INVENTORY_HORIZONTAL_PLATFORM (Phase 4.4): approve a SUBMITTED inventory PO.
+// Construction POs are created APPROVED, so this is inert there.
+procurementRouter.post(
+  '/:id/procurement/purchase-orders/:poId/approve',
+  requirePermission('procurement.approve_po'),
+  validate({ params: projectIdParams.extend({ poId: idSchema }) }),
+  asyncHandler(procurementController.approvePO),
+);
 procurementRouter.get(
   '/:id/procurement/next-numbers',
   requirePermission('procurement.view'),

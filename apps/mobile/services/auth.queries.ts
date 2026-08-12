@@ -36,6 +36,10 @@ export interface AuthResponsePayload {
     role: string;
     companyId: string;
     companyName: string;
+    productMode?: 'inventory' | 'construction';
+    defaultProjectId?: string | null;
+    subscriptionPlan?: string;
+    inventoryProfile?: string | null;
   };
   accessToken: string;
   refreshToken: string;

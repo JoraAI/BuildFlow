@@ -25,6 +25,17 @@ export interface Resource {
   imageUrl: string | null;
   lastRateUpdatedAt: string | null;
   isActive: boolean;
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.2): optional item master fields.
+  sku?: string | null;
+  itemCode?: string | null;
+  barcode?: string | null;
+  secondaryUnit?: string | null;
+  conversionFactor?: string | number | null;
+  reorderPoint?: string | number | null;
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): procurement automation fields.
+  preferredVendorId?: string | null;
+  reorderQty?: string | number | null;
+  leadTimeDays?: number | null;
 }
 
 export interface PriceHistoryPoint {

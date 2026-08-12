@@ -26,7 +26,13 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "BuildFlow uses the camera to scan item barcodes (Stock Find)."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

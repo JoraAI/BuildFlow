@@ -5,7 +5,9 @@
 > **Goal:** Ship a separate **Inventory** subscription product (stock + procurement + AR/AP invoicing + Tally + AI) with a hidden default project and inventory-only UI shell — without breaking construction tenants.  
 > **Also:** Cut SaaS prices to India-friendly levels (ex-GST).
 >
-> **Follow-up UX polish (post-ship):** see [`docs/INVENTORY_UX_POLISH.md`](./INVENTORY_UX_POLISH.md) — D1–D10 **code/doc complete** (Construction + Inventory AI routing). Prefer that doc for Deepseek-Flash-V4 **manual smoke / ops** follow-ups only. **Current Inventory price is ₹499/mo** (see `packages/shared/src/pricing.ts`); ignore outdated ₹999 figures in sections below if they conflict.
+> **Follow-up UX polish (post-ship):** see [`docs/INVENTORY_UX_POLISH.md`](./INVENTORY_UX_POLISH.md) — D1–D10 **code/doc complete**.  
+> **Horizontal platform roadmap:** see [`docs/INVENTORY_HORIZONTAL_PLATFORM.md`](./INVENTORY_HORIZONTAL_PLATFORM.md) — **Phases 0–10 complete & verified** (agent release pre-flight done, incl. expo-camera plugin); **operator** still runs physical-device §31.4 smoke after native rebuild — see `INVENTORY_HORIZONTAL_PLATFORM.md` §10 / §31.4).  
+> **Current Inventory price is ₹499/mo** (see `packages/shared/src/pricing.ts`); ignore outdated ₹999 figures in sections below if they conflict.
 
 Do **not** recreate deleted `AUDIT_FINDINGS.md`. Prefer minimal diffs; match existing patterns.
 

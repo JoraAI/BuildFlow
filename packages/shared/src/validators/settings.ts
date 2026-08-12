@@ -2,6 +2,19 @@
  * BuildFlow - Settings validators (shared between frontend & backend).
  */
 import { z } from 'zod';
+import { InventoryBusinessProfile } from '../inventory-profile';
+import { creditLimitPolicySchema } from './transactions';
+
+/** Valid inventory business profiles (mirrors the shared enum). */
+const inventoryProfileEnum = z.enum([
+  InventoryBusinessProfile.RETAIL,
+  InventoryBusinessProfile.WHOLESALE,
+  InventoryBusinessProfile.DISTRIBUTION,
+  InventoryBusinessProfile.TRADING,
+  InventoryBusinessProfile.MATERIAL_SUPPLIER,
+  InventoryBusinessProfile.EQUIPMENT,
+  InventoryBusinessProfile.GENERAL,
+]);
 
 export const companyUpdateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
@@ -10,6 +23,15 @@ export const companyUpdateSchema = z.object({
   address: z.string().max(500).optional(),
   logoUrl: z.string().min(1).optional(),
   state: z.string().min(2).max(50).optional(),
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 0): accepted by the validator for all
+  // companies, but the service IGNORES it on construction plans (hidden field).
+  inventoryProfile: inventoryProfileEnum.optional(),
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): credit-limit enforcement policy.
+  creditLimitPolicy: creditLimitPolicySchema.optional(),
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.4): PO approval thresholds (₹),
+  // inventory-only. 0 disables the banding (POs auto-approve like today).
+  poAutoApproveBelow: z.number().nonnegative().optional(),
+  poOwnerApproveAbove: z.number().nonnegative().optional(),
 });
 
 export const myProfileUpdateSchema = z.object({

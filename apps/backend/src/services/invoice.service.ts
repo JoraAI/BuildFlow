@@ -7,6 +7,8 @@ import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
 import { calculateGST, lineAmount, sumAmounts, round2 } from './gst.service';
 import { nextSequentialNumber, nextSequentialNumberTx } from '../lib/id-generator';
+// INVENTORY_HORIZONTAL_PLATFORM (Phase 9.1): customer price overrides on sales lines.
+import { resolveEffectiveRates } from './price-list.service';
 import type {
   CreateInvoiceInput,
   UpdateInvoiceInput,
@@ -77,6 +79,8 @@ function serialize(inv: {
     amount: Decimal;
     gstRate: Decimal;
     hsnSacCode: string | null;
+    // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.4): optional catalog link.
+    resourceId: string | null;
   }>;
 }) {
   return {
@@ -122,6 +126,7 @@ function serialize(inv: {
       amount: toNum(li.amount),
       gstRate: toNum(li.gstRate),
       hsnSacCode: li.hsnSacCode,
+      resourceId: li.resourceId,
     })),
   };
 }
@@ -191,20 +196,84 @@ export async function createInvoice(companyId: string, _userId: string, input: C
   });
   if (!project) throw ApiError.notFound('Project');
 
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.1): customer must belong to this company.
+  if (input.customerId) {
+    const customer = await prisma.customer.findFirst({
+      where: { id: input.customerId, companyId },
+      select: { id: true },
+    });
+    if (!customer) throw ApiError.notFound('Customer not found');
+  }
+
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.4): every optional resource link on an
+  // invoice line must resolve to a catalog item of this company.
+  const linkedResourceIds = input.lineItems.map((li) => li.resourceId).filter((id): id is string => !!id);
+  if (linkedResourceIds.length > 0) {
+    const found = await prisma.resource.count({
+      where: { id: { in: linkedResourceIds }, companyId },
+    });
+    if (found !== linkedResourceIds.length) {
+      throw ApiError.badRequest('One or more line items reference an item outside this company\'s catalog.');
+    }
+  }
+
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): customer credit-limit policy.
+  // WARN (default) surfaces a non-blocking warning; BLOCK rejects the invoice.
+  let creditLimitWarning: string | null = null;
+  if (input.customerId) {
+    const [customer, company] = await Promise.all([
+      prisma.customer.findUnique({
+        where: { id: input.customerId },
+        select: { creditLimit: true, name: true },
+      }),
+      prisma.company.findUnique({
+        where: { id: companyId },
+        select: { creditLimitPolicy: true },
+      }),
+    ]);
+    const limit = Number(customer?.creditLimit ?? 0);
+    if (limit > 0) {
+      const open = await prisma.invoice.aggregate({
+        where: { companyId, customerId: input.customerId, status: { in: ['SENT', 'PAID', 'OVERDUE'] } },
+        _sum: { total: true, paidAmount: true },
+      });
+      const outstanding = Math.max(0, Number(open._sum.total ?? 0) - Number(open._sum.paidAmount ?? 0));
+      const projected =
+        input.lineItems.reduce((s, li) => s + lineAmount(li.quantity, li.rate), 0) *
+        (1 + (input.gstRate ?? 18) / 100);
+      if (outstanding + projected > limit) {
+        const msg = `${customer!.name} is over the credit limit: outstanding ${outstanding.toFixed(2)} + this invoice ${projected.toFixed(2)} > limit ${limit.toFixed(2)}.`;
+        if (company?.creditLimitPolicy === 'BLOCK') {
+          throw ApiError.unprocessable(msg);
+        }
+        creditLimitWarning = msg;
+      }
+    }
+  }
+
   const companyState = await getCompanyState(companyId);
   const invoiceType = input.invoiceType ?? 'STANDARD';
 
   // FIX (NR-23): Catch P2002 (unique constraint violation on invoice number or
   // RA sequence partial index) and return a clean 409 instead of hanging.
   try {
-    return await prisma.$transaction(async (tx) => {
+    const created = await prisma.$transaction(async (tx) => {
+    // INVENTORY_HORIZONTAL_PLATFORM (Phase 9.1): customer price-list override for
+    // lines left at ₹0 when a resource is linked.
+    const customerRateById = await resolveEffectiveRates(
+      companyId,
+      input.customerId ?? null,
+      input.lineItems.filter((li) => li.rate <= 0 && li.resourceId).map((li) => li.resourceId!),
+    );
     let lineAmounts = input.lineItems.map((li) => {
+      const rate = li.rate > 0 ? li.rate : li.resourceId ? customerRateById.get(li.resourceId) ?? li.rate : li.rate;
       if (invoiceType === 'RUNNING_ACCOUNT') {
         const currentQty = li.currentQty ?? li.quantity;
         const cumulativeQty = li.cumulativeQty ?? currentQty;
-        const amount = lineAmount(currentQty, li.rate);
+        const amount = lineAmount(currentQty, rate);
         return {
           ...li,
+          rate,
           quantity: currentQty,
           currentQty,
           previousQty: li.previousQty ?? 0,
@@ -213,8 +282,8 @@ export async function createInvoice(companyId: string, _userId: string, input: C
           amount,
         };
       }
-      const amount = lineAmount(li.quantity, li.rate);
-      return { ...li, amount, certifiedAmount: amount };
+      const amount = lineAmount(li.quantity, rate);
+      return { ...li, rate, amount, certifiedAmount: amount };
     });
 
     const subtotal = sumAmounts(lineAmounts.map((li) => li.amount));
@@ -273,6 +342,10 @@ export async function createInvoice(companyId: string, _userId: string, input: C
         companyId,
         invoiceNumber,
         clientName: input.clientName,
+        // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.1): optional party-master link.
+        ...(input.customerId ? { customerId: input.customerId } : {}),
+        // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.1): optional sales-order link.
+        ...(input.salesOrderId ? { salesOrderId: input.salesOrderId } : {}),
         clientGstin: input.clientGstin,
         // FIX (FIN-H3): Persist clientState at create time so edits keep it.
         clientState: input.clientState ?? null,
@@ -304,6 +377,8 @@ export async function createInvoice(companyId: string, _userId: string, input: C
         lineItems: {
           create: lineAmounts.map((li) => ({
             boqItemId: li.boqItemId,
+            // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.4): optional catalog link.
+            resourceId: li.resourceId,
             description: li.description,
             quantity: li.quantity,
             unit: li.unit,
@@ -324,6 +399,7 @@ export async function createInvoice(companyId: string, _userId: string, input: C
       },
     });
     }); // end $transaction
+    return creditLimitWarning ? { ...created, creditLimitWarning } : created;
   } catch (err) {
     // FIX (NR-23): P2002 = unique constraint violation (invoice number or RA
     // sequence partial index). Surface as a clean 409, not a 30s hang/retry.
@@ -355,6 +431,19 @@ export async function updateInvoice(
   const inv = await prisma.invoice.findFirst({ where: { id, companyId } });
   if (!inv) throw ApiError.notFound('Invoice');
   if (inv.status === 'PAID') throw ApiError.conflict('Cannot edit a paid invoice');
+
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.4): validate optional resource links.
+  if (input.lineItems) {
+    const linkedResourceIds = input.lineItems.map((li) => li.resourceId).filter((id): id is string => !!id);
+    if (linkedResourceIds.length > 0) {
+      const found = await prisma.resource.count({
+        where: { id: { in: linkedResourceIds }, companyId },
+      });
+      if (found !== linkedResourceIds.length) {
+        throw ApiError.badRequest('One or more line items reference an item outside this company\'s catalog.');
+      }
+    }
+  }
 
   const companyState = await getCompanyState(companyId);
   const gstRate = input.gstRate ?? Number(inv.gstRate);
@@ -394,6 +483,7 @@ export async function updateInvoice(
         deleteMany: {},
         create: lineAmounts.map((li) => ({
           boqItemId: li.boqItemId,
+          resourceId: li.resourceId,
           description: li.description,
           quantity: li.quantity,
           unit: li.unit,
@@ -418,6 +508,7 @@ export async function updateInvoice(
         deleteMany: {},
         create: lineAmounts.map((li) => ({
           boqItemId: li.boqItemId,
+          resourceId: li.resourceId,
           description: li.description,
           quantity: li.quantity,
           unit: li.unit,
@@ -522,6 +613,8 @@ export async function createDraftInvoiceFromStockIssue(opts: {
   // INVENTORY_UX_POLISH (D6): optional buyer contact captured on the Issue screen.
   customerPhone?: string | null;
   customerAddress?: string | null;
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): optional party-master link.
+  customerId?: string | null;
   notes?: string | null;
 }) {
   const company = await prisma.company.findFirst({
@@ -547,6 +640,14 @@ export async function createDraftInvoiceFromStockIssue(opts: {
   });
   const resourceById = new Map(resources.map((r) => [r.id, r]));
 
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 9.1): customer price-list override as
+  // the fallback for lines without an explicit selling price.
+  const customerRateById = await resolveEffectiveRates(
+    opts.companyId,
+    opts.customerId ?? null,
+    opts.lines.filter((l) => l.unitPrice == null).map((l) => l.resourceId),
+  );
+
   const hasGst = !!company.gstin;
   const lineItemsData: Array<{
     description: string;
@@ -555,6 +656,8 @@ export async function createDraftInvoiceFromStockIssue(opts: {
     rate: number;
     amount: number;
     gstRate: number;
+    // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.4): catalog link on draft-issue invoices.
+    resourceId: string;
   }> = [];
   let subtotal = 0;
   let gstAmount = 0;
@@ -569,7 +672,7 @@ export async function createDraftInvoiceFromStockIssue(opts: {
     const rate =
       line.unitPrice != null && Number.isFinite(line.unitPrice)
         ? Number(line.unitPrice)
-        : Number(resource.rate) || 0;
+        : (customerRateById.get(line.resourceId) ?? Number(resource.rate)) || 0;
     const lineGstRate = hasGst ? (Number(resource.gstRate) || 18) : 0;
     const amount = lineAmount(line.quantity, rate);
     const gst = calculateGST({
@@ -594,13 +697,29 @@ export async function createDraftInvoiceFromStockIssue(opts: {
       rate,
       amount,
       gstRate: lineGstRate,
+      resourceId: line.resourceId,
     });
   }
 
   const total = subtotal + gstAmount;
   const invoiceNumber = await nextSequentialNumber(opts.companyId, 'invoice');
   const today = new Date();
-  const clientName = (opts.customerName ?? '').trim() || 'Walk-in customer';
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): optional party-master link on the
+  // issue path — the draft invoice records customerId and copies party contact.
+  let customerId = opts.customerId ?? null;
+  let clientName = (opts.customerName ?? '').trim() || 'Walk-in customer';
+  let clientPhone = opts.customerPhone;
+  let clientAddress = opts.customerAddress;
+  if (customerId) {
+    const customer = await prisma.customer.findFirst({
+      where: { id: customerId, companyId: opts.companyId },
+      select: { name: true, phone: true, billingAddress: true },
+    });
+    if (!customer) throw ApiError.notFound('Customer not found');
+    clientName = clientName === 'Walk-in customer' ? customer.name : clientName;
+    clientPhone = clientPhone || customer.phone;
+    clientAddress = clientAddress || customer.billingAddress;
+  }
   const noteParts = [
     'AUTO_STOCK_ISSUE',
     opts.notes?.trim() ? opts.notes.trim() : null,
@@ -610,12 +729,13 @@ export async function createDraftInvoiceFromStockIssue(opts: {
     data: {
       projectId: opts.projectId,
       companyId: opts.companyId,
+      ...(customerId ? { customerId } : {}),
       invoiceNumber,
       clientName,
       clientState: company.state ?? null,
       // INVENTORY_UX_POLISH (D6): pass through optional buyer contact.
-      clientPhone: opts.customerPhone?.trim() ? opts.customerPhone.trim() : null,
-      clientAddress: opts.customerAddress?.trim() ? opts.customerAddress.trim() : null,
+      clientPhone: clientPhone?.trim() ? clientPhone.trim() : null,
+      clientAddress: clientAddress?.trim() ? clientAddress.trim() : null,
       invoiceDate: today,
       dueDate: today,
       status: 'DRAFT',

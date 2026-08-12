@@ -20,13 +20,24 @@ import { Card, Badge, Button, EmptyState, LoadingSkeleton, Input, Select, toast 
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
 import { useRouter } from 'expo-router';
+import { getInventoryLabel, getInventoryLabelMode, hasInventoryFeature, type SubscriptionPlanKey } from '@buildflow/shared';
+import { useCustomers, type PartyRow } from '@/services/party.queries';
+import { AdjustStockModal, OpeningStockModal } from '@/components/inventory/StockModals';
+import { useWarehouses, useBarcodeLookup, type Warehouse } from '@/services/warehouse.queries';
+import { useEffectiveRates } from '@/services/inventory-gtm.queries';
+import DashboardCards from '@/components/inventory/DashboardCards';
+import AnomalyStrip from '@/components/inventory/AnomalyStrip';
+import { BarcodeScannerOverlay } from '@/components/inventory/BarcodeScannerOverlay';
 import {
   useStockSummary,
   useStockMovements,
   useIssueStock,
+  useAdjustStock,
+  useImportOpeningStock,
   expansionKeys,
   type StockSummaryRow,
   type StockMovementRow,
+  type AdjustStockInput,
 } from '@/services/expansion.queries';
 
 async function bufferUntil(
@@ -51,7 +62,26 @@ export default function InventoryStockScreen() {
   const { isDesktop } = useViewport();
   const projectId = user?.defaultProjectId ?? '';
 
-  const { data: summary, isLoading, isFetching, refetch } = useStockSummary(projectId);
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.1): multi-warehouse — the stock
+  // home shows one warehouse at a time (default = company default location).
+  const multiWarehouseEnabled = hasInventoryFeature(
+    (user?.subscriptionPlan ?? 'INVENTORY') as SubscriptionPlanKey,
+    'multi_warehouse',
+  );
+  const barcodeEnabled = hasInventoryFeature(
+    (user?.subscriptionPlan ?? 'INVENTORY') as SubscriptionPlanKey,
+    'barcode',
+  );
+  const { data: warehouses }: { data?: Warehouse[] } = useWarehouses();
+  const [selectedLocationId, setSelectedLocationId] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (!selectedLocationId && warehouses && warehouses.length > 0) {
+      const def = warehouses.find((w) => w.isDefault);
+      setSelectedLocationId(def?.id ?? warehouses[0].id);
+    }
+  }, [warehouses, selectedLocationId]);
+
+  const { data: summary, isLoading, isFetching, refetch } = useStockSummary(projectId, selectedLocationId);
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
   const [issueOpen, setIssueOpen] = useState(false);
   /** When opened from a row CTA, prefill the multi sheet with this one material. */
@@ -60,8 +90,41 @@ export default function InventoryStockScreen() {
   const {
     data: movements,
     refetch: refetchMovements,
-  } = useStockMovements(projectId, selectedResourceId ?? undefined);
+  } = useStockMovements(projectId, selectedResourceId ?? undefined, selectedLocationId);
+
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.4): barcode identify — type/paste a
+  // barcode to jump to its item row.
+  const [barcodeQuery, setBarcodeQuery] = useState('');
+  const [barcodeInput, setBarcodeInput] = useState('');
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.2): camera barcode scanner overlay.
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const barcodeLookup = useBarcodeLookup(barcodeQuery);
+  useEffect(() => {
+    if (barcodeLookup.data) {
+      setSelectedResourceId(barcodeLookup.data.id);
+      setBarcodeQuery('');
+      setBarcodeInput('');
+      toast.success(`${barcodeLookup.data.name} found — highlighted below`);
+    }
+  }, [barcodeLookup.data]);
+  useEffect(() => {
+    if (barcodeQuery && barcodeLookup.isError) {
+      setBarcodeQuery('');
+      setBarcodeInput('');
+      toast.error('No item found with this barcode');
+    }
+  }, [barcodeQuery, barcodeLookup.isError]);
+
   const issueStock = useIssueStock(projectId);
+  const adjustStock = useAdjustStock();
+  const importOpening = useImportOpeningStock();
+  const [adjustRow, setAdjustRow] = useState<StockSummaryRow | null>(null);
+  const [openingOpen, setOpeningOpen] = useState(false);
+  // Phase 1.3/1.4 flags — shipped for INVENTORY this pass.
+  const stockAdjustEnabled = hasInventoryFeature(
+    (user?.subscriptionPlan ?? 'INVENTORY') as SubscriptionPlanKey,
+    'stock_adjustments',
+  );
 
   const totals = useMemo(() => {
     const rows: StockSummaryRow[] = summary ?? [];
@@ -78,6 +141,11 @@ export default function InventoryStockScreen() {
     () => (summary ?? []).some((r: StockSummaryRow) => Number(r.balance) > 0),
     [summary],
   );
+
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 0): profile-based wording.
+  const labelMode = getInventoryLabelMode(user?.inventoryProfile ?? null);
+  const itemLabel = getInventoryLabel('item', labelMode);
+  const itemPluralLabel = getInventoryLabel('item_plural', labelMode);
 
   const onRefresh = () => {
     void refetch();
@@ -108,14 +176,19 @@ export default function InventoryStockScreen() {
       >
         <View className={isDesktop ? 'flex-1 min-w-0' : undefined}>
           <Text className="text-2xl font-bold text-text">Stock</Text>
-          <Text className="text-sm text-muted mt-0.5">{user?.companyName} · 1 store</Text>
+          <Text className="text-sm text-muted mt-0.5">
+            {user?.companyName}
+            {multiWarehouseEnabled
+              ? ` · ${warehouses?.find((w) => w.id === selectedLocationId)?.name ?? 'All stores'}`
+              : ' · 1 store'}
+          </Text>
         </View>
         {/* Desktop: compact toolbar (Materials + Bulk issue). Phone: same actions, wrap neatly. */}
         <View
           className={`flex-row items-center gap-2 ${isDesktop ? '' : 'flex-wrap'}`}
         >
           <Button
-            label="Materials"
+            label={itemPluralLabel}
             variant="secondary"
             size="sm"
             disabled={buffering}
@@ -131,8 +204,58 @@ export default function InventoryStockScreen() {
               setIssueOpen(true);
             }}
           />
+          {stockAdjustEnabled ? (
+            <Button
+              label="Import opening stock"
+              variant="secondary"
+              size="sm"
+              disabled={buffering}
+              onPress={() => setOpeningOpen(true)}
+            />
+          ) : null}
         </View>
       </View>
+
+      {(multiWarehouseEnabled || barcodeEnabled) ? (
+        <View className="px-4 pb-3 flex-row flex-wrap items-center gap-2">
+          {multiWarehouseEnabled ? (
+            <View className="min-w-[180px] flex-1">
+              <Select
+                label="Warehouse"
+                value={selectedLocationId}
+                options={(warehouses ?? []).map((w) => ({ title: `${w.name}${w.isDefault ? ' (default)' : ''}`, value: w.id }))}
+                onChange={(v) => v && setSelectedLocationId(v)}
+                placeholder="All stores"
+              />
+            </View>
+          ) : null}
+          {barcodeEnabled ? (
+            <View className="flex-1 min-w-[220px] flex-row items-end gap-2">
+              <View className="flex-1">
+                <Input
+                  label="Barcode / scan"
+                  value={barcodeInput}
+                  onChangeText={setBarcodeInput}
+                  placeholder="Type or paste a barcode"
+                />
+              </View>
+              <Button
+                label="Scan"
+                variant="secondary"
+                size="sm"
+                onPress={() => setScannerOpen(true)}
+              />
+              <Button
+                label="Find"
+                variant="secondary"
+                size="sm"
+                disabled={!barcodeInput.trim() || buffering}
+                onPress={() => setBarcodeQuery(barcodeInput.trim())}
+              />
+            </View>
+          ) : null}
+        </View>
+      ) : null}
 
       {isLoading ? (
         <View className="px-4 gap-3">
@@ -156,7 +279,7 @@ export default function InventoryStockScreen() {
             <View className="px-4 pb-2">
               <View className={`flex-row gap-3 ${isDesktop ? '' : 'flex-wrap'}`}>
                 <Card className="flex-1 min-w-[140px] p-4">
-                  <Text className="text-xs text-muted">Items</Text>
+                  <Text className="text-xs text-muted">{itemPluralLabel}</Text>
                   <Text className="text-2xl font-bold text-primary">{totals.items}</Text>
                 </Card>
                 <Card className="flex-1 min-w-[140px] p-4">
@@ -172,6 +295,17 @@ export default function InventoryStockScreen() {
                   <Text className="text-2xl font-bold text-danger">{totals.issued}</Text>
                 </Card>
               </View>
+
+              {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 6.1): executive dashboard. */}
+              <View className="mt-3">
+                <Text className="text-xs font-semibold text-muted mb-2 uppercase tracking-wide">
+                  Executive overview
+                </Text>
+                <DashboardCards />
+              </View>
+
+              {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 7.3): rules-first anomaly hints. */}
+              <AnomalyStrip />
 
               {selectedResourceId && movements ? (
                 <Card className="mt-3 p-4">
@@ -190,6 +324,7 @@ export default function InventoryStockScreen() {
                           </Text>
                           <Text className="text-[11px] text-muted">
                             {m.locationName} · {new Date(m.createdAt).toLocaleDateString('en-IN')}
+                            {m.batchCode ? ` · ${m.batchCode}` : ''}
                           </Text>
                         </View>
                         <Badge
@@ -207,6 +342,8 @@ export default function InventoryStockScreen() {
           }
           renderItem={({ item }) => {
             const selected = item.resourceId === selectedResourceId;
+            const isLowStock =
+              item.reorderPoint != null && Number(item.reorderPoint) > 0 && Number(item.balance) < Number(item.reorderPoint);
             return (
               <Pressable
                 disabled={buffering}
@@ -218,7 +355,18 @@ export default function InventoryStockScreen() {
                     <Text className="text-sm font-semibold text-text" numberOfLines={1}>
                       {item.name}
                     </Text>
-                    <Text className="text-[11px] text-muted">{item.unit}</Text>
+                    <View className="flex-row items-center gap-1.5 mt-0.5">
+                      <Text className="text-[11px] text-muted">{item.unit}</Text>
+                      {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 5.2): WAC valuation. */}
+                      {Number(item.unitCost) > 0 ? (
+                        <Text className="text-[11px] text-muted">
+                          · WAC ₹{Number(item.unitCost).toFixed(2)} · Value ₹{Number(item.inventoryValue).toFixed(2)}
+                        </Text>
+                      ) : null}
+                      {isLowStock ? (
+                        <Badge color="danger" label={`Low (reorder ${Number(item.reorderPoint)})`} />
+                      ) : null}
+                    </View>
                   </View>
                   <View className="flex-row items-center gap-3">
                     <View className="w-16">
@@ -235,6 +383,15 @@ export default function InventoryStockScreen() {
                         setIssueOpen(true);
                       }}
                     />
+                    {stockAdjustEnabled ? (
+                      <Button
+                        label="Adjust"
+                        size="sm"
+                        variant="secondary"
+                        disabled={buffering}
+                        onPress={() => setAdjustRow(item)}
+                      />
+                    ) : null}
                   </View>
                 </View>
               </Pressable>
@@ -255,6 +412,7 @@ export default function InventoryStockScreen() {
         submitting={issueStock.isPending || buffering}
         rows={summary ?? []}
         initialResourceId={issueInitialResourceId}
+        itemLabel={itemLabel}
         onClose={() => {
           if (!buffering) {
             setIssueOpen(false);
@@ -269,7 +427,10 @@ export default function InventoryStockScreen() {
           }
           setBuffering(true);
           try {
-            const result = await issueStock.mutateAsync(input);
+            const result = await issueStock.mutateAsync({
+              ...input,
+              ...(selectedLocationId ? { locationId: selectedLocationId } : {}),
+            });
             await bufferUntil(
               async () => {
                 await refetch();
@@ -278,7 +439,7 @@ export default function InventoryStockScreen() {
               },
               () => {
                 const rows =
-                  (qc.getQueryData(expansionKeys.stockSummary(projectId)) as
+                  (qc.getQueryData([...expansionKeys.stockSummary(projectId), selectedLocationId ?? 'all']) as
                     | StockSummaryRow[]
                     | undefined) ?? [];
                 return input.lines.every((l) => {
@@ -305,6 +466,77 @@ export default function InventoryStockScreen() {
           }
         }}
       />
+
+      <AdjustStockModal
+        row={adjustRow}
+        open={!!adjustRow}
+        onClose={() => {
+          if (!buffering) setAdjustRow(null);
+        }}
+        onSubmit={async (input) => {
+          setBuffering(true);
+          try {
+            const result = await adjustStock.mutateAsync({
+              ...input,
+              ...(selectedLocationId ? { locationId: selectedLocationId } : {}),
+            });
+            await refetch();
+            if (selectedResourceId) await refetchMovements();
+            toast.success(
+              `Adjusted ${result.resourceName} by ${result.delta > 0 ? '+' : ''}${result.delta} ${result.unit} ` +
+                `(${result.reason.replace(/_/g, ' ').toLowerCase()}) · on hand ${result.quantityOnHand}`,
+            );
+            setAdjustRow(null);
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : 'Adjustment failed');
+            throw e;
+          } finally {
+            setBuffering(false);
+          }
+        }}
+      />
+
+      <OpeningStockModal
+        open={openingOpen}
+        onClose={() => {
+          if (!buffering) setOpeningOpen(false);
+        }}
+        onSubmit={async (lines) => {
+          setBuffering(true);
+          try {
+            const result = await importOpening.mutateAsync({
+              lines,
+              ...(selectedLocationId ? { locationId: selectedLocationId } : {}),
+            });
+            await refetch();
+            if (selectedResourceId) await refetchMovements();
+            toast.success(
+              result.applied > 0
+                ? `Opening stock applied to ${result.applied} item(s)` +
+                    (result.missed > 0 ? ` · ${result.missed} not matched` : '')
+                : 'No items matched — check names/SKUs',
+            );
+            setOpeningOpen(false);
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : 'Import failed');
+            throw e;
+          } finally {
+            setBuffering(false);
+          }
+        }}
+      />
+
+      {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 8.2): camera barcode scan overlay. */}
+      <BarcodeScannerOverlay
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScanned={(code) => {
+          setBarcodeInput(code);
+          setBarcodeQuery(code);
+          setScannerOpen(false);
+          toast.success(`Scanned ${code} — finding item…`);
+        }}
+      />
     </View>
   );
 }
@@ -314,6 +546,7 @@ function MultiIssueStockModal({
   submitting,
   rows,
   initialResourceId,
+  itemLabel,
   onClose,
   onSubmit,
 }: {
@@ -321,24 +554,33 @@ function MultiIssueStockModal({
   submitting: boolean;
   rows: StockSummaryRow[];
   initialResourceId?: string | null;
+  /** INVENTORY_HORIZONTAL_PLATFORM (Phase 0): 'Material' | 'Item'. */
+  itemLabel: string;
   onClose: () => void;
   onSubmit: (input: {
-    lines: Array<{ resourceId: string; quantity: number; unitPrice?: number }>;
+    lines: Array<{ resourceId: string; quantity: number; unitPrice?: number; batchCode?: string }>;
     customerName?: string;
     customerPhone?: string;
     customerAddress?: string;
+    // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): optional party-master link.
+    customerId?: string;
     notes?: string;
   }) => Promise<void>;
 }) {
   const { isPhone } = useViewport();
-
-  type DraftIssueLine = { key: string; resourceId: string; quantity: string; unitPrice: string };
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): customer picker for the draft invoice.
+  const { data: customers } = useCustomers();
+  type DraftIssueLine = { key: string; resourceId: string; quantity: string; unitPrice: string; batchCode: string };
   const newKey = () => `line-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
   const [lines, setLines] = useState<DraftIssueLine[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): optional party-master link.
+  const [customerId, setCustomerId] = useState('');
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 9.1): effective-rate prefill.
+  const { data: effectiveRates } = useEffectiveRates(customerId || undefined);
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -357,14 +599,16 @@ function MultiIssueStockModal({
             row && row.catalogRate != null && Number(row.catalogRate) > 0
               ? String(row.catalogRate)
               : '',
+          batchCode: '',
         },
       ]);
     } else {
-      setLines([{ key: newKey(), resourceId: '', quantity: '', unitPrice: '' }]);
+      setLines([{ key: newKey(), resourceId: '', quantity: '', unitPrice: '', batchCode: '' }]);
     }
     setCustomerName('');
     setCustomerPhone('');
     setCustomerAddress('');
+    setCustomerId('');
     setNotes('');
     setError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -372,15 +616,31 @@ function MultiIssueStockModal({
 
   /** Only materials with on-hand stock can be issued. */
   const issuable = rows.filter((r) => Number(r.balance) > 0);
+  const itemLower = itemLabel.toLowerCase();
 
   const rowFor = (resourceId: string) => rows.find((r) => r.resourceId === resourceId);
 
   const updateLine = (key: string, patch: Partial<DraftIssueLine>) =>
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
 
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 9.1): when a customer is picked, apply
+  // their price-list override to any line still priced at catalog.
+  useEffect(() => {
+    if (!customerId || !effectiveRates) return;
+    setLines((prev) =>
+      prev.map((l) => {
+        if (!l.resourceId) return l;
+        const override = effectiveRates[l.resourceId];
+        if (override == null || override <= 0) return l;
+        return { ...l, unitPrice: String(override) };
+      }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId, effectiveRates]);
+
   const addLine = () => {
     setError(null);
-    setLines((prev) => [...prev, { key: newKey(), resourceId: '', quantity: '', unitPrice: '' }]);
+    setLines((prev) => [...prev, { key: newKey(), resourceId: '', quantity: '', unitPrice: '', batchCode: '' }]);
   };
 
   const removeLine = (key: string) =>
@@ -396,16 +656,17 @@ function MultiIssueStockModal({
 
   const submit = () => {
     setError(null);
-    const payload: Array<{ resourceId: string; quantity: number; unitPrice?: number }> = [];
+    const itemLower = itemLabel.toLowerCase();
+    const payload: Array<{ resourceId: string; quantity: number; unitPrice?: number; batchCode?: string }> = [];
     for (const l of lines) {
       if (!l.resourceId) {
-        setError('Choose a material for every line.');
+        setError(`Choose a ${itemLower} for every line.`);
         return;
       }
       const row = rowFor(l.resourceId);
       const qty = Number(l.quantity);
       if (!Number.isFinite(qty) || qty <= 0) {
-        setError(`Enter a positive quantity for ${row?.name ?? 'material'}.`);
+        setError(`Enter a positive quantity for ${row?.name ?? itemLower}.`);
         return;
       }
       if (row && qty > Number(row.balance)) {
@@ -414,17 +675,20 @@ function MultiIssueStockModal({
       }
       const price = l.unitPrice === '' ? undefined : Number(l.unitPrice);
       if (price !== undefined && (!Number.isFinite(price) || price < 0)) {
-        setError(`Enter a selling price (0 or more) for ${row?.name ?? 'material'}.`);
+        setError(`Enter a selling price (0 or more) for ${row?.name ?? itemLower}.`);
         return;
       }
       payload.push({
         resourceId: l.resourceId,
         quantity: qty,
         ...(price !== undefined ? { unitPrice: price } : {}),
+        // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3): optional batch / lot code.
+        ...(l.batchCode.trim() ? { batchCode: l.batchCode.trim() } : {}),
       });
     }
     void onSubmit({
       lines: payload,
+      ...(customerId ? { customerId } : {}),
       customerName: customerName.trim() || undefined,
       customerPhone: customerPhone.trim() || undefined,
       customerAddress: customerAddress.trim() || undefined,
@@ -464,7 +728,7 @@ function MultiIssueStockModal({
                 <View key={line.key} className="rounded-xl border border-border p-3 mb-2">
                   <View className="flex-row items-center justify-between mb-1">
                     <Text className="text-xs font-bold text-text">
-                      {initialResourceId ? 'Material' : `Material ${idx + 1}`}
+                      {initialResourceId ? itemLabel : `${itemLabel} ${idx + 1}`}
                     </Text>
                     {!initialResourceId && lines.length > 1 ? (
                       <Pressable
@@ -477,13 +741,13 @@ function MultiIssueStockModal({
                     ) : null}
                   </View>
                   <Select
-                    label="Material"
+                    label={itemLabel}
                     value={line.resourceId || undefined}
                     onChange={(v) => {
                       if (!v) return;
                       // Double-guard duplicates (options already exclude them).
                       if (lines.some((l) => l.key !== line.key && l.resourceId === v)) {
-                        setError('Each material can be issued only once.');
+                        setError(`Each ${itemLower} can be issued only once.`);
                         return;
                       }
                       const selected = rowFor(v);
@@ -499,7 +763,7 @@ function MultiIssueStockModal({
                       });
                     }}
                     options={optionsFor(line)}
-                    placeholder="Choose material"
+                    placeholder={`Choose ${itemLower}`}
                     // Per-row Issue: material is fixed; Bulk issue: editable.
                     disabled={submitting || !!initialResourceId}
                   />
@@ -525,6 +789,14 @@ function MultiIssueStockModal({
                       />
                     </View>
                   </View>
+                  {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3): batch / lot code (lite). */}
+                  <Input
+                    label="Batch / lot code (optional)"
+                    value={line.batchCode}
+                    onChangeText={(t) => updateLine(line.key, { batchCode: t })}
+                    autoCapitalize="characters"
+                    placeholder="e.g. LOT-2026-A"
+                  />
                 </View>
               );
             })}
@@ -532,7 +804,7 @@ function MultiIssueStockModal({
             {!initialResourceId ? (
               <>
                 <Button
-                  label="+ Add material"
+                  label={`+ Add ${itemLower}`}
                   variant="secondary"
                   size="sm"
                   fullWidth
@@ -544,14 +816,30 @@ function MultiIssueStockModal({
                 />
                 <Text className="text-[11px] text-muted mt-1 mb-1">
                   {!issuable.some((r) => !lines.some((l) => l.resourceId === r.resourceId))
-                    ? 'All on-hand materials are already on this list.'
-                    : 'Add another on-hand material to this same issue.'}
+                    ? `All on-hand ${itemLower}s are already on this list.`
+                    : `Add another on-hand ${itemLower} to this same issue.`}
                 </Text>
               </>
             ) : null}
             <View className="h-3" />
-            <Input
+            <Select
+              // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): link the draft invoice to a party.
               label="Customer (optional)"
+              value={customerId || undefined}
+              options={(customers ?? []).map((c: PartyRow) => ({ title: c.name, value: c.id }))}
+              onChange={(v) => {
+                setCustomerId(v ?? '');
+                const c = (customers ?? []).find((x: PartyRow) => x.id === v);
+                if (c) {
+                  if (!customerName) setCustomerName(c.name);
+                  if (!customerPhone && c.phone) setCustomerPhone(c.phone);
+                  if (!customerAddress && c.billingAddress) setCustomerAddress(c.billingAddress);
+                }
+              }}
+              placeholder="Pick from customers"
+            />
+            <Input
+              label="Customer name (optional)"
               value={customerName}
               onChangeText={setCustomerName}
               placeholder="Defaults to Walk-in customer"

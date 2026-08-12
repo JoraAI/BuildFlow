@@ -535,6 +535,127 @@ export async function reportInvoice(companyId: string, invoiceId: string): Promi
 }
 
 // ===========================================================================
+// 3b. INVENTORY DOCUMENT PDFs (INVENTORY_HORIZONTAL_PLATFORM Phase 9.3)
+//     Sales Order / Delivery Challan / Goods Receipt — same PDF pipeline.
+// ===========================================================================
+
+export async function reportSalesOrder(companyId: string, salesOrderId: string): Promise<PdfResult> {
+  const so = await prisma.salesOrder.findFirstOrThrow({
+    where: { id: salesOrderId, companyId },
+    include: { lines: true, customer: { select: { name: true, gstin: true } } },
+  });
+  const company = await loadCompanyForPdf(companyId);
+
+  const doc = newDoc();
+  drawBrandedHeader(doc, 'SALES ORDER', company);
+  doc.fontSize(11).font('Helvetica-Bold').fillColor(NAVY).text(`Sales Order #: ${so.soNumber}`, MARGIN);
+  const meta = `Date: ${so.orderDate.toISOString().slice(0, 10)} | Customer: ${so.customer?.name ?? so.customerName}`;
+  doc.font('Helvetica').fontSize(9).fillColor(MUTED).text(meta);
+  doc.moveDown(0.5);
+  if (so.customer?.gstin) {
+    doc.font('Helvetica-Bold').fillColor('#0F172A').text('Bill To:', MARGIN);
+    doc.font('Helvetica').text(so.customer.name, MARGIN);
+    doc.text(`GSTIN: ${so.customer.gstin}`);
+    doc.moveDown(1);
+  }
+
+  const widths = [40, 200, 70, 70, 90, 90];
+  let y = tableHeaders(doc, ['Sr', 'Description', 'HSN', 'Qty', 'Rate (Rs)', 'Amount (Rs)'], widths, doc.y);
+  so.lines.forEach((li, i) => {
+    y = tableRow(
+      doc,
+      [
+        `${i + 1}`,
+        li.itemName,
+        '',
+        `${num(li.quantity)} ${li.unit}`,
+        num(li.rate).toLocaleString('en-IN'),
+        num(li.amount).toLocaleString('en-IN'),
+      ],
+      widths,
+      y,
+      i % 2 === 1,
+    );
+  });
+  doc.moveDown(1);
+  summaryLine(doc, 'Subtotal', inr(num(so.subtotal)));
+  summaryLine(doc, 'GST', inr(num(so.gstAmount)));
+  doc.moveTo(MARGIN, doc.y).lineTo(PAGE_W - MARGIN, doc.y).strokeColor(NAVY).lineWidth(1.5).stroke();
+  summaryLine(doc, 'TOTAL', inr(num(so.total)), true);
+  drawBrandedFooter(doc, company);
+  return { buffer: await endBuffer(doc), filename: `sales-order-${so.soNumber}.pdf` };
+}
+
+export async function reportDeliveryChallan(companyId: string, dcId: string): Promise<PdfResult> {
+  const dc = await prisma.deliveryChallan.findFirstOrThrow({
+    where: { id: dcId, companyId },
+    include: { lines: true, customer: { select: { name: true, gstin: true } } },
+  });
+  const company = await loadCompanyForPdf(companyId);
+
+  const doc = newDoc();
+  drawBrandedHeader(doc, 'DELIVERY CHALLAN', company);
+  doc.fontSize(11).font('Helvetica-Bold').fillColor(NAVY).text(`Challan #: ${dc.dcNumber}`, MARGIN);
+  const meta = `Status: ${dc.status} | Date: ${dc.createdAt.toISOString().slice(0, 10)} | Customer: ${dc.customer?.name ?? dc.customerName}`;
+  doc.font('Helvetica').fontSize(9).fillColor(MUTED).text(meta);
+  doc.moveDown(1);
+
+  const widths = [40, 200, 70, 70, 90];
+  let y = tableHeaders(doc, ['Sr', 'Description', 'Qty', 'Unit', 'Rate (Rs)'], widths, doc.y);
+  dc.lines.forEach((li, i) => {
+    y = tableRow(
+      doc,
+      [`${i + 1}`, li.itemName, `${num(li.quantity)}`, li.unit, num(li.rate).toLocaleString('en-IN')],
+      widths,
+      y,
+      i % 2 === 1,
+    );
+  });
+  doc.moveDown(1);
+  doc.font('Helvetica').fontSize(8).fillColor(MUTED).text('This is a computer-generated delivery challan.', MARGIN, doc.y, { align: 'center', width: CONTENT_W });
+  drawBrandedFooter(doc, company);
+  return { buffer: await endBuffer(doc), filename: `delivery-challan-${dc.dcNumber}.pdf` };
+}
+
+export async function reportGoodsReceipt(companyId: string, grnId: string): Promise<PdfResult> {
+  const grn = await prisma.goodsReceiptNote.findFirstOrThrow({
+    where: { id: grnId, companyId },
+    include: { lines: { include: { resource: { select: { name: true, hsnSacCode: true } } } }, purchaseOrder: { select: { poNumber: true, vendorName: true } } },
+  });
+  const company = await loadCompanyForPdf(companyId);
+
+  const doc = newDoc();
+  drawBrandedHeader(doc, 'GOODS RECEIPT NOTE', company);
+  doc.fontSize(11).font('Helvetica-Bold').fillColor(NAVY).text(`GRN #: ${grn.grnNumber}`, MARGIN);
+  const meta = `Received: ${grn.receivedDate.toISOString().slice(0, 10)} | PO: ${grn.purchaseOrder.poNumber} | Vendor: ${grn.purchaseOrder.vendorName}`;
+  doc.font('Helvetica').fontSize(9).fillColor(MUTED).text(meta);
+  doc.moveDown(1);
+
+  const widths = [40, 200, 90, 70, 90];
+  let y = tableHeaders(doc, ['Sr', 'Item', 'HSN', 'Qty', 'Unit Cost (Rs)'], widths, doc.y);
+  grn.lines.forEach((li, i) => {
+    y = tableRow(
+      doc,
+      [
+        `${i + 1}`,
+        li.resource.name,
+        li.resource.hsnSacCode ?? '',
+        `${num(li.quantity)} ${li.unit}${li.batchCode ? ` (${li.batchCode})` : ''}`,
+        num(li.unitCost).toLocaleString('en-IN'),
+      ],
+      widths,
+      y,
+      i % 2 === 1,
+    );
+  });
+  doc.moveDown(1);
+  doc.font('Helvetica').fontSize(8).fillColor(MUTED).text('This is a computer-generated goods receipt note.', MARGIN, doc.y, { align: 'center', width: CONTENT_W });
+  drawBrandedFooter(doc, company);
+  return { buffer: await endBuffer(doc), filename: `grn-${grn.grnNumber}.pdf` };
+}
+
+
+// ===========================================================================
 // 4. COST ESTIMATE PDF (summary)
 // ===========================================================================
 export async function reportEstimate(companyId: string, estimateId: string): Promise<PdfResult> {

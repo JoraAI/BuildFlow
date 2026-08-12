@@ -10,10 +10,17 @@ import { useRouter, usePathname } from 'expo-router';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useViewport } from '@/hooks/useViewport';
+import { useAuthStore } from '@/stores/auth.store';
+import { getInventoryLabel, getInventoryLabelMode } from '@buildflow/shared';
 
 export const INVENTORY_TABS = [
   { key: 'index', label: 'Stock', icon: 'cube-outline', href: '/inventory' },
   { key: 'materials', label: 'Materials', icon: 'layers-outline', href: '/inventory/materials' },
+  { key: 'parties', label: 'Parties', icon: 'people-outline', href: '/inventory/parties' },
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.1): formal sales flow (SO/DC/returns/notes).
+  { key: 'sales', label: 'Sales', icon: 'receipt-outline', href: '/inventory/sales' },
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 3): multi-warehouse / transfers / counts.
+  { key: 'warehouse', label: 'Warehouse', icon: 'business-outline', href: '/inventory/warehouse' },
   { key: 'procurement', label: 'Procurement', icon: 'cart-outline', href: '/inventory/procurement' },
   { key: 'invoices', label: 'Invoices', icon: 'cash-outline', href: '/inventory/invoices' },
   { key: 'bills', label: 'Bills', icon: 'document-text-outline', href: '/inventory/bills' },
@@ -27,22 +34,37 @@ function isActiveTab(tab: InventoryTab, pathname: string): boolean {
   return pathname.startsWith(tab.href);
 }
 
+/**
+ * INVENTORY_HORIZONTAL_PLATFORM (Phase 0): item label for the nav, e.g.
+ * "Items" (generic) vs "Materials" (MATERIAL_SUPPLIER keeps construction wording).
+ */
+function useItemsLabel(): string {
+  const user = useAuthStore((s) => s.user);
+  return getInventoryLabel('item_plural', getInventoryLabelMode(user?.inventoryProfile ?? null));
+}
+
+function tabLabel(tab: InventoryTab, itemsLabel: string): string {
+  return tab.key === 'materials' ? itemsLabel : tab.label;
+}
+
 /** Bottom tab bar for inventory shell (mobile/tablet). */
 export function InventoryMobileTabBar() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const pathname = usePathname();
   const { isPhone } = useViewport();
+  const itemsLabel = useItemsLabel();
 
   const renderTab = (tab: InventoryTab, widthClass: string) => {
     const isActive = isActiveTab(tab, pathname);
+    const label = tabLabel(tab, itemsLabel);
     return (
       <Pressable
         key={tab.key}
         onPress={() => router.push(tab.href as never)}
         className={`${widthClass} items-center py-2 active:opacity-70`}
         accessibilityRole="button"
-        accessibilityLabel={tab.label}
+        accessibilityLabel={label}
         accessibilityState={{ selected: isActive }}
       >
         <View
@@ -58,7 +80,7 @@ export function InventoryMobileTabBar() {
           }`}
           numberOfLines={1}
         >
-          {tab.label}
+          {label}
         </Text>
         {isActive && <View className="w-1 h-1 rounded-full bg-accent mt-0.5" />}
       </Pressable>
@@ -71,7 +93,7 @@ export function InventoryMobileTabBar() {
       style={{ paddingBottom: Math.max(insets.bottom, 8) }}
     >
       {isPhone ? (
-        // INVENTORY_UX_POLISH (§1.4.1): horizontal scroll so all 6 tabs stay
+        // INVENTORY_UX_POLISH (§1.4.1): horizontal scroll so all 9 tabs stay
         // reachable on narrow phones instead of clipping.
         <ScrollView
           horizontal
@@ -93,12 +115,14 @@ export function InventoryMobileTabBar() {
 export function InventorySidebar() {
   const router = useRouter();
   const pathname = usePathname();
+  const itemsLabel = useItemsLabel();
 
   return (
     <View className="w-56 bg-card border-r border-border py-4 px-3 gap-1">
       <Text className="text-xs font-bold text-muted uppercase px-3 pb-2">Store</Text>
       {INVENTORY_TABS.map((tab) => {
         const isActive = isActiveTab(tab, pathname);
+        const label = tabLabel(tab, itemsLabel);
         return (
           <Pressable
             key={tab.key}
@@ -113,7 +137,7 @@ export function InventorySidebar() {
                 isActive ? 'text-primary' : 'text-muted'
               }`}
             >
-              {tab.label}
+              {label}
             </Text>
           </Pressable>
         );

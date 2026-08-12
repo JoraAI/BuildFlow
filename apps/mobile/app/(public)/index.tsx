@@ -19,7 +19,7 @@ export default function LandingPage() {
       <MarketingSection
         id="features"
         title="ERP for sites. Inventory for stores."
-        subtitle="Construction project suite plus an exclusive Inventory product with GST accounting"
+        subtitle="Construction project suite plus Inventory with business profiles, warehouses, and GST accounting"
       >
         <FeatureGrid />
       </MarketingSection>

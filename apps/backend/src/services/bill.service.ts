@@ -180,6 +180,15 @@ export async function createBill(companyId: string, _userId: string, input: Crea
   });
   if (!project) throw ApiError.notFound('Project');
 
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.1): vendor must belong to this company.
+  if (input.vendorId) {
+    const vendor = await prisma.vendor.findFirst({
+      where: { id: input.vendorId, companyId },
+      select: { id: true },
+    });
+    if (!vendor) throw ApiError.notFound('Vendor not found');
+  }
+
   const total = netTotal(input.subtotal, input.gstAmount, input.tdsAmount);
 
   // Capture a snapshot of any linked entities at creation time (audit trail).
@@ -218,6 +227,8 @@ export async function createBill(companyId: string, _userId: string, input: Crea
       companyId,
       billNumber: input.billNumber || await nextSequentialNumber(companyId, 'bill'),
       vendorName: input.vendorName,
+      // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.1): optional party-master link.
+      ...(input.vendorId ? { vendorId: input.vendorId } : {}),
       vendorGstin: input.vendorGstin,
       billDate: input.billDate,
       dueDate: input.dueDate,

@@ -63,6 +63,12 @@ export const TOOL_CAPABILITIES: ToolCapability[] = [
 
   // BOQ
   { id: 'list_boq', description: 'List Bill of Quantities items for a project', requires: 'boq.view', module: 'BOQ' },
+
+  // Stock & vendor analysis (INVENTORY product — Phase 7.4 assistant tooling).
+  // Inventory-only: construction tenants never see these tool ids.
+  { id: 'get_low_stock', description: 'List items with on-hand below their reorder point, grouped by warehouse', requires: 'stock.view', module: 'Stock' },
+  { id: 'get_stock_health', description: 'Classify inventory items as ACTIVE/SLOW/DEAD by last outward movement and show on-hand value per warehouse', requires: 'stock.view', module: 'Stock' },
+  { id: 'get_vendor_purchases', description: 'Show vendor bills and GRN receipts from a vendor in a given month', requires: 'procurement.view', module: 'Procurement' },
 ];
 
 /**
@@ -85,16 +91,26 @@ const CONSTRUCTION_ONLY_TOOL_IDS = new Set<string>([
   'list_proposals',
 ]);
 
+/** Tool ids that are inventory-only — never exposed to construction tenants. */
+const INVENTORY_ONLY_TOOL_IDS = new Set<string>([
+  'get_low_stock',
+  'get_stock_health',
+  'get_vendor_purchases',
+]);
+
 /**
- * INVENTORY_PRODUCT: scope a tool list to the inventory product. Inventory
+ * INVENTORY_PRODUCT: scope a tool list to the caller's product. Inventory
  * tenants (OWNER included) must not see estimate / BOQ / proposal / rate
- * analysis tools — those live behind construction-only modules.
+ * analysis tools — those live behind construction-only modules. Construction
+ * tenants must not see inventory stock/analytics tools.
  */
 export function filterToolsByProductMode(
   tools: ToolCapability[],
   productMode: 'construction' | 'inventory',
 ): ToolCapability[] {
-  if (productMode === 'construction') return tools;
+  if (productMode === 'construction') {
+    return tools.filter((t) => !INVENTORY_ONLY_TOOL_IDS.has(t.id));
+  }
   return tools.filter((t) => !CONSTRUCTION_ONLY_TOOL_IDS.has(t.id));
 }
 

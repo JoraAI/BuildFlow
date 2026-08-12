@@ -16,11 +16,21 @@ import {
 import { formatINR } from '@/utils/format';
 import { confirmAsync } from '@/utils/confirm';
 import { useViewport } from '@/hooks/useViewport';
+import { useAuthStore } from '@/stores/auth.store';
+import { getInventoryLabel, getInventoryLabelMode } from '@buildflow/shared';
+import { useVendors, type PartyRow } from '@/services/party.queries';
+import { ImportMappingModal } from '@/components/inventory/ImportMappingModal';
 
 export default function InventoryMaterialsScreen() {
+  const user = useAuthStore((s) => s.user);
   const { data, isLoading, isFetching, refetch } = useResources();
   const { isPhone } = useViewport();
+  const labelMode = getInventoryLabelMode(user?.inventoryProfile ?? null);
+  const itemLabel = getInventoryLabel('item', labelMode);
+  const itemPluralLabel = getInventoryLabel('item_plural', labelMode);
+  const indentLabel = getInventoryLabel('indent', labelMode);
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<Resource | null>(null);
   const createResource = useCreateResource();
   // id is captured per-render so `mutateAsync(input)` targets the material being edited.
@@ -31,13 +41,13 @@ export default function InventoryMaterialsScreen() {
 
   const onDelete = async (item: Resource) => {
     const ok = await confirmAsync(
-      'Delete material?',
+      `Delete ${itemLabel.toLowerCase()}?`,
       `Delete "${item.name}"? Existing POs, GRNs and stock movements keep their values.`,
     );
     if (!ok) return;
     try {
       await deleteResource.mutateAsync(item.id);
-      toast.success('Material deleted');
+      toast.success(`${itemLabel} deleted`);
     } catch (e) {
       // Surface the API error (e.g. "used in rate analysis") — do not soft-fail.
       toast.error(e instanceof Error ? e.message : 'Could not delete material');
@@ -48,11 +58,22 @@ export default function InventoryMaterialsScreen() {
     <View className="flex-1 bg-surface">
       <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between">
         <View className="flex-1 mr-2 min-w-[160px]">
-          <Text className="text-2xl font-bold text-text">Materials</Text>
-          <Text className="text-sm text-muted mt-0.5">Catalog items for procurement & stock</Text>
+          <Text className="text-2xl font-bold text-text">{itemPluralLabel}</Text>
+          <Text className="text-sm text-muted mt-0.5">Catalog for procurement & stock</Text>
         </View>
-        <View className={isPhone ? 'mt-2 w-full' : ''}>
-          <Button label="Add material" variant="accent" size="sm" onPress={() => setCreateOpen(true)} />
+        <View className={`flex-row gap-2 ${isPhone ? 'mt-2 w-full' : ''}`}>
+          <Button
+            label="Import CSV"
+            variant="secondary"
+            size="sm"
+            onPress={() => setImportOpen(true)}
+          />
+          <Button
+            label={`Add ${itemLabel.toLowerCase()}`}
+            variant="accent"
+            size="sm"
+            onPress={() => setCreateOpen(true)}
+          />
         </View>
       </View>
 
@@ -73,8 +94,8 @@ export default function InventoryMaterialsScreen() {
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
           ListEmptyComponent={
             <EmptyState
-              title="No materials yet"
-              description="Add materials to your catalog, then create an indent and receive stock via GRN."
+              title={`No ${itemPluralLabel.toLowerCase()} yet`}
+              description={`Add ${itemPluralLabel.toLowerCase()} to your catalog, then create a ${indentLabel.toLowerCase()} and receive stock via GRN.`}
             />
           }
           renderItem={({ item }) => (
@@ -113,10 +134,11 @@ export default function InventoryMaterialsScreen() {
         mode="create"
         open={createOpen}
         onClose={() => setCreateOpen(false)}
+        itemLabel={itemLabel}
         submitting={createResource.isPending}
         onSubmit={async (input) => {
           await createResource.mutateAsync(input);
-          toast.success('Material added');
+          toast.success(`${itemLabel} added`);
           setCreateOpen(false);
           void refetch();
         }}
@@ -127,18 +149,25 @@ export default function InventoryMaterialsScreen() {
         open={editing !== null}
         initial={editing ?? undefined}
         onClose={() => setEditing(null)}
+        itemLabel={itemLabel}
         submitting={editing !== null && updateResource.isPending}
         onSubmit={async (input) => {
           if (!editing) return;
           try {
             await updateResource.mutateAsync(input);
-            toast.success('Material updated');
+            toast.success(`${itemLabel} updated`);
             setEditing(null);
             void refetch();
           } catch (e) {
             toast.error(e instanceof Error ? e.message : 'Could not update material');
           }
         }}
+      />
+
+      <ImportMappingModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        defaultPurpose="CATALOG"
       />
     </View>
   );
@@ -149,6 +178,7 @@ function MaterialFormModal({
   open,
   onClose,
   initial,
+  itemLabel,
   onSubmit,
   submitting,
 }: {
@@ -156,6 +186,7 @@ function MaterialFormModal({
   open: boolean;
   onClose: () => void;
   initial?: Resource;
+  itemLabel: string;
   onSubmit: (input: {
     name: string;
     type: 'MATERIAL';
@@ -164,16 +195,39 @@ function MaterialFormModal({
     gstRate?: number;
     brandOrSpec?: string;
     category?: string;
+    // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.2): optional item master fields.
+    sku?: string;
+    itemCode?: string;
+    barcode?: string;
+    secondaryUnit?: string;
+    conversionFactor?: number;
+    reorderPoint?: number;
+    // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): procurement automation fields.
+    preferredVendorId?: string;
+    reorderQty?: number;
+    leadTimeDays?: number;
   }) => Promise<void>;
   submitting: boolean;
 }) {
   const { isPhone } = useViewport();
+  const { data: vendors } = useVendors();
   const [name, setName] = useState('');
   const [unit, setUnit] = useState('nos');
   const [rate, setRate] = useState('');
   const [gstRate, setGstRate] = useState('18');
   const [brandOrSpec, setBrandOrSpec] = useState('');
   const [category, setCategory] = useState('');
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.2): optional item master fields.
+  const [itemCode, setItemCode] = useState('');
+  const [sku, setSku] = useState('');
+  const [barcode, setBarcode] = useState('');
+  const [secondaryUnit, setSecondaryUnit] = useState('');
+  const [conversionFactor, setConversionFactor] = useState('1');
+  const [reorderPoint, setReorderPoint] = useState('');
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): procurement automation fields.
+  const [preferredVendorId, setPreferredVendorId] = useState('');
+  const [reorderQty, setReorderQty] = useState('');
+  const [leadTimeDays, setLeadTimeDays] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   // Prefill when opening in edit mode; reset when opening in create mode.
@@ -186,6 +240,15 @@ function MaterialFormModal({
       setGstRate(initial.gstRate !== undefined ? String(initial.gstRate) : '18');
       setBrandOrSpec(initial.brandOrSpec ?? '');
       setCategory(initial.category ?? '');
+      setItemCode(initial.itemCode ?? '');
+      setSku(initial.sku ?? '');
+      setBarcode(initial.barcode ?? '');
+      setSecondaryUnit(initial.secondaryUnit ?? '');
+      setConversionFactor(initial.conversionFactor != null ? String(Number(initial.conversionFactor)) : '1');
+      setReorderPoint(initial.reorderPoint != null ? String(Number(initial.reorderPoint)) : '');
+      setPreferredVendorId(initial.preferredVendorId ?? '');
+      setReorderQty(initial.reorderQty != null ? String(Number(initial.reorderQty)) : '');
+      setLeadTimeDays(initial.leadTimeDays != null ? String(initial.leadTimeDays) : '');
     } else {
       reset();
     }
@@ -200,6 +263,15 @@ function MaterialFormModal({
     setGstRate('18');
     setBrandOrSpec('');
     setCategory('');
+    setItemCode('');
+    setSku('');
+    setBarcode('');
+    setSecondaryUnit('');
+    setConversionFactor('1');
+    setReorderPoint('');
+    setPreferredVendorId('');
+    setReorderQty('');
+    setLeadTimeDays('');
   };
 
   return (
@@ -220,7 +292,7 @@ function MaterialFormModal({
           onPress={(e) => e.stopPropagation()}
         >
           <Text className="text-lg font-bold text-text mb-3">
-            {mode === 'edit' ? 'Edit material' : 'Add material'}
+            {mode === 'edit' ? `Edit ${itemLabel.toLowerCase()}` : `Add ${itemLabel.toLowerCase()}`}
           </Text>
           <ScrollView keyboardShouldPersistTaps="handled">
             <Input label="Name" value={name} onChangeText={setName} placeholder="e.g. OPC 53 Cement" />
@@ -248,7 +320,7 @@ function MaterialFormModal({
             />
             {mode === 'edit' ? (
               <Text className="text-[11px] text-muted -mt-3 mb-2">
-                Catalog rate for new indents/POs; existing documents keep their rates.
+                Catalog rate for new purchase requests/POs; existing documents keep their rates.
               </Text>
             ) : null}
             <Input
@@ -264,6 +336,68 @@ function MaterialFormModal({
               onChangeText={setBrandOrSpec}
             />
             <Input label="Category (optional)" value={category} onChangeText={setCategory} />
+            {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 1.2): item master fields */}
+            <Input
+              label="Item code (optional)"
+              value={itemCode}
+              onChangeText={setItemCode}
+              autoCapitalize="characters"
+              placeholder="e.g. CEM-53"
+            />
+            <Input label="SKU (optional)" value={sku} onChangeText={setSku} autoCapitalize="characters" placeholder="e.g. CEM-53-SKU" />
+            <Input label="Barcode (optional)" value={barcode} onChangeText={setBarcode} autoCapitalize="characters" placeholder="Scan or type" />
+            <View className="flex-row gap-3">
+              <View className="flex-1">
+                <Input label="Secondary unit (optional)" value={secondaryUnit} onChangeText={setSecondaryUnit} placeholder="e.g. bag" />
+              </View>
+              <View className="flex-1">
+                <Input
+                  label="Conversion factor"
+                  value={conversionFactor}
+                  onChangeText={setConversionFactor}
+                  keyboardType="decimal-pad"
+                  placeholder="1"
+                />
+              </View>
+            </View>
+            <Text className="text-[11px] text-muted -mt-3 mb-2">
+              1 secondary unit = {conversionFactor || '1'} base units (e.g. 1 bag = 50 kg).
+            </Text>
+            <Input
+              label="Reorder point (optional)"
+              value={reorderPoint}
+              onChangeText={setReorderPoint}
+              keyboardType="decimal-pad"
+              placeholder="0 — low-stock alert threshold"
+            />
+            {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): procurement automation */}
+            <Select
+              label="Preferred vendor (optional)"
+              value={preferredVendorId || undefined}
+              onChange={(v) => setPreferredVendorId(v ?? '')}
+              options={(vendors ?? []).map((v: PartyRow) => ({ title: v.name, value: v.id }))}
+              placeholder="Pick a vendor for reorder"
+            />
+            <View className="flex-row gap-3">
+              <View className="flex-1">
+                <Input
+                  label="Reorder qty (optional)"
+                  value={reorderQty}
+                  onChangeText={setReorderQty}
+                  keyboardType="decimal-pad"
+                  placeholder="Qty for one-click PO"
+                />
+              </View>
+              <View className="flex-1">
+                <Input
+                  label="Lead time (days)"
+                  value={leadTimeDays}
+                  onChangeText={setLeadTimeDays}
+                  keyboardType="numeric"
+                  placeholder="e.g. 7"
+                />
+              </View>
+            </View>
             {error ? <Text className="text-sm text-danger mt-2">{error}</Text> : null}
             <View className="flex-row gap-2 mt-4 mb-6">
               <Button
@@ -299,6 +433,16 @@ function MaterialFormModal({
                     gstRate: Number(gstRate) || 0,
                     brandOrSpec: brandOrSpec.trim() || undefined,
                     category: category.trim() || undefined,
+                    // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.6): item code field.
+                    itemCode: itemCode.trim() || undefined,
+                    sku: sku.trim() || undefined,
+                    barcode: barcode.trim() || undefined,
+                    secondaryUnit: secondaryUnit.trim() || undefined,
+                    conversionFactor: Number(conversionFactor) > 0 ? Number(conversionFactor) : undefined,
+                    reorderPoint: reorderPoint === '' ? undefined : Number(reorderPoint),
+                    preferredVendorId: preferredVendorId || undefined,
+                    reorderQty: reorderQty === '' ? undefined : Number(reorderQty),
+                    leadTimeDays: leadTimeDays === '' ? undefined : Number(leadTimeDays),
                   }).then(reset);
                 }}
               />
