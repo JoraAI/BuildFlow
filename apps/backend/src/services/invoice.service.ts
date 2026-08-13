@@ -911,7 +911,7 @@ export async function backfillStockIssueSalesOrders(companyId: string, projectId
     },
     include: { lineItems: true },
     take: 200,
-    orderBy: { createdAt: 'desc' },
+    orderBy: { invoiceDate: 'desc' },
   });
   for (const inv of orphans) {
     await linkSalesOrderForStockIssueInvoice(inv);
