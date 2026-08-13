@@ -16,5 +16,6 @@ router.use(authenticateToken);
 
 router.post('/message', validate({ body: sendMessageSchema }), ctrl.message);
 router.get('/history', ctrl.history);
+router.delete('/history', ctrl.clear);
 
 export default router;

@@ -11,6 +11,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { NavBackButton, NavIconButton } from '@/components/layout/NavBackButton';
 import { useAssistantStore } from '@/stores/assistant.store';
+import { useAuthStore } from '@/stores/auth.store';
+import { useClearChatHistory } from '@/services/chat.queries';
 import { useViewport } from '@/hooks/useViewport';
 import { AssistantChatContent } from '@/components/assistant/AssistantChatContent';
 import { desktopAssistantPanelStyle } from '@/components/layout/fab-layout';
@@ -19,8 +21,19 @@ export function AssistantOverlay() {
   const isOpen = useAssistantStore((s) => s.isOpen);
   const projectId = useAssistantStore((s) => s.projectId);
   const close = useAssistantStore((s) => s.close);
+  const restartConversation = useAssistantStore((s) => s.restartConversation);
+  const productMode = useAuthStore((s) => s.user?.productMode);
+  const isInventory = productMode === 'inventory';
+  const clearHistory = useClearChatHistory(projectId);
   const { isDesktop } = useViewport();
   const insets = useSafeAreaInsets();
+
+  const handleNewChat = () => {
+    if (clearHistory.isPending) return;
+    clearHistory.mutate(undefined, {
+      onSuccess: () => restartConversation(),
+    });
+  };
 
   return (
     <Modal
@@ -55,8 +68,22 @@ export function AssistantOverlay() {
             </View>
             <View style={styles.headerText}>
               <Text style={styles.headerTitle}>BuildFlow Assistant</Text>
-              <Text style={styles.headerSubtitle}>Ask about projects, bills & GST</Text>
+              <Text style={styles.headerSubtitle}>
+                {isInventory
+                  ? 'Ask about stock, bills, invoices & GST'
+                  : 'Ask about projects, bills & GST'}
+              </Text>
             </View>
+            <Pressable
+              onPress={handleNewChat}
+              disabled={clearHistory.isPending}
+              accessibilityRole="button"
+              accessibilityLabel="New chat"
+              hitSlop={8}
+              style={styles.newChatBtn}
+            >
+              <Ionicons name="refresh-outline" size={20} color="#1E3A5F" />
+            </Pressable>
             {isDesktop ? (
               <NavIconButton onPress={close} icon="close" accessibilityLabel="Close assistant" />
             ) : (
@@ -124,6 +151,17 @@ const styles = StyleSheet.create({
   headerText: {
     flex: 1,
     marginLeft: 12,
+  },
+  newChatBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
   },
   headerTitle: {
     fontSize: 16,

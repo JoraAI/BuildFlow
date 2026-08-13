@@ -28,11 +28,15 @@ export function MarketingAssistantFab() {
   const [messages, setMessages] = useState<LocalMsg[]>([]);
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [chipsDismissed, setChipsDismissed] = useState(false);
+
+  const showChips = !chipsDismissed && messages.length === 0 && !loading && !text.trim();
 
   const send = async (content: string) => {
     const msg = content.trim();
     if (!msg || loading) return;
     setText('');
+    setChipsDismissed(true);
     const userId = `u-${Date.now()}`;
     setMessages((m) => [...m, { id: userId, text: msg, isBot: false }]);
     setLoading(true);
@@ -95,13 +99,15 @@ export function MarketingAssistantFab() {
             {loading && <ActivityIndicator color="#1E3A5F" />}
           </ScrollView>
 
-          <View className="flex-row flex-wrap px-3 pb-2 gap-2">
-            {PUBLIC_CHIPS.map((c) => (
-              <Pressable key={c} onPress={() => send(c)} className="px-3 py-1.5 rounded-full bg-primary/10">
-                <Text className="text-xs font-medium text-primary">{c}</Text>
-              </Pressable>
-            ))}
-          </View>
+          {showChips ? (
+            <View className="flex-row flex-wrap px-3 pb-2 gap-2">
+              {PUBLIC_CHIPS.map((c) => (
+                <Pressable key={c} onPress={() => send(c)} className="px-3 py-1.5 rounded-full bg-primary/10">
+                  <Text className="text-xs font-medium text-primary">{c}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
 
           <View
             className="flex-row items-end px-3 py-2 border-t border-border bg-card gap-2"
@@ -110,7 +116,10 @@ export function MarketingAssistantFab() {
             <TextInput
               className="flex-1 min-h-[40px] max-h-24 px-3 py-2 rounded-xl bg-surface text-text text-sm"
               value={text}
-              onChangeText={setText}
+              onChangeText={(value) => {
+                setText(value);
+                if (value.trim()) setChipsDismissed(true);
+              }}
               placeholder="Ask about BuildFlow…"
               multiline
             />

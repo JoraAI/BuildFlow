@@ -14,9 +14,11 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useChatHistory, useSendChatMessage, type ChatMessage } from '@/services/chat.queries';
+import { useAuthStore } from '@/stores/auth.store';
+import { useAssistantStore } from '@/stores/assistant.store';
 import { formatTime } from '@/utils/format';
 
-const QUICK_CHIPS = [
+const CONSTRUCTION_CHIPS = [
   'Project Status',
   'Pending Bills',
   'Estimate vs Actual',
@@ -27,13 +29,39 @@ const QUICK_CHIPS = [
   'Invoice vs bill?',
 ];
 
+const INVENTORY_CHIPS = [
+  'Low stock',
+  'Pending bills',
+  'Stock health',
+  'GST Summary',
+  'What is GRN?',
+  'Invoice vs bill?',
+];
+
 export function AssistantChatContent({ projectId }: { projectId?: string }) {
   const { data: messages, isLoading } = useChatHistory(projectId);
   const sendMsg = useSendChatMessage(projectId);
   const [text, setText] = useState('');
+  const [chipsDismissed, setChipsDismissed] = useState(false);
   const listRef = useRef<FlatList<ChatMessage>>(null);
+  const isOpen = useAssistantStore((s) => s.isOpen);
+  const conversationNonce = useAssistantStore((s) => s.conversationNonce);
+  const productMode = useAuthStore((s) => s.user?.productMode);
+  const isInventory = productMode === 'inventory';
+  const chips = isInventory ? INVENTORY_CHIPS : CONSTRUCTION_CHIPS;
 
   const list = messages ?? [];
+
+  // Re-opening an empty chat box restores chips. Existing history keeps them hidden.
+  useEffect(() => {
+    if (isOpen) setChipsDismissed(false);
+  }, [isOpen]);
+
+  // New chat: clear the composer and restore chips.
+  useEffect(() => {
+    setChipsDismissed(false);
+    setText('');
+  }, [conversationNonce]);
 
   useEffect(() => {
     if (list.length > 0) {
@@ -44,9 +72,13 @@ export function AssistantChatContent({ projectId }: { projectId?: string }) {
   const handleSend = (value?: string) => {
     const content = (value ?? text).trim();
     if (!content || sendMsg.isPending) return;
+    setChipsDismissed(true);
     sendMsg.mutate(content);
     setText('');
   };
+
+  const showChips =
+    !isLoading && !chipsDismissed && list.length === 0 && !sendMsg.isPending && !text.trim();
 
   const renderItem = ({ item }: { item: ChatMessage }) => {
     const isUser = !item.isBot;
@@ -86,9 +118,11 @@ export function AssistantChatContent({ projectId }: { projectId?: string }) {
             <View style={styles.empty}>
               <Text style={styles.emptyTitle}>How can I help?</Text>
               <Text style={styles.emptyBody}>
-                {projectId
-                  ? 'Ask about this project - status, bills, estimates, BOQ, or overdue tasks. I can fetch live data when you have permission.'
-                  : 'Ask about project status, estimates, bills, GST, or overdue tasks. I can list and update items you are permitted to access.'}
+                {isInventory
+                  ? 'Ask about stock, POs, GRNs, invoices, or vendor bills. I fetch live data for anything your role can access.'
+                  : projectId
+                    ? 'Ask about this project - status, bills, estimates, BOQ, or overdue tasks. I can fetch live data when you have permission.'
+                    : 'Ask about project status, estimates, bills, GST, or overdue tasks. I can list and update items you are permitted to access.'}
               </Text>
             </View>
           }
@@ -105,24 +139,29 @@ export function AssistantChatContent({ projectId }: { projectId?: string }) {
         </View>
       )}
 
-      <View style={styles.chipsRow}>
-        {QUICK_CHIPS.map((chip) => (
-          <TouchableOpacity
-            key={chip}
-            style={styles.chip}
-            onPress={() => handleSend(chip)}
-            disabled={sendMsg.isPending}
-          >
-            <Text style={styles.chipText}>{chip}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {showChips ? (
+        <View style={styles.chipsRow}>
+          {chips.map((chip) => (
+            <TouchableOpacity
+              key={chip}
+              style={styles.chip}
+              onPress={() => handleSend(chip)}
+              disabled={sendMsg.isPending}
+            >
+              <Text style={styles.chipText}>{chip}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : null}
 
       <View style={styles.composer}>
         <TextInput
           style={styles.input}
           value={text}
-          onChangeText={setText}
+          onChangeText={(value) => {
+            setText(value);
+            if (value.trim()) setChipsDismissed(true);
+          }}
           placeholder="Ask anything…"
           placeholderTextColor="#94A3B8"
           multiline
