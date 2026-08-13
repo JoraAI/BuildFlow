@@ -8,6 +8,7 @@ export {
   invoiceDetailHref,
   inventoryBillDetailHref,
   inventoryInvoiceDetailHref,
+  inventoryStockItemHref,
   reportDetailHref,
   createReportHref,
 } from './navigation-paths';

@@ -9,6 +9,8 @@ import { Button, Input, Select, Badge } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
 import type { StockSummaryRow } from '@/services/expansion.queries';
 import type { AdjustStockInput, OpeningStockLine } from '@/services/expansion.queries';
+import { useCustomers, type PartyRow } from '@/services/party.queries';
+import { useEffectiveRates } from '@/services/inventory-gtm.queries';
 
 const ADJUST_REASONS = [
   { title: 'Damage', value: 'DAMAGE' },
@@ -215,6 +217,316 @@ export function OpeningStockModal({
             <View className="flex-row gap-2 mt-4 mb-4">
               <Button label="Cancel" variant="secondary" className="flex-1" disabled={saving} onPress={onClose} />
               <Button label={saving ? 'Importing…' : 'Import'} variant="accent" className="flex-1" loading={saving} onPress={submit} />
+            </View>
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+export function MultiIssueStockModal({
+  open,
+  submitting,
+  rows,
+  initialResourceId,
+  itemLabel,
+  onClose,
+  onSubmit,
+}: {
+  open: boolean;
+  submitting: boolean;
+  rows: StockSummaryRow[];
+  initialResourceId?: string | null;
+  itemLabel: string;
+  onClose: () => void;
+  onSubmit: (input: {
+    lines: Array<{ resourceId: string; quantity: number; unitPrice?: number; batchCode?: string }>;
+    customerName?: string;
+    customerPhone?: string;
+    customerAddress?: string;
+    customerId?: string;
+    notes?: string;
+  }) => Promise<void>;
+}) {
+  const { isPhone } = useViewport();
+  const { data: customers } = useCustomers();
+  type DraftIssueLine = { key: string; resourceId: string; quantity: string; unitPrice: string; batchCode: string };
+  const newKey = () => `line-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  const [lines, setLines] = useState<DraftIssueLine[]>([]);
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerAddress, setCustomerAddress] = useState('');
+  const [customerId, setCustomerId] = useState('');
+  const { data: effectiveRates } = useEffectiveRates(customerId || undefined);
+  const [notes, setNotes] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    if (initialResourceId) {
+      const row = rows.find((r) => r.resourceId === initialResourceId);
+      setLines([
+        {
+          key: newKey(),
+          resourceId: initialResourceId,
+          quantity: '',
+          unitPrice:
+            row && row.catalogRate != null && Number(row.catalogRate) > 0
+              ? String(row.catalogRate)
+              : '',
+          batchCode: '',
+        },
+      ]);
+    } else {
+      setLines([{ key: newKey(), resourceId: '', quantity: '', unitPrice: '', batchCode: '' }]);
+    }
+    setCustomerName('');
+    setCustomerPhone('');
+    setCustomerAddress('');
+    setCustomerId('');
+    setNotes('');
+    setError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialResourceId]);
+
+  const issuable = rows.filter((r) => Number(r.balance) > 0);
+  const itemLower = itemLabel.toLowerCase();
+  const rowFor = (resourceId: string) => rows.find((r) => r.resourceId === resourceId);
+  const updateLine = (key: string, patch: Partial<DraftIssueLine>) =>
+    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+
+  useEffect(() => {
+    if (!customerId || !effectiveRates) return;
+    setLines((prev) =>
+      prev.map((l) => {
+        if (!l.resourceId) return l;
+        const override = effectiveRates[l.resourceId];
+        if (override == null || override <= 0) return l;
+        return { ...l, unitPrice: String(override) };
+      }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId, effectiveRates]);
+
+  const addLine = () => {
+    setError(null);
+    setLines((prev) => [...prev, { key: newKey(), resourceId: '', quantity: '', unitPrice: '', batchCode: '' }]);
+  };
+  const removeLine = (key: string) =>
+    setLines((prev) => (prev.length > 1 ? prev.filter((l) => l.key !== key) : prev));
+
+  const optionsFor = (line: DraftIssueLine) => {
+    const taken = new Set(lines.filter((l) => l.key !== line.key).map((l) => l.resourceId));
+    return issuable
+      .filter((r) => !taken.has(r.resourceId))
+      .map((r) => ({ title: `${r.name} (${r.balance} ${r.unit})`, value: r.resourceId }));
+  };
+
+  const submit = () => {
+    setError(null);
+    const payload: Array<{ resourceId: string; quantity: number; unitPrice?: number; batchCode?: string }> = [];
+    for (const l of lines) {
+      if (!l.resourceId) {
+        setError(`Choose a ${itemLower} for every line.`);
+        return;
+      }
+      const row = rowFor(l.resourceId);
+      const qty = Number(l.quantity);
+      if (!Number.isFinite(qty) || qty <= 0) {
+        setError(`Enter a positive quantity for ${row?.name ?? itemLower}.`);
+        return;
+      }
+      if (row && qty > Number(row.balance)) {
+        setError(`Only ${row.balance} ${row.unit} of ${row.name} available.`);
+        return;
+      }
+      const price = l.unitPrice === '' ? undefined : Number(l.unitPrice);
+      if (price !== undefined && (!Number.isFinite(price) || price < 0)) {
+        setError(`Enter a selling price (0 or more) for ${row?.name ?? itemLower}.`);
+        return;
+      }
+      payload.push({
+        resourceId: l.resourceId,
+        quantity: qty,
+        ...(price !== undefined ? { unitPrice: price } : {}),
+        ...(l.batchCode.trim() ? { batchCode: l.batchCode.trim() } : {}),
+      });
+    }
+    void onSubmit({
+      lines: payload,
+      ...(customerId ? { customerId } : {}),
+      customerName: customerName.trim() || undefined,
+      customerPhone: customerPhone.trim() || undefined,
+      customerAddress: customerAddress.trim() || undefined,
+      notes: notes.trim() || undefined,
+    });
+  };
+
+  return (
+    <Modal
+      visible={open}
+      animationType={isPhone ? 'slide' : 'fade'}
+      transparent
+      onRequestClose={submitting ? undefined : onClose}
+    >
+      <Pressable
+        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : 'items-center justify-center p-4'}`}
+        onPress={submitting ? undefined : onClose}
+      >
+        <Pressable
+          className={`bg-card w-full ${
+            isPhone ? 'rounded-t-2xl max-h-[92%] p-4' : 'rounded-2xl max-w-2xl max-h-[85%] p-5'
+          }`}
+          onPress={(e) => e.stopPropagation()}
+        >
+          <Text className="text-lg font-bold text-text mb-1">
+            {initialResourceId ? 'Issue stock' : 'Bulk issue'}
+          </Text>
+          <Text className="text-sm text-muted mb-3">
+            {initialResourceId
+              ? 'Set quantity and selling price. Creates a stock OUT and draft sales invoice.'
+              : 'Add multiple materials and quantities. One submit creates stock OUTs and one draft sales invoice.'}
+          </Text>
+          <ScrollView keyboardShouldPersistTaps="handled">
+            {lines.map((line, idx) => {
+              const row = rowFor(line.resourceId);
+              return (
+                <View key={line.key} className="rounded-xl border border-border p-3 mb-2">
+                  <View className="flex-row items-center justify-between mb-1">
+                    <Text className="text-xs font-bold text-text">
+                      {initialResourceId ? itemLabel : `${itemLabel} ${idx + 1}`}
+                    </Text>
+                    {!initialResourceId && lines.length > 1 ? (
+                      <Pressable disabled={submitting} onPress={() => removeLine(line.key)} className="px-2 py-1">
+                        <Text className="text-xs font-semibold text-danger">Remove</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                  <Select
+                    label={itemLabel}
+                    value={line.resourceId || undefined}
+                    onChange={(v) => {
+                      if (!v) return;
+                      if (lines.some((l) => l.key !== line.key && l.resourceId === v)) {
+                        setError(`Each ${itemLower} can be issued only once.`);
+                        return;
+                      }
+                      const selected = rowFor(v);
+                      setError(null);
+                      updateLine(line.key, {
+                        resourceId: v,
+                        unitPrice:
+                          selected && selected.catalogRate != null && Number(selected.catalogRate) > 0
+                            ? String(selected.catalogRate)
+                            : line.unitPrice,
+                      });
+                    }}
+                    options={optionsFor(line)}
+                    placeholder={`Choose ${itemLower}`}
+                    disabled={submitting || !!initialResourceId}
+                  />
+                  <View className="flex-row gap-2 mt-2">
+                    <View className="flex-1">
+                      <Input
+                        label={`Quantity (${row?.unit ?? ''})`}
+                        value={line.quantity}
+                        onChangeText={(t) => updateLine(line.key, { quantity: t })}
+                        keyboardType="decimal-pad"
+                        placeholder="0"
+                      />
+                    </View>
+                    <View className="flex-1">
+                      <Input
+                        label="Selling ₹ / unit"
+                        value={line.unitPrice}
+                        onChangeText={(t) => updateLine(line.key, { unitPrice: t })}
+                        keyboardType="decimal-pad"
+                        placeholder={row?.catalogRate != null ? `Catalog ₹${row.catalogRate}` : 'Price'}
+                      />
+                    </View>
+                  </View>
+                  <Input
+                    label="Batch / lot code (optional)"
+                    value={line.batchCode}
+                    onChangeText={(t) => updateLine(line.key, { batchCode: t })}
+                    autoCapitalize="characters"
+                    placeholder="e.g. LOT-2026-A"
+                  />
+                </View>
+              );
+            })}
+            {!initialResourceId ? (
+              <>
+                <Button
+                  label={`+ Add ${itemLower}`}
+                  variant="secondary"
+                  size="sm"
+                  fullWidth
+                  disabled={submitting || !issuable.some((r) => !lines.some((l) => l.resourceId === r.resourceId))}
+                  onPress={addLine}
+                />
+                <Text className="text-[11px] text-muted mt-1 mb-1">
+                  {!issuable.some((r) => !lines.some((l) => l.resourceId === r.resourceId))
+                    ? `All on-hand ${itemLower}s are already on this list.`
+                    : `Add another on-hand ${itemLower} to this same issue.`}
+                </Text>
+              </>
+            ) : null}
+            <View className="h-3" />
+            <Select
+              label="Customer (optional)"
+              value={customerId || undefined}
+              options={(customers ?? []).map((c: PartyRow) => ({ title: c.name, value: c.id }))}
+              onChange={(v) => {
+                setCustomerId(v ?? '');
+                const c = (customers ?? []).find((x: PartyRow) => x.id === v);
+                if (c) {
+                  if (!customerName) setCustomerName(c.name);
+                  if (!customerPhone && c.phone) setCustomerPhone(c.phone);
+                  if (!customerAddress && c.billingAddress) setCustomerAddress(c.billingAddress);
+                }
+              }}
+              placeholder="Pick from customers"
+            />
+            <Input
+              label="Customer name (optional)"
+              value={customerName}
+              onChangeText={setCustomerName}
+              placeholder="Defaults to Walk-in customer"
+            />
+            <Input
+              label="Customer phone (optional)"
+              value={customerPhone}
+              onChangeText={setCustomerPhone}
+              keyboardType="phone-pad"
+              placeholder="+91 …"
+            />
+            <Input
+              label="Customer address (optional)"
+              value={customerAddress}
+              onChangeText={setCustomerAddress}
+              placeholder="Billing address"
+            />
+            <Input
+              label="Notes (optional)"
+              value={notes}
+              onChangeText={setNotes}
+              multiline
+              placeholder="e.g. Delivery ref / site"
+            />
+            {error ? <Text className="text-sm text-danger mt-2">{error}</Text> : null}
+            <View className="flex-row gap-2 mt-4 mb-4">
+              <Button label="Cancel" variant="secondary" className="flex-1" disabled={submitting} onPress={onClose} />
+              <Button
+                label={submitting ? 'Issuing…' : initialResourceId ? 'Issue' : 'Bulk issue'}
+                variant="accent"
+                className="flex-1"
+                disabled={submitting}
+                loading={submitting}
+                onPress={submit}
+              />
             </View>
           </ScrollView>
         </Pressable>

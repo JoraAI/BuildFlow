@@ -1494,35 +1494,49 @@ export async function listStockMovements(
     include: { resource: { select: { unit: true } } },
   });
 
+  // StockMovement.referenceId is a free-text string; GRN/report ids are UUIDs.
+  // Passing a non-UUID (grn number, empty junk from older rows) makes Postgres
+  // throw "Inconsistent column data" and the whole item history fails.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const grnIds = [
     ...new Set(
       movements
-        .filter((m) => m.referenceType === 'GRN' && m.referenceId)
+        .filter((m) => m.referenceType === 'GRN' && m.referenceId && UUID_RE.test(m.referenceId))
         .map((m) => m.referenceId!),
     ),
   ];
   const reportIds = [
     ...new Set(
       movements
-        .filter((m) => m.referenceType === 'DAILY_REPORT' && m.referenceId)
+        .filter((m) => m.referenceType === 'DAILY_REPORT' && m.referenceId && UUID_RE.test(m.referenceId))
         .map((m) => m.referenceId!),
     ),
   ];
 
-  const [grns, reports] = await Promise.all([
-    grnIds.length
-      ? prisma.goodsReceiptNote.findMany({
-          where: { id: { in: grnIds } },
-          select: { id: true, grnNumber: true },
-        })
-      : [],
-    reportIds.length
-      ? prisma.dailyReport.findMany({
-          where: { id: { in: reportIds } },
-          select: { id: true, reportDate: true },
-        })
-      : [],
-  ]);
+  let grns: Array<{ id: string; grnNumber: string }> = [];
+  let reports: Array<{ id: string; reportDate: Date }> = [];
+  try {
+    [grns, reports] = await Promise.all([
+      grnIds.length
+        ? prisma.goodsReceiptNote.findMany({
+            where: { id: { in: grnIds } },
+            select: { id: true, grnNumber: true },
+          })
+        : [],
+      reportIds.length
+        ? prisma.dailyReport.findMany({
+            where: { id: { in: reportIds } },
+            select: { id: true, reportDate: true },
+          })
+        : [],
+    ]);
+  } catch (err) {
+    logger.warn('Stock movement reference lookup failed (labels will be generic)', {
+      error: String(err),
+      grnIds: grnIds.length,
+      reportIds: reportIds.length,
+    });
+  }
 
   const grnLabelById = new Map(grns.map((g) => [g.id, g.grnNumber]));
   const reportLabelById = new Map(

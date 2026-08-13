@@ -45,7 +45,12 @@ export async function listWarehouses(companyId: string, userId: string, role: st
     orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
     include: {
       balances: {
-        select: { resourceId: true, quantity: true },
+        where: { quantity: { gt: 0 } },
+        select: {
+          resourceId: true,
+          quantity: true,
+          resource: { select: { name: true, unit: true } },
+        },
       },
     },
   });
@@ -204,9 +209,29 @@ export async function createTransferOrder(
   });
   const resourceById = new Map(resources.map((r) => [r.id, r]));
 
+  const sourceBalances = await prisma.stockBalance.findMany({
+    where: {
+      locationId: input.fromLocationId,
+      resourceId: { in: input.lines.map((l) => l.resourceId) },
+    },
+    select: { resourceId: true, quantity: true },
+  });
+  const onHandByResource = new Map(sourceBalances.map((b) => [b.resourceId, Number(b.quantity)]));
+
   const lines = input.lines.map((l) => {
     const r = resourceById.get(l.resourceId);
     if (!r) throw ApiError.notFound('Resource not found');
+    const onHand = onHandByResource.get(l.resourceId) ?? 0;
+    if (onHand <= 0) {
+      throw ApiError.unprocessable(
+        `${r.name} is not in stock at the source warehouse - pick an item that is on hand there.`,
+      );
+    }
+    if (l.quantity > onHand) {
+      throw ApiError.unprocessable(
+        `${r.name}: only ${onHand} ${r.unit} on hand at source, transfer requires ${l.quantity} ${r.unit}.`,
+      );
+    }
     return {
       resourceId: l.resourceId,
       itemName: r.name,

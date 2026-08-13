@@ -5,6 +5,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
+import { logger } from '../config/logger';
 import { calculateGST, lineAmount, sumAmounts, round2 } from './gst.service';
 import { nextSequentialNumber, nextSequentialNumberTx } from '../lib/id-generator';
 // INVENTORY_HORIZONTAL_PLATFORM (Phase 9.1): customer price overrides on sales lines.
@@ -632,7 +633,12 @@ export async function createDraftInvoiceFromStockIssue(opts: {
       lineItems: true,
     },
   });
-  if (existing) return serialize(existing);
+  if (existing) {
+    if (!existing.salesOrderId && existing.stockMovementId) {
+      await linkSalesOrderForStockIssueInvoice(existing);
+    }
+    return serialize(existing);
+  }
 
   const resources = await prisma.resource.findMany({
     where: { id: { in: opts.lines.map((l) => l.resourceId) }, companyId: opts.companyId },
@@ -762,7 +768,154 @@ export async function createDraftInvoiceFromStockIssue(opts: {
     },
   });
 
-  return serialize(inv);
+  await linkSalesOrderForStockIssueInvoice(inv);
+  const withSo = await prisma.invoice.findFirst({
+    where: { id: inv.id },
+    include: {
+      project: { select: { id: true, name: true } },
+      lineItems: true,
+    },
+  });
+  return serialize(withSo ?? inv);
+}
+
+type StockIssueInvoiceLine = {
+  description: string;
+  quantity: unknown;
+  unit: string;
+  rate: unknown;
+  amount: unknown;
+  gstRate: unknown;
+  resourceId?: string | null;
+};
+
+/** Resolve catalog ids on issue invoices (older drafts may lack resourceId). */
+async function resolveIssueInvoiceLines(
+  inv: {
+    companyId: string;
+    stockMovementId?: string | null;
+    lineItems: StockIssueInvoiceLine[];
+  },
+): Promise<Array<StockIssueInvoiceLine & { resourceId: string }>> {
+  const complete = inv.lineItems.filter(
+    (l): l is StockIssueInvoiceLine & { resourceId: string } => !!l.resourceId,
+  );
+  if (complete.length === inv.lineItems.length && complete.length > 0) return complete;
+
+  const names = [...new Set(inv.lineItems.map((l) => l.description).filter(Boolean))];
+  const resources = names.length
+    ? await prisma.resource.findMany({
+        where: { companyId: inv.companyId, name: { in: names } },
+        select: { id: true, name: true },
+      })
+    : [];
+  const byName = new Map(resources.map((r) => [r.name, r.id]));
+
+  let firstMovementResourceId: string | null = null;
+  if (inv.stockMovementId) {
+    const sm = await prisma.stockMovement.findFirst({
+      where: { id: inv.stockMovementId },
+      select: { resourceId: true },
+    });
+    firstMovementResourceId = sm?.resourceId ?? null;
+  }
+
+  return inv.lineItems
+    .map((l, i) => ({
+      ...l,
+      resourceId:
+        l.resourceId ?? byName.get(l.description) ?? (i === 0 ? firstMovementResourceId : null) ?? null,
+    }))
+    .filter((l): l is StockIssueInvoiceLine & { resourceId: string } => !!l.resourceId);
+}
+
+/**
+ * Counter / walk-in stock issue already moved stock and wrote a draft invoice.
+ * Mirror it as an INVOICED sales order so it appears on the Sales tab
+ * (without dispatching again).
+ */
+export async function linkSalesOrderForStockIssueInvoice(inv: {
+  id: string;
+  companyId: string;
+  projectId: string;
+  customerId?: string | null;
+  clientName: string;
+  subtotal: unknown;
+  gstAmount: unknown;
+  total: unknown;
+  notes?: string | null;
+  salesOrderId?: string | null;
+  stockMovementId?: string | null;
+  invoiceDate?: Date;
+  lineItems: StockIssueInvoiceLine[];
+}): Promise<string | null> {
+  if (inv.salesOrderId || !inv.stockMovementId) return inv.salesOrderId ?? null;
+  const lines = await resolveIssueInvoiceLines(inv);
+  if (lines.length === 0) return null;
+  try {
+    const soNumber = await nextSequentialNumber(inv.companyId, 'so');
+    const so = await prisma.$transaction(async (tx) => {
+      const created = await tx.salesOrder.create({
+        data: {
+          companyId: inv.companyId,
+          projectId: inv.projectId,
+          soNumber,
+          customerId: inv.customerId ?? null,
+          customerName: inv.clientName || 'Walk-in customer',
+          status: 'INVOICED',
+          orderDate: inv.invoiceDate ?? new Date(),
+          notes: ['AUTO_STOCK_ISSUE', 'Counter sale - stock already issued', inv.notes]
+            .filter(Boolean)
+            .join(' · '),
+          subtotal: Number(inv.subtotal),
+          gstAmount: Number(inv.gstAmount),
+          total: Number(inv.total),
+          lines: {
+            create: lines.map((l) => ({
+              resourceId: l.resourceId,
+              itemName: l.description,
+              unit: l.unit,
+              quantity: Number(l.quantity),
+              rate: Number(l.rate),
+              amount: Number(l.amount),
+              gstRate: Number(l.gstRate),
+              deliveredQty: Number(l.quantity),
+            })),
+          },
+        },
+      });
+      await tx.invoice.update({
+        where: { id: inv.id },
+        data: { salesOrderId: created.id },
+      });
+      return created;
+    });
+    return so.id;
+  } catch (err) {
+    logger.warn('Could not mirror stock-issue invoice as a sales order', {
+      error: String(err),
+      invoiceId: inv.id,
+    });
+    return null;
+  }
+}
+
+/** Backfill sales orders for older stock-issue invoices (no SO yet). */
+export async function backfillStockIssueSalesOrders(companyId: string, projectId: string): Promise<void> {
+  const orphans = await prisma.invoice.findMany({
+    where: {
+      companyId,
+      projectId,
+      stockMovementId: { not: null },
+      salesOrderId: null,
+    },
+    include: { lineItems: true },
+    take: 200,
+    orderBy: { createdAt: 'desc' },
+  });
+  for (const inv of orphans) {
+    await linkSalesOrderForStockIssueInvoice(inv);
+  }
 }
 
 /**

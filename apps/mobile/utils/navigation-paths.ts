@@ -37,6 +37,11 @@ export function inventoryInvoiceDetailHref(invoiceId: string, returnTo?: string)
   return withReturnTo(`/inventory/invoices/${invoiceId}`, returnTo);
 }
 
+export function inventoryStockItemHref(resourceId: string, locationId?: string): string {
+  const base = `/inventory/stock/${resourceId}`;
+  return locationId ? `${base}?locationId=${encodeURIComponent(locationId)}` : base;
+}
+
 export function reportDetailHref(reportId: string, returnTo?: string): string {
   return withReturnTo(`/reports/${reportId}`, returnTo);
 }

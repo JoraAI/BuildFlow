@@ -86,7 +86,7 @@ function LineEditor({
 }) {
   const { data } = useResources();
   const resources: Array<{ id: string; name: string; unit: string; rate?: number | string | null; gstRate?: number | string | null }> =
-    data ?? [];
+    Array.isArray(data) ? data : (data?.data ?? []);
   const balances = useProjectStockBalances();
   const options = resources.map((r) => ({
     title: `${r.name}${balances.has(r.id) ? ` · on hand ${balances.get(r.id)}` : ''}`,

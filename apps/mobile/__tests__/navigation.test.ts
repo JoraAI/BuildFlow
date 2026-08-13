@@ -9,6 +9,7 @@ import {
   invoiceDetailHref,
   inventoryBillDetailHref,
   inventoryInvoiceDetailHref,
+  inventoryStockItemHref,
 } from '@/utils/navigation-paths';
 
 describe('parseReturnTo', () => {
@@ -59,5 +60,10 @@ describe('href helpers', () => {
     expect(inventoryInvoiceDetailHref('iid', '/inventory/invoices')).toContain(
       '/inventory/invoices/iid',
     );
+  });
+
+  it('builds inventory stock item href', () => {
+    expect(inventoryStockItemHref('rid')).toBe('/inventory/stock/rid');
+    expect(inventoryStockItemHref('rid', 'loc1')).toBe('/inventory/stock/rid?locationId=loc1');
   });
 });

@@ -6,7 +6,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Modal, Pressable } from 'react-native';
-import { Card, Badge, Button, Input, Select, LoadingSkeleton } from '@/components/ui';
+import { Card, Badge, Button, Input, Select, LoadingSkeleton, BusyOverlay, useBusy } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
 import { useRouter } from 'expo-router';
@@ -29,6 +29,7 @@ import {
 } from '@buildflow/shared';
 
 export default function InventorySettingsScreen() {
+  const { busy, run } = useBusy();
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
@@ -63,41 +64,48 @@ export default function InventorySettingsScreen() {
   }, [company?.poAutoApproveBelow, company?.poOwnerApproveAbove]);
 
   const savePoApproval = async () => {
-    try {
-      const below = poAutoApproveBelow === '' ? 0 : Number(poAutoApproveBelow);
-      const above = poOwnerApproveAbove === '' ? 0 : Number(poOwnerApproveAbove);
-      if (!Number.isFinite(below) || below < 0 || !Number.isFinite(above) || above < 0) {
-        toast.error('Enter valid amounts (₹).');
-        return;
+    await run(async () => {
+      try {
+        const below = poAutoApproveBelow === '' ? 0 : Number(poAutoApproveBelow);
+        const above = poOwnerApproveAbove === '' ? 0 : Number(poOwnerApproveAbove);
+        if (!Number.isFinite(below) || below < 0 || !Number.isFinite(above) || above < 0) {
+          toast.error('Enter valid amounts (₹).');
+          return;
+        }
+        await updateCompany.mutateAsync({ poAutoApproveBelow: below, poOwnerApproveAbove: above });
+        toast.success('PO approval thresholds saved');
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Could not save thresholds');
       }
-      await updateCompany.mutateAsync({ poAutoApproveBelow: below, poOwnerApproveAbove: above });
-      toast.success('PO approval thresholds saved');
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not save thresholds');
-    }
+    });
   };
 
   const saveProfile = async () => {
-    try {
-      await updateCompany.mutateAsync({ inventoryProfile: profile });
-      await refreshUser();
-      toast.success('Business profile saved');
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not save profile');
-    }
+    await run(async () => {
+      try {
+        await updateCompany.mutateAsync({ inventoryProfile: profile });
+        await refreshUser();
+        toast.success('Business profile saved');
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Could not save profile');
+      }
+    });
   };
 
   const saveCreditPolicy = async () => {
-    try {
-      await updateCompany.mutateAsync({ creditLimitPolicy: creditPolicy });
-      toast.success('Credit limit policy saved');
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not save credit policy');
-    }
+    await run(async () => {
+      try {
+        await updateCompany.mutateAsync({ creditLimitPolicy: creditPolicy });
+        toast.success('Credit limit policy saved');
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Could not save credit policy');
+      }
+    });
   };
 
   return (
     <View className="flex-1 bg-surface">
+      <BusyOverlay visible={busy} title="Saving settings…" />
       <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
         <Text className="text-2xl font-bold text-text mb-1">Settings</Text>
         <Text className="text-sm text-muted mb-4">Inventory account · {user?.companyName}</Text>
@@ -275,9 +283,13 @@ export default function InventorySettingsScreen() {
                   variant="secondary"
                   label="Revoke"
                   onPress={() =>
-                    revokeInvite.mutate(inv.id, {
-                      onSuccess: () => toast.success('Invite revoked'),
-                      onError: (e) => toast.error(e.message),
+                    void run(async () => {
+                      try {
+                        await revokeInvite.mutateAsync(inv.id);
+                        toast.success('Invite revoked');
+                      } catch (e) {
+                        toast.error(e instanceof Error ? e.message : 'Could not revoke invite');
+                      }
                     })
                   }
                 />
@@ -330,9 +342,11 @@ export default function InventorySettingsScreen() {
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
         onSubmit={async (email, role) => {
-          await createInvite.mutateAsync({ email, role });
-          toast.success('Invite sent');
-          setInviteOpen(false);
+          await run(async () => {
+            await createInvite.mutateAsync({ email, role });
+            toast.success('Invite sent');
+            setInviteOpen(false);
+          });
         }}
       />
     </View>

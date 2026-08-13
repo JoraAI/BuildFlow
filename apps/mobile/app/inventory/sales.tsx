@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, FlatList, Pressable } from 'react-native';
-import { Card, Badge, Button, EmptyState, LoadingSkeleton, toast } from '@/components/ui';
+import { useRouter } from 'expo-router';
+import { Card, Badge, Button, EmptyState, LoadingSkeleton, toast, BusyOverlay, useBusy } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
 import {
   useSalesOrders, useCreateSalesOrder, useSalesOrderAction, useInvoiceFromSalesOrder,
@@ -32,6 +33,8 @@ const STATUS_COLOR: Record<string, 'success' | 'warning' | 'neutral' | 'danger'>
 };
 
 export default function InventorySalesScreen() {
+  const router = useRouter();
+  const { busy, run } = useBusy();
   const projectId = useAuthStore((s) => s.user?.defaultProjectId ?? '');
   const [tab, setTab] = useState<Tab>('orders');
   const [soOpen, setSoOpen] = useState(false);
@@ -83,21 +86,38 @@ export default function InventorySalesScreen() {
           </View>
           <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
         </View>
+        {item.notes?.includes('AUTO_STOCK_ISSUE') ? (
+          <Text className="text-[11px] text-muted mt-1">Counter sale from stock issue - already invoiced</Text>
+        ) : null}
         <View className="flex-row flex-wrap gap-2 mt-3">
           {item.status === 'DRAFT' ? (
-            <Button label="Confirm" size="sm" variant="secondary" onPress={() => void soAction.mutateAsync({ id: item.id, action: 'confirm' }).then(() => toast.success('Order confirmed'))} />
-          ) : null}
-          {item.status === 'CONFIRMED' ? (
-            <Button label="Create challan" size="sm" variant="secondary" onPress={() => void createChallan.mutateAsync({ salesOrderId: item.id }).then(() => toast.success('Challan created - dispatch to move stock'))} />
-          ) : null}
-          {(item.status === 'CONFIRMED' || item.status === 'DELIVERED') && delivered ? (
-            <Button label="Invoice delivered qty" size="sm" variant="accent" onPress={() => void invoiceFromSO.mutateAsync({ id: item.id }).then((r) => {
-              toast.success(`Invoice ${r.invoiceNumber} created`);
-              if (r.creditLimitWarning) toast.warning(r.creditLimitWarning);
+            <Button label="Confirm" size="sm" variant="secondary" disabled={busy} onPress={() => void run(async () => {
+              await soAction.mutateAsync({ id: item.id, action: 'confirm' });
+              toast.success('Order confirmed');
             })} />
           ) : null}
+          {item.status === 'CONFIRMED' ? (
+            <Button label="Create challan" size="sm" variant="secondary" disabled={busy} onPress={() => void run(async () => {
+              await createChallan.mutateAsync({ salesOrderId: item.id });
+              toast.success('Challan created - dispatch to move stock');
+            })} />
+          ) : null}
+          {(item.status === 'CONFIRMED' || item.status === 'DELIVERED') && delivered ? (
+            <Button label="Invoice delivered qty" size="sm" variant="accent" disabled={busy} onPress={() => void run(async () => {
+              const r = await invoiceFromSO.mutateAsync({ id: item.id });
+              toast.success(`Invoice ${r.invoiceNumber} created`);
+              if (r.creditLimitWarning) toast.warning(r.creditLimitWarning);
+              router.push('/inventory/invoices' as never);
+            })} />
+          ) : null}
+          {item.status === 'INVOICED' ? (
+            <Button label="Go to invoices" size="sm" variant="secondary" onPress={() => router.push('/inventory/invoices' as never)} />
+          ) : null}
           {item.status === 'CONFIRMED' || item.status === 'DELIVERED' ? (
-            <Button label="Cancel" size="sm" variant="secondary" onPress={() => void soAction.mutateAsync({ id: item.id, action: 'cancel' }).then(() => toast.info('Order cancelled'))} />
+            <Button label="Cancel" size="sm" variant="secondary" disabled={busy} onPress={() => void run(async () => {
+              await soAction.mutateAsync({ id: item.id, action: 'cancel' });
+              toast.info('Order cancelled');
+            })} />
           ) : null}
           {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 9.3): printable SO PDF. */}
           <Button label="PDF" size="sm" variant="ghost" onPress={() => void downloadReportPdf(`/inventory/pdf/sales-orders/${item.id}`, `so-${item.soNumber}.pdf`)} />
@@ -118,20 +138,34 @@ export default function InventorySalesScreen() {
       </View>
       <View className="flex-row flex-wrap gap-2 mt-3">
         {item.status === 'DRAFT' ? (
-          <Button label="Send" size="sm" variant="secondary" onPress={() => void quoteAction.mutateAsync({ id: item.id, action: 'send' }).then(() => toast.success('Quote sent'))} />
+          <Button label="Send" size="sm" variant="secondary" disabled={busy} onPress={() => void run(async () => {
+            await quoteAction.mutateAsync({ id: item.id, action: 'send' });
+            toast.success('Quote sent');
+          })} />
         ) : null}
         {item.status === 'SENT' ? (
           <>
-            <Button label="Accept" size="sm" variant="accent" onPress={() => void quoteAction.mutateAsync({ id: item.id, action: 'accept' }).then(() => toast.success('Quote accepted - convert to a sales order'))} />
-            <Button label="Reject" size="sm" variant="secondary" onPress={() => void quoteAction.mutateAsync({ id: item.id, action: 'reject' }).then(() => toast.info('Quote rejected'))} />
+            <Button label="Accept" size="sm" variant="accent" disabled={busy} onPress={() => void run(async () => {
+              await quoteAction.mutateAsync({ id: item.id, action: 'accept' });
+              toast.success('Quote accepted - convert to a sales order');
+            })} />
+            <Button label="Reject" size="sm" variant="secondary" disabled={busy} onPress={() => void run(async () => {
+              await quoteAction.mutateAsync({ id: item.id, action: 'reject' });
+              toast.info('Quote rejected');
+            })} />
           </>
         ) : null}
         {item.status === 'ACCEPTED' && !item.salesOrderId ? (
-          <Button label="Create sales order" size="sm" variant="accent" onPress={() => void quoteToSO.mutateAsync(item.id).then(() => toast.success('Sales order created from quote'))} />
+          <Button label="Create sales order" size="sm" variant="accent" disabled={busy} onPress={() => void run(async () => {
+            await quoteToSO.mutateAsync(item.id);
+            toast.success('Sales order created from quote');
+          })} />
         ) : null}
-        {/* Allow rejecting/voiding an accepted quote (no duplicate Reject for SENT). */}
         {item.status === 'ACCEPTED' ? (
-          <Button label="Reject" size="sm" variant="ghost" onPress={() => void quoteAction.mutateAsync({ id: item.id, action: 'reject' }).then(() => toast.info('Quote rejected'))} />
+          <Button label="Reject" size="sm" variant="ghost" disabled={busy} onPress={() => void run(async () => {
+            await quoteAction.mutateAsync({ id: item.id, action: 'reject' });
+            toast.info('Quote rejected');
+          })} />
         ) : null}
       </View>
     </Card>
@@ -154,7 +188,10 @@ export default function InventorySalesScreen() {
           <Button label="Dispatch (stock OUT)" size="sm" variant="accent" onPress={() => setDispatchChallan(item)} />
         ) : null}
         {item.status === 'DISPATCHED' ? (
-          <Button label="Deliver" size="sm" variant="secondary" onPress={() => void challanTransition.mutateAsync({ id: item.id, action: 'deliver' }).then(() => toast.success('Delivered'))} />
+          <Button label="Deliver" size="sm" variant="secondary" disabled={busy} onPress={() => void run(async () => {
+            await challanTransition.mutateAsync({ id: item.id, action: 'deliver' });
+            toast.success('Delivered');
+          })} />
         ) : null}
         {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 9.3): printable DC PDF. */}
         <Button label="PDF" size="sm" variant="ghost" onPress={() => void downloadReportPdf(`/inventory/pdf/delivery-challans/${item.id}`, `dc-${item.dcNumber}.pdf`)} />
@@ -179,6 +216,14 @@ export default function InventorySalesScreen() {
           </View>
           <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
         </View>
+        <View className="flex-row flex-wrap gap-2 mt-3">
+          <Button
+            label={isSales ? 'Go to invoices' : 'Go to vendor bills'}
+            size="sm"
+            variant="secondary"
+            onPress={() => router.push((isSales ? '/inventory/invoices' : '/inventory/bills') as never)}
+          />
+        </View>
       </Card>
     );
   };
@@ -200,11 +245,11 @@ export default function InventorySalesScreen() {
             label="Issue note"
             size="sm"
             variant="accent"
-            onPress={() =>
-              void (item.kind === 'credit' ? issueCreditNote : issueDebitNote)
-                .mutateAsync(item.id)
-                .then(() => toast.success('Note issued - included in Tally export'))
-            }
+            disabled={busy}
+            onPress={() => void run(async () => {
+              await (item.kind === 'credit' ? issueCreditNote : issueDebitNote).mutateAsync(item.id);
+              toast.success('Note issued - included in Tally export');
+            })}
           />
           <Text className="text-[11px] text-muted w-full">
             Draft notes are not exported to Tally. Issue to finalise.
@@ -254,14 +299,15 @@ export default function InventorySalesScreen() {
 
   return (
     <View className="flex-1 bg-surface">
+      <BusyOverlay visible={busy} title="Updating sales…" />
       <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between gap-2">
         <View className="flex-1 min-w-[180px] mr-2">
           <Text className="text-2xl font-bold text-text">Sales</Text>
           <Text className="text-sm text-muted mt-0.5">
-            Sales order → delivery challan → invoice. Returns create draft credit/debit notes.
+            Sales order → delivery challan → invoice. Stock issues also appear here as invoiced counter sales.
           </Text>
         </View>
-        {headerLabel ? <Button label={headerLabel} variant="accent" size="sm" onPress={headerAction} /> : null}
+        {headerLabel ? <Button label={headerLabel} variant="accent" size="sm" disabled={busy} onPress={headerAction} /> : null}
       </View>
 
       <View className="flex-row flex-wrap px-4 pb-2 gap-2">
@@ -296,7 +342,7 @@ export default function InventorySalesScreen() {
                 : 'No credit/debit notes yet'
               }
               description={
-                tab === 'orders' ? 'Create an order to start the formal sales flow.'
+                tab === 'orders' ? 'Issue stock from Stock/materials to create a counter sale, or tap New order for the formal flow.'
                 : tab === 'quotes' ? 'Create a quote, then accept it to convert to a sales order.'
                 : tab === 'deliveries' ? 'Confirm a sales order, then create a challan.'
                 : tab === 'returns' ? 'Record a return against an invoice or bill.'
@@ -321,9 +367,11 @@ export default function InventorySalesScreen() {
           open={soOpen}
           onClose={() => setSoOpen(false)}
           onSubmit={async (input) => {
-            await createSO.mutateAsync(input);
-            toast.success('Sales order created');
-            setSoOpen(false);
+            await run(async () => {
+              await createSO.mutateAsync(input);
+              toast.success('Sales order created');
+              setSoOpen(false);
+            });
           }}
         />
       ) : null}
@@ -332,9 +380,11 @@ export default function InventorySalesScreen() {
           open={quoteOpen}
           onClose={() => setQuoteOpen(false)}
           onSubmit={async (input) => {
-            await createQuote.mutateAsync(input);
-            toast.success('Quote created');
-            setQuoteOpen(false);
+            await run(async () => {
+              await createQuote.mutateAsync(input);
+              toast.success('Quote created');
+              setQuoteOpen(false);
+            });
           }}
         />
       ) : null}
@@ -343,9 +393,11 @@ export default function InventorySalesScreen() {
           open={challanOpen}
           onClose={() => setChallanOpen(false)}
           onSubmit={async (input) => {
-            await createChallan.mutateAsync(input);
-            toast.success('Challan created');
-            setChallanOpen(false);
+            await run(async () => {
+              await createChallan.mutateAsync(input);
+              toast.success('Challan created');
+              setChallanOpen(false);
+            });
           }}
         />
       ) : null}
@@ -355,13 +407,20 @@ export default function InventorySalesScreen() {
           dcNumber={dispatchChallan.dcNumber}
           onClose={() => setDispatchChallan(null)}
           onDispatch={async (locationId) => {
-            await challanTransition.mutateAsync({
-              id: dispatchChallan.id,
-              action: 'dispatch',
-              locationId,
+            await run(async () => {
+              const r = await challanTransition.mutateAsync({
+                id: dispatchChallan.id,
+                action: 'dispatch',
+                locationId,
+              });
+              toast.success(
+                r.draftInvoiceId
+                  ? 'Dispatched - stock moved OUT · draft invoice created'
+                  : 'Dispatched - stock moved OUT',
+              );
+              setDispatchChallan(null);
+              if (r.draftInvoiceId) router.push('/inventory/invoices' as never);
             });
-            toast.success('Dispatched - stock moved OUT');
-            setDispatchChallan(null);
           }}
         />
       ) : null}
@@ -371,9 +430,12 @@ export default function InventorySalesScreen() {
           projectId={projectId}
           onClose={() => setSalesReturnOpen(false)}
           onSubmit={async (input) => {
-            const r = await createSalesReturn.mutateAsync(input);
-            toast.success(`Return ${r.salesReturn.returnNumber} recorded - draft credit note created`);
-            setSalesReturnOpen(false);
+            await run(async () => {
+              const r = await createSalesReturn.mutateAsync(input);
+              toast.success(`Return ${r.salesReturn.returnNumber} recorded - draft credit note created`);
+              setSalesReturnOpen(false);
+              router.push('/inventory/invoices' as never);
+            });
           }}
         />
       ) : null}
@@ -383,9 +445,12 @@ export default function InventorySalesScreen() {
           projectId={projectId}
           onClose={() => setPurchaseReturnOpen(false)}
           onSubmit={async (input) => {
-            const r = await createPurchaseReturn.mutateAsync(input);
-            toast.success(`Return ${r.purchaseReturn.returnNumber} recorded - draft debit note created`);
-            setPurchaseReturnOpen(false);
+            await run(async () => {
+              const r = await createPurchaseReturn.mutateAsync(input);
+              toast.success(`Return ${r.purchaseReturn.returnNumber} recorded - draft debit note created`);
+              setPurchaseReturnOpen(false);
+              router.push('/inventory/bills' as never);
+            });
           }}
         />
       ) : null}

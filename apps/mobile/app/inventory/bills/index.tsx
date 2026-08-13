@@ -13,7 +13,7 @@ import { ProjectBillsList } from '@/components/accounting/InvoiceBillLists';
 import { downloadTallyXml } from '@/services/report-download';
 import { useCreateBill, type Bill } from '@/services/accounting.queries';
 import { useVendors, type PartyRow } from '@/services/party.queries';
-import { toast } from '@/components/ui';
+import { toast, BusyOverlay, useBusy } from '@/components/ui';
 import { inventoryBillDetailHref } from '@/utils/navigation';
 import { ScanInvoiceModal } from '@/components/inventory/ScanInvoiceModal';
 
@@ -28,6 +28,7 @@ const BILL_CATEGORIES = [
 export default function InventoryBillsScreen() {
   const user = useAuthStore((s) => s.user);
   const { isPhone } = useViewport();
+  const { busy, run } = useBusy();
   const projectId = user?.defaultProjectId ?? '';
   const [createOpen, setCreateOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
@@ -35,6 +36,7 @@ export default function InventoryBillsScreen() {
 
   return (
     <View className="flex-1 bg-surface">
+      <BusyOverlay visible={busy} title="Updating bills…" />
       <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between">
         <View className="flex-1 mr-2 min-w-[160px]">
           <Text className="text-2xl font-bold text-text">Vendor bills</Text>
@@ -73,13 +75,15 @@ export default function InventoryBillsScreen() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onSubmit={async (input) => {
-          await createBill.mutateAsync({
-            ...input,
-            projectId,
-            category: input.category as Bill['category'],
+          await run(async () => {
+            await createBill.mutateAsync({
+              ...input,
+              projectId,
+              category: input.category as Bill['category'],
+            });
+            toast.success('Vendor bill created');
+            setCreateOpen(false);
           });
-          toast.success('Vendor bill created');
-          setCreateOpen(false);
         }}
       />
       <ScanInvoiceModal open={scanOpen} onClose={() => setScanOpen(false)} />

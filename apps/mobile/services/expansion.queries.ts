@@ -693,6 +693,7 @@ export function useIssueStock(projectId: string) {
       void qc.invalidateQueries({ queryKey: expansionKeys.stock(projectId) });
       void qc.invalidateQueries({ queryKey: ['procurement', 'stock', 'movements', projectId] });
       void qc.invalidateQueries({ queryKey: ['invoices', 'list', projectId] });
+      void qc.invalidateQueries({ queryKey: ['transactions', 'sales-orders'] });
     },
   });
 }

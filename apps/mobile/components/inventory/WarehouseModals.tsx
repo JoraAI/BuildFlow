@@ -188,17 +188,29 @@ export function TransferModal({
     }
   }, [open, warehouses]);
 
-  if (!open) return null;
-
-  const whOptions = warehouses.map((w) => ({ title: w.name, value: w.id }));
-  const itemOptions = rows.map((r) => ({ title: `${r.name} (${r.balance} ${r.unit})`, value: r.resourceId }));
   const srcWh = warehouses.find((w) => w.id === fromId);
   const balanceOf = useMemo(() => {
     const m = new Map<string, number>();
-    for (const b of srcWh?.balances ?? []) m.set(b.resourceId, Number(b.quantity));
-    if (m.size > 0) return m;
-    return new Map(rows.map((r) => [r.resourceId, r.balance]));
+    for (const b of srcWh?.balances ?? []) {
+      const qty = Number(b.quantity);
+      if (qty > 0) m.set(b.resourceId, qty);
+    }
+    return m;
+  }, [srcWh]);
+  const itemOptions = useMemo(() => {
+    return (srcWh?.balances ?? [])
+      .filter((b) => Number(b.quantity) > 0)
+      .map((b) => {
+        const row = rows.find((r) => r.resourceId === b.resourceId);
+        const name = b.resource?.name ?? row?.name ?? 'Item';
+        const unit = b.resource?.unit ?? row?.unit ?? '';
+        return { title: `${name} (${Number(b.quantity)} ${unit} here)`, value: b.resourceId };
+      });
   }, [srcWh, rows]);
+
+  if (!open) return null;
+
+  const whOptions = warehouses.map((w) => ({ title: w.name, value: w.id }));
 
   const submit = async () => {
     setError('');
@@ -214,6 +226,17 @@ export function TransferModal({
     if (good.length === 0) {
       setError('Add at least one item with a quantity.');
       return;
+    }
+    for (const l of good) {
+      const bal = balanceOf.get(l.resourceId) ?? 0;
+      if (bal <= 0) {
+        setError('Pick items that are on hand at the source warehouse.');
+        return;
+      }
+      if (Number(l.quantity) > bal) {
+        setError(`Quantity exceeds on-hand at source (${bal}).`);
+        return;
+      }
     }
     setSaving(true);
     try {
@@ -238,8 +261,23 @@ export function TransferModal({
       saving={saving}
       onClose={onClose}
     >
-      <Select label="From warehouse" value={fromId || undefined} options={whOptions} onChange={(v) => v && setFromId(v)} placeholder="Pick source" />
+      <Select
+        label="From warehouse"
+        value={fromId || undefined}
+        options={whOptions}
+        onChange={(v) => {
+          if (!v) return;
+          setFromId(v);
+          setLines([{ key: newKey(), resourceId: '', quantity: '' }]);
+        }}
+        placeholder="Pick source"
+      />
       <Select label="To warehouse" value={toId || undefined} options={whOptions} onChange={(v) => v && setToId(v)} placeholder="Pick destination" />
+      {fromId && itemOptions.length === 0 ? (
+        <Text className="text-xs text-muted mt-2">
+          No stock at this warehouse to transfer. Receive a GRN or pick another source.
+        </Text>
+      ) : null}
       {lines.map((l, i) => {
         const bal = l.resourceId ? (balanceOf.get(l.resourceId) ?? 0) : 0;
         return (
@@ -280,13 +318,15 @@ export function TransferModal({
           </View>
         );
       })}
-      <Button
-        label="+ Add item"
-        variant="secondary"
-        size="sm"
-        fullWidth
-        onPress={() => setLines((ls) => [...ls, { key: newKey(), resourceId: '', quantity: '' }])}
-      />
+      {itemOptions.length > 0 ? (
+        <Button
+          label="+ Add item"
+          variant="secondary"
+          size="sm"
+          fullWidth
+          onPress={() => setLines((ls) => [...ls, { key: newKey(), resourceId: '', quantity: '' }])}
+        />
+      ) : null}
       <Input label="Notes (optional)" value={notes} onChangeText={setNotes} multiline placeholder="e.g. stock move for the new branch" />
       {error ? <Text className="text-sm text-danger mt-2">{error}</Text> : null}
       <View className="flex-row flex-wrap gap-2 mt-4 mb-4">

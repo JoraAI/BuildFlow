@@ -5,7 +5,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, Modal, ScrollView, RefreshControl, Pressable } from 'react-native';
-import { Card, Button, Input, EmptyState, LoadingSkeleton, Select, toast } from '@/components/ui';
+import { Card, Button, Input, EmptyState, LoadingSkeleton, Select, toast, BusyOverlay, useBusy } from '@/components/ui';
 import {
   useResources,
   useCreateResource,
@@ -22,6 +22,7 @@ import { useVendors, type PartyRow } from '@/services/party.queries';
 import { ImportMappingModal } from '@/components/inventory/ImportMappingModal';
 
 export default function InventoryMaterialsScreen() {
+  const { busy, run } = useBusy();
   const user = useAuthStore((s) => s.user);
   const { data, isLoading, isFetching, refetch } = useResources();
   const { isPhone } = useViewport();
@@ -45,17 +46,19 @@ export default function InventoryMaterialsScreen() {
       `Delete "${item.name}"? Existing POs, GRNs and stock movements keep their values.`,
     );
     if (!ok) return;
-    try {
-      await deleteResource.mutateAsync(item.id);
-      toast.success(`${itemLabel} deleted`);
-    } catch (e) {
-      // Surface the API error (e.g. "used in rate analysis") - do not soft-fail.
-      toast.error(e instanceof Error ? e.message : 'Could not delete material');
-    }
+    await run(async () => {
+      try {
+        await deleteResource.mutateAsync(item.id);
+        toast.success(`${itemLabel} deleted`);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Could not delete material');
+      }
+    });
   };
 
   return (
     <View className="flex-1 bg-surface">
+      <BusyOverlay visible={busy} title={`Updating ${itemPluralLabel.toLowerCase()}…`} />
       <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between">
         <View className="flex-1 mr-2 min-w-[160px]">
           <Text className="text-2xl font-bold text-text">{itemPluralLabel}</Text>
@@ -137,10 +140,12 @@ export default function InventoryMaterialsScreen() {
         itemLabel={itemLabel}
         submitting={createResource.isPending}
         onSubmit={async (input) => {
-          await createResource.mutateAsync(input);
-          toast.success(`${itemLabel} added`);
-          setCreateOpen(false);
-          void refetch();
+          await run(async () => {
+            await createResource.mutateAsync(input);
+            toast.success(`${itemLabel} added`);
+            setCreateOpen(false);
+            void refetch();
+          });
         }}
       />
 
@@ -153,14 +158,16 @@ export default function InventoryMaterialsScreen() {
         submitting={editing !== null && updateResource.isPending}
         onSubmit={async (input) => {
           if (!editing) return;
-          try {
-            await updateResource.mutateAsync(input);
-            toast.success(`${itemLabel} updated`);
-            setEditing(null);
-            void refetch();
-          } catch (e) {
-            toast.error(e instanceof Error ? e.message : 'Could not update material');
-          }
+          await run(async () => {
+            try {
+              await updateResource.mutateAsync(input);
+              toast.success(`${itemLabel} updated`);
+              setEditing(null);
+              void refetch();
+            } catch (e) {
+              toast.error(e instanceof Error ? e.message : 'Could not update material');
+            }
+          });
         }}
       />
 
