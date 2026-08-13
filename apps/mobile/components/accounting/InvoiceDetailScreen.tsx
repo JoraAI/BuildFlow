@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
-import { Card, Badge, Button, Input, EmptyState, LoadingSkeleton, toast } from '@/components/ui';
+import { Card, Badge, Button, Input, EmptyState, LoadingSkeleton, toast, BusyOverlay, useBusy } from '@/components/ui';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { useViewport } from '@/hooks/useViewport';
@@ -37,6 +37,7 @@ const STATUS_COLOR: Record<string, 'success' | 'warning' | 'danger' | 'primary' 
 };
 
 export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: string }) {
+  const { busy, run } = useBusy();
   const { isDesktop } = useViewport();
   const { id, returnTo: returnToParam } = useLocalSearchParams<{ id: string; returnTo?: string }>();
   const returnTo = parseReturnTo(returnToParam);
@@ -83,9 +84,13 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
       `Mark invoice ${invoice.invoiceNumber} as sent?`,
     );
     if (!ok) return;
-    sendInvoice.mutate(invoice.id, {
-      onError: async (e: Error) => alertAsync('Error', e.message),
-    });
+    try {
+      await run(async () => {
+        await sendInvoice.mutateAsync(invoice.id);
+      });
+    } catch (e) {
+      await alertAsync('Error', e instanceof Error ? e.message : 'Could not send');
+    }
   };
 
   const onRecordPayment = () => {
@@ -95,21 +100,21 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
       setFormError('Please enter a valid payment amount.');
       return;
     }
-    recordPayment.mutate(
-      { id: invoice.id, amount },
-      {
-        onSuccess: async () => {
-          setShowPayment(false);
-          setPaymentAmount('');
-          setFormError(null);
-          await alertAsync('Success', 'Payment recorded successfully.');
-        },
-        onError: async (e: Error) => {
-          setFormError(e.message);
-          await alertAsync('Error', e.message);
-        },
-      },
-    );
+    void (async () => {
+      try {
+        await run(async () => {
+          await recordPayment.mutateAsync({ id: invoice.id, amount });
+        });
+        setShowPayment(false);
+        setPaymentAmount('');
+        setFormError(null);
+        await alertAsync('Success', 'Payment recorded successfully.');
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Could not record payment';
+        setFormError(msg);
+        await alertAsync('Error', msg);
+      }
+    })();
   };
 
   const totalsCard = (
@@ -145,10 +150,10 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
       />
       {invoice.status === 'DRAFT' && (
         <Button
-          label={sendInvoice.isPending ? 'Sending...' : 'Send Invoice'}
+          label={sendInvoice.isPending || busy ? 'Sending...' : 'Send Invoice'}
           variant="primary"
           onPress={onSend}
-          disabled={sendInvoice.isPending}
+          disabled={sendInvoice.isPending || busy}
         />
       )}
 
@@ -170,10 +175,16 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
           variant="ghost"
           disabled={remindInvoice.isPending}
           onPress={() => {
-            remindInvoice.mutate(invoice.id, {
-              onSuccess: () => toast.success('Payment reminder sent to store owners'),
-              onError: (e: Error) => toast.error(e.message),
-            });
+            void (async () => {
+              try {
+                await run(async () => {
+                  await remindInvoice.mutateAsync(invoice.id);
+                });
+                toast.success('Payment reminder sent to store owners');
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : 'Could not send reminder');
+              }
+            })();
           }}
         />
       ) : null}
@@ -296,6 +307,7 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
 
   return (
     <SafeAreaView className="flex-1 bg-surface" edges={isDesktop ? [] : ['bottom']}>
+      <BusyOverlay visible={busy} title="Updating invoice…" />
       <OfflineBanner />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

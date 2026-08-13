@@ -30,7 +30,13 @@ export const INVENTORY_TABS = [
 type InventoryTab = (typeof INVENTORY_TABS)[number];
 
 function isActiveTab(tab: InventoryTab, pathname: string): boolean {
-  if (tab.key === 'index') return pathname === '/inventory' || pathname === '/inventory/';
+  if (tab.key === 'index') {
+    return (
+      pathname === '/inventory' ||
+      pathname === '/inventory/' ||
+      pathname.startsWith('/inventory/stock/')
+    );
+  }
   return pathname.startsWith(tab.href);
 }
 

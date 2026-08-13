@@ -13,18 +13,20 @@ import { ProjectInvoicesList } from '@/components/accounting/InvoiceBillLists';
 import { downloadTallyXml } from '@/services/report-download';
 import { useCreateInvoice } from '@/services/accounting.queries';
 import { useCustomers, type PartyRow } from '@/services/party.queries';
-import { toast } from '@/components/ui';
+import { toast, BusyOverlay, useBusy } from '@/components/ui';
 import { inventoryInvoiceDetailHref } from '@/utils/navigation';
 
 export default function InventoryInvoicesScreen() {
   const user = useAuthStore((s) => s.user);
   const { isPhone } = useViewport();
+  const { busy, run } = useBusy();
   const projectId = user?.defaultProjectId ?? '';
   const [createOpen, setCreateOpen] = useState(false);
   const createInvoice = useCreateInvoice();
 
   return (
     <View className="flex-1 bg-surface">
+      <BusyOverlay visible={busy} title="Updating invoices…" />
       <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between">
         <View className="flex-1 mr-2 min-w-[160px]">
           <Text className="text-2xl font-bold text-text">Sales invoices</Text>
@@ -57,13 +59,14 @@ export default function InventoryInvoicesScreen() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onSubmit={async (input) => {
-          const inv = (await createInvoice.mutateAsync({ ...input, projectId })) as
-            | { creditLimitWarning?: string }
-            | undefined;
-          // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): WARN policy surfaces a toast.
-          if (inv?.creditLimitWarning) toast.warning(inv.creditLimitWarning);
-          toast.success('Invoice created');
-          setCreateOpen(false);
+          await run(async () => {
+            const inv = (await createInvoice.mutateAsync({ ...input, projectId })) as
+              | { creditLimitWarning?: string }
+              | undefined;
+            if (inv?.creditLimitWarning) toast.warning(inv.creditLimitWarning);
+            toast.success('Invoice created');
+            setCreateOpen(false);
+          });
         }}
       />
     </View>

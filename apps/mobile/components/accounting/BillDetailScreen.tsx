@@ -7,7 +7,7 @@ import { View, Text, ScrollView, KeyboardAvoidingView, Platform, Pressable, type
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Card, Badge, Button, Input, EmptyState, LoadingSkeleton, ProgressBar } from '@/components/ui';
+import { Card, Badge, Button, Input, EmptyState, LoadingSkeleton, ProgressBar, BusyOverlay, useBusy } from '@/components/ui';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { useViewport } from '@/hooks/useViewport';
@@ -57,6 +57,7 @@ export function BillDetailScreen({
   inventoryMode?: boolean;
 }) {
   const router = useRouter();
+  const { busy, run } = useBusy();
   const { isDesktop } = useViewport();
   // R10-B2: Replace role checks with granular permissions.
   const canApprove = usePermission('bill.approve');
@@ -111,10 +112,16 @@ export function BillDetailScreen({
     canPay && (bill.status === 'APPROVED' || (bill.status === 'PAID' && balanceDue > 0.01));
 
   const onApprove = () => {
-    approveBill.mutate(bill.id, {
-      onSuccess: async () => await alertAsync('Approved', 'Bill approved for payment.'),
-      onError: (e: Error) => void alertAsync('Error', e.message),
-    });
+    void (async () => {
+      try {
+        await run(async () => {
+          await approveBill.mutateAsync(bill.id);
+        });
+        await alertAsync('Approved', 'Bill approved for payment.');
+      } catch (e) {
+        await alertAsync('Error', e instanceof Error ? e.message : 'Could not approve');
+      }
+    })();
   };
 
   const onRecordPayment = () => {
@@ -128,27 +135,33 @@ export function BillDetailScreen({
       setFormError(`Amount cannot exceed balance due (${formatINR(balanceDue)}).`);
       return;
     }
-    recordPayment.mutate(
-      { id: bill.id, amount },
-      {
-        onSuccess: async () => {
-          setShowPayment(false);
-          setPaymentAmount('');
-          await alertAsync('Success', 'Payment recorded successfully.');
-        },
-        onError: (e: Error) => {
-          setFormError(e.message);
-          void alertAsync('Error', e.message);
-        },
-      },
-    );
+    void (async () => {
+      try {
+        await run(async () => {
+          await recordPayment.mutateAsync({ id: bill.id, amount });
+        });
+        setShowPayment(false);
+        setPaymentAmount('');
+        await alertAsync('Success', 'Payment recorded successfully.');
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Could not record payment';
+        setFormError(msg);
+        await alertAsync('Error', msg);
+      }
+    })();
   };
 
   const onPayFull = () => {
-    payBill.mutate(bill.id, {
-      onSuccess: async () => await alertAsync('Paid', 'Bill marked as fully paid.'),
-      onError: (e: Error) => void alertAsync('Error', e.message),
-    });
+    void (async () => {
+      try {
+        await run(async () => {
+          await payBill.mutateAsync(bill.id);
+        });
+        await alertAsync('Paid', 'Bill marked as fully paid.');
+      } catch (e) {
+        await alertAsync('Error', e instanceof Error ? e.message : 'Could not pay bill');
+      }
+    })();
   };
 
   const heroCard = <BillHeroCard bill={bill} balanceDue={balanceDue} paidPct={paidPct} isFullyPaid={isFullyPaid} />;
@@ -203,6 +216,7 @@ export function BillDetailScreen({
 
   return (
     <SafeAreaView className="flex-1 bg-surface min-h-0" edges={isDesktop ? [] : ['bottom']}>
+      <BusyOverlay visible={busy} title="Updating bill…" />
       <OfflineBanner />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

@@ -4,7 +4,7 @@
  */
 import React, { useState } from 'react';
 import { View, Text, FlatList, Pressable } from 'react-native';
-import { Card, Badge, Button, EmptyState, LoadingSkeleton, toast } from '@/components/ui';
+import { Card, Badge, Button, EmptyState, LoadingSkeleton, toast, BusyOverlay, useBusy } from '@/components/ui';
 import {
   useCustomers, useCreateCustomer, useUpdateCustomer, useDeleteCustomer,
   useVendors, useCreateVendor, useUpdateVendor, useDeleteVendor,
@@ -20,6 +20,7 @@ import { Modal, ScrollView } from 'react-native';
 type Kind = 'customer' | 'vendor';
 
 export default function InventoryPartiesScreen() {
+  const { busy, run } = useBusy();
   const [kind, setKind] = useState<Kind>('customer');
   const [modal, setModal] = useState<{ kind: Kind; editing: PartyRow | null } | null>(null);
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.3): party ledger modal.
@@ -45,30 +46,35 @@ export default function InventoryPartiesScreen() {
       'Existing invoices/bills keep their details. The party is hidden from new selections.',
     );
     if (!ok) return;
-    try {
-      if (kind === 'customer') await deleteCustomer.mutateAsync(party.id);
-      else await deleteVendor.mutateAsync(party.id);
-      toast.success(`${kind === 'customer' ? 'Customer' : 'Vendor'} deactivated`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not deactivate');
-    }
+    await run(async () => {
+      try {
+        if (kind === 'customer') await deleteCustomer.mutateAsync(party.id);
+        else await deleteVendor.mutateAsync(party.id);
+        toast.success(`${kind === 'customer' ? 'Customer' : 'Vendor'} deactivated`);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Could not deactivate');
+      }
+    });
   };
 
   const onSave = async (input: PartyInput) => {
-    if (modal?.editing) {
-      if (kind === 'customer') await updateCustomer.mutateAsync(input);
-      else await updateVendor.mutateAsync(input);
-      toast.success(`${kind === 'customer' ? 'Customer' : 'Vendor'} updated`);
-    } else {
-      if (kind === 'customer') await createCustomer.mutateAsync(input);
-      else await createVendor.mutateAsync(input);
-      toast.success(`${kind === 'customer' ? 'Customer' : 'Vendor'} created`);
-    }
-    setModal(null);
+    await run(async () => {
+      if (modal?.editing) {
+        if (kind === 'customer') await updateCustomer.mutateAsync(input);
+        else await updateVendor.mutateAsync(input);
+        toast.success(`${kind === 'customer' ? 'Customer' : 'Vendor'} updated`);
+      } else {
+        if (kind === 'customer') await createCustomer.mutateAsync(input);
+        else await createVendor.mutateAsync(input);
+        toast.success(`${kind === 'customer' ? 'Customer' : 'Vendor'} created`);
+      }
+      setModal(null);
+    });
   };
 
   return (
     <View className="flex-1 bg-surface">
+      <BusyOverlay visible={busy} title="Updating parties…" />
       <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between gap-2">
         <View className="flex-1 min-w-[160px]">
           <Text className="text-2xl font-bold text-text">Parties</Text>

@@ -298,6 +298,16 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     expect(Number(draftInv!.subtotal)).toBeCloseTo(3 * 420, 2);
     expect(draftInv!.stockMovementId).toBe(issueRes.body.data.movementId);
 
+    const salesAfterIssue = await authGet(imToken, '/api/inventory/transactions/sales-orders');
+    expect(salesAfterIssue.status).toBe(200);
+    const counterSale = (salesAfterIssue.body.data as Array<{
+      customerName: string;
+      status: string;
+      notes?: string | null;
+    }>).find((so) => so.notes?.includes('AUTO_STOCK_ISSUE') && so.customerName === 'Retail Buyer');
+    expect(counterSale).toBeTruthy();
+    expect(counterSale!.status).toBe('INVOICED');
+
     const sendRes = await authPost(imToken, `/api/invoices/${draftInv!.id}/send`, {});
     expect(sendRes.status).toBe(200);
     expect(sendRes.body.data.status).toBe('SENT');
@@ -576,6 +586,7 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     const dispatch = await authPost(invToken, `/api/inventory/transactions/delivery-challans/${dcId}/dispatch`);
     expect(dispatch.status).toBe(200);
     expect(dispatch.body.data.status).toBe('DISPATCHED');
+    expect(dispatch.body.data.draftInvoiceId).toBeTruthy();
 
     const deliver = await authPost(invToken, `/api/inventory/transactions/delivery-challans/${dcId}/deliver`);
     expect(deliver.status).toBe(200);
@@ -588,10 +599,16 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     );
     expect(Number(row!.balance)).toBeCloseTo(40, 3);
 
-    const inv = await authPost(invToken, `/api/inventory/transactions/sales-orders/${soId}/invoice`, {});
-    expect(inv.status).toBe(200);
-    expect(inv.body.data.salesOrderId).toBe(soId);
-    expect(inv.body.data.lineItems).toHaveLength(1);
+    const invoicesAfterDispatch = await authGet(invToken, `/api/projects/${defaultProjectId}/invoices`);
+    expect(invoicesAfterDispatch.status).toBe(200);
+    const draftFromDispatch = (invoicesAfterDispatch.body.data as Array<{
+      id: string;
+      status: string;
+      salesOrderId?: string | null;
+    }>).find((i) => i.id === dispatch.body.data.draftInvoiceId);
+    expect(draftFromDispatch).toBeTruthy();
+    expect(draftFromDispatch!.status).toBe('DRAFT');
+    expect(draftFromDispatch!.salesOrderId).toBe(soId);
 
     const soAfter = await authGet(invToken, `/api/inventory/transactions/sales-orders/${soId}`);
     expect(soAfter.status).toBe(200);
@@ -1035,17 +1052,14 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     expect(await balOf(from.id)).toBeCloseTo(6, 3);
     expect(await balOf(to.id)).toBeCloseTo(4, 3);
 
-    // Over-quantity transfer fails atomically at dispatch.
+    // Over-quantity (or items not on hand at source) rejected at create.
     const over = await authPost(invToken, '/api/inventory/transfers', {
       fromLocationId: from.id,
       toLocationId: to.id,
       lines: [{ resourceId: itemId, quantity: 999 }],
     });
-    expect(over.status).toBe(201);
-    const overId = over.body.data.id as string;
-    const overDispatch = await authPost(invToken, `/api/inventory/transfers/${overId}/dispatch`);
-    expect(overDispatch.status).toBe(422);
-    expect(String(overDispatch.body.error?.message ?? '')).toMatch(/only 6 kg on hand/i);
+    expect(over.status).toBe(422);
+    expect(String(over.body.error?.message ?? '')).toMatch(/only 6 kg on hand/i);
     expect(await balOf(from.id)).toBeCloseTo(6, 3); // untouched
   });
 

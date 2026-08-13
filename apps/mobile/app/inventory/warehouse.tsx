@@ -9,7 +9,7 @@
  */
 import React, { useState } from 'react';
 import { View, Text, FlatList, Pressable } from 'react-native';
-import { Card, Badge, Button, EmptyState, LoadingSkeleton, toast } from '@/components/ui';
+import { Card, Badge, Button, EmptyState, LoadingSkeleton, toast, BusyOverlay, useBusy } from '@/components/ui';
 import { confirmAsync } from '@/utils/confirm';
 import {
   useWarehouses,
@@ -38,6 +38,7 @@ const STATUS_COLOR: Record<string, 'success' | 'warning' | 'neutral' | 'danger'>
 };
 
 export default function InventoryWarehouseScreen() {
+  const { busy, run } = useBusy();
   const [tab, setTab] = useState<Tab>('locations');
   const [whOpen, setWhOpen] = useState(false);
   const [editingWh, setEditingWh] = useState<Warehouse | null>(null);
@@ -98,7 +99,11 @@ export default function InventoryWarehouseScreen() {
               label="Set default"
               size="sm"
               variant="secondary"
-              onPress={() => void updateWh.mutateAsync({ id: item.id, isDefault: true }).then(() => toast.success('Default warehouse updated'))}
+              disabled={busy}
+              onPress={() => void run(async () => {
+                await updateWh.mutateAsync({ id: item.id, isDefault: true });
+                toast.success('Default warehouse updated');
+              })}
             />
           ) : null}
           {item.isActive && !item.isDefault ? (
@@ -106,8 +111,13 @@ export default function InventoryWarehouseScreen() {
               label="Deactivate"
               size="sm"
               variant="secondary"
-              onPress={() => void confirmAsync('Deactivate this warehouse?', 'It stays in history but can no longer receive stock.').then((ok) => {
-                if (ok) void updateWh.mutateAsync({ id: item.id, isActive: false }).then(() => toast.info('Warehouse deactivated'));
+              disabled={busy}
+              onPress={() => void run(async () => {
+                const ok = await confirmAsync('Deactivate this warehouse?', 'It stays in history but can no longer receive stock.');
+                if (ok) {
+                  await updateWh.mutateAsync({ id: item.id, isActive: false });
+                  toast.info('Warehouse deactivated');
+                }
               })}
             />
           ) : null}
@@ -136,15 +146,24 @@ export default function InventoryWarehouseScreen() {
               label="Dispatch (stock OUT)"
               size="sm"
               variant="accent"
-              onPress={() => void confirmAsync('Dispatch this transfer?', 'Stock will leave the source warehouse.').then((ok) => {
-                if (ok) void transferAction.mutateAsync({ id: item.id, action: 'dispatch' }).then(() => toast.success('Dispatched - stock moved OUT'));
+              disabled={busy}
+              onPress={() => void run(async () => {
+                const ok = await confirmAsync('Dispatch this transfer?', 'Stock will leave the source warehouse.');
+                if (ok) {
+                  await transferAction.mutateAsync({ id: item.id, action: 'dispatch' });
+                  toast.success('Dispatched - stock moved OUT');
+                }
               })}
             />
             <Button
               label="Cancel"
               size="sm"
               variant="secondary"
-              onPress={() => void transferAction.mutateAsync({ id: item.id, action: 'cancel' }).then(() => toast.info('Transfer cancelled'))}
+              disabled={busy}
+              onPress={() => void run(async () => {
+                await transferAction.mutateAsync({ id: item.id, action: 'cancel' });
+                toast.info('Transfer cancelled');
+              })}
             />
           </>
         ) : null}
@@ -153,8 +172,13 @@ export default function InventoryWarehouseScreen() {
             label="Receive (stock IN)"
             size="sm"
             variant="accent"
-            onPress={() => void confirmAsync('Receive this transfer?', 'Stock will land in the destination warehouse.').then((ok) => {
-              if (ok) void transferAction.mutateAsync({ id: item.id, action: 'receive' }).then(() => toast.success('Received - stock landed at destination'));
+            disabled={busy}
+            onPress={() => void run(async () => {
+              const ok = await confirmAsync('Receive this transfer?', 'Stock will land in the destination warehouse.');
+              if (ok) {
+                await transferAction.mutateAsync({ id: item.id, action: 'receive' });
+                toast.success('Received - stock landed at destination');
+              }
             })}
           />
         ) : null}
@@ -182,15 +206,24 @@ export default function InventoryWarehouseScreen() {
               label="Approve (write adjustments)"
               size="sm"
               variant="accent"
-              onPress={() => void confirmAsync('Approve this stock count?', 'The counted quantities will be written as STOCKTAKE adjustments.').then((ok) => {
-                if (ok) void countAction.mutateAsync({ id: item.id, action: 'approve' }).then(() => toast.success('Stock count approved'));
+              disabled={busy}
+              onPress={() => void run(async () => {
+                const ok = await confirmAsync('Approve this stock count?', 'The counted quantities will be written as STOCKTAKE adjustments.');
+                if (ok) {
+                  await countAction.mutateAsync({ id: item.id, action: 'approve' });
+                  toast.success('Stock count approved');
+                }
               })}
             />
             <Button
               label="Cancel"
               size="sm"
               variant="secondary"
-              onPress={() => void countAction.mutateAsync({ id: item.id, action: 'cancel' }).then(() => toast.info('Count cancelled'))}
+              disabled={busy}
+              onPress={() => void run(async () => {
+                await countAction.mutateAsync({ id: item.id, action: 'cancel' });
+                toast.info('Count cancelled');
+              })}
             />
           </View>
         ) : null}
@@ -222,6 +255,7 @@ export default function InventoryWarehouseScreen() {
 
   return (
     <View className="flex-1 bg-surface">
+      <BusyOverlay visible={busy} title="Updating warehouse…" />
       <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between gap-2">
         <View className="flex-1 min-w-[180px] mr-2">
           <Text className="text-2xl font-bold text-text">Warehouse</Text>
@@ -281,15 +315,17 @@ export default function InventoryWarehouseScreen() {
             setEditingWh(null);
           }}
           onSubmit={async (input) => {
-            if (editingWh) {
-              await updateWh.mutateAsync({ id: editingWh.id, ...input });
-              toast.success('Warehouse updated');
-            } else {
-              await createWh.mutateAsync(input);
-              toast.success('Warehouse created');
-            }
-            setWhOpen(false);
-            setEditingWh(null);
+            await run(async () => {
+              if (editingWh) {
+                await updateWh.mutateAsync({ id: editingWh.id, ...input });
+                toast.success('Warehouse updated');
+              } else {
+                await createWh.mutateAsync(input);
+                toast.success('Warehouse created');
+              }
+              setWhOpen(false);
+              setEditingWh(null);
+            });
           }}
         />
       ) : null}
@@ -299,9 +335,11 @@ export default function InventoryWarehouseScreen() {
           warehouses={warehouses.data ?? []}
           onClose={() => setTransferOpen(false)}
           onSubmit={async (input) => {
-            await createTransfer.mutateAsync(input);
-            toast.success('Transfer created - dispatch to move stock');
-            setTransferOpen(false);
+            await run(async () => {
+              await createTransfer.mutateAsync(input);
+              toast.success('Transfer created - dispatch to move stock');
+              setTransferOpen(false);
+            });
           }}
         />
       ) : null}
@@ -311,9 +349,11 @@ export default function InventoryWarehouseScreen() {
           warehouses={warehouses.data ?? []}
           onClose={() => setCountOpen(false)}
           onSubmit={async (input) => {
-            await createCount.mutateAsync(input);
-            toast.success('Stock count created - approve to write adjustments');
-            setCountOpen(false);
+            await run(async () => {
+              await createCount.mutateAsync(input);
+              toast.success('Stock count created - approve to write adjustments');
+              setCountOpen(false);
+            });
           }}
         />
       ) : null}

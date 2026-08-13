@@ -14,7 +14,7 @@ import { nextSequentialNumber } from '../lib/id-generator';
 import { assertProjectAccess } from '../middleware/project-access.middleware';
 import { getDefaultProjectId } from './module-gate.service';
 import { getOrCreateProjectStockLocation } from './procurement.service';
-import { createInvoice } from './invoice.service';
+import { createInvoice, backfillStockIssueSalesOrders } from './invoice.service';
 import { notifyLowStock } from './inventory-alerts.service';
 import { resolveEffectiveRates } from './price-list.service';
 import type {
@@ -45,6 +45,7 @@ function withLinesInclude() {
 
 export async function listSalesOrders(companyId: string, userId: string, role: string) {
   const projectId = await resolveDefaultProject(companyId, userId, role);
+  await backfillStockIssueSalesOrders(companyId, projectId);
   return prisma.salesOrder.findMany({
     where: { companyId, projectId },
     orderBy: { createdAt: 'desc' },
@@ -240,7 +241,7 @@ export async function dispatchDeliveryChallan(
   if (!dc) throw ApiError.notFound('Delivery challan not found');
   if (dc.status !== 'DRAFT') throw ApiError.badRequest('Only draft challans can be dispatched');
 
-  return prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx) => {
     // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.1): dispatch from a specific
     // warehouse (inventory only; omitted = company default location).
     const location = await getOrCreateProjectStockLocation(companyId, projectId, tx, {
@@ -285,7 +286,7 @@ export async function dispatchDeliveryChallan(
         });
       }
     }
-    const updated = await tx.deliveryChallan.update({
+    const dispatched = await tx.deliveryChallan.update({
       where: { id: dc.id },
       data: { status: 'DISPATCHED', dispatchedAt: new Date() },
       include: { lines: true },
@@ -299,14 +300,13 @@ export async function dispatchDeliveryChallan(
         await tx.salesOrder.update({ where: { id: dc.salesOrderId }, data: { status: 'DELIVERED' } });
       }
     }
-    return updated;
+    return dispatched;
   });
 
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.5): low-stock alert after dispatch
   // pushes any item below its reorder point (inventory only, non-fatal).
   try {
-    const dispatchedDc = dc!;
-    const resourceIds = dispatchedDc.lines.map((l) => l.resourceId);
+    const resourceIds = dc.lines.map((l) => l.resourceId);
     const [resources, balances] = await Promise.all([
       prisma.resource.findMany({
         where: { id: { in: resourceIds }, companyId },
@@ -334,6 +334,25 @@ export async function dispatchDeliveryChallan(
   } catch (err) {
     logger.warn('Dispatch low-stock check failed (non-fatal)', { error: String(err), dcId });
   }
+
+  // Same as stock issue: goods left the warehouse, so create a draft invoice.
+  let draftInvoiceId: string | null = null;
+  if (updated.salesOrderId) {
+    try {
+      const invoice = await createInvoiceFromSalesOrder(companyId, userId, role, {
+        salesOrderId: updated.salesOrderId,
+      });
+      draftInvoiceId = invoice.id;
+    } catch (err) {
+      logger.warn('Auto draft invoice from challan dispatch failed (non-fatal)', {
+        error: String(err),
+        dcId,
+        salesOrderId: updated.salesOrderId,
+      });
+    }
+  }
+
+  return { ...updated, draftInvoiceId };
 }
 
 export async function deliverDeliveryChallan(companyId: string, userId: string, role: string, dcId: string) {
@@ -386,6 +405,7 @@ export async function createInvoiceFromSalesOrder(
       unit: l.unit,
       rate: Number(l.rate),
       gstRate: Number(l.gstRate),
+      resourceId: l.resourceId,
     }));
 
   const customer = so.customerId

@@ -10,7 +10,7 @@ import {
   Pressable,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Card, Badge, EmptyState, LoadingSkeleton, Button } from '@/components/ui';
+import { Card, Badge, EmptyState, LoadingSkeleton, Button, BusyOverlay, useBusy } from '@/components/ui';
 import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 import { useViewport } from '@/hooks/useViewport';
 import { usePermission } from '@/hooks/usePermission';
@@ -96,6 +96,7 @@ export function ProjectInvoicesList({
   const router = useRouter();
   const { isDesktop } = useViewport();
   const canSend = usePermission('invoice.create');
+  const { busy, run } = useBusy();
   const { data: invoices, isLoading, isFetching, refetch } = useInvoices(projectId);
   const sendInvoice = useSendInvoice();
   const [filter, setFilter] = useState<string>('ALL');
@@ -127,9 +128,13 @@ export function ProjectInvoicesList({
       'Mark this draft sales invoice as Sent?',
     );
     if (!ok) return;
-    sendInvoice.mutate(id, {
-      onError: async (e: Error) => alertAsync('Error', e.message),
-    });
+    try {
+      await run(async () => {
+        await sendInvoice.mutateAsync(id);
+      });
+    } catch (e) {
+      await alertAsync('Error', e instanceof Error ? e.message : 'Could not send');
+    }
   };
 
   const listPadding =
@@ -140,6 +145,8 @@ export function ProjectInvoicesList({
         : { paddingBottom: mobileListBottomPadding(true) };
 
   return (
+    <View className={embedded ? 'flex-1 min-h-0' : undefined}>
+      <BusyOverlay visible={busy} title="Updating invoice…" />
     <FlatList
       className={embedded ? 'flex-1 min-h-0' : undefined}
       data={filtered}
@@ -183,6 +190,7 @@ export function ProjectInvoicesList({
         />
       )}
     />
+    </View>
   );
 }
 
@@ -202,6 +210,7 @@ export function ProjectBillsList({
   // R10-B2: Replace role check with granular permission.
   const canApprove = usePermission('bill.approve');
   const { isDesktop } = useViewport();
+  const { busy, run } = useBusy();
   const { data: bills, isLoading, isFetching, refetch } = useBills(projectId);
   const approve = useApproveBill();
   const reject = useRejectBill();
@@ -234,17 +243,25 @@ export function ProjectBillsList({
         : 'Mark this bill as approved?',
     );
     if (!ok) return;
-    approve.mutate(id, {
-      onError: async (e: Error) => alertAsync('Error', e.message),
-    });
+    try {
+      await run(async () => {
+        await approve.mutateAsync(id);
+      });
+    } catch (e) {
+      await alertAsync('Error', e instanceof Error ? e.message : 'Could not approve');
+    }
   };
 
   const onReject = async (id: string) => {
     const ok = await confirmAsync('Reject Bill', 'Reject this bill?');
     if (!ok) return;
-    reject.mutate(id, {
-      onError: async (e: Error) => alertAsync('Error', e.message),
-    });
+    try {
+      await run(async () => {
+        await reject.mutateAsync(id);
+      });
+    } catch (e) {
+      await alertAsync('Error', e instanceof Error ? e.message : 'Could not reject');
+    }
   };
 
   const listPadding =
@@ -255,6 +272,8 @@ export function ProjectBillsList({
         : { paddingBottom: mobileListBottomPadding(true) };
 
   return (
+    <View className={embedded ? 'flex-1 min-h-0' : undefined}>
+      <BusyOverlay visible={busy} title="Updating bill…" />
     <FlatList
       className={embedded ? 'flex-1 min-h-0' : undefined}
       data={filtered}
@@ -296,6 +315,7 @@ export function ProjectBillsList({
         />
       )}
     />
+    </View>
   );
 }
 

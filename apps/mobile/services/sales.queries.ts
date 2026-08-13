@@ -136,6 +136,7 @@ const transactionKeys = {
 export function invalidateTransactions(qc: ReturnType<typeof useQueryClient>) {
   void qc.invalidateQueries({ queryKey: ['transactions'] });
   void qc.invalidateQueries({ queryKey: ['projects'] });
+  void qc.invalidateQueries({ queryKey: ['invoices'] });
 }
 
 /* ── Sales orders ─────────────────────────────────────────────────── */
@@ -221,11 +222,14 @@ export function useChallanTransition() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, action, locationId }: { id: string; action: 'dispatch' | 'deliver'; locationId?: string }) =>
-      apiFetch<DeliveryChallan>(`/inventory/transactions/delivery-challans/${id}/${action}`, {
-        method: 'POST',
-        // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.6): dispatch from a specific warehouse.
-        body: JSON.stringify(locationId ? { locationId } : {}),
-      }),
+      apiFetch<DeliveryChallan & { draftInvoiceId?: string | null }>(
+        `/inventory/transactions/delivery-challans/${id}/${action}`,
+        {
+          method: 'POST',
+          // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.6): dispatch from a specific warehouse.
+          body: JSON.stringify(locationId ? { locationId } : {}),
+        },
+      ),
     onSuccess: () => invalidateTransactions(qc),
   });
 }

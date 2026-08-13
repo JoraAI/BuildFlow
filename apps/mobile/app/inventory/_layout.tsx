@@ -44,6 +44,7 @@ export default function InventoryLayout() {
   const isDetailRoute =
     pathname.startsWith('/inventory/invoices/') ||
     pathname.startsWith('/inventory/bills/') ||
+    pathname.startsWith('/inventory/stock/') ||
     pathname === '/inventory/reports';
 
   return (
@@ -94,6 +95,7 @@ export default function InventoryLayout() {
           <View className="flex-1 min-h-0">
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="index" />
+              <Stack.Screen name="stock/[resourceId]" />
               <Stack.Screen name="materials" />
               <Stack.Screen name="parties" />
               <Stack.Screen name="sales" />

@@ -43,7 +43,7 @@ function deepLink(n: AppNotification): string | null {
   switch (n.type) {
     // Inventory alert types (Phase 8.5).
     case 'INVENTORY_LOW_STOCK':
-      return '/inventory'; // Stock home highlights the item
+      return ref ? `/inventory/stock/${ref}` : '/inventory';
     case 'INVENTORY_PO_RATE_ANOMALY':
       return '/inventory/procurement';
     case 'INVENTORY_COUNT_VARIANCE':

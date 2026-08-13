@@ -13,7 +13,11 @@ export interface Warehouse {
   address: string | null;
   isDefault: boolean;
   isActive: boolean;
-  balances: Array<{ resourceId: string; quantity: string }>;
+  balances: Array<{
+    resourceId: string;
+    quantity: string;
+    resource?: { name: string; unit: string };
+  }>;
 }
 
 export interface TransferLine {

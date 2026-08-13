@@ -8,7 +8,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, Pressable, Modal, ScrollView, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Card, Badge, Button, Input, EmptyState, LoadingSkeleton, Select, toast } from '@/components/ui';
+import { Card, Badge, Button, Input, EmptyState, LoadingSkeleton, Select, toast, BusyOverlay } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
 import {
@@ -62,6 +62,7 @@ async function bufferUntilVisible(
 }
 
 export default function InventoryProcurementScreen() {
+  const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const projectId = user?.defaultProjectId ?? '';
   const [section, setSection] = useState<Section>('indents');
@@ -187,19 +188,11 @@ export default function InventoryProcurementScreen() {
         )}
       </View>
 
-      {buffering ? (
-        <Modal visible transparent animationType="fade" onRequestClose={() => {}}>
-          <View className="flex-1 bg-black/50 items-center justify-center px-8">
-            <View className="bg-card rounded-2xl px-6 py-5 items-center max-w-sm w-full border border-border">
-              <ActivityIndicator size="large" />
-              <Text className="text-base font-bold text-text mt-4 text-center">Updating procurement…</Text>
-              <Text className="text-xs text-muted mt-2 text-center">
-                Please wait until the list refreshes. Don’t change anything while this is in progress.
-              </Text>
-            </View>
-          </View>
-        </Modal>
-      ) : null}
+      <BusyOverlay
+        visible={buffering}
+        title="Updating procurement…"
+        subtitle="Please wait until the list refreshes. Do not tap again."
+      />
 
       {section === 'indents' && (
         <IndentsSection
@@ -217,9 +210,18 @@ export default function InventoryProcurementScreen() {
           isLoading={reqLoading}
           onRecordGrn={openRecordGrnForPo}
           onApprovePo={async (poId) => {
-            await approvePo.mutateAsync(poId);
-            toast.success('Purchase order approved');
-            void refetch();
+            setBuffering(true);
+            try {
+              await approvePo.mutateAsync(poId);
+              await bufferUntilVisible(refetch, (list) =>
+                allPurchaseOrders(list).some((p) => p.id === poId && p.status === 'APPROVED'),
+              );
+              toast.success('Purchase order approved');
+            } catch (e) {
+              toast.error(e instanceof Error ? e.message : 'Could not approve purchase order');
+            } finally {
+              setBuffering(false);
+            }
           }}
           onGoToIndents={() => setSection('indents')}
           indentLabel={indentLabel}
@@ -248,6 +250,7 @@ export default function InventoryProcurementScreen() {
               'An auto-approved purchase request plus a PO (preferred vendor + reorder qty) will be created for the selected low-stock items.',
             );
             if (!ok) return;
+            setBuffering(true);
             try {
               const result = await orderReorder.mutateAsync(resourceIds);
               toast.success(
@@ -259,6 +262,8 @@ export default function InventoryProcurementScreen() {
               void refetch();
             } catch (e) {
               toast.error(e instanceof Error ? e.message : 'Could not create purchase order');
+            } finally {
+              setBuffering(false);
             }
           }}
         />
@@ -338,7 +343,7 @@ export default function InventoryProcurementScreen() {
             toast.success('GRN recorded · draft vendor bill created');
             setRecordGrnOpen(false);
             setPrefillPurchaseOrderId(null);
-            setSection('grns');
+            router.push('/inventory/bills' as never);
           } finally {
             setBuffering(false);
           }
@@ -741,6 +746,7 @@ function GrnsSection({
   isLoading?: boolean;
   onGoToOrders: () => void;
 }) {
+  const router = useRouter();
   const grns = allPurchaseOrders(requisitions).flatMap((po) =>
     (po.goodsReceipts ?? []).map((g) => ({ ...g, poNumber: po.poNumber })),
   );
@@ -763,6 +769,12 @@ function GrnsSection({
           </Text>
           {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 9.3): printable GRN PDF. */}
           <View className="flex-row flex-wrap gap-2 mt-3">
+            <Button
+              label="Go to vendor bills"
+              size="sm"
+              variant="secondary"
+              onPress={() => router.push('/inventory/bills' as never)}
+            />
             <Button
               label="PDF"
               size="sm"
