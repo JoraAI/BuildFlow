@@ -24,6 +24,20 @@ export function useChatHistory(projectId?: string) {
   });
 }
 
+export function useClearChatHistory(projectId?: string) {
+  const qc = useQueryClient();
+  const key = ['chat', 'history', projectId ?? 'global'] as const;
+  return useMutation({
+    mutationFn: () => {
+      const qs = projectId ? `?projectId=${encodeURIComponent(projectId)}` : '';
+      return apiFetch<{ cleared: boolean }>(`/chatbot/history${qs}`, { method: 'DELETE' });
+    },
+    onSuccess: () => {
+      qc.setQueryData<ChatMessage[]>(key, []);
+    },
+  });
+}
+
 export function useSendChatMessage(projectId?: string) {
   const qc = useQueryClient();
   const key = ['chat', 'history', projectId ?? 'global'] as const;

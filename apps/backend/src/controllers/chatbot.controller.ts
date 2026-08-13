@@ -2,7 +2,12 @@
  * BuildFlow - Chatbot controller.
  */
 import type { Request, Response } from 'express';
-import { handleChatMessage, handlePublicChatMessage, listHistory } from '../services/chatbot.service';
+import {
+  handleChatMessage,
+  handlePublicChatMessage,
+  listHistory,
+  clearHistory,
+} from '../services/chatbot.service';
 import { ok } from '../utils/response';
 import { ApiError } from '../utils/errors';
 
@@ -25,4 +30,11 @@ export async function history(req: Request, res: Response) {
   const projectId = req.query.projectId as string | undefined;
   const data = await listHistory(companyId, userId, projectId);
   return ok(res, data);
+}
+
+export async function clear(req: Request, res: Response) {
+  const { companyId, id: userId } = req.user!;
+  const projectId = req.query.projectId as string | undefined;
+  await clearHistory(companyId, userId, projectId);
+  return ok(res, { cleared: true });
 }

@@ -315,3 +315,14 @@ export async function listHistory(companyId: string, userId: string, projectId?:
     take: 100,
   });
 }
+
+/** Start a fresh assistant thread so suggestion chips can show again. */
+export async function clearHistory(companyId: string, userId: string, projectId?: string) {
+  await prisma.chatMessage.deleteMany({
+    where: {
+      companyId,
+      senderId: userId,
+      ...(projectId ? { projectId } : { projectId: null }),
+    },
+  });
+}
