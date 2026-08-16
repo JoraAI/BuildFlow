@@ -72,6 +72,12 @@ export interface AuthUser {
   companyName?: string;
   phone?: string | null;
   companyLogoUrl?: string | null;
+  /** INVENTORY_PRODUCT: product mode + plan (populated on login/me). */
+  productMode?: 'construction' | 'inventory';
+  subscriptionPlan?: string;
+  inventoryProfile?: string | null;
+  /** INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.1/11.2): Kirana vertical. */
+  inventoryVertical?: string | null;
 }
 
 export interface AuthTokens {

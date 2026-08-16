@@ -17,6 +17,7 @@ import { getOrCreateProjectStockLocation } from './procurement.service';
 import { createInvoice, backfillStockIssueSalesOrders } from './invoice.service';
 import { notifyLowStock } from './inventory-alerts.service';
 import { resolveEffectiveRates } from './price-list.service';
+import { allocateBatchOut, isBatchTracked } from './stock-batch.service';
 import type {
   CreateSalesOrderInput,
   CreateDeliveryChallanInput,
@@ -247,6 +248,12 @@ export async function dispatchDeliveryChallan(
     const location = await getOrCreateProjectStockLocation(companyId, projectId, tx, {
       locationId: opts?.locationId,
     });
+    const dcResourceModes = await tx.resource.findMany({
+      where: { id: { in: dc.lines.map((l) => l.resourceId) } },
+      select: { id: true, trackingMode: true },
+    });
+    const dcTracking = new Map(dcResourceModes.map((r) => [r.id, r.trackingMode]));
+
     for (const line of dc.lines) {
       const balance = await tx.stockBalance.findUnique({
         where: { locationId_resourceId: { locationId: location.id, resourceId: line.resourceId } },
@@ -261,24 +268,52 @@ export async function dispatchDeliveryChallan(
       await tx.stockBalance.update({ where: { id: balance.id }, data: { quantity: { decrement: qty } } });
       const res = await tx.resource.findUnique({
         where: { id: line.resourceId },
-        select: { avgCost: true },
+        select: { avgCost: true, name: true, unit: true },
       });
-      await tx.stockMovement.create({
-        data: {
+      // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): batch-tracked items are
+      // FEFO-allocated out on dispatch - one OUT movement per lot.
+      if (isBatchTracked(dcTracking.get(line.resourceId))) {
+        const allocations = await allocateBatchOut(tx, {
           locationId: location.id,
           resourceId: line.resourceId,
+          resourceName: res?.name ?? line.itemName,
+          unit: res?.unit ?? line.unit,
           quantity: qty,
-          type: 'OUT',
-          referenceType: 'DELIVERY_CHALLAN',
-          referenceId: dc.id,
-          notes: `Dispatch ${dc.dcNumber}`,
-          // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.2): cost at WAC.
-          unitCost: Number(res?.avgCost ?? 0),
-          inventoryValue: Math.round(Number(res?.avgCost ?? 0) * qty * 100) / 100,
-          // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3): optional batch / lot code.
-          batchCode: line.batchCode,
-        },
-      });
+        });
+        for (const alloc of allocations) {
+          await tx.stockMovement.create({
+            data: {
+              locationId: location.id,
+              resourceId: line.resourceId,
+              quantity: alloc.quantity,
+              type: 'OUT',
+              referenceType: 'DELIVERY_CHALLAN',
+              referenceId: dc.id,
+              notes: `Dispatch ${dc.dcNumber} (lot ${alloc.batchCode})`,
+              unitCost: Number(res?.avgCost ?? 0),
+              inventoryValue: Math.round(Number(res?.avgCost ?? 0) * alloc.quantity * 100) / 100,
+              batchCode: alloc.batchCode,
+            },
+          });
+        }
+      } else {
+        await tx.stockMovement.create({
+          data: {
+            locationId: location.id,
+            resourceId: line.resourceId,
+            quantity: qty,
+            type: 'OUT',
+            referenceType: 'DELIVERY_CHALLAN',
+            referenceId: dc.id,
+            notes: `Dispatch ${dc.dcNumber}`,
+            // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.2): cost at WAC.
+            unitCost: Number(res?.avgCost ?? 0),
+            inventoryValue: Math.round(Number(res?.avgCost ?? 0) * qty * 100) / 100,
+            // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3): optional batch / lot code.
+            batchCode: line.batchCode,
+          },
+        });
+      }
       if (line.salesOrderLineId) {
         await tx.salesOrderLine.update({
           where: { id: line.salesOrderLineId },

@@ -105,6 +105,8 @@ export async function getCompanyProfile(companyId: string) {
       createdAt: true,
       subscriptionPlan: true,
       inventoryProfile: true,
+      inventoryVertical: true,
+      catalogSeededAt: true,
       creditLimitPolicy: true,
       poAutoApproveBelow: true,
       poOwnerApproveAbove: true,
@@ -119,6 +121,9 @@ export async function getCompanyProfile(companyId: string) {
       company.subscriptionPlan === 'INVENTORY'
         ? (company.inventoryProfile ?? 'GENERAL')
         : null,
+    // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.1): inventory-only vertical.
+    inventoryVertical: company.subscriptionPlan === 'INVENTORY' ? company.inventoryVertical : null,
+    catalogSeededAt: company.subscriptionPlan === 'INVENTORY' ? company.catalogSeededAt : null,
     // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): inventory-only policy.
     creditLimitPolicy:
       company.subscriptionPlan === 'INVENTORY' ? company.creditLimitPolicy : null,

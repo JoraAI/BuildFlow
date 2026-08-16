@@ -34,6 +34,22 @@ export const INVENTORY_PROFILE_VALUES: readonly InventoryBusinessProfile[] = [
   InventoryBusinessProfile.GENERAL,
 ];
 
+/**
+ * INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.1): vertical / catalog template.
+ * K1 - KIRANA is a VERTICAL (starter catalog), NOT another business profile.
+ * Set once on Company by applyCatalogTemplate; null elsewhere.
+ */
+export const InventoryVertical = {
+  KIRANA: 'KIRANA',
+} as const;
+export type InventoryVertical = (typeof InventoryVertical)[keyof typeof InventoryVertical];
+
+export const INVENTORY_VERTICAL_VALUES: readonly InventoryVertical[] = [InventoryVertical.KIRANA];
+
+export const INVENTORY_VERTICAL_LABELS: Record<InventoryVertical, string> = {
+  KIRANA: 'Kirana (retail / wholesale grocery)',
+};
+
 /** Human-readable labels for the Settings profile picker. */
 export const INVENTORY_PROFILE_LABELS: Record<InventoryBusinessProfile, string> = {
   RETAIL: 'Retail store',

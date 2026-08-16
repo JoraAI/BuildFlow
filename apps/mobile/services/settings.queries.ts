@@ -26,8 +26,10 @@ export interface CompanyProfile {
   /** INVENTORY_HORIZONTAL_PLATFORM (Phase 4.4): PO approval thresholds (₹); null on construction. */
   poAutoApproveBelow?: number | null;
   poOwnerApproveAbove?: number | null;
+  /** INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.1): vertical / catalog template; null until applied. */
+  inventoryVertical?: string | null;
+  catalogSeededAt?: string | null;
 }
-
 export interface MyProfile {
   id: string;
   name: string;
@@ -117,7 +119,6 @@ export function useUpdateCompany() {
     },
   });
 }
-
 export function useMyProfile() {
   return useQuery<MyProfile>({
     queryKey: settingsKeys.me,
@@ -481,5 +482,162 @@ export function useCreateSubscriptionCheckout() {
         '/settings/subscription/checkout',
         { method: 'POST', body: JSON.stringify(data) },
       ),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.1): vertical starter catalog
+// (OWNER-only Settings surface; backend gated by kirana_catalog feature flag).
+// ---------------------------------------------------------------------------
+
+export interface CatalogPreview {
+  template: string;
+  version: string;
+  categories: Array<{ category: string; itemCount: number }>;
+  totalItems: number;
+  alreadyApplied: number;
+  appliedAt: string | null;
+  eligible: boolean;
+  ineligibilityReason: string | null;
+}
+
+export interface CatalogApplyResult {
+  template: string;
+  version: string;
+  created: number;
+  restored: number;
+  skipped: number;
+  inventoryVertical: string;
+  catalogSeededAt: string | null;
+}
+
+export const catalogKeys = {
+  preview: (template: string) => ['inventory', 'catalog', 'preview', template] as const,
+  library: (search: string, category: string) =>
+    ['inventory', 'catalog', 'library', search, category] as const,
+};
+
+export interface CatalogLibraryItem {
+  templateKey: string;
+  name: string;
+  category: string;
+  packSize: string;
+  unit: string;
+  hsn: string;
+  gstRate: number;
+  reorderPoint: number;
+  suggestedMrp: number;
+  mrpAsOf: string;
+  priceSource: string;
+  imported: boolean;
+  resourceId: string | null;
+}
+
+export function useCatalogLibrary(search = '', category = '', enabled = true) {
+  const qs = new URLSearchParams({ search, category, page: '1', limit: '300' }).toString();
+  return useQuery<{ items: CatalogLibraryItem[]; total: number; page: number; limit: number }>({
+    queryKey: catalogKeys.library(search, category),
+    queryFn: () => apiFetch(`/inventory/catalog/library?${qs}`),
+    enabled,
+  });
+}
+
+export interface CatalogStockSelection {
+  templateKey?: string;
+  custom?: {
+    name: string;
+    sku: string;
+    unit: string;
+    category?: string;
+    gstRate: number;
+    hsn?: string;
+  };
+  mrp: number;
+  rate: number;
+  quantity: number;
+  barcode?: string;
+  batchCode?: string;
+  manufacturedAt?: string;
+  expiresAt?: string;
+}
+
+export type CatalogMasterSelection = Omit<
+  CatalogStockSelection,
+  'quantity' | 'batchCode' | 'manufacturedAt' | 'expiresAt'
+>;
+
+export function useImportCatalogItems() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (items: CatalogMasterSelection[]) =>
+      apiFetch<{ imported: Array<{ resourceId: string; key: string; created: boolean }> }>(
+        '/inventory/catalog/import-items',
+        { method: 'POST', body: JSON.stringify({ items }) },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['inventory', 'catalog'] });
+      qc.invalidateQueries({ queryKey: ['resources'] });
+    },
+  });
+}
+
+export function useImportSelectedCatalogStock() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (items: CatalogStockSelection[]) =>
+      apiFetch<{ imported: Array<{ resourceId: string; templateKey: string; quantity: number }> }>(
+        '/inventory/catalog/import-selected',
+        { method: 'POST', body: JSON.stringify({ items }) },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['inventory', 'catalog'] });
+      qc.invalidateQueries({ queryKey: ['resources'] });
+      qc.invalidateQueries({ queryKey: ['inventory', 'stock'] });
+      qc.invalidateQueries({ queryKey: ['inventory', 'dashboard'] });
+      qc.invalidateQueries({ queryKey: ['inventory', 'expiry-summary'] });
+    },
+  });
+}
+
+export function useCatalogPreview(template: string, enabled = true) {
+  return useQuery<CatalogPreview>({
+    queryKey: catalogKeys.preview(template),
+    queryFn: () => apiFetch<CatalogPreview>(`/inventory/catalog/preview?template=${template}`),
+    // K2 (11.1.5b): only fetch when the company is actually a KIRANA vertical -
+    // other inventory types must never hit (or flash) the pack surface.
+    enabled,
+  });
+}
+
+export function useApplyCatalogTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (template: string) =>
+      apiFetch<CatalogApplyResult>('/inventory/catalog/apply', {
+        method: 'POST',
+        body: JSON.stringify({ template }),
+      }),
+    onSuccess: (_data, template) => {
+      qc.invalidateQueries({ queryKey: catalogKeys.preview(template) });
+      qc.invalidateQueries({ queryKey: settingsKeys.company });
+    },
+  });
+}
+
+/**
+ * K2 (11.1.5b): OWNER vertical picker - opt a RETAIL/WHOLESALE shop into the
+ * KIRANA vertical (or clear it). Only then does the starter catalog card show.
+ */
+export function useSetInventoryVertical() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vertical: string | null) =>
+      apiFetch<{ inventoryVertical: string | null; catalogSeededAt: string | null }>(
+        '/inventory/catalog/vertical',
+        { method: 'PUT', body: JSON.stringify({ vertical }) },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: settingsKeys.company });
+    },
   });
 }

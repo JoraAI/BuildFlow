@@ -43,6 +43,9 @@ export const expansionKeys = {
   stockSummary: (projectId: string) => ['procurement', 'stock', 'summary', projectId] as const,
   stockMovements: (projectId: string, resourceId: string) =>
     ['procurement', 'stock', 'movements', projectId, resourceId] as const,
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): batch / expiry surfaces.
+  resourceBatches: (resourceId: string) => ['inventory', 'stock', 'batches', resourceId] as const,
+  expirySummary: ['inventory', 'stock', 'expiry-summary'] as const,
   boqShortfalls: (projectId: string) => ['procurement', 'boq-shortfalls', projectId] as const,
   subcontractors: ['subcontractors'] as const,
   workOrders: (projectId: string) => ['subcontract', 'work-orders', projectId] as const,
@@ -183,6 +186,7 @@ export interface StockSummaryRow {
   name: string;
   unit: string;
   catalogRate?: number;
+  mrp?: number | null;
   /** Phase 1.5: low-stock threshold. */
   reorderPoint?: number;
   received: number;
@@ -191,6 +195,11 @@ export interface StockSummaryRow {
   /** Phase 5.2: WAC unit cost + inventory value (balance × WAC). */
   unitCost?: number;
   inventoryValue?: number;
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.3): POS cart GST + tracking.
+  gstRate?: number;
+  trackingMode?: string;
+  nextExpiryAt?: string | null;
+  activeBatchCount?: number;
 }
 
 export interface StockMovementRow {
@@ -656,6 +665,8 @@ export interface StockIssueLineResult {
   quantityIssued: number;
   quantityOnHand: number;
   unitPrice: number | null;
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.3): server FEFO lot allocations.
+  allocations: Array<{ batchCode: string; quantity: number; expiresAt: string | null }> | null;
 }
 
 export interface StockIssueResult extends StockIssueLineResult {
@@ -678,6 +689,9 @@ export interface IssueStockInput {
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.1): issue from a specific warehouse.
   locationId?: string;
   notes?: string;
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): authorized override to sell
+  // EXPIRED lots (FEFO otherwise rejects expired-only stock).
+  allowExpired?: boolean;
 }
 
 export function useIssueStock(projectId: string) {
@@ -694,7 +708,76 @@ export function useIssueStock(projectId: string) {
       void qc.invalidateQueries({ queryKey: ['procurement', 'stock', 'movements', projectId] });
       void qc.invalidateQueries({ queryKey: ['invoices', 'list', projectId] });
       void qc.invalidateQueries({ queryKey: ['transactions', 'sales-orders'] });
+      // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.3): a counter sale changes
+      // lot balances, the executive dashboard, and expiry buckets.
+      void qc.invalidateQueries({ queryKey: ['inventory', 'stock', 'batches'] });
+      void qc.invalidateQueries({ queryKey: ['inventory', 'stock', 'expiry-summary'] });
+      void qc.invalidateQueries({ queryKey: ['inventory', 'analytics', 'dashboard'] });
     },
+  });
+}
+
+// INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): batch / expiry read surfaces
+// (Kirana-vertical only; the backend `batch_expiry` gate returns 403 otherwise).
+
+export interface ResourceBatchRow {
+  id: string;
+  locationId: string;
+  locationName: string;
+  batchCode: string;
+  manufacturedAt: string | null;
+  expiresAt: string | null;
+  quantity: number;
+  receivedAt: string;
+  daysToExpiry: number | null;
+  bucket: 'EXPIRED' | '0_30' | '31_60' | '61_90' | 'OVER_90' | null;
+}
+
+export function useResourceBatches(resourceId: string | undefined, locationId?: string) {
+  return useQuery({
+    queryKey: [...expansionKeys.resourceBatches(resourceId ?? ''), locationId ?? 'all'],
+    queryFn: () =>
+      apiFetch<ResourceBatchRow[]>(
+        `/inventory/stock/batches?resourceId=${resourceId}${locationId ? `&locationId=${locationId}` : ''}`,
+      ),
+    enabled: !!resourceId,
+  });
+}
+
+export function useUpdateBatchMetadata(resourceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; manufacturedAt?: string | null; expiresAt?: string | null }) =>
+      apiFetch(`/inventory/stock/batches/${input.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          manufacturedAt: input.manufacturedAt || null,
+          expiresAt: input.expiresAt || null,
+        }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: expansionKeys.resourceBatches(resourceId) });
+      qc.invalidateQueries({ queryKey: expansionKeys.expirySummary });
+    },
+  });
+}
+
+export interface ExpiryBucketSummary {
+  EXPIRED: number;
+  '0_30': number;
+  '31_60': number;
+  '61_90': number;
+  OVER_90: number;
+  totalTrackedLots: number;
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4): WAC values for the KPIs.
+  EXPIRED_VALUE: number;
+  '0_30_VALUE': number;
+}
+
+export function useExpirySummary() {
+  return useQuery({
+    queryKey: expansionKeys.expirySummary,
+    queryFn: () => apiFetch<ExpiryBucketSummary>('/inventory/stock/expiry-summary'),
   });
 }
 
@@ -744,6 +827,40 @@ export function useAdjustStock() {
   });
 }
 
+export interface QuickVendorReceiptInput {
+  vendorId?: string;
+  vendorName?: string;
+  invoiceNumber?: string;
+  receivedDate: string;
+  notes?: string;
+  locationId?: string;
+  lines: Array<{
+    resourceId: string;
+    quantity: number;
+    unitCost: number;
+    batchCode?: string;
+    manufacturedAt?: string;
+    expiresAt?: string;
+  }>;
+}
+
+export function useQuickVendorReceipt() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: QuickVendorReceiptInput) =>
+      apiFetch('/inventory/stock/quick-receipt', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['procurement', 'stock'] });
+      qc.invalidateQueries({ queryKey: ['inventory', 'stock'] });
+      qc.invalidateQueries({ queryKey: ['inventory', 'analytics'] });
+      qc.invalidateQueries({ queryKey: ['resources'] });
+    },
+  });
+}
+
 export interface OpeningStockLine {
   resourceId?: string;
   sku?: string;
@@ -751,6 +868,10 @@ export interface OpeningStockLine {
   name?: string;
   quantity: number;
   rate?: number;
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): optional lot metadata.
+  batchCode?: string;
+  manufacturedAt?: string | Date;
+  expiresAt?: string | Date;
 }
 
 export interface OpeningStockResult {

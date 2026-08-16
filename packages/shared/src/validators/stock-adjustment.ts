@@ -44,12 +44,20 @@ export const adjustStockSchema = z.object({
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.1): adjust a specific warehouse
   // (inventory only; omitted = company default location).
   locationId: z.string().uuid().optional(),
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): lot metadata for tracked
+  // items - used when an increase creates/extends a batch lot (omitted → the
+  // service generates an ADJ-<ts> lot). Decreases FEFO-allocate existing lots.
+  batchCode: z.string().max(50).optional(),
+  manufacturedAt: z.coerce.date().optional(),
+  expiresAt: z.coerce.date().optional(),
 });
 export type AdjustStockInput = z.infer<typeof adjustStockSchema>;
 
 /**
  * One opening-stock line. A row may identify the item by id, SKU, itemCode or
  * name (exactly one is required); the service resolves it within the company.
+ * Phase 11.2: optional lot fields - batch-tracked items get a batch row
+ * (omitted batchCode → the service generates an OPEN-<ts>-<n> lot).
  */
 export const openingStockLineSchema = z
   .object({
@@ -60,6 +68,10 @@ export const openingStockLineSchema = z
     quantity: z.coerce.number().positive(),
     /** Optional per-item catalog rate to set alongside opening stock. */
     rate: z.coerce.number().nonnegative().optional(),
+    // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): lot code + dates.
+    batchCode: z.string().max(50).optional(),
+    manufacturedAt: z.coerce.date().optional(),
+    expiresAt: z.coerce.date().optional(),
   })
   .refine((l) => l.resourceId || l.sku || l.itemCode || l.name, {
     message: 'Each line must identify the item by id, SKU, itemCode or name',
@@ -72,3 +84,30 @@ export const openingStockImportSchema = z.object({
   locationId: z.string().uuid().optional(),
 });
 export type OpeningStockImportInput = z.infer<typeof openingStockImportSchema>;
+
+const quickReceiptLineSchema = z.object({
+  resourceId: z.string().uuid(),
+  quantity: z.coerce.number().positive(),
+  unitCost: z.coerce.number().nonnegative(),
+  batchCode: z.string().trim().max(50).optional(),
+  manufacturedAt: z.coerce.date().optional(),
+  expiresAt: z.coerce.date().optional(),
+}).refine(
+  (line) => !line.manufacturedAt || !line.expiresAt || line.expiresAt >= line.manufacturedAt,
+  { message: 'Expiry date must be on or after manufacture date', path: ['expiresAt'] },
+);
+
+/** Small vendor purchase received without a formal PO/GRN. */
+export const quickVendorReceiptSchema = z.object({
+  vendorId: z.string().uuid().optional(),
+  vendorName: z.string().trim().max(200).optional(),
+  invoiceNumber: z.string().trim().max(100).optional(),
+  receivedDate: z.coerce.date(),
+  locationId: z.string().uuid().optional(),
+  notes: z.string().trim().max(1000).optional(),
+  lines: z.array(quickReceiptLineSchema).min(1).max(100),
+}).refine(
+  (input) => Boolean(input.vendorId || input.vendorName),
+  { message: 'Select or enter a vendor', path: ['vendorId'] },
+);
+export type QuickVendorReceiptInput = z.infer<typeof quickVendorReceiptSchema>;

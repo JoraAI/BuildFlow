@@ -30,3 +30,4 @@ export * from './reorder';
 export * from './inventory-ai';
 export * from './price-list';
 export * from './quote';
+export * from './inventory-catalog';

@@ -15,6 +15,8 @@ interface ButtonProps {
   fullWidth?: boolean;
   icon?: React.ReactNode;
   className?: string;
+  /** Accessible name for screen readers (e.g. icon-only / ambiguous labels). */
+  accessibilityLabel?: string;
 }
 
 const variants: Record<Variant, string> = {
@@ -63,11 +65,13 @@ export function Button({
   fullWidth = false,
   icon,
   className = '',
+  accessibilityLabel,
 }: ButtonProps) {
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled || loading}
+      accessibilityLabel={accessibilityLabel ?? label}
       // FIX (UI-M11): Add hover and focus-visible states for web so the app
       // feels like a real web app and is keyboard-navigable. hitSlop ensures
       // 44px minimum touch target on phones (UI-M12).

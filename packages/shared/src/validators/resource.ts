@@ -22,6 +22,8 @@ export const createResourceSchema = z.object({
   type: resourceTypeSchema,
   unit: z.string().min(1).max(20),
   rate: z.number().min(0),
+  /** Printed MRP; `rate` remains the editable selling price. */
+  mrp: z.number().min(0).nullable().optional(),
   gstRate: z.number().min(0).max(100).optional(),
   hsnSacCode: z.string().max(20).optional(),
   brandOrSpec: z.string().max(200).optional(),
@@ -40,6 +42,10 @@ export const createResourceSchema = z.object({
   preferredVendorId: z.string().uuid().optional(),
   reorderQty: z.number().positive().optional(),
   leadTimeDays: z.number().int().positive().optional(),
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): batch/expiry tracking mode.
+  // Only Kirana-vertical inventory tenants may set BATCH_EXPIRY (service guard);
+  // construction + other inventory default to NONE (aggregate only).
+  trackingMode: z.enum(['NONE', 'BATCH_EXPIRY']).optional(),
 });
 
 export type CreateResourceInput = z.infer<typeof createResourceSchema>;

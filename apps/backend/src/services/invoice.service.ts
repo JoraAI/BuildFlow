@@ -32,6 +32,9 @@ export interface InvoiceListItem {
   total: number;
   paidAmount: number;
   stockMovementId?: string | null;
+  // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.1): sales order link surfaced on the
+  // list so SO → challan → invoice chains are visible in the mobile UI/tests.
+  salesOrderId?: string | null;
   project: { id: string; name: string };
 }
 
@@ -168,6 +171,7 @@ export async function listInvoices(
     total: toNum(i.total),
     paidAmount: toNum(i.paidAmount),
     stockMovementId: i.stockMovementId,
+    salesOrderId: i.salesOrderId,
     project: i.project,
   }));
 }

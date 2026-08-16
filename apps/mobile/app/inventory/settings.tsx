@@ -25,8 +25,12 @@ import {
   PLAN_PRICES_INR,
   INVENTORY_PROFILE_OPTIONS,
   INVENTORY_PROFILE_LABELS,
+  INVENTORY_VERTICAL_LABELS,
+  hasInventoryFeature,
   type InventoryBusinessProfile,
+  type SubscriptionPlanKey,
 } from '@buildflow/shared';
+import { useSetInventoryVertical } from '@/services/settings.queries';
 
 export default function InventorySettingsScreen() {
   const { busy, run } = useBusy();
@@ -41,9 +45,17 @@ export default function InventorySettingsScreen() {
   const createInvite = useCreateInvite();
   const revokeInvite = useRevokeInvite();
   const updateCompany = useUpdateCompany();
+  /** INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.1): vertical starter catalog. */
+  const kiranaEnabled = hasInventoryFeature(
+    (user?.subscriptionPlan ?? 'INVENTORY') as SubscriptionPlanKey,
+    'kirana_catalog',
+  );
+  const setInventoryVertical = useSetInventoryVertical();
   const [inviteOpen, setInviteOpen] = useState(false);
   /** INVENTORY_HORIZONTAL_PLATFORM (Phase 0): business profile picker (OWNER). */
   const [profile, setProfile] = useState<string>('GENERAL');
+  /** INVENTORY_KIRANA_RETAIL_WHOLESALE (11.1.5b K2): shop vertical picker (OWNER). */
+  const [vertical, setVertical] = useState<string>('');
   /** INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): credit-limit policy (OWNER). */
   const [creditPolicy, setCreditPolicy] = useState<'ALLOW' | 'WARN' | 'BLOCK'>('WARN');
   /** INVENTORY_HORIZONTAL_PLATFORM (Phase 4.4): PO approval thresholds (OWNER). */
@@ -53,6 +65,11 @@ export default function InventorySettingsScreen() {
   useEffect(() => {
     if (company?.inventoryProfile) setProfile(company.inventoryProfile);
   }, [company?.inventoryProfile]);
+
+  useEffect(() => {
+    // K2 (11.1.5b): sync the vertical picker with the company state.
+    if (company) setVertical(company.inventoryVertical ?? '');
+  }, [company?.inventoryVertical]);
 
   useEffect(() => {
     if (company?.creditLimitPolicy) setCreditPolicy(company.creditLimitPolicy);
@@ -88,6 +105,24 @@ export default function InventorySettingsScreen() {
         toast.success('Business profile saved');
       } catch (e) {
         toast.error(e instanceof Error ? e.message : 'Could not save profile');
+      }
+    });
+  };
+
+  /** K2 (11.1.5b): OWNER vertical picker - enable/clear the KIRANA vertical. */
+  const saveVertical = async () => {
+    await run(async () => {
+      try {
+        const next = vertical === 'KIRANA' ? 'KIRANA' : null;
+        await setInventoryVertical.mutateAsync(next);
+        await refreshUser();
+        toast.success(
+          next === 'KIRANA'
+            ? 'Kirana vertical enabled - SKU library unlocked'
+            : 'Shop vertical cleared',
+        );
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Could not save shop vertical');
       }
     });
   };
@@ -167,6 +202,49 @@ export default function InventorySettingsScreen() {
             </View>
           ) : null}
         </Card>
+        {/* Shop vertical (INVENTORY_KIRANA_RETAIL_WHOLESALE 11.1.5b K2) - OWNER-only,
+            RETAIL/WHOLESALE-only opt-in. The vertical (NOT the profile) unlocks
+            the starter pack; other shop types never see it. */}
+        {user?.role === 'OWNER' &&
+        kiranaEnabled &&
+        (company?.inventoryProfile === 'RETAIL' || company?.inventoryProfile === 'WHOLESALE') ? (
+          <Card className="p-5 mb-4">
+            <Text className="text-base font-bold text-text mb-1">Shop vertical</Text>
+            <Text className="text-xs text-muted mb-3">
+              What kind of shop do you run? Grocery / kirana shops can opt into the Kirana starter
+              catalog pack. Hardware, stationery and other shop types keep their own catalog.
+            </Text>
+            <Select
+              label="Vertical"
+              value={vertical}
+              onChange={(v) => v != null && setVertical(v)}
+              options={[
+                { title: 'None', value: '' },
+                { title: INVENTORY_VERTICAL_LABELS.KIRANA, value: 'KIRANA' },
+              ]}
+            />
+            <View className="mt-3">
+              <Button
+                label="Save vertical"
+                variant="secondary"
+                size="sm"
+                loading={setInventoryVertical.isPending}
+                onPress={saveVertical}
+              />
+            </View>
+          </Card>
+        ) : null}
+        {/* Phase 11.5: selective SKU library replaces copying the full pack. */}
+        {kiranaEnabled && company?.inventoryVertical === 'KIRANA' ? (
+          <Card className="p-5 mb-4">
+            <Text className="text-base font-bold text-text mb-1">Kirana products</Text>
+            <Text className="text-xs text-muted mb-3">
+              Items is your shop’s master list. Add from suggested Indian products or create your
+              own item, then receive quantities separately from vendors.
+            </Text>
+            <Button label="Open items" variant="accent" size="sm" onPress={() => router.push('/inventory/materials' as never)} />
+          </Card>
+        ) : null}
         {/* Credit limit policy (INVENTORY_HORIZONTAL_PLATFORM Phase 2.5) */}
         <Card className="p-5 mb-4">
           <Text className="text-base font-bold text-text mb-1">Credit limit policy</Text>

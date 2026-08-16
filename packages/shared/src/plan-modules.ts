@@ -115,7 +115,12 @@ export type InventoryFeatureFlag =
   | 'multi_warehouse'
   | 'sales_orders'
   | 'stock_adjustments'
-  | 'barcode';
+  | 'barcode'
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.1): vertical starter catalog.
+  | 'kirana_catalog'
+  // Phase 11.2 / 11.3 placeholders - false until those phases ship.
+  | 'batch_expiry'
+  | 'pos_checkout';
 
 /** True only for the INVENTORY plan, and only for flags whose phase shipped. */
 const INVENTORY_FEATURE_FLAGS: Record<InventoryFeatureFlag, boolean> = {
@@ -129,6 +134,16 @@ const INVENTORY_FEATURE_FLAGS: Record<InventoryFeatureFlag, boolean> = {
   stock_adjustments: true,
   // Phase 3.4 shipped: barcode identify (this pass).
   barcode: true,
+  // Phase 11.1 shipped: Kirana vertical + insert-missing starter catalog (this pass).
+  kirana_catalog: true,
+  // Phase 11.2 shipped: batch/expiry + FEFO. SURFACES stay Kirana-vertical-only
+  // (module-gate.service asserts inventoryVertical === 'KIRANA'; mobile gates on
+  // the company vertical too).
+  batch_expiry: true,
+  // Phase 11.3 shipped: POS-style counter checkout cart. The enhanced split-cart
+  // UX is Kirana-vertical-gated in the mobile UI; non-Kirana inventory keeps the
+  // same MultiIssueStockModal counter issue (no regression).
+  pos_checkout: true,
 };
 
 /**

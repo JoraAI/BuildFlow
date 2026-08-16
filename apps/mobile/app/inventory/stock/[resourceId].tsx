@@ -3,11 +3,11 @@
  * Route: /inventory/stock/[resourceId]
  */
 import React, { useState } from 'react';
-import { View, Text, FlatList, RefreshControl } from 'react-native';
+import { View, Text, FlatList, RefreshControl, Modal, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Card, Badge, Button, EmptyState, LoadingSkeleton, toast, BusyOverlay } from '@/components/ui';
+import { Card, Badge, Button, EmptyState, Input, LoadingSkeleton, toast, BusyOverlay } from '@/components/ui';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { useAuthStore } from '@/stores/auth.store';
@@ -20,9 +20,12 @@ import {
   useStockMovements,
   useIssueStock,
   useAdjustStock,
+  useResourceBatches,
+  useUpdateBatchMetadata,
   expansionKeys,
   type StockSummaryRow,
   type StockMovementRow,
+  type ResourceBatchRow,
 } from '@/services/expansion.queries';
 
 async function bufferUntil(
@@ -61,6 +64,11 @@ export default function InventoryStockItemScreen() {
     (user?.subscriptionPlan ?? 'INVENTORY') as SubscriptionPlanKey,
     'stock_adjustments',
   );
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): batch/expiry surfaces are
+  // Kirana-vertical-only (K10) - no fetch/no UI for other inventory types.
+  const batchExpiryEnabled =
+    hasInventoryFeature((user?.subscriptionPlan ?? 'INVENTORY') as SubscriptionPlanKey, 'batch_expiry') &&
+    user?.inventoryVertical === 'KIRANA';
 
   const { data: summary, refetch: refetchSummary } = useStockSummary(projectId, locationId);
   const {
@@ -69,17 +77,26 @@ export default function InventoryStockItemScreen() {
     isFetching,
     refetch: refetchMovements,
   } = useStockMovements(projectId, resourceId, locationId);
+  const { data: batches, refetch: refetchBatches } = useResourceBatches(
+    batchExpiryEnabled ? resourceId : undefined,
+    locationId,
+  );
   const row = (summary ?? []).find((r: StockSummaryRow) => r.resourceId === resourceId) ?? null;
 
   const issueStock = useIssueStock(projectId);
   const adjustStock = useAdjustStock();
+  const updateBatch = useUpdateBatchMetadata(resourceId);
   const [issueOpen, setIssueOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [buffering, setBuffering] = useState(false);
+  const [editingBatch, setEditingBatch] = useState<ResourceBatchRow | null>(null);
+  const [batchMfg, setBatchMfg] = useState('');
+  const [batchExp, setBatchExp] = useState('');
 
   const onRefresh = () => {
     void refetchSummary();
     void refetchMovements();
+    if (batchExpiryEnabled) void refetchBatches();
   };
 
   return (
@@ -150,6 +167,60 @@ export default function InventoryStockItemScreen() {
                   />
                 ) : null}
               </View>
+              {batchExpiryEnabled && batches && batches.length > 0 ? (
+                <View className="mt-5">
+                  <Text className="text-sm font-bold text-text mb-2">Batches &amp; expiry</Text>
+                  <Card className="p-4">
+                    {batches.map((b: ResourceBatchRow, idx: number) => (
+                      <View
+                        key={b.id}
+                        className={idx === 0 ? '' : 'border-t border-border/60 mt-2 pt-2'}
+                      >
+                        <View className="flex-row items-center justify-between">
+                          <Text className="text-sm text-text font-semibold">{b.batchCode}</Text>
+                          <Badge
+                            color={
+                              b.bucket === 'EXPIRED'
+                                ? 'danger'
+                                : b.bucket === '0_30'
+                                  ? 'warning'
+                                  : 'neutral'
+                            }
+                            label={
+                              b.bucket === 'EXPIRED'
+                                ? 'Expired'
+                                : b.bucket === '0_30'
+                                  ? `${b.daysToExpiry} d left`
+                                  : b.expiresAt
+                                    ? new Date(b.expiresAt).toLocaleDateString('en-IN')
+                                    : 'No expiry'
+                            }
+                          />
+                        </View>
+                        <Text className="text-[11px] text-muted mt-1">
+                          {b.quantity} {row?.unit ?? ''} · {b.locationName}
+                          {b.manufacturedAt
+                            ? ` · mfg ${new Date(b.manufacturedAt).toLocaleDateString('en-IN')}`
+                            : ''}
+                          {b.expiresAt
+                            ? ` · exp ${new Date(b.expiresAt).toLocaleDateString('en-IN')}`
+                            : ''}
+                        </Text>
+                        <Button
+                          label="Edit dates"
+                          size="sm"
+                          variant="ghost"
+                          onPress={() => {
+                            setEditingBatch(b);
+                            setBatchMfg(b.manufacturedAt?.slice(0, 10) ?? '');
+                            setBatchExp(b.expiresAt?.slice(0, 10) ?? '');
+                          }}
+                        />
+                      </View>
+                    ))}
+                  </Card>
+                </View>
+              ) : null}
               <Text className="text-sm font-bold text-text mt-5 mb-2">Movement history</Text>
             </View>
           }
@@ -241,6 +312,40 @@ export default function InventoryStockItemScreen() {
           }
         }}
       />
+      <Modal visible={editingBatch !== null} transparent animationType="fade" onRequestClose={() => setEditingBatch(null)}>
+        <Pressable className="flex-1 bg-black/40 items-center justify-center p-4" onPress={() => setEditingBatch(null)}>
+          <Pressable className="bg-card rounded-2xl p-4 w-full max-w-md" onPress={(e) => e.stopPropagation()}>
+            <Text className="text-lg font-bold text-text">Edit batch dates</Text>
+            <Text className="text-xs text-muted mb-3">{editingBatch?.batchCode} · quantity is not changed</Text>
+            <Input label="Manufacture date (YYYY-MM-DD, optional)" value={batchMfg} onChangeText={setBatchMfg} />
+            <Input label="Expiry date (YYYY-MM-DD, optional)" value={batchExp} onChangeText={setBatchExp} />
+            <View className="flex-row gap-2">
+              <Button label="Cancel" variant="secondary" className="flex-1" onPress={() => setEditingBatch(null)} />
+              <Button
+                label="Save dates"
+                variant="accent"
+                className="flex-1"
+                loading={updateBatch.isPending}
+                onPress={() => {
+                  if (!editingBatch) return;
+                  if (batchMfg && batchExp && batchExp < batchMfg) {
+                    toast.error('Expiry date must be after manufacture date');
+                    return;
+                  }
+                  void updateBatch.mutateAsync({
+                    id: editingBatch.id,
+                    manufacturedAt: batchMfg || null,
+                    expiresAt: batchExp || null,
+                  }).then(() => {
+                    toast.success('Batch dates updated');
+                    setEditingBatch(null);
+                  }).catch((e) => toast.error(e instanceof Error ? e.message : 'Could not update dates'));
+                }}
+              />
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <AdjustStockModal
         row={row}

@@ -17,6 +17,8 @@ interface InputProps {
   multiline?: boolean;
   /** Stretch to container width on desktop (default: compact max-width). */
   fullWidth?: boolean;
+  /** Accessible name for screen readers when `label` is blank. */
+  accessibilityLabel?: string;
 }
 
 export function Input({
@@ -33,6 +35,7 @@ export function Input({
   rightIcon,
   multiline = false,
   fullWidth = false,
+  accessibilityLabel,
 }: InputProps) {
   const { isDesktop } = useViewport();
   const widthClass =
@@ -59,6 +62,7 @@ export function Input({
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
           multiline={multiline}
+          accessibilityLabel={accessibilityLabel ?? label}
           className={`flex-1 text-text ${multiline ? 'min-h-[88px] py-2 text-top' : 'py-3'} ${
             leftIcon ? 'ml-2' : ''
           }`}

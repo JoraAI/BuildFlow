@@ -14,6 +14,7 @@ import { getDefaultProjectId } from './module-gate.service';
 import { getOrCreateProjectStockLocation } from './procurement.service';
 import { updateWacOnIn } from './finance.service';
 import { splitGstByState } from './finance.service';
+import { applyBatchIn, isBatchTracked } from './stock-batch.service';
 import type { CreateSalesReturnInput, CreatePurchaseReturnInput } from '@buildflow/shared';
 
 function round2(n: number) {
@@ -36,7 +37,16 @@ export async function createSalesReturn(
   const projectId = await resolveDefaultProject(companyId, userId, role);
   const invoice = await prisma.invoice.findFirst({
     where: { id: input.invoiceId, companyId },
-    select: { id: true, clientName: true, customerId: true, clientState: true, clientGstin: true },
+    select: {
+      id: true,
+      clientName: true,
+      customerId: true,
+      clientState: true,
+      clientGstin: true,
+      // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): sale-movement link for
+      // restoring GOOD returns to the exact lot sold.
+      stockMovementId: true,
+    },
   });
   if (!invoice) throw ApiError.notFound('Invoice not found');
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.5): same-state → CGST/SGST, else IGST.
@@ -111,9 +121,35 @@ export async function createSalesReturn(
       // this keeps the running average unchanged (WAC-neutral return).
       const res = await tx.resource.findUnique({
         where: { id: l.resourceId },
-        select: { avgCost: true },
+        select: { avgCost: true, trackingMode: true },
       });
       const unitCost = Number(res?.avgCost ?? 0);
+      // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): restore GOOD returns to
+      // the SAME lot they were sold from (via the invoice line's stock movement)
+      // when available; otherwise a fresh RET-<ts> lot (keeps lot/aggregate sum).
+      let batchCode: string | null = null;
+      if (isBatchTracked(res?.trackingMode)) {
+        // Restore to the SAME lot sold when the sale invoice traces back to a
+        // single stock movement for this resource (Invoice.stockMovementId =
+        // the movement that generated the draft invoice). Multi-line issues
+        // without a per-line trace fall back to a fresh RET-<ts> lot.
+        if (invoice.stockMovementId) {
+          const orig = await tx.stockMovement.findUnique({
+            where: { id: invoice.stockMovementId },
+            select: { resourceId: true, batchCode: true },
+          });
+          if (orig && orig.resourceId === l.resourceId && orig.batchCode) {
+            batchCode = orig.batchCode;
+          }
+        }
+        batchCode = batchCode ?? `RET-${Date.now()}`;
+        await applyBatchIn(tx, {
+          locationId: location.id,
+          resourceId: l.resourceId,
+          batchCode,
+          quantity: qty,
+        });
+      }
       await tx.stockMovement.create({
         data: {
           locationId: location.id,
@@ -125,6 +161,8 @@ export async function createSalesReturn(
           notes: `Sales return ${ret.returnNumber}`,
           unitCost,
           inventoryValue: round2(unitCost * qty),
+          // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): restored lot.
+          batchCode,
         },
       });
       if (!balance) {

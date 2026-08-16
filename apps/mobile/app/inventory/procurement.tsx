@@ -1096,7 +1096,15 @@ function RecordGrnModal({
     grnNumber?: string;
     purchaseOrderId: string;
     receivedDate: Date;
-    lines: Array<{ resourceId: string; quantity: number; unit: string; batchCode?: string }>;
+    lines: Array<{
+      resourceId: string;
+      quantity: number;
+      unit: string;
+      batchCode?: string;
+      // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): receipt lot dates.
+      manufacturedAt?: Date;
+      expiresAt?: Date;
+    }>;
     // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.1): landed costs.
     freightCost?: number;
     insuranceCost?: number;
@@ -1121,6 +1129,9 @@ function RecordGrnModal({
   const [allocation, setAllocation] = useState<'QUANTITY' | 'VALUE'>('QUANTITY');
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.6/9.6): receiving warehouse + per-line batch codes.
   const [batchCodes, setBatchCodes] = useState<Record<string, string>>({});
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): per-line mfg/expiry dates.
+  const [batchMfg, setBatchMfg] = useState<Record<string, string>>({});
+  const [batchExp, setBatchExp] = useState<Record<string, string>>({});
   const [locationId, setLocationId] = useState('');
   const { data: warehouses } = useWarehouses();
   const [saving, setSaving] = useState(false);
@@ -1167,6 +1178,8 @@ function RecordGrnModal({
       setError('');
       setReceivedDate(new Date().toISOString().slice(0, 10));
       setBatchCodes({});
+      setBatchMfg({});
+      setBatchExp({});
       setLocationId('');
     }
   }, [open]);
@@ -1187,6 +1200,9 @@ function RecordGrnModal({
           unit: l.unit,
           // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3/9.6): per-line batch code.
           batchCode: batchCodes[l.resourceId]?.trim() || undefined,
+          // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): per-line lot dates.
+          ...(batchMfg[l.resourceId]?.trim() ? { manufacturedAt: new Date(batchMfg[l.resourceId]) } : {}),
+          ...(batchExp[l.resourceId]?.trim() ? { expiresAt: new Date(batchExp[l.resourceId]) } : {}),
         };
       })
       .filter((l) => l.quantity > 0);
@@ -1217,6 +1233,8 @@ function RecordGrnModal({
       setHandling('');
       setCustoms('');
       setBatchCodes({});
+      setBatchMfg({});
+      setBatchExp({});
       setLocationId('');
       setReceivedDate(new Date().toISOString().slice(0, 10));
     } catch (e) {
@@ -1300,6 +1318,26 @@ function RecordGrnModal({
                       autoCapitalize="characters"
                       placeholder="e.g. LOT-2026-A"
                     />
+                    {/* INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): lot dates
+                        (batch-tracked Kirana items use these for FEFO + expiry). */}
+                    <View className="flex-row gap-2 mt-1">
+                      <View className="flex-1">
+                        <Input
+                          label="Mfg date (optional)"
+                          value={batchMfg[l.resourceId] ?? ''}
+                          onChangeText={(v) => setBatchMfg((prev) => ({ ...prev, [l.resourceId]: v }))}
+                          placeholder="YYYY-MM-DD"
+                        />
+                      </View>
+                      <View className="flex-1">
+                        <Input
+                          label="Expiry date (optional)"
+                          value={batchExp[l.resourceId] ?? ''}
+                          onChangeText={(v) => setBatchExp((prev) => ({ ...prev, [l.resourceId]: v }))}
+                          placeholder="YYYY-MM-DD"
+                        />
+                      </View>
+                    </View>
                   </View>
                 );
               })}

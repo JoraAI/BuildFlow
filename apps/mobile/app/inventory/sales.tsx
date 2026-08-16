@@ -3,6 +3,7 @@ import { View, Text, FlatList, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, Badge, Button, EmptyState, LoadingSkeleton, toast, BusyOverlay, useBusy } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
+import { useViewport } from '@/hooks/useViewport';
 import {
   useSalesOrders, useCreateSalesOrder, useSalesOrderAction, useInvoiceFromSalesOrder,
   useDeliveryChallans, useCreateDeliveryChallan, useChallanTransition,
@@ -35,6 +36,10 @@ const STATUS_COLOR: Record<string, 'success' | 'warning' | 'neutral' | 'danger'>
 export default function InventorySalesScreen() {
   const router = useRouter();
   const { busy, run } = useBusy();
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4, K8): desktop/tablet get
+  // multi-line TABLES (InvoiceBillLists pattern); phones keep the card list.
+  const { isTablet, isDesktop } = useViewport();
+  const tableMode = isTablet || isDesktop;
   const projectId = useAuthStore((s) => s.user?.defaultProjectId ?? '');
   const [tab, setTab] = useState<Tab>('orders');
   const [soOpen, setSoOpen] = useState(false);
@@ -76,6 +81,51 @@ export default function InventorySalesScreen() {
 
   const renderOrder = ({ item }: { item: SalesOrder }) => {
     const delivered = item.deliveryChallans.some((d) => d.status === 'DISPATCHED' || d.status === 'DELIVERED');
+    // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4, K8): desktop/tablet row.
+    if (tableMode) {
+      return (
+        <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
+          <Text className="flex-[1.1] text-sm font-mono font-semibold text-text">{item.soNumber}</Text>
+          <Text className="flex-[1.4] text-sm text-text" numberOfLines={1}>{item.customerName}</Text>
+          <View className="flex-1">
+            <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
+          </View>
+          <Text className="flex-1 text-sm font-semibold text-text text-right">₹{Number(item.total).toFixed(2)}</Text>
+          <View className="flex-[2] flex-row flex-wrap justify-end gap-1">
+            {item.status === 'DRAFT' ? (
+              <Button label="Confirm" size="sm" variant="secondary" disabled={busy} onPress={() => void run(async () => {
+                await soAction.mutateAsync({ id: item.id, action: 'confirm' });
+                toast.success('Order confirmed');
+              })} />
+            ) : null}
+            {item.status === 'CONFIRMED' ? (
+              <Button label="Challan" size="sm" variant="secondary" disabled={busy} onPress={() => void run(async () => {
+                await createChallan.mutateAsync({ salesOrderId: item.id });
+                toast.success('Challan created - dispatch to move stock');
+              })} />
+            ) : null}
+            {(item.status === 'CONFIRMED' || item.status === 'DELIVERED') && delivered ? (
+              <Button label="Invoice" size="sm" variant="accent" disabled={busy} onPress={() => void run(async () => {
+                const r = await invoiceFromSO.mutateAsync({ id: item.id });
+                toast.success(`Invoice ${r.invoiceNumber} created`);
+                if (r.creditLimitWarning) toast.warning(r.creditLimitWarning);
+                router.push('/inventory/invoices' as never);
+              })} />
+            ) : null}
+            {item.status === 'INVOICED' ? (
+              <Button label="Invoices" size="sm" variant="secondary" onPress={() => router.push('/inventory/invoices' as never)} />
+            ) : null}
+            {(item.status === 'CONFIRMED' || item.status === 'DELIVERED') ? (
+              <Button label="Cancel" size="sm" variant="secondary" disabled={busy} onPress={() => void run(async () => {
+                await soAction.mutateAsync({ id: item.id, action: 'cancel' });
+                toast.info('Order cancelled');
+              })} />
+            ) : null}
+            <Button label="PDF" size="sm" variant="ghost" onPress={() => void downloadReportPdf(`/inventory/pdf/sales-orders/${item.id}`, `so-${item.soNumber}.pdf`)} />
+          </View>
+        </View>
+      );
+    }
     return (
       <Card className="mb-2 p-4">
         <View className="flex-row items-start justify-between gap-2">
@@ -126,8 +176,54 @@ export default function InventorySalesScreen() {
     );
   };
 
-  const renderQuote = ({ item }: { item: Quote }) => (
-    <Card className="mb-2 p-4">
+  const renderQuote = ({ item }: { item: Quote }) => {
+    // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4, K8): desktop/tablet row.
+    if (tableMode) {
+      return (
+        <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
+          <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.quoteNumber}</Text>
+          <Text className="flex-[1.4] text-sm text-text" numberOfLines={1}>{item.customerName}</Text>
+          <View className="flex-1">
+            <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
+          </View>
+          <Text className="flex-1 text-sm font-semibold text-text text-right">₹{Number(item.total).toFixed(2)}</Text>
+          <View className="flex-[1.8] flex-row flex-wrap justify-end gap-1">
+            {item.status === 'DRAFT' ? (
+              <Button label="Send" size="sm" variant="secondary" disabled={busy} onPress={() => void run(async () => {
+                await quoteAction.mutateAsync({ id: item.id, action: 'send' });
+                toast.success('Quote sent');
+              })} />
+            ) : null}
+            {item.status === 'SENT' ? (
+              <>
+                <Button label="Accept" size="sm" variant="accent" disabled={busy} onPress={() => void run(async () => {
+                  await quoteAction.mutateAsync({ id: item.id, action: 'accept' });
+                  toast.success('Quote accepted - convert to a sales order');
+                })} />
+                <Button label="Reject" size="sm" variant="secondary" disabled={busy} onPress={() => void run(async () => {
+                  await quoteAction.mutateAsync({ id: item.id, action: 'reject' });
+                  toast.info('Quote rejected');
+                })} />
+              </>
+            ) : null}
+            {item.status === 'ACCEPTED' ? (
+              <>
+                <Button label="To sales order" size="sm" variant="accent" disabled={busy} onPress={() => void run(async () => {
+                  await quoteToSO.mutateAsync(item.id);
+                  toast.success('Sales order created from quote');
+                })} />
+                <Button label="Reject" size="sm" variant="ghost" disabled={busy} onPress={() => void run(async () => {
+                  await quoteAction.mutateAsync({ id: item.id, action: 'reject' });
+                  toast.info('Quote rejected');
+                })} />
+              </>
+            ) : null}
+          </View>
+        </View>
+      );
+    }
+    return (
+      <Card className="mb-2 p-4">
       <View className="flex-row items-start justify-between gap-2">
         <View className="flex-1 min-w-0">
           <Text className="text-sm font-bold text-text">{item.quoteNumber}</Text>
@@ -170,9 +266,36 @@ export default function InventorySalesScreen() {
       </View>
     </Card>
   );
+  };
 
-  const renderChallan = ({ item }: { item: DeliveryChallan }) => (
-    <Card className="mb-2 p-4">
+  const renderChallan = ({ item }: { item: DeliveryChallan }) => {
+    // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4, K8): desktop/tablet row.
+    if (tableMode) {
+      return (
+        <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
+          <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.dcNumber}</Text>
+          <Text className="flex-[1.4] text-sm text-text" numberOfLines={1}>{item.customerName}</Text>
+          <View className="flex-1">
+            <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
+          </View>
+          <Text className="flex-1 text-sm text-text text-right">{item.lines.length} line(s)</Text>
+          <View className="flex-[1.6] flex-row flex-wrap justify-end gap-1">
+            {item.status === 'DRAFT' ? (
+              <Button label="Dispatch (stock OUT)" size="sm" variant="accent" onPress={() => setDispatchChallan(item)} />
+            ) : null}
+            {item.status === 'DISPATCHED' ? (
+              <Button label="Deliver" size="sm" variant="secondary" disabled={busy} onPress={() => void run(async () => {
+                await challanTransition.mutateAsync({ id: item.id, action: 'deliver' });
+                toast.success('Delivered');
+              })} />
+            ) : null}
+            <Button label="PDF" size="sm" variant="ghost" onPress={() => void downloadReportPdf(`/inventory/pdf/delivery-challans/${item.id}`, `dc-${item.dcNumber}.pdf`)} />
+          </View>
+        </View>
+      );
+    }
+    return (
+      <Card className="mb-2 p-4">
       <View className="flex-row items-start justify-between gap-2">
         <View className="flex-1 min-w-0">
           <Text className="text-sm font-bold text-text">{item.dcNumber}</Text>
@@ -198,11 +321,35 @@ export default function InventorySalesScreen() {
       </View>
     </Card>
   );
+  };
+
   const renderReturn = ({ item }: { item: SalesReturn | PurchaseReturn }) => {
     const isSales = 'customerName' in item;
     const party = isSales ? item.customerName : (item as PurchaseReturn).vendorName;
     const note = isSales ? (item as SalesReturn).creditNote : (item as PurchaseReturn).debitNote;
     const noteLabel = note ? ('creditNoteNumber' in note ? note.creditNoteNumber : note.debitNoteNumber) : null;
+    // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4, K8): desktop/tablet row.
+    if (tableMode) {
+      return (
+        <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
+          <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.returnNumber}</Text>
+          <Text className="flex-[1.4] text-sm text-text" numberOfLines={1}>{party}</Text>
+          <Text className="flex-1 text-xs text-muted">{isSales ? 'Sales return' : 'Purchase return'}</Text>
+          <View className="flex-1">
+            <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
+          </View>
+          <Text className="flex-1 text-sm font-semibold text-text text-right">₹{Number(item.total).toFixed(2)}</Text>
+          <View className="flex-[1.2] flex-row justify-end gap-1">
+            <Button
+              label={isSales ? 'Invoices' : 'Vendor bills'}
+              size="sm"
+              variant="secondary"
+              onPress={() => router.push((isSales ? '/inventory/invoices' : '/inventory/bills') as never)}
+            />
+          </View>
+        </View>
+      );
+    }
     return (
       <Card className="mb-2 p-4">
         <View className="flex-row items-start justify-between gap-2">
@@ -228,8 +375,37 @@ export default function InventorySalesScreen() {
     );
   };
 
-  const renderNote = ({ item }: { item: { id: string; number: string; party: string; status: string; total: string; kind: 'credit' | 'debit' } }) => (
-    <Card className="mb-2 p-4">
+  const renderNote = ({ item }: { item: { id: string; number: string; party: string; status: string; total: string; kind: 'credit' | 'debit' } }) => {
+    // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4, K8): desktop/tablet row.
+    if (tableMode) {
+      return (
+        <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
+          <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.number}</Text>
+          <Text className="flex-[1.4] text-sm text-text" numberOfLines={1}>{item.party}</Text>
+          <Text className="flex-1 text-xs text-muted">{item.kind === 'credit' ? 'Credit note' : 'Debit note'}</Text>
+          <View className="flex-1">
+            <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
+          </View>
+          <Text className="flex-1 text-sm font-semibold text-text text-right">₹{Number(item.total).toFixed(2)}</Text>
+          <View className="flex-[1.2] flex-row justify-end gap-1">
+            {item.status === 'DRAFT' ? (
+              <Button
+                label="Issue note"
+                size="sm"
+                variant="accent"
+                disabled={busy}
+                onPress={() => void run(async () => {
+                  await (item.kind === 'credit' ? issueCreditNote : issueDebitNote).mutateAsync(item.id);
+                  toast.success('Note issued - included in Tally export');
+                })}
+              />
+            ) : null}
+          </View>
+        </View>
+      );
+    }
+    return (
+      <Card className="mb-2 p-4">
       <View className="flex-row items-start justify-between gap-2">
         <View className="flex-1 min-w-0">
           <Text className="text-sm font-bold text-text">{item.number}</Text>
@@ -258,6 +434,7 @@ export default function InventorySalesScreen() {
       ) : null}
     </Card>
   );
+  };
 
   type NoteRow = { id: string; number: string; party: string; status: string; total: string; kind: 'credit' | 'debit' };
   const creditRows: NoteRow[] = (creditNotes.data ?? []).map((n: CreditNote) => ({ id: n.id, number: n.creditNoteNumber, party: n.customerName, status: n.status, total: n.total, kind: 'credit' as const }));
@@ -352,12 +529,25 @@ export default function InventorySalesScreen() {
           }
           contentContainerStyle={{ paddingBottom: 24 }}
           ListHeaderComponent={
-            tab === 'returns' ? (
-              <View className="flex-row flex-wrap gap-2 pb-2">
-                <Button label="New sales return" size="sm" variant="secondary" onPress={() => setSalesReturnOpen(true)} />
-                <Button label="New purchase return" size="sm" variant="secondary" onPress={() => setPurchaseReturnOpen(true)} />
-              </View>
-            ) : null
+            <View>
+              {/* INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4, K8): desktop/tablet
+                  column headers above the table rows. */}
+              {tableMode && dataForTab.length > 0 ? (
+                <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+                  <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Number</Text>
+                  <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Party</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Status</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Total</Text>
+                  <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+                </View>
+              ) : null}
+              {tab === 'returns' ? (
+                <View className="flex-row flex-wrap gap-2 pb-2">
+                  <Button label="New sales return" size="sm" variant="secondary" onPress={() => setSalesReturnOpen(true)} />
+                  <Button label="New purchase return" size="sm" variant="secondary" onPress={() => setPurchaseReturnOpen(true)} />
+                </View>
+              ) : null}
+            </View>
           }
         />
       )}

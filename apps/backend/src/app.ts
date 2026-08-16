@@ -42,6 +42,7 @@ import { reorderRouter } from './routes/reorder.routes';
 import { inventoryAnalyticsRouter } from './routes/inventory-analytics.routes';
 import { inventoryAiRouter } from './routes/inventory-ai.routes'; // Phase 7 AI (INVENTORY only)
 import { inventoryGtmRouter } from './routes/inventory-gtm.routes'; // Phase 9 price lists/quotes/PDFs/reminders (INVENTORY only)
+import { inventoryCatalogRouter } from './routes/inventory-catalog.routes'; // Phase 11.1 vertical starter catalog (INVENTORY only)
 import { subcontractProjectRouter, subcontractorRouter } from './routes/subcontract.routes';
 import { subPortalPublicRouter } from './routes/subcontract-portal.routes';
 import { portalPublicRouter, portalProjectRouter } from './routes/portal.routes';
@@ -128,6 +129,7 @@ app.use('/api/inventory/stock', inventoryStockRouter); // Phase 1.3/1.4 adjustme
 app.use('/api/inventory/transactions', transactionRouter); // Phase 2 SO/DC/returns/notes (INVENTORY only)
 app.use('/api/inventory', warehouseRouter); // Phase 3 warehouses/transfers/stock-counts/barcode (INVENTORY only)
 app.use('/api/inventory', inventoryGtmRouter); // Phase 9 price lists, quotes, PDFs, reminders (INVENTORY only)
+app.use('/api/inventory', inventoryCatalogRouter); // Phase 11.1 vertical starter catalog (INVENTORY only)
 app.use('/api/inventory/reorder', reorderRouter); // Phase 4 reorder suggestions + one-click purchase (INVENTORY only)
 app.use('/api/inventory/analytics', inventoryAnalyticsRouter); // Phase 6 dashboard + stock/margin reports (INVENTORY only)
 app.use('/api/inventory/ai', inventoryAiRouter); // Phase 7 OCR draft bill, import mapping, anomalies (INVENTORY only)

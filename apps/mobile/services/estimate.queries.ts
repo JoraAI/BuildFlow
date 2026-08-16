@@ -18,6 +18,8 @@ export interface Resource {
   type: 'LABOUR' | 'MATERIAL' | 'EQUIPMENT' | 'SUBCONTRACTOR';
   unit: string;
   rate: string;
+  mrp?: string | number | null;
+  mrpUpdatedAt?: string | null;
   gstRate: string;
   hsnSacCode: string | null;
   brandOrSpec?: string | null;
@@ -32,6 +34,7 @@ export interface Resource {
   secondaryUnit?: string | null;
   conversionFactor?: string | number | null;
   reorderPoint?: string | number | null;
+  trackingMode?: 'NONE' | 'BATCH_EXPIRY';
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): procurement automation fields.
   preferredVendorId?: string | null;
   reorderQty?: string | number | null;

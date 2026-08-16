@@ -32,7 +32,7 @@ export default function InventoryInvoicesScreen() {
           <Text className="text-2xl font-bold text-text">Sales invoices</Text>
           <Text className="text-sm text-muted mt-0.5">Client invoices (AR) · {user?.companyName}</Text>
           <Text className="text-xs text-muted mt-1">
-            Draft invoices are created automatically when you issue stock. Confirm them here to mark as Sent.
+            Checkout opens its invoice directly so you can mark it as sent and record payment.
           </Text>
         </View>
         <View className={`flex-row gap-2 ${isPhone ? 'mt-2 w-full' : ''}`}>

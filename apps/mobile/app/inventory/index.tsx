@@ -19,9 +19,10 @@ import { useViewport } from '@/hooks/useViewport';
 import { useRouter } from 'expo-router';
 import { getInventoryLabel, getInventoryLabelMode, hasInventoryFeature, type SubscriptionPlanKey } from '@buildflow/shared';
 import { AdjustStockModal, OpeningStockModal, MultiIssueStockModal } from '@/components/inventory/StockModals';
-import { inventoryStockItemHref } from '@/utils/navigation-paths';
+import { CheckoutCart } from '@/components/inventory/CheckoutCart';
+import { inventoryInvoiceDetailHref, inventoryStockItemHref } from '@/utils/navigation-paths';
 import { useWarehouses, useBarcodeLookup, type Warehouse } from '@/services/warehouse.queries';
-import DashboardCards from '@/components/inventory/DashboardCards';
+import DashboardCards, { KiranaKpiCards } from '@/components/inventory/DashboardCards';
 import AnomalyStrip from '@/components/inventory/AnomalyStrip';
 import { BarcodeScannerOverlay } from '@/components/inventory/BarcodeScannerOverlay';
 import {
@@ -65,6 +66,14 @@ export default function InventoryStockScreen() {
     (user?.subscriptionPlan ?? 'INVENTORY') as SubscriptionPlanKey,
     'barcode',
   );
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.3): POS counter checkout cart
+  // (K7–K8) is the Kirana-vertical UX; non-Kirana inventory keeps the same
+  // MultiIssueStockModal counter issue - nothing breaks.
+  const posCheckoutEnabled =
+    hasInventoryFeature((user?.subscriptionPlan ?? 'INVENTORY') as SubscriptionPlanKey, 'pos_checkout') &&
+    user?.inventoryVertical === 'KIRANA';
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4): Kirana-vertical KPI row.
+  const kiranaVertical = user?.inventoryVertical === 'KIRANA';
   const { data: warehouses }: { data?: Warehouse[] } = useWarehouses();
   const [selectedLocationId, setSelectedLocationId] = useState<string | undefined>(undefined);
   useEffect(() => {
@@ -74,11 +83,20 @@ export default function InventoryStockScreen() {
     }
   }, [warehouses, selectedLocationId]);
 
-  const { data: summary, isLoading, isFetching, refetch } = useStockSummary(projectId, selectedLocationId);
+  const { data: summary, isLoading, isFetching, refetch, isError, error } = useStockSummary(projectId, selectedLocationId);
   const [issueOpen, setIssueOpen] = useState(false);
   /** When opened from a row CTA, prefill the multi sheet with this one material. */
   const [issueInitialResourceId, setIssueInitialResourceId] = useState<string | null>(null);
   const [buffering, setBuffering] = useState(false);
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4): searchable stock rows.
+  const [stockSearch, setStockSearch] = useState('');
+  const filteredSummary = useMemo(() => {
+    const q = stockSearch.trim().toLowerCase();
+    if (!q) return summary ?? [];
+    return (summary ?? []).filter(
+      (r: StockSummaryRow) => r.name.toLowerCase().includes(q) || r.unit.toLowerCase().includes(q),
+    );
+  }, [summary, stockSearch]);
 
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.4): barcode identify - type/paste a
   // barcode to jump to its item row.
@@ -135,6 +153,79 @@ export default function InventoryStockScreen() {
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 0): profile-based wording.
   const labelMode = getInventoryLabelMode(user?.inventoryProfile ?? null);
   const itemLabel = getInventoryLabel('item', labelMode);
+
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.3): shared counter-sale submit
+  // handler used by BOTH the POS checkout cart (Kirana) and the legacy multi
+  // issue modal (non-Kirana). After commit: buffer until balances settle,
+  // toast (incl. server FEFO lot allocations), invalidate stock/sales/invoices
+  // (expiry + dashboard handled by useIssueStock.onSuccess), then open the
+  // draft invoice when one was auto-created.
+  const handleCounterSale = async (input: {
+    lines: Array<{ resourceId: string; quantity: number; unitPrice?: number; batchCode?: string }>;
+    customerId?: string;
+    customerName?: string;
+    customerPhone?: string;
+    customerAddress?: string;
+    notes?: string;
+    allowExpired?: boolean;
+  }) => {
+    const prevBalances = new Map<string, number>();
+    for (const l of input.lines) {
+      const row = (summary ?? []).find((r: StockSummaryRow) => r.resourceId === l.resourceId);
+      prevBalances.set(l.resourceId, row ? Number(row.balance) : 0);
+    }
+    setBuffering(true);
+    try {
+      const result = await issueStock.mutateAsync({
+        ...input,
+        ...(selectedLocationId ? { locationId: selectedLocationId } : {}),
+      });
+      await bufferUntil(
+        async () => {
+          await refetch();
+          await qc.refetchQueries({ queryKey: ['invoices', 'list', projectId] });
+          await qc.refetchQueries({ queryKey: ['transactions', 'sales-orders'] });
+        },
+        () => {
+          const rows =
+            (qc.getQueryData([...expansionKeys.stockSummary(projectId), selectedLocationId ?? 'all']) as
+              | StockSummaryRow[]
+              | undefined) ?? [];
+          return input.lines.every((l) => {
+            const prev = prevBalances.get(l.resourceId) ?? 0;
+            const row = rows.find((r) => r.resourceId === l.resourceId);
+            if (!row) return false;
+            return Number(row.balance) <= prev - l.quantity + 0.001;
+          });
+        },
+      );
+      const names = result.lines
+        .map((l) => `${l.resourceName} ${l.quantityIssued} ${l.unit}`)
+        .join(', ');
+      // 11.3.5: server-side FEFO lot allocations - warnings/feedback only.
+      const lotSummary = result.lines
+        .filter((l) => l.allocations && l.allocations.length > 0)
+        .map((l) => l.allocations!.map((a) => `${a.batchCode}×${a.quantity}`).join(', '))
+        .join(' · ');
+      toast.success(
+        result.draftInvoiceId
+          ? `Issued ${names} · counter sale on Sales · draft invoice created${lotSummary ? ` · from batch ${lotSummary}` : ''}`
+          : `Issued ${names}${lotSummary ? ` · from batch ${lotSummary}` : ''}`,
+      );
+      setIssueOpen(false);
+      setIssueInitialResourceId(null);
+      if (result.draftInvoiceId) {
+        router.push(
+          inventoryInvoiceDetailHref(result.draftInvoiceId, '/inventory') as never,
+        );
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Issue failed');
+      throw e;
+    } finally {
+      setBuffering(false);
+    }
+  };
   const itemPluralLabel = getInventoryLabel('item_plural', labelMode);
 
   const onRefresh = () => {
@@ -175,7 +266,8 @@ export default function InventoryStockScreen() {
             onPress={() => router.push('/inventory/materials' as never)}
           />
           <Button
-            label="Bulk issue"
+            label={posCheckoutEnabled ? 'Checkout' : 'Bulk issue'}
+            accessibilityLabel={posCheckoutEnabled ? 'Open counter checkout' : 'Open bulk issue'}
             variant="accent"
             size="sm"
             disabled={buffering || !hasIssuableStock}
@@ -246,7 +338,7 @@ export default function InventoryStockScreen() {
       ) : (
         <FlatList
           className="flex-1"
-          data={summary ?? []}
+          data={filteredSummary}
           keyExtractor={(item) => item.resourceId}
           refreshControl={
             <RefreshControl
@@ -257,6 +349,16 @@ export default function InventoryStockScreen() {
           }
           ListHeaderComponent={
             <View className="px-4 pb-2">
+              {/* INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4): searchable rows. */}
+              <View className="mb-3">
+                <Input
+                  label=""
+                  accessibilityLabel={`Search ${itemPluralLabel.toLowerCase()}`}
+                  value={stockSearch}
+                  onChangeText={setStockSearch}
+                  placeholder={`Search ${itemPluralLabel.toLowerCase()}…`}
+                />
+              </View>
               <View className={`flex-row gap-3 ${isDesktop ? '' : 'flex-wrap'}`}>
                 <Card className="flex-1 min-w-[140px] p-4">
                   <Text className="text-xs text-muted">{itemPluralLabel}</Text>
@@ -276,16 +378,28 @@ export default function InventoryStockScreen() {
                 </Card>
               </View>
 
-              {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 6.1): executive dashboard. */}
+              {/* INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4.2): Kirana KPIs -
+                  counter sales today, low stock, expiring soon, expired value.
+                  Non-Kirana verticals keep the executive DashboardCards row. */}
               <View className="mt-3">
                 <Text className="text-xs font-semibold text-muted mb-2 uppercase tracking-wide">
-                  Executive overview
+                  {kiranaVertical ? 'Store overview' : 'Executive overview'}
                 </Text>
-                <DashboardCards />
+                {kiranaVertical ? <KiranaKpiCards /> : <DashboardCards />}
               </View>
 
               {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 7.3): rules-first anomaly hints. */}
               <AnomalyStrip />
+
+              {isDesktop && filteredSummary.length > 0 ? (
+                <View className="flex-row items-center px-1 py-2 bg-surface border-b border-border mt-3">
+                  <Text className="flex-[2] text-[11px] font-bold text-muted uppercase">Name</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Balance</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">WAC</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Value</Text>
+                  <Text className="flex-[1.8] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+                </View>
+              ) : null}
 
               <Text className="text-sm font-bold text-text mt-4 mb-2">Stock summary</Text>
             </View>
@@ -293,6 +407,54 @@ export default function InventoryStockScreen() {
           renderItem={({ item }) => {
             const isLowStock =
               item.reorderPoint != null && Number(item.reorderPoint) > 0 && Number(item.balance) < Number(item.reorderPoint);
+            // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4.3): desktop stock table row.
+            if (isDesktop) {
+              return (
+                <Pressable
+                  disabled={buffering}
+                  onPress={() => router.push(inventoryStockItemHref(item.resourceId, selectedLocationId) as never)}
+                  className="flex-row items-center px-1 py-3 bg-card border-b border-border/60"
+                >
+                  <View className="flex-[2] min-w-0 mr-2">
+                    <Text className="text-sm font-semibold text-text" numberOfLines={1}>{item.name}</Text>
+                    <View className="flex-row items-center gap-1.5 mt-0.5">
+                      <Text className="text-[11px] text-muted">{item.unit}</Text>
+                      {isLowStock ? (
+                        <Badge color="danger" label={`Low (reorder ${Number(item.reorderPoint)})`} />
+                      ) : null}
+                    </View>
+                  </View>
+                  <Text className="flex-1 text-sm font-bold text-primary text-right">{item.balance}</Text>
+                  <Text className="flex-1 text-xs text-muted text-right">
+                    {Number(item.unitCost) > 0 ? `₹${Number(item.unitCost).toFixed(2)}` : '-'}
+                  </Text>
+                  <Text className="flex-1 text-sm text-text text-right">
+                    {Number(item.inventoryValue) > 0 ? `₹${Number(item.inventoryValue).toFixed(2)}` : '-'}
+                  </Text>
+                  <View className="flex-[1.8] flex-row flex-wrap justify-end gap-1">
+                    <Button
+                      label="Issue"
+                      size="sm"
+                      variant="secondary"
+                      disabled={buffering || Number(item.balance) <= 0}
+                      onPress={() => {
+                        setIssueInitialResourceId(item.resourceId);
+                        setIssueOpen(true);
+                      }}
+                    />
+                    {stockAdjustEnabled ? (
+                      <Button
+                        label="Adjust"
+                        size="sm"
+                        variant="secondary"
+                        disabled={buffering}
+                        onPress={() => setAdjustRow(item)}
+                      />
+                    ) : null}
+                  </View>
+                </Pressable>
+              );
+            }
             return (
               <Pressable
                 disabled={buffering}
@@ -347,77 +509,53 @@ export default function InventoryStockScreen() {
             );
           }}
           ListEmptyComponent={
-            <EmptyState
-              title="No stock yet"
-              description="Add materials, create a purchase order, and record a GRN to bring stock in. Then issue stock when you sell or use materials."
-            />
+            isError ? (
+              <EmptyState
+                title="Could not load stock"
+                description={error instanceof Error ? error.message : 'Check your connection and try again.'}
+              />
+            ) : (
+              <EmptyState
+                title="No stock yet"
+                description="Add materials, create a purchase order, and record a GRN to bring stock in. Then issue stock when you sell or use materials."
+              />
+            )
           }
           contentContainerStyle={{ paddingBottom: 24 }}
         />
       )}
 
-      <MultiIssueStockModal
-        open={issueOpen}
-        submitting={issueStock.isPending || buffering}
-        rows={summary ?? []}
-        initialResourceId={issueInitialResourceId}
-        itemLabel={itemLabel}
-        onClose={() => {
-          if (!buffering) {
-            setIssueOpen(false);
-            setIssueInitialResourceId(null);
-          }
-        }}
-        onSubmit={async (input) => {
-          const prevBalances = new Map<string, number>();
-          for (const l of input.lines) {
-            const row = (summary ?? []).find((r: StockSummaryRow) => r.resourceId === l.resourceId);
-            prevBalances.set(l.resourceId, row ? Number(row.balance) : 0);
-          }
-          setBuffering(true);
-          try {
-            const result = await issueStock.mutateAsync({
-              ...input,
-              ...(selectedLocationId ? { locationId: selectedLocationId } : {}),
-            });
-            await bufferUntil(
-              async () => {
-                await refetch();
-                await qc.refetchQueries({ queryKey: ['invoices', 'list', projectId] });
-                await qc.refetchQueries({ queryKey: ['transactions', 'sales-orders'] });
-              },
-              () => {
-                const rows =
-                  (qc.getQueryData([...expansionKeys.stockSummary(projectId), selectedLocationId ?? 'all']) as
-                    | StockSummaryRow[]
-                    | undefined) ?? [];
-                return input.lines.every((l) => {
-                  const prev = prevBalances.get(l.resourceId) ?? 0;
-                  const row = rows.find((r) => r.resourceId === l.resourceId);
-                  if (!row) return false;
-                  return Number(row.balance) <= prev - l.quantity + 0.001;
-                });
-              },
-            );
-            const names = result.lines
-              .map((l) => `${l.resourceName} ${l.quantityIssued} ${l.unit}`)
-              .join(', ');
-            toast.success(
-              result.draftInvoiceId
-                ? `Issued ${names} · counter sale is on Sales · draft invoice created`
-                : `Issued ${names}`,
-            );
-            setIssueOpen(false);
-            setIssueInitialResourceId(null);
-            if (result.draftInvoiceId) router.push('/inventory/invoices' as never);
-          } catch (e) {
-            toast.error(e instanceof Error ? e.message : 'Issue failed');
-            throw e;
-          } finally {
-            setBuffering(false);
-          }
-        }}
-      />
+      {posCheckoutEnabled ? (
+        <CheckoutCart
+          open={issueOpen}
+          submitting={issueStock.isPending || buffering}
+          rows={summary ?? []}
+          itemLabel={itemLabel}
+          initialResourceId={issueInitialResourceId}
+          onClose={() => {
+            if (!buffering) {
+              setIssueOpen(false);
+              setIssueInitialResourceId(null);
+            }
+          }}
+          onSubmit={handleCounterSale}
+        />
+      ) : (
+        <MultiIssueStockModal
+          open={issueOpen}
+          submitting={issueStock.isPending || buffering}
+          rows={summary ?? []}
+          initialResourceId={issueInitialResourceId}
+          itemLabel={itemLabel}
+          onClose={() => {
+            if (!buffering) {
+              setIssueOpen(false);
+              setIssueInitialResourceId(null);
+            }
+          }}
+          onSubmit={handleCounterSale}
+        />
+      )}
 
       <AdjustStockModal
         row={adjustRow}

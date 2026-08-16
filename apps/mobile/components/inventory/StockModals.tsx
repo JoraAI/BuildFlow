@@ -153,12 +153,28 @@ export function OpeningStockModal({
       const line = raw.trim();
       if (!line) continue;
       const parts = line.split(',').map((p) => p.trim());
-      if (parts.length < 2) throw new Error(`Line "${line}" needs name/sku, qty[, rate]`);
+      if (parts.length < 2) throw new Error(`Line "${line}" needs name/sku, qty[, rate[, batch, mfg, exp]]`);
       const name = parts[0];
       const qty = Number(parts[1]);
       const rate = parts.length > 2 && parts[2] !== '' ? Number(parts[2]) : undefined;
       if (!Number.isFinite(qty) || qty <= 0) throw new Error(`Line "${line}" has an invalid quantity`);
-      out.push({ name, quantity: qty, ...(rate !== undefined && Number.isFinite(rate) ? { rate } : {}) });
+      const batchCode = parts.length > 3 && parts[3] !== '' ? parts[3] : undefined;
+      const manufacturedAt = parts.length > 4 && parts[4] !== '' ? new Date(parts[4]) : undefined;
+      const expiresAt = parts.length > 5 && parts[5] !== '' ? new Date(parts[5]) : undefined;
+      if (manufacturedAt && Number.isNaN(manufacturedAt.getTime())) {
+        throw new Error(`Line "${line}" has an invalid mfg date`);
+      }
+      if (expiresAt && Number.isNaN(expiresAt.getTime())) {
+        throw new Error(`Line "${line}" has an invalid expiry date`);
+      }
+      out.push({
+        name,
+        quantity: qty,
+        ...(rate !== undefined && Number.isFinite(rate) ? { rate } : {}),
+        ...(batchCode ? { batchCode } : {}),
+        ...(manufacturedAt ? { manufacturedAt } : {}),
+        ...(expiresAt ? { expiresAt } : {}),
+      });
     }
     return out;
   };
@@ -198,16 +214,17 @@ export function OpeningStockModal({
         >
           <Text className="text-lg font-bold text-text mb-1">Import opening stock</Text>
           <Text className="text-sm text-muted mb-3">
-            Paste one line per item: name or SKU, quantity, optional rate. Items are matched by
-            name/SKU from your catalog; unmatched rows are reported.
+            Paste one line per item: name or SKU, quantity, optional rate, optional batch code,
+            optional mfg date, optional expiry date. Items are matched by name/SKU from your
+            catalog; unmatched rows are reported.
           </Text>
           <ScrollView keyboardShouldPersistTaps="handled">
             <Input
-              label="CSV (name-or-sku, qty, rate)"
+              label="CSV (name-or-sku, qty, rate, batch, mfg, exp)"
               value={csv}
               onChangeText={setCsv}
               multiline
-              placeholder={'Cement, 500, 350\nSteel rods, 1200, 88'}
+              placeholder={'Cement, 500, 350\nMilk Pouch 500 ml, 100, 28, LOT-0901, 2026-08-01, 2026-08-15'}
             />
             <View className="flex-row gap-1.5 mb-2 flex-wrap">
               <Badge color="neutral" label={`${csv.split('\n').filter((l) => l.trim()).length} line(s)`} />
@@ -247,6 +264,7 @@ export function MultiIssueStockModal({
     customerAddress?: string;
     customerId?: string;
     notes?: string;
+    allowExpired?: boolean;
   }) => Promise<void>;
 }) {
   const { isPhone } = useViewport();
@@ -262,6 +280,9 @@ export function MultiIssueStockModal({
   const { data: effectiveRates } = useEffectiveRates(customerId || undefined);
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): authorized override to sell
+  // EXPIRED lots (FEFO otherwise rejects expired-only stock).
+  const [allowExpired, setAllowExpired] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -287,6 +308,7 @@ export function MultiIssueStockModal({
     setCustomerAddress('');
     setCustomerId('');
     setNotes('');
+    setAllowExpired(false);
     setError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialResourceId]);
@@ -361,6 +383,9 @@ export function MultiIssueStockModal({
       customerPhone: customerPhone.trim() || undefined,
       customerAddress: customerAddress.trim() || undefined,
       notes: notes.trim() || undefined,
+      // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): authorized override for
+      // expired lots - FEFO still picks earliest expiry, but allows expired.
+      allowExpired,
     });
   };
 
@@ -430,12 +455,17 @@ export function MultiIssueStockModal({
                   <View className="flex-row gap-2 mt-2">
                     <View className="flex-1">
                       <Input
-                        label={`Quantity (${row?.unit ?? ''})`}
+                        label={row ? `Quantity (${row.unit}, max ${row.balance})` : 'Quantity'}
                         value={line.quantity}
                         onChangeText={(t) => updateLine(line.key, { quantity: t })}
                         keyboardType="decimal-pad"
                         placeholder="0"
                       />
+                      {row && Number(line.quantity) > Number(row.balance) ? (
+                        <Text className="text-[11px] text-danger">
+                          Only {row.balance} {row.unit} in stock.
+                        </Text>
+                      ) : null}
                     </View>
                     <View className="flex-1">
                       <Input
@@ -517,6 +547,25 @@ export function MultiIssueStockModal({
               placeholder="e.g. Delivery ref / site"
             />
             {error ? <Text className="text-sm text-danger mt-2">{error}</Text> : null}
+            {/* INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): authorized override -
+                FEFO still sells earliest-expiry lots first; this permits EXPIRED
+                lots when no fresh stock is left (Kirana-vertical only). */}
+            <Pressable
+              className="flex-row items-center gap-2 mt-1"
+              disabled={submitting}
+              onPress={() => setAllowExpired((v) => !v)}
+            >
+              <View
+                className={`w-5 h-5 rounded border items-center justify-center ${
+                  allowExpired ? 'bg-accent border-accent' : 'border-border'
+                }`}
+              >
+                {allowExpired ? <Text className="text-white text-xs font-bold">✓</Text> : null}
+              </View>
+              <Text className="text-xs text-muted flex-1">
+                Include expired lots (only if no fresh stock is left)
+              </Text>
+            </Pressable>
             <View className="flex-row gap-2 mt-4 mb-4">
               <Button label="Cancel" variant="secondary" className="flex-1" disabled={submitting} onPress={onClose} />
               <Button

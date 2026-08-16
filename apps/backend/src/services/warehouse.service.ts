@@ -17,6 +17,7 @@ import { nextSequentialNumber } from '../lib/id-generator';
 import { assertProjectAccess } from '../middleware/project-access.middleware';
 import { getDefaultProjectId } from './module-gate.service';
 import { notifyCountVariance } from './inventory-alerts.service';
+import { applyBatchIn, allocateBatchOut, isBatchTracked } from './stock-batch.service';
 import type {
   CreateWarehouseInput,
   UpdateWarehouseInput,
@@ -270,6 +271,12 @@ export async function dispatchTransfer(companyId: string, userId: string, role: 
   }
 
   return prisma.$transaction(async (tx) => {
+    const resModes = await tx.resource.findMany({
+      where: { id: { in: transfer.lines.map((l) => l.resourceId) } },
+      select: { id: true, trackingMode: true },
+    });
+    const trackingByResource = new Map(resModes.map((r) => [r.id, r.trackingMode]));
+
     for (const line of transfer.lines) {
       const balance = await tx.stockBalance.findUnique({
         where: {
@@ -286,8 +293,37 @@ export async function dispatchTransfer(companyId: string, userId: string, role: 
       await tx.stockBalance.update({ where: { id: balance.id }, data: { quantity: { decrement: qty } } });
       const resOut = await tx.resource.findUnique({
         where: { id: line.resourceId },
-        select: { avgCost: true },
+        select: { avgCost: true, name: true, unit: true },
       });
+      // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): batch-tracked items are
+      // FEFO-allocated out - one TRANSFER_OUT movement per lot so the receiving
+      // warehouse can recreate the exact lots on receive.
+      if (isBatchTracked(trackingByResource.get(line.resourceId))) {
+        const allocations = await allocateBatchOut(tx, {
+          locationId: transfer.fromLocationId,
+          resourceId: line.resourceId,
+          resourceName: resOut?.name ?? line.itemName,
+          unit: resOut?.unit ?? line.unit,
+          quantity: qty,
+        });
+        for (const alloc of allocations) {
+          await tx.stockMovement.create({
+            data: {
+              locationId: transfer.fromLocationId,
+              resourceId: line.resourceId,
+              quantity: alloc.quantity,
+              type: 'OUT',
+              referenceType: 'TRANSFER_OUT',
+              referenceId: transfer.id,
+              notes: `Transfer out ${transfer.transferNumber}`,
+              unitCost: Number(resOut?.avgCost ?? 0),
+              inventoryValue: Math.round(Number(resOut?.avgCost ?? 0) * alloc.quantity * 100) / 100,
+              batchCode: alloc.batchCode,
+            },
+          });
+        }
+        continue;
+      }
       await tx.stockMovement.create({
         data: {
           locationId: transfer.fromLocationId,
@@ -323,6 +359,12 @@ export async function receiveTransfer(companyId: string, userId: string, role: s
   }
 
   return prisma.$transaction(async (tx) => {
+    const resModes = await tx.resource.findMany({
+      where: { id: { in: transfer.lines.map((l) => l.resourceId) } },
+      select: { id: true, trackingMode: true },
+    });
+    const trackingByResource = new Map(resModes.map((r) => [r.id, r.trackingMode]));
+
     for (const line of transfer.lines) {
       const qty = Number(line.quantity);
       const balance = await tx.stockBalance.findUnique({
@@ -343,22 +385,60 @@ export async function receiveTransfer(companyId: string, userId: string, role: s
       }
       const resIn = await tx.resource.findUnique({
         where: { id: line.resourceId },
-        select: { avgCost: true },
+        select: { avgCost: true, trackingMode: true },
       });
-      await tx.stockMovement.create({
-        data: {
-          locationId: transfer.toLocationId,
-          resourceId: line.resourceId,
-          quantity: qty,
-          type: 'IN',
-          referenceType: 'TRANSFER_IN',
-          referenceId: transfer.id,
-          notes: `Transfer in ${transfer.transferNumber}`,
-          // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.2): cost metadata at WAC.
-          unitCost: Number(resIn?.avgCost ?? 0),
-          inventoryValue: Math.round(Number(resIn?.avgCost ?? 0) * qty * 100) / 100,
-        },
-      });
+      // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): recreate the exact lots
+      // shipped out (batch rows were FEFO-allocated at dispatch) at the
+      // destination - the TRANSFER_OUT movements carry the per-lot split.
+      if (isBatchTracked(resIn?.trackingMode ?? trackingByResource.get(line.resourceId))) {
+        const outMovements = await tx.stockMovement.findMany({
+          where: {
+            locationId: transfer.fromLocationId,
+            resourceId: line.resourceId,
+            referenceType: 'TRANSFER_OUT',
+            referenceId: transfer.id,
+            batchCode: { not: null },
+          },
+          select: { batchCode: true, quantity: true },
+        });
+        for (const m of outMovements) {
+          await applyBatchIn(tx, {
+            locationId: transfer.toLocationId,
+            resourceId: line.resourceId,
+            batchCode: m.batchCode!,
+            quantity: Number(m.quantity),
+          });
+          await tx.stockMovement.create({
+            data: {
+              locationId: transfer.toLocationId,
+              resourceId: line.resourceId,
+              quantity: Number(m.quantity),
+              type: 'IN',
+              referenceType: 'TRANSFER_IN',
+              referenceId: transfer.id,
+              notes: `Transfer in ${transfer.transferNumber} (lot ${m.batchCode})`,
+              unitCost: Number(resIn?.avgCost ?? 0),
+              inventoryValue: Math.round(Number(resIn?.avgCost ?? 0) * Number(m.quantity) * 100) / 100,
+              batchCode: m.batchCode,
+            },
+          });
+        }
+      } else {
+        await tx.stockMovement.create({
+          data: {
+            locationId: transfer.toLocationId,
+            resourceId: line.resourceId,
+            quantity: qty,
+            type: 'IN',
+            referenceType: 'TRANSFER_IN',
+            referenceId: transfer.id,
+            notes: `Transfer in ${transfer.transferNumber}`,
+            // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.2): cost metadata at WAC.
+            unitCost: Number(resIn?.avgCost ?? 0),
+            inventoryValue: Math.round(Number(resIn?.avgCost ?? 0) * qty * 100) / 100,
+          },
+        });
+      }
       await tx.transferOrderLine.update({
         where: { id: line.id },
         data: { receivedQty: qty },
