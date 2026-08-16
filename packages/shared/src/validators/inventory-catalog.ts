@@ -8,21 +8,29 @@
 import { z } from 'zod';
 import { InventoryVertical } from '../inventory-profile';
 
-export const inventoryVerticalSchema = z.enum([InventoryVertical.KIRANA] as const);
+export const inventoryVerticalSchema = z.enum([
+  InventoryVertical.KIRANA,
+  InventoryVertical.PHARMACY,
+  InventoryVertical.ELECTRONICS,
+  InventoryVertical.STATIONERY,
+  InventoryVertical.HARDWARE,
+] as const);
+
+/** Kirana is currently the only vertical with a maintained starter catalog. */
+export const catalogTemplateSchema = z.enum([InventoryVertical.KIRANA] as const);
 
 export const catalogApplySchema = z.object({
-  template: inventoryVerticalSchema,
+  template: catalogTemplateSchema,
 });
 
 export const catalogPreviewSchema = z.object({
-  template: inventoryVerticalSchema.optional(),
+  template: catalogTemplateSchema.optional(),
 });
 
 /**
  * K2 follow-up (11.1.5b): OWNER vertical picker. `null` clears the vertical
- * (RETAIL/WHOLESALE can opt in/out of the Kirana pack). The service rejects
- * any profile other than RETAIL/WHOLESALE, and preview/apply remain gated on
- * `inventoryVertical === KIRANA`.
+ * (RETAIL/WHOLESALE can classify their shop). The service rejects any profile
+ * other than RETAIL/WHOLESALE. Catalog preview/apply remain Kirana-only.
  */
 export const catalogVerticalSchema = z.object({
   vertical: inventoryVerticalSchema.nullable(),

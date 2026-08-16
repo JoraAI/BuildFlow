@@ -246,6 +246,10 @@ enum InventoryBusinessProfile {
 /// K1: KIRANA is a VERTICAL (starter catalog), NOT another business profile.
 enum InventoryVertical {
   KIRANA
+  PHARMACY
+  ELECTRONICS
+  STATIONERY
+  HARDWARE
 }
 
 // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): batch/expiry tracking level.

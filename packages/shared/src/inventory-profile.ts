@@ -41,13 +41,27 @@ export const INVENTORY_PROFILE_VALUES: readonly InventoryBusinessProfile[] = [
  */
 export const InventoryVertical = {
   KIRANA: 'KIRANA',
+  PHARMACY: 'PHARMACY',
+  ELECTRONICS: 'ELECTRONICS',
+  STATIONERY: 'STATIONERY',
+  HARDWARE: 'HARDWARE',
 } as const;
 export type InventoryVertical = (typeof InventoryVertical)[keyof typeof InventoryVertical];
 
-export const INVENTORY_VERTICAL_VALUES: readonly InventoryVertical[] = [InventoryVertical.KIRANA];
+export const INVENTORY_VERTICAL_VALUES: readonly InventoryVertical[] = [
+  InventoryVertical.KIRANA,
+  InventoryVertical.PHARMACY,
+  InventoryVertical.ELECTRONICS,
+  InventoryVertical.STATIONERY,
+  InventoryVertical.HARDWARE,
+];
 
 export const INVENTORY_VERTICAL_LABELS: Record<InventoryVertical, string> = {
   KIRANA: 'Kirana (retail / wholesale grocery)',
+  PHARMACY: 'Pharmacy / medical store',
+  ELECTRONICS: 'Electronics store',
+  STATIONERY: 'Stationery / office supplies',
+  HARDWARE: 'Hardware store',
 };
 
 /** Human-readable labels for the Settings profile picker. */

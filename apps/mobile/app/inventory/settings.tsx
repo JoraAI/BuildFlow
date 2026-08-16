@@ -25,6 +25,7 @@ import {
   PLAN_PRICES_INR,
   INVENTORY_PROFILE_OPTIONS,
   INVENTORY_PROFILE_LABELS,
+  INVENTORY_VERTICAL_VALUES,
   INVENTORY_VERTICAL_LABELS,
   hasInventoryFeature,
   type InventoryBusinessProfile,
@@ -109,17 +110,19 @@ export default function InventorySettingsScreen() {
     });
   };
 
-  /** K2 (11.1.5b): OWNER vertical picker - enable/clear the KIRANA vertical. */
+  /** OWNER vertical picker; only Kirana currently unlocks a catalog. */
   const saveVertical = async () => {
     await run(async () => {
       try {
-        const next = vertical === 'KIRANA' ? 'KIRANA' : null;
+        const next = vertical || null;
         await setInventoryVertical.mutateAsync(next);
         await refreshUser();
         toast.success(
           next === 'KIRANA'
             ? 'Kirana vertical enabled - SKU library unlocked'
-            : 'Shop vertical cleared',
+            : next
+              ? `${INVENTORY_VERTICAL_LABELS[next as keyof typeof INVENTORY_VERTICAL_LABELS]} saved`
+              : 'Shop vertical cleared',
         );
       } catch (e) {
         toast.error(e instanceof Error ? e.message : 'Could not save shop vertical');
@@ -202,17 +205,16 @@ export default function InventorySettingsScreen() {
             </View>
           ) : null}
         </Card>
-        {/* Shop vertical (INVENTORY_KIRANA_RETAIL_WHOLESALE 11.1.5b K2) - OWNER-only,
-            RETAIL/WHOLESALE-only opt-in. The vertical (NOT the profile) unlocks
-            the starter pack; other shop types never see it. */}
+        {/* Shop vertical - OWNER-only and RETAIL/WHOLESALE-only. Kirana currently
+            unlocks a starter catalog; other verticals are classification-only. */}
         {user?.role === 'OWNER' &&
         kiranaEnabled &&
         (company?.inventoryProfile === 'RETAIL' || company?.inventoryProfile === 'WHOLESALE') ? (
           <Card className="p-5 mb-4">
             <Text className="text-base font-bold text-text mb-1">Shop vertical</Text>
             <Text className="text-xs text-muted mb-3">
-              What kind of shop do you run? Grocery / kirana shops can opt into the Kirana starter
-              catalog pack. Hardware, stationery and other shop types keep their own catalog.
+              What kind of shop do you run? Kirana includes a suggested product library. Other
+              verticals use your own item list and do not add any catalog products.
             </Text>
             <Select
               label="Vertical"
@@ -220,7 +222,10 @@ export default function InventorySettingsScreen() {
               onChange={(v) => v != null && setVertical(v)}
               options={[
                 { title: 'None', value: '' },
-                { title: INVENTORY_VERTICAL_LABELS.KIRANA, value: 'KIRANA' },
+                ...INVENTORY_VERTICAL_VALUES.map((value) => ({
+                  title: INVENTORY_VERTICAL_LABELS[value],
+                  value,
+                })),
               ]}
             />
             <View className="mt-3">

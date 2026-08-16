@@ -31,8 +31,8 @@ interface TemplateDef {
   version: string;
 }
 
-/** Only one vertical ships in Phase 11.1; the map is the extension point. */
-const TEMPLATES: Record<InventoryVertical, TemplateDef> = {
+/** Only Kirana currently has a catalog; other verticals classify the shop only. */
+const TEMPLATES: Partial<Record<InventoryVertical, TemplateDef>> = {
   [InventoryVertical.KIRANA]: {
     items: KIRANA_TEMPLATE,
     version: KIRANA_TEMPLATE_VERSION,
@@ -591,12 +591,10 @@ export async function applyCatalogTemplate(
 }
 
 /**
- * K2 (11.1.5b): OWNER-only opt-in/out of a shop vertical (KIRANA first).
+ * OWNER-only selection of a shop vertical.
  *
- * Only RETAIL / WHOLESALE profiles may enable a vertical - MATERIAL_SUPPLIER,
- * DISTRIBUTION, TRADING, EQUIPMENT, GENERAL (and construction, feature-gated at
- * the route layer) are rejected. The vertical is what unlocks the starter pack
- * (preview/apply); a plain RETAIL/WHOLESALE profile is NOT enough.
+ * Only RETAIL / WHOLESALE profiles may enable a vertical. Kirana additionally
+ * unlocks its starter catalog; other verticals are classification-only for now.
  *
  * Clearing the vertical (null) hides the pack but keeps the copied rows - they
  * are tenant-owned once applied (K3); re-opt-in shows them as already applied.
@@ -617,7 +615,7 @@ export async function setInventoryVertical(
   if (company.subscriptionPlan !== 'INVENTORY') {
     throw ApiError.unprocessable('Shop verticals are available on the Inventory plan.');
   }
-  if (vertical === InventoryVertical.KIRANA) {
+  if (vertical !== null) {
     if (!company.inventoryProfile || !VERTICAL_OPT_IN_PROFILES.includes(company.inventoryProfile)) {
       throw ApiError.unprocessable(
         `The ${vertical} vertical is only available to RETAIL / WHOLESALE tenants. Change your business profile first (Settings → Business profile).`,

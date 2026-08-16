@@ -2753,7 +2753,7 @@ describe('INVENTORY_PRODUCT (integration)', () => {
       expect(byBarcode.body.data.map((r: { name: string }) => r.name)).toContain('Wheat Atta 5 kg');
     });
 
-    it('vertical picker: WHOLESALE may opt in; MATERIAL_SUPPLIER + manager cannot (K2)', async () => {
+    it('vertical picker: retail shop types save without catalogs; supplier + manager cannot', async () => {
       // WHOLESALE is just as eligible as RETAIL to opt into the vertical.
       const toWs = await authPut(invToken, '/api/settings/company', { inventoryProfile: 'WHOLESALE' });
       expect(toWs.status).toBe(200);
@@ -2763,6 +2763,22 @@ describe('INVENTORY_PRODUCT (integration)', () => {
       // Back to RETAIL so the later apply assertions keep exercising RETAIL.
       const back = await authPut(invToken, '/api/settings/company', { inventoryProfile: 'RETAIL' });
       expect(back.status).toBe(200);
+
+      // These verticals classify the shop only. They do not expose a catalog
+      // template until a maintained pack is added for that vertical.
+      for (const vertical of ['PHARMACY', 'ELECTRONICS', 'STATIONERY', 'HARDWARE']) {
+        const set = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical });
+        expect(set.status).toBe(200);
+        expect(set.body.data.inventoryVertical).toBe(vertical);
+      }
+      const noHardwarePack = await authPost(invToken, '/api/inventory/catalog/apply', {
+        template: 'HARDWARE',
+      });
+      expect(noHardwarePack.status).toBe(422);
+
+      // Restore Kirana for the batch/expiry tests that follow this section.
+      const restore = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical: 'KIRANA' });
+      expect(restore.status).toBe(200);
 
       // Manager (non-OWNER) is denied the vertical picker.
       const managerToken = await loginAs('manager@hydmaterials.com');
