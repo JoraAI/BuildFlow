@@ -18,6 +18,14 @@ async function getCementResourceId(token: string): Promise<string> {
 }
 
 describe('Procurement (integration)', () => {
+  // NOTE (Phase 11.1 verification): construction procurement runs many seeded
+  // NH-45 flows in-process; individual tests crossed jest's 30s default under
+  // full-suite load (baseline suite total 30.1s; the generate-from-boq test
+  // alone crossed 60s on a memory-starved box). Raised to 120s so the §6
+  // construction-regression gate (indent DRAFT / no draft invoice on issue) is
+  // not flaky; unrelated to Phase 11.1.
+  jest.setTimeout(120_000);
+
   let token: string;
   let projectId: string;
 

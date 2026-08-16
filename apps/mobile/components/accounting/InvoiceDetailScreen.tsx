@@ -79,17 +79,36 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
   const isFullyPaid = invoice.paidAmount >= invoice.total;
 
   const onSend = async () => {
-    const ok = await confirmAsync(
-      'Send Invoice',
-      `Mark invoice ${invoice.invoiceNumber} as sent?`,
-    );
-    if (!ok) return;
+    if (!isInventoryShell) {
+      const ok = await confirmAsync(
+        'Send Invoice',
+        `Mark invoice ${invoice.invoiceNumber} as sent?`,
+      );
+      if (!ok) return;
+    }
     try {
       await run(async () => {
         await sendInvoice.mutateAsync(invoice.id);
       });
+      if (isInventoryShell) toast.success('Sale confirmed and invoice marked as sent');
     } catch (e) {
       await alertAsync('Error', e instanceof Error ? e.message : 'Could not send');
+    }
+  };
+
+  const onRecordFullPayment = async () => {
+    const ok = await confirmAsync(
+      'Record full payment',
+      `Confirm receipt of ${formatINR(balanceDue)} for invoice ${invoice.invoiceNumber}?`,
+    );
+    if (!ok) return;
+    try {
+      await run(async () => {
+        await recordPayment.mutateAsync({ id: invoice.id, amount: balanceDue });
+      });
+      toast.success('Full payment recorded');
+    } catch (e) {
+      await alertAsync('Error', e instanceof Error ? e.message : 'Could not record payment');
     }
   };
 
@@ -150,7 +169,13 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
       />
       {invoice.status === 'DRAFT' && (
         <Button
-          label={sendInvoice.isPending || busy ? 'Sending...' : 'Send Invoice'}
+          label={
+            sendInvoice.isPending || busy
+              ? 'Confirming...'
+              : isInventoryShell
+                ? 'Mark as sent'
+                : 'Send Invoice'
+          }
           variant="primary"
           onPress={onSend}
           disabled={sendInvoice.isPending || busy}
@@ -158,14 +183,24 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
       )}
 
       {!isFullyPaid && invoice.status !== 'DRAFT' && !showPayment && (
-        <Button
-          label="Record Payment"
-          variant="secondary"
-          onPress={() => {
-            setPaymentAmount(balanceDue.toString());
-            setShowPayment(true);
-          }}
-        />
+        <>
+          {isInventoryShell ? (
+            <Button
+              label={`Record full payment (${formatINR(balanceDue)})`}
+              variant="primary"
+              onPress={onRecordFullPayment}
+              disabled={recordPayment.isPending || busy}
+            />
+          ) : null}
+          <Button
+            label={isInventoryShell ? 'Record partial payment' : 'Record Payment'}
+            variant="secondary"
+            onPress={() => {
+              setPaymentAmount(isInventoryShell ? '' : balanceDue.toString());
+              setShowPayment(true);
+            }}
+          />
+        </>
       )}
 
       {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 9.4): manual payment reminder (inventory only). */}

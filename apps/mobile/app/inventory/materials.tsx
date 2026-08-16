@@ -3,7 +3,7 @@
  *
  * Create, edit, and delete materials (resources) for indents, POs, GRNs, and stock.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, Modal, ScrollView, RefreshControl, Pressable } from 'react-native';
 import { Card, Button, Input, EmptyState, LoadingSkeleton, Select, toast, BusyOverlay, useBusy } from '@/components/ui';
 import {
@@ -13,6 +13,11 @@ import {
   useDeleteResource,
   type Resource,
 } from '@/services/estimate.queries';
+import {
+  useQuickVendorReceipt,
+  useStockSummary,
+  type StockSummaryRow,
+} from '@/services/expansion.queries';
 import { formatINR } from '@/utils/format';
 import { confirmAsync } from '@/utils/confirm';
 import { useViewport } from '@/hooks/useViewport';
@@ -20,9 +25,24 @@ import { useAuthStore } from '@/stores/auth.store';
 import { getInventoryLabel, getInventoryLabelMode } from '@buildflow/shared';
 import { useVendors, type PartyRow } from '@/services/party.queries';
 import { ImportMappingModal } from '@/components/inventory/ImportMappingModal';
+import { KiranaSkuPicker } from '@/components/inventory/KiranaSkuPicker';
+import { useRouter } from 'expo-router';
+
+/**
+ * One saved item-master row with its current aggregate stock summary.
+ */
+type MaterialRow = {
+  key: string;
+  name: string;
+  unit: string;
+  category: string | null;
+  resource: Resource;
+  stock: StockSummaryRow | null;
+};
 
 export default function InventoryMaterialsScreen() {
   const { busy, run } = useBusy();
+  const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const { data, isLoading, isFetching, refetch } = useResources();
   const { isPhone } = useViewport();
@@ -32,13 +52,37 @@ export default function InventoryMaterialsScreen() {
   const indentLabel = getInventoryLabel('indent', labelMode);
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [skuLibraryOpen, setSkuLibraryOpen] = useState(false);
+  const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Resource | null>(null);
+  const [receiving, setReceiving] = useState<Resource | null>(null);
   const createResource = useCreateResource();
   // id is captured per-render so `mutateAsync(input)` targets the material being edited.
   const updateResource = useUpdateResource(editing?.id ?? '');
   const deleteResource = useDeleteResource();
 
+  const isKirana = user?.inventoryVertical === 'KIRANA';
+  const { data: stock } = useStockSummary(user?.defaultProjectId ?? '');
+
   const materials = (data?.data ?? []).filter((r: Resource) => r.type === 'MATERIAL' || !r.type);
+
+  const rows = useMemo<MaterialRow[]>(() => {
+    const stockByResource = new Map(
+      (stock ?? []).map((s: StockSummaryRow) => [s.resourceId, s]),
+    );
+    const owned: MaterialRow[] = materials.map((item: Resource) => ({
+      key: item.id,
+      name: item.name,
+      unit: item.unit,
+      category: item.category ?? null,
+      resource: item,
+      stock: stockByResource.get(item.id) ?? null,
+    }));
+    const q = search.trim().toLowerCase();
+    const matches = (row: MaterialRow) =>
+      !q || [row.name, row.category ?? '', row.key].some((v) => v.toLowerCase().includes(q));
+    return owned.filter(matches);
+  }, [materials, stock, search]);
 
   const onDelete = async (item: Resource) => {
     const ok = await confirmAsync(
@@ -62,7 +106,7 @@ export default function InventoryMaterialsScreen() {
       <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between">
         <View className="flex-1 mr-2 min-w-[160px]">
           <Text className="text-2xl font-bold text-text">{itemPluralLabel}</Text>
-          <Text className="text-sm text-muted mt-0.5">Catalog for procurement & stock</Text>
+          <Text className="text-sm text-muted mt-0.5">Your item master · prices, tax and tracking</Text>
         </View>
         <View className={`flex-row gap-2 ${isPhone ? 'mt-2 w-full' : ''}`}>
           <Button
@@ -75,9 +119,18 @@ export default function InventoryMaterialsScreen() {
             label={`Add ${itemLabel.toLowerCase()}`}
             variant="accent"
             size="sm"
-            onPress={() => setCreateOpen(true)}
+            onPress={() => isKirana ? setSkuLibraryOpen(true) : setCreateOpen(true)}
           />
         </View>
+      </View>
+
+      <View className="px-4">
+        <Input
+          label={`Search ${itemPluralLabel.toLowerCase()}`}
+          value={search}
+          onChangeText={setSearch}
+          placeholder="e.g. atta, biscuit, KIR-058"
+        />
       </View>
 
       {isLoading ? (
@@ -89,8 +142,8 @@ export default function InventoryMaterialsScreen() {
       ) : (
         <FlatList
           className="flex-1"
-          data={materials}
-          keyExtractor={(item) => item.id}
+          data={rows}
+          keyExtractor={(row: MaterialRow) => row.key}
           refreshControl={
             <RefreshControl refreshing={isFetching} onRefresh={() => void refetch()} tintColor="#1E3A5F" />
           }
@@ -101,32 +154,47 @@ export default function InventoryMaterialsScreen() {
               description={`Add ${itemPluralLabel.toLowerCase()} to your catalog, then create a ${indentLabel.toLowerCase()} and receive stock via GRN.`}
             />
           }
-          renderItem={({ item }) => (
+          renderItem={({ item: row }: { item: MaterialRow }) => (
             <Card className="mb-2 p-4">
               <View className="flex-row items-start justify-between">
                 <View className="flex-1 mr-2">
-                  <Text className="text-sm font-semibold text-text">{item.name}</Text>
+                  <Text className="text-sm font-semibold text-text">{row.name}</Text>
                   <Text className="text-xs text-muted mt-0.5">
-                    {item.unit}
-                    {item.brandOrSpec ? ` · ${item.brandOrSpec}` : ''}
-                    {item.category ? ` · ${item.category}` : ''}
+                    {row.unit}
+                    {row.resource.brandOrSpec ? ` · ${row.resource.brandOrSpec}` : ''}
+                    {row.category ? ` · ${row.category}` : ''}
+                    {row.resource.hsnSacCode ? ` · HSN ${row.resource.hsnSacCode}` : ''}
                   </Text>
+                  <Text className="text-xs text-muted mt-0.5">
+                    {Number(row.stock?.balance ?? 0) > 0
+                      ? `${row.stock?.balance} ${row.unit} in stock`
+                      : 'Out of stock'}
+                    {row.resource.trackingMode === 'BATCH_EXPIRY' ? ' · batch expiry tracked' : ''}
+                  </Text>
+                  {row.stock?.nextExpiryAt ? (
+                    <Text className="text-[11px] text-muted mt-0.5">
+                      Earliest expiry {new Date(row.stock.nextExpiryAt).toLocaleDateString('en-IN')}
+                      {row.stock.activeBatchCount ? ` · ${row.stock.activeBatchCount} active batches` : ''}
+                    </Text>
+                  ) : null}
                 </View>
-                <Text className="text-sm font-bold text-primary">{formatINR(Number(item.rate))}</Text>
+                <View className="items-end">
+                  <Text className="text-sm font-bold text-primary">
+                    {formatINR(Number(row.resource.rate))}
+                  </Text>
+                  {row.resource.mrp != null ? (
+                    <Text className="text-[11px] text-muted">
+                      MRP {formatINR(Number(row.resource.mrp))}
+                    </Text>
+                  ) : null}
+                </View>
               </View>
               <View className="flex-row gap-2 mt-3">
-                <Button
-                  label="Edit"
-                  size="sm"
-                  variant="secondary"
-                  onPress={() => setEditing(item)}
-                />
-                <Button
-                  label="Delete"
-                  size="sm"
-                  variant="ghost"
-                  onPress={() => void onDelete(item)}
-                />
+                {isKirana ? (
+                  <Button label="Receive stock" size="sm" variant="accent" onPress={() => setReceiving(row.resource)} />
+                ) : null}
+                <Button label="Edit" size="sm" variant="secondary" onPress={() => setEditing(row.resource)} />
+                <Button label="Delete" size="sm" variant="ghost" onPress={() => void onDelete(row.resource)} />
               </View>
             </Card>
           )}
@@ -176,6 +244,26 @@ export default function InventoryMaterialsScreen() {
         onClose={() => setImportOpen(false)}
         defaultPurpose="CATALOG"
       />
+      <KiranaSkuPicker
+        open={skuLibraryOpen}
+        onClose={() => setSkuLibraryOpen(false)}
+        onImported={() => {
+          toast.success('Items added to your master');
+          void refetch();
+        }}
+      />
+      <QuickVendorReceiptModal
+        item={receiving}
+        onClose={() => setReceiving(null)}
+        onUseFormalProcurement={() => {
+          setReceiving(null);
+          router.push('/inventory/procurement' as never);
+        }}
+        onReceived={() => {
+          setReceiving(null);
+          void refetch();
+        }}
+      />
     </View>
   );
 }
@@ -199,7 +287,9 @@ function MaterialFormModal({
     type: 'MATERIAL';
     unit: string;
     rate: number;
+    mrp?: number | null;
     gstRate?: number;
+    hsnSacCode?: string;
     brandOrSpec?: string;
     category?: string;
     // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.2): optional item master fields.
@@ -209,6 +299,7 @@ function MaterialFormModal({
     secondaryUnit?: string;
     conversionFactor?: number;
     reorderPoint?: number;
+    trackingMode?: 'NONE' | 'BATCH_EXPIRY';
     // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): procurement automation fields.
     preferredVendorId?: string;
     reorderQty?: number;
@@ -221,7 +312,9 @@ function MaterialFormModal({
   const [name, setName] = useState('');
   const [unit, setUnit] = useState('nos');
   const [rate, setRate] = useState('');
+  const [mrp, setMrp] = useState('');
   const [gstRate, setGstRate] = useState('18');
+  const [hsnSacCode, setHsnSacCode] = useState('');
   const [brandOrSpec, setBrandOrSpec] = useState('');
   const [category, setCategory] = useState('');
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.2): optional item master fields.
@@ -231,6 +324,7 @@ function MaterialFormModal({
   const [secondaryUnit, setSecondaryUnit] = useState('');
   const [conversionFactor, setConversionFactor] = useState('1');
   const [reorderPoint, setReorderPoint] = useState('');
+  const [trackingMode, setTrackingMode] = useState<'NONE' | 'BATCH_EXPIRY'>('NONE');
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): procurement automation fields.
   const [preferredVendorId, setPreferredVendorId] = useState('');
   const [reorderQty, setReorderQty] = useState('');
@@ -244,7 +338,9 @@ function MaterialFormModal({
       setName(initial.name);
       setUnit(initial.unit || 'nos');
       setRate(String(initial.rate ?? 0));
+      setMrp(initial.mrp == null ? '' : String(initial.mrp));
       setGstRate(initial.gstRate !== undefined ? String(initial.gstRate) : '18');
+      setHsnSacCode(initial.hsnSacCode ?? '');
       setBrandOrSpec(initial.brandOrSpec ?? '');
       setCategory(initial.category ?? '');
       setItemCode(initial.itemCode ?? '');
@@ -253,6 +349,7 @@ function MaterialFormModal({
       setSecondaryUnit(initial.secondaryUnit ?? '');
       setConversionFactor(initial.conversionFactor != null ? String(Number(initial.conversionFactor)) : '1');
       setReorderPoint(initial.reorderPoint != null ? String(Number(initial.reorderPoint)) : '');
+      setTrackingMode(initial.trackingMode ?? 'NONE');
       setPreferredVendorId(initial.preferredVendorId ?? '');
       setReorderQty(initial.reorderQty != null ? String(Number(initial.reorderQty)) : '');
       setLeadTimeDays(initial.leadTimeDays != null ? String(initial.leadTimeDays) : '');
@@ -267,7 +364,9 @@ function MaterialFormModal({
     setName('');
     setUnit('nos');
     setRate('');
+    setMrp('');
     setGstRate('18');
+    setHsnSacCode('');
     setBrandOrSpec('');
     setCategory('');
     setItemCode('');
@@ -276,6 +375,7 @@ function MaterialFormModal({
     setSecondaryUnit('');
     setConversionFactor('1');
     setReorderPoint('');
+    setTrackingMode('NONE');
     setPreferredVendorId('');
     setReorderQty('');
     setLeadTimeDays('');
@@ -319,11 +419,18 @@ function MaterialFormModal({
               ]}
             />
             <Input
-              label="Rate (₹)"
+              label="Selling price (₹)"
               value={rate}
               onChangeText={setRate}
               keyboardType="decimal-pad"
               placeholder="0"
+            />
+            <Input
+              label="MRP (₹, optional)"
+              value={mrp}
+              onChangeText={setMrp}
+              keyboardType="decimal-pad"
+              placeholder="Printed maximum retail price"
             />
             {mode === 'edit' ? (
               <Text className="text-[11px] text-muted -mt-3 mb-2">
@@ -336,6 +443,13 @@ function MaterialFormModal({
               onChangeText={setGstRate}
               keyboardType="decimal-pad"
               placeholder="18"
+            />
+            <Input
+              label="HSN code (optional)"
+              value={hsnSacCode}
+              onChangeText={setHsnSacCode}
+              keyboardType="numeric"
+              placeholder="e.g. 1905"
             />
             <Input
               label="Brand / spec (optional)"
@@ -377,6 +491,18 @@ function MaterialFormModal({
               keyboardType="decimal-pad"
               placeholder="0 - low-stock alert threshold"
             />
+            <Select
+              label="Expiry tracking"
+              value={trackingMode}
+              onChange={(v) => v && setTrackingMode(v as 'NONE' | 'BATCH_EXPIRY')}
+              options={[
+                { title: 'No batch expiry tracking', value: 'NONE' },
+                { title: 'Track batches and expiry', value: 'BATCH_EXPIRY' },
+              ]}
+            />
+            <Text className="text-[11px] text-muted -mt-3 mb-2">
+              Actual manufacture and expiry dates are recorded for each vendor receipt batch.
+            </Text>
             {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): procurement automation */}
             <Select
               label="Preferred vendor (optional)"
@@ -431,13 +557,24 @@ function MaterialFormModal({
                     setError('Enter a valid rate');
                     return;
                   }
+                  const mrpNum = mrp === '' ? null : Number(mrp);
+                  if (mrpNum !== null && (!Number.isFinite(mrpNum) || mrpNum < 0)) {
+                    setError('Enter a valid MRP');
+                    return;
+                  }
+                  if (mrpNum !== null && mrpNum > 0 && rateNum > mrpNum) {
+                    setError('Selling price cannot exceed MRP');
+                    return;
+                  }
                   setError(null);
                   void onSubmit({
                     name: name.trim(),
                     type: 'MATERIAL',
                     unit,
                     rate: rateNum,
+                    mrp: mrpNum,
                     gstRate: Number(gstRate) || 0,
+                    hsnSacCode: hsnSacCode.trim() || undefined,
                     brandOrSpec: brandOrSpec.trim() || undefined,
                     category: category.trim() || undefined,
                     // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.6): item code field.
@@ -447,11 +584,169 @@ function MaterialFormModal({
                     secondaryUnit: secondaryUnit.trim() || undefined,
                     conversionFactor: Number(conversionFactor) > 0 ? Number(conversionFactor) : undefined,
                     reorderPoint: reorderPoint === '' ? undefined : Number(reorderPoint),
+                    trackingMode,
                     preferredVendorId: preferredVendorId || undefined,
                     reorderQty: reorderQty === '' ? undefined : Number(reorderQty),
                     leadTimeDays: leadTimeDays === '' ? undefined : Number(leadTimeDays),
                   }).then(reset);
                 }}
+              />
+            </View>
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function QuickVendorReceiptModal({
+  item,
+  onClose,
+  onReceived,
+  onUseFormalProcurement,
+}: {
+  item: Resource | null;
+  onClose: () => void;
+  onReceived: () => void;
+  onUseFormalProcurement: () => void;
+}) {
+  const { isPhone } = useViewport();
+  const { data: vendors } = useVendors();
+  const receipt = useQuickVendorReceipt();
+  const [vendorId, setVendorId] = useState('');
+  const [vendorName, setVendorName] = useState('');
+  const [invoiceNumber, setInvoiceNumber] = useState('');
+  const [receivedDate, setReceivedDate] = useState(new Date().toISOString().slice(0, 10));
+  const [quantity, setQuantity] = useState('');
+  const [unitCost, setUnitCost] = useState('');
+  const [batchCode, setBatchCode] = useState('');
+  const [manufacturedAt, setManufacturedAt] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
+  const [notes, setNotes] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!item) return;
+    setVendorId(item.preferredVendorId ?? '');
+    setVendorName('');
+    setInvoiceNumber('');
+    setReceivedDate(new Date().toISOString().slice(0, 10));
+    setQuantity('');
+    setUnitCost('');
+    setBatchCode('');
+    setManufacturedAt('');
+    setExpiresAt('');
+    setNotes('');
+    setError(null);
+  }, [item?.id]);
+
+  const submit = async () => {
+    if (!item) return;
+    const qty = Number(quantity);
+    const cost = Number(unitCost);
+    if (!vendorId && !vendorName.trim()) return setError('Select or enter a vendor.');
+    if (!Number.isFinite(qty) || qty <= 0) return setError('Enter a valid quantity.');
+    if (!Number.isFinite(cost) || cost < 0) return setError('Enter a valid purchase cost.');
+    if (!receivedDate) return setError('Received date is required.');
+    if (manufacturedAt && expiresAt && expiresAt < manufacturedAt) {
+      return setError('Expiry date must be after manufacture date.');
+    }
+    setError(null);
+    try {
+      await receipt.mutateAsync({
+        vendorId: vendorId || undefined,
+        vendorName: vendorId ? undefined : vendorName.trim(),
+        invoiceNumber: invoiceNumber.trim() || undefined,
+        receivedDate,
+        notes: notes.trim() || undefined,
+        lines: [{
+          resourceId: item.id,
+          quantity: qty,
+          unitCost: cost,
+          batchCode: batchCode.trim() || undefined,
+          manufacturedAt: manufacturedAt || undefined,
+          expiresAt: expiresAt || undefined,
+        }],
+      });
+      toast.success(`Received ${qty} ${item.unit} of ${item.name}`);
+      onReceived();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not receive stock.');
+    }
+  };
+
+  return (
+    <Modal visible={item !== null} transparent animationType={isPhone ? 'slide' : 'fade'} onRequestClose={onClose}>
+      <Pressable
+        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : 'items-center justify-center p-4'}`}
+        onPress={onClose}
+      >
+        <Pressable
+          className={`bg-card w-full p-4 ${isPhone ? 'rounded-t-2xl max-h-[92%]' : 'rounded-2xl max-w-lg max-h-[90%]'}`}
+          onPress={(e) => e.stopPropagation()}
+        >
+          <Text className="text-lg font-bold text-text">Receive stock</Text>
+          <Text className="text-xs text-muted mb-3">
+            {item?.name} · quick receipt without a purchase order
+          </Text>
+          <ScrollView keyboardShouldPersistTaps="handled">
+            <Select
+              label="Existing vendor (optional)"
+              value={vendorId || undefined}
+              onChange={(value) => setVendorId(value ?? '')}
+              options={(vendors ?? []).map((vendor: PartyRow) => ({
+                title: vendor.name,
+                value: vendor.id,
+              }))}
+              placeholder="Select vendor"
+            />
+            {!vendorId ? (
+              <Input label="Vendor name" value={vendorName} onChangeText={setVendorName} />
+            ) : null}
+            <View className={`${isPhone ? '' : 'flex-row'} gap-2`}>
+              <View className="flex-1">
+                <Input label="Vendor invoice (optional)" value={invoiceNumber} onChangeText={setInvoiceNumber} />
+              </View>
+              <View className="flex-1">
+                <Input label="Received date" value={receivedDate} onChangeText={setReceivedDate} placeholder="YYYY-MM-DD" />
+              </View>
+            </View>
+            <View className="flex-row gap-2">
+              <View className="flex-1">
+                <Input label={`Quantity (${item?.unit ?? ''})`} value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad" />
+              </View>
+              <View className="flex-1">
+                <Input label="Purchase cost / unit (₹)" value={unitCost} onChangeText={setUnitCost} keyboardType="decimal-pad" />
+              </View>
+            </View>
+            {item?.trackingMode === 'BATCH_EXPIRY' ? (
+              <>
+                <Input label="Batch code (optional)" value={batchCode} onChangeText={setBatchCode} />
+                <View className="flex-row gap-2">
+                  <View className="flex-1">
+                    <Input label="Manufactured (optional)" value={manufacturedAt} onChangeText={setManufacturedAt} placeholder="YYYY-MM-DD" />
+                  </View>
+                  <View className="flex-1">
+                    <Input label="Expiry (optional)" value={expiresAt} onChangeText={setExpiresAt} placeholder="YYYY-MM-DD" />
+                  </View>
+                </View>
+              </>
+            ) : null}
+            <Input label="Notes (optional)" value={notes} onChangeText={setNotes} multiline />
+            {error ? <Text className="text-sm text-danger mb-2">{error}</Text> : null}
+            <Button
+              label="Use purchase order / GRN instead"
+              variant="ghost"
+              onPress={onUseFormalProcurement}
+            />
+            <View className="flex-row gap-2 mt-3 mb-4">
+              <Button label="Cancel" variant="secondary" className="flex-1" onPress={onClose} />
+              <Button
+                label="Receive"
+                variant="accent"
+                className="flex-1"
+                loading={receipt.isPending}
+                onPress={() => void submit()}
               />
             </View>
           </ScrollView>

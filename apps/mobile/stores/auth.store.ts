@@ -35,6 +35,8 @@ export interface AuthUser {
   subscriptionPlan?: string;
   /** INVENTORY_HORIZONTAL_PLATFORM (Phase 0): null on construction plans. */
   inventoryProfile?: InventoryBusinessProfile | null;
+  /** INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.1/11.2): Kirana vertical (null otherwise). */
+  inventoryVertical?: string | null;
 }
 
 interface AuthState {

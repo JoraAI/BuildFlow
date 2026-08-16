@@ -16,6 +16,7 @@ import type {
   IssueStockInput,
   AdjustStockInput,
   OpeningStockImportInput,
+  QuickVendorReceiptInput,
 } from '@buildflow/shared';
 import { StockAdjustReason } from '@buildflow/shared';
 import { resolveRequisitionLineRate } from './material-rate.service';
@@ -24,6 +25,7 @@ import { createDraftBillFromGrn } from './bill.service';
 import { createDraftInvoiceFromStockIssue } from './invoice.service';
 import { updateWacOnIn } from './finance.service';
 import { notifyLowStock, notifyPoRateAnomaly } from './inventory-alerts.service';
+import { applyBatchIn, allocateBatchOut, isBatchTracked } from './stock-batch.service';
 import { logger } from '../config/logger';
 import {
   createDraftIndentsFromDemand,
@@ -550,6 +552,14 @@ export async function createGRN(
   // line quantity (prevent over-receiving).
   const poLineByResource = new Map(po.lines.map((l) => [l.resourceId, l]));
 
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): per-line tracking mode so
+  // batch-tracked receipts also write StockBatchBalance lots (K6 dual-write).
+  const grnResources = await prisma.resource.findMany({
+    where: { id: { in: input.lines.map((l) => l.resourceId) }, companyId },
+    select: { id: true, trackingMode: true },
+  });
+  const trackingByResource = new Map(grnResources.map((r) => [r.id, r.trackingMode]));
+
   // Fetch cumulative received quantities from existing GRNs
   const existingGrns = await prisma.goodsReceiptNote.findMany({
     where: { purchaseOrderId: po.id },
@@ -644,8 +654,15 @@ export async function createGRN(
         landedCostAllocation: allocation,
         lines: {
           create: input.lines.map((l) => ({
-            ...l,
+            resourceId: l.resourceId,
+            quantity: l.quantity,
+            unit: l.unit,
             unitCost: unitCostByResource.get(l.resourceId) ?? 0,
+            // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3) + Phase 11.2: lot code +
+            // dates on the receipt line (audit + StockBatchBalance copy source).
+            batchCode: l.batchCode ?? null,
+            manufacturedAt: l.manufacturedAt ?? null,
+            expiresAt: l.expiresAt ?? null,
           })),
         },
       },
@@ -663,6 +680,25 @@ export async function createGRN(
         },
       });
       const unitCost = unitCostByResource.get(line.resourceId) ?? 0;
+
+      // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): batch-tracked receipts
+      // must name a lot and also write the StockBatchBalance row (K6 dual-write).
+      const tracked = isBatchTracked(trackingByResource.get(line.resourceId));
+      if (tracked) {
+        if (!line.batchCode) {
+          throw ApiError.unprocessable(
+            'Batch-tracked items require a batch / lot code on receipt (GRN).',
+          );
+        }
+        await applyBatchIn(tx, {
+          locationId: location.id,
+          resourceId: line.resourceId,
+          batchCode: line.batchCode,
+          quantity: line.quantity,
+          manufacturedAt: line.manufacturedAt ?? null,
+          expiresAt: line.expiresAt ?? null,
+        });
+      }
 
       if (balance) {
         await tx.stockBalance.update({
@@ -897,6 +933,10 @@ export interface IssueStockLineResult {
   quantityIssued: number;
   quantityOnHand: number;
   unitPrice: number | null;
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.3): FEFO lot allocations made by
+  // the server for batch-tracked items (null for untracked). UI warns only -
+  // it never chooses lot quantities.
+  allocations: Array<{ batchCode: string; quantity: number; expiresAt: Date | null }> | null;
 }
 
 export interface IssueStockResult extends IssueStockLineResult {
@@ -950,7 +990,7 @@ export async function issueStockManual(
 
   const resources = await prisma.resource.findMany({
     where: { id: { in: rawLines.map((l) => l.resourceId) }, companyId },
-    select: { id: true, name: true, unit: true, avgCost: true, reorderPoint: true },
+    select: { id: true, name: true, unit: true, avgCost: true, reorderPoint: true, trackingMode: true },
   });
   const resourceById = new Map(resources.map((r) => [r.id, r]));
   for (const l of rawLines) {
@@ -985,6 +1025,67 @@ export async function issueStockManual(
         where: { id: balance.id },
         data: { quantity: { decrement: l.quantity } },
       });
+
+      // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): batch-tracked items are
+      // FEFO-allocated (earliest expiry first). Each allocated lot becomes its
+      // own OUT movement so the audit trail records the actual lot(s) sold;
+      // the draft sales invoice still uses ONE line per resource (first lot).
+      const tracked = isBatchTracked(resource.trackingMode);
+      if (tracked) {
+        const allocations = await allocateBatchOut(tx, {
+          locationId: location.id,
+          resourceId: l.resourceId,
+          resourceName: resource.name,
+          unit: resource.unit,
+          quantity: l.quantity,
+          allowExpired: input.allowExpired,
+        });
+        const firstMovement = await tx.stockMovement.create({
+          data: {
+            locationId: location.id,
+            resourceId: l.resourceId,
+            quantity: allocations[0].quantity,
+            type: 'OUT',
+            referenceType: 'MANUAL_ISSUE',
+            referenceId: null,
+            unitCost: Number(resource.avgCost ?? 0),
+            inventoryValue: round2(Number(resource.avgCost ?? 0) * allocations[0].quantity),
+            batchCode: allocations[0].batchCode,
+          },
+        });
+        for (let i = 1; i < allocations.length; i++) {
+          await tx.stockMovement.create({
+            data: {
+              locationId: location.id,
+              resourceId: l.resourceId,
+              quantity: allocations[i].quantity,
+              type: 'OUT',
+              referenceType: 'MANUAL_ISSUE',
+              referenceId: null,
+              unitCost: Number(resource.avgCost ?? 0),
+              inventoryValue: round2(Number(resource.avgCost ?? 0) * allocations[i].quantity),
+              batchCode: allocations[i].batchCode,
+            },
+          });
+        }
+        results.push({
+          movementId: firstMovement.id,
+          resourceId: resource.id,
+          resourceName: resource.name,
+          unit: resource.unit,
+          quantityIssued: l.quantity,
+          quantityOnHand: round3(onHand - l.quantity),
+          unitPrice: l.unitPrice ?? null,
+          // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.3): server-side FEFO lots.
+          allocations: allocations.map((a) => ({
+            batchCode: a.batchCode,
+            quantity: a.quantity,
+            expiresAt: a.expiresAt,
+          })),
+        });
+        continue;
+      }
+
       const movement = await tx.stockMovement.create({
         data: {
           locationId: location.id,
@@ -1009,6 +1110,7 @@ export async function issueStockManual(
         quantityIssued: l.quantity,
         quantityOnHand: round3(onHand - l.quantity),
         unitPrice: l.unitPrice ?? null,
+        allocations: null,
       });
     }
     return results;
@@ -1086,7 +1188,7 @@ export async function adjustStock(
 
   const resource = await prisma.resource.findFirst({
     where: { id: input.resourceId, companyId },
-    select: { id: true, name: true, unit: true, avgCost: true },
+    select: { id: true, name: true, unit: true, avgCost: true, trackingMode: true },
   });
   if (!resource) throw ApiError.notFound('Resource not found');
 
@@ -1108,6 +1210,36 @@ export async function adjustStock(
       );
     }
 
+    // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): keep lot rows consistent
+    // with the aggregate - increases applyBatchIn (provided or generated lot),
+    // decreases FEFO-allocate with one ADJUST movement per lot.
+    const tracked = isBatchTracked(resource.trackingMode);
+    const allocations: Array<{ batchCode: string; quantity: number; expiresAt: Date | null }> = [];
+    if (tracked) {
+      if (input.delta > 0) {
+        const batchCode = input.batchCode ?? `ADJ-${Date.now()}`;
+        await applyBatchIn(tx, {
+          locationId: location.id,
+          resourceId: input.resourceId,
+          batchCode,
+          quantity: input.delta,
+          manufacturedAt: input.manufacturedAt ?? null,
+          expiresAt: input.expiresAt ?? null,
+        });
+        allocations.push({ batchCode, quantity: input.delta, expiresAt: input.expiresAt ?? null });
+      } else if (input.delta < 0) {
+        allocations.push(
+          ...(await allocateBatchOut(tx, {
+            locationId: location.id,
+            resourceId: input.resourceId,
+            resourceName: resource.name,
+            unit: resource.unit,
+            quantity: Math.abs(input.delta),
+          })),
+        );
+      }
+    }
+
     const movement = await tx.stockMovement.create({
       data: {
         locationId: location.id,
@@ -1121,6 +1253,8 @@ export async function adjustStock(
         // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.2): carry current WAC metadata.
         unitCost: Number(resource.avgCost ?? 0),
         inventoryValue: round2(Number(resource.avgCost ?? 0) * Math.abs(input.delta)),
+        // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): first allocated lot.
+        batchCode: tracked ? (allocations[0]?.batchCode ?? null) : null,
       },
     });
 
@@ -1153,6 +1287,123 @@ export async function adjustStock(
   });
 }
 
+/** Receive a small vendor purchase without creating a formal PO/GRN. */
+export async function quickVendorReceipt(
+  companyId: string,
+  userId: string,
+  role: string,
+  input: QuickVendorReceiptInput,
+) {
+  const projectId = await getDefaultProjectId(companyId);
+  if (!projectId) throw ApiError.forbidden('Vendor receipt is not available on this plan.');
+  await assertProjectAccess(companyId, userId, role as never, projectId);
+
+  let vendorName = input.vendorName?.trim() || null;
+  if (input.vendorId) {
+    const vendor = await prisma.vendor.findFirst({
+      where: { id: input.vendorId, companyId, isActive: true },
+      select: { name: true },
+    });
+    if (!vendor) throw ApiError.notFound('Vendor not found');
+    vendorName = vendor.name;
+  }
+  if (!vendorName) throw ApiError.badRequest('Vendor is required');
+
+  const resources = await prisma.resource.findMany({
+    where: {
+      companyId,
+      isDeleted: false,
+      id: { in: input.lines.map((line) => line.resourceId) },
+    },
+    select: { id: true, name: true, unit: true, trackingMode: true },
+  });
+  const resourceById = new Map(resources.map((resource) => [resource.id, resource]));
+  if (resourceById.size !== new Set(input.lines.map((line) => line.resourceId)).size) {
+    throw ApiError.notFound('One or more items were not found in your item master.');
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const location = await getOrCreateProjectStockLocation(companyId, projectId, tx, {
+      locationId: input.locationId,
+    });
+    const received: Array<{
+      movementId: string;
+      resourceId: string;
+      resourceName: string;
+      quantity: number;
+      unit: string;
+      unitCost: number;
+      quantityOnHand: number;
+      batchCode: string | null;
+    }> = [];
+    for (const [index, line] of input.lines.entries()) {
+      const resource = resourceById.get(line.resourceId)!;
+      const balance = await tx.stockBalance.findUnique({
+        where: {
+          locationId_resourceId: { locationId: location.id, resourceId: resource.id },
+        },
+      });
+      const onHand = Number(balance?.quantity ?? 0);
+      const quantityOnHand = round4(onHand + line.quantity);
+      const newWac = await updateWacOnIn(tx, resource.id, onHand, line.quantity, line.unitCost);
+      const batchCode = isBatchTracked(resource.trackingMode)
+        ? line.batchCode?.trim() || `QVR-${Date.now()}-${index + 1}`
+        : null;
+      if (batchCode) {
+        await applyBatchIn(tx, {
+          locationId: location.id,
+          resourceId: resource.id,
+          batchCode,
+          quantity: line.quantity,
+          manufacturedAt: line.manufacturedAt ?? null,
+          expiresAt: line.expiresAt ?? null,
+        });
+      }
+      await tx.stockBalance.upsert({
+        where: {
+          locationId_resourceId: { locationId: location.id, resourceId: resource.id },
+        },
+        create: { locationId: location.id, resourceId: resource.id, quantity: line.quantity },
+        update: { quantity: { increment: line.quantity } },
+      });
+      const movement = await tx.stockMovement.create({
+        data: {
+          locationId: location.id,
+          resourceId: resource.id,
+          quantity: line.quantity,
+          type: 'IN',
+          referenceType: 'QUICK_VENDOR_RECEIPT',
+          referenceId: input.vendorId ?? null,
+          reason: 'VENDOR_PURCHASE',
+          notes: [
+            `Vendor: ${vendorName}`,
+            input.invoiceNumber ? `Invoice: ${input.invoiceNumber}` : null,
+            `Received: ${input.receivedDate.toISOString().slice(0, 10)}`,
+            input.notes || null,
+          ].filter(Boolean).join(' · '),
+          unitCost: line.unitCost,
+          inventoryValue: round2(line.quantity * line.unitCost),
+          batchCode,
+        },
+      });
+      received.push({
+        movementId: movement.id,
+        resourceId: resource.id,
+        resourceName: resource.name,
+        quantity: line.quantity,
+        unit: resource.unit,
+        unitCost: line.unitCost,
+        quantityOnHand,
+        batchCode,
+      });
+      // Keep the returned WAC calculation intentional even when no caller
+      // currently displays it; it is persisted on Resource by updateWacOnIn.
+      void newWac;
+    }
+    return { locationId: location.id, vendorName, invoiceNumber: input.invoiceNumber ?? null, received };
+  }, { maxWait: 10_000, timeout: 60_000 });
+}
+
 export async function importOpeningStock(
   companyId: string,
   userId: string,
@@ -1165,7 +1416,16 @@ export async function importOpeningStock(
   await assertProjectAccess(companyId, userId, role as never, projectId);
 
   // Resolve each line to a company resource by id / sku / itemCode / name.
-  const resolved: Array<{ resourceId: string; quantity: number; rate?: number; key: string }> = [];
+  const resolved: Array<{
+    resourceId: string;
+    quantity: number;
+    rate?: number;
+    key: string;
+    trackingMode: string;
+    batchCode?: string;
+    manufacturedAt?: Date | null;
+    expiresAt?: Date | null;
+  }> = [];
   const missed: Array<{ key: string; reason: string }> = [];
   for (const [i, line] of input.lines.entries()) {
     const key = `line ${i + 1} (${line.sku ?? line.itemCode ?? line.name ?? line.resourceId ?? '?'})`;
@@ -1181,13 +1441,22 @@ export async function importOpeningStock(
               ? { itemCode: line.itemCode }
               : { name: line.name! }),
       },
-      select: { id: true, name: true, unit: true },
+      select: { id: true, name: true, unit: true, trackingMode: true },
     });
     if (!resource) {
       missed.push({ key, reason: 'item not found in catalog' });
       continue;
     }
-    resolved.push({ resourceId: resource.id, quantity: line.quantity, rate: line.rate, key });
+    resolved.push({
+      resourceId: resource.id,
+      quantity: line.quantity,
+      rate: line.rate,
+      key,
+      trackingMode: resource.trackingMode,
+      batchCode: line.batchCode,
+      manufacturedAt: line.manufacturedAt ?? null,
+      expiresAt: line.expiresAt ?? null,
+    });
   }
   if (missed.length > 0 && resolved.length === 0) {
     throw ApiError.unprocessable(
@@ -1223,6 +1492,34 @@ export async function importOpeningStock(
       // per-line rate when supplied, else the current average cost.
       const unitCost = item.rate !== undefined ? item.rate : Number(resource.avgCost ?? 0);
       if (Math.abs(delta) > 0.0001) {
+        // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): keep lot rows in sync
+        // with the aggregate - increases applyBatchIn (provided or generated
+        // OPEN-<ts> lot), decreases FEFO-allocate the existing lots.
+        const tracked = isBatchTracked(item.trackingMode);
+        let firstBatch: string | null = null;
+        if (tracked) {
+          if (delta > 0) {
+            const batchCode = item.batchCode ?? `OPEN-${Date.now()}-${resolved.indexOf(item) + 1}`;
+            await applyBatchIn(tx, {
+              locationId: location.id,
+              resourceId: item.resourceId,
+              batchCode,
+              quantity: delta,
+              manufacturedAt: item.manufacturedAt ?? null,
+              expiresAt: item.expiresAt ?? null,
+            });
+            firstBatch = batchCode;
+          } else {
+            const allocations = await allocateBatchOut(tx, {
+              locationId: location.id,
+              resourceId: item.resourceId,
+              resourceName: resource.name,
+              unit: resource.unit,
+              quantity: Math.abs(delta),
+            });
+            firstBatch = allocations[0]?.batchCode ?? null;
+          }
+        }
         await tx.stockMovement.create({
           data: {
             locationId: location.id,
@@ -1235,6 +1532,8 @@ export async function importOpeningStock(
             notes: `Opening stock import · ${item.key}`,
             unitCost,
             inventoryValue: round2(unitCost * Math.abs(delta)),
+            // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): allocated lot.
+            batchCode: firstBatch,
           },
         });
         if (!balance) {
@@ -1360,6 +1659,8 @@ export interface StockSummaryRow {
   unit: string;
   /** Catalog / list rate - suggested selling price for Issue. */
   catalogRate: number;
+  /** Printed maximum retail price (Kirana); null when not applicable. */
+  mrp: number | null;
   /** Low-stock threshold (Phase 1.5): balance below this = needs reorder. */
   reorderPoint: number;
   received: number;
@@ -1368,6 +1669,15 @@ export interface StockSummaryRow {
   /** INVENTORY_HORIZONTAL_PLATFORM (Phase 5.2): WAC unit cost + inventory value. */
   unitCost: number;
   inventoryValue: number;
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.3): POS cart needs GST + tracking.
+  /** Catalog GST % for the checkout cart line-tax display. */
+  gstRate: number;
+  /** NONE | BATCH_EXPIRY - cart shows FEFO / near-expiry hints for tracked items. */
+  trackingMode: string;
+  /** Earliest dated positive lot; null when no batch has an expiry date. */
+  nextExpiryAt: Date | null;
+  /** Positive-quantity lots currently held across the selected locations. */
+  activeBatchCount: number;
 }
 
 export async function getStockSummary(
@@ -1386,20 +1696,62 @@ export async function getStockSummary(
   const locationIds = locations.map((l) => l.id);
   if (locationIds.length === 0) return [];
 
-  const [movements, balances] = await Promise.all([
+  const [movements, balances, batches] = await Promise.all([
     prisma.stockMovement.findMany({
       where: { locationId: { in: locationIds } },
-      include: { resource: { select: { id: true, name: true, unit: true, rate: true, reorderPoint: true, avgCost: true } } },
+      include: {
+        resource: {
+          select: {
+            id: true,
+            name: true,
+            unit: true,
+            rate: true,
+            mrp: true,
+            reorderPoint: true,
+            avgCost: true,
+            gstRate: true,
+            trackingMode: true,
+          },
+        },
+      },
     }),
     prisma.stockBalance.findMany({
       where: { locationId: { in: locationIds } },
-      include: { resource: { select: { id: true, name: true, unit: true, rate: true, reorderPoint: true, avgCost: true } } },
+      include: {
+        resource: {
+          select: {
+            id: true,
+            name: true,
+            unit: true,
+            rate: true,
+            mrp: true,
+            reorderPoint: true,
+            avgCost: true,
+            gstRate: true,
+            trackingMode: true,
+          },
+        },
+      },
+    }),
+    prisma.stockBatchBalance.findMany({
+      where: { locationId: { in: locationIds }, quantity: { gt: 0 } },
+      select: { resourceId: true, expiresAt: true },
     }),
   ]);
 
   const map = new Map<string, StockSummaryRow>();
 
-  const ensure = (resourceId: string, name: string, unit: string, catalogRate: number, reorderPoint: number, avgCost: number) => {
+  const ensure = (
+    resourceId: string,
+    name: string,
+    unit: string,
+    catalogRate: number,
+    mrp: number | null,
+    reorderPoint: number,
+    avgCost: number,
+    gstRate: number,
+    trackingMode: string,
+  ) => {
     let row = map.get(resourceId);
     if (!row) {
       row = {
@@ -1407,12 +1759,17 @@ export async function getStockSummary(
         name,
         unit,
         catalogRate,
+        mrp,
         reorderPoint,
         received: 0,
         issued: 0,
         balance: 0,
         unitCost: avgCost,
         inventoryValue: 0,
+        gstRate,
+        trackingMode,
+        nextExpiryAt: null,
+        activeBatchCount: 0,
       };
       map.set(resourceId, row);
     }
@@ -1422,7 +1779,18 @@ export async function getStockSummary(
   for (const m of movements) {
     const rate = Number(m.resource.rate) || 0;
     const reorder = Number(m.resource.reorderPoint) || 0;
-    const row = ensure(m.resourceId, m.resource.name, m.resource.unit, rate, reorder, Number(m.resource.avgCost) || 0);
+    const gst = Number(m.resource.gstRate) || 0;
+    const row = ensure(
+      m.resourceId,
+      m.resource.name,
+      m.resource.unit,
+      rate,
+      m.resource.mrp == null ? null : Number(m.resource.mrp),
+      reorder,
+      Number(m.resource.avgCost) || 0,
+      gst,
+      m.resource.trackingMode,
+    );
     const qty = Number(m.quantity);
     if (m.type === 'IN') row.received += qty;
     else if (m.type === 'OUT') row.issued += qty;
@@ -1432,9 +1800,32 @@ export async function getStockSummary(
     const rate = Number(b.resource.rate) || 0;
     const reorder = Number(b.resource.reorderPoint) || 0;
     const avgCost = Number(b.resource.avgCost) || 0;
-    const row = ensure(b.resourceId, b.resource.name, b.resource.unit, rate, reorder, avgCost);
+    const gst = Number(b.resource.gstRate) || 0;
+    const row = ensure(
+      b.resourceId,
+      b.resource.name,
+      b.resource.unit,
+      rate,
+      b.resource.mrp == null ? null : Number(b.resource.mrp),
+      reorder,
+      avgCost,
+      gst,
+      b.resource.trackingMode,
+    );
     row.balance += Number(b.quantity);
     row.unitCost = avgCost;
+  }
+
+  for (const batch of batches) {
+    const row = map.get(batch.resourceId);
+    if (!row) continue;
+    row.activeBatchCount += 1;
+    if (
+      batch.expiresAt &&
+      (!row.nextExpiryAt || batch.expiresAt.getTime() < row.nextExpiryAt.getTime())
+    ) {
+      row.nextExpiryAt = batch.expiresAt;
+    }
   }
 
   return Array.from(map.values())

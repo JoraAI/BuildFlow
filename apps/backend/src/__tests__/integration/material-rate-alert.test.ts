@@ -67,10 +67,14 @@ describe('Material rate PO alerts (integration)', () => {
     expect(alert!.body).toContain('NH45');
   });
 
+  // NOTE (Phase 11.1 verification): slow by construction - the material-rate
+  // PDF scans the seeded ~1265-resource construction catalog; baseline run took
+  // 27.3s (just under jest's 30s default) and crosses it under load. Raised to
+  // 60s so the green gate is not flaky; unrelated to Phase 11.1.
   it('returns material rate sheet PDF', async () => {
     const res = await authGet(token, `/api/reports/pdf/projects/${projectId}/material-rates`);
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('application/pdf');
     expect(res.body.length).toBeGreaterThan(500);
-  });
+  }, 60_000);
 });

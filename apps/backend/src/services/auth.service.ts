@@ -65,6 +65,7 @@ async function toPublicUser(
       subscriptionPlan: string;
       defaultProjectId: string | null;
       inventoryProfile: InventoryBusinessProfile | null;
+      inventoryVertical: string | null;
     };
   },
 ) {
@@ -96,6 +97,10 @@ async function toPublicUser(
       productMode === 'inventory'
         ? (user.company.inventoryProfile ?? InventoryBusinessProfile.GENERAL)
         : null,
+    // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): vertical on the auth user
+    // so mobile can gate batch/expiry surfaces without an extra settings call.
+    inventoryVertical:
+      productMode === 'inventory' ? (user.company.inventoryVertical ?? null) : null,
   };
 }
 
@@ -206,6 +211,7 @@ export async function registerCompany(input: RegisterCompanyInput, ipAddress?: s
       inventoryProfile: isInventory
         ? (company.inventoryProfile ?? InventoryBusinessProfile.GENERAL)
         : null,
+      inventoryVertical: isInventory ? (company.inventoryVertical ?? null) : null,
     },
   });
 
@@ -233,6 +239,7 @@ export async function login(
           subscriptionPlan: true,
           defaultProjectId: true,
           inventoryProfile: true,
+          inventoryVertical: true,
         },
       },
     },
@@ -318,6 +325,7 @@ export async function me(userId: string) {
           subscriptionPlan: true,
           defaultProjectId: true,
           inventoryProfile: true,
+          inventoryVertical: true,
         },
       },
     },

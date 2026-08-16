@@ -11,6 +11,7 @@
  *      TRADING            owner@apextrading.com
  *      EQUIPMENT          owner@forgeequip.com
  *      GENERAL            owner@generalstore.com
+ *      KIRANA vertical    owner@kirana-demo.com   (RETAIL + selected stocked SKUs)
  *  - Platform admin: admin@buildflow.com
  *
  * Catalog data (catalog-data.ts) and rate analyses (rate-analysis-data.ts) are
@@ -18,11 +19,13 @@
  *
  * Idempotent-ish: uses upsert on unique fields. Re-running updates in place.
  */
-import { PrismaClient, Role, ProjectType, ProjectStatus, ResourceType, InvoiceStatus, CostType, EstimateStatus, StockMovementType, InventoryBusinessProfile } from '@prisma/client';
+import { PrismaClient, Role, ProjectType, ProjectStatus, ResourceType, InvoiceStatus, CostType, EstimateStatus, StockMovementType, InventoryBusinessProfile, InventoryVertical } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { CATALOG_DATA, type CatalogItem } from './catalog-data';
 import { RATE_ANALYSES } from './rate-analysis-data';
 import { disconnectRedis } from '../src/lib/redis';
+import { invalidatePattern } from '../src/utils/cache';
+import { importSelectedCatalogStock } from '../src/services/catalog-template.service';
 
 const prisma = new PrismaClient();
 
@@ -1336,6 +1339,117 @@ async function main(): Promise<void> {
     console.log(`   Seeded inventory (${opts.profile}): ${opts.companyName} - ${opts.ownerEmail}`);
   }
 
+
+  /** Dedicated Kirana RETAIL demo with a meaningful selected, stocked catalog. */
+  const KIRANA_COMPANY_ID = '00000000-0000-4000-8000-000000000000';
+  async function seedKiranaTenant(opts: {
+    companyName: string;
+    gstin: string;
+    pan: string;
+    state: string;
+    address: string;
+    ownerName: string;
+    ownerEmail: string;
+  }): Promise<void> {
+    const company = await prisma.company.upsert({
+      where: { id: KIRANA_COMPANY_ID },
+      update: {},
+      create: {
+        id: KIRANA_COMPANY_ID,
+        name: opts.companyName,
+        gstin: opts.gstin,
+        pan: opts.pan,
+        state: opts.state,
+        address: opts.address,
+        subscriptionPlan: 'INVENTORY',
+        subscriptionStatus: 'ACTIVE',
+        inventoryProfile: InventoryBusinessProfile.RETAIL,
+        // K2 (11.1.5b): the pack is Kirana-VERTICAL-only - opt the demo tenant in
+        // explicitly (same state the OWNER Settings picker would set).
+        inventoryVertical: InventoryVertical.KIRANA,
+        trialStartsAt: new Date(Date.now() - 7 * 86_400_000),
+        trialEndsAt: new Date(Date.now() + 358 * 86_400_000),
+        lastPaymentAt: new Date(),
+      },
+    });
+
+    const owner = await prisma.user.upsert({
+      where: { email: opts.ownerEmail },
+      update: { companyId: company.id },
+      create: {
+        companyId: company.id,
+        name: opts.ownerName,
+        email: opts.ownerEmail,
+        role: Role.OWNER,
+        phone: '+919900000010',
+        passwordHash,
+      },
+    });
+
+    const project = await prisma.project.upsert({
+      where: { companyId_code: { code: 'KIRANA', companyId: company.id } },
+      update: {},
+      create: {
+        companyId: company.id,
+        name: 'Main Store',
+        code: 'KIRANA',
+        type: ProjectType.MINI,
+        status: ProjectStatus.IN_PROGRESS,
+        clientName: company.name,
+        budget: 0,
+        createdBy: owner.id,
+      },
+    });
+    await prisma.company.update({
+      where: { id: company.id },
+      data: { defaultProjectId: project.id },
+    });
+
+    const selectedKeys = [
+      'KIR-001', 'KIR-005', 'KIR-015', 'KIR-019', 'KIR-021', 'KIR-035',
+      'KIR-041', 'KIR-043', 'KIR-045', 'KIR-049', 'KIR-058', 'KIR-066',
+    ];
+    // Seed a sample only when the demo has no stock yet. Rerunning seed never
+    // increases an already-used shop's quantities.
+    const stockedItemCount = await prisma.stockBalance.count({
+      where: { location: { companyId: company.id }, quantity: { gt: 0 } },
+    });
+    if (stockedItemCount === 0) {
+      const in90Days = new Date(Date.now() + 90 * 86_400_000);
+      const in7Days = new Date(Date.now() + 7 * 86_400_000);
+      await importSelectedCatalogStock(company.id, owner.id, {
+        items: [
+          { templateKey: 'KIR-001', mrp: 350, rate: 335, quantity: 12 },
+          { templateKey: 'KIR-005', mrp: 520, rate: 499, quantity: 10 },
+          { templateKey: 'KIR-015', mrp: 190, rate: 180, quantity: 18 },
+          { templateKey: 'KIR-019', mrp: 55, rate: 52, quantity: 30 },
+          { templateKey: 'KIR-021', mrp: 28, rate: 26, quantity: 40 },
+          { templateKey: 'KIR-035', mrp: 32, rate: 30, quantity: 35, expiresAt: in7Days },
+          { templateKey: 'KIR-041', mrp: 50, rate: 48, quantity: 14, expiresAt: in7Days },
+          { templateKey: 'KIR-043', mrp: 90, rate: 86, quantity: 12, expiresAt: in7Days },
+          { templateKey: 'KIR-045', mrp: 15, rate: 14, quantity: 48, expiresAt: in90Days },
+          { templateKey: 'KIR-049', mrp: 20, rate: 20, quantity: 36, expiresAt: in90Days },
+          { templateKey: 'KIR-058', mrp: 45, rate: 42, quantity: 32, expiresAt: in90Days },
+          { templateKey: 'KIR-066', mrp: 45, rate: 43, quantity: 24, expiresAt: in90Days },
+        ],
+      });
+    }
+    // Hide every old full-pack shell that still has no balance row. Stocked
+    // or user-selected rows remain visible and editable.
+    await prisma.resource.updateMany({
+      where: {
+        companyId: company.id,
+        itemCode: { startsWith: 'KIR-' },
+        stockBalances: { none: {} },
+      },
+      data: { isDeleted: true },
+    });
+    // Bulk writes bypass the service layer, so drop the cached item list.
+    await invalidatePattern(`cache:${company.id}:resources:*`);
+    // eslint-disable-next-line no-console
+    console.log(`   Seeded Kirana vertical: ${opts.companyName} - ${opts.ownerEmail} (${selectedKeys.length} stocked SKUs)`);
+  }
+
   await seedInventoryTenant({
     companyName: 'Hyderabad Building Materials',
     profile: InventoryBusinessProfile.MATERIAL_SUPPLIER,
@@ -1494,6 +1608,16 @@ async function main(): Promise<void> {
     openingQtys: [40, 70, 100],
   });
 
+  await seedKiranaTenant({
+    companyName: 'Shri Ganesh Kirana & General Store',
+    gstin: '36AABCK7777K1Z7',
+    pan: 'AABCK7777K',
+    state: 'Telangana',
+    address: 'Charminar, Hyderabad',
+    ownerName: 'Ganesh Kirana',
+    ownerEmail: 'owner@kirana-demo.com',
+  });
+
   // eslint-disable-next-line no-console
   console.log('✅ Seed complete.');
   // eslint-disable-next-line no-console
@@ -1534,6 +1658,8 @@ async function main(): Promise<void> {
   console.log('   owner@forgeequip.com (EQUIPMENT)');
   // eslint-disable-next-line no-console
   console.log('   owner@generalstore.com (GENERAL)');
+  // eslint-disable-next-line no-console
+  console.log('   owner@kirana-demo.com (KIRANA vertical - RETAIL + Phase 11.1 starter pack)');
   // eslint-disable-next-line no-console
   console.log('── Platform console (/platform/login)');
   // eslint-disable-next-line no-console

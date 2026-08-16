@@ -10,6 +10,7 @@ import { View, Text } from 'react-native';
 import { Card, LoadingSkeleton } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
 import { useInventoryDashboard } from '@/services/inventory-analytics.queries';
+import { useExpirySummary } from '@/services/expansion.queries';
 import { formatINRCompact } from '@/utils/format';
 
 export default function DashboardCards() {
@@ -37,6 +38,58 @@ export default function DashboardCards() {
       label: 'Low stock',
       value: `${data.lowStockCount} · ${data.deadStockCount} dead`,
       tone: data.lowStockCount > 0 ? 'text-danger' : undefined,
+    },
+  ];
+
+  return (
+    <View className={`flex-row gap-3 ${isDesktop ? '' : 'flex-wrap'}`}>
+      {cards.map((c) => (
+        <Card key={c.label} className="flex-1 min-w-[140px] p-4">
+          <Text className="text-xs text-muted">{c.label}</Text>
+          <Text className={`text-lg font-bold text-text ${c.tone ?? ''}`}>{c.value}</Text>
+        </Card>
+      ))}
+    </View>
+  );
+}
+/**
+ * INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4.2): Kirana-vertical KPI row on the
+ * stock home - today's counter sales, low stock, expiring soon (0–30d), and
+ * expired stock value (WAC). Shown ONLY for Kirana tenants; other inventory
+ * verticals keep the executive DashboardCards row unchanged.
+ */
+export function KiranaKpiCards() {
+  const { isDesktop } = useViewport();
+  const { data: dashboard, isLoading: dashboardLoading } = useInventoryDashboard();
+  const { data: expiry, isLoading: expiryLoading } = useExpirySummary();
+
+  if (dashboardLoading || expiryLoading) {
+    return (
+      <View className={`flex-row gap-3 ${isDesktop ? '' : 'flex-wrap'}`}>
+        {[1, 2, 3, 4].map((i) => (
+          <LoadingSkeleton key={i} className="flex-1 min-w-[140px] rounded-xl h-16" />
+        ))}
+      </View>
+    );
+  }
+  if (!dashboard || !expiry) return null;
+
+  const cards: Array<{ label: string; value: string; tone?: string }> = [
+    { label: 'Counter sales today', value: formatINRCompact(dashboard.salesToday) },
+    {
+      label: 'Low stock',
+      value: `${dashboard.lowStockCount} item(s)`,
+      tone: dashboard.lowStockCount > 0 ? 'text-danger' : undefined,
+    },
+    {
+      label: 'Expiring soon (0–30d)',
+      value: `${Math.round(expiry['0_30'])} · ₹${formatINRCompact(expiry['0_30_VALUE'])}`,
+      tone: expiry['0_30'] > 0 ? 'text-warning' : undefined,
+    },
+    {
+      label: 'Expired stock',
+      value: `${Math.round(expiry.EXPIRED)} · ₹${formatINRCompact(expiry.EXPIRED_VALUE)}`,
+      tone: expiry.EXPIRED > 0 ? 'text-danger' : undefined,
     },
   ];
 

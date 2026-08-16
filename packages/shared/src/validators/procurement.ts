@@ -71,6 +71,11 @@ export const createGrnSchema = z.object({
       unit: z.string().min(1).max(20),
       // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3): optional batch / lot code (lite).
       batchCode: z.string().max(50).optional(),
+      // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): receipt lot dates -
+      // optional (construction GRN must stay batch-free); required in effect for
+      // batch-tracked items only (the service enforces batchCode presence).
+      manufacturedAt: z.coerce.date().optional(),
+      expiresAt: z.coerce.date().optional(),
     }),
   ).min(1),
 });
@@ -115,6 +120,9 @@ export const issueStockSchema = z
     // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.1): issue from a specific warehouse
     // (inventory only; omitted = company default location).
     locationId: z.string().uuid().optional(),
+    // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): authorized override to
+    // sell EXPIRED lots (FEFO otherwise rejects expired-only stock).
+    allowExpired: z.boolean().optional(),
   })
   .superRefine((val, ctx) => {
     // Multi-line shape is self-sufficient; legacy requires resourceId + quantity.

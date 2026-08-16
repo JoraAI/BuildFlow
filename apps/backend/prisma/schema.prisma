@@ -242,6 +242,24 @@ enum InventoryBusinessProfile {
   GENERAL
 }
 
+/// INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.1): vertical / catalog template.
+/// K1: KIRANA is a VERTICAL (starter catalog), NOT another business profile.
+enum InventoryVertical {
+  KIRANA
+  PHARMACY
+  ELECTRONICS
+  STATIONERY
+  HARDWARE
+}
+
+// INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): batch/expiry tracking level.
+// NONE = aggregate only (construction + non-tracked inventory). BATCH_EXPIRY =
+// per-lot balances with manufacture/expiry + FEFO allocation (Kirana vertical).
+enum ResourceTrackingMode {
+  NONE
+  BATCH_EXPIRY
+}
+
 enum SubscriptionStatus {
   TRIAL
   ACTIVE
@@ -314,6 +332,12 @@ model Company {
   /// Hidden/ignored on construction plans (service returns null). DB default
   /// GENERAL backfills existing rows; new inventory tenants start GENERAL.
   inventoryProfile InventoryBusinessProfile? @default(GENERAL) @map("inventory_profile")
+
+  /// INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.1): optional vertical / catalog
+  /// template (KIRANA first). Set once by `applyCatalogTemplate` (insert-missing
+  /// only). Null on construction and on non-Kirana inventory tenants.
+  inventoryVertical InventoryVertical? @map("inventory_vertical")
+  catalogSeededAt   DateTime?          @map("catalog_seeded_at")
 
   /// INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): credit-limit enforcement policy.
   creditLimitPolicy CreditLimitPolicy @default(WARN) @map("credit_limit_policy")
@@ -819,6 +843,14 @@ model Resource {
   /// cost per company (v1). Updated on stock IN; OUT movements carry it as
   /// metadata. `rate` remains the catalog/selling price.
   avgCost          Decimal  @default(0) @map("avg_cost") @db.Decimal(14, 4)
+  /// INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.5): printed maximum retail
+  /// price. `rate` remains the shop's editable selling price.
+  mrp              Decimal? @db.Decimal(12, 2)
+  mrpUpdatedAt     DateTime? @map("mrp_updated_at")
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): batch/expiry tracking.
+  // NONE = aggregate StockBalance only (construction + untracked inventory);
+  // BATCH_EXPIRY = StockBatchBalance lots + FEFO allocation (Kirana vertical).
+  trackingMode     ResourceTrackingMode @default(NONE) @map("tracking_mode")
   imageUrl         String?  @map("image_url")
   lastRateUpdatedAt DateTime? @map("last_rate_updated_at")
   isActive         Boolean  @default(true) @map("is_active")
@@ -838,6 +870,7 @@ model Resource {
   subcontractorMaterialIssues SubcontractorMaterialIssue[]
   stockBalances      StockBalance[]
   stockMovements     StockMovement[]
+  stockBatchBalances StockBatchBalance[]
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.4): invoice line links for true margins.
   invoiceLineItems   InvoiceLineItem[]
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 9.1): customer price overrides.
@@ -2170,6 +2203,10 @@ model GoodsReceiptLine {
   unitCost   Decimal @default(0) @map("unit_cost") @db.Decimal(14, 4)
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3): optional batch / lot code (lite).
   batchCode  String? @map("batch_code")
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): receipt lot dates (tracked
+  // items). Copied onto StockBatchBalance on the same transaction.
+  manufacturedAt DateTime? @map("manufactured_at")
+  expiresAt      DateTime? @map("expires_at")
 
   grn      GoodsReceiptNote @relation(fields: [grnId], references: [id], onDelete: Cascade)
   resource Resource         @relation(fields: [resourceId], references: [id])
@@ -2193,6 +2230,7 @@ model StockLocation {
   project  Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   balances StockBalance[]
   movements StockMovement[]
+  batchBalances StockBatchBalance[]
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.2/3.3): transfer + stock-count relations.
   transferOrdersFrom TransferOrder[] @relation("TransferFromLocation")
   transferOrdersTo   TransferOrder[] @relation("TransferToLocation")
@@ -2245,6 +2283,35 @@ model StockMovement {
   @@index([resourceId])
   @@index([referenceId])
   @@map("stock_movements")
+}
+
+// ------------------------------------------------------------------
+// INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): batch / expiry / FEFO
+// ------------------------------------------------------------------
+// Per-lot balance for `Resource.trackingMode = BATCH_EXPIRY` items. The
+// aggregate `StockBalance` stays the single source for analytics + construction
+// compatibility (K6); this table keeps lot-level qty + manufacture/expiry so
+// counter sales / DC dispatch can allocate FEFO (earliest expiry first) and
+// expired stock can be blocked without an authorized override.
+model StockBatchBalance {
+  id             String    @id @default(uuid()) @db.Uuid
+  locationId     String    @map("location_id") @db.Uuid
+  resourceId     String    @map("resource_id") @db.Uuid
+  batchCode      String    @map("batch_code")
+  manufacturedAt DateTime? @map("manufactured_at")
+  expiresAt      DateTime? @map("expires_at")
+  quantity       Decimal   @db.Decimal(12, 3)
+  receivedAt     DateTime  @default(now()) @map("received_at")
+
+  location StockLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  resource Resource      @relation(fields: [resourceId], references: [id])
+
+  @@unique([locationId, resourceId, batchCode])
+  // FEFO: find next lot to allocate by expiry (nulls last in ASC).
+  @@index([resourceId, expiresAt])
+  // Expiry buckets / near-expiry scans across lots at a location.
+  @@index([locationId, expiresAt])
+  @@map("stock_batch_balances")
 }
 
 // ------------------------------------------------------------------

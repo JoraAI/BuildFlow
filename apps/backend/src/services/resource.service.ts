@@ -33,6 +33,24 @@ import {
 // Resources change infrequently; cache list for 1 hour per offline-first spec.
 const RESOURCE_LIST_TTL = 60 * 60;
 
+/**
+ * INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): batch/expiry tracking is a
+ * KIRANA-vertical feature (K10 / 11.2.9). Construction + non-Kirana inventory
+ * tenants may not flag items BATCH_EXPIRY.
+ */
+async function assertTrackingModeAllowed(companyId: string, trackingMode?: string): Promise<void> {
+  if (!trackingMode || trackingMode === 'NONE') return;
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { subscriptionPlan: true, inventoryVertical: true },
+  });
+  if (company?.subscriptionPlan !== 'INVENTORY' || company?.inventoryVertical !== 'KIRANA') {
+    throw ApiError.unprocessable(
+      'Batch/expiry tracking (BATCH_EXPIRY) is available only to Kirana-vertical inventory tenants (Settings → Shop vertical).',
+    );
+  }
+}
+
 async function resolveResourceImageUrl(
   companyId: string,
   imageUrl: string | null,
@@ -83,6 +101,11 @@ export async function listResources(companyId: string, query: ResourceQueryInput
       { name: { contains: search, mode: 'insensitive' } },
       { category: { contains: search, mode: 'insensitive' } },
       { brandOrSpec: { contains: search, mode: 'insensitive' } },
+      // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.1): search by SKU / item
+      // code / barcode - e.g. KIR-* template keys and printed barcodes.
+      { sku: { contains: search, mode: 'insensitive' } },
+      { itemCode: { contains: search, mode: 'insensitive' } },
+      { barcode: { contains: search, mode: 'insensitive' } },
     ];
   }
 
@@ -124,6 +147,9 @@ export async function createResource(
   input: CreateResourceInput,
   ipAddress?: string,
 ) {
+  if (input.mrp != null && input.mrp > 0 && input.rate > input.mrp) {
+    throw ApiError.unprocessable('Selling price cannot exceed MRP.');
+  }
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): preferred vendor must belong to
   // the same company (FK only checks existence, not tenancy).
   if (input.preferredVendorId) {
@@ -133,6 +159,8 @@ export async function createResource(
     });
     if (!vendor) throw ApiError.notFound('Vendor not found');
   }
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): BATCH_EXPIRY is Kirana-only.
+  await assertTrackingModeAllowed(companyId, input.trackingMode);
 
   const resource = await prisma.resource.create({
     data: {
@@ -141,6 +169,8 @@ export async function createResource(
       type: input.type,
       unit: input.unit,
       rate: input.rate,
+      mrp: input.mrp ?? null,
+      mrpUpdatedAt: input.mrp != null ? new Date() : null,
       gstRate: input.gstRate ?? 0,
       hsnSacCode: input.hsnSacCode ?? null,
       brandOrSpec: input.brandOrSpec ?? null,
@@ -157,6 +187,8 @@ export async function createResource(
       preferredVendorId: input.preferredVendorId ?? null,
       reorderQty: input.reorderQty ?? null,
       leadTimeDays: input.leadTimeDays ?? null,
+      // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): tracking mode (default NONE).
+      trackingMode: input.trackingMode ?? 'NONE',
       lastRateUpdatedAt: new Date(),
     },
   });
@@ -196,6 +228,13 @@ export async function updateResource(
   ipAddress?: string,
 ) {
   const existing = await getResource(companyId, id);
+  const effectiveMrp = input.mrp === undefined
+    ? (existing.mrp == null ? null : Number(existing.mrp))
+    : input.mrp;
+  const effectiveRate = input.rate === undefined ? Number(existing.rate) : input.rate;
+  if (effectiveMrp != null && effectiveMrp > 0 && effectiveRate > effectiveMrp) {
+    throw ApiError.unprocessable('Selling price cannot exceed MRP.');
+  }
 
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): validate preferred vendor tenancy.
   if (input.preferredVendorId) {
@@ -205,12 +244,17 @@ export async function updateResource(
     });
     if (!vendor) throw ApiError.notFound('Vendor not found');
   }
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): BATCH_EXPIRY is Kirana-only.
+  await assertTrackingModeAllowed(companyId, input.trackingMode);
 
   // If rate changed, archive old rate to price history (handled separately by
   // price-history endpoint; here we just update the master).
   // FIX (EST-H7): Write a MaterialPriceHistory row when rate changes so
   // syncEffectiveResourceRate doesn't silently revert manual edits.
   const rateChanged = input.rate !== undefined && input.rate !== Number(existing.rate);
+  const mrpChanged =
+    input.mrp !== undefined &&
+    (input.mrp === null ? existing.mrp != null : input.mrp !== Number(existing.mrp));
 
   const updated = await prisma.resource.update({
     where: { id },
@@ -219,6 +263,10 @@ export async function updateResource(
       ...(input.type !== undefined && { type: input.type }),
       ...(input.unit !== undefined && { unit: input.unit }),
       ...(input.rate !== undefined && { rate: input.rate }),
+      ...(input.mrp !== undefined && {
+        mrp: input.mrp,
+        mrpUpdatedAt: new Date(),
+      }),
       ...(input.gstRate !== undefined && { gstRate: input.gstRate }),
       ...(input.hsnSacCode !== undefined && { hsnSacCode: input.hsnSacCode }),
       ...(input.brandOrSpec !== undefined && { brandOrSpec: input.brandOrSpec }),
@@ -234,6 +282,8 @@ export async function updateResource(
       ...(input.preferredVendorId !== undefined && { preferredVendorId: input.preferredVendorId ?? null }),
       ...(input.reorderQty !== undefined && { reorderQty: input.reorderQty ?? null }),
       ...(input.leadTimeDays !== undefined && { leadTimeDays: input.leadTimeDays ?? null }),
+      // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): tracking mode (Kirana-only).
+      ...(input.trackingMode !== undefined && { trackingMode: input.trackingMode }),
       ...(rateChanged && { lastRateUpdatedAt: new Date() }),
     },
   });
@@ -275,8 +325,8 @@ export async function updateResource(
     action: 'UPDATE',
     entityType: 'resource',
     entityId: id,
-    oldValue: { name: existing.name, rate: Number(existing.rate) },
-    newValue: { name: updated.name, rate: Number(updated.rate) },
+    oldValue: { name: existing.name, rate: Number(existing.rate), mrp: existing.mrp == null ? null : Number(existing.mrp) },
+    newValue: { name: updated.name, rate: Number(updated.rate), mrp: updated.mrp == null ? null : Number(updated.mrp), mrpChanged },
     ipAddress,
   });
 

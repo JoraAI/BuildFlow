@@ -50,13 +50,22 @@ export async function assertInventoryFeature(
 ): Promise<void> {
   const company = await prisma.company.findUniqueOrThrow({
     where: { id: companyId },
-    select: { subscriptionPlan: true },
+    select: { subscriptionPlan: true, inventoryVertical: true },
   });
   const plan = company.subscriptionPlan as SubscriptionPlanKey;
   if (!hasInventoryFeature(plan, flag)) {
     throw new ApiError(
       'FORBIDDEN',
       `This inventory feature is not available on your ${plan} plan yet.`,
+    );
+  }
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2, K10): batch/expiry surfaces
+  // are Kirana-VERTICAL-only - a RETAIL/WHOLESALE profile without the KIRANA
+  // vertical (hardware retail, stationery wholesale) must not see them.
+  if (flag === 'batch_expiry' && company.inventoryVertical !== 'KIRANA') {
+    throw new ApiError(
+      'FORBIDDEN',
+      'Batch/expiry tracking is available only to Kirana-vertical tenants (Settings → Shop vertical).',
     );
   }
 }

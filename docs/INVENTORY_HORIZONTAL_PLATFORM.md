@@ -6,6 +6,7 @@
 > **Sibling product:** **BuildFlow Construction ERP** - project-centric (estimates, BOQ, WBS, site ops). **Do not merge domain models.**  
 > **Pricing (locked):** Inventory **₹499/mo**, **₹4,990/yr** ex-GST - see `packages/shared/src/pricing.ts`. Do not regress.  
 > **Prior work:** [`INVENTORY_PRODUCT_IMPL.md`](./INVENTORY_PRODUCT_IMPL.md) (shipped MVP), [`INVENTORY_UX_POLISH.md`](./INVENTORY_UX_POLISH.md) (D1–D10 complete).
+> **Next commercial pass:** [`INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md`](./INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md) (**Phase 11** - Kirana catalog, batch/expiry FEFO, POS checkout, responsive sales tables).
 
 ---
 
@@ -62,6 +63,9 @@ The external “horizontal inventory platform” prompt is **directionally corre
 | ~~**Scan ops / commercial polish**~~ | ✅ Phase 8 - image OCR, barcode camera, batch lite, billed margins, notifications |
 | ~~**Dealer GTM polish**~~ | ✅ Phase 9 - price lists, Quote→SO, printable PDFs, payment reminders |
 | ~~**Production hardening (optional)**~~ | ✅ Phase 10 - API smoke + 2 mobile bug fixes + expo-camera iOS permission config; live-device smoke still in §31.4 |
+| **Kirana retail/wholesale vertical** | 🔜 Phase 11 - see [`INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md`](./INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md) |
+| **Batch expiry + FEFO** | 🔜 Phase 11.2 (Phase 8.3 was batch-code lite only) |
+| **POS-style counter cart + sales tables** | 🔜 Phase 11.3–11.4 |
 
 ### 1.3 Construction isolation (non-negotiable)
 
@@ -285,6 +289,23 @@ The commercial roadmap (Phases 0–9) is **complete**. Phase 10 is ops + bugfix 
 | 10.4 | Optional deferred (pick ≤1 if smoke clean) | ✅ Skipped (zero-risk) |
 
 **Do NOT in Phase 10:** FIFO, e-invoice IRP, e-way, full GL, RFQ, variants, rental ERP, new paid plans, forking apps, rewriting Phase 0–9.
+
+---
+
+### Phase 11 - Kirana retail & wholesale (ACTIVE) - Deepseek-V4-Flash
+
+Commercial follow-on after Phases 0–10. **Do not implement inside this file** - follow the dedicated checklist:
+
+**[`INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md`](./INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md)**
+
+| Sub-phase | Goal |
+|-----------|------|
+| 11.1 | Kirana vertical + tenant-copy starter item catalog (RETAIL/WHOLESALE only) |
+| 11.2 | Batch manufacture/expiry + FEFO allocation (Construction untouched) |
+| 11.3 | POS-style multi-item counter checkout (issue → invoice); formal SO unchanged |
+| 11.4 | Desktop/tablet sales & stock tables; phone card/scan alternatives |
+
+**Agent rule:** one sub-phase per pass; update the Kirana doc checklist with evidence; run construction regressions every pass.
 
 ---
 
@@ -656,7 +677,8 @@ Phases 0–10 are COMPLETE. Agent pre-flight for the release gate is DONE (§31.
 - API smoke + suites green
 - expo-camera config plugin added to apps/mobile/app.json (rebuild/prebuild required for iOS NSCameraUsageDescription)
 
-Your job is ONLY the three remaining PHYSICAL DEVICE boxes in §31.4. Do NOT start Phase 11 or new features.
+Your job is ONLY the three remaining PHYSICAL DEVICE boxes in §31.4 if still unchecked.
+For **new feature work**, use Phase 11: `docs/INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md` (one sub-phase per pass).
 
 Before testing:
 1) Rebuild the mobile app so the expo-camera plugin is applied (`npx expo prebuild` / EAS build / local native rebuild as your pipeline requires).
@@ -678,7 +700,21 @@ Construction device smoke (`owner@reddyconst.com` / `Test@1234`):
 If you find a concrete bug: fix only that (prefer inventory UI), note under §31.5, re-run shared build + targeted quartet + mobile tsc.
 If clean: tick the three §31.4 device boxes, set §31.1 note to "device smoke PASS", stop.
 
-Do NOT: FIFO, e-invoice, serial/expiry, RFQ, variants, rental, new pricing, hard-code deepseek as chat model, rewrite Phases 0–10.
+Do NOT: e-invoice, RFQ, variants, rental, new pricing, hard-code deepseek as chat model, rewrite Phases 0–10.
+(Batch expiry / FEFO / Kirana catalog belong in Phase 11 doc - not in this smoke pass.)
+```
+
+---
+
+## 10b. Deepseek agent command - Phase 11 Kirana (copy-paste)
+
+```
+Read docs/INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md (authoritative) + this file §1.3 + §3.
+
+Phases 0–10 are COMPLETE. Implement Phase 11 only, one sub-phase per pass (11.1 → 11.2 → 11.3 → 11.4).
+Deepseek-v4-flash = coding agent. Do NOT hard-code it as the in-app chat model (D10).
+
+Start at the first unchecked checklist in the Kirana doc. After the pass: update that doc’s §8, run its §6 commands, stop.
 ```
 
 ---
