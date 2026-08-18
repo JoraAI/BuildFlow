@@ -15,6 +15,7 @@ import { useCreateBill, type Bill } from '@/services/accounting.queries';
 import { useVendors, type PartyRow } from '@/services/party.queries';
 import { toast, BusyOverlay, useBusy } from '@/components/ui';
 import { inventoryBillDetailHref } from '@/utils/navigation';
+import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 import { ScanInvoiceModal } from '@/components/inventory/ScanInvoiceModal';
 
 const BILL_CATEGORIES = [
@@ -26,6 +27,7 @@ const BILL_CATEGORIES = [
 ];
 
 export default function InventoryBillsScreen() {
+  const { translate } = useInventoryLanguage();
   const user = useAuthStore((s) => s.user);
   const { isPhone } = useViewport();
   const { busy, run } = useBusy();
@@ -36,10 +38,12 @@ export default function InventoryBillsScreen() {
 
   return (
     <View className="flex-1 bg-surface">
-      <BusyOverlay visible={busy} title="Updating bills…" />
+      <BusyOverlay visible={busy} title={translate('inventory.page.bills', 'Vendor bills')} />
       <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between">
         <View className="flex-1 mr-2 min-w-[160px]">
-          <Text className="text-2xl font-bold text-text">Vendor bills</Text>
+          <Text className="text-2xl font-bold text-text">
+            {translate('inventory.page.bills', 'Vendor bills')}
+          </Text>
           <Text className="text-sm text-muted mt-0.5">Supplier bills (AP) · {user?.companyName}</Text>
           <Text className="text-xs text-muted mt-1">
             Draft bills are created automatically when you record a GRN. Confirm them here before payment.

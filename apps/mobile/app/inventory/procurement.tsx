@@ -33,6 +33,7 @@ import { useWarehouses, type Warehouse } from '@/services/warehouse.queries';
 import { downloadReportPdf } from '@/services/report-download';
 import { useReorderSuggestions, useOrderReorderItems, type ReorderSuggestion } from '@/services/reorder.queries';
 import { confirmAsync } from '@/utils/confirm';
+import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 
 const APPROVAL_COLOR: Record<string, 'warning' | 'success' | 'danger' | 'neutral'> = {
   DRAFT: 'neutral',
@@ -62,6 +63,7 @@ async function bufferUntilVisible(
 }
 
 export default function InventoryProcurementScreen() {
+  const { translate } = useInventoryLanguage();
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const projectId = user?.defaultProjectId ?? '';
@@ -127,7 +129,9 @@ export default function InventoryProcurementScreen() {
   return (
     <View className="flex-1 bg-surface">
       <View className="px-4 pt-4 pb-2">
-        <Text className="text-2xl font-bold text-text">Procurement</Text>
+        <Text className="text-2xl font-bold text-text">
+          {translate('inventory.page.procurement', 'Procurement')}
+        </Text>
         <Text className="text-sm text-muted mt-0.5">{indentLabel} → Create PO → Record GRN</Text>
       </View>
 
@@ -190,7 +194,7 @@ export default function InventoryProcurementScreen() {
 
       <BusyOverlay
         visible={buffering}
-        title="Updating procurement…"
+        title={translate('inventory.page.procurement', 'Procurement')}
         subtitle="Please wait until the list refreshes. Do not tap again."
       />
 

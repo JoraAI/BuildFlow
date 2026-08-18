@@ -5,6 +5,23 @@ import { z } from 'zod';
 import { InventoryBusinessProfile } from '../inventory-profile';
 import { creditLimitPolicySchema } from './transactions';
 
+const inventoryLanguageEnum = z.enum([
+  'en',
+  'hi',
+  'bn',
+  'te',
+  'mr',
+  'ta',
+  'ur',
+  'gu',
+  'kn',
+  'ml',
+  'pa',
+  'ar',
+  'es',
+  'fr',
+]);
+
 /** Valid inventory business profiles (mirrors the shared enum). */
 const inventoryProfileEnum = z.enum([
   InventoryBusinessProfile.RETAIL,
@@ -198,6 +215,9 @@ export const updateReportSettingsSchema = z.object({
   showLogo: z.boolean().optional(),
   showWatermark: z.boolean().optional(),
   footerText: z.string().max(500).optional(),
+  // Inventory-only app language preference, stored in the shared settings JSON
+  // so construction remains untouched.
+  inventoryLanguage: inventoryLanguageEnum.optional(),
 });
 export type MyProfileUpdateInput = z.infer<typeof myProfileUpdateSchema>;
 export type CreateTicketInput = z.infer<typeof createTicketSchema>;

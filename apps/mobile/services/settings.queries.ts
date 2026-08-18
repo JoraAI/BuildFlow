@@ -143,6 +143,7 @@ export interface ReportSettings {
   showLogo?: boolean;
   showWatermark?: boolean;
   footerText?: string;
+  inventoryLanguage?: string;
 }
 
 export const settingsReportKeys = {

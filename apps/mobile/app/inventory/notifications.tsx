@@ -22,6 +22,7 @@ import {
   useMarkNotificationRead,
   type AppNotification,
 } from '@/services/chat.queries';
+import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 
 function startOfDay(d: Date): number {
   const x = new Date(d);
@@ -60,6 +61,7 @@ function deepLink(n: AppNotification): string | null {
 }
 
 export default function InventoryNotificationsScreen() {
+  const { translate } = useInventoryLanguage();
   const { isPhone } = useViewport();
   const router = useRouter();
   const { data, isLoading, isFetching, refetch } = useNotifications();
@@ -90,14 +92,18 @@ export default function InventoryNotificationsScreen() {
     <View className="flex-1 bg-surface">
       <View className="px-4 pt-4 pb-2 flex-row items-center justify-between">
         <View className="flex-1 mr-2">
-          <Text className="text-2xl font-bold text-text">Notifications</Text>
+          <Text className="text-2xl font-bold text-text">
+            {translate('inventory.page.notifications', 'Notifications')}
+          </Text>
           <Text className="text-sm text-muted mt-0.5">
             Low stock, price anomalies and count variances - no separate product.
           </Text>
         </View>
         {data?.notifications?.length ? (
           <Pressable onPress={() => void markAll.mutate()}>
-            <Text className="text-xs font-semibold text-primary">Mark all read</Text>
+            <Text className="text-xs font-semibold text-primary">
+              {translate('inventory.notifications.markAllRead', 'Mark all read')}
+            </Text>
           </Pressable>
         ) : null}
       </View>

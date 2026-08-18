@@ -15,6 +15,7 @@ import {
 import {
   NewSalesOrderModal, NewChallanModal, SalesReturnModal, PurchaseReturnModal, DispatchChallanSheet, NewQuoteModal,
 } from '@/components/inventory/TransactionModals';
+import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 import {
   useQuotes, useCreateQuote, useQuoteAction, useQuoteToSalesOrder, type Quote,
 } from '@/services/inventory-gtm.queries';
@@ -34,6 +35,7 @@ const STATUS_COLOR: Record<string, 'success' | 'warning' | 'neutral' | 'danger'>
 };
 
 export default function InventorySalesScreen() {
+  const { translate } = useInventoryLanguage();
   const router = useRouter();
   const { busy, run } = useBusy();
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4, K8): desktop/tablet get
@@ -476,10 +478,10 @@ export default function InventorySalesScreen() {
 
   return (
     <View className="flex-1 bg-surface">
-      <BusyOverlay visible={busy} title="Updating sales…" />
+      <BusyOverlay visible={busy} title={translate('inventory.page.sales', 'Sales')} />
       <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between gap-2">
         <View className="flex-1 min-w-[180px] mr-2">
-          <Text className="text-2xl font-bold text-text">Sales</Text>
+          <Text className="text-2xl font-bold text-text">{translate('inventory.page.sales', 'Sales')}</Text>
           <Text className="text-sm text-muted mt-0.5">
             Sales order → delivery challan → invoice. Stock issues also appear here as invoiced counter sales.
           </Text>

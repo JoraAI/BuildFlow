@@ -8,9 +8,18 @@ export async function getTranslations(lang: string) {
   const supportedLanguages = [
     { code: 'en', label: 'English', flag: '🇬🇧' },
     { code: 'hi', label: 'हिन्दी', flag: '🇮🇳' },
+    { code: 'bn', label: 'বাংলা', flag: '🇮🇳' },
+    { code: 'te', label: 'తెలుగు', flag: '🇮🇳' },
     { code: 'mr', label: 'मराठी', flag: '🇮🇳' },
     { code: 'ta', label: 'தமிழ்', flag: '🇮🇳' },
-    { code: 'te', label: 'తెలుగు', flag: '🇮🇳' },
+    { code: 'ur', label: 'اردو', flag: '🇮🇳' },
+    { code: 'gu', label: 'ગુજરાતી', flag: '🇮🇳' },
+    { code: 'kn', label: 'ಕನ್ನಡ', flag: '🇮🇳' },
+    { code: 'ml', label: 'മലയാളം', flag: '🇮🇳' },
+    { code: 'pa', label: 'ਪੰਜਾਬੀ', flag: '🇮🇳' },
+    { code: 'ar', label: 'العربية', flag: '🇦🇪' },
+    { code: 'es', label: 'Español', flag: '🇪🇸' },
+    { code: 'fr', label: 'Français', flag: '🇫🇷' },
   ];
   const roleDashboards: Record<string, string[]> = {
     OWNER: ['budget', 'progress', 'tasks', 'invoices', 'bills', 'punchItems', 'rfis', 'labourCost'],

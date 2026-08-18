@@ -29,6 +29,7 @@ import {
   type PurchaseHistoryRow,
 } from '@/services/inventory-analytics.queries';
 import { formatINR, formatINRCompact, formatDate } from '@/utils/format';
+import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 
 type Tab = 'health' | 'warehouse' | 'margin' | 'purchase';
 
@@ -49,6 +50,7 @@ const CLASSIFICATION_BADGE: Record<
 };
 
 export default function InventoryReportsScreen() {
+  const { translate } = useInventoryLanguage();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isDesktop } = useViewport();
@@ -74,7 +76,7 @@ export default function InventoryReportsScreen() {
       <View className="px-6 py-4 border-b border-border flex-row items-center gap-3 shrink-0">
         <Button label="← Back" variant="ghost" size="sm" onPress={() => router.back()} />
         <Text className="text-xl font-bold text-text flex-1" numberOfLines={1}>
-          Reports & analytics
+          {translate('inventory.page.reports', 'Reports & analytics')}
         </Text>
       </View>
 

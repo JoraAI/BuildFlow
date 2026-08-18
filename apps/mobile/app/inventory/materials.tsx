@@ -27,6 +27,7 @@ import { useVendors, type PartyRow } from '@/services/party.queries';
 import { ImportMappingModal } from '@/components/inventory/ImportMappingModal';
 import { KiranaSkuPicker } from '@/components/inventory/KiranaSkuPicker';
 import { useRouter } from 'expo-router';
+import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 
 /**
  * One saved item-master row with its current aggregate stock summary.
@@ -40,6 +41,15 @@ type MaterialRow = {
   stock: StockSummaryRow | null;
 };
 
+function translatedItemsTitle(
+  itemPluralLabel: string,
+  translate: (key: string, fallback?: string) => string,
+): string {
+  if (itemPluralLabel === 'Materials') return translate('inventory.materials', 'Materials');
+  if (itemPluralLabel === 'Items') return translate('inventory.items', 'Items');
+  return itemPluralLabel;
+}
+
 export default function InventoryMaterialsScreen() {
   const { busy, run } = useBusy();
   const router = useRouter();
@@ -50,6 +60,7 @@ export default function InventoryMaterialsScreen() {
   const itemLabel = getInventoryLabel('item', labelMode);
   const itemPluralLabel = getInventoryLabel('item_plural', labelMode);
   const indentLabel = getInventoryLabel('indent', labelMode);
+  const { translate } = useInventoryLanguage();
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [skuLibraryOpen, setSkuLibraryOpen] = useState(false);
@@ -105,18 +116,22 @@ export default function InventoryMaterialsScreen() {
       <BusyOverlay visible={busy} title={`Updating ${itemPluralLabel.toLowerCase()}…`} />
       <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between">
         <View className="flex-1 mr-2 min-w-[160px]">
-          <Text className="text-2xl font-bold text-text">{itemPluralLabel}</Text>
-          <Text className="text-sm text-muted mt-0.5">Your item master · prices, tax and tracking</Text>
+          <Text className="text-2xl font-bold text-text">
+            {translatedItemsTitle(itemPluralLabel, translate)}
+          </Text>
+          <Text className="text-sm text-muted mt-0.5">
+            {translate('inventory.materials.masterSubtitle', 'Your item master - prices, tax and tracking')}
+          </Text>
         </View>
         <View className={`flex-row gap-2 ${isPhone ? 'mt-2 w-full' : ''}`}>
           <Button
-            label="Import CSV"
+            label={translate('inventory.materials.importCsv', 'Import CSV')}
             variant="secondary"
             size="sm"
             onPress={() => setImportOpen(true)}
           />
           <Button
-            label={`Add ${itemLabel.toLowerCase()}`}
+            label={translate('inventory.materials.addItem', `Add ${itemLabel.toLowerCase()}`)}
             variant="accent"
             size="sm"
             onPress={() => isKirana ? setSkuLibraryOpen(true) : setCreateOpen(true)}
@@ -126,7 +141,7 @@ export default function InventoryMaterialsScreen() {
 
       <View className="px-4">
         <Input
-          label={`Search ${itemPluralLabel.toLowerCase()}`}
+          label={translate('inventory.materials.searchLabel', `Search ${itemPluralLabel.toLowerCase()}`)}
           value={search}
           onChangeText={setSearch}
           placeholder="e.g. atta, biscuit, KIR-058"
@@ -167,14 +182,19 @@ export default function InventoryMaterialsScreen() {
                   </Text>
                   <Text className="text-xs text-muted mt-0.5">
                     {Number(row.stock?.balance ?? 0) > 0
-                      ? `${row.stock?.balance} ${row.unit} in stock`
-                      : 'Out of stock'}
-                    {row.resource.trackingMode === 'BATCH_EXPIRY' ? ' · batch expiry tracked' : ''}
+                      ? `${row.stock?.balance} ${row.unit} ${translate('inventory.materials.inStock', 'in stock')}`
+                      : translate('inventory.materials.outOfStock', 'Out of stock')}
+                    {row.resource.trackingMode === 'BATCH_EXPIRY'
+                      ? ` · ${translate('inventory.materials.batchTracked', 'batch expiry tracked')}`
+                      : ''}
                   </Text>
                   {row.stock?.nextExpiryAt ? (
                     <Text className="text-[11px] text-muted mt-0.5">
-                      Earliest expiry {new Date(row.stock.nextExpiryAt).toLocaleDateString('en-IN')}
-                      {row.stock.activeBatchCount ? ` · ${row.stock.activeBatchCount} active batches` : ''}
+                      {translate('inventory.materials.earliestExpiry', 'Earliest expiry')}{' '}
+                      {new Date(row.stock.nextExpiryAt).toLocaleDateString('en-IN')}
+                      {row.stock.activeBatchCount
+                        ? ` · ${row.stock.activeBatchCount} ${translate('inventory.materials.activeBatches', 'active batches')}`
+                        : ''}
                     </Text>
                   ) : null}
                 </View>
@@ -191,7 +211,12 @@ export default function InventoryMaterialsScreen() {
               </View>
               <View className="flex-row gap-2 mt-3">
                 {isKirana ? (
-                  <Button label="Receive stock" size="sm" variant="accent" onPress={() => setReceiving(row.resource)} />
+                  <Button
+                    label={translate('inventory.materials.receiveStock', 'Receive stock')}
+                    size="sm"
+                    variant="accent"
+                    onPress={() => setReceiving(row.resource)}
+                  />
                 ) : null}
                 <Button label="Edit" size="sm" variant="secondary" onPress={() => setEditing(row.resource)} />
                 <Button label="Delete" size="sm" variant="ghost" onPress={() => void onDelete(row.resource)} />
