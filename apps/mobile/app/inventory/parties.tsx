@@ -16,10 +16,12 @@ import { PartyModal } from '@/components/inventory/PartyModal';
 import { PriceListModal } from '@/components/inventory/PriceListModal';
 import { useViewport } from '@/hooks/useViewport';
 import { Modal, ScrollView } from 'react-native';
+import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 
 type Kind = 'customer' | 'vendor';
 
 export default function InventoryPartiesScreen() {
+  const { translate } = useInventoryLanguage();
   const { busy, run } = useBusy();
   const [kind, setKind] = useState<Kind>('customer');
   const [modal, setModal] = useState<{ kind: Kind; editing: PartyRow | null } | null>(null);
@@ -74,10 +76,12 @@ export default function InventoryPartiesScreen() {
 
   return (
     <View className="flex-1 bg-surface">
-      <BusyOverlay visible={busy} title="Updating parties…" />
+      <BusyOverlay visible={busy} title={translate('inventory.page.parties', 'Parties')} />
       <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between gap-2">
         <View className="flex-1 min-w-[160px]">
-          <Text className="text-2xl font-bold text-text">Parties</Text>
+          <Text className="text-2xl font-bold text-text">
+            {translate('inventory.page.parties', 'Parties')}
+          </Text>
           <Text className="text-sm text-muted mt-0.5">Customers & vendors for invoices and bills</Text>
         </View>
         <Button
@@ -86,7 +90,12 @@ export default function InventoryPartiesScreen() {
           size="sm"
           onPress={() => setModal({ kind, editing: null })}
         />
-        <Button label="Price lists" variant="secondary" size="sm" onPress={() => setPriceOpen(true)} />
+        <Button
+          label={translate('inventory.parties.priceLists', 'Price lists')}
+          variant="secondary"
+          size="sm"
+          onPress={() => setPriceOpen(true)}
+        />
       </View>
 
       <View className="flex-row px-4 pb-2 gap-2">
@@ -97,7 +106,9 @@ export default function InventoryPartiesScreen() {
             className={`px-3 py-1.5 rounded-lg border ${kind === k ? 'bg-primary border-primary' : 'bg-card border-border'}`}
           >
             <Text className={`text-xs font-medium ${kind === k ? 'text-white' : 'text-muted'}`}>
-              {k === 'customer' ? 'Customers' : 'Vendors'}
+              {k === 'customer'
+                ? translate('inventory.parties.customers', 'Customers')
+                : translate('inventory.parties.vendors', 'Vendors')}
             </Text>
           </Pressable>
         ))}

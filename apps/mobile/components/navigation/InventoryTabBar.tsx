@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useViewport } from '@/hooks/useViewport';
 import { useAuthStore } from '@/stores/auth.store';
 import { getInventoryLabel, getInventoryLabelMode } from '@buildflow/shared';
+import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 
 export const INVENTORY_TABS = [
   { key: 'index', label: 'Stock', icon: 'cube-outline', href: '/inventory' },
@@ -49,8 +50,23 @@ function useItemsLabel(): string {
   return getInventoryLabel('item_plural', getInventoryLabelMode(user?.inventoryProfile ?? null));
 }
 
-function tabLabel(tab: InventoryTab, itemsLabel: string): string {
-  return tab.key === 'materials' ? itemsLabel : tab.label;
+function translatedItemsLabel(
+  itemsLabel: string,
+  translate: (key: string, fallback?: string) => string,
+): string {
+  if (itemsLabel === 'Materials') return translate('inventory.materials', 'Materials');
+  if (itemsLabel === 'Items') return translate('inventory.items', 'Items');
+  return itemsLabel;
+}
+
+function translatedTabLabel(
+  tab: InventoryTab,
+  itemsLabel: string,
+  translate: (key: string, fallback?: string) => string,
+): string {
+  if (tab.key === 'materials') return translatedItemsLabel(itemsLabel, translate);
+  if (tab.key === 'index') return translate('inventory.tab.stock', tab.label);
+  return translate(`inventory.tab.${tab.key}`, tab.label);
 }
 
 /** Bottom tab bar for inventory shell (mobile/tablet). */
@@ -60,10 +76,11 @@ export function InventoryMobileTabBar() {
   const pathname = usePathname();
   const { isPhone } = useViewport();
   const itemsLabel = useItemsLabel();
+  const { translate } = useInventoryLanguage();
 
   const renderTab = (tab: InventoryTab, widthClass: string) => {
     const isActive = isActiveTab(tab, pathname);
-    const label = tabLabel(tab, itemsLabel);
+    const label = translatedTabLabel(tab, itemsLabel, translate);
     return (
       <Pressable
         key={tab.key}
@@ -122,13 +139,16 @@ export function InventorySidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const itemsLabel = useItemsLabel();
+  const { translate } = useInventoryLanguage();
 
   return (
     <View className="w-56 bg-card border-r border-border py-4 px-3 gap-1">
-      <Text className="text-xs font-bold text-muted uppercase px-3 pb-2">Store</Text>
+      <Text className="text-xs font-bold text-muted uppercase px-3 pb-2">
+        {translate('inventory.shell.store', 'Store')}
+      </Text>
       {INVENTORY_TABS.map((tab) => {
         const isActive = isActiveTab(tab, pathname);
-        const label = tabLabel(tab, itemsLabel);
+        const label = translatedTabLabel(tab, itemsLabel, translate);
         return (
           <Pressable
             key={tab.key}

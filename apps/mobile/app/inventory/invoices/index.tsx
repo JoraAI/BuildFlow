@@ -15,8 +15,10 @@ import { useCreateInvoice } from '@/services/accounting.queries';
 import { useCustomers, type PartyRow } from '@/services/party.queries';
 import { toast, BusyOverlay, useBusy } from '@/components/ui';
 import { inventoryInvoiceDetailHref } from '@/utils/navigation';
+import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 
 export default function InventoryInvoicesScreen() {
+  const { translate } = useInventoryLanguage();
   const user = useAuthStore((s) => s.user);
   const { isPhone } = useViewport();
   const { busy, run } = useBusy();
@@ -26,10 +28,12 @@ export default function InventoryInvoicesScreen() {
 
   return (
     <View className="flex-1 bg-surface">
-      <BusyOverlay visible={busy} title="Updating invoices…" />
+      <BusyOverlay visible={busy} title={translate('inventory.page.invoices', 'Sales invoices')} />
       <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between">
         <View className="flex-1 mr-2 min-w-[160px]">
-          <Text className="text-2xl font-bold text-text">Sales invoices</Text>
+          <Text className="text-2xl font-bold text-text">
+            {translate('inventory.page.invoices', 'Sales invoices')}
+          </Text>
           <Text className="text-sm text-muted mt-0.5">Client invoices (AR) · {user?.companyName}</Text>
           <Text className="text-xs text-muted mt-1">
             Checkout opens its invoice directly so you can mark it as sent and record payment.

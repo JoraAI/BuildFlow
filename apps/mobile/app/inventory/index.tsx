@@ -25,6 +25,7 @@ import { useWarehouses, useBarcodeLookup, type Warehouse } from '@/services/ware
 import DashboardCards, { KiranaKpiCards } from '@/components/inventory/DashboardCards';
 import AnomalyStrip from '@/components/inventory/AnomalyStrip';
 import { BarcodeScannerOverlay } from '@/components/inventory/BarcodeScannerOverlay';
+import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 import {
   useStockSummary,
   useIssueStock,
@@ -227,6 +228,13 @@ export default function InventoryStockScreen() {
     }
   };
   const itemPluralLabel = getInventoryLabel('item_plural', labelMode);
+  const { translate } = useInventoryLanguage();
+  const localizedItemsLabel =
+    itemPluralLabel === 'Materials'
+      ? translate('inventory.materials', 'Materials')
+      : itemPluralLabel === 'Items'
+        ? translate('inventory.items', 'Items')
+        : itemPluralLabel;
 
   const onRefresh = () => {
     void refetch();
@@ -236,7 +244,7 @@ export default function InventoryStockScreen() {
     <View className="flex-1 bg-surface">
       <BusyOverlay
         visible={buffering}
-        title="Updating stock…"
+        title={translate('inventory.stock.title', 'Stock')}
         subtitle="Please wait until stock and the sale refresh. Do not tap again."
       />
 
@@ -246,12 +254,14 @@ export default function InventoryStockScreen() {
         }`}
       >
         <View className={isDesktop ? 'flex-1 min-w-0' : undefined}>
-          <Text className="text-2xl font-bold text-text">Stock</Text>
+          <Text className="text-2xl font-bold text-text">
+            {translate('inventory.stock.title', 'Stock')}
+          </Text>
           <Text className="text-sm text-muted mt-0.5">
             {user?.companyName}
             {multiWarehouseEnabled
-              ? ` · ${warehouses?.find((w) => w.id === selectedLocationId)?.name ?? 'All stores'}`
-              : ' · 1 store'}
+              ? ` · ${warehouses?.find((w) => w.id === selectedLocationId)?.name ?? translate('inventory.stock.allStores', 'All stores')}`
+              : ` · ${translate('inventory.stock.oneStore', '1 store')}`}
           </Text>
         </View>
         {/* Desktop: compact toolbar (Materials + Bulk issue). Phone: same actions, wrap neatly. */}
@@ -259,14 +269,18 @@ export default function InventoryStockScreen() {
           className={`flex-row items-center gap-2 ${isDesktop ? '' : 'flex-wrap'}`}
         >
           <Button
-            label={itemPluralLabel}
+            label={localizedItemsLabel}
             variant="secondary"
             size="sm"
             disabled={buffering}
             onPress={() => router.push('/inventory/materials' as never)}
           />
           <Button
-            label={posCheckoutEnabled ? 'Checkout' : 'Bulk issue'}
+            label={
+              posCheckoutEnabled
+                ? translate('inventory.stock.checkout', 'Checkout')
+                : translate('inventory.stock.bulkIssue', 'Bulk issue')
+            }
             accessibilityLabel={posCheckoutEnabled ? 'Open counter checkout' : 'Open bulk issue'}
             variant="accent"
             size="sm"
@@ -278,7 +292,7 @@ export default function InventoryStockScreen() {
           />
           {stockAdjustEnabled ? (
             <Button
-              label="Import opening stock"
+                label={translate('inventory.stock.importOpening', 'Import opening stock')}
               variant="secondary"
               size="sm"
               disabled={buffering}
@@ -293,11 +307,11 @@ export default function InventoryStockScreen() {
           {multiWarehouseEnabled ? (
             <View className="min-w-[180px] flex-1">
               <Select
-                label="Warehouse"
+                label={translate('inventory.stock.warehouse', 'Warehouse')}
                 value={selectedLocationId}
                 options={(warehouses ?? []).map((w) => ({ title: `${w.name}${w.isDefault ? ' (default)' : ''}`, value: w.id }))}
                 onChange={(v) => v && setSelectedLocationId(v)}
-                placeholder="All stores"
+                placeholder={translate('inventory.stock.allStores', 'All stores')}
               />
             </View>
           ) : null}
@@ -305,20 +319,20 @@ export default function InventoryStockScreen() {
             <View className="flex-1 min-w-[220px] flex-row items-end gap-2">
               <View className="flex-1">
                 <Input
-                  label="Barcode / scan"
+                  label={translate('inventory.stock.barcode', 'Barcode / scan')}
                   value={barcodeInput}
                   onChangeText={setBarcodeInput}
-                  placeholder="Type or paste a barcode"
+                  placeholder={translate('inventory.stock.barcodePlaceholder', 'Type or paste a barcode')}
                 />
               </View>
               <Button
-                label="Scan"
+                label={translate('inventory.stock.scan', 'Scan')}
                 variant="secondary"
                 size="sm"
                 onPress={() => setScannerOpen(true)}
               />
               <Button
-                label="Find"
+                label={translate('inventory.stock.find', 'Find')}
                 variant="secondary"
                 size="sm"
                 disabled={!barcodeInput.trim() || buffering}
@@ -353,27 +367,27 @@ export default function InventoryStockScreen() {
               <View className="mb-3">
                 <Input
                   label=""
-                  accessibilityLabel={`Search ${itemPluralLabel.toLowerCase()}`}
+                  accessibilityLabel={`Search ${localizedItemsLabel.toLowerCase()}`}
                   value={stockSearch}
                   onChangeText={setStockSearch}
-                  placeholder={`Search ${itemPluralLabel.toLowerCase()}…`}
+                  placeholder={translate('inventory.stock.searchPlaceholder', `Search ${localizedItemsLabel.toLowerCase()}…`)}
                 />
               </View>
               <View className={`flex-row gap-3 ${isDesktop ? '' : 'flex-wrap'}`}>
                 <Card className="flex-1 min-w-[140px] p-4">
-                  <Text className="text-xs text-muted">{itemPluralLabel}</Text>
+                  <Text className="text-xs text-muted">{localizedItemsLabel}</Text>
                   <Text className="text-2xl font-bold text-primary">{totals.items}</Text>
                 </Card>
                 <Card className="flex-1 min-w-[140px] p-4">
-                  <Text className="text-xs text-muted">On hand</Text>
+                  <Text className="text-xs text-muted">{translate('inventory.stock.onHand', 'On hand')}</Text>
                   <Text className="text-2xl font-bold text-primary">{totals.onHand}</Text>
                 </Card>
                 <Card className="flex-1 min-w-[140px] p-4">
-                  <Text className="text-xs text-muted">Received</Text>
+                  <Text className="text-xs text-muted">{translate('inventory.stock.received', 'Received')}</Text>
                   <Text className="text-2xl font-bold text-success">{totals.received}</Text>
                 </Card>
                 <Card className="flex-1 min-w-[140px] p-4">
-                  <Text className="text-xs text-muted">Issued</Text>
+                  <Text className="text-xs text-muted">{translate('inventory.stock.issued', 'Issued')}</Text>
                   <Text className="text-2xl font-bold text-danger">{totals.issued}</Text>
                 </Card>
               </View>
@@ -383,7 +397,9 @@ export default function InventoryStockScreen() {
                   Non-Kirana verticals keep the executive DashboardCards row. */}
               <View className="mt-3">
                 <Text className="text-xs font-semibold text-muted mb-2 uppercase tracking-wide">
-                  {kiranaVertical ? 'Store overview' : 'Executive overview'}
+                  {kiranaVertical
+                    ? translate('inventory.stock.storeOverview', 'Store overview')
+                    : translate('inventory.stock.executiveOverview', 'Executive overview')}
                 </Text>
                 {kiranaVertical ? <KiranaKpiCards /> : <DashboardCards />}
               </View>
@@ -401,7 +417,9 @@ export default function InventoryStockScreen() {
                 </View>
               ) : null}
 
-              <Text className="text-sm font-bold text-text mt-4 mb-2">Stock summary</Text>
+              <Text className="text-sm font-bold text-text mt-4 mb-2">
+                {translate('inventory.stock.summary', 'Stock summary')}
+              </Text>
             </View>
           }
           renderItem={({ item }) => {
@@ -433,7 +451,7 @@ export default function InventoryStockScreen() {
                   </Text>
                   <View className="flex-[1.8] flex-row flex-wrap justify-end gap-1">
                     <Button
-                      label="Issue"
+                      label={translate('inventory.stock.issue', 'Issue')}
                       size="sm"
                       variant="secondary"
                       disabled={buffering || Number(item.balance) <= 0}
@@ -444,7 +462,7 @@ export default function InventoryStockScreen() {
                     />
                     {stockAdjustEnabled ? (
                       <Button
-                        label="Adjust"
+                        label={translate('inventory.stock.adjust', 'Adjust')}
                         size="sm"
                         variant="secondary"
                         disabled={buffering}

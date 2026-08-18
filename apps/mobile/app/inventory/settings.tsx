@@ -18,9 +18,12 @@ import {
   usePendingInvites,
   useCreateInvite,
   useRevokeInvite,
+  useReportSettings,
+  useUpdateReportSettings,
 } from '@/services/settings.queries';
 import { downloadTallyXml } from '@/services/report-download';
 import { toast } from '@/components/ui';
+import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/constants/i18n';
 import {
   PLAN_PRICES_INR,
   INVENTORY_PROFILE_OPTIONS,
@@ -32,6 +35,7 @@ import {
   type SubscriptionPlanKey,
 } from '@buildflow/shared';
 import { useSetInventoryVertical } from '@/services/settings.queries';
+import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 
 export default function InventorySettingsScreen() {
   const { busy, run } = useBusy();
@@ -39,13 +43,16 @@ export default function InventorySettingsScreen() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const refreshUser = useAuthStore((s) => s.refreshUser);
+  const { translate } = useInventoryLanguage();
   const { data: company } = useCompany();
+  const { data: reportSettings } = useReportSettings();
   const { data: subscription } = useSubscription();
   const { data: users } = useUsers();
   const { data: invites } = usePendingInvites();
   const createInvite = useCreateInvite();
   const revokeInvite = useRevokeInvite();
   const updateCompany = useUpdateCompany();
+  const updateReportSettings = useUpdateReportSettings();
   /** INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.1): vertical starter catalog. */
   const kiranaEnabled = hasInventoryFeature(
     (user?.subscriptionPlan ?? 'INVENTORY') as SubscriptionPlanKey,
@@ -57,6 +64,7 @@ export default function InventorySettingsScreen() {
   const [profile, setProfile] = useState<string>('GENERAL');
   /** INVENTORY_KIRANA_RETAIL_WHOLESALE (11.1.5b K2): shop vertical picker (OWNER). */
   const [vertical, setVertical] = useState<string>('');
+  const [inventoryLanguage, setInventoryLanguage] = useState<SupportedLanguage>('en');
   /** INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): credit-limit policy (OWNER). */
   const [creditPolicy, setCreditPolicy] = useState<'ALLOW' | 'WARN' | 'BLOCK'>('WARN');
   /** INVENTORY_HORIZONTAL_PLATFORM (Phase 4.4): PO approval thresholds (OWNER). */
@@ -75,6 +83,15 @@ export default function InventorySettingsScreen() {
   useEffect(() => {
     if (company?.creditLimitPolicy) setCreditPolicy(company.creditLimitPolicy);
   }, [company?.creditLimitPolicy]);
+
+  useEffect(() => {
+    const code = reportSettings?.inventoryLanguage;
+    if (SUPPORTED_LANGUAGES.some((lang) => lang.code === code)) {
+      setInventoryLanguage(code as SupportedLanguage);
+    } else {
+      setInventoryLanguage('en');
+    }
+  }, [reportSettings?.inventoryLanguage]);
 
   useEffect(() => {
     if (company?.poAutoApproveBelow != null) setPoAutoApproveBelow(String(company.poAutoApproveBelow));
@@ -141,11 +158,24 @@ export default function InventorySettingsScreen() {
     });
   };
 
+  const saveInventoryLanguage = async () => {
+    await run(async () => {
+      try {
+        await updateReportSettings.mutateAsync({ inventoryLanguage });
+        toast.success(translate('inventory.settings.language.saved', 'Inventory language saved'));
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Could not save inventory language');
+      }
+    });
+  };
+
   return (
     <View className="flex-1 bg-surface">
       <BusyOverlay visible={busy} title="Saving settings…" />
       <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
-        <Text className="text-2xl font-bold text-text mb-1">Settings</Text>
+        <Text className="text-2xl font-bold text-text mb-1">
+          {translate('inventory.tab.settings', 'Settings')}
+        </Text>
         <Text className="text-sm text-muted mb-4">Inventory account · {user?.companyName}</Text>
 
         {/* Plan card */}
@@ -177,6 +207,38 @@ export default function InventorySettingsScreen() {
           </View>
         </Card>
         {/* Business profile (INVENTORY_HORIZONTAL_PLATFORM Phase 0) */}
+        <Card className="p-5 mb-4">
+          <Text className="text-base font-bold text-text mb-1">
+            {translate('inventory.settings.language.title', 'Language')}
+          </Text>
+          <Text className="text-xs text-muted mb-3">
+            {translate(
+              'inventory.settings.language.help',
+              'Choose the inventory app language. This affects only the inventory system.',
+            )}
+          </Text>
+          <Select
+            label={translate('inventory.settings.language.label', 'App language')}
+            value={inventoryLanguage}
+            onChange={(v) => v && setInventoryLanguage(v as SupportedLanguage)}
+            options={SUPPORTED_LANGUAGES.map((lang) => ({
+              title: `${lang.flag} ${lang.label}`,
+              value: lang.code,
+            }))}
+            disabled={user?.role !== 'OWNER'}
+          />
+          {user?.role === 'OWNER' ? (
+            <View className="mt-3">
+              <Button
+                label={translate('inventory.settings.language.save', 'Save language')}
+                variant="secondary"
+                size="sm"
+                loading={updateReportSettings.isPending}
+                onPress={saveInventoryLanguage}
+              />
+            </View>
+          ) : null}
+        </Card>
         <Card className="p-5 mb-4">
           <Text className="text-base font-bold text-text mb-1">Business profile</Text>
           <Text className="text-xs text-muted mb-3">

@@ -16,17 +16,27 @@ import { CompanyLogo } from '@/components/ui/Avatar';
 import { AssistantFab } from '@/components/navigation/AssistantFab';
 import { AssistantOverlay } from '@/components/assistant/AssistantOverlay';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
+import { InventoryLanguageProvider, useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.5): in-app notification bell.
 import { useRouter } from 'expo-router';
 import { useUnreadCount } from '@/services/chat.queries';
 
 export default function InventoryLayout() {
+  return (
+    <InventoryLanguageProvider>
+      <InventoryLayoutBody />
+    </InventoryLanguageProvider>
+  );
+}
+
+function InventoryLayoutBody() {
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { isDesktop } = useViewport();
   const pathname = usePathname();
   const router = useRouter();
+  const { translate } = useInventoryLanguage();
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.5): unread badge on the bell.
   const { data: unreadCount } = useUnreadCount();
 
@@ -69,7 +79,9 @@ export default function InventoryLayout() {
                 <View className="w-8 h-8 rounded-lg bg-primary items-center justify-center">
                   <Text className="text-accent font-bold text-sm">BF</Text>
                 </View>
-                <Text className="text-sm font-bold text-text">BuildFlow · Inventory</Text>
+                <Text className="text-sm font-bold text-text">
+                  {translate('inventory.shell.title', 'BuildFlow · Inventory')}
+                </Text>
               </View>
               <View className="flex-1" />
               <Pressable

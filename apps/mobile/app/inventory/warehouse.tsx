@@ -26,6 +26,7 @@ import {
   type StockCount,
 } from '@/services/warehouse.queries';
 import { WarehouseModal, TransferModal, CountModal } from '@/components/inventory/WarehouseModals';
+import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 
 type Tab = 'locations' | 'transfers' | 'counts';
 
@@ -38,6 +39,7 @@ const STATUS_COLOR: Record<string, 'success' | 'warning' | 'neutral' | 'danger'>
 };
 
 export default function InventoryWarehouseScreen() {
+  const { translate } = useInventoryLanguage();
   const { busy, run } = useBusy();
   const [tab, setTab] = useState<Tab>('locations');
   const [whOpen, setWhOpen] = useState(false);
@@ -255,10 +257,12 @@ export default function InventoryWarehouseScreen() {
 
   return (
     <View className="flex-1 bg-surface">
-      <BusyOverlay visible={busy} title="Updating warehouse…" />
+      <BusyOverlay visible={busy} title={translate('inventory.page.warehouse', 'Warehouse')} />
       <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between gap-2">
         <View className="flex-1 min-w-[180px] mr-2">
-          <Text className="text-2xl font-bold text-text">Warehouse</Text>
+          <Text className="text-2xl font-bold text-text">
+            {translate('inventory.page.warehouse', 'Warehouse')}
+          </Text>
           <Text className="text-sm text-muted mt-0.5">
             Multi-location stock, transfers and stock counts.
           </Text>
