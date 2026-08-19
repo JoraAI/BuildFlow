@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import {
   Modal,
   View,
@@ -11,13 +11,11 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { NavBackButton, NavIconButton } from '@/components/layout/NavBackButton';
 import { useAssistantStore } from '@/stores/assistant.store';
 import { useAuthStore } from '@/stores/auth.store';
 import { useClearChatHistory } from '@/services/chat.queries';
 import { useViewport } from '@/hooks/useViewport';
 import { AssistantChatContent } from '@/components/assistant/AssistantChatContent';
-import { desktopAssistantPanelStyle } from '@/components/layout/fab-layout';
 
 export function AssistantOverlay() {
   const isOpen = useAssistantStore((s) => s.isOpen);
@@ -30,21 +28,24 @@ export function AssistantOverlay() {
   const { isDesktop } = useViewport();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const slideX = useRef(new Animated.Value(width)).current;
+  const panelWidth = useMemo(
+    () => Math.min(isDesktop ? 420 : Math.round(width * 0.92), width),
+    [isDesktop, width],
+  );
+  const slideX = useRef(new Animated.Value(420)).current;
 
   useEffect(() => {
-    if (isDesktop) return;
     if (isOpen) {
-      slideX.setValue(width);
+      slideX.setValue(panelWidth);
       Animated.timing(slideX, {
         toValue: 0,
         duration: 280,
         useNativeDriver: true,
       }).start();
     } else {
-      slideX.setValue(width);
+      slideX.setValue(panelWidth);
     }
-  }, [isOpen, isDesktop, width, slideX]);
+  }, [isOpen, panelWidth, slideX]);
 
   const handleNewChat = () => {
     if (clearHistory.isPending) return;
@@ -54,12 +55,8 @@ export function AssistantOverlay() {
   };
 
   const handleClose = () => {
-    if (isDesktop) {
-      close();
-      return;
-    }
     Animated.timing(slideX, {
-      toValue: width,
+      toValue: panelWidth,
       duration: 220,
       useNativeDriver: true,
     }).start(({ finished }) => {
@@ -71,7 +68,7 @@ export function AssistantOverlay() {
     <Modal
       visible={isOpen}
       transparent
-      animationType={isDesktop ? 'fade' : 'none'}
+      animationType="none"
       onRequestClose={handleClose}
       statusBarTranslucent
     >
@@ -85,26 +82,25 @@ export function AssistantOverlay() {
 
         <Animated.View
           style={[
-            isDesktop ? styles.desktopPanel : styles.mobilePanel,
-            isDesktop
-              ? desktopAssistantPanelStyle()
-              : {
-                  paddingTop: insets.top,
-                  paddingBottom: insets.bottom,
-                  transform: [{ translateX: slideX }],
-                },
+            styles.panel,
+            {
+              width: panelWidth,
+              paddingTop: Math.max(insets.top, 8),
+              paddingBottom: insets.bottom,
+              transform: [{ translateX: slideX }],
+            },
           ]}
         >
           <View style={styles.header}>
             <View style={styles.headerIcon}>
-              <Ionicons name="chatbubble-ellipses" size={22} color="#1E3A5F" />
+              <Ionicons name="chatbubble-ellipses" size={20} color="#1E3A5F" />
             </View>
             <View style={styles.headerText}>
               <Text style={styles.headerTitle}>BuildFlow Assistant</Text>
-              <Text style={styles.headerSubtitle}>
+              <Text style={styles.headerSubtitle} numberOfLines={1}>
                 {isInventory
-                  ? 'Ask about stock, bills, invoices & GST'
-                  : 'Ask about projects, bills & GST'}
+                  ? 'Stock, POs, GRNs, invoices & GST'
+                  : 'Projects, bills, estimates & GST'}
               </Text>
             </View>
             <Pressable
@@ -113,15 +109,19 @@ export function AssistantOverlay() {
               accessibilityRole="button"
               accessibilityLabel="New chat"
               hitSlop={8}
-              style={styles.newChatBtn}
+              style={styles.headerBtn}
             >
-              <Ionicons name="refresh-outline" size={20} color="#1E3A5F" />
+              <Ionicons name="refresh-outline" size={18} color="#FFFFFF" />
             </Pressable>
-            {isDesktop ? (
-              <NavIconButton onPress={handleClose} icon="close" accessibilityLabel="Close assistant" />
-            ) : (
-              <NavBackButton onPress={handleClose} label="Close" icon="close" size="sm" />
-            )}
+            <Pressable
+              onPress={handleClose}
+              accessibilityRole="button"
+              accessibilityLabel="Close assistant"
+              hitSlop={8}
+              style={styles.headerBtn}
+            >
+              <Ionicons name="close" size={20} color="#FFFFFF" />
+            </Pressable>
           </View>
 
           <View style={styles.body}>
@@ -139,46 +139,26 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    backgroundColor: 'rgba(15, 23, 42, 0.4)',
   },
-  mobilePanel: {
+  panel: {
     position: 'absolute',
     top: 0,
     right: 0,
     bottom: 0,
-    width: '92%',
-    backgroundColor: '#F8FAFC',
-    borderTopLeftRadius: 20,
-    borderBottomLeftRadius: 20,
+    backgroundColor: '#F1F5F9',
+    borderTopLeftRadius: 24,
+    borderBottomLeftRadius: 24,
     overflow: 'hidden',
     ...Platform.select({
       web: {
-        boxShadow: '-12px 0 32px rgba(15, 23, 42, 0.18)',
+        boxShadow: '-16px 0 40px rgba(15, 23, 42, 0.22)',
       },
       default: {
-        elevation: 16,
+        elevation: 20,
         shadowColor: '#0F172A',
         shadowOffset: { width: -8, height: 0 },
-        shadowOpacity: 0.18,
-        shadowRadius: 24,
-      },
-    }),
-  },
-  desktopPanel: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    ...Platform.select({
-      web: {
-        boxShadow: '0 20px 48px rgba(15, 23, 42, 0.18)',
-      },
-      default: {
-        elevation: 16,
-        shadowColor: '#0F172A',
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.18,
+        shadowOpacity: 0.2,
         shadowRadius: 24,
       },
     }),
@@ -186,43 +166,40 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: '#1E3A5F',
   },
   headerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#F59E0B',
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerText: {
     flex: 1,
-    marginLeft: 12,
-  },
-  newChatBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginLeft: 10,
     marginRight: 8,
   },
+  headerBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
+  },
   headerTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#FFFFFF',
   },
   headerSubtitle: {
-    fontSize: 12,
-    color: '#64748B',
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.7)',
     marginTop: 2,
   },
   body: {

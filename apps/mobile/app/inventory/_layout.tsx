@@ -63,7 +63,7 @@ function InventoryLayoutBody() {
       <View className="flex-1 flex-row min-h-0">
         {isDesktop && <InventorySidebar />}
 
-        <View className="flex-1 flex-col min-w-0 min-h-0">
+        <View className="flex-1 flex-col min-w-0 min-h-0 relative">
           {/* Top bar (hidden on detail routes which render their own header) */}
           {!isDetailRoute ? (
             <View

@@ -16,6 +16,7 @@ import {
 import { useChatHistory, useSendChatMessage, type ChatMessage } from '@/services/chat.queries';
 import { useAuthStore } from '@/stores/auth.store';
 import { useAssistantStore } from '@/stores/assistant.store';
+import { Ionicons } from '@expo/vector-icons';
 import { formatTime } from '@/utils/format';
 
 const CONSTRUCTION_CHIPS = [
@@ -212,11 +213,15 @@ export function AssistantChatContent({ projectId }: { projectId?: string }) {
     const isUser = !item.isBot;
     return (
       <View style={[styles.row, isUser ? styles.rowUser : styles.rowBot]}>
+        {!isUser ? (
+          <View style={styles.botAvatar}>
+            <Ionicons name="sparkles" size={12} color="#1E3A5F" />
+          </View>
+        ) : null}
         <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleBot]}>
           {isUser ? (
             <Text style={[styles.msgText, styles.msgTextUser]}>{item.message}</Text>
           ) : (
-            // D11: bot answers render markdown (headings, bold, lists, tables).
             <View style={styles.mdBlock}>
               <MarkdownBlocks content={item.message} />
             </View>
@@ -249,13 +254,16 @@ export function AssistantChatContent({ projectId }: { projectId?: string }) {
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
           ListEmptyComponent={
             <View style={styles.empty}>
+              <View style={styles.emptyIcon}>
+                <Ionicons name="sparkles" size={22} color="#1E3A5F" />
+              </View>
               <Text style={styles.emptyTitle}>How can I help?</Text>
               <Text style={styles.emptyBody}>
                 {isInventory
                   ? 'Ask about stock, POs, GRNs, invoices, or vendor bills. I fetch live data for anything your role can access.'
                   : projectId
-                    ? 'Ask about this project - status, bills, estimates, BOQ, or overdue tasks. I can fetch live data when you have permission.'
-                    : 'Ask about project status, estimates, bills, GST, or overdue tasks. I can list and update items you are permitted to access.'}
+                    ? 'Ask about this project — status, bills, estimates, BOQ, or overdue tasks.'
+                    : 'Ask about project status, estimates, bills, GST, or overdue tasks.'}
               </Text>
             </View>
           }
@@ -305,8 +313,10 @@ export function AssistantChatContent({ projectId }: { projectId?: string }) {
           style={[styles.sendBtn, (!text.trim() || sendMsg.isPending) && styles.sendBtnDisabled]}
           onPress={() => handleSend()}
           disabled={!text.trim() || sendMsg.isPending}
+          accessibilityRole="button"
+          accessibilityLabel="Send message"
         >
-          <Text style={styles.sendBtnText}>Send</Text>
+          <Ionicons name="send" size={16} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -314,17 +324,36 @@ export function AssistantChatContent({ projectId }: { projectId?: string }) {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
+  flex: { flex: 1, backgroundColor: '#F1F5F9' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { padding: 16, paddingBottom: 8, flexGrow: 1 },
-  empty: { padding: 32, alignItems: 'center', marginTop: 40 },
+  empty: { padding: 28, alignItems: 'center', marginTop: 28 },
+  emptyIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#F59E0B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1E3A5F', marginBottom: 8 },
-  emptyBody: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 20 },
-  row: { flexDirection: 'row', marginBottom: 10 },
+  emptyBody: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 21 },
+  row: { flexDirection: 'row', marginBottom: 12, alignItems: 'flex-end' },
   rowUser: { justifyContent: 'flex-end' },
   rowBot: { justifyContent: 'flex-start' },
-  bubble: { maxWidth: '82%', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
-  bubbleUser: { backgroundColor: '#F59E0B', borderBottomRightRadius: 4 },
+  botAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#F59E0B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+    marginBottom: 2,
+  },
+  bubble: { maxWidth: '78%', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10 },
+  bubbleUser: { backgroundColor: '#1E3A5F', borderBottomRightRadius: 4 },
   bubbleBot: {
     backgroundColor: '#FFFFFF',
     borderBottomLeftRadius: 4,
@@ -334,7 +363,6 @@ const styles = StyleSheet.create({
   msgText: { fontSize: 15, lineHeight: 21 },
   msgTextUser: { color: '#FFFFFF' },
   msgTextBot: { color: '#0F172A' },
-  // D11: markdown block styles for bot bubbles.
   mdBlock: { marginBottom: 4 },
   mdInline: { fontSize: 15, lineHeight: 21, color: '#0F172A' },
   mdBold: { fontWeight: '700' },
@@ -359,54 +387,55 @@ const styles = StyleSheet.create({
   mdTable: {
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    borderRadius: 6,
+    borderRadius: 8,
     marginVertical: 6,
     overflow: 'hidden',
   },
-  mdTableHeaderRow: { backgroundColor: '#F1F5F9' },
+  mdTableHeaderRow: { backgroundColor: '#F8FAFC' },
   mdTableRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
   mdTableCell: { flex: 1, paddingHorizontal: 6, paddingVertical: 4, fontSize: 13, lineHeight: 18 },
   time: { fontSize: 10, marginTop: 4, alignSelf: 'flex-end' },
-  timeUser: { color: 'rgba(255,255,255,0.8)' },
+  timeUser: { color: 'rgba(255,255,255,0.7)' },
   timeBot: { color: '#94A3B8' },
   typingDots: { paddingVertical: 2 },
-  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, paddingBottom: 6 },
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 14, paddingBottom: 8, gap: 6 },
   chip: {
-    backgroundColor: '#E0E7EF',
-    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    margin: 3,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  chipText: { fontSize: 12, color: '#1E3A5F', fontWeight: '500' },
+  chipText: { fontSize: 12, color: '#1E3A5F', fontWeight: '600' },
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    padding: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
-    minHeight: 56,
   },
   input: {
     flex: 1,
-    minHeight: 40,
-    maxHeight: 100,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    minHeight: 42,
+    maxHeight: 110,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     fontSize: 15,
     color: '#0F172A',
     backgroundColor: '#F1F5F9',
-    borderRadius: 20,
+    borderRadius: 22,
     marginRight: 8,
   },
   sendBtn: {
     backgroundColor: '#1E3A5F',
-    borderRadius: 20,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
+    borderRadius: 21,
+    width: 42,
+    height: 42,
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  sendBtnDisabled: { opacity: 0.4 },
-  sendBtnText: { color: '#FFFFFF', fontWeight: '600', fontSize: 14 },
+  sendBtnDisabled: { opacity: 0.35 },
 });
