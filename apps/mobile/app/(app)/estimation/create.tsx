@@ -39,13 +39,37 @@ function paramString(value: string | string[] | undefined): string | undefined {
 }
 
 export default function CreateEstimateScreen() {
-  const { projectId, fromProposal, estimateId: routeEstimateId } = useLocalSearchParams<{
+  const { projectId, fromProposal, estimateId: routeEstimateId, reset } = useLocalSearchParams<{
     projectId: string;
     fromProposal?: string;
     estimateId?: string;
+    reset?: string;
   }>();
+  const resolvedProjectId = paramString(projectId) ?? '';
   const proposalId = paramString(fromProposal);
   const editEstimateId = paramString(routeEstimateId);
+  const resetToken = paramString(reset) ?? '';
+  const sessionKey = `${resetToken}|${resolvedProjectId}|${proposalId ?? ''}|${editEstimateId ?? ''}`;
+
+  return (
+    <CreateEstimateWizard
+      key={sessionKey}
+      projectId={resolvedProjectId}
+      proposalId={proposalId}
+      editEstimateId={editEstimateId}
+    />
+  );
+}
+
+function CreateEstimateWizard({
+  projectId,
+  proposalId,
+  editEstimateId,
+}: {
+  projectId: string;
+  proposalId?: string;
+  editEstimateId?: string;
+}) {
   const isEditMode = Boolean(editEstimateId);
 
   const createMut = useCreateEstimate(projectId);
@@ -243,6 +267,7 @@ export default function CreateEstimateScreen() {
 
         {step === 2 && estimateId && (
           <EstimateBuildStep
+            key={estimateId}
             estimateId={estimateId}
             projectId={projectId}
             overheadPct={parseFloat(overheadPct) || 0}

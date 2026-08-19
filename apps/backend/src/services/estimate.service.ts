@@ -510,6 +510,7 @@ export async function deleteSection(
   if (!section) throw ApiError.notFound('Section not found');
 
   await prisma.estimateSection.delete({ where: { id: sectionId } });
+  await persistComputedTotals(companyId, estimateId);
 
   await recordAudit({
     companyId,
@@ -650,7 +651,14 @@ export async function deleteItem(
 
   await getEstimateForEditing(companyId, item.estimateId);
 
+  // BOQ rows may still point at this line; unlink so Restrict FKs don't swallow the delete.
+  await prisma.bOQItem.updateMany({
+    where: { estimateItemId: itemId },
+    data: { estimateItemId: null },
+  });
+
   await prisma.estimateItem.delete({ where: { id: itemId } });
+  await persistComputedTotals(companyId, item.estimateId);
 
   await recordAudit({
     companyId,

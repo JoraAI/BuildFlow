@@ -11,6 +11,7 @@ export {
   inventoryStockItemHref,
   reportDetailHref,
   createReportHref,
+  createEstimateHref,
 } from './navigation-paths';
 
 /**

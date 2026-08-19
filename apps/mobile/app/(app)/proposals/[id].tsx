@@ -19,7 +19,7 @@ import {
 } from '@/components/ui';
 import { ActionBar } from '@/components/layout/ActionBar';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
-import { navigateAppBack, dismissTo, DISMISS } from '@/utils/navigation';
+import { navigateAppBack, dismissTo, DISMISS, createEstimateHref } from '@/utils/navigation';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { confirmAsync, alertAsync } from '@/utils/confirm';
 import { useViewport } from '@/hooks/useViewport';
@@ -500,7 +500,9 @@ function EstimateSection({
             <Button
               label="New Estimate"
               onPress={() =>
-                router.push(`/(app)/estimation/create?projectId=${projectId}${fromProposal}`)
+                router.push(
+                  createEstimateHref({ projectId, fromProposal: proposalId }),
+                )
               }
             />
           ) : undefined
@@ -517,7 +519,7 @@ function EstimateSection({
             label="New Estimate"
             size="sm"
             onPress={() =>
-              router.push(`/(app)/estimation/create?projectId=${projectId}${fromProposal}`)
+              router.push(createEstimateHref({ projectId, fromProposal: proposalId }))
             }
           />
           {estimates.length >= 2 && (

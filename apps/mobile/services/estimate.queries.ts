@@ -484,6 +484,7 @@ export function useEstimate(id: string) {
     queryKey: ['estimates', id] as const,
     queryFn: () => apiFetch<Estimate>(`/estimates/${id}`),
     enabled: !!id,
+    placeholderData: undefined,
   });
 }
 
@@ -645,7 +646,13 @@ export function useEstimateMutations(estimateId: string) {
     }),
     deleteSection: useMutation({
       mutationFn: (sectionId: string) => apiFetch<{ success: boolean }>(`/estimates/${estimateId}/sections/${sectionId}`, { method: 'DELETE' }),
-      onSuccess: invalidate,
+      onSuccess: (_data, sectionId) => {
+        qc.setQueryData<Estimate>(['estimates', estimateId], (old: Estimate | undefined) => {
+          if (!old) return old;
+          return { ...old, sections: old.sections.filter((s) => s.id !== sectionId) };
+        });
+        invalidate();
+      },
     }),
     addItem: useMutation({
       mutationFn: (body: {
@@ -679,7 +686,28 @@ export function useEstimateMutations(estimateId: string) {
     }),
     deleteItem: useMutation({
       mutationFn: (itemId: string) => apiFetch<{ success: boolean }>(`/estimate-items/${itemId}`, { method: 'DELETE' }),
-      onSuccess: invalidate,
+      onSuccess: (_data, itemId) => {
+        qc.setQueryData<Estimate>(['estimates', estimateId], (old: Estimate | undefined) => {
+          if (!old) return old;
+          return {
+            ...old,
+            sections: old.sections.map((s) => ({
+              ...s,
+              items: s.items.filter((i) => i.id !== itemId),
+            })),
+          };
+        });
+        invalidate();
+      },
+    }),
+    removeEstimate: useMutation({
+      mutationFn: () => apiFetch<{ id: string }>(`/estimates/${estimateId}`, { method: 'DELETE' }),
+      onSuccess: () => {
+        qc.removeQueries({ queryKey: ['estimates', estimateId] });
+        qc.invalidateQueries({ queryKey: ['estimates'] });
+        qc.invalidateQueries({ queryKey: ['projects'] });
+        qc.invalidateQueries({ queryKey: ['proposals'] });
+      },
     }),
     submit: useMutation({
       mutationFn: () => apiFetch<Estimate>(`/estimates/${estimateId}/submit`, { method: 'POST' }),

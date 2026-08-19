@@ -10,7 +10,7 @@ import { Button, Card, Badge, LoadingSkeleton, EmptyState, Input } from '@/compo
 import { ActionBar } from '@/components/layout/ActionBar';
 import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
-import { dismissTo, DISMISS } from '@/utils/navigation';
+import { dismissTo, DISMISS, createEstimateHref } from '@/utils/navigation';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { useViewport } from '@/hooks/useViewport';
 import { confirmAsync, alertAsync } from '@/utils/confirm';
@@ -316,6 +316,7 @@ export default function EstimateDetailScreen() {
   const [showReject, setShowReject] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [rejectError, setRejectError] = useState<string | null>(null);
+  const [confirmDeleteEstimate, setConfirmDeleteEstimate] = useState(false);
 
   if (isLoading) {
     return (
@@ -344,6 +345,7 @@ export default function EstimateDetailScreen() {
   const canApprove = isOwner && estimate.status === 'REVIEWED';
   const isTemporaryProject = projectQ.data?.isTemporary === true;
   const canConvert = isOwner && estimate.status === 'APPROVED' && !isTemporaryProject;
+  const canDeleteDraft = canEdit && estimate.status === 'DRAFT';
 
   function handleBack() {
     if (proposalId) {
@@ -551,11 +553,37 @@ export default function EstimateDetailScreen() {
               size="sm"
               onPress={() =>
                 router.push(
-                  `/(app)/estimation/create?projectId=${estimate.projectId}&estimateId=${id}${
-                    proposalId ? `&fromProposal=${proposalId}` : ''
-                  }`,
+                  createEstimateHref({
+                    projectId: estimate.projectId,
+                    estimateId: id,
+                    fromProposal: proposalId,
+                  }),
                 )
               }
+            />
+          )}
+          {canDeleteDraft && (
+            <Button
+              label={confirmDeleteEstimate ? 'Tap again to delete' : 'Delete draft'}
+              variant="danger"
+              size="sm"
+              loading={mut.removeEstimate.isPending}
+              onPress={async () => {
+                if (!confirmDeleteEstimate) {
+                  setConfirmDeleteEstimate(true);
+                  return;
+                }
+                try {
+                  await mut.removeEstimate.mutateAsync();
+                  handleBack();
+                } catch (e) {
+                  setConfirmDeleteEstimate(false);
+                  await alertAsync(
+                    'Could not delete estimate',
+                    e instanceof Error ? e.message : 'Unknown error',
+                  );
+                }
+              }}
             />
           )}
           {canApprove && (

@@ -49,3 +49,21 @@ export function reportDetailHref(reportId: string, returnTo?: string): string {
 export function createReportHref(projectId: string): string {
   return `/reports/create?projectId=${encodeURIComponent(projectId)}&reset=${Date.now()}`;
 }
+
+/**
+ * Estimate wizard lives on a single Expo route that stays mounted.
+ * `reset` must change on every open so a new estimate does not reuse
+ * the previous wizard's estimate id, line items, or step.
+ */
+export function createEstimateHref(opts: {
+  projectId: string;
+  fromProposal?: string;
+  estimateId?: string;
+}): string {
+  const params = new URLSearchParams();
+  params.set('projectId', opts.projectId);
+  params.set('reset', String(Date.now()));
+  if (opts.fromProposal) params.set('fromProposal', opts.fromProposal);
+  if (opts.estimateId) params.set('estimateId', opts.estimateId);
+  return `/(app)/estimation/create?${params.toString()}`;
+}

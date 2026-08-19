@@ -10,6 +10,7 @@ import {
   inventoryBillDetailHref,
   inventoryInvoiceDetailHref,
   inventoryStockItemHref,
+  createEstimateHref,
 } from '@/utils/navigation-paths';
 
 describe('parseReturnTo', () => {
@@ -65,5 +66,25 @@ describe('href helpers', () => {
   it('builds inventory stock item href', () => {
     expect(inventoryStockItemHref('rid')).toBe('/inventory/stock/rid');
     expect(inventoryStockItemHref('rid', 'loc1')).toBe('/inventory/stock/rid?locationId=loc1');
+  });
+
+  it('builds a unique estimate create href so the wizard remounts', () => {
+    const href = createEstimateHref({
+      projectId: 'proj-1',
+      fromProposal: 'prop-2',
+    });
+    expect(href).toContain('/(app)/estimation/create?');
+    expect(href).toContain('projectId=proj-1');
+    expect(href).toContain('fromProposal=prop-2');
+    expect(href).toContain('reset=');
+    expect(href).not.toContain('estimateId=');
+  });
+
+  it('includes estimateId when editing', () => {
+    const href = createEstimateHref({
+      projectId: 'proj-1',
+      estimateId: 'est-9',
+    });
+    expect(href).toContain('estimateId=est-9');
   });
 });

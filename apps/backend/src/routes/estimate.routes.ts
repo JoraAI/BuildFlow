@@ -65,6 +65,7 @@ estimateRouter.use(
   requireModuleForPaths('estimates', [
     /^\/projects\/[^/]+\/estimates\b/,
     /^\/estimates\b/,
+    /^\/estimate-items\b/,
   ]),
 );
 
@@ -77,80 +78,80 @@ const ESTIMATE_MUTATION_ROLES = requireRole(Role.OWNER, Role.PM, Role.DPM, Role.
 estimateRouter.get(
   '/projects/:projectId/estimates',
   validate({ params: projectIdParamsSchema }),
-  estimateController.list,
+  asyncHandler(estimateController.list),
 );
 estimateRouter.post(
   '/projects/:projectId/estimates',
   validate({ params: projectIdParamsSchema, body: createEstimateSchema }),
-  estimateController.create,
+  asyncHandler(estimateController.create),
 );
 
 // Estimate-scoped routes
 estimateRouter.get(
   '/estimates/:id',
   validate({ params: estimateIdParamsSchema }),
-  estimateController.get,
+  asyncHandler(estimateController.get),
 );
 estimateRouter.put(
   '/estimates/:id',
   validate({ params: estimateIdParamsSchema, body: updateEstimateMetaSchema }),
-  estimateController.update,
+  asyncHandler(estimateController.update),
 );
 estimateRouter.delete(
   '/estimates/:id',
   validate({ params: estimateIdParamsSchema }),
-  estimateController.remove,
+  asyncHandler(estimateController.remove),
 );
 
 // Sections
 estimateRouter.post(
   '/estimates/:id/sections',
   validate({ params: estimateIdParamsSchema, body: createEstimateSectionSchema }),
-  estimateController.createSection,
+  asyncHandler(estimateController.createSection),
 );
 estimateRouter.put(
   '/estimates/:id/sections/:sid',
   validate({ params: estimateSectionParamsSchema, body: updateEstimateSectionSchema }),
-  estimateController.updateSection,
+  asyncHandler(estimateController.updateSection),
 );
 estimateRouter.delete(
   '/estimates/:id/sections/:sid',
   validate({ params: estimateSectionParamsSchema }),
-  estimateController.deleteSection,
+  asyncHandler(estimateController.deleteSection),
 );
 
 // Items
 estimateRouter.post(
   '/estimates/:id/sections/:sid/items',
   validate({ params: estimateSectionParamsSchema, body: createEstimateItemSchema }),
-  estimateController.createItem,
+  asyncHandler(estimateController.createItem),
 );
 estimateRouter.put(
   '/estimate-items/:itemId',
   validate({ params: estimateItemParamsSchema, body: updateEstimateItemSchema }),
-  estimateController.updateItem,
+  asyncHandler(estimateController.updateItem),
 );
 estimateRouter.delete(
   '/estimate-items/:itemId',
   validate({ params: estimateItemParamsSchema }),
-  estimateController.deleteItem,
+  asyncHandler(estimateController.deleteItem),
 );
 
 // Sub-items (children of a parent estimate item)
 estimateRouter.get(
   '/estimate-items/:itemId/sub-items',
   validate({ params: estimateItemParamsSchema }),
-  estimateController.listSubItems,
+  asyncHandler(estimateController.listSubItems),
 );
 estimateRouter.post(
   '/estimate-items/:itemId/sub-items',
   validate({ params: estimateItemParamsSchema, body: createEstimateItemSchema }),
-  estimateController.createSubItem,
+  asyncHandler(estimateController.createSubItem),
 );
 estimateRouter.delete(
   '/estimate-items/:itemId/sub-items/:subItemId',
   validate({ params: z.object({ itemId: z.string().uuid(), subItemId: z.string().uuid() }) }),
-  estimateController.deleteSubItem,
+  asyncHandler(estimateController.deleteSubItem),
 );
 
 // EST-VO-11b: Variations linked to this estimate
@@ -174,12 +175,12 @@ estimateRouter.get(
 estimateRouter.get(
   '/estimates/:id/sub-estimates',
   validate({ params: estimateIdParamsSchema }),
-  estimateController.listSubEstimates,
+  asyncHandler(estimateController.listSubEstimates),
 );
 estimateRouter.post(
   '/estimates/:id/sub-estimates',
   validate({ params: estimateIdParamsSchema, body: z.object({ name: z.string().min(1).max(200), notes: z.string().max(2000).optional() }) }),
-  estimateController.createSubEstimate,
+  asyncHandler(estimateController.createSubEstimate),
 );
 
 // Workflow
@@ -192,40 +193,40 @@ estimateRouter.post(
   '/estimates/:id/approve',
   ESTIMATE_MUTATION_ROLES,
   validate({ params: estimateIdParamsSchema }),
-  estimateController.approve,
+  asyncHandler(estimateController.approve),
 );
 estimateRouter.post(
   '/estimates/:id/reject',
   ESTIMATE_MUTATION_ROLES,
   validate({ params: estimateIdParamsSchema, body: rejectEstimateSchema }),
-  estimateController.reject,
+  asyncHandler(estimateController.reject),
 );
 estimateRouter.post(
   '/estimates/:id/duplicate',
   ESTIMATE_MUTATION_ROLES,
   validate({ params: estimateIdParamsSchema }),
-  estimateController.duplicate,
+  asyncHandler(estimateController.duplicate),
 );
 estimateRouter.post(
   '/estimates/:id/convert-to-boq',
   ESTIMATE_MUTATION_ROLES,
   validate({ params: estimateIdParamsSchema }),
-  boqController.convertEstimateToBoq,
+  asyncHandler(boqController.convertEstimateToBoq),
 );
 estimateRouter.get(
   '/estimates/:id/compare/:id2',
   validate({ params: estimateCompareParamsSchema }),
-  estimateController.compare,
+  asyncHandler(estimateController.compare),
 );
 
 // Exports
 estimateRouter.get(
   '/estimates/:id/export/excel',
   validate({ params: estimateIdParamsSchema }),
-  estimateController.exportExcel,
+  asyncHandler(estimateController.exportExcel),
 );
 estimateRouter.get(
   '/estimates/:id/export/pdf',
   validate({ params: estimateIdParamsSchema }),
-  estimateController.exportPdf,
+  asyncHandler(estimateController.exportPdf),
 );

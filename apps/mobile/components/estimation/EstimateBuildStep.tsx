@@ -69,6 +69,7 @@ export function EstimateBuildStep({
   const [showAddSection, setShowAddSection] = useState(false);
   const [loadingTemplate, setLoadingTemplate] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{ kind: 'item' | 'section'; id: string } | null>(null);
   const { data: estimate, isLoading } = useEstimate(estimateId);
   const { data: materialsData } = useMaterials({ limit: 300 });
   const materials = materialsData?.data ?? [];
@@ -155,7 +156,7 @@ export function EstimateBuildStep({
     <View className="flex-1">
       <ScrollView
         className="flex-1"
-        contentContainerClassName={isDesktop ? 'px-8 py-4 gap-3 pb-40 max-w-6xl w-full self-center' : 'p-4 gap-3 pb-40'}
+        contentContainerClassName={isDesktop ? 'px-8 py-4 gap-3 pb-40 pr-12 max-w-6xl w-full self-center' : 'p-4 pr-10 gap-3 pb-40'}
       >
         {/* Template picker */}
         <Card>
@@ -243,14 +244,28 @@ export function EstimateBuildStep({
                   <Text className="text-sm font-bold text-primary">{formatINR(secTotal)}</Text>
                   <Pressable
                     onPress={async () => {
-                      const ok = await confirmAsync(
-                        'Delete section?',
-                        `Remove "${sec.name}" and all its items?`,
-                      );
-                      if (ok) await mut.deleteSection.mutateAsync(sec.id);
+                      if (pendingDelete?.kind !== 'section' || pendingDelete.id !== sec.id) {
+                        setPendingDelete({ kind: 'section', id: sec.id });
+                        return;
+                      }
+                      setPendingDelete(null);
+                      try {
+                        await mut.deleteSection.mutateAsync(sec.id);
+                      } catch (e) {
+                        await alertAsync(
+                          'Could not delete section',
+                          e instanceof Error ? e.message : 'Unknown error',
+                        );
+                      }
                     }}
+                    hitSlop={8}
+                    className="px-2 py-1"
                   >
-                    <Text className="text-danger text-xs font-semibold">Delete</Text>
+                    <Text className="text-danger text-xs font-semibold">
+                      {pendingDelete?.kind === 'section' && pendingDelete.id === sec.id
+                        ? 'Tap again to delete'
+                        : 'Delete'}
+                    </Text>
                   </Pressable>
                 </View>
               </View>
@@ -262,6 +277,24 @@ export function EstimateBuildStep({
                   materials={materials}
                   rateAnalyses={rateAnalyses}
                   projectId={projectId}
+                  confirmRemove={pendingDelete?.kind === 'item' && pendingDelete.id === it.id}
+                  onRemovePress={() => {
+                    if (pendingDelete?.kind !== 'item' || pendingDelete.id !== it.id) {
+                      setPendingDelete({ kind: 'item', id: it.id });
+                      return;
+                    }
+                    setPendingDelete(null);
+                    void (async () => {
+                      try {
+                        await mut.deleteItem.mutateAsync(it.id);
+                      } catch (e) {
+                        await alertAsync(
+                          'Could not remove item',
+                          e instanceof Error ? e.message : 'Unknown error',
+                        );
+                      }
+                    })();
+                  }}
                 />
               ))}
               <AddItemRow sectionId={sec.id} mut={mut} projectId={projectId} />
@@ -314,12 +347,16 @@ function EditableLineItem({
   materials,
   rateAnalyses,
   projectId,
+  confirmRemove,
+  onRemovePress,
 }: {
   item: EstimateItem;
   mut: ReturnType<typeof useEstimateMutations>;
   materials: Resource[];
   rateAnalyses: RateAnalysis[];
   projectId?: string;
+  confirmRemove: boolean;
+  onRemovePress: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [desc, setDesc] = useState(item.description);
@@ -377,13 +414,10 @@ function EditableLineItem({
             <Text className="text-sm font-semibold text-text">
               {formatINR(parseFloat(item.amount))}
             </Text>
-            <Pressable
-              onPress={async () => {
-                const ok = await confirmAsync('Delete item?', item.description);
-                if (ok) await mut.deleteItem.mutateAsync(item.id);
-              }}
-            >
-              <Text className="text-danger text-[10px] font-semibold">Remove</Text>
+            <Pressable onPress={onRemovePress} hitSlop={12} className="px-2 py-1">
+              <Text className="text-danger text-xs font-semibold">
+                {confirmRemove ? 'Tap again to remove' : 'Remove'}
+              </Text>
             </Pressable>
           </View>
         </View>

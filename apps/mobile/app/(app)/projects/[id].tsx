@@ -6,7 +6,7 @@ import { Card, Badge, ProgressBar, LoadingSkeleton, EmptyState, Button, Input } 
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { desktopContentBottomPadding, mobileListBottomPadding } from '@/components/layout/fab-layout';
-import { dismissTo, DISMISS } from '@/utils/navigation';
+import { dismissTo, DISMISS, createEstimateHref } from '@/utils/navigation';
 import { alertAsync } from '@/utils/confirm';
 import { useViewport } from '@/hooks/useViewport';
 import { ResponsiveGrid } from '@/components/layout/ResponsiveGrid';
@@ -555,7 +555,7 @@ function EstimateTab({ projectId }: { projectId: string }) {
         title="No estimates yet"
         description="Create your first cost estimate for this project."
         action={
-          <Button label="New Estimate" onPress={() => router.push(`/(app)/estimation/create?projectId=${projectId}`)} />
+          <Button label="New Estimate" onPress={() => router.push(createEstimateHref({ projectId }))} />
         }
       />
     );
@@ -568,7 +568,7 @@ function EstimateTab({ projectId }: { projectId: string }) {
         <Button
           label="New Estimate"
           size="sm"
-          onPress={() => router.push(`/(app)/estimation/create?projectId=${projectId}`)}
+          onPress={() => router.push(createEstimateHref({ projectId }))}
         />
       </View>
 
