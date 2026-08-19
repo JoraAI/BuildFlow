@@ -74,6 +74,38 @@ describe('GET /api/auth/invite/:token', () => {
   });
 });
 
+describe('POST /api/auth/refresh', () => {
+  it('issues a new access token from a valid refresh token (no logout)', async () => {
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'owner@reddyconst.com', password: 'Test@1234' });
+    expect(login.status).toBe(200);
+    expect(login.body.data.refreshToken).toBeTruthy();
+    expect(login.body.data.accessToken).toBeTruthy();
+
+    const refresh = await request(app)
+      .post('/api/auth/refresh')
+      .send({ refreshToken: login.body.data.refreshToken });
+    expect(refresh.status).toBe(200);
+    expect(refresh.body.success).toBe(true);
+    expect(refresh.body.data.accessToken).toBeTruthy();
+    expect(refresh.body.data.refreshToken).toBeTruthy();
+    expect(refresh.body.data.accessToken).not.toBe(login.body.data.accessToken);
+
+    const me = await request(app)
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${refresh.body.data.accessToken}`);
+    expect(me.status).toBe(200);
+    expect(me.body.data.email).toBe('owner@reddyconst.com');
+  });
+
+  it('returns 401 without a refresh token in body or cookie', async () => {
+    const res = await request(app).post('/api/auth/refresh').send({});
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('NO_REFRESH_TOKEN');
+  });
+});
+
 describe('GET /api/auth/me (unauthenticated)', () => {
   it('returns 401 without a token', async () => {
     const res = await request(app).get('/api/auth/me');

@@ -39,6 +39,60 @@ const processQueue = (token: string | null) => {
   failedQueue = [];
 };
 
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+function webCredentials(): RequestInit {
+  return Platform.OS === 'web' ? { credentials: 'include' as RequestCredentials } : {};
+}
+
+function parseAccessTokenExpiryMs(token: string): number | null {
+  try {
+    const part = token.split('.')[1];
+    if (!part) return null;
+    const padded = part.replace(/-/g, '+').replace(/_/g, '/');
+    const json = globalThis.atob(padded);
+    const payload = JSON.parse(json) as { exp?: number };
+    return typeof payload.exp === 'number' ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Refresh ~60s before access JWT expiry so the member is not signed out. */
+export function scheduleAccessTokenRefresh(accessToken: string): void {
+  if (refreshTimer) {
+    clearTimeout(refreshTimer);
+    refreshTimer = null;
+  }
+  const expiryMs = parseAccessTokenExpiryMs(accessToken);
+  if (!expiryMs) return;
+  const delay = Math.max(expiryMs - Date.now() - 60_000, 5_000);
+  refreshTimer = setTimeout(() => {
+    void (async () => {
+      if (isRefreshing) return;
+      isRefreshing = true;
+      try {
+        const next = await refreshAccessToken();
+        isRefreshing = false;
+        processQueue(next);
+        if (!next) {
+          await useAuthStore.getState().logout();
+        }
+      } catch {
+        isRefreshing = false;
+        processQueue(null);
+      }
+    })();
+  }, delay);
+}
+
+export function clearScheduledAccessTokenRefresh(): void {
+  if (refreshTimer) {
+    clearTimeout(refreshTimer);
+    refreshTimer = null;
+  }
+}
+
 /**
  * Auth endpoints that should NEVER trigger a token refresh cycle.
  * `/auth/me` is intentionally excluded - it's a protected endpoint that
@@ -63,7 +117,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     res = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
       headers,
-      ...(Platform.OS === 'web' ? { credentials: 'include' as RequestCredentials } : {}),
+      ...webCredentials(),
     });
   } catch {
     throw new ApiError(
@@ -85,13 +139,15 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
         processQueue(newToken);
         if (newToken) {
           headers.Authorization = `Bearer ${newToken}`;
-          const retryRes = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+          const retryRes = await fetch(`${API_BASE_URL}${path}`, { ...init, headers, ...webCredentials() });
           const retryBody: ApiResponse<T> = await retryRes.json();
           if (!retryRes.ok || !retryBody.success) {
             throw new ApiError(retryBody.error?.code ?? 'ERROR', retryBody.error?.message ?? 'Request failed', retryRes.status, retryBody.error?.details);
           }
           return retryBody.data;
         }
+        await useAuthStore.getState().logout();
+        throw new ApiError('SESSION_EXPIRED', 'Session expired. Please login again.', 401);
       } catch (refreshErr) {
         // FIX (MOB-C1): Flush the queue BEFORE logging out so queued requests
         // reject instead of hanging forever.
@@ -152,7 +208,7 @@ export async function apiFetchList<T>(
 
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+    res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers, ...webCredentials() });
   } catch {
     throw new ApiError('NETWORK_ERROR', 'Unable to reach the API at localhost:4000. Is `pnpm run dev` still running (backend + web)?', 0);
   }
@@ -186,10 +242,13 @@ export async function apiFetchList<T>(
     if (refreshedToken) {
       headers.Authorization = `Bearer ${refreshedToken}`;
       try {
-        res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+        res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers, ...webCredentials() });
       } catch {
         throw new ApiError('NETWORK_ERROR', 'Unable to reach the API at localhost:4000. Is `pnpm run dev` still running (backend + web)?', 0);
       }
+    } else {
+      await useAuthStore.getState().logout();
+      throw new ApiError('SESSION_EXPIRED', 'Session expired. Please login again.', 401);
     }
   }
 
@@ -223,7 +282,7 @@ async function fetchWithAuthRetry(path: string, init: RequestInit = {}): Promise
 
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+    res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers, ...webCredentials() });
   } catch {
     throw new ApiError(
       'NETWORK_ERROR',
@@ -241,7 +300,7 @@ async function fetchWithAuthRetry(path: string, init: RequestInit = {}): Promise
         processQueue(newToken);
         if (newToken) {
           headers.Authorization = `Bearer ${newToken}`;
-          return fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+          return fetch(`${API_BASE_URL}${path}`, { ...init, headers, ...webCredentials() });
         }
         await useAuthStore.getState().logout();
         throw new ApiError('SESSION_EXPIRED', 'Session expired. Please login again.', 401);
@@ -353,27 +412,25 @@ function blobToBase64(blob: Blob): Promise<string> {
 }
 
 export async function refreshAccessToken(): Promise<string | null> {
-  const refreshToken = await SecureStore.getItemAsync(SECURE_STORE_KEYS.REFRESH_TOKEN);
-  // FIX (NR-52): Don't attempt refresh with a literal "undefined" string token
-  // (could be persisted if SecureStore wrote a bad value). Return null so the
-  // caller logs out cleanly instead of sending "undefined" to the backend.
-  if (!refreshToken || refreshToken === 'undefined') return null;
+  const storedRefresh = await SecureStore.getItemAsync(SECURE_STORE_KEYS.REFRESH_TOKEN);
+  const refreshToken =
+    storedRefresh && storedRefresh !== 'undefined' ? storedRefresh : null;
+
   const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken }),
-    // FIX (NR-52): On web, the refresh endpoint may be cross-origin in dev
-    // (e.g. web on :8081, API on :4000). Include credentials so the browser
-    // sends/receives any httpOnly refresh-token cookie if present.
-    credentials: 'include',
+    body: JSON.stringify(refreshToken ? { refreshToken } : {}),
+    ...webCredentials(),
   });
   if (!res.ok) return null;
   const body = await res.json();
-  if (!body.success) return null;
+  if (!body.success || !body.data?.accessToken) return null;
+
   await SecureStore.setItemAsync(SECURE_STORE_KEYS.ACCESS_TOKEN, body.data.accessToken);
-  // FIX (MOB-H4): Persist rotated refresh token if the backend returns one.
   if (body.data.refreshToken) {
     await SecureStore.setItemAsync(SECURE_STORE_KEYS.REFRESH_TOKEN, body.data.refreshToken);
   }
-  return body.data.accessToken;
+  useAuthStore.setState({ accessToken: body.data.accessToken, isAuthenticated: true });
+  scheduleAccessTokenRefresh(body.data.accessToken);
+  return body.data.accessToken as string;
 }

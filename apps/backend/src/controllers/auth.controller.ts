@@ -16,6 +16,7 @@ function ipOf(req: Request): string | undefined {
 export async function register(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const result = await authService.registerCompany(req.body, ipOf(req));
+    attachRefreshSession(req, res, result.refreshToken);
     ok(res, result, 201);
   } catch (err) {
     next(err);
@@ -43,19 +44,21 @@ function clearRefreshCookie(res: Response): void {
   res.clearCookie(REFRESH_COOKIE_NAME, { path: '/api/auth' });
 }
 
+function attachRefreshSession(req: Request, res: Response, refreshToken: string | undefined): void {
+  if (refreshToken && isWebRequest(req)) {
+    setRefreshCookie(res, refreshToken);
+  }
+}
+
 export async function login(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const result = await authService.login(req.body, ipOf(req));
-    // FIX (MOB-H6): On web, store refresh token in httpOnly cookie (not
-    // localStorage) to prevent XSS token theft. Native still gets it in the
-    // response body (stored in SecureStore).
-    if (isWebRequest(req) && result.refreshToken) {
-      setRefreshCookie(res, result.refreshToken);
-      // Don't expose refreshToken in the response body for web
-      ok(res, { ...result, refreshToken: undefined });
-    } else {
-      ok(res, result);
-    }
+    // Always return refreshToken in JSON so native SecureStore and Expo web
+    // localStorage can persist it. Cross-origin web (e.g. :8081 → :4000) cannot
+    // rely on SameSite cookies, so stripping the body token logged users out
+    // after the access JWT expired. Cookie is still set as a same-origin extra.
+    attachRefreshSession(req, res, result.refreshToken);
+    ok(res, result);
   } catch (err) {
     next(err);
   }
@@ -63,20 +66,14 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
 
 export async function refresh(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    // FIX (MOB-H6): Read refresh token from httpOnly cookie (web) or body (native).
     const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME] ?? req.body?.refreshToken;
     if (!refreshToken) {
       res.status(401).json({ success: false, error: { code: 'NO_REFRESH_TOKEN', message: 'No refresh token provided' } });
       return;
     }
     const tokens = await authService.refresh(refreshToken);
-    // Rotate the cookie if web
-    if (isWebRequest(req) && tokens.refreshToken) {
-      setRefreshCookie(res, tokens.refreshToken);
-      ok(res, { ...tokens, refreshToken: undefined });
-    } else {
-      ok(res, tokens);
-    }
+    attachRefreshSession(req, res, tokens.refreshToken);
+    ok(res, tokens);
   } catch (err) {
     next(err);
   }
@@ -119,6 +116,7 @@ export async function getInvitePreview(req: Request, res: Response, next: NextFu
 export async function acceptInvite(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const result = await inviteService.acceptInvite(req.body, ipOf(req));
+    attachRefreshSession(req, res, result.refreshToken);
     ok(res, result, 201);
   } catch (err) {
     next(err);

@@ -6,7 +6,7 @@ import { ApiError } from '../utils/errors';
 import { hashPassword } from '../utils/password';
 import { generateInviteToken, hashInviteToken } from '../utils/invite-token';
 import { recordAudit } from '../utils/audit';
-import { signAccessToken, signRefreshToken } from '../utils/jwt';
+import { signAccessToken, signRefreshToken, expiresInSeconds } from '../utils/jwt';
 import { env } from '../config/env';
 import { Role, INVITABLE_ROLES_BY_PRODUCT } from '@buildflow/shared';
 import type {
@@ -17,7 +17,7 @@ import type {
 import type { AuthResponse } from './auth.service';
 import { assertPlanAllowsUser } from './plan-enforcement.service';
 
-const ACCESS_EXPIRES_SECONDS = 15 * 60;
+const ACCESS_EXPIRES_SECONDS = expiresInSeconds(env.JWT_ACCESS_EXPIRES_IN);
 
 function issueTokens(payload: { sub: string; companyId: string; role: Role }) {
   const accessToken = signAccessToken(payload);

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   Modal,
   View,
@@ -6,6 +6,8 @@ import {
   Pressable,
   StyleSheet,
   Platform,
+  Animated,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,6 +29,22 @@ export function AssistantOverlay() {
   const clearHistory = useClearChatHistory(projectId);
   const { isDesktop } = useViewport();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const slideX = useRef(new Animated.Value(width)).current;
+
+  useEffect(() => {
+    if (isDesktop) return;
+    if (isOpen) {
+      slideX.setValue(width);
+      Animated.timing(slideX, {
+        toValue: 0,
+        duration: 280,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      slideX.setValue(width);
+    }
+  }, [isOpen, isDesktop, width, slideX]);
 
   const handleNewChat = () => {
     if (clearHistory.isPending) return;
@@ -35,31 +53,46 @@ export function AssistantOverlay() {
     });
   };
 
+  const handleClose = () => {
+    if (isDesktop) {
+      close();
+      return;
+    }
+    Animated.timing(slideX, {
+      toValue: width,
+      duration: 220,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) close();
+    });
+  };
+
   return (
     <Modal
       visible={isOpen}
       transparent
-      animationType={isDesktop ? 'fade' : 'slide'}
-      onRequestClose={close}
+      animationType={isDesktop ? 'fade' : 'none'}
+      onRequestClose={handleClose}
       statusBarTranslucent
     >
       <View style={styles.root}>
-        {isDesktop ? (
-          <Pressable
-            style={styles.backdrop}
-            onPress={close}
-            accessibilityRole="button"
-            accessibilityLabel="Close assistant"
-          />
-        ) : null}
+        <Pressable
+          style={styles.backdrop}
+          onPress={handleClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close assistant"
+        />
 
-        <View
+        <Animated.View
           style={[
             isDesktop ? styles.desktopPanel : styles.mobilePanel,
-            isDesktop ? desktopAssistantPanelStyle() : {
-              paddingTop: insets.top,
-              paddingBottom: insets.bottom,
-            },
+            isDesktop
+              ? desktopAssistantPanelStyle()
+              : {
+                  paddingTop: insets.top,
+                  paddingBottom: insets.bottom,
+                  transform: [{ translateX: slideX }],
+                },
           ]}
         >
           <View style={styles.header}>
@@ -85,16 +118,16 @@ export function AssistantOverlay() {
               <Ionicons name="refresh-outline" size={20} color="#1E3A5F" />
             </Pressable>
             {isDesktop ? (
-              <NavIconButton onPress={close} icon="close" accessibilityLabel="Close assistant" />
+              <NavIconButton onPress={handleClose} icon="close" accessibilityLabel="Close assistant" />
             ) : (
-              <NavBackButton onPress={close} label="Close" icon="close" size="sm" />
+              <NavBackButton onPress={handleClose} label="Close" icon="close" size="sm" />
             )}
           </View>
 
           <View style={styles.body}>
             <AssistantChatContent projectId={projectId} />
           </View>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -109,8 +142,27 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15, 23, 42, 0.45)',
   },
   mobilePanel: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: '92%',
     backgroundColor: '#F8FAFC',
+    borderTopLeftRadius: 20,
+    borderBottomLeftRadius: 20,
+    overflow: 'hidden',
+    ...Platform.select({
+      web: {
+        boxShadow: '-12px 0 32px rgba(15, 23, 42, 0.18)',
+      },
+      default: {
+        elevation: 16,
+        shadowColor: '#0F172A',
+        shadowOffset: { width: -8, height: 0 },
+        shadowOpacity: 0.18,
+        shadowRadius: 24,
+      },
+    }),
   },
   desktopPanel: {
     backgroundColor: '#F8FAFC',

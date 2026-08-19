@@ -54,7 +54,8 @@ export type LoginInput = z.infer<typeof loginSchema>;
 /* ------------------------------------------------------------------ */
 
 export const refreshSchema = z.object({
-  refreshToken: z.string().min(1),
+  /** Optional when the httpOnly cookie carries the refresh token (web). */
+  refreshToken: z.string().min(1).optional(),
 });
 
 export type RefreshInput = z.infer<typeof refreshSchema>;

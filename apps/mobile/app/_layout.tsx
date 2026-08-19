@@ -11,6 +11,7 @@ import { View, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryProvider } from '@/components/common/QueryProvider';
 import { ToastHost } from '@/components/ui';
+import { useAppViewportLock } from '@/hooks/useAppViewportLock';
 import { useAuthStore } from '@/stores/auth.store';
 import { useAppStore } from '@/stores/app.store';
 
@@ -52,6 +53,7 @@ async function initNetInfo() {
 
 export default function RootLayout() {
   const { isLoading, hydrate } = useAuthStore();
+  useAppViewportLock();
 
   useEffect(() => {
     hydrate();
@@ -73,7 +75,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <QueryProvider>
-        <View className="flex-1">
+        <View className="flex-1" style={{ height: '100%', overflow: 'hidden' }}>
           <StatusBar style="light" />
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="index" />

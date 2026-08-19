@@ -12,6 +12,7 @@ import {
   signRefreshToken,
   verifyRefreshToken,
   getTokenTtlSeconds,
+  expiresInSeconds,
 } from '../utils/jwt';
 import { blacklistToken, isTokenBlacklisted } from '../lib/redis';
 import { recordAudit } from '../utils/audit';
@@ -104,7 +105,7 @@ async function toPublicUser(
   };
 }
 
-const ACCESS_EXPIRES_SECONDS = 15 * 60;
+const ACCESS_EXPIRES_SECONDS = expiresInSeconds(env.JWT_ACCESS_EXPIRES_IN);
 
 function issueTokens(payload: { sub: string; companyId: string; role: Role }): AuthTokens {
   const accessToken = signAccessToken(payload);

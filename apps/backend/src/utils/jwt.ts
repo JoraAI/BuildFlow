@@ -39,6 +39,18 @@ export function signRefreshToken(payload: Omit<TokenPayload, 'tid' | 'type'> & {
   } as SignOptions);
 }
 
+export function expiresInSeconds(value: string, fallback = 15 * 60): number {
+  const m = value.trim().match(/^(\d+)\s*([smhd])$/i);
+  if (!m) return fallback;
+  const n = Number(m[1]);
+  const unit = m[2].toLowerCase();
+  if (unit === 's') return n;
+  if (unit === 'm') return n * 60;
+  if (unit === 'h') return n * 3600;
+  if (unit === 'd') return n * 86400;
+  return fallback;
+}
+
 export function verifyAccessToken(token: string): DecodedToken {
   return jwt.verify(token, env.JWT_ACCESS_SECRET) as DecodedToken;
 }

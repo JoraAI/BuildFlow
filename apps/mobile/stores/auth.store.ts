@@ -12,7 +12,7 @@ import {
   type AcceptInvitePayload,
   type AuthResponsePayload,
 } from '@/services/auth.queries';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, scheduleAccessTokenRefresh, clearScheduledAccessTokenRefresh } from '@/lib/api-client';
 import { queryClient } from '@/lib/query-client';
 
 export interface AuthUser {
@@ -61,6 +61,7 @@ async function persistSession(data: AuthResponsePayload) {
     await SecureStore.setItemAsync(SECURE_STORE_KEYS.REFRESH_TOKEN, data.refreshToken);
   }
   await SecureStore.setItemAsync(SECURE_STORE_KEYS.USER, JSON.stringify(data.user));
+  scheduleAccessTokenRefresh(data.accessToken);
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -94,6 +95,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
+    clearScheduledAccessTokenRefresh();
     const refreshToken = await SecureStore.getItemAsync(SECURE_STORE_KEYS.REFRESH_TOKEN);
     try {
       await apiFetch('/auth/logout', {
@@ -128,6 +130,7 @@ export const useAuthStore = create<AuthState>((set) => ({
               isAuthenticated: true,
               isLoading: false,
             });
+            scheduleAccessTokenRefresh(token);
             return;
           } catch (err) {
             // FIX (MOB-H5): If the error is a NETWORK_ERROR (status 0), keep the
@@ -143,6 +146,7 @@ export const useAuthStore = create<AuthState>((set) => ({
                 isAuthenticated: true,
                 isLoading: false,
               });
+              scheduleAccessTokenRefresh(token);
               return;
             }
             // Genuine auth failure (401 after refresh attempt) - log out.
