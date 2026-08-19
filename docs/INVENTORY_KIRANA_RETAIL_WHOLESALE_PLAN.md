@@ -6,7 +6,7 @@
 > **Sibling product:** **BuildFlow Construction ERP** - do **not** change Draft → Submit → Approve, daily-report issue, or construction catalogs.  
 > **Pricing (locked):** Inventory **₹499/mo**, **₹4,990/yr** ex-GST - do not regress.  
 > **Prior work:** [`INVENTORY_HORIZONTAL_PLATFORM.md`](./INVENTORY_HORIZONTAL_PLATFORM.md) Phases 0–10 complete; [`INVENTORY_UX_POLISH.md`](./INVENTORY_UX_POLISH.md) D1–D10 complete.  
-> **This doc is Phase 11** of the inventory roadmap. Implement **one phase at a time**.
+> **This doc is Phase 11** of the inventory roadmap. Implement **one phase at a time**. **11.7 + D11 are code-complete.** Remaining: operator device smoke (not a coding pass unless a bug is found).
 
 ---
 
@@ -17,13 +17,14 @@
 | K1 | Keep `InventoryBusinessProfile` as `RETAIL` or `WHOLESALE` (etc.). Add a separate **vertical** (`KIRANA` first). Do **not** add `KIRANA` as another `InventoryBusinessProfile`. |
 | K2 | **Kirana pack is Kirana-only.** Eligible only when `subscriptionPlan === INVENTORY` **and** `inventoryVertical === KIRANA`. RETAIL/WHOLESALE may *become* Kirana via an OWNER vertical picker; MATERIAL_SUPPLIER / DISTRIBUTION / TRADING / EQUIPMENT / GENERAL (and construction) never see Apply/Add-missing. Do **not** offer the pack to every RETAIL/WHOLESALE shop (hardware, stationery, etc.). |
 | K3 | Starter catalog is **copied once** into the company `Resource` table (tenant-owned). OWNER/INVENTORY_MANAGER can edit, deactivate, search, import, and add items after that. |
-| K4 | Re-apply / “add missing Kirana items” is **insert-missing-only**. Never overwrite tenant-edited name, rate, GST, HSN, barcode, or reorder fields. |
+| K4 | Re-apply / “add missing Kirana items” is **insert-missing-only**. Never overwrite tenant-edited name, rate, costPrice, GST, HSN, barcode, or reorder fields. |
 | K5 | Template seeds **generic pack-size variants** (staples, snacks, biscuits, confectionery, beverages, dairy/daily-use, personal care, cleaning, household). Do **not** seed opening qty, volatile MRP/sale price as truth, or guessed barcodes. Mark GST/HSN as suggested; allow review before/after apply. |
 | K6 | Expiry is **batch-level** (manufacture + expiry on received lots). Counter sales allocate by **FEFO**. Keep aggregate `StockBalance` for analytics + Construction compatibility. |
 | K7 | **POS checkout** = evolve walk-in multi-item **stock issue → draft invoice → AUTO_STOCK_ISSUE sales record**. Formal **SO → challan → dispatch** stays unchanged. |
-| K8 | Desktop/tablet: tables + split cart. Phone: scan/search + card cart + sticky footer. Do not force desktop tables onto phones. |
+| K8 | Desktop/tablet: tables + split cart. Phone: scan/search + card cart + sticky footer. Do not force desktop tables onto phones. **Checkout / bulk issue is a full-screen workspace**, not a small centered dialog. |
 | K9 | Deepseek-v4-flash = **coding agent only**. Do not hard-code it as the in-app chat model (D10). |
 | K10 | Feature flags: `kirana_catalog`, `batch_expiry`, `pos_checkout` as specified per sub-phase. |
+| K11 | **Inventory cost vs sell.** SKU master stores **cost price** (what the shop pays the vendor) and **selling price** (what the customer pays). `Resource.rate` = selling price. New nullable `Resource.costPrice` = last/default vendor unit cost. `Resource.avgCost` stays computed WAC (read-only). `Resource.mrp` stays printed ceiling. Construction keeps using `rate` as the estimate/catalog rate and must not show a cost/sell split. |
 
 ### Non-goals
 
@@ -63,6 +64,7 @@ Company (INVENTORY)
 ├── inventoryProfile: RETAIL | WHOLESALE | …  (business type)
 ├── inventoryVertical: KIRANA | null         (shop vertical - pack only when KIRANA)
 └── Resource[]  ← Kirana template copy only if vertical = KIRANA
+     ├── rate (selling) + costPrice (vendor buy) + mrp + avgCost (WAC)
      ├── trackingMode: NONE | BATCH_EXPIRY
      ├── StockBalance (aggregate - unchanged key)
      └── StockBatchBalance (location + resource + batchCode + dates + qty)
@@ -158,6 +160,69 @@ This refinement replaces the “copy all 122 rows, then find them” onboarding 
 
 **Exit:** A Kirana manager can search the master library, select a SKU, review/edit Indian MRP and selling price, enter quantity with optional dates, create stock in one flow, create a custom SKU when absent, and later correct batch dates. Non-Kirana and Construction tenants cannot access this library.
 
+### Phase 11.6 - Inventory workspace UX (checkout first)
+
+**Problem (verified in code, 2026-08-19):** Kirana Stock → **Checkout** (and non-Kirana **Bulk issue**) still open as a cramped overlay (`CheckoutCart`: desktop `max-w-4xl h-[85%]`; `MultiIssueStockModal`: `max-w-2xl max-h-[85%]`). The left “items table” is a stacked `Pressable` list, not a column table. Catalog is capped at `.slice(0, 60)`. Phone checkout hides on-hand items until the user types a search. Other inventory multi-line dialogs (PO, GRN, indent, SKU picker, SO, invoice/bill create) use the same small `max-w-lg` / `max-h-[85%]` pattern.
+
+**Goal:** Make counter sale and other operational inventory surfaces usable on a real shop desk: **full-screen checkout**, **real item/cart tables on tablet+desktop**, and the same large-workspace treatment for other multi-line inventory modals. Phone stays card/scan-first (K8). **No API / schema / Construction changes.**
+
+| # | Deliverable | Key files |
+|---|-------------|-----------|
+| 11.6.1 | **Full-screen checkout workspace.** Kirana `CheckoutCart` (Stock **Checkout** / row **Issue**) occupies the viewport: tablet+desktop `w-full h-full` (no `max-w-4xl` / `h-[85%]` / outer `p-4` gutter). Phone near-fullscreen (`h-full` / ≥98%, no tiny sheet). Disable accidental backdrop-dismiss while submitting; keep explicit × / Esc close. Reuse one shell if possible (`AdaptiveSheet` add `size="full"` or a dedicated `InventoryWorkspaceModal`). | `CheckoutCart.tsx`, `AdaptiveSheet.tsx`, `inventory/index.tsx` |
+| 11.6.2 | **Desktop/tablet checkout TABLES (required).** Left **on-hand catalog** is a real table with sticky header + row add: **Item · Unit · On hand · MRP · Selling ₹ · Status · Add**. Right **cart** is a real table: **Item · Qty · Selling ₹ · GST% · Line ₹ · Remove**, then totals + Charge footer. Qty/price stay inline-editable. Keep existing qty/MRP validation (do not sell above stock or above MRP). Do **not** force this table onto phones. | `CheckoutCart.tsx` |
+| 11.6.3 | **Phone checkout browse.** Catalog must be visible without typing (search filters, does not hide the list). Keep compact cards + sticky **Charge & issue stock** footer + Scan. | `CheckoutCart.tsx` |
+| 11.6.4 | **All issuable items.** Remove `.slice(0, 60)` (or replace with virtualized list / paginated fetch). Search still filters name/SKU. Empty state: “No matching items with stock.” | `CheckoutCart.tsx` |
+| 11.6.5 | **Non-Kirana Bulk issue** gets the same workspace: full-screen; tablet+desktop line **table** (item picker, qty, selling ₹, optional batch, remove); phone keeps stacked lines but full-height. Same `issueStockManual` API. | `StockModals.tsx` (`MultiIssueStockModal`) |
+| 11.6.6 | **Other inventory UX (bounded).** Apply full-screen / large workspace **only** to multi-line operational modals: Kirana SKU picker, quick vendor receipt, New indent, New PO, Record GRN, New sales order, New challan, New invoice, New bill, stock transfer, stock count. Keep **compact** dialogs for single-entity forms (party, warehouse CRUD, adjust stock, opening CSV, price list, scan overlay). Desktop list pages that are still cards-only become tables like Sales/Stock: **Materials, Parties, Warehouse, Procurement (indents/POs/GRNs)**. Phone stays cards. | `KiranaSkuPicker.tsx`, `materials.tsx`, `procurement.tsx`, `TransactionModals.tsx`, `WarehouseModals.tsx`, `parties.tsx`, `warehouse.tsx`, invoice/bill create modals |
+| 11.6.7 | **Do not regress.** Formal SO → DC → invoice unchanged. Construction `ProcurementTab` Draft→Submit→Approve untouched. Language pass is **out of this phase** (do not expand i18n). No schema/migration. No new feature flags. | — |
+
+**Layout (tablet + desktop, Kirana checkout):**
+
+```
+┌──────────────────────────────── full viewport ────────────────────────────────┐
+│ Checkout                                      [Scan]  [×]                     │
+├──────────────────────────────────────┬────────────────────────────────────────┤
+│ Items on hand                        │ Cart (N)                               │
+│ Search ________________              │ TABLE: Item | Qty | ₹ | GST | Line | × │
+│ TABLE: Item|Unit|On hand|MRP|₹|Add   │                                        │
+│ (scroll, sticky header)              │ Customer (optional, collapsed)         │
+│                                      │ Subtotal / GST / Grand total           │
+│                                      │ [Charge & issue stock]                 │
+└──────────────────────────────────────┴────────────────────────────────────────┘
+```
+
+**Agent implementation notes (historical - 11.6 shipped):** CheckoutCart is already `flex-1` full viewport with desktop catalog/cart header rows. Do not revert to `max-w-4xl`. Remaining table-cell compactness is 11.7.6.
+
+**Exit (11.6):** Met. Residuals (cost vs sell, compact cells, chatbot format) are Phase 11.7.
+
+### Phase 11.7 - Cost vs sell, remaining UX, inventory flow audit
+
+**Problem:** Shopkeepers need two prices on every SKU: **cost** (vendor buy) and **sell** (customer). Today both procurement and checkout share `Resource.rate`, so a PO can silently order at MRP/selling price. Materials add/edit still says “Catalog rate for new purchase requests/POs” under the Selling field. Checkout table cells use full labeled `Input`s (tall rows); customer fields are always expanded. The in-app assistant dumps unformatted answers and trailing suggestions.
+
+**Goal:** Split cost and sell across catalog, checkout, and procurement; finish 11.6 residuals; walk every inventory flow; **and** (D11) make the chatbot answer-only with readable formatting for Construction + Inventory.
+
+| # | Deliverable | Key files |
+|---|-------------|-----------|
+| 11.7.1 | **Schema.** Nullable `Resource.costPrice` `Decimal(12,2)` mapped `cost_price`. Construction-safe (unused there). Backfill **inventory** companies only: `costPrice = avgCost` when `avgCost > 0`, else null. Do **not** overwrite `rate`. Keep `avgCost` WAC updates on stock IN. | schema + migration + resource validators/service |
+| 11.7.2 | **Capture on add/edit SKU.** Materials add/edit + Kirana library import + custom item: **Cost price (₹)** and **Selling price (₹)** (+ optional MRP). Helper: cost → future POs/GRNs; sell → checkout/invoices; MRP → printed ceiling. Import API accepts `costPrice`. Sell cannot exceed positive MRP; cost has no MRP cap. | `materials.tsx`, `KiranaSkuPicker.tsx`, catalog import |
+| 11.7.3 | **Checkout / bulk issue / sales = sell only.** Prefill from `rate`. Inline-edit selling ₹. Optional muted read-only cost hint. Do not write checkout edits onto `costPrice`. | `CheckoutCart.tsx`, `StockModals.tsx`, `TransactionModals.tsx` |
+| 11.7.4 | **Procurement = cost only.** Indent expected rate, PO line, GRN line, quick vendor receipt prefill from `costPrice` (fallback `avgCost`, then 0) — **never** from selling `rate`. GRN/quick receipt updates `costPrice` to that purchase unit cost **and** existing WAC `avgCost`. Labels: “Cost ₹” / “Purchase rate ₹”. | `procurement.tsx`, `StockModals.tsx`, procurement/stock/reorder services |
+| 11.7.5 | **Lists.** Items/stock desktop tables: Cost and Selling columns. Phone cards: “Cost ₹x · Sell ₹y”. Reorder `catalogRate` = `costPrice`. | `materials.tsx`, `index.tsx`, `reorder.service.ts` |
+| 11.7.6 | **11.6 residual UX.** Compact numeric cells in checkout/bulk-issue tables (no labeled `Input` in a table row). Collapse customer block behind “Add customer”. Keep full-screen workspace. | `CheckoutCart.tsx`, `StockModals.tsx` |
+| 11.7.7 | **Flow audit (inventory product).** Fix only real bugs on: Add item (no stock) → Quick receipt or PO→GRN (qty + cost) → Stock on hand → Checkout (sell, FEFO, draft invoice → Mark sent → Record payment) → Formal SO→DC→invoice → Returns → Transfer/count → Parties/warehouses. Construction `ProcurementTab` create stays **DRAFT**. | tests + UI |
+| 11.7.8 | **D11 chatbot (entire system).** See [`INVENTORY_UX_POLISH.md`](./INVENTORY_UX_POLISH.md) D11: answer the question only (no trailing suggestions); structured markdown; render it in chat UI. Construction + Inventory + marketing. D10 routing unchanged. | `prompt-builder.ts`, `AssistantChatContent.tsx` |
+
+**Price field map (inventory only):**
+
+| Field | Meaning | Set when | Editable in |
+|-------|---------|----------|-------------|
+| `costPrice` | Last/default vendor unit cost | Add SKU; updated on GRN/quick receipt | Items, PO/GRN/receipt |
+| `rate` | Selling price to customer | Add SKU; checkout/SO may override **line** only | Items, checkout, SO/invoice |
+| `mrp` | Printed MRP ceiling | Add SKU / item edit | Items (sale cannot exceed if set) |
+| `avgCost` | Weighted-average cost | Server on stock IN | Read-only |
+
+**Exit:** Kirana demo can set cost ₹80 and sell ₹95 on a SKU; a new PO line prefills ₹80; checkout prefills ₹95; GRN at ₹82 updates cost to ₹82 and WAC; construction estimates still use `rate`. Assistant replies are formatted and do not append “you can also ask…”.
+
 ---
 
 ## 4. Schema sketch (implement carefully)
@@ -176,8 +241,12 @@ enum ResourceTrackingMode {
 inventoryVertical   InventoryVertical? @map("inventory_vertical")
 catalogSeededAt     DateTime?          @map("catalog_seeded_at")
 
-// on Resource
+// on Resource (Phase 11.5–11.7)
 trackingMode ResourceTrackingMode @default(NONE) @map("tracking_mode")
+mrp          Decimal?  @db.Decimal(12, 2)
+costPrice    Decimal?  @map("cost_price") @db.Decimal(12, 2) // inventory vendor cost; ignore on construction
+// rate = selling (inventory) / estimate catalog (construction)
+// avgCost = WAC, server-maintained
 
 model StockBatchBalance {
   id             String    @id @default(uuid()) @db.Uuid
@@ -199,7 +268,7 @@ Names may be adjusted for consistency with existing snake_case maps, but semanti
 
 ## 5. Agent rules (every pass)
 
-1. **One phase only** (11.1 → 11.2 → 11.3 → 11.4 → 11.5). Do not start the next until checklist + tests for the current phase are green.  
+1. **One phase only** (11.1 → 11.2 → 11.3 → 11.4 → 11.5 → 11.6 → 11.7). Do not start the next until checklist + tests for the current phase are green. This pass also includes D11 (chatbot format) because it is product-wide, not Kirana-only.  
 2. Migration before dependent UI.  
 3. After code: shared build → migrate → targeted tests → mobile `tsc`.  
 4. Update **this file’s checklist** with evidence (commands + pass counts). Do not tick boxes without running.  
@@ -230,6 +299,9 @@ Names may be adjusted for consistency with existing snake_case maps, but semanti
 | Sales return GOOD | Restores known batch when available |
 | Multi-line checkout | Draft invoice + AUTO_STOCK_ISSUE SO |
 | Formal SO → DC → invoice | Unchanged |
+| SKU cost ₹80 / sell ₹95 | PO/GRN/reorder prefill 80; checkout/SO prefill 95 |
+| GRN at ₹82 | `costPrice` becomes 82; `avgCost` WAC updates; `rate` unchanged |
+| Construction resource | No `costPrice` UI; estimate `rate` unchanged |
 
 ### Construction regression
 
@@ -257,7 +329,7 @@ Add new test files under `apps/backend/src/__tests__/` for catalog template + FE
 
 | Tenant | Login | Password | Notes |
 |--------|-------|----------|-------|
-| Kirana retail (after seed update) | TBD in seed output / `owner@…` | `Test@1234` | Prefer dedicated Kirana demo emails in seed |
+| Kirana retail | `owner@kirana-demo.com` | `Test@1234` | Shri Ganesh Kirana - use for 11.6 checkout smoke |
 | Existing retail | `owner@cityhardware.com` | `Test@1234` | Until seed replaced |
 | Existing wholesale | `owner@deccanwholesale.com` | `Test@1234` | Until seed replaced |
 | Construction | `owner@reddyconst.com` | `Test@1234` | Regression only |
@@ -329,28 +401,85 @@ Add new test files under `apps/backend/src/__tests__/` for catalog template + FE
 - [x] Integration tests cover item-master-without-stock, quick vendor receipt, MRP/optional expiry and later audited date correction; existing Kirana/FEFO/Construction regressions remain green
 - [x] Shared build, Prisma validate, backend/mobile TypeScript clean; full backend **250/250**
 
+### Phase 11.6 - Inventory workspace UX
+
+- [x] Full-screen CheckoutCart on tablet+desktop (no `max-w-4xl` / `h-[85%]` gutter); phone near-fullscreen
+- [x] Desktop/tablet **catalog table** (Item · Unit · On hand · MRP · Selling ₹ · Status · Add) with sticky header
+- [x] Desktop/tablet **cart table** (Item · Qty · Selling ₹ · GST% · Line ₹ · Remove) + sticky Charge footer
+- [x] Phone catalog visible without typing; search still filters; sticky Charge footer kept
+- [x] Issuable catalog not truncated at 60 rows (virtualize or show all filtered)
+- [x] Non-Kirana `MultiIssueStockModal` full-screen + desktop line table; same `issueStockManual` API
+- [x] Multi-line operational modals (SKU picker, quick receipt, indent/PO/GRN, SO/challan, invoice/bill create, transfer, count) use large/full workspace; single-entity forms stay compact
+- [x] Desktop tables for Materials, Parties, Warehouse, Procurement lists (phone cards unchanged)
+- [x] Construction regressions green (indent DRAFT, no construction draft invoice); shared build + mobile `tsc`; no schema/migration; do not expand i18n in this pass
+- [x] §6 commands run; evidence recorded here
+
+**Verification (2026-08-19, code-complete):** shared build `tsc --noEmit` clean; mobile `tsc --noEmit` clean (CheckoutCart, StockModals, AdaptiveSheet, procurement, materials, parties, warehouse, invoices/bills, TransactionModals, WarehouseModals, KiranaSkuPicker); full backend jest **250/250 (32 suites)** including construction procurement + phase5 regressions. No schema/migration, no new flags, no i18n expansion. **Residuals tracked in 11.7.6 / 11.7.1–11.7.5.**
+
+**Viewport notes (code-complete only, no device env):**
+- Desktop (≥1024px) / tablet (768–1023px): Checkout = full-viewport workspace; left on-hand catalog TABLE (Item · Unit · On hand · MRP · Selling ₹ · Status · Add, sticky header) + right cart TABLE (Item · Qty · Selling ₹ · GST% · Line ₹ · Remove) with totals + sticky Charge footer; Esc / × close; backdrop dismiss disabled while submitting. Bulk issue (non-Kirana) = full-screen with a line table (Item · Qty · Selling ₹ · Batch · Remove). Materials / Parties / Warehouse / Procurement list pages show real table rows + column headers. Indent/PO/GRN, SO/challan/quote/returns, invoice/bill create, transfer, count, SKU picker, quick vendor receipt open full-screen.
+- Phone (<768px): checkout = search/scan-first with catalog always visible (search filters, does not hide), compact cards + sticky Charge & issue stock footer; other pages keep cards (K8). Single-entity dialogs (party/warehouse CRUD, adjust stock, opening CSV, price list, scan overlay) remain compact.
+
+### Phase 11.7 - Cost vs sell + remaining UX + D11
+
+- [x] `Resource.costPrice` migration; inventory backfill from `avgCost`; construction rows unchanged; `rate` still selling
+- [x] Add/edit SKU + Kirana import capture **Cost** and **Selling** (+ MRP); helper copy no longer says selling is the PO catalog rate
+- [x] Checkout / bulk issue / SO lines prefill and edit **sell** only
+- [x] PO / GRN / indent / quick receipt / reorder prefill and edit **cost** (`costPrice`, not `rate`); GRN updates `costPrice` + WAC
+- [x] Desktop item/stock tables show both columns; phone cards show both
+- [x] Checkout table cells compact; customer block collapsed until needed
+- [x] Flow audit: add item → receive → checkout → invoice payment; SO→DC→invoice; construction indent stays DRAFT
+- [x] D11: prompt answer-only + markdown; chat UI renders formatting (Construction + Inventory + marketing)
+- [x] Shared build, Prisma validate, backend/mobile `tsc`, targeted + construction tests; evidence here
+
+**Verification (2026-08-19, code-complete):**
+- Migration `20260819000000_phase11_7_cost_price` applied to the test DB (`prisma migrate deploy` clean); `prisma validate` clean.
+- Shared build `tsc` clean; backend `tsc --noEmit` clean; mobile `tsc --noEmit` clean (materials, KiranaSkuPicker, CheckoutCart, StockModals, procurement, index, TransactionModals, invoices, AssistantChatContent).
+- Backend jest **all green**: `inventory-product.test.ts` 69/69 (includes 4 new Phase 11.7 cases: cost/sell capture + indent/reorder use cost + summary exposes sell/cost; GRN at ₹82 → costPrice 82 + WAC + rate untouched; quick receipt updates costPrice + WAC; construction resource costPrice stays null), `procurement.test.ts`, `inventory-labels.test.ts`. Reorder Phase 4.3 test updated to assert PO rate = costPrice (K11).
+- Exit criteria: SKU cost ₹80 / sell ₹95 → indent/reorder/PO prefill ₹80; stock summary `catalogRate` (checkout prefill) = ₹95 with `costPrice` ₹80 read-only; GRN at ₹82 updates costPrice + WAC and leaves rate; construction estimates keep `rate`.
+
 ---
 
 ## 9. Deepseek agent command (copy-paste)
 
 ```
-Read docs/INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md end-to-end + docs/INVENTORY_HORIZONTAL_PLATFORM.md §1.3 construction isolation + §3 locked principles.
+Read:
+- docs/INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md (authoritative for 11.7)
+- docs/INVENTORY_UX_POLISH.md D11 (chatbot format, entire system)
+- docs/INVENTORY_HORIZONTAL_PLATFORM.md §1.3 construction isolation + §3
 
-You are implementing BuildFlow Inventory Phase 11 (Kirana retail/wholesale).
-Deepseek-v4-flash = coding agent only. Do NOT hard-code it as the product chat model.
+You are implementing BuildFlow Inventory Phase 11.7 + D11.
+Deepseek-v4-flash = coding agent only. Do NOT hard-code it as the product chat model (D10).
 
-CURRENT PASS: implement ONLY the next unchecked phase section in §3 / §8.
-Phases 11.0–11.4 are complete; the next pass is Phase 11.5. Do not rewrite completed phases except where 11.5 explicitly extends them.
+CURRENT PASS: Phase 11.7 + D11 only.
+11.0–11.6 are complete (checkout is already full-screen with tables). Do not
+re-litigate 11.6 except 11.7.6 residuals (compact table cells, collapse customer).
 
-Locked decisions K1–K10 and Non-goals in §0 are mandatory.
+Locked: K1–K11 and Non-goals. K11 is new: inventory cost vs sell.
+
+Must implement:
+1) Resource.costPrice (nullable). rate = selling. avgCost = WAC (read-only).
+   Construction: ignore costPrice; keep rate as estimate/catalog rate.
+2) Add/edit SKU and Kirana import: capture Cost + Selling (+ MRP).
+3) Checkout / SO / invoice lines: edit Selling only (prefill rate).
+4) PO / GRN / indent / quick receipt / reorder: edit Cost only (prefill
+   costPrice, never selling rate). GRN/receipt updates costPrice + WAC.
+5) Fix the materials helper that still calls selling “catalog rate for POs”.
+6) Walk inventory flows and fix only real inventory bugs. Construction
+   ProcurementTab Draft→Submit→Approve must stay DRAFT on create.
+7) D11: chatbot answers the question only — no trailing suggestions /
+   “you can also ask” / extra chips after a reply. Format with markdown
+   (short heading, bullets, numbers in lists/tables). Render markdown in
+   AssistantChatContent for Construction + Inventory; same answer-only
+   rule on the marketing prompt.
 
 After the phase:
-1) Update §8 checkboxes with evidence
-2) Run the commands in §6
+1) Tick §8 Phase 11.7 and D11 checkboxes with evidence
+2) Run Kirana plan §6 commands
 3) Stop
 
-Do NOT: separate Item table, shared mutable catalog, serial tracking, FIFO rewrite,
-Construction Draft→Submit→Approve changes, Inventory price change, rewrite Phases 0–10.
+Do NOT: FIFO rewrite, separate Item table, Construction Draft→Submit→Approve
+changes, Inventory price change, i18n expansion, rewrite Phases 0–10 / 11.0–11.6.
 ```
 
 ---
@@ -362,8 +491,8 @@ Construction Draft→Submit→Approve changes, Inventory price change, rewrite P
 | Schema / seed | `apps/backend/prisma/schema.prisma`, `migrations/*`, `inventory-catalogs/kirana-catalog-data.ts`, `seed.ts` |
 | Catalog apply | `apps/backend/src/services/*catalog*`, `settings.service.ts`, `resource.service.ts` |
 | Batch / FEFO | `stock-batch.service.ts`, `procurement.service.ts`, `warehouse.service.ts`, `return.service.ts`, `sales-order.service.ts` |
-| Shared | `packages/shared/src/inventory-profile.ts`, `plan-modules.ts`, validators |
-| UI | `inventory/settings.tsx`, `materials.tsx`, `StockModals.tsx`, `procurement.tsx`, `stock/[resourceId].tsx`, `sales.tsx`, `index.tsx`, `DashboardCards.tsx`, `BarcodeScannerOverlay.tsx` |
+| Shared | `packages/shared/src/inventory-profile.ts`, `plan-modules.ts`, validators, `permissions/prompt-builder.ts` |
+| UI | `inventory/settings.tsx`, `materials.tsx`, `StockModals.tsx`, `CheckoutCart.tsx`, `AdaptiveSheet.tsx`, `KiranaSkuPicker.tsx`, `procurement.tsx`, `TransactionModals.tsx`, `WarehouseModals.tsx`, `parties.tsx`, `warehouse.tsx`, `stock/[resourceId].tsx`, `sales.tsx`, `index.tsx`, `DashboardCards.tsx`, `BarcodeScannerOverlay.tsx`, `components/assistant/AssistantChatContent.tsx` |
 | Tests | `inventory-product.test.ts` (+ new kirana/FEFO cases), `procurement.test.ts` construction regressions |
 
 ---
@@ -378,3 +507,5 @@ Construction Draft→Submit→Approve changes, Inventory price change, rewrite P
 | 11.3 POS checkout | DONE - CheckoutCart split cart (desktop/phone), barcode add-to-cart, server FEFO allocations in issue response, AUTO_STOCK_ISSUE SO, pos_checkout flag (§8 evidence) | 2026-08-16 |
 | 11.4 Sales/dashboard UI | DONE - sales desktop tables / phone cards, Kirana KPIs, desktop stock table + phone searchable rows, viewport notes (§8 evidence) | 2026-08-16 |
 | 11.5 Selective SKU/MRP intake | DONE - tenant-only item master, library/custom add, HSN + tracking edit, PO/GRN or quick vendor receipt, optional editable batch expiry (§8 evidence) | 2026-08-16 |
+| 11.6 Inventory workspace UX | DONE - full-screen checkout + desktop tables; residuals in 11.7.6 | 2026-08-19 |
+| 11.7 Cost vs sell + flow audit + D11 | DONE - `costPrice` vs selling `rate`, procurement/checkout split, compact checkout cells, D11 answer-only markdown (§8 evidence). Operator device smoke remaining. | 2026-08-19 |

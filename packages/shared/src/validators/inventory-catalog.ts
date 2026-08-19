@@ -56,6 +56,9 @@ export const catalogSelectedItemSchema = z.object({
   }).optional(),
   mrp: z.number().nonnegative(),
   rate: z.number().nonnegative(),
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor unit cost captured at
+  // intake; prefills POs/receipts. Optional (0/blank = no cost known yet).
+  costPrice: z.number().nonnegative().optional(),
   quantity: z.number().positive(),
   barcode: z.string().max(100).optional(),
   batchCode: z.string().max(50).optional(),
@@ -90,6 +93,9 @@ export const catalogMasterItemSchema = z.object({
   }).optional(),
   mrp: z.number().nonnegative(),
   rate: z.number().nonnegative(),
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor unit cost captured at
+  // intake; prefills POs/receipts. Optional (0/blank = no cost known yet).
+  costPrice: z.number().nonnegative().optional(),
   barcode: z.string().trim().max(100).optional(),
 }).refine(
   (v) => Boolean(v.templateKey) !== Boolean(v.custom),

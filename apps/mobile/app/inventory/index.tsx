@@ -411,6 +411,8 @@ export default function InventoryStockScreen() {
                 <View className="flex-row items-center px-1 py-2 bg-surface border-b border-border mt-3">
                   <Text className="flex-[2] text-[11px] font-bold text-muted uppercase">Name</Text>
                   <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Balance</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Cost</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Sell</Text>
                   <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">WAC</Text>
                   <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Value</Text>
                   <Text className="flex-[1.8] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
@@ -443,6 +445,12 @@ export default function InventoryStockScreen() {
                     </View>
                   </View>
                   <Text className="flex-1 text-sm font-bold text-primary text-right">{item.balance}</Text>
+                  <Text className="flex-1 text-xs text-muted text-right">
+                    {item.costPrice != null && Number(item.costPrice) > 0 ? `₹${Number(item.costPrice).toFixed(2)}` : '-'}
+                  </Text>
+                  <Text className="flex-1 text-xs text-muted text-right">
+                    {Number(item.catalogRate) > 0 ? `₹${Number(item.catalogRate).toFixed(2)}` : '-'}
+                  </Text>
                   <Text className="flex-1 text-xs text-muted text-right">
                     {Number(item.unitCost) > 0 ? `₹${Number(item.unitCost).toFixed(2)}` : '-'}
                   </Text>
@@ -486,6 +494,12 @@ export default function InventoryStockScreen() {
                     </Text>
                     <View className="flex-row items-center gap-1.5 mt-0.5">
                       <Text className="text-[11px] text-muted">{item.unit}</Text>
+                      {/* INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7.5): cost · sell. */}
+                      {item.costPrice != null && Number(item.costPrice) > 0 ? (
+                        <Text className="text-[11px] text-muted">
+                          · Cost ₹{Number(item.costPrice).toFixed(2)} · Sell ₹{Number(item.catalogRate).toFixed(2)}
+                        </Text>
+                      ) : null}
                       {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 5.2): WAC valuation. */}
                       {Number(item.unitCost) > 0 ? (
                         <Text className="text-[11px] text-muted">

@@ -1241,6 +1241,9 @@ describe('INVENTORY_PRODUCT (integration)', () => {
       type: 'MATERIAL',
       unit: 'bag',
       rate: 120,
+      // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): reorder orders at the
+      // vendor cost (costPrice), never the selling rate.
+      costPrice: 110,
       gstRate: 18,
       reorderPoint: 10,
       reorderQty: 30,
@@ -1259,7 +1262,7 @@ describe('INVENTORY_PRODUCT (integration)', () => {
       (l: { resourceId: string }) => l.resourceId === lowId,
     );
     expect(Number(poLine.quantity)).toBe(30);
-    expect(Number(poLine.rate)).toBe(120);
+    expect(Number(poLine.rate)).toBe(110); // vendor cost, not selling 120
 
     // Ordering an item that is NOT low-stock → 422.
     const okRes = await authPost(invToken, '/api/resources', {
@@ -2823,6 +2826,149 @@ describe('INVENTORY_PRODUCT (integration)', () => {
       expect(
         (await authPut(constToken, '/api/inventory/catalog/vertical', { vertical: 'KIRANA' })).status,
       ).toBe(403);
+    });
+  });
+
+  /* ── Phase 11.7 (K11): cost vs sell ─────────────────────────────── */
+  describe('Phase 11.7 - cost vs sell', () => {
+    it('SKU captures costPrice + rate; indent/reorder use cost, stock summary exposes sell + cost', async () => {
+      const res = await authPost(invToken, '/api/resources', {
+        name: `CostSell ${suffix}`,
+        type: 'MATERIAL',
+        unit: 'pack',
+        rate: 95, // selling price to customer
+        costPrice: 80, // vendor unit cost
+        gstRate: 12,
+        reorderPoint: 5,
+      });
+      expect(res.status).toBe(201);
+      const resourceId = res.body.data.id as string;
+      expect(Number(res.body.data.costPrice)).toBe(80);
+      expect(Number(res.body.data.rate)).toBe(95);
+
+      // Bring in 3 units at cost 80 so the stock summary row exists and the
+      // item is still below its reorder point (5).
+      const qvr = await authPost(invToken, '/api/inventory/stock/quick-receipt', {
+        vendorName: 'Cost Vendor',
+        receivedDate: new Date().toISOString().slice(0, 10),
+        lines: [{ resourceId, quantity: 3, unitCost: 80 }],
+      });
+      expect(qvr.status).toBe(201);
+
+      // Indent expected rate resolves from costPrice (never the selling rate).
+      const reqRes = await authPost(invToken, `/api/projects/${defaultProjectId}/procurement/requisitions`, {
+        reqNumber: `IND-CS-${suffix}`,
+        lines: [{ resourceId, quantity: 10, unit: 'pack' }],
+      });
+      expect(reqRes.status).toBe(201);
+      expect(reqRes.body.data.status).toBe('APPROVED');
+      expect(Number(reqRes.body.data.lines[0].expectedRate)).toBe(80);
+
+      // Reorder suggestion catalog rate = vendor cost (costPrice), not sell.
+      const sugg = await authGet(invToken, '/api/inventory/reorder/suggestions');
+      expect(sugg.status).toBe(200);
+      const low = (sugg.body.data as Array<{ resourceId: string; catalogRate: number }>).find(
+        (r) => r.resourceId === resourceId,
+      );
+      expect(low).toBeTruthy();
+      expect(Number(low!.catalogRate)).toBe(80);
+
+      // Stock summary keeps selling rate as catalogRate (checkout prefill) and
+      // exposes costPrice as a read-only hint / list column.
+      const summary = await authGet(
+        invToken,
+        `/api/projects/${defaultProjectId}/procurement/stock/summary`,
+      );
+      expect(summary.status).toBe(200);
+      const row = (summary.body.data as Array<{
+        resourceId: string;
+        catalogRate: number;
+        costPrice: number | null;
+      }>).find((r) => r.resourceId === resourceId);
+      expect(row).toBeTruthy();
+      expect(Number(row!.catalogRate)).toBe(95);
+      expect(Number(row!.costPrice)).toBe(80);
+    });
+
+    it('GRN at a new rate updates costPrice + WAC while rate (sell) stays unchanged', async () => {
+      const res = await authPost(invToken, '/api/resources', {
+        name: `GrnCost ${suffix}`,
+        type: 'MATERIAL',
+        unit: 'kg',
+        rate: 120,
+        costPrice: 100,
+        gstRate: 5,
+      });
+      expect(res.status).toBe(201);
+      const resourceId = res.body.data.id as string;
+
+      const reqRes = await authPost(invToken, `/api/projects/${defaultProjectId}/procurement/requisitions`, {
+        reqNumber: `IND-GC-${suffix}`,
+        lines: [{ resourceId, quantity: 10, unit: 'kg' }],
+      });
+      const reqId = reqRes.body.data.id as string;
+      const poRes = await authPost(invToken, `/api/projects/${defaultProjectId}/procurement/purchase-orders`, {
+        poNumber: `PO-GC-${suffix}`,
+        vendorName: 'Cost Vendor',
+        requisitionId: reqId,
+        lines: [{ resourceId, quantity: 10, unit: 'kg', rate: 82 }],
+      });
+      expect(poRes.status).toBe(201);
+      const poId = poRes.body.data.id as string;
+
+      const grnRes = await authPost(invToken, `/api/projects/${defaultProjectId}/procurement/grn`, {
+        grnNumber: `GRN-GC-${suffix}`,
+        purchaseOrderId: poId,
+        receivedDate: new Date().toISOString().slice(0, 10),
+        lines: [{ resourceId, quantity: 10, unit: 'kg' }],
+      });
+      expect(grnRes.status).toBe(201);
+
+      const dbRow = await prisma.resource.findUniqueOrThrow({ where: { id: resourceId } });
+      expect(Number(dbRow.costPrice)).toBe(82);
+      expect(Number(dbRow.avgCost)).toBeCloseTo(82, 4); // WAC 0 + 10 @ 82
+      expect(Number(dbRow.rate)).toBe(120); // selling price untouched
+    });
+
+    it('quick vendor receipt updates costPrice + WAC, never the selling rate', async () => {
+      const res = await authPost(invToken, '/api/resources', {
+        name: `QuickCost ${suffix}`,
+        type: 'MATERIAL',
+        unit: 'box',
+        rate: 60,
+        costPrice: 40,
+        gstRate: 12,
+      });
+      expect(res.status).toBe(201);
+      const resourceId = res.body.data.id as string;
+
+      const qvr = await authPost(invToken, '/api/inventory/stock/quick-receipt', {
+        vendorName: 'Quick Vendor',
+        receivedDate: new Date().toISOString().slice(0, 10),
+        lines: [{ resourceId, quantity: 5, unitCost: 45 }],
+      });
+      expect(qvr.status).toBe(201);
+
+      const dbRow = await prisma.resource.findUniqueOrThrow({ where: { id: resourceId } });
+      expect(Number(dbRow.costPrice)).toBe(45);
+      expect(Number(dbRow.avgCost)).toBeCloseTo(45, 4);
+      expect(Number(dbRow.rate)).toBe(60);
+    });
+
+    it('construction resources keep rate as the estimate catalog rate; costPrice stays null', async () => {
+      const constToken = await loginAs(CONSTRUCTION_OWNER);
+      const res = await authPost(constToken, '/api/resources', {
+        name: `Const NoCost ${suffix}`,
+        type: 'MATERIAL',
+        unit: 'bag',
+        rate: 300,
+        gstRate: 18,
+      });
+      expect(res.status).toBe(201);
+      const resourceId = res.body.data.id as string;
+      const dbRow = await prisma.resource.findUniqueOrThrow({ where: { id: resourceId } });
+      expect(Number(dbRow.rate)).toBe(300);
+      expect(dbRow.costPrice).toBeNull();
     });
   });
 

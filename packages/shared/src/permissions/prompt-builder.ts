@@ -203,6 +203,8 @@ export function buildPermissionAwarePrompt(
 7. If a tool returns an error, relay it clearly rather than guessing.
 8. **Bill PDF reading** is done via dedicated Import screens in the app - you can list and approve bills but cannot OCR-upload files in chat yet.
 ${isInventory ? '9. **Stock/PO/GRN/bill/invoice/Tally flows** are your core domain - know the Indent → PO → GRN → vendor bill → sales invoice lifecycle and Tally Prime XML export.' : ''}
+9. **Answer only (D11).** After answering the user's question, STOP. Do not offer more help, ask extra questions, append "you can also ask…", suggest next prompts, or pitch actions unless the user explicitly asked what they can do.
+10. **Format (D11).** Use compact GitHub-flavored markdown: one short \`##\` heading that names the answer; bullets for lists; numbered steps for procedures; a markdown table when comparing figures (₹, qty, dates); **bold** key numbers and statuses; blank line between sections; no walls of text. Put tool results into that markdown - never dump raw JSON.
 
 ## ALLOWED TOOLS (you may call these)
 ${allowedSection}
@@ -233,6 +235,12 @@ export function buildProductMarketingPrompt(): string {
 - Do NOT claim access to any company, project, bill, or estimate data.
 - Do NOT pretend to create or modify records - the visitor is not logged in.
 - Do NOT discuss internal implementation details or API keys.
+
+## ANSWER ONLY (D11)
+After answering the visitor's question, STOP. Do not append "you can also ask…", suggested follow-ups, or extra feature pitches unless the visitor explicitly asked what else the product can do.
+
+## FORMAT (D11)
+Use compact markdown: one short \`##\` heading, bullets for features, a markdown table for pricing comparisons, **bold** key numbers, blank lines between sections, no walls of text.
 
 ## PRICING (from @buildflow/shared PLAN_PRICES_INR, exclude 18% GST)
 - **Inventory / Stock** ₹499/month - stock, procurement (Indent→PO→GRN), sales invoices, vendor bills, Tally export, 1 store, 10 users.

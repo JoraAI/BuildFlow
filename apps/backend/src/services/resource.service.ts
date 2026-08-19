@@ -171,6 +171,8 @@ export async function createResource(
       rate: input.rate,
       mrp: input.mrp ?? null,
       mrpUpdatedAt: input.mrp != null ? new Date() : null,
+      // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor unit cost.
+      costPrice: input.costPrice ?? null,
       gstRate: input.gstRate ?? 0,
       hsnSacCode: input.hsnSacCode ?? null,
       brandOrSpec: input.brandOrSpec ?? null,
@@ -213,7 +215,7 @@ export async function createResource(
     action: 'CREATE',
     entityType: 'resource',
     entityId: resource.id,
-    newValue: { name: resource.name, rate: Number(resource.rate) },
+    newValue: { name: resource.name, rate: Number(resource.rate), costPrice: resource.costPrice == null ? null : Number(resource.costPrice) },
     ipAddress,
   });
 
@@ -267,6 +269,8 @@ export async function updateResource(
         mrp: input.mrp,
         mrpUpdatedAt: new Date(),
       }),
+      // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor unit cost.
+      ...(input.costPrice !== undefined && { costPrice: input.costPrice }),
       ...(input.gstRate !== undefined && { gstRate: input.gstRate }),
       ...(input.hsnSacCode !== undefined && { hsnSacCode: input.hsnSacCode }),
       ...(input.brandOrSpec !== undefined && { brandOrSpec: input.brandOrSpec }),
@@ -325,8 +329,8 @@ export async function updateResource(
     action: 'UPDATE',
     entityType: 'resource',
     entityId: id,
-    oldValue: { name: existing.name, rate: Number(existing.rate), mrp: existing.mrp == null ? null : Number(existing.mrp) },
-    newValue: { name: updated.name, rate: Number(updated.rate), mrp: updated.mrp == null ? null : Number(updated.mrp), mrpChanged },
+    oldValue: { name: existing.name, rate: Number(existing.rate), mrp: existing.mrp == null ? null : Number(existing.mrp), costPrice: (existing as unknown as { costPrice?: number | null }).costPrice ?? null },
+    newValue: { name: updated.name, rate: Number(updated.rate), mrp: updated.mrp == null ? null : Number(updated.mrp), costPrice: updated.costPrice == null ? null : Number(updated.costPrice), mrpChanged },
     ipAddress,
   });
 

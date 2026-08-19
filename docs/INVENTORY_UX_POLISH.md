@@ -2,7 +2,8 @@
 
 > **Audience:** Deepseek-Flash-V4 (coding agent)  
 > **Repo:** `/home/prasanna/work/BuildFlow`  
-> **Products in scope for AI (D10):** **both** Construction ERP **and** Inventory - same assistant stack, product-scoped prompts/tools.  
+> **Products in scope for AI (D10 + D11):** **both** Construction ERP **and** Inventory - same assistant stack, product-scoped prompts/tools.  
+> **Current AI pass:** **D11 is code-complete.** Operator device smoke of formatted assistant replies remaining. Do not reimplement D10 routing.  
 > **Pricing:** Inventory **₹499/mo** / **₹4,990/yr** - do not regress.  
 > **Construction safety:** Indent auto-approve **only** when `subscriptionPlan === 'INVENTORY'`. Construction `ProcurementTab` keeps Draft → Submit → Approve.  
 
@@ -22,6 +23,7 @@
 | D8 | PO/GRN numbers auto-suggested (`PO/GRN-YYYY-NNNN`); user may edit before save |
 | D9 | Multi-material procure + retrieve (Indent / PO / GRN / Issue with multiple lines) |
 | **D10** | **LLM routing (Construction + Inventory):** when a tenant/platform has a configured content LLM (or uploaded knowledge), **that** LLM owns chatbot + upload-related AI for **both** product modes - not a hard-coded Deepseek product model. Deepseek-v4-flash = coding agent only. |
+| **D11** | **Chat replies (entire system):** the assistant answers the user’s question only. No trailing “you can also ask…”, suggested follow-ups, or extra action pitches. Format with short markdown (heading, bullets, numbered steps, compact tables for figures). Chat UI must render that markdown. Empty-state starter chips before the first message may stay. Same rules for Construction, Inventory, and the marketing product guide. D10 routing is unchanged. |
 
 ---
 
@@ -102,6 +104,17 @@ cd /home/prasanna/work/BuildFlow/apps/backend && npm test -- --testPathPattern='
 - [x] Construction stock issue → `draftInvoiceId` null  
 - [x] **D10** §6 feasibility (Construction + Inventory) + `callLLMOnce` comment  
 - [x] Tests **32/32** green (`inventory-product` + `procurement.test`)  
+
+### D11 - Assistant answer format (THIS coding pass, with Kirana 11.7)
+
+- [x] `buildPermissionAwarePrompt` CORE RULES: answer only; no trailing suggestions / “would you like” / extra questions after the answer; use markdown (heading + bullets/tables)
+- [x] `buildProductMarketingPrompt` same answer-only + markdown rule
+- [x] `AssistantChatContent` renders bot markdown (bold, headings, lists, simple tables) instead of a single raw `Text`; user bubbles stay plain
+- [x] Empty-state chips remain until first send; no post-reply suggestion chips
+- [x] Construction + Inventory overlays share this UI; D10 `resolveLlmConfig` unchanged; do not hard-code Deepseek as chat model
+- [x] Shared build + existing chatbot/prompt tests if present; no Construction Draft→Submit→Approve changes
+
+**Evidence (2026-08-19):** `packages/shared` build clean; `apps/backend` tsc clean; full backend jest green (inventory-product 69/69 incl. Phase 11.7, procurement.test + inventory-labels); mobile `tsc --noEmit` clean. `prompt-builder.ts` rules 9/10 + marketing `## ANSWER ONLY`/`## FORMAT`; `AssistantChatContent.tsx` `MarkdownBlocks` renderer (headings `#`–`###`, `**bold**`, `` `code` ``, `-`/`*` lists, numbered lists, GFM `|` tables). D10 routing untouched (no `resolveLlmConfig` change, no model hard-coding).
 
 ### THIS pass (smoke / ops)
 
@@ -203,7 +216,43 @@ flowchart TD
 
 ---
 
-## 7. Reference files
+## 8. D11 - Chatbot answer format (implement with Kirana 11.7)
+
+**Verified gap:** Bot bubbles in `AssistantChatContent.tsx` render `item.message` as one plain `Text`. System prompt asks the model to “be concise” but never forbids follow-up suggestions, so replies often end with “Would you like me to…”. This applies to Construction, Inventory, and marketing.
+
+### 8.1 Prompt (must)
+
+In `packages/shared/src/permissions/prompt-builder.ts` add CORE RULES for both `buildPermissionAwarePrompt` and `buildProductMarketingPrompt`:
+
+1. **Answer only.** After answering, stop. Do not offer more help, extra questions, “you can also ask”, suggested next prompts, or tool pitches unless the user asked what they can do.
+2. **Format.** Use compact GitHub-flavored markdown:
+   - One short `##` heading that names the answer
+   - Bullets for lists of items
+   - Numbered steps for procedures
+   - A markdown table when comparing figures (₹, qty, dates)
+   - **Bold** key numbers and statuses
+   - Blank line between sections; no walls of text
+3. **Tools.** Still call tools for live data (D10). Put tool results into that markdown. Do not dump raw JSON.
+4. Confirm write actions before calling write tools (existing rule 3 stays).
+
+### 8.2 UI (must)
+
+`apps/mobile/components/assistant/AssistantChatContent.tsx` (used by Construction overlay, Inventory overlay, and any shared chat surface):
+
+- Parse **bot** messages as markdown. Minimum: headings, `**bold**`, unordered/ordered lists, fenced or indented not required, GFM tables (`| a | b |`).
+- Prefer a small existing helper or a few `Text` styles — do **not** add a heavy markdown WebView if a lightweight renderer is enough. If you add a dependency, it must work on web + native Expo.
+- User messages stay plain text.
+- Starter chips stay on **empty** threads only (already implemented). Do **not** add suggestion chips under a completed bot reply.
+- Marketing FAB uses the marketing prompt; apply the same answer-only rule even if that UI stays simpler.
+
+### 8.3 Non-goals
+
+- Do not change D10 LLM routing or hard-code Deepseek as the chat model.
+- Do not add RAG.
+- Do not remove permission/tool gating.
+
+Implement D11 in the **same Deepseek pass** as Kirana plan Phase 11.7. Copy-paste command: Kirana plan §9.
+
 
 ```
 apps/backend/src/services/chatbot.service.ts

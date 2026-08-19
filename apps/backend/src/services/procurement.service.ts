@@ -120,7 +120,11 @@ export async function listRequisitions(
   const requisitions = await prisma.materialRequisition.findMany({
     where: { projectId, companyId },
     include: {
-      lines: { include: { resource: { select: { id: true, name: true } } } },
+      lines: {
+        include: {
+          resource: { select: { id: true, name: true, costPrice: true, avgCost: true } },
+        },
+      },
       purchaseOrders: {
         select: {
           id: true,
@@ -738,6 +742,17 @@ export async function createGRN(
         line.quantity,
         unitCost,
       );
+
+      // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): the received unit cost
+      // is the vendor-cost source of truth. Update costPrice (WAC already
+      // updated above); skip a zero/blank PO rate so it cannot wipe a known
+      // cost. Construction ignores costPrice entirely.
+      if (unitCost > 0) {
+        await tx.resource.update({
+          where: { id: line.resourceId },
+          data: { costPrice: unitCost },
+        });
+      }
     }
 
     // FIX (EST-H4): Apportion GRN quantity across ALL matching requisition lines
@@ -1346,6 +1361,16 @@ export async function quickVendorReceipt(
       const onHand = Number(balance?.quantity ?? 0);
       const quantityOnHand = round4(onHand + line.quantity);
       const newWac = await updateWacOnIn(tx, resource.id, onHand, line.quantity, line.unitCost);
+      // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): the received unit cost
+      // is the vendor-cost source of truth. Update costPrice (WAC already
+      // updated above); skip a zero/blank rate so it cannot wipe a known cost.
+      // Construction ignores costPrice entirely.
+      if (line.unitCost > 0) {
+        await tx.resource.update({
+          where: { id: resource.id },
+          data: { costPrice: line.unitCost },
+        });
+      }
       const batchCode = isBatchTracked(resource.trackingMode)
         ? line.batchCode?.trim() || `QVR-${Date.now()}-${index + 1}`
         : null;
@@ -1661,6 +1686,9 @@ export interface StockSummaryRow {
   catalogRate: number;
   /** Printed maximum retail price (Kirana); null when not applicable. */
   mrp: number | null;
+  /** INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor unit cost; null when
+   *  not captured yet. Used for read-only cost hints + cost/sell list columns. */
+  costPrice: number | null;
   /** Low-stock threshold (Phase 1.5): balance below this = needs reorder. */
   reorderPoint: number;
   received: number;
@@ -1707,6 +1735,7 @@ export async function getStockSummary(
             unit: true,
             rate: true,
             mrp: true,
+            costPrice: true,
             reorderPoint: true,
             avgCost: true,
             gstRate: true,
@@ -1725,6 +1754,7 @@ export async function getStockSummary(
             unit: true,
             rate: true,
             mrp: true,
+            costPrice: true,
             reorderPoint: true,
             avgCost: true,
             gstRate: true,
@@ -1747,6 +1777,7 @@ export async function getStockSummary(
     unit: string,
     catalogRate: number,
     mrp: number | null,
+    costPrice: number | null,
     reorderPoint: number,
     avgCost: number,
     gstRate: number,
@@ -1760,6 +1791,7 @@ export async function getStockSummary(
         unit,
         catalogRate,
         mrp,
+        costPrice,
         reorderPoint,
         received: 0,
         issued: 0,
@@ -1786,6 +1818,7 @@ export async function getStockSummary(
       m.resource.unit,
       rate,
       m.resource.mrp == null ? null : Number(m.resource.mrp),
+      m.resource.costPrice == null ? null : Number(m.resource.costPrice),
       reorder,
       Number(m.resource.avgCost) || 0,
       gst,
@@ -1807,6 +1840,7 @@ export async function getStockSummary(
       b.resource.unit,
       rate,
       b.resource.mrp == null ? null : Number(b.resource.mrp),
+      b.resource.costPrice == null ? null : Number(b.resource.costPrice),
       reorder,
       avgCost,
       gst,

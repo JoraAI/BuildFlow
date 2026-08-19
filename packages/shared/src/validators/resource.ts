@@ -24,6 +24,10 @@ export const createResourceSchema = z.object({
   rate: z.number().min(0),
   /** Printed MRP; `rate` remains the editable selling price. */
   mrp: z.number().min(0).nullable().optional(),
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor unit cost, distinct
+  // from the selling `rate`. Inventory-only; construction keeps `rate` as the
+  // estimate catalog rate and never reads this field.
+  costPrice: z.number().min(0).nullable().optional(),
   gstRate: z.number().min(0).max(100).optional(),
   hsnSacCode: z.string().max(20).optional(),
   brandOrSpec: z.string().max(200).optional(),

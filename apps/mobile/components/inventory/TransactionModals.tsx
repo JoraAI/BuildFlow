@@ -18,6 +18,7 @@ function Sheet({
   saving,
   onClose,
   visible = true,
+  fullScreen = false,
 }: {
   title: string;
   subtitle?: string;
@@ -26,6 +27,10 @@ function Sheet({
   onClose: () => void;
   /** When false the modal is hidden. Prefer unmounting callers when closed. */
   visible?: boolean;
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): multi-line operational
+  // modals (SO / challan / quote / returns) open as a viewport-filling
+  // workspace; single-entity forms keep the compact dialog.
+  fullScreen?: boolean;
 }) {
   const { isPhone } = useViewport();
   return (
@@ -36,11 +41,19 @@ function Sheet({
       onRequestClose={saving ? undefined : onClose}
     >
       <Pressable
-        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : 'items-center justify-center p-4'}`}
+        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : fullScreen ? '' : 'items-center justify-center p-4'}`}
         onPress={saving ? undefined : onClose}
       >
         <Pressable
-          className={`bg-card w-full ${isPhone ? 'rounded-t-2xl max-h-[92%] p-4' : 'rounded-2xl max-w-lg max-h-[85%] p-4'}`}
+          className={`bg-card w-full ${
+            fullScreen
+              ? isPhone
+                ? 'rounded-t-2xl h-[96%] p-4'
+                : 'h-full'
+              : isPhone
+                ? 'rounded-t-2xl max-h-[92%] p-4'
+                : 'rounded-2xl max-w-lg max-h-[85%] p-4'
+          }`}
           onPress={(e) => e.stopPropagation()}
         >
           <Text className="text-lg font-bold text-text mb-1">{title}</Text>
@@ -125,7 +138,7 @@ function LineEditor({
                 <Input label="Qty" value={l.quantity} onChangeText={(v) => patch(l.key, 'quantity', v)} keyboardType="numeric" />
               </View>
               <View className="flex-1">
-                <Input label="Rate ₹" value={l.rate} onChangeText={(v) => patch(l.key, 'rate', v)} keyboardType="numeric" />
+                <Input label="Selling ₹" value={l.rate} onChangeText={(v) => patch(l.key, 'rate', v)} keyboardType="numeric" />
               </View>
               <View className="w-[80px]">
                 <Input label="GST %" value={l.gstRate} onChangeText={(v) => patch(l.key, 'gstRate', v)} keyboardType="numeric" />
@@ -241,7 +254,7 @@ export function NewSalesOrderModal({
   if (!open) return null;
 
   return (
-    <Sheet visible={open} title="New sales order" subtitle="Draft → confirm → challan → invoice" saving={saving} onClose={onClose}>
+    <Sheet visible={open} title="New sales order" subtitle="Draft → confirm → challan → invoice" saving={saving} onClose={onClose} fullScreen>
       <Select
         label="Customer"
         value={customerId || undefined}
@@ -361,6 +374,7 @@ export function NewChallanModal({
       visible={open}
       title="New delivery challan"
       subtitle="Pick which undelivered lines to ship (defaults to all). Dispatch moves stock OUT."
+      fullScreen
       saving={saving}
       onClose={onClose}
     >
@@ -507,7 +521,7 @@ export function NewQuoteModal({
   if (!open) return null;
 
   return (
-    <Sheet visible={open} title="New quote" subtitle="Draft → send → accept → convert to a sales order" saving={saving} onClose={onClose}>
+    <Sheet visible={open} title="New quote" subtitle="Draft → send → accept → convert to a sales order" saving={saving} onClose={onClose} fullScreen>
       <Select
         label="Customer"
         value={customerId || undefined}
@@ -572,6 +586,7 @@ export function DispatchChallanSheet({
       visible={open}
       title={`Dispatch ${dcNumber ?? 'challan'}`}
       subtitle="Stock moves OUT for the challan lines. Optionally pick the dispatch warehouse."
+      fullScreen
       saving={saving}
       onClose={onClose}
     >
@@ -701,6 +716,7 @@ export function SalesReturnModal({
       visible={open}
       title="New sales return"
       subtitle="Good items restock; damaged items are scrapped. A draft credit note is created."
+      fullScreen
       saving={saving}
       onClose={onClose}
     >
@@ -812,6 +828,7 @@ export function PurchaseReturnModal({
       visible={open}
       title="New purchase return"
       subtitle="Return stock to the vendor. A draft debit note is created."
+      fullScreen
       saving={saving}
       onClose={onClose}
     >

@@ -15,7 +15,7 @@
  *     issue response. It NEVER chooses lot quantities.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, Modal, Pressable, ScrollView } from 'react-native';
+import { View, Text, Modal, Pressable, ScrollView, Platform, TextInput } from 'react-native';
 import { Button, Input, Select, Badge, toast } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
 import { BarcodeScannerOverlay } from '@/components/inventory/BarcodeScannerOverlay';
@@ -25,6 +25,34 @@ import type { BarcodeItem } from '@/services/warehouse.queries';
 import type { StockSummaryRow } from '@/services/expansion.queries';
 
 type CartLine = { key: string; resourceId: string; quantity: string; unitPrice: string };
+
+// INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7.6): compact numeric cell for
+// table rows - no labeled Input (tall rows) inside a table.
+function CellInput({
+  value,
+  onChangeText,
+  keyboardType = 'decimal-pad',
+  accessibilityLabel,
+  placeholder,
+}: {
+  value: string;
+  onChangeText: (t: string) => void;
+  keyboardType?: 'decimal-pad' | 'numeric';
+  accessibilityLabel?: string;
+  placeholder?: string;
+}) {
+  return (
+    <TextInput
+      value={value}
+      onChangeText={onChangeText}
+      keyboardType={keyboardType}
+      accessibilityLabel={accessibilityLabel}
+      placeholder={placeholder ?? '0'}
+      placeholderTextColor="#94A3B8"
+      className="w-full rounded-md border border-border bg-card px-2 py-1.5 text-sm text-text text-center"
+    />
+  );
+}
 
 export interface CheckoutSubmitInput {
   lines: Array<{ resourceId: string; quantity: number; unitPrice?: number }>;
@@ -64,6 +92,9 @@ export function CheckoutCart({
 
   const [lines, setLines] = useState<CartLine[]>([]);
   const [search, setSearch] = useState('');
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7.6): customer block stays
+  // collapsed behind "Add customer" until the shopkeeper needs it.
+  const [customerOpen, setCustomerOpen] = useState(false);
   const [customerId, setCustomerId] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -100,12 +131,25 @@ export function CheckoutCart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialResourceId]);
 
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.1): explicit Esc close on web
+  // (backdrop dismiss stays disabled while submitting).
+  useEffect(() => {
+    if (!open || Platform.OS !== 'web' || submitting) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, submitting, onClose]);
+
   const issuable = useMemo(() => rows.filter((r) => Number(r.balance) > 0), [rows]);
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.4): do NOT truncate the
+  // catalog at 60 rows — render all filtered issuable items (search still
+  // filters by name). FlatList virtualization elsewhere covers very large
+  // catalogs; a Kirana store is a few hundred rows at most.
   const catalog = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return issuable
-      .filter((r) => !q || r.name.toLowerCase().includes(q))
-      .slice(0, 60);
+    return issuable.filter((r) => !q || r.name.toLowerCase().includes(q));
   }, [issuable, search]);
 
   const addItem = (resourceId: string) => {
@@ -282,6 +326,7 @@ export function CheckoutCart({
               </View>
               <Text className="text-[11px] text-muted mt-1">
                 Line ₹{round2(lineNet)} · {row.gstRate ?? 0}% GST · in stock {row.balance} {row.unit}
+                {row.costPrice != null && Number(row.costPrice) > 0 ? ` · Cost ₹${Number(row.costPrice).toFixed(2)}` : ''}
                 {row.mrp != null ? ` · MRP ₹${Number(row.mrp).toFixed(2)}` : ''}
               </Text>
               {issue ? <Text className="text-[11px] text-danger mt-1">{issue}</Text> : null}
@@ -312,29 +357,45 @@ export function CheckoutCart({
     </View>
   );
 
-  const customerFields = (
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7.6): collapsed behind an
+  // "Add customer" toggle - cash sales never see the extra fields.
+  const customerBlock = (
     <>
-      <Select
-        label="Customer (optional - cash sale if blank)"
-        value={customerId || undefined}
-        options={(customers ?? []).map((c: { id: string; name: string }) => ({ title: c.name, value: c.id }))}
-        onChange={(v) => {
-          setCustomerId(v ?? '');
-          const c = (customers ?? []).find(
-            (x: { id: string; name: string; phone?: string | null; billingAddress?: string | null }) => x.id === v,
-          );
-          if (c) {
-            if (!customerName) setCustomerName(c.name);
-            if (!customerPhone && c.phone) setCustomerPhone(c.phone);
-            if (!customerAddress && c.billingAddress) setCustomerAddress(c.billingAddress);
-          }
-        }}
-        placeholder="Cash sale (no customer)"
-      />
-      <Input label="Customer name" value={customerName} onChangeText={setCustomerName} placeholder="Walk-in customer" />
-      <Input label="Phone" value={customerPhone} onChangeText={setCustomerPhone} keyboardType="phone-pad" placeholder="+91 …" />
-      <Input label="Address" value={customerAddress} onChangeText={setCustomerAddress} placeholder="Billing address" />
-      <Input label="Notes" value={notes} onChangeText={setNotes} placeholder="e.g. counter sale" />
+      <Pressable
+        className="flex-row items-center justify-between py-2.5"
+        onPress={() => setCustomerOpen((v) => !v)}
+        accessibilityRole="button"
+      >
+        <Text className="text-sm font-semibold text-text">
+          {customerOpen ? 'Customer' : 'Add customer (optional)'}
+        </Text>
+        <Text className="text-lg text-muted">{customerOpen ? '−' : '+'}</Text>
+      </Pressable>
+      {customerOpen ? (
+        <>
+          <Select
+            label="Customer (optional - cash sale if blank)"
+            value={customerId || undefined}
+            options={(customers ?? []).map((c: { id: string; name: string }) => ({ title: c.name, value: c.id }))}
+            onChange={(v) => {
+              setCustomerId(v ?? '');
+              const c = (customers ?? []).find(
+                (x: { id: string; name: string; phone?: string | null; billingAddress?: string | null }) => x.id === v,
+              );
+              if (c) {
+                if (!customerName) setCustomerName(c.name);
+                if (!customerPhone && c.phone) setCustomerPhone(c.phone);
+                if (!customerAddress && c.billingAddress) setCustomerAddress(c.billingAddress);
+              }
+            }}
+            placeholder="Cash sale (no customer)"
+          />
+          <Input label="Customer name" value={customerName} onChangeText={setCustomerName} placeholder="Walk-in customer" />
+          <Input label="Phone" value={customerPhone} onChangeText={setCustomerPhone} keyboardType="phone-pad" placeholder="+91 …" />
+          <Input label="Address" value={customerAddress} onChangeText={setCustomerAddress} placeholder="Billing address" />
+          <Input label="Notes" value={notes} onChangeText={setNotes} placeholder="e.g. counter sale" />
+        </>
+      ) : null}
     </>
   );
 
@@ -356,88 +417,47 @@ export function CheckoutCart({
       />
     </>
   );
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.1/11.6.2): viewport-filling
+  // workspace — no max-w-4xl / h-[85%] / outer gutter on tablet+desktop; phone
+  // near-fullscreen. Backdrop dismiss is disabled while submitting; × / Esc close.
   return (
     <Modal visible={open} transparent animationType={isPhone ? 'slide' : 'fade'} onRequestClose={submitting ? undefined : onClose}>
-      <Pressable
-        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : 'items-center justify-center p-4'}`}
-        onPress={submitting ? undefined : onClose}
-      >
+      <View className="flex-1 bg-black/40">
         <Pressable
-          onPress={(e) => e.stopPropagation()}
-          className={`bg-card w-full ${isPhone ? 'rounded-t-2xl h-[92%] p-4' : 'rounded-2xl max-w-4xl h-[85%] p-5'}`}
-        >
-          <View className="flex-row items-center justify-between mb-3">
+          className="absolute inset-0"
+          onPress={submitting ? undefined : onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close checkout"
+        />
+        <View className={`flex-1 bg-card ${isPhone ? 'rounded-t-2xl mt-4' : ''}`}>
+          <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
             <Text className="text-lg font-bold text-text">Checkout</Text>
-            {!submitting ? (
-              <Pressable onPress={onClose} className="p-1">
-                <Text className="text-muted text-xl">×</Text>
-              </Pressable>
-            ) : null}
+            <Pressable onPress={submitting ? undefined : onClose} className="p-2" accessibilityRole="button" accessibilityLabel="Close checkout">
+              <Text className="text-muted text-2xl">×</Text>
+            </Pressable>
           </View>
 
           {isPhone ? (
-            <View className="flex-1">
-              {/* Phone: search/scan-first + compact cart + sticky footer. */}
+            <View className="flex-1 p-4">
+              {/* 11.6.3: phone browse — catalog is ALWAYS visible; search filters. */}
               <View className="flex-row gap-2 mb-2">
                 <View className="flex-1">
-                  <Input label="" value={search} onChangeText={setSearch} placeholder={`Search ${itemLabel}s…`} />
+                  <Input label="" accessibilityLabel="Search items" value={search} onChangeText={setSearch} placeholder={`Search ${itemLabel}s…`} />
                 </View>
                 <View className="w-24">
                   <Button label="Scan" accessibilityLabel="Scan barcode to add to cart" variant="secondary" onPress={() => setScannerOpen(true)} disabled={submitting} />
                 </View>
               </View>
-              {search.trim() ? (
-                <View className="max-h-48 mb-2">
-                  <ScrollView keyboardShouldPersistTaps="handled">
-                    {catalog.map((r) => (
-                      <Pressable
-                        key={r.resourceId}
-                        onPress={() => addItem(r.resourceId)}
-                        className="px-3 py-2 border-b border-border/60 flex-row justify-between"
-                      >
-                        <Text className="text-sm text-text flex-1 mr-2" numberOfLines={1}>{r.name}</Text>
-                        <Text className="text-xs text-muted">{r.balance} {r.unit}</Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </View>
-              ) : null}
-              <ScrollView className="flex-1" keyboardShouldPersistTaps="handled">{cart}</ScrollView>
-              <View className="pt-2 pb-1">{customerFields}</View>
-              {error ? <Text className="text-sm text-danger mt-2">{error}</Text> : null}
-              {/* Sticky checkout footer */}
-              <View className="border-t border-border pt-3 mt-2">{checkoutButton}</View>
-            </View>
-          ) : (
-            <View className="flex-1 flex-row gap-4">
-              {/* Desktop/tablet: left catalog table + right persistent cart. */}
-              <View className="flex-1 border-r border-border pr-4">
-                <Text className="text-sm font-bold text-text mb-2">Items on hand</Text>
-                <View className="flex-row gap-2 mb-2">
-                  <View className="flex-1">
-                    <Input label="" value={search} onChangeText={setSearch} placeholder={`Search ${itemLabel}s…`} />
-                  </View>
-                  <View className="w-24">
-                    <Button label="Scan" accessibilityLabel="Scan barcode to add to cart" variant="secondary" onPress={() => setScannerOpen(true)} disabled={submitting} />
-                  </View>
-                </View>
-                <ScrollView className="flex-1" keyboardShouldPersistTaps="handled">
+              <View className="max-h-[38%] mb-2">
+                <ScrollView keyboardShouldPersistTaps="handled">
                   {catalog.map((r) => (
                     <Pressable
                       key={r.resourceId}
                       onPress={() => addItem(r.resourceId)}
-                      className="px-3 py-2 border-b border-border/60 flex-row items-center justify-between"
+                      className="px-3 py-2 border-b border-border/60 flex-row justify-between"
                     >
-                      <View className="flex-1 mr-2">
-                        <Text className="text-sm text-text" numberOfLines={1}>{r.name}</Text>
-                        <Text className="text-[11px] text-muted">
-                          {r.balance} {r.unit}
-                          {r.catalogRate != null && Number(r.catalogRate) > 0 ? ` · ₹${Number(r.catalogRate)}` : ''}
-                          {r.mrp != null && Number(r.mrp) > 0 ? ` · MRP ₹${Number(r.mrp)}` : ''}
-                          {Number(r.balance) <= Number(r.reorderPoint ?? 0) && Number(r.reorderPoint ?? 0) > 0 ? ' · low' : ''}
-                        </Text>
-                      </View>
-                      <Badge color="neutral" label="Add" />
+                      <Text className="text-sm text-text flex-1 mr-2" numberOfLines={1}>{r.name}</Text>
+                      <Text className="text-xs text-muted">{r.balance} {r.unit}</Text>
                     </Pressable>
                   ))}
                   {catalog.length === 0 ? (
@@ -445,19 +465,134 @@ export function CheckoutCart({
                   ) : null}
                 </ScrollView>
               </View>
-              <View className="flex-1">
-                <Text className="text-sm font-bold text-text mb-2">Cart ({lines.length})</Text>
+              <ScrollView className="flex-1" keyboardShouldPersistTaps="handled">{cart}</ScrollView>
+              <View className="pt-2 pb-1">{customerBlock}</View>
+              {error ? <Text className="text-sm text-danger mt-2">{error}</Text> : null}
+              <View className="border-t border-border pt-3 mt-2">{checkoutButton}</View>
+            </View>
+          ) : (
+            <View className="flex-1 flex-row">
+              {/* 11.6.2: left on-hand catalog TABLE (sticky header, row add). */}
+              <View className="flex-1 border-r border-border">
+                <View className="px-4 py-3 border-b border-border flex-row gap-2 items-center">
+                  <View className="flex-1">
+                    <Input label="" accessibilityLabel="Search items" value={search} onChangeText={setSearch} placeholder={`Search ${itemLabel}s…`} />
+                  </View>
+                  <Button label="Scan" accessibilityLabel="Scan barcode to add to cart" variant="secondary" onPress={() => setScannerOpen(true)} disabled={submitting} />
+                </View>
+                <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+                  <Text className="flex-[2.2] text-[11px] font-bold text-muted uppercase">Item</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Unit</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">On hand</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">MRP</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Selling ₹</Text>
+                  <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase text-right">Status</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Add</Text>
+                </View>
                 <ScrollView className="flex-1" keyboardShouldPersistTaps="handled">
-                  {cart}
-                  <View className="mt-3">{customerFields}</View>
-                  {error ? <Text className="text-sm text-danger mt-2">{error}</Text> : null}
+                  {catalog.map((r) => (
+                    <Pressable
+                      key={r.resourceId}
+                      onPress={() => addItem(r.resourceId)}
+                      className="flex-row items-center px-4 py-2.5 bg-card border-b border-border/60"
+                    >
+                      <Text className="flex-[2.2] text-sm text-text" numberOfLines={1}>{r.name}</Text>
+                      <Text className="flex-1 text-xs text-muted">{r.unit}</Text>
+                      <Text className="flex-1 text-sm font-semibold text-primary text-right">{r.balance}</Text>
+                      <Text className="flex-1 text-xs text-muted text-right">
+                        {r.mrp != null && Number(r.mrp) > 0 ? `₹${Number(r.mrp).toFixed(2)}` : '—'}
+                      </Text>
+                      <Text className="flex-1 text-xs text-text text-right">
+                        {r.catalogRate != null && Number(r.catalogRate) > 0 ? `₹${Number(r.catalogRate).toFixed(2)}` : '—'}
+                      </Text>
+                      <View className="flex-[1.2] items-end">
+                        {Number(r.balance) <= Number(r.reorderPoint ?? 0) && Number(r.reorderPoint ?? 0) > 0 ? (
+                          <Badge color="warning" label="Low" />
+                        ) : r.trackingMode === 'BATCH_EXPIRY' ? (
+                          <Badge color="neutral" label="FEFO" />
+                        ) : null}
+                      </View>
+                      <View className="flex-1 items-end">
+                        <Badge color="neutral" label="Add" />
+                      </View>
+                    </Pressable>
+                  ))}
+                  {catalog.length === 0 ? (
+                    <Text className="text-xs text-muted py-8 text-center">No matching items with stock.</Text>
+                  ) : null}
                 </ScrollView>
-                <View className="border-t border-border pt-3 mt-2">{checkoutButton}</View>
+              </View>
+              {/* 11.6.2: right cart TABLE (Item · Qty · Selling ₹ · GST% · Line ₹ · Remove). */}
+              <View className="flex-1">
+                <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+                  <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase">Item</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Qty</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Selling ₹</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">GST%</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Line ₹</Text>
+                  <Text className="w-16 text-[11px] font-bold text-muted uppercase text-right">Remove</Text>
+                </View>
+                <ScrollView className="flex-1" keyboardShouldPersistTaps="handled">
+                  {lines.length === 0 ? (
+                    <Text className="text-sm text-muted py-10 text-center">Cart is empty — tap items to add.</Text>
+                  ) : (
+                    lines.map((l) => {
+                      const row = rowFor(l.resourceId);
+                      if (!row) return null;
+                      const qty = Number(l.quantity) || 0;
+                      const price = l.unitPrice === '' ? undefined : Number(l.unitPrice);
+                      const lineNet = (price ?? 0) * qty;
+                      const gstRate = Number(row.gstRate ?? 0);
+                      return (
+                        <View key={l.key} className="flex-row items-center px-4 py-2 bg-card border-b border-border/60">
+                          <View className="flex-[1.6] min-w-0 mr-2">
+                            <Text className="text-sm text-text" numberOfLines={1}>{row.name}</Text>
+                            {/* 11.7.3: muted read-only cost hint (never edited here). */}
+                            {row.costPrice != null && Number(row.costPrice) > 0 ? (
+                              <Text className="text-[10px] text-muted">Cost ₹{Number(row.costPrice).toFixed(2)}</Text>
+                            ) : null}
+                          </View>
+                          <View className="flex-1 pr-2">
+                            <CellInput accessibilityLabel={`Quantity of ${row.name}`} value={l.quantity} onChangeText={(t) => updateLine(l.key, { quantity: t })} />
+                          </View>
+                          <View className="flex-1 pr-2">
+                            <CellInput accessibilityLabel={`Selling price of ${row.name}`} value={l.unitPrice} onChangeText={(t) => updateLine(l.key, { unitPrice: t })} />
+                          </View>
+                          <Text className="flex-1 text-xs text-muted text-right">{gstRate}%</Text>
+                          <Text className="flex-1 text-sm font-semibold text-text text-right">₹{round2(lineNet).toFixed(2)}</Text>
+                          <View className="w-16 items-end">
+                            <Pressable disabled={submitting} onPress={() => removeLine(l.key)} accessibilityRole="button" accessibilityLabel={`Remove ${row.name} from cart`} className="px-2 py-1">
+                              <Text className="text-xs font-semibold text-danger">Remove</Text>
+                            </Pressable>
+                          </View>
+                        </View>
+                      );
+                    })
+                  )}
+                </ScrollView>
+                <View className="border-t border-border px-4 py-3 bg-surface">
+                  <View className="flex-row justify-between py-0.5">
+                    <Text className="text-xs text-muted">Subtotal</Text>
+                    <Text className="text-xs text-text">₹{totals.subtotal.toFixed(2)}</Text>
+                  </View>
+                  <View className="flex-row justify-between py-0.5">
+                    <Text className="text-xs text-muted">GST</Text>
+                    <Text className="text-xs text-text">₹{totals.gst.toFixed(2)}</Text>
+                  </View>
+                  <View className="flex-row justify-between py-1 border-t border-border mt-1">
+                    <Text className="text-sm font-bold text-text">Grand total</Text>
+                    <Text className="text-sm font-bold text-primary">₹{totals.grandTotal.toFixed(2)}</Text>
+                  </View>
+                  <View className="mt-2">{customerBlock}</View>
+                  {error ? <Text className="text-sm text-danger mt-2">{error}</Text> : null}
+                  {/* Sticky Charge footer */}
+                  <View className="border-t border-border pt-3 mt-3">{checkoutButton}</View>
+                </View>
               </View>
             </View>
           )}
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
       <BarcodeScannerOverlay
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}

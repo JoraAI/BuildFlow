@@ -6,7 +6,7 @@
 > **Sibling product:** **BuildFlow Construction ERP** - project-centric (estimates, BOQ, WBS, site ops). **Do not merge domain models.**  
 > **Pricing (locked):** Inventory **₹499/mo**, **₹4,990/yr** ex-GST - see `packages/shared/src/pricing.ts`. Do not regress.  
 > **Prior work:** [`INVENTORY_PRODUCT_IMPL.md`](./INVENTORY_PRODUCT_IMPL.md) (shipped MVP), [`INVENTORY_UX_POLISH.md`](./INVENTORY_UX_POLISH.md) (D1–D10 complete).
-> **Next commercial pass:** [`INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md`](./INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md) (**Phase 11** - Kirana catalog, batch/expiry FEFO, POS checkout, responsive sales tables).
+> **Next commercial pass:** Phase 11.7 + D11 are **code-complete**. Operator device smoke remaining. See [`INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md`](./INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md) and [`INVENTORY_UX_POLISH.md`](./INVENTORY_UX_POLISH.md) D11.
 
 ---
 
@@ -63,9 +63,9 @@ The external “horizontal inventory platform” prompt is **directionally corre
 | ~~**Scan ops / commercial polish**~~ | ✅ Phase 8 - image OCR, barcode camera, batch lite, billed margins, notifications |
 | ~~**Dealer GTM polish**~~ | ✅ Phase 9 - price lists, Quote→SO, printable PDFs, payment reminders |
 | ~~**Production hardening (optional)**~~ | ✅ Phase 10 - API smoke + 2 mobile bug fixes + expo-camera iOS permission config; live-device smoke still in §31.4 |
-| **Kirana retail/wholesale vertical** | 🔜 Phase 11 - see [`INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md`](./INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md) |
-| **Batch expiry + FEFO** | 🔜 Phase 11.2 (Phase 8.3 was batch-code lite only) |
-| **POS-style counter cart + sales tables** | 🔜 Phase 11.3–11.4 |
+| **Kirana retail/wholesale vertical** | ✅ 11.1–11.7 in [`INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md`](./INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md); operator device smoke remaining |
+| **Batch expiry + FEFO** | ✅ Phase 11.2 |
+| **POS-style counter cart + sales tables** | ✅ Phase 11.3–11.4; 11.6 full-screen checkout tables |
 
 ### 1.3 Construction isolation (non-negotiable)
 
@@ -300,10 +300,13 @@ Commercial follow-on after Phases 0–10. **Do not implement inside this file** 
 
 | Sub-phase | Goal |
 |-----------|------|
-| 11.1 | Kirana vertical + tenant-copy starter item catalog (RETAIL/WHOLESALE only) |
-| 11.2 | Batch manufacture/expiry + FEFO allocation (Construction untouched) |
-| 11.3 | POS-style multi-item counter checkout (issue → invoice); formal SO unchanged |
-| 11.4 | Desktop/tablet sales & stock tables; phone card/scan alternatives |
+| 11.1 | Kirana vertical + tenant-copy starter item catalog (RETAIL/WHOLESALE only) — **DONE** |
+| 11.2 | Batch manufacture/expiry + FEFO allocation (Construction untouched) — **DONE** |
+| 11.3 | POS-style multi-item counter checkout (issue → invoice); formal SO unchanged — **DONE** |
+| 11.4 | Desktop/tablet sales & stock tables; phone card/scan alternatives — **DONE** |
+| 11.5 | Selective SKU library, Indian MRP, quantity intake — **DONE** |
+| 11.6 | Inventory workspace UX: full-screen checkout/bulk issue, real item/cart tables — **DONE** (residuals in 11.7.6) |
+| 11.7 | Cost vs sell (`costPrice` vs `rate`), remaining UX, inventory flow audit + D11 chatbot format — **DONE** (operator device smoke remaining) |
 
 **Agent rule:** one sub-phase per pass; update the Kirana doc checklist with evidence; run construction regressions every pass.
 
@@ -709,12 +712,13 @@ Do NOT: e-invoice, RFQ, variants, rental, new pricing, hard-code deepseek as cha
 ## 10b. Deepseek agent command - Phase 11 Kirana (copy-paste)
 
 ```
-Read docs/INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md (authoritative) + this file §1.3 + §3.
+Read docs/INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md §3 Phase 11.7 + §8 + §9
+AND docs/INVENTORY_UX_POLISH.md D11
+AND this file §1.3 + §3.
 
-Phases 0–10 are COMPLETE. Implement Phase 11 only, one sub-phase per pass (11.1 → 11.2 → 11.3 → 11.4).
+Phases 0–10 and 11.0–11.7 + D11 are CODE-COMPLETE.
+Do not re-implement 11.7. Operator device smoke only unless a concrete bug is found.
 Deepseek-v4-flash = coding agent. Do NOT hard-code it as the in-app chat model (D10).
-
-Start at the first unchecked checklist in the Kirana doc. After the pass: update that doc’s §8, run its §6 commands, stop.
 ```
 
 ---

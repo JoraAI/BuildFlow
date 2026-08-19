@@ -23,6 +23,9 @@ type Kind = 'customer' | 'vendor';
 export default function InventoryPartiesScreen() {
   const { translate } = useInventoryLanguage();
   const { busy, run } = useBusy();
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop/tablet table rows.
+  const { isTablet, isDesktop } = useViewport();
+  const tableMode = isTablet || isDesktop;
   const [kind, setKind] = useState<Kind>('customer');
   const [modal, setModal] = useState<{ kind: Kind; editing: PartyRow | null } | null>(null);
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.3): party ledger modal.
@@ -123,8 +126,45 @@ export default function InventoryPartiesScreen() {
           className="flex-1 px-4"
           data={rows}
           keyExtractor={(p) => p.id}
-          renderItem={({ item }) => (
-            <Card className="mb-2 p-4">
+          ListHeaderComponent={
+            tableMode && rows.length > 0 ? (
+              <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+                <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase">Party</Text>
+                <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Contact</Text>
+                <Text className="flex-1 text-[11px] font-bold text-muted uppercase">GSTIN</Text>
+                <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Status</Text>
+                <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+              </View>
+            ) : null
+          }
+          renderItem={({ item }) => {
+            // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop row.
+            if (tableMode) {
+              return (
+                <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
+                  <View className="flex-[1.6] min-w-0 mr-2">
+                    <Text className="text-sm font-semibold text-text" numberOfLines={1}>{item.name}</Text>
+                    {item.businessName ? <Text className="text-[11px] text-muted">{item.businessName}</Text> : null}
+                  </View>
+                  <Text className="flex-[1.4] text-xs text-muted" numberOfLines={1}>
+                    {[item.phone, item.email].filter(Boolean).join(' · ') || '—'}
+                  </Text>
+                  <Text className="flex-1 text-xs text-muted" numberOfLines={1}>{item.gstin ?? '—'}</Text>
+                  <View className="flex-1 items-end">
+                    <Badge color={item.isActive ? 'success' : 'neutral'} label={item.isActive ? 'Active' : 'Inactive'} />
+                  </View>
+                  <View className="flex-[1.4] flex-row flex-wrap justify-end gap-1">
+                    <Button label="Ledger" size="sm" variant="secondary" onPress={() => setLedgerParty(item)} />
+                    <Button label="Edit" size="sm" variant="secondary" onPress={() => setModal({ kind, editing: item })} />
+                    {item.isActive ? (
+                      <Button label="Remove" size="sm" variant="secondary" onPress={() => onDelete(item)} />
+                    ) : null}
+                  </View>
+                </View>
+              );
+            }
+            return (
+              <Card className="mb-2 p-4">
               <View className="flex-row items-start justify-between">
                 <View className="flex-1 min-w-0 mr-2">
                   <Text className="text-sm font-semibold text-text">{item.name}</Text>
@@ -148,7 +188,8 @@ export default function InventoryPartiesScreen() {
                 </View>
               </View>
             </Card>
-          )}
+          );
+          }}
           ListEmptyComponent={
             <EmptyState
               title={`No ${kind}s yet`}

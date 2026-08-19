@@ -20,6 +20,10 @@ export interface Resource {
   rate: string;
   mrp?: string | number | null;
   mrpUpdatedAt?: string | null;
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor unit cost + running
+  // WAC (read-only). `rate` remains the selling price.
+  costPrice?: string | number | null;
+  avgCost?: string | number | null;
   gstRate: string;
   hsnSacCode: string | null;
   brandOrSpec?: string | null;

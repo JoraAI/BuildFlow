@@ -10,12 +10,15 @@ import {
 } from 'react-native';
 import { useViewport } from '@/hooks/useViewport';
 
-type SheetSize = 'sm' | 'md' | 'lg';
+type SheetSize = 'sm' | 'md' | 'lg' | 'full';
 
 const SIZE_CLASS: Record<SheetSize, string> = {
   sm: 'max-w-md',
   md: 'max-w-lg',
   lg: 'max-w-2xl',
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.1): viewport-filling workspace
+  // for multi-line operational modals (checkout, bulk issue, PO/GRN, ...).
+  full: 'w-full h-full',
 };
 
 interface AdaptiveSheetProps {
@@ -64,6 +67,7 @@ export function AdaptiveSheet({
   const { isPhone } = useViewport();
   const useDialog = !isPhone; // tablet + desktop
   const bodyScrollable = scrollable || !!footer;
+  const isFull = size === 'full';
 
   return (
     <Modal
@@ -79,7 +83,9 @@ export function AdaptiveSheet({
       >
         <View
           className={`flex-1 bg-black/40 ${
-            useDialog ? 'justify-center items-center px-6' : 'justify-end'
+            useDialog
+              ? `justify-center items-center ${isFull ? '' : 'px-6'}`
+              : 'justify-end'
           }`}
         >
           {dismissOnBackdrop ? (
@@ -93,8 +99,14 @@ export function AdaptiveSheet({
 
           <View
             className={`bg-card w-full ${SIZE_CLASS[size]} ${
-              useDialog ? 'rounded-2xl shadow-elevated' : 'rounded-t-2xl'
-            } max-h-[90%]`}
+              isFull
+                ? useDialog
+                  ? 'rounded-none'
+                  : 'rounded-t-2xl'
+                : useDialog
+                  ? 'rounded-2xl shadow-elevated'
+                  : 'rounded-t-2xl'
+            } ${isFull ? '' : 'max-h-[90%]'}`}
           >
             {bodyScrollable ? (
               <ScrollView

@@ -18,6 +18,7 @@ function Sheet({
   saving,
   onClose,
   visible = true,
+  fullScreen = false,
 }: {
   title: string;
   subtitle?: string;
@@ -25,6 +26,10 @@ function Sheet({
   saving: boolean;
   onClose: () => void;
   visible?: boolean;
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): multi-line operational
+  // modals (transfer / count) open as a viewport-filling workspace; the
+  // single-entity warehouse CRUD dialog stays compact.
+  fullScreen?: boolean;
 }) {
   const { isPhone } = useViewport();
   return (
@@ -35,11 +40,19 @@ function Sheet({
       onRequestClose={saving ? undefined : onClose}
     >
       <Pressable
-        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : 'items-center justify-center p-4'}`}
+        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : fullScreen ? '' : 'items-center justify-center p-4'}`}
         onPress={saving ? undefined : onClose}
       >
         <Pressable
-          className={`bg-card w-full ${isPhone ? 'rounded-t-2xl max-h-[92%] p-4' : 'rounded-2xl max-w-lg max-h-[85%] p-4'}`}
+          className={`bg-card w-full ${
+            fullScreen
+              ? isPhone
+                ? 'rounded-t-2xl h-[96%] p-4'
+                : 'h-full'
+              : isPhone
+                ? 'rounded-t-2xl max-h-[92%] p-4'
+                : 'rounded-2xl max-w-lg max-h-[85%] p-4'
+          }`}
           onPress={(e) => e.stopPropagation()}
         >
           <Text className="text-lg font-bold text-text mb-1">{title}</Text>
@@ -258,6 +271,7 @@ export function TransferModal({
       visible={open}
       title="New stock transfer"
       subtitle="Draft → dispatch (stock leaves source) → receive (stock lands here)"
+      fullScreen
       saving={saving}
       onClose={onClose}
     >
@@ -428,6 +442,7 @@ export function CountModal({
       visible={open}
       title="New stock count"
       subtitle="Physical count vs system. Approving writes a STOCKTAKE adjustment."
+      fullScreen
       saving={saving}
       onClose={onClose}
     >

@@ -4,13 +4,44 @@
  * Responsive: phone bottom sheet, desktop centered.
  */
 import React, { useEffect, useState } from 'react';
-import { View, Text, Modal, ScrollView, Pressable } from 'react-native';
+import { View, Text, Modal, ScrollView, Pressable, TextInput } from 'react-native';
 import { Button, Input, Select, Badge } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
 import type { StockSummaryRow } from '@/services/expansion.queries';
 import type { AdjustStockInput, OpeningStockLine } from '@/services/expansion.queries';
 import { useCustomers, type PartyRow } from '@/services/party.queries';
 import { useEffectiveRates } from '@/services/inventory-gtm.queries';
+
+// INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7.6): compact numeric/text cell
+// for table rows - no labeled Input (tall rows) inside a table.
+function CellInput({
+  value,
+  onChangeText,
+  keyboardType = 'default',
+  autoCapitalize = 'none',
+  accessibilityLabel,
+  placeholder,
+}: {
+  value: string;
+  onChangeText: (t: string) => void;
+  keyboardType?: 'decimal-pad' | 'numeric' | 'default';
+  autoCapitalize?: 'none' | 'characters';
+  accessibilityLabel?: string;
+  placeholder?: string;
+}) {
+  return (
+    <TextInput
+      value={value}
+      onChangeText={onChangeText}
+      keyboardType={keyboardType}
+      autoCapitalize={autoCapitalize}
+      accessibilityLabel={accessibilityLabel}
+      placeholder={placeholder ?? '0'}
+      placeholderTextColor="#94A3B8"
+      className="w-full rounded-md border border-border bg-card px-2 py-1.5 text-sm text-text"
+    />
+  );
+}
 
 const ADJUST_REASONS = [
   { title: 'Damage', value: 'DAMAGE' },
@@ -267,7 +298,8 @@ export function MultiIssueStockModal({
     allowExpired?: boolean;
   }) => Promise<void>;
 }) {
-  const { isPhone } = useViewport();
+  const { isPhone, isTablet, isDesktop } = useViewport();
+  const tableMode = isTablet || isDesktop;
   const { data: customers } = useCustomers();
   type DraftIssueLine = { key: string; resourceId: string; quantity: string; unitPrice: string; batchCode: string };
   const newKey = () => `line-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -283,6 +315,9 @@ export function MultiIssueStockModal({
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): authorized override to sell
   // EXPIRED lots (FEFO otherwise rejects expired-only stock).
   const [allowExpired, setAllowExpired] = useState(false);
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7.6): customer block collapsed
+  // behind "Add customer" until needed.
+  const [customerOpen, setCustomerOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -389,6 +424,9 @@ export function MultiIssueStockModal({
     });
   };
 
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.5): full-screen workspace for
+  // Bulk issue; tablet+desktop get a line TABLE (Item · Qty · Selling ₹ · Batch ·
+  // Remove); phones keep stacked lines but full-height. Same issueStockManual API.
   return (
     <Modal
       visible={open}
@@ -396,190 +434,275 @@ export function MultiIssueStockModal({
       transparent
       onRequestClose={submitting ? undefined : onClose}
     >
-      <Pressable
-        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : 'items-center justify-center p-4'}`}
-        onPress={submitting ? undefined : onClose}
-      >
+      <View className="flex-1 bg-black/40">
         <Pressable
-          className={`bg-card w-full ${
-            isPhone ? 'rounded-t-2xl max-h-[92%] p-4' : 'rounded-2xl max-w-2xl max-h-[85%] p-5'
-          }`}
-          onPress={(e) => e.stopPropagation()}
-        >
-          <Text className="text-lg font-bold text-text mb-1">
-            {initialResourceId ? 'Issue stock' : 'Bulk issue'}
-          </Text>
-          <Text className="text-sm text-muted mb-3">
-            {initialResourceId
-              ? 'Set quantity and selling price. Creates a stock OUT and draft sales invoice.'
-              : 'Add multiple materials and quantities. One submit creates stock OUTs and one draft sales invoice.'}
-          </Text>
-          <ScrollView keyboardShouldPersistTaps="handled">
-            {lines.map((line, idx) => {
-              const row = rowFor(line.resourceId);
-              return (
-                <View key={line.key} className="rounded-xl border border-border p-3 mb-2">
-                  <View className="flex-row items-center justify-between mb-1">
-                    <Text className="text-xs font-bold text-text">
-                      {initialResourceId ? itemLabel : `${itemLabel} ${idx + 1}`}
-                    </Text>
-                    {!initialResourceId && lines.length > 1 ? (
-                      <Pressable disabled={submitting} onPress={() => removeLine(line.key)} className="px-2 py-1">
-                        <Text className="text-xs font-semibold text-danger">Remove</Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                  <Select
-                    label={itemLabel}
-                    value={line.resourceId || undefined}
-                    onChange={(v) => {
-                      if (!v) return;
-                      if (lines.some((l) => l.key !== line.key && l.resourceId === v)) {
-                        setError(`Each ${itemLower} can be issued only once.`);
-                        return;
-                      }
-                      const selected = rowFor(v);
-                      setError(null);
-                      updateLine(line.key, {
-                        resourceId: v,
-                        unitPrice:
-                          selected && selected.catalogRate != null && Number(selected.catalogRate) > 0
-                            ? String(selected.catalogRate)
-                            : line.unitPrice,
-                      });
-                    }}
-                    options={optionsFor(line)}
-                    placeholder={`Choose ${itemLower}`}
-                    disabled={submitting || !!initialResourceId}
-                  />
-                  <View className="flex-row gap-2 mt-2">
-                    <View className="flex-1">
-                      <Input
-                        label={row ? `Quantity (${row.unit}, max ${row.balance})` : 'Quantity'}
-                        value={line.quantity}
-                        onChangeText={(t) => updateLine(line.key, { quantity: t })}
-                        keyboardType="decimal-pad"
-                        placeholder="0"
-                      />
-                      {row && Number(line.quantity) > Number(row.balance) ? (
-                        <Text className="text-[11px] text-danger">
-                          Only {row.balance} {row.unit} in stock.
-                        </Text>
-                      ) : null}
-                    </View>
-                    <View className="flex-1">
-                      <Input
-                        label="Selling ₹ / unit"
-                        value={line.unitPrice}
-                        onChangeText={(t) => updateLine(line.key, { unitPrice: t })}
-                        keyboardType="decimal-pad"
-                        placeholder={row?.catalogRate != null ? `Catalog ₹${row.catalogRate}` : 'Price'}
-                      />
-                    </View>
-                  </View>
-                  <Input
-                    label="Batch / lot code (optional)"
-                    value={line.batchCode}
-                    onChangeText={(t) => updateLine(line.key, { batchCode: t })}
-                    autoCapitalize="characters"
-                    placeholder="e.g. LOT-2026-A"
-                  />
-                </View>
-              );
-            })}
-            {!initialResourceId ? (
-              <>
-                <Button
-                  label={`+ Add ${itemLower}`}
-                  variant="secondary"
-                  size="sm"
-                  fullWidth
-                  disabled={submitting || !issuable.some((r) => !lines.some((l) => l.resourceId === r.resourceId))}
-                  onPress={addLine}
-                />
-                <Text className="text-[11px] text-muted mt-1 mb-1">
-                  {!issuable.some((r) => !lines.some((l) => l.resourceId === r.resourceId))
-                    ? `All on-hand ${itemLower}s are already on this list.`
-                    : `Add another on-hand ${itemLower} to this same issue.`}
-                </Text>
-              </>
-            ) : null}
-            <View className="h-3" />
-            <Select
-              label="Customer (optional)"
-              value={customerId || undefined}
-              options={(customers ?? []).map((c: PartyRow) => ({ title: c.name, value: c.id }))}
-              onChange={(v) => {
-                setCustomerId(v ?? '');
-                const c = (customers ?? []).find((x: PartyRow) => x.id === v);
-                if (c) {
-                  if (!customerName) setCustomerName(c.name);
-                  if (!customerPhone && c.phone) setCustomerPhone(c.phone);
-                  if (!customerAddress && c.billingAddress) setCustomerAddress(c.billingAddress);
-                }
-              }}
-              placeholder="Pick from customers"
-            />
-            <Input
-              label="Customer name (optional)"
-              value={customerName}
-              onChangeText={setCustomerName}
-              placeholder="Defaults to Walk-in customer"
-            />
-            <Input
-              label="Customer phone (optional)"
-              value={customerPhone}
-              onChangeText={setCustomerPhone}
-              keyboardType="phone-pad"
-              placeholder="+91 …"
-            />
-            <Input
-              label="Customer address (optional)"
-              value={customerAddress}
-              onChangeText={setCustomerAddress}
-              placeholder="Billing address"
-            />
-            <Input
-              label="Notes (optional)"
-              value={notes}
-              onChangeText={setNotes}
-              multiline
-              placeholder="e.g. Delivery ref / site"
-            />
-            {error ? <Text className="text-sm text-danger mt-2">{error}</Text> : null}
-            {/* INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): authorized override -
-                FEFO still sells earliest-expiry lots first; this permits EXPIRED
-                lots when no fresh stock is left (Kirana-vertical only). */}
-            <Pressable
-              className="flex-row items-center gap-2 mt-1"
-              disabled={submitting}
-              onPress={() => setAllowExpired((v) => !v)}
-            >
-              <View
-                className={`w-5 h-5 rounded border items-center justify-center ${
-                  allowExpired ? 'bg-accent border-accent' : 'border-border'
-                }`}
-              >
-                {allowExpired ? <Text className="text-white text-xs font-bold">✓</Text> : null}
-              </View>
-              <Text className="text-xs text-muted flex-1">
-                Include expired lots (only if no fresh stock is left)
+          className="absolute inset-0"
+          onPress={submitting ? undefined : onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close bulk issue"
+        />
+        <View className={`flex-1 bg-card ${isPhone ? 'rounded-t-2xl mt-4' : ''}`}>
+          <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
+            <View className="flex-1">
+              <Text className="text-lg font-bold text-text">{initialResourceId ? 'Issue stock' : 'Bulk issue'}</Text>
+              <Text className="text-xs text-muted">
+                {initialResourceId
+                  ? 'Set quantity and selling price. Creates a stock OUT and draft sales invoice.'
+                  : 'Add multiple materials and quantities. One submit creates stock OUTs and one draft sales invoice.'}
               </Text>
+            </View>
+            <Pressable onPress={submitting ? undefined : onClose} className="p-2" accessibilityRole="button" accessibilityLabel="Close bulk issue">
+              <Text className="text-muted text-2xl">×</Text>
             </Pressable>
-            <View className="flex-row gap-2 mt-4 mb-4">
-              <Button label="Cancel" variant="secondary" className="flex-1" disabled={submitting} onPress={onClose} />
-              <Button
-                label={submitting ? 'Issuing…' : initialResourceId ? 'Issue' : 'Bulk issue'}
-                variant="accent"
-                className="flex-1"
-                disabled={submitting}
-                loading={submitting}
-                onPress={submit}
-              />
+          </View>
+          <ScrollView className="flex-1" keyboardShouldPersistTaps="handled">
+            {tableMode ? (
+              <View className="p-4">
+                <View className="flex-row items-center px-3 py-2 bg-surface border border-border rounded-t-lg">
+                  <Text className="flex-[1.8] text-[11px] font-bold text-muted uppercase">Item</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Qty</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Selling ₹</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Batch</Text>
+                  <Text className="w-20 text-[11px] font-bold text-muted uppercase text-right">Remove</Text>
+                </View>
+                <View className="border border-t-0 border-border rounded-b-lg mb-3">
+                  {lines.map((line) => {
+                    const row = rowFor(line.resourceId);
+                    return (
+                      <View key={line.key} className="flex-row items-center px-3 py-2 border-b border-border/60 last:border-b-0">
+                        <View className="flex-[1.8] pr-2">
+                          <Select
+                            compact
+                            value={line.resourceId || undefined}
+                            onChange={(v) => {
+                              if (!v) return;
+                              if (lines.some((l) => l.key !== line.key && l.resourceId === v)) {
+                                setError(`Each ${itemLower} can be issued only once.`);
+                                return;
+                              }
+                              const selected = rowFor(v);
+                              setError(null);
+                              updateLine(line.key, {
+                                resourceId: v,
+                                unitPrice:
+                                  selected && selected.catalogRate != null && Number(selected.catalogRate) > 0
+                                    ? String(selected.catalogRate)
+                                    : line.unitPrice,
+                              });
+                            }}
+                            options={optionsFor(line)}
+                            placeholder={`Choose ${itemLower}`}
+                            disabled={submitting || !!initialResourceId}
+                          />
+                        </View>
+                        <View className="flex-1 pr-2">
+                          <CellInput
+                            keyboardType="decimal-pad"
+                            accessibilityLabel={`Quantity of ${row?.name ?? itemLower}`}
+                            value={line.quantity}
+                            onChangeText={(t) => updateLine(line.key, { quantity: t })}
+                            placeholder="0"
+                          />
+                          {row && Number(line.quantity) > Number(row.balance) ? (
+                            <Text className="text-[11px] text-danger">Only {row.balance} {row.unit} in stock.</Text>
+                          ) : null}
+                        </View>
+                        <View className="flex-1 pr-2">
+                          <CellInput
+                            keyboardType="decimal-pad"
+                            accessibilityLabel={`Selling price of ${row?.name ?? itemLower}`}
+                            value={line.unitPrice}
+                            onChangeText={(t) => updateLine(line.key, { unitPrice: t })}
+                            placeholder={row?.catalogRate != null ? `₹${row.catalogRate}` : 'Price'}
+                          />
+                        </View>
+                        <View className="flex-1 pr-2">
+                          <CellInput
+                            keyboardType="default"
+                            autoCapitalize="characters"
+                            accessibilityLabel={`Batch code of ${row?.name ?? itemLower}`}
+                            value={line.batchCode}
+                            onChangeText={(t) => updateLine(line.key, { batchCode: t })}
+                            placeholder="Batch"
+                          />
+                        </View>
+                        <View className="w-20 items-end">
+                          {!initialResourceId && lines.length > 1 ? (
+                            <Pressable disabled={submitting} onPress={() => removeLine(line.key)} accessibilityRole="button" accessibilityLabel={`Remove ${row?.name ?? itemLower}`} className="px-2 py-1">
+                              <Text className="text-xs font-semibold text-danger">Remove</Text>
+                            </Pressable>
+                          ) : null}
+                        </View>
+                      </View>
+                    );
+                  })}
+                  {lines.length === 0 ? (
+                    <Text className="text-xs text-muted py-8 text-center">No lines yet — add a line below.</Text>
+                  ) : null}
+                </View>
+                {!initialResourceId ? (
+                  <Button
+                    label={`+ Add ${itemLower}`}
+                    variant="secondary"
+                    size="sm"
+                    fullWidth
+                    disabled={submitting || !issuable.some((r) => !lines.some((l) => l.resourceId === r.resourceId))}
+                    onPress={addLine}
+                  />
+                ) : null}
+              </View>
+            ) : (
+              <View className="p-4">
+                {lines.map((line, idx) => {
+                  const row = rowFor(line.resourceId);
+                  return (
+                    <View key={line.key} className="rounded-xl border border-border p-3 mb-2">
+                      <View className="flex-row items-center justify-between mb-1">
+                        <Text className="text-xs font-bold text-text">
+                          {initialResourceId ? itemLabel : `${itemLabel} ${idx + 1}`}
+                        </Text>
+                        {!initialResourceId && lines.length > 1 ? (
+                          <Pressable disabled={submitting} onPress={() => removeLine(line.key)} className="px-2 py-1">
+                            <Text className="text-xs font-semibold text-danger">Remove</Text>
+                          </Pressable>
+                        ) : null}
+                      </View>
+                      <Select
+                        label={itemLabel}
+                        value={line.resourceId || undefined}
+                        onChange={(v) => {
+                          if (!v) return;
+                          if (lines.some((l) => l.key !== line.key && l.resourceId === v)) {
+                            setError(`Each ${itemLower} can be issued only once.`);
+                            return;
+                          }
+                          const selected = rowFor(v);
+                          setError(null);
+                          updateLine(line.key, {
+                            resourceId: v,
+                            unitPrice:
+                              selected && selected.catalogRate != null && Number(selected.catalogRate) > 0
+                                ? String(selected.catalogRate)
+                                : line.unitPrice,
+                          });
+                        }}
+                        options={optionsFor(line)}
+                        placeholder={`Choose ${itemLower}`}
+                        disabled={submitting || !!initialResourceId}
+                      />
+                      <View className="flex-row gap-2 mt-2">
+                        <View className="flex-1">
+                          <Input
+                            label={row ? `Quantity (${row.unit}, max ${row.balance})` : 'Quantity'}
+                            value={line.quantity}
+                            onChangeText={(t) => updateLine(line.key, { quantity: t })}
+                            keyboardType="decimal-pad"
+                            placeholder="0"
+                          />
+                          {row && Number(line.quantity) > Number(row.balance) ? (
+                            <Text className="text-[11px] text-danger">
+                              Only {row.balance} {row.unit} in stock.
+                            </Text>
+                          ) : null}
+                        </View>
+                        <View className="flex-1">
+                          <Input
+                            label="Selling ₹ / unit"
+                            value={line.unitPrice}
+                            onChangeText={(t) => updateLine(line.key, { unitPrice: t })}
+                            keyboardType="decimal-pad"
+                            placeholder={row?.catalogRate != null ? `Catalog ₹${row.catalogRate}` : 'Price'}
+                          />
+                        </View>
+                      </View>
+                      <Input
+                        label="Batch / lot code (optional)"
+                        value={line.batchCode}
+                        onChangeText={(t) => updateLine(line.key, { batchCode: t })}
+                        autoCapitalize="characters"
+                        placeholder="e.g. LOT-2026-A"
+                      />
+                    </View>
+                  );
+                })}
+                {!initialResourceId ? (
+                  <>
+                    <Button
+                      label={`+ Add ${itemLower}`}
+                      variant="secondary"
+                      size="sm"
+                      fullWidth
+                      disabled={submitting || !issuable.some((r) => !lines.some((l) => l.resourceId === r.resourceId))}
+                      onPress={addLine}
+                    />
+                    <Text className="text-[11px] text-muted mt-1 mb-1">
+                      {!issuable.some((r) => !lines.some((l) => l.resourceId === r.resourceId))
+                        ? `All on-hand ${itemLower}s are already on this list.`
+                        : `Add another on-hand ${itemLower} to this same issue.`}
+                    </Text>
+                  </>
+                ) : null}
+              </View>
+            )}
+            <View className={tableMode ? 'px-4 pb-4' : 'px-4 pb-4'}>
+              <Pressable
+                className="flex-row items-center justify-between py-2.5"
+                onPress={() => setCustomerOpen((v) => !v)}
+                accessibilityRole="button"
+              >
+                <Text className="text-sm font-semibold text-text">
+                  {customerOpen ? 'Customer' : 'Add customer (optional)'}
+                </Text>
+                <Text className="text-lg text-muted">{customerOpen ? '−' : '+'}</Text>
+              </Pressable>
+              {customerOpen ? (
+                <>
+                  <Select
+                    label="Customer (optional)"
+                    value={customerId || undefined}
+                    options={(customers ?? []).map((c: PartyRow) => ({ title: c.name, value: c.id }))}
+                    onChange={(v) => {
+                      setCustomerId(v ?? '');
+                      const c = (customers ?? []).find((x: PartyRow) => x.id === v);
+                      if (c) {
+                        if (!customerName) setCustomerName(c.name);
+                        if (!customerPhone && c.phone) setCustomerPhone(c.phone);
+                        if (!customerAddress && c.billingAddress) setCustomerAddress(c.billingAddress);
+                      }
+                    }}
+                    placeholder="Pick from customers"
+                  />
+                  <Input label="Customer name (optional)" value={customerName} onChangeText={setCustomerName} placeholder="Defaults to Walk-in customer" />
+                  <Input label="Customer phone (optional)" value={customerPhone} onChangeText={setCustomerPhone} keyboardType="phone-pad" placeholder="+91 …" />
+                  <Input label="Customer address (optional)" value={customerAddress} onChangeText={setCustomerAddress} placeholder="Billing address" />
+                  <Input label="Notes (optional)" value={notes} onChangeText={setNotes} multiline placeholder="e.g. Delivery ref / site" />
+                </>
+              ) : null}
+              {error ? <Text className="text-sm text-danger mt-2">{error}</Text> : null}
+              {/* INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): authorized override -
+                  FEFO still sells earliest-expiry lots first; this permits EXPIRED
+                  lots when no fresh stock is left. */}
+              <Pressable className="flex-row items-center gap-2 mt-1" disabled={submitting} onPress={() => setAllowExpired((v) => !v)}>
+                <View className={`w-5 h-5 rounded border items-center justify-center ${allowExpired ? 'bg-accent border-accent' : 'border-border'}`}>
+                  {allowExpired ? <Text className="text-white text-xs font-bold">✓</Text> : null}
+                </View>
+                <Text className="text-xs text-muted flex-1">Include expired lots (only if no fresh stock is left)</Text>
+              </Pressable>
+              <View className="flex-row gap-2 mt-4 mb-4">
+                <Button label="Cancel" variant="secondary" className="flex-1" disabled={submitting} onPress={onClose} />
+                <Button
+                  label={submitting ? 'Issuing…' : initialResourceId ? 'Issue' : 'Bulk issue'}
+                  variant="accent"
+                  className="flex-1"
+                  disabled={submitting}
+                  loading={submitting}
+                  onPress={submit}
+                />
+              </View>
             </View>
           </ScrollView>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }

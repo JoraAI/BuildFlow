@@ -555,6 +555,9 @@ export interface CatalogStockSelection {
   };
   mrp: number;
   rate: number;
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor unit cost captured at
+  // intake; prefills POs/receipts. Optional (0/blank = no cost known yet).
+  costPrice?: number;
   quantity: number;
   barcode?: string;
   batchCode?: string;

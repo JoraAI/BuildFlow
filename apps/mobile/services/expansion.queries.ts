@@ -101,7 +101,7 @@ export interface RequisitionLine {
   boqItemId?: string | null;
   expectedRate?: string | null;
   rateSource?: string | null;
-  resource?: { id: string; name: string };
+  resource?: { id: string; name: string; costPrice?: string | number | null; avgCost?: string | number | null };
   boqItem?: { itemCode: string; description: string } | null;
 }
 
@@ -187,6 +187,9 @@ export interface StockSummaryRow {
   unit: string;
   catalogRate?: number;
   mrp?: number | null;
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor unit cost (null when
+  // not captured). Read-only in checkout; prefills PO/GRN/receipt/reorder.
+  costPrice?: number | null;
   /** Phase 1.5: low-stock threshold. */
   reorderPoint?: number;
   received: number;

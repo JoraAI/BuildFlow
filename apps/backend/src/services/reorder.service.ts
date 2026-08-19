@@ -76,6 +76,8 @@ export async function getReorderSuggestions(
       name: true,
       unit: true,
       rate: true,
+      costPrice: true,
+      avgCost: true,
       reorderPoint: true,
       reorderQty: true,
       leadTimeDays: true,
@@ -93,11 +95,15 @@ export async function getReorderSuggestions(
       const reorderPoint = Number(r.reorderPoint);
       const reorderQty = r.reorderQty != null ? Number(r.reorderQty) : null;
       const shortfall = Math.max(0, reorderPoint - hand);
+      // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): reorder should order at
+      // the VENDOR COST (costPrice, else WAC), never the selling rate.
+      const cost = Number(r.costPrice ?? 0);
+      const wac = Number(r.avgCost ?? 0);
       return {
         resourceId: r.id,
         name: r.name,
         unit: r.unit,
-        catalogRate: Number(r.rate),
+        catalogRate: cost > 0 ? cost : wac,
         reorderPoint,
         onHand: round3(hand),
         suggestedQty: reorderQty ?? round3(shortfall),

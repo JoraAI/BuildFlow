@@ -38,6 +38,134 @@ const INVENTORY_CHIPS = [
   'Invoice vs bill?',
 ];
 
+/* ------------------------------------------------------------------ */
+/* D11: lightweight markdown for BOT bubbles (headings, bold, lists,   */
+/* tables). User messages stay plain text. No heavy markdown WebView.  */
+/* ------------------------------------------------------------------ */
+
+type InlineSegment = { text: string; bold: boolean; code: boolean };
+
+/** Split `**bold**` / `` `code` `` inline runs into styled segments. */
+function inlineSegments(text: string): InlineSegment[] {
+  const segments: InlineSegment[] = [];
+  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
+  for (const part of parts) {
+    if (!part) continue;
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      segments.push({ text: part.slice(2, -2), bold: true, code: false });
+    } else if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
+      segments.push({ text: part.slice(1, -1), bold: false, code: true });
+    } else {
+      segments.push({ text: part, bold: false, code: false });
+    }
+  }
+  return segments;
+}
+
+function InlineText({ text }: { text: string }) {
+  return (
+    <Text style={styles.mdInline}>
+      {inlineSegments(text).map((seg, i) => (
+        <Text
+          key={i}
+          style={[seg.bold && styles.mdBold, seg.code && styles.mdCode]}
+        >
+          {seg.text}
+        </Text>
+      ))}
+    </Text>
+  );
+}
+
+const isSeparatorRow = (cells: string[]) =>
+  cells.every((c) => /^:?-{2,}:?$/.test(c));
+
+function MarkdownBlocks({ content }: { content: string }) {
+  const blocks = content.split(/\n\s*\n/);
+  const out: React.ReactNode[] = [];
+  let key = 0;
+
+  for (const raw of blocks) {
+    const block = raw.trim();
+    if (!block) continue;
+
+    // GFM table: consecutive | rows; separator row skipped.
+    const lines = block.split('\n').map((l) => l.trim());
+    if (lines.every((l) => l.startsWith('|')) && lines.length >= 2) {
+      const rows = lines
+        .map((l) => l.replace(/^\||\|$/g, '').split('|').map((c) => c.trim()))
+        .filter((cells) => cells.length > 0 && !isSeparatorRow(cells));
+      if (rows.length > 0) {
+        out.push(
+          <View key={key++} style={styles.mdTable}>
+            {rows.map((cells, ri) => (
+              <View key={ri} style={[styles.mdTableRow, ri === 0 && styles.mdTableHeaderRow]}>
+                {cells.map((cell, ci) => (
+                  <Text
+                    key={ci}
+                    style={[styles.mdTableCell, ri === 0 && styles.mdBold]}
+                  >
+                    <InlineText text={cell} />
+                  </Text>
+                ))}
+              </View>
+            ))}
+          </View>,
+        );
+        continue;
+      }
+    }
+
+    // Heading.
+    const heading = block.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      out.push(
+        <Text key={key++} style={styles.mdHeading}>
+          <InlineText text={heading[2]} />
+        </Text>,
+      );
+      continue;
+    }
+
+    // Unordered list (a block of `- ` / `* ` items).
+    if (lines.every((l) => /^[-*]\s+/.test(l) || l.length === 0)) {
+      const items = lines.filter((l) => /^[-*]\s+/.test(l));
+      for (const item of items) {
+        out.push(
+          <Text key={key++} style={styles.mdList}>
+            <Text style={styles.mdBullet}>• </Text>
+            <InlineText text={item.replace(/^[-*]\s+/, '')} />
+          </Text>,
+        );
+      }
+      continue;
+    }
+
+    // Ordered list.
+    if (lines.every((l) => /^\d+[.)]\s+/.test(l) || l.length === 0)) {
+      for (const item of lines.filter((l) => /^\d+[.)]\s+/.test(l))) {
+        const m = item.match(/^(\d+)[.)]\s+(.*)$/);
+        out.push(
+          <Text key={key++} style={styles.mdList}>
+            <Text style={styles.mdBold}>{m?.[1]}. </Text>
+            <InlineText text={m?.[2] ?? item} />
+          </Text>,
+        );
+      }
+      continue;
+    }
+
+    // Paragraph.
+    out.push(
+      <Text key={key++} style={styles.mdPara}>
+        <InlineText text={block} />
+      </Text>,
+    );
+  }
+
+  return <>{out}</>;
+}
+
 export function AssistantChatContent({ projectId }: { projectId?: string }) {
   const { data: messages, isLoading } = useChatHistory(projectId);
   const sendMsg = useSendChatMessage(projectId);
@@ -85,9 +213,14 @@ export function AssistantChatContent({ projectId }: { projectId?: string }) {
     return (
       <View style={[styles.row, isUser ? styles.rowUser : styles.rowBot]}>
         <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleBot]}>
-          <Text style={[styles.msgText, isUser ? styles.msgTextUser : styles.msgTextBot]}>
-            {item.message}
-          </Text>
+          {isUser ? (
+            <Text style={[styles.msgText, styles.msgTextUser]}>{item.message}</Text>
+          ) : (
+            // D11: bot answers render markdown (headings, bold, lists, tables).
+            <View style={styles.mdBlock}>
+              <MarkdownBlocks content={item.message} />
+            </View>
+          )}
           <Text style={[styles.time, isUser ? styles.timeUser : styles.timeBot]}>
             {formatTime(item.createdAt)}
           </Text>
@@ -201,6 +334,38 @@ const styles = StyleSheet.create({
   msgText: { fontSize: 15, lineHeight: 21 },
   msgTextUser: { color: '#FFFFFF' },
   msgTextBot: { color: '#0F172A' },
+  // D11: markdown block styles for bot bubbles.
+  mdBlock: { marginBottom: 4 },
+  mdInline: { fontSize: 15, lineHeight: 21, color: '#0F172A' },
+  mdBold: { fontWeight: '700' },
+  mdCode: {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 3,
+    borderRadius: 3,
+    fontSize: 13,
+  },
+  mdHeading: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1E3A5F',
+    marginTop: 2,
+    marginBottom: 4,
+    lineHeight: 22,
+  },
+  mdPara: { marginBottom: 6 },
+  mdList: { flexDirection: 'row', marginBottom: 3, paddingLeft: 2 },
+  mdBullet: { fontWeight: '700', color: '#1E3A5F' },
+  mdTable: {
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 6,
+    marginVertical: 6,
+    overflow: 'hidden',
+  },
+  mdTableHeaderRow: { backgroundColor: '#F1F5F9' },
+  mdTableRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+  mdTableCell: { flex: 1, paddingHorizontal: 6, paddingVertical: 4, fontSize: 13, lineHeight: 18 },
   time: { fontSize: 10, marginTop: 4, alignSelf: 'flex-end' },
   timeUser: { color: 'rgba(255,255,255,0.8)' },
   timeBot: { color: '#94A3B8' },

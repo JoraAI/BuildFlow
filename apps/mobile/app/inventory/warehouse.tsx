@@ -11,6 +11,7 @@ import React, { useState } from 'react';
 import { View, Text, FlatList, Pressable } from 'react-native';
 import { Card, Badge, Button, EmptyState, LoadingSkeleton, toast, BusyOverlay, useBusy } from '@/components/ui';
 import { confirmAsync } from '@/utils/confirm';
+import { useViewport } from '@/hooks/useViewport';
 import {
   useWarehouses,
   useCreateWarehouse,
@@ -41,6 +42,9 @@ const STATUS_COLOR: Record<string, 'success' | 'warning' | 'neutral' | 'danger'>
 export default function InventoryWarehouseScreen() {
   const { translate } = useInventoryLanguage();
   const { busy, run } = useBusy();
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop/tablet tables.
+  const { isTablet, isDesktop } = useViewport();
+  const tableMode = isTablet || isDesktop;
   const [tab, setTab] = useState<Tab>('locations');
   const [whOpen, setWhOpen] = useState(false);
   const [editingWh, setEditingWh] = useState<Warehouse | null>(null);
@@ -71,6 +75,62 @@ export default function InventoryWarehouseScreen() {
 
   const renderLocation = ({ item }: { item: Warehouse }) => {
     const skus = item.balances.filter((b) => Number(b.quantity) !== 0).length;
+    // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop row.
+    if (tableMode) {
+      return (
+        <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
+          <View className="flex-[1.6] min-w-0 mr-2">
+            <View className="flex-row items-center gap-2">
+              <Text className="text-sm font-bold text-text" numberOfLines={1}>{item.name}</Text>
+              {item.isDefault ? <Badge color="accent" label="Default" /> : null}
+            </View>
+            <Text className="text-[11px] text-muted">{[item.code, item.address].filter(Boolean).join(' · ') || '—'}</Text>
+          </View>
+          <Text className="flex-1 text-xs text-text text-right">{skus} item(s)</Text>
+          <View className="flex-1 items-end">
+            <Badge color={item.isActive ? 'success' : 'danger'} label={item.isActive ? 'Active' : 'Inactive'} />
+          </View>
+          <View className="flex-[1.4] flex-row flex-wrap justify-end gap-1">
+            <Button
+              label="Edit"
+              size="sm"
+              variant="secondary"
+              onPress={() => {
+                setEditingWh(item);
+                setWhOpen(true);
+              }}
+            />
+            {item.isActive && !item.isDefault ? (
+              <Button
+                label="Deactivate"
+                size="sm"
+                variant="secondary"
+                disabled={busy}
+                onPress={() => void run(async () => {
+                  const ok = await confirmAsync('Deactivate this warehouse?', 'It stays in history but can no longer receive stock.');
+                  if (ok) {
+                    await updateWh.mutateAsync({ id: item.id, isActive: false });
+                    toast.success('Warehouse deactivated');
+                  }
+                })}
+              />
+            ) : null}
+            {!item.isDefault ? (
+              <Button
+                label="Set default"
+                size="sm"
+                variant="secondary"
+                disabled={busy}
+                onPress={() => void run(async () => {
+                  await updateWh.mutateAsync({ id: item.id, isDefault: true });
+                  toast.success('Default warehouse updated');
+                })}
+              />
+            ) : null}
+          </View>
+        </View>
+      );
+    }
     return (
       <Card className="mb-2 p-4">
         <View className="flex-row items-start justify-between gap-2">
@@ -127,8 +187,68 @@ export default function InventoryWarehouseScreen() {
       </Card>
     );
   };
-  const renderTransfer = ({ item }: { item: TransferOrder }) => (
-    <Card className="mb-2 p-4">
+  const renderTransfer = ({ item }: { item: TransferOrder }) => {
+    // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop row.
+    if (tableMode) {
+      return (
+        <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
+          <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.transferNumber}</Text>
+          <Text className="flex-[1.6] text-sm text-text" numberOfLines={1}>
+            {item.fromLocation.name} → {item.toLocation.name}
+          </Text>
+          <View className="flex-1">
+            <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
+          </View>
+          <Text className="flex-1 text-xs text-muted text-right">{item.lines.length} line(s)</Text>
+          <View className="flex-[1.6] flex-row flex-wrap justify-end gap-1">
+            {item.status === 'DRAFT' ? (
+              <>
+                <Button
+                  label="Dispatch"
+                  size="sm"
+                  variant="accent"
+                  disabled={busy}
+                  onPress={() => void run(async () => {
+                    const ok = await confirmAsync('Dispatch this transfer?', 'Stock will leave the source warehouse.');
+                    if (ok) {
+                      await transferAction.mutateAsync({ id: item.id, action: 'dispatch' });
+                      toast.success('Dispatched - stock moved OUT');
+                    }
+                  })}
+                />
+                <Button
+                  label="Cancel"
+                  size="sm"
+                  variant="secondary"
+                  disabled={busy}
+                  onPress={() => void run(async () => {
+                    await transferAction.mutateAsync({ id: item.id, action: 'cancel' });
+                    toast.info('Transfer cancelled');
+                  })}
+                />
+              </>
+            ) : null}
+            {item.status === 'IN_TRANSIT' ? (
+              <Button
+                label="Receive"
+                size="sm"
+                variant="accent"
+                disabled={busy}
+                onPress={() => void run(async () => {
+                  const ok = await confirmAsync('Receive this transfer?', 'Stock will land in the destination warehouse.');
+                  if (ok) {
+                    await transferAction.mutateAsync({ id: item.id, action: 'receive' });
+                    toast.success('Received - stock landed at destination');
+                  }
+                })}
+              />
+            ) : null}
+          </View>
+        </View>
+      );
+    }
+    return (
+      <Card className="mb-2 p-4">
       <View className="flex-row items-start justify-between gap-2">
         <View className="flex-1 min-w-0">
           <Text className="text-sm font-bold text-text">{item.transferNumber}</Text>
@@ -187,9 +307,55 @@ export default function InventoryWarehouseScreen() {
       </View>
     </Card>
   );
+  };
 
   const renderCount = ({ item }: { item: StockCount }) => {
     const variance = item.lines.reduce((s, l) => s + Math.abs(Number(l.variance)), 0);
+    // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop row.
+    if (tableMode) {
+      return (
+        <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
+          <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.countNumber}</Text>
+          <Text className="flex-[1.4] text-sm text-text" numberOfLines={1}>{item.location.name}</Text>
+          <Text className="flex-1 text-xs text-muted">{item.countDate}</Text>
+          <View className="flex-1">
+            <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
+          </View>
+          <Text className="flex-1 text-xs text-text text-right">
+            {variance > 0 ? `variance ${variance.toFixed(2)}` : 'no variance'}
+          </Text>
+          <View className="flex-[1.4] flex-row flex-wrap justify-end gap-1">
+            {item.status === 'DRAFT' ? (
+              <>
+                <Button
+                  label="Approve"
+                  size="sm"
+                  variant="accent"
+                  disabled={busy}
+                  onPress={() => void run(async () => {
+                    const ok = await confirmAsync('Approve this stock count?', 'The counted quantities will be written as STOCKTAKE adjustments.');
+                    if (ok) {
+                      await countAction.mutateAsync({ id: item.id, action: 'approve' });
+                      toast.success('Stock count approved');
+                    }
+                  })}
+                />
+                <Button
+                  label="Cancel"
+                  size="sm"
+                  variant="secondary"
+                  disabled={busy}
+                  onPress={() => void run(async () => {
+                    await countAction.mutateAsync({ id: item.id, action: 'cancel' });
+                    toast.info('Count cancelled');
+                  })}
+                />
+              </>
+            ) : null}
+          </View>
+        </View>
+      );
+    }
     return (
       <Card className="mb-2 p-4">
         <View className="flex-row items-start justify-between gap-2">
@@ -292,6 +458,35 @@ export default function InventoryWarehouseScreen() {
           data={dataForTab}
           keyExtractor={(item) => item.id}
           renderItem={renderRow}
+          ListHeaderComponent={
+            tableMode && dataForTab.length > 0 ? (
+              tab === 'locations' ? (
+                <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+                  <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase">Warehouse</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Items</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Status</Text>
+                  <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+                </View>
+              ) : tab === 'transfers' ? (
+                <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+                  <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Transfer</Text>
+                  <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase">Route</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Status</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Lines</Text>
+                  <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+                </View>
+              ) : (
+                <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+                  <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Count</Text>
+                  <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Location</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Date</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Status</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Result</Text>
+                  <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+                </View>
+              )
+            ) : null
+          }
           ListEmptyComponent={
             <EmptyState
               title={

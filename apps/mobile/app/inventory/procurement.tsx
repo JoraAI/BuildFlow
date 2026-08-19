@@ -370,13 +370,49 @@ function IndentsSection({
   indentLabelPlural: string;
   onCreatePo: (requisitionId: string) => void;
 }) {
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop/tablet tables.
+  const { isTablet, isDesktop } = useViewport();
+  const tableMode = isTablet || isDesktop;
   return (
     <FlatList
       className="flex-1 px-4"
       data={requisitions}
       keyExtractor={(r) => r.id}
+      ListHeaderComponent={
+        tableMode && requisitions.length > 0 ? (
+          <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+            <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Requisition</Text>
+            <Text className="flex-[2] text-[11px] font-bold text-muted uppercase">Notes</Text>
+            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Lines</Text>
+            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Date</Text>
+            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Status</Text>
+            <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase text-right">Action</Text>
+          </View>
+        ) : null
+      }
       renderItem={({ item }) => {
         const canCreatePo = indentAvailableForNewPo(item);
+        // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop row.
+        if (tableMode) {
+          return (
+            <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
+              <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.reqNumber}</Text>
+              <Text className="flex-[2] text-xs text-muted" numberOfLines={1}>{item.notes || '—'}</Text>
+              <Text className="flex-1 text-xs text-text text-right">{item.lines.length}</Text>
+              <Text className="flex-1 text-xs text-muted text-right">{new Date(item.createdAt).toLocaleDateString('en-IN')}</Text>
+              <View className="flex-1 items-end">
+                <Badge color={APPROVAL_COLOR[item.status] ?? 'neutral'} label={item.status} />
+              </View>
+              <View className="flex-[1.2] items-end">
+                {canCreatePo ? (
+                  <Button label="Create PO" size="sm" onPress={() => onCreatePo(item.id)} />
+                ) : item.status === 'APPROVED' ? (
+                  <Text className="text-[11px] text-muted text-right">PO created</Text>
+                ) : null}
+              </View>
+            </View>
+          );
+        }
         return (
           <Card className="mb-3 p-4">
             <View className="flex-row items-center justify-between">
@@ -515,7 +551,7 @@ function CreateIndentModal({
   };
 
   return (
-    <ModalShell open={open} onClose={onClose} title={`New ${indentLabel}`} closeDisabled={saving}>
+    <ModalShell open={open} onClose={onClose} title={`New ${indentLabel}`} closeDisabled={saving} fullScreen>
       <Text className="text-xs text-muted mb-3">
         Create a {indentLabel === 'Indent' ? 'material requisition' : 'purchase request'}. It is
         approved instantly - you can raise a purchase order against it right away. Add multiple{' '}
@@ -588,12 +624,17 @@ function ModalShell({
   title,
   children,
   closeDisabled = false,
+  fullScreen = false,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
   closeDisabled?: boolean;
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): multi-line operational
+  // modals (indent / PO / GRN) open as a viewport-filling workspace instead of
+  // the compact max-w-lg dialog. Single-entity forms keep the compact shell.
+  fullScreen?: boolean;
 }) {
   const { isPhone } = useViewport();
   const dismiss = () => {
@@ -607,13 +648,19 @@ function ModalShell({
       onRequestClose={dismiss}
     >
       <Pressable
-        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : 'items-center justify-center p-4'}`}
+        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : fullScreen ? '' : 'items-center justify-center p-4'}`}
         onPress={dismiss}
       >
         <Pressable
           onPress={(e) => e.stopPropagation()}
           className={`bg-card w-full ${
-            isPhone ? 'rounded-t-2xl max-h-[90%]' : 'rounded-2xl max-w-lg max-h-[85%]'
+            fullScreen
+              ? isPhone
+                ? 'rounded-t-2xl h-[96%]'
+                : 'h-full'
+              : isPhone
+                ? 'rounded-t-2xl max-h-[90%]'
+                : 'rounded-2xl max-w-lg max-h-[85%]'
           }`}
         >
           <View className="px-5 pt-4 pb-3 border-b border-border flex-row items-center justify-between">
@@ -659,14 +706,64 @@ function OrdersSection({
 }) {
   const router = useRouter();
   const pos = allPurchaseOrders(requisitions);
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop/tablet tables.
+  const { isTablet, isDesktop } = useViewport();
+  const tableMode = isTablet || isDesktop;
   return (
     <FlatList
       className="flex-1 px-4"
       data={pos}
       keyExtractor={(po) => po.id}
+      ListHeaderComponent={
+        tableMode && pos.length > 0 ? (
+          <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+            <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">PO</Text>
+            <Text className="flex-[1.8] text-[11px] font-bold text-muted uppercase">Vendor</Text>
+            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Amount</Text>
+            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">GRNs</Text>
+            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Status</Text>
+            <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+          </View>
+        ) : null
+      }
       renderItem={({ item }) => {
         const draftBills = (item.bills ?? []).filter((b) => b.status === 'DRAFT');
         const canRecordGrn = poAvailableForNewGrn(item);
+        // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop row.
+        if (tableMode) {
+          return (
+            <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
+              <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.poNumber}</Text>
+              <Text className="flex-[1.8] text-xs text-text" numberOfLines={1}>
+                {item.vendorName ?? 'Vendor'}
+                {draftBills.length > 0 ? <Text className="text-[11px] text-warning"> · {draftBills.length} draft bill(s)</Text> : null}
+              </Text>
+              <Text className="flex-1 text-xs text-text text-right">₹{Number(item.totalAmount ?? 0).toLocaleString('en-IN')}</Text>
+              <Text className="flex-1 text-xs text-success text-right">
+                {item.goodsReceipts && item.goodsReceipts.length > 0 ? `${item.goodsReceipts.length} GRN(s)` : '—'}
+              </Text>
+              <View className="flex-1 items-end">
+                <Badge label={item.status ?? 'DRAFT'} color={item.status === 'SUBMITTED' ? 'warning' : undefined} />
+              </View>
+              <View className="flex-[1.6] flex-row flex-wrap justify-end gap-1">
+                {draftBills.length > 0 ? (
+                  <Button
+                    label="Open bills"
+                    size="sm"
+                    variant="secondary"
+                    onPress={() => router.push('/inventory/bills' as never)}
+                  />
+                ) : null}
+                {item.status === 'SUBMITTED' ? (
+                  <Button label="Approve PO" size="sm" variant="accent" onPress={() => void onApprovePo(item.id)} />
+                ) : null}
+                {canRecordGrn ? (
+                  <Button label="Record GRN" size="sm" onPress={() => onRecordGrn(item.id)} />
+                ) : null}
+              </View>
+            </View>
+          );
+        }
         return (
           <Card className="mb-3 p-4">
             <View className="flex-row items-center justify-between">
@@ -754,13 +851,53 @@ function GrnsSection({
   const grns = allPurchaseOrders(requisitions).flatMap((po) =>
     (po.goodsReceipts ?? []).map((g) => ({ ...g, poNumber: po.poNumber })),
   );
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop/tablet tables.
+  const { isTablet, isDesktop } = useViewport();
+  const tableMode = isTablet || isDesktop;
   return (
     <FlatList
       className="flex-1 px-4"
       data={grns}
       keyExtractor={(g) => g.id}
-      renderItem={({ item }) => (
-        <Card className="mb-3 p-4">
+      ListHeaderComponent={
+        tableMode && grns.length > 0 ? (
+          <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+            <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">GRN</Text>
+            <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">PO</Text>
+            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Lines</Text>
+            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Date</Text>
+            <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+          </View>
+        ) : null
+      }
+      renderItem={({ item }) => {
+        // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop row.
+        if (tableMode) {
+          return (
+            <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
+              <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.grnNumber}</Text>
+              <Text className="flex-[1.2] text-xs text-muted" numberOfLines={1}>{item.poNumber || '—'}</Text>
+              <Text className="flex-1 text-xs text-text text-right">{item.lines.length}</Text>
+              <Text className="flex-1 text-xs text-muted text-right">{new Date(item.receivedDate).toLocaleDateString('en-IN')}</Text>
+              <View className="flex-[1.6] flex-row flex-wrap justify-end gap-1">
+                <Button
+                  label="Vendor bills"
+                  size="sm"
+                  variant="secondary"
+                  onPress={() => router.push('/inventory/bills' as never)}
+                />
+                <Button
+                  label="PDF"
+                  size="sm"
+                  variant="ghost"
+                  onPress={() => void downloadReportPdf(`/inventory/pdf/grn/${item.id}`, `grn-${item.grnNumber}.pdf`)}
+                />
+              </View>
+            </View>
+          );
+        }
+        return (
+          <Card className="mb-3 p-4">
           <View className="flex-row items-center justify-between">
             <Text className="text-sm font-bold text-text">{item.grnNumber}</Text>
             <Text className="text-xs text-muted">
@@ -787,7 +924,8 @@ function GrnsSection({
             />
           </View>
         </Card>
-      )}
+        );
+      }}
       ListEmptyComponent={
         isLoading ? (
           <View className="gap-3">
@@ -877,7 +1015,7 @@ function ReorderSection({
                 <View className="flex-1 min-w-0">
                   <Text className="text-sm font-bold text-text">{item.name}</Text>
                   <Text className="text-xs text-muted mt-0.5">
-                    On hand {item.onHand} {item.unit} · reorder point {item.reorderPoint} · ₹{item.catalogRate}/unit
+                    On hand {item.onHand} {item.unit} · reorder point {item.reorderPoint} · cost ₹{item.catalogRate}/unit
                   </Text>
                   <View className="flex-row flex-wrap gap-2 mt-2">
                     <Badge color="danger" label={`Suggested qty ${item.suggestedQty}`} />
@@ -959,14 +1097,20 @@ function CreatePOModal({
   }, [open, nextNumbers.data?.po]);
 
   // D3: when opened from an indent row CTA, preselect that indent (and prefill
-  // its expected rates). Clear everything when the modal closes.
+  // cost rates: costPrice → indent expected rate). Clear everything on close.
   useEffect(() => {
     if (open && initialRequisitionId) {
       setRequisitionId(initialRequisitionId);
       const target = approved.find((r) => r.id === initialRequisitionId);
       const next: Record<string, string> = {};
       target?.lines.forEach((l) => {
-        if (l.resourceId) next[l.resourceId] = l.expectedRate ?? '';
+        if (!l.resourceId) return;
+        // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): PO lines are cost -
+        // prefill from the vendor cost (costPrice, else WAC), falling back to
+        // the indent expected rate. Never the selling rate.
+        const cost = Number(l.resource?.costPrice ?? 0);
+        const wac = Number(l.resource?.avgCost ?? 0);
+        next[l.resourceId] = cost > 0 ? String(cost) : wac > 0 ? String(wac) : (l.expectedRate ?? '');
       });
       setRates(next);
     }
@@ -1017,7 +1161,7 @@ function CreatePOModal({
   };
 
   return (
-    <ModalShell open={open} onClose={onClose} title="New purchase order" closeDisabled={saving}>
+    <ModalShell open={open} onClose={onClose} title="New purchase order" closeDisabled={saving} fullScreen>
       <Text className="text-xs text-muted mb-3">
         Raise a PO against an approved {indentLabel.toLowerCase()}. Each{' '}
         {indentLabel.toLowerCase()} can have only one PO.
@@ -1053,7 +1197,7 @@ function CreatePOModal({
           <Input label="Vendor name" value={vendorName} onChangeText={setVendorName} />
           {req ? (
             <View className="mt-3">
-              <Text className="text-sm font-bold text-text mb-2">Rates</Text>
+              <Text className="text-sm font-bold text-text mb-2">Cost ₹ (what you pay the vendor)</Text>
               {req.lines.map((l) => (
                 <View key={l.id} className="flex-row items-center mb-2 gap-2">
                   <Text className="flex-1 text-xs text-text" numberOfLines={1}>
@@ -1062,7 +1206,7 @@ function CreatePOModal({
                   <View className="w-24">
                     <Input
                       label=""
-                      placeholder="Rate"
+                      placeholder="Cost"
                       value={rates[l.resourceId ?? ''] ?? ''}
                       onChangeText={(v) => {
                         if (l.resourceId) setRates((prev) => ({ ...prev, [l.resourceId]: v }));
@@ -1249,7 +1393,7 @@ function RecordGrnModal({
   };
 
   return (
-    <ModalShell open={open} onClose={onClose} title="Record goods receipt" closeDisabled={saving}>
+    <ModalShell open={open} onClose={onClose} title="Record goods receipt" closeDisabled={saving} fullScreen>
       <Text className="text-xs text-muted mb-3">
         Receiving stock updates the on-hand balance and logs a stock movement. Partial receipts
         are allowed until the PO is fully received.

@@ -35,6 +35,8 @@ export function KiranaSkuPicker({
   const [customHsn, setCustomHsn] = useState('');
   const [customMrp, setCustomMrp] = useState('');
   const [customRate, setCustomRate] = useState('');
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor unit cost.
+  const [customCost, setCustomCost] = useState('');
   const [error, setError] = useState<string | null>(null);
   const library = useCatalogLibrary(search, '', open);
   const importItems = useImportCatalogItems();
@@ -68,6 +70,7 @@ export function KiranaSkuPicker({
               templateKey: match.templateKey,
               mrp: match.suggestedMrp,
               rate: match.suggestedMrp,
+              costPrice: 0,
             },
           },
     );
@@ -83,6 +86,7 @@ export function KiranaSkuPicker({
           templateKey: item.templateKey,
           mrp: item.suggestedMrp,
           rate: item.suggestedMrp,
+          costPrice: 0,
         };
       }
       return next;
@@ -97,13 +101,24 @@ export function KiranaSkuPicker({
     if (!selected.length) return setError('Select at least one SKU.');
     for (const row of selected) {
       if (row.mrp < 0 || row.rate < 0) return setError(`Enter valid prices for ${row.item.name}.`);
+      if (row.costPrice != null && row.costPrice < 0) {
+        return setError(`Cost price cannot be negative for ${row.item.name}.`);
+      }
       if (row.mrp > 0 && row.rate > row.mrp) {
         return setError(`${row.item.name}: selling price cannot exceed MRP.`);
       }
     }
     try {
       await importItems.mutateAsync(
-        selected.map(({ item: _item, ...row }) => row),
+        selected.map(({ item: _item, ...row }) => {
+          // 11.7: a blank/zero cost means "unknown" - don't overwrite a
+          // previously captured cost with 0.
+          if (!row.costPrice) {
+            const { costPrice: _cost, ...rest } = row;
+            return rest;
+          }
+          return row;
+        }),
       );
       onImported();
       onClose();
@@ -116,12 +131,16 @@ export function KiranaSkuPicker({
     setError(null);
     const mrp = Number(customMrp);
     const rate = Number(customRate);
+    const cost = customCost === '' ? 0 : Number(customCost);
     const gstRate = Number(customGst);
     if (!customName.trim() || !customSku.trim() || !customUnit.trim()) {
       return setError('Name, SKU and unit are required.');
     }
     if (!Number.isFinite(mrp) || mrp < 0 || !Number.isFinite(rate) || rate < 0) {
       return setError('Enter valid MRP and selling price.');
+    }
+    if (!Number.isFinite(cost) || cost < 0) {
+      return setError('Enter a valid cost price.');
     }
     if (mrp > 0 && rate > mrp) return setError('Selling price cannot exceed MRP.');
     if (!Number.isFinite(gstRate) || gstRate < 0 || gstRate > 100) return setError('Enter a valid GST rate.');
@@ -137,6 +156,7 @@ export function KiranaSkuPicker({
         },
         mrp,
         rate,
+        costPrice: cost > 0 ? cost : undefined,
       }]);
       onImported();
       onClose();
@@ -148,11 +168,11 @@ export function KiranaSkuPicker({
   return (
     <Modal visible={open} transparent animationType={isPhone ? 'slide' : 'fade'} onRequestClose={onClose}>
       <Pressable
-        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : 'items-center justify-center p-4'}`}
+        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : ''}`}
         onPress={onClose}
       >
         <Pressable
-          className={`bg-card w-full ${isPhone ? 'rounded-t-2xl max-h-[94%]' : 'rounded-2xl max-w-5xl max-h-[90%]'}`}
+          className={`bg-card w-full ${isPhone ? 'rounded-t-2xl h-[96%]' : 'h-full'}`}
           onPress={(e) => e.stopPropagation()}
         >
           <View className="p-4 border-b border-border">
@@ -194,6 +214,8 @@ export function KiranaSkuPicker({
                   <View className="flex-1"><Input label="MRP (₹)" value={customMrp} onChangeText={setCustomMrp} keyboardType="decimal-pad" /></View>
                   <View className="flex-1"><Input label="Selling price (₹)" value={customRate} onChangeText={setCustomRate} keyboardType="decimal-pad" /></View>
                 </View>
+                {/* INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor cost. */}
+                <Input label="Cost price (₹, optional)" value={customCost} onChangeText={setCustomCost} keyboardType="decimal-pad" helper="What you pay the vendor - POs and receipts prefill this." />
               </View>
             ) : (
               <>
@@ -221,10 +243,21 @@ export function KiranaSkuPicker({
                     />
                   </View>
                   {draft ? (
-                    <View className={`${isPhone ? '' : 'flex-row'} gap-2 mt-3`}>
-                      <View className="flex-1"><Input label="MRP (₹)" value={String(draft.mrp)} keyboardType="decimal-pad" onChangeText={(v) => patch(item.templateKey, { mrp: Number(v) })} /></View>
-                      <View className="flex-1"><Input label="Selling price (₹)" value={String(draft.rate)} keyboardType="decimal-pad" onChangeText={(v) => patch(item.templateKey, { rate: Number(v) })} /></View>
-                    </View>
+                    <>
+                      <View className={`${isPhone ? '' : 'flex-row'} gap-2 mt-3`}>
+                        <View className="flex-1"><Input label="MRP (₹)" value={String(draft.mrp)} keyboardType="decimal-pad" onChangeText={(v) => patch(item.templateKey, { mrp: Number(v) })} /></View>
+                        <View className="flex-1"><Input label="Selling price (₹)" value={String(draft.rate)} keyboardType="decimal-pad" onChangeText={(v) => patch(item.templateKey, { rate: Number(v) })} /></View>
+                      </View>
+                      <View className="mt-2">
+                        <Input
+                          label="Cost price (₹, optional)"
+                          value={draft.costPrice != null && draft.costPrice > 0 ? String(draft.costPrice) : ''}
+                          keyboardType="decimal-pad"
+                          onChangeText={(v) => patch(item.templateKey, { costPrice: v === '' ? 0 : Number(v) })}
+                          helper="What you pay the vendor - POs and receipts prefill this."
+                        />
+                      </View>
+                    </>
                   ) : null}
                 </View>
               );

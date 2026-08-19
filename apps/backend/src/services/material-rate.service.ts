@@ -163,6 +163,23 @@ export async function resolveMaterialRate(
   const fromPo = await resolveFromLastPo(companyId, projectId, resourceId);
   if (fromPo) return fromPo;
 
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): the inventory catalog rate
+  // for purchase planning is the VENDOR COST (costPrice, else WAC), never the
+  // selling `rate`. Construction keeps `rate` (estimate catalog rate).
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { subscriptionPlan: true },
+  });
+  if (company?.subscriptionPlan === 'INVENTORY') {
+    const res = await prisma.resource.findUnique({
+      where: { id: resourceId },
+      select: { costPrice: true, avgCost: true },
+    });
+    const cost = Number(res?.costPrice ?? 0);
+    const wac = Number(res?.avgCost ?? 0);
+    return { rate: cost > 0 ? cost : wac, source: 'CATALOG' satisfies MaterialRateSource };
+  }
+
   const catalogRate = await syncEffectiveResourceRate(companyId, resourceId);
   return { rate: catalogRate, source: 'CATALOG' satisfies MaterialRateSource };
 }

@@ -152,13 +152,13 @@ function NewInvoiceModal({
       onRequestClose={onClose}
     >
       <Pressable
-        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : 'items-center justify-center p-4'}`}
+        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : ''}`}
         onPress={onClose}
       >
         <Pressable
           onPress={(e) => e.stopPropagation()}
           className={`bg-card w-full ${
-            isPhone ? 'rounded-t-2xl max-h-[90%]' : 'rounded-2xl max-w-lg max-h-[85%]'
+            isPhone ? 'rounded-t-2xl h-[96%]' : 'h-full'
           }`}
         >
           <View className="px-5 pt-4 pb-3 border-b border-border flex-row items-center justify-between">
@@ -214,7 +214,7 @@ function NewInvoiceModal({
             </View>
             <View className="flex-row gap-3">
               <View className="flex-1">
-                <Input label="Rate (₹)" value={rate} onChangeText={setRate} keyboardType="numeric" />
+                <Input label="Selling ₹/unit" value={rate} onChangeText={setRate} keyboardType="numeric" />
               </View>
               <View className="flex-1">
                 <Input label="GST %" value={gstRate} onChangeText={setGstRate} keyboardType="numeric" />

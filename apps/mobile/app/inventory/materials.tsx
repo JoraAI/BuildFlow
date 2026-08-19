@@ -55,7 +55,8 @@ export default function InventoryMaterialsScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const { data, isLoading, isFetching, refetch } = useResources();
-  const { isPhone } = useViewport();
+  const { isPhone, isTablet, isDesktop } = useViewport();
+  const tableMode = isTablet || isDesktop;
   const labelMode = getInventoryLabelMode(user?.inventoryProfile ?? null);
   const itemLabel = getInventoryLabel('item', labelMode);
   const itemPluralLabel = getInventoryLabel('item_plural', labelMode);
@@ -163,14 +164,69 @@ export default function InventoryMaterialsScreen() {
             <RefreshControl refreshing={isFetching} onRefresh={() => void refetch()} tintColor="#1E3A5F" />
           }
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+          ListHeaderComponent={
+            tableMode && rows.length > 0 ? (
+              <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+                <Text className="flex-[2.2] text-[11px] font-bold text-muted uppercase">Item</Text>
+                <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Category</Text>
+                <Text className="flex-1 text-[11px] font-bold text-muted uppercase">HSN</Text>
+                <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Stock</Text>
+                <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">MRP</Text>
+                <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Cost</Text>
+                <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Sell</Text>
+                <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+              </View>
+            ) : null
+          }
           ListEmptyComponent={
             <EmptyState
               title={`No ${itemPluralLabel.toLowerCase()} yet`}
               description={`Add ${itemPluralLabel.toLowerCase()} to your catalog, then create a ${indentLabel.toLowerCase()} and receive stock via GRN.`}
             />
           }
-          renderItem={({ item: row }: { item: MaterialRow }) => (
-            <Card className="mb-2 p-4">
+          renderItem={({ item: row }: { item: MaterialRow }) => {
+            // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop materials
+            // table row (phones keep the card below).
+            if (tableMode) {
+              return (
+                <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
+                  <View className="flex-[2.2] min-w-0 mr-2">
+                    <Text className="text-sm font-semibold text-text" numberOfLines={1}>{row.name}</Text>
+                    <Text className="text-[11px] text-muted">
+                      {row.unit}
+                      {row.resource.brandOrSpec ? ` · ${row.resource.brandOrSpec}` : ''}
+                      {row.resource.trackingMode === 'BATCH_EXPIRY' ? ' · batch tracked' : ''}
+                    </Text>
+                  </View>
+                  <Text className="flex-1 text-xs text-muted" numberOfLines={1}>{row.category ?? '—'}</Text>
+                  <Text className="flex-1 text-xs text-muted" numberOfLines={1}>{row.resource.hsnSacCode ?? '—'}</Text>
+                  <Text className="flex-1 text-xs text-text text-right">
+                    {Number(row.stock?.balance ?? 0) > 0 ? `${row.stock?.balance} ${row.unit}` : 'Out of stock'}
+                  </Text>
+                  <Text className="flex-1 text-xs text-muted text-right">
+                    {row.resource.mrp != null ? `₹${Number(row.resource.mrp).toFixed(2)}` : '—'}
+                  </Text>
+                  <Text className="flex-1 text-xs text-muted text-right">
+                    {row.resource.costPrice != null ? `₹${Number(row.resource.costPrice).toFixed(2)}` : '—'}
+                  </Text>
+                  <Text className="flex-1 text-sm font-bold text-primary text-right">{formatINR(Number(row.resource.rate))}</Text>
+                  <View className="flex-[1.6] flex-row flex-wrap justify-end gap-1">
+                    {isKirana ? (
+                      <Button
+                        label="Receive stock"
+                        size="sm"
+                        variant="accent"
+                        onPress={() => setReceiving(row.resource)}
+                      />
+                    ) : null}
+                    <Button label="Edit" size="sm" variant="secondary" onPress={() => setEditing(row.resource)} />
+                    <Button label="Delete" size="sm" variant="ghost" onPress={() => void onDelete(row.resource)} />
+                  </View>
+                </View>
+              );
+            }
+            return (
+              <Card className="mb-2 p-4">
               <View className="flex-row items-start justify-between">
                 <View className="flex-1 mr-2">
                   <Text className="text-sm font-semibold text-text">{row.name}</Text>
@@ -202,6 +258,11 @@ export default function InventoryMaterialsScreen() {
                   <Text className="text-sm font-bold text-primary">
                     {formatINR(Number(row.resource.rate))}
                   </Text>
+                  {row.resource.costPrice != null ? (
+                    <Text className="text-[11px] text-muted">
+                      Cost ₹{Number(row.resource.costPrice).toFixed(2)} · Sell ₹{Number(row.resource.rate).toFixed(2)}
+                    </Text>
+                  ) : null}
                   {row.resource.mrp != null ? (
                     <Text className="text-[11px] text-muted">
                       MRP {formatINR(Number(row.resource.mrp))}
@@ -222,7 +283,8 @@ export default function InventoryMaterialsScreen() {
                 <Button label="Delete" size="sm" variant="ghost" onPress={() => void onDelete(row.resource)} />
               </View>
             </Card>
-          )}
+          );
+          }}
         />
       )}
 
@@ -313,6 +375,8 @@ function MaterialFormModal({
     unit: string;
     rate: number;
     mrp?: number | null;
+    // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor unit cost.
+    costPrice?: number | null;
     gstRate?: number;
     hsnSacCode?: string;
     brandOrSpec?: string;
@@ -338,6 +402,8 @@ function MaterialFormModal({
   const [unit, setUnit] = useState('nos');
   const [rate, setRate] = useState('');
   const [mrp, setMrp] = useState('');
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor unit cost.
+  const [costPrice, setCostPrice] = useState('');
   const [gstRate, setGstRate] = useState('18');
   const [hsnSacCode, setHsnSacCode] = useState('');
   const [brandOrSpec, setBrandOrSpec] = useState('');
@@ -364,6 +430,7 @@ function MaterialFormModal({
       setUnit(initial.unit || 'nos');
       setRate(String(initial.rate ?? 0));
       setMrp(initial.mrp == null ? '' : String(initial.mrp));
+      setCostPrice(initial.costPrice == null ? '' : String(Number(initial.costPrice) || ''));
       setGstRate(initial.gstRate !== undefined ? String(initial.gstRate) : '18');
       setHsnSacCode(initial.hsnSacCode ?? '');
       setBrandOrSpec(initial.brandOrSpec ?? '');
@@ -390,6 +457,7 @@ function MaterialFormModal({
     setUnit('nos');
     setRate('');
     setMrp('');
+    setCostPrice('');
     setGstRate('18');
     setHsnSacCode('');
     setBrandOrSpec('');
@@ -443,12 +511,23 @@ function MaterialFormModal({
                 { title: 'Box', value: 'box' },
               ]}
             />
+            {/* INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): cost (vendor) vs
+                sell (customer) captured separately on the SKU. */}
+            <Input
+              label="Cost price (₹)"
+              value={costPrice}
+              onChangeText={setCostPrice}
+              keyboardType="decimal-pad"
+              placeholder="0"
+              helper="What you pay the vendor - new POs, receipts and reorder use this."
+            />
             <Input
               label="Selling price (₹)"
               value={rate}
               onChangeText={setRate}
               keyboardType="decimal-pad"
               placeholder="0"
+              helper="What you charge customers - checkout, sales orders and invoices use this."
             />
             <Input
               label="MRP (₹, optional)"
@@ -457,11 +536,6 @@ function MaterialFormModal({
               keyboardType="decimal-pad"
               placeholder="Printed maximum retail price"
             />
-            {mode === 'edit' ? (
-              <Text className="text-[11px] text-muted -mt-3 mb-2">
-                Catalog rate for new purchase requests/POs; existing documents keep their rates.
-              </Text>
-            ) : null}
             <Input
               label="GST %"
               value={gstRate}
@@ -582,6 +656,13 @@ function MaterialFormModal({
                     setError('Enter a valid rate');
                     return;
                   }
+                  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): cost has no
+                  // MRP cap (cost is what you pay the vendor).
+                  const costNum = costPrice === '' ? null : Number(costPrice);
+                  if (costNum !== null && (!Number.isFinite(costNum) || costNum < 0)) {
+                    setError('Enter a valid cost price');
+                    return;
+                  }
                   const mrpNum = mrp === '' ? null : Number(mrp);
                   if (mrpNum !== null && (!Number.isFinite(mrpNum) || mrpNum < 0)) {
                     setError('Enter a valid MRP');
@@ -598,6 +679,7 @@ function MaterialFormModal({
                     unit,
                     rate: rateNum,
                     mrp: mrpNum,
+                    costPrice: costNum,
                     gstRate: Number(gstRate) || 0,
                     hsnSacCode: hsnSacCode.trim() || undefined,
                     brandOrSpec: brandOrSpec.trim() || undefined,
@@ -657,7 +739,10 @@ function QuickVendorReceiptModal({
     setInvoiceNumber('');
     setReceivedDate(new Date().toISOString().slice(0, 10));
     setQuantity('');
-    setUnitCost('');
+    // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): prefill from the vendor
+    // cost (costPrice, else WAC), never the selling rate.
+    const cost = Number(item.costPrice ?? item.avgCost ?? 0);
+    setUnitCost(cost > 0 ? String(cost) : '');
     setBatchCode('');
     setManufacturedAt('');
     setExpiresAt('');
@@ -703,11 +788,11 @@ function QuickVendorReceiptModal({
   return (
     <Modal visible={item !== null} transparent animationType={isPhone ? 'slide' : 'fade'} onRequestClose={onClose}>
       <Pressable
-        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : 'items-center justify-center p-4'}`}
+        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : ''}`}
         onPress={onClose}
       >
         <Pressable
-          className={`bg-card w-full p-4 ${isPhone ? 'rounded-t-2xl max-h-[92%]' : 'rounded-2xl max-w-lg max-h-[90%]'}`}
+          className={`bg-card w-full p-4 ${isPhone ? 'rounded-t-2xl h-[96%]' : 'h-full'}`}
           onPress={(e) => e.stopPropagation()}
         >
           <Text className="text-lg font-bold text-text">Receive stock</Text>
@@ -741,7 +826,7 @@ function QuickVendorReceiptModal({
                 <Input label={`Quantity (${item?.unit ?? ''})`} value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad" />
               </View>
               <View className="flex-1">
-                <Input label="Purchase cost / unit (₹)" value={unitCost} onChangeText={setUnitCost} keyboardType="decimal-pad" />
+                <Input label="Cost ₹ / unit (what you pay)" value={unitCost} onChangeText={setUnitCost} keyboardType="decimal-pad" />
               </View>
             </View>
             {item?.trackingMode === 'BATCH_EXPIRY' ? (

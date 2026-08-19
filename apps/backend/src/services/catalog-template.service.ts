@@ -132,6 +132,9 @@ export interface SelectedCatalogStockItem {
   };
   mrp: number;
   rate: number;
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor unit cost captured at
+  // intake; prefills POs/receipts. Optional (0/blank = no cost known yet).
+  costPrice?: number;
   quantity: number;
   barcode?: string;
   batchCode?: string;
@@ -141,7 +144,7 @@ export interface SelectedCatalogStockItem {
 
 export type SelectedCatalogMasterItem = Pick<
   SelectedCatalogStockItem,
-  'templateKey' | 'custom' | 'mrp' | 'rate' | 'barcode'
+  'templateKey' | 'custom' | 'mrp' | 'rate' | 'costPrice' | 'barcode'
 >;
 
 /** Copy selected products into the tenant item master without changing stock. */
@@ -196,6 +199,10 @@ export async function importCatalogItems(
             rate: selected.rate,
             lastRateUpdatedAt: new Date(),
             trackingMode: 'BATCH_EXPIRY',
+            // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor cost only
+            // when the shopkeeper provides one this intake (0 = unknown, keep
+            // any previously captured cost).
+            ...(selected.costPrice != null && selected.costPrice > 0 ? { costPrice: selected.costPrice } : {}),
             ...(selected.barcode?.trim() ? { barcode: selected.barcode.trim() } : {}),
           },
         });
@@ -216,6 +223,8 @@ export async function importCatalogItems(
             mrp: selected.mrp,
             mrpUpdatedAt: new Date(),
             rate: selected.rate,
+            // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor unit cost.
+            costPrice: selected.costPrice != null && selected.costPrice > 0 ? selected.costPrice : null,
             lastRateUpdatedAt: new Date(),
             trackingMode: 'BATCH_EXPIRY',
           },
@@ -314,6 +323,8 @@ export async function importSelectedCatalogStock(
             mrp: selected.mrp,
             mrpUpdatedAt: new Date(),
             rate: selected.rate,
+            // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor unit cost.
+            costPrice: selected.costPrice != null && selected.costPrice > 0 ? selected.costPrice : null,
             lastRateUpdatedAt: new Date(),
             trackingMode: 'BATCH_EXPIRY',
           },
@@ -346,6 +357,10 @@ export async function importSelectedCatalogStock(
             rate: selected.rate,
             lastRateUpdatedAt: new Date(),
             trackingMode: 'BATCH_EXPIRY',
+            // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor cost only
+            // when the shopkeeper provides one this intake (0 = unknown, keep
+            // any previously captured cost).
+            ...(selected.costPrice != null && selected.costPrice > 0 ? { costPrice: selected.costPrice } : {}),
             ...(selected.barcode?.trim() ? { barcode: selected.barcode.trim() } : {}),
           },
         });
