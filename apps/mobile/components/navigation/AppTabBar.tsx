@@ -16,6 +16,7 @@ import { parseReturnTo } from '@/utils/navigation';
 import { useAuthStore } from '@/stores/auth.store';
 import { useAssistantStore } from '@/stores/assistant.store';
 import { useViewport } from '@/hooks/useViewport';
+import { useVisualViewportFrame } from '@/hooks/useVisualViewportFrame';
 import { tabBarPaddingBottom } from '@/components/layout/fab-layout';
 
 interface AppTabBarProps extends BottomTabBarProps {
@@ -25,6 +26,7 @@ interface AppTabBarProps extends BottomTabBarProps {
 export function AppTabBar({ allowedTabs }: AppTabBarProps) {
   const insets = useSafeAreaInsets();
   const { isWeb } = useViewport();
+  const { chromeBottom } = useVisualViewportFrame();
   const router = useRouter();
   const pathname = usePathname();
   const params = useGlobalSearchParams<{ returnTo?: string }>();
@@ -52,7 +54,7 @@ export function AppTabBar({ allowedTabs }: AppTabBarProps) {
     <>
       <View
         className="bg-card border-t border-border"
-        style={{ paddingBottom: tabBarPaddingBottom(insets.bottom, isWeb) }}
+        style={{ paddingBottom: tabBarPaddingBottom(insets.bottom, isWeb, chromeBottom) }}
       >
         <View className="flex-row items-stretch px-1 pt-1.5">
           {primaryTabs.map((tabName) => {
@@ -139,7 +141,7 @@ export function AppTabBar({ allowedTabs }: AppTabBarProps) {
         >
           <Pressable
             className="bg-card rounded-t-2xl border-t border-border"
-            style={{ paddingBottom: Math.max(tabBarPaddingBottom(insets.bottom, isWeb), 16) }}
+            style={{ paddingBottom: Math.max(tabBarPaddingBottom(insets.bottom, isWeb, chromeBottom), 16) }}
             onPress={(e) => e.stopPropagation()}
           >
             <View className="items-center pt-3 pb-2">

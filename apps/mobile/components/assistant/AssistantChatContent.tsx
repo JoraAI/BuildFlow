@@ -167,7 +167,14 @@ function MarkdownBlocks({ content }: { content: string }) {
   return <>{out}</>;
 }
 
-export function AssistantChatContent({ projectId }: { projectId?: string }) {
+export function AssistantChatContent({
+  projectId,
+  bottomInset = 0,
+}: {
+  projectId?: string;
+  /** Extra padding so the composer sits above mobile-browser chrome. */
+  bottomInset?: number;
+}) {
   const { data: messages, isLoading } = useChatHistory(projectId);
   const sendMsg = useSendChatMessage(projectId);
   const [text, setText] = useState('');
@@ -295,7 +302,7 @@ export function AssistantChatContent({ projectId }: { projectId?: string }) {
         </View>
       ) : null}
 
-      <View style={styles.composer}>
+      <View style={[styles.composer, { paddingBottom: 10 + bottomInset }]}>
         <TextInput
           style={styles.input}
           value={text}
@@ -327,7 +334,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: '#F1F5F9' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { padding: 16, paddingBottom: 8, flexGrow: 1 },
-  empty: { padding: 28, alignItems: 'center', marginTop: 28 },
+  empty: { padding: 24, alignItems: 'center', marginTop: 8 },
   emptyIcon: {
     width: 52,
     height: 52,

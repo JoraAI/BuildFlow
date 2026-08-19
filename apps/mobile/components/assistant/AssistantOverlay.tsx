@@ -15,6 +15,7 @@ import { useAssistantStore } from '@/stores/assistant.store';
 import { useAuthStore } from '@/stores/auth.store';
 import { useClearChatHistory } from '@/services/chat.queries';
 import { useViewport } from '@/hooks/useViewport';
+import { useVisualViewportFrame } from '@/hooks/useVisualViewportFrame';
 import { AssistantChatContent } from '@/components/assistant/AssistantChatContent';
 
 export function AssistantOverlay() {
@@ -27,6 +28,7 @@ export function AssistantOverlay() {
   const clearHistory = useClearChatHistory(projectId);
   const { isDesktop } = useViewport();
   const insets = useSafeAreaInsets();
+  const frame = useVisualViewportFrame();
   const { width } = useWindowDimensions();
   const panelWidth = useMemo(
     () => Math.min(isDesktop ? 420 : Math.round(width * 0.92), width),
@@ -85,8 +87,10 @@ export function AssistantOverlay() {
             styles.panel,
             {
               width: panelWidth,
-              paddingTop: Math.max(insets.top, 8),
-              paddingBottom: insets.bottom,
+              top: Platform.OS === 'web' ? frame.offsetTop : 0,
+              height: Platform.OS === 'web' && frame.height > 0 ? frame.height : '100%',
+              bottom: Platform.OS === 'web' ? undefined : 0,
+              paddingTop: 0,
               transform: [{ translateX: slideX }],
             },
           ]}
@@ -125,7 +129,10 @@ export function AssistantOverlay() {
           </View>
 
           <View style={styles.body}>
-            <AssistantChatContent projectId={projectId} />
+            <AssistantChatContent
+              projectId={projectId}
+              bottomInset={Math.max(insets.bottom, frame.chromeBottom, Platform.OS === 'web' ? 24 : 8)}
+            />
           </View>
         </Animated.View>
       </View>
@@ -166,8 +173,8 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     backgroundColor: '#1E3A5F',
   },
   headerIcon: {

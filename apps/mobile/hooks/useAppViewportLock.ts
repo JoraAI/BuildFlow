@@ -16,7 +16,11 @@ export function useAppViewportLock() {
     const apply = () => {
       const vv = window.visualViewport;
       const height = vv?.height ?? window.innerHeight;
+      const offsetTop = vv?.offsetTop ?? 0;
+      const chromeBottom = Math.max(0, window.innerHeight - offsetTop - height);
       root.style.setProperty('--app-height', `${Math.round(height)}px`);
+      root.style.setProperty('--app-top', `${Math.round(offsetTop)}px`);
+      root.style.setProperty('--chrome-bottom', `${Math.round(chromeBottom)}px`);
     };
 
     apply();

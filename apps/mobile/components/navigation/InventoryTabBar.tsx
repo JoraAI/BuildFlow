@@ -11,6 +11,7 @@ import { View, Text, Pressable, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tabBarPaddingBottom } from '@/components/layout/fab-layout';
 import { useViewport } from '@/hooks/useViewport';
+import { useVisualViewportFrame } from '@/hooks/useVisualViewportFrame';
 import { useAuthStore } from '@/stores/auth.store';
 import { getInventoryLabel, getInventoryLabelMode } from '@buildflow/shared';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
@@ -76,6 +77,7 @@ export function InventoryMobileTabBar() {
   const router = useRouter();
   const pathname = usePathname();
   const { isPhone, isWeb } = useViewport();
+  const { chromeBottom } = useVisualViewportFrame();
   const itemsLabel = useItemsLabel();
   const { translate } = useInventoryLanguage();
 
@@ -114,7 +116,7 @@ export function InventoryMobileTabBar() {
   return (
     <View
       className="bg-card border-t border-border"
-      style={{ paddingBottom: tabBarPaddingBottom(insets.bottom, isWeb) }}
+      style={{ paddingBottom: tabBarPaddingBottom(insets.bottom, isWeb, chromeBottom) }}
     >
       {isPhone ? (
         // INVENTORY_UX_POLISH (§1.4.1): horizontal scroll so all 9 tabs stay

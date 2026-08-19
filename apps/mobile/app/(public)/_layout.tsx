@@ -14,7 +14,7 @@ export default function PublicLayout() {
   }
 
   return (
-    <View className="flex-1">
+    <View className="flex-1 relative">
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="pricing" />

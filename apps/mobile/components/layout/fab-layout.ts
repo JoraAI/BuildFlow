@@ -17,8 +17,10 @@ export const DESKTOP_PANEL_TOP_GAP = 12;
  * indicator / mobile-browser toolbar. Web uses a larger floor because
  * `insets.bottom` is often 0 in Safari/Chrome.
  */
-export function tabBarPaddingBottom(safeBottom: number, isWeb: boolean): number {
-  return Math.max(safeBottom, isWeb ? 16 : 8);
+export function tabBarPaddingBottom(safeBottom: number, isWeb: boolean, chromeBottom = 0): number {
+  // Mobile Safari/Chrome overlay ~5–10% of the screen; 56px is a safe web floor
+  // when visualViewport chrome is under-reported.
+  return Math.max(safeBottom, chromeBottom, isWeb ? 56 : 8);
 }
 
 /** Bottom offset for the desktop Assistant FAB. Phone uses the right-edge handle. */

@@ -14,7 +14,7 @@ export default function AuthLayout() {
   }
 
   return (
-    <View className="flex-1">
+    <View className="flex-1 relative">
       <Stack screenOptions={{ headerShown: false }} />
       <MarketingAssistantFab />
     </View>
