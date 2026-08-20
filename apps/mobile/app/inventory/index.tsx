@@ -99,29 +99,32 @@ export default function InventoryStockScreen() {
     const t = setTimeout(() => setDebouncedSearch(stockSearch), 150);
     return () => clearTimeout(t);
   }, [stockSearch]);
+  // Live filter as you type (150ms debounce). No Find button — search is automatic.
   const filteredSummary = useMemo(() => {
+    const rows = summary ?? [];
     const q = debouncedSearch.trim().toLowerCase();
-    if (!q) return summary ?? [];
-    return (summary ?? []).filter((r: StockSummaryRow) => {
-      const haystack = [
-        r.name,
-        r.unit,
-        r.sku ?? '',
-        r.itemCode ?? '',
-        r.barcode ?? '',
-      ]
-        .join(' ')
-        .toLowerCase();
-      return haystack.includes(q);
-    });
+    const matched = !q
+      ? rows
+      : rows.filter((r: StockSummaryRow) => {
+          const haystack = [
+            r.name,
+            r.unit,
+            r.sku ?? '',
+            r.itemCode ?? '',
+            r.barcode ?? '',
+          ]
+            .join(' ')
+            .toLowerCase();
+          return haystack.includes(q);
+        });
+    return [...matched].sort((a, b) =>
+      (a.name ?? '').localeCompare(b.name ?? '', undefined, { sensitivity: 'base' }),
+    );
   }, [summary, debouncedSearch]);
   const isSearchActive = debouncedSearch.trim().length > 0;
 
-  // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.4): barcode identify - type/paste a
-  // barcode to jump to its item row.
+  // Camera Scan (or paste of a full barcode into search after scan) → API lookup → item detail.
   const [barcodeQuery, setBarcodeQuery] = useState('');
-  const [barcodeInput, setBarcodeInput] = useState('');
-  // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.2): camera barcode scanner overlay.
   const [scannerOpen, setScannerOpen] = useState(false);
   const barcodeLookup = useBarcodeLookup(barcodeQuery);
   useEffect(() => {
@@ -129,7 +132,6 @@ export default function InventoryStockScreen() {
       const id = barcodeLookup.data.id;
       const name = barcodeLookup.data.name;
       setBarcodeQuery('');
-      setBarcodeInput('');
       toast.success(`${name} found`);
       router.push(inventoryStockItemHref(id, selectedLocationId) as never);
     }
@@ -137,7 +139,6 @@ export default function InventoryStockScreen() {
   useEffect(() => {
     if (barcodeQuery && barcodeLookup.isError) {
       setBarcodeQuery('');
-      setBarcodeInput('');
       toast.error('No item found with this barcode');
     }
   }, [barcodeQuery, barcodeLookup.isError]);
@@ -262,46 +263,16 @@ export default function InventoryStockScreen() {
     ? translate('inventory.stock.checkout', 'Checkout')
     : translate('inventory.stock.bulkIssue', 'Bulk issue');
 
-  /** Phone: warehouse + barcode scroll with the list so sticky chrome stays tiny. */
-  const filtersBlock = (multiWarehouseEnabled || barcodeEnabled) ? (
-    <View className={`flex-row flex-wrap items-end gap-2 ${isPhone ? 'mb-3' : ''}`}>
-      {multiWarehouseEnabled ? (
-        <View className={isPhone ? 'w-full' : 'min-w-[180px] flex-1'}>
-          <Select
-            label={translate('inventory.stock.warehouse', 'Warehouse')}
-            value={selectedLocationId}
-            options={(warehouses ?? []).map((w) => ({ title: `${w.name}${w.isDefault ? ' (default)' : ''}`, value: w.id }))}
-            onChange={(v) => v && setSelectedLocationId(v)}
-            placeholder={translate('inventory.stock.allStores', 'All stores')}
-          />
-        </View>
-      ) : null}
-      {barcodeEnabled ? (
-        <View className={`${isPhone ? 'w-full' : 'flex-1 min-w-[220px]'} flex-row items-end gap-2`}>
-          <View className="flex-1">
-            <Input
-              label={isPhone ? undefined : translate('inventory.stock.barcode', 'Barcode / scan')}
-              value={barcodeInput}
-              onChangeText={setBarcodeInput}
-              placeholder={translate('inventory.stock.barcodePlaceholder', 'Type or paste a barcode')}
-              accessibilityLabel={translate('inventory.stock.barcode', 'Barcode / scan')}
-            />
-          </View>
-          <Button
-            label={translate('inventory.stock.scan', 'Scan')}
-            variant="secondary"
-            size="sm"
-            onPress={() => setScannerOpen(true)}
-          />
-          <Button
-            label={translate('inventory.stock.find', 'Find')}
-            variant="secondary"
-            size="sm"
-            disabled={!barcodeInput.trim() || buffering}
-            onPress={() => setBarcodeQuery(barcodeInput.trim())}
-          />
-        </View>
-      ) : null}
+  /** Warehouse only — search + Scan live in the sticky search row (no Find button). */
+  const filtersBlock = multiWarehouseEnabled ? (
+    <View className={isPhone ? 'mb-3' : undefined}>
+      <Select
+        label={translate('inventory.stock.warehouse', 'Warehouse')}
+        value={selectedLocationId}
+        options={(warehouses ?? []).map((w) => ({ title: `${w.name}${w.isDefault ? ' (default)' : ''}`, value: w.id }))}
+        onChange={(v) => v && setSelectedLocationId(v)}
+        placeholder={translate('inventory.stock.allStores', 'All stores')}
+      />
     </View>
   ) : null;
 
@@ -405,27 +376,17 @@ export default function InventoryStockScreen() {
             ) : null}
           </View>
           {isPhone ? (
-            <View className="flex-row items-center gap-1.5 shrink-0">
-              <Button
-                label={checkoutLabel}
-                accessibilityLabel={posCheckoutEnabled ? 'Open counter checkout' : 'Open bulk issue'}
-                variant="accent"
-                size="sm"
-                disabled={buffering || !hasIssuableStock}
-                onPress={() => {
-                  setIssueInitialResourceId(null);
-                  setIssueOpen(true);
-                }}
-              />
-              {barcodeEnabled ? (
-                <Button
-                  label={translate('inventory.stock.scan', 'Scan')}
-                  variant="secondary"
-                  size="sm"
-                  onPress={() => setScannerOpen(true)}
-                />
-              ) : null}
-            </View>
+            <Button
+              label={checkoutLabel}
+              accessibilityLabel={posCheckoutEnabled ? 'Open counter checkout' : 'Open bulk issue'}
+              variant="accent"
+              size="sm"
+              disabled={buffering || !hasIssuableStock}
+              onPress={() => {
+                setIssueInitialResourceId(null);
+                setIssueOpen(true);
+              }}
+            />
           ) : null}
         </View>
         {!isPhone ? (
@@ -461,21 +422,38 @@ export default function InventoryStockScreen() {
         ) : null}
       </View>
 
-      {!isPhone && (multiWarehouseEnabled || barcodeEnabled) ? (
+      {!isPhone && multiWarehouseEnabled ? (
         <View className="px-4 pb-3 shrink-0">{filtersBlock}</View>
       ) : null}
 
       <View className="px-4 pb-2 shrink-0">
-        <Input
-          label=""
-          accessibilityLabel={`Search ${localizedItemsLabel.toLowerCase()}`}
-          value={stockSearch}
-          onChangeText={setStockSearch}
-          placeholder={translate(
-            'inventory.stock.searchPlaceholder',
-            `Search ${localizedItemsLabel.toLowerCase()} (name, SKU, barcode)…`,
-          )}
-        />
+        {/* One sticky row: live search + Scan (inline). Typing filters the list; Scan looks up barcode. */}
+        <View className="flex-row items-center gap-2">
+          <View className="flex-1 min-w-0">
+            <Input
+              label=""
+              compact
+              fullWidth
+              accessibilityLabel={`Search ${localizedItemsLabel.toLowerCase()}`}
+              value={stockSearch}
+              onChangeText={setStockSearch}
+              autoCapitalize="none"
+              placeholder={translate(
+                'inventory.stock.searchPlaceholder',
+                `Search ${localizedItemsLabel.toLowerCase()} (name, SKU, barcode)…`,
+              )}
+            />
+          </View>
+          {barcodeEnabled ? (
+            <Button
+              label={translate('inventory.stock.scan', 'Scan')}
+              variant="secondary"
+              size="sm"
+              disabled={buffering}
+              onPress={() => setScannerOpen(true)}
+            />
+          ) : null}
+        </View>
         {isPhone ? (
           <View className="flex-row flex-wrap gap-2 mt-2">
             <Button
@@ -749,7 +727,7 @@ export default function InventoryStockScreen() {
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}
         onScanned={(code) => {
-          setBarcodeInput(code);
+          setStockSearch(code);
           setBarcodeQuery(code);
           setScannerOpen(false);
           toast.success(`Scanned ${code} - finding item…`);

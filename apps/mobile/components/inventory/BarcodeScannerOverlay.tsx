@@ -1,9 +1,9 @@
 /**
  * BuildFlow - Barcode camera scanner overlay (INVENTORY_HORIZONTAL_PLATFORM Phase 8.2).
  *
- * Device camera barcode scan for Stock Find / issue. Phone = full-bleed overlay;
- * desktop = centered max-w-lg. Keyboard/paste stays the primary input path (the
- * Find button remains).
+ * Device camera barcode scan for Stock search / issue. Phone = full-bleed overlay;
+ * desktop = centered max-w-lg. Keyboard/paste into the live stock search filters the
+ * list; Scan opens this camera when available.
  *
  * M1 (INVENTORY_UX_POLISH): web phone/tablet builds now open the camera too:
  *   - `getUserMedia({ video: { facingMode: 'environment' } })` (rear camera)
@@ -309,7 +309,7 @@ export function BarcodeScannerOverlay({
               <View className="p-6 items-center">
                 <Text className="text-sm text-text text-center mb-1">Camera scanner is mobile-only</Text>
                 <Text className="text-xs text-muted text-center mb-4">
-                  On desktop, type or paste the barcode into the search box next to Find.
+                  On desktop, type or paste into the stock search box — matches filter as you type.
                 </Text>
                 <Button label="Close" variant="secondary" onPress={onClose} />
               </View>

@@ -19,6 +19,7 @@ import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { InventoryLanguageProvider, useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.5): in-app notification bell.
 import { useRouter } from 'expo-router';
+import { useKeyboardOpen } from '@/hooks/useKeyboardOpen';
 import { useUnreadCount } from '@/services/chat.queries';
 
 export default function InventoryLayout() {
@@ -37,8 +38,8 @@ function InventoryLayoutBody() {
   const pathname = usePathname();
   const router = useRouter();
   const { translate } = useInventoryLanguage();
-  // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.5): unread badge on the bell.
   const { data: unreadCount } = useUnreadCount();
+  const keyboardOpen = useKeyboardOpen();
 
   if (!isAuthenticated) return <Redirect href="/login" />;
   if (!user) return null;
@@ -135,7 +136,7 @@ function InventoryLayoutBody() {
             </Stack>
           </View>
 
-          {!isDesktop && <InventoryMobileTabBar />}
+          {!isDesktop && !keyboardOpen ? <InventoryMobileTabBar /> : null}
           <AssistantFab />
           <AssistantOverlay />
         </View>

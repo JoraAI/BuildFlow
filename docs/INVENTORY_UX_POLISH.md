@@ -71,7 +71,7 @@ Do **not** reimplement D1–D10. Only:
 
 ## 2. What Deepseek should do THIS pass
 
-**Status (2026-08-20): M1–M4 code-complete** (see §3 evidence). Remaining work is optional device/browser smoke only.
+**Status (2026-08-20): M1–M6 code-complete** (see §3 evidence). Remaining work is optional device/browser smoke only.
 
 **Goal (completed in code):** Mobile / PWA polish M1–M4 — camera on mobile browsers, tab bar gap, header name cutoff, stock search.
 
@@ -179,6 +179,17 @@ Operator: on phone Inventory Stock, fixed top chrome (~title + filters + KPIs) a
 - [x] Totals + executive/Kirana KPI cards are horizontal strips on phone (no 2×N stacked card grid)
 - [x] Stack `contentStyle: { flex: 1, minHeight: 0 }` so the list fills remaining viewport
 - [x] List bottom padding uses `mobileListBottomPadding` so rows clear the tab bar
+
+### M6 - Stock search UX (2026-08-20)
+
+Operator: typing in stock search was covered by the bottom tab bar; Scan/Find were not inline with search; typed characters could appear reversed (RN-web LTR); Find button was redundant with live filter.
+
+- [x] Sticky row is **search + Scan** inline (Find removed) on phone and desktop
+- [x] Live filter as you type (150ms debounce) — name / SKU / itemCode / barcode / unit; results sorted A–Z by name
+- [x] Bottom tab bar hides while keyboard / text field is focused (`useKeyboardOpen`)
+- [x] Search `Input` uses LTR `writingDirection` + `autoCorrect={false}` + `compact` (no remount / reverse-type quirks)
+- [x] Separate barcode + Find row removed; Scan fills search and runs barcode API lookup → item detail
+- [x] Warehouse filter remains in list header (phone) / above search (desktop)
 
 ---
 

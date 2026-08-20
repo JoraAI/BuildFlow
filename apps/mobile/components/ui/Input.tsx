@@ -19,6 +19,10 @@ interface InputProps {
   fullWidth?: boolean;
   /** Accessible name for screen readers when `label` is blank. */
   accessibilityLabel?: string;
+  /** Drop bottom margin (inline toolbars / sticky search rows). */
+  compact?: boolean;
+  onFocus?: () => void;
+  onBlur?: () => void;
 }
 
 export function Input({
@@ -36,6 +40,9 @@ export function Input({
   multiline = false,
   fullWidth = false,
   accessibilityLabel,
+  compact = false,
+  onFocus,
+  onBlur,
 }: InputProps) {
   const { isDesktop } = useViewport();
   const widthClass =
@@ -46,7 +53,7 @@ export function Input({
         : 'w-full max-w-md self-start';
 
   return (
-    <View className={`mb-4 ${widthClass}`}>
+    <View className={`${compact ? 'mb-0' : 'mb-4'} ${widthClass}`}>
       {label ? <Text className="text-sm font-semibold text-text mb-1.5">{label}</Text> : null}
       <View
         className={`flex-row items-center rounded-lg border bg-card ${
@@ -57,12 +64,17 @@ export function Input({
         <TextInput
           value={value}
           onChangeText={onChangeText}
+          onFocus={onFocus}
+          onBlur={onBlur}
           placeholder={placeholder}
           secureTextEntry={secureTextEntry}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
+          autoCorrect={false}
           multiline={multiline}
           accessibilityLabel={accessibilityLabel ?? label}
+          // LTR so RN-web does not reverse typed characters in RTL locales / autofill quirks.
+          style={{ direction: 'ltr', writingDirection: 'ltr', textAlign: 'left' } as object}
           className={`flex-1 text-text ${multiline ? 'min-h-[88px] py-2 text-top' : 'py-3'} ${
             leftIcon ? 'ml-2' : ''
           }`}
