@@ -177,9 +177,10 @@ function boqToOptions(items: BoqItem[], resourceId?: string): SelectOption[] {
 export default function CreateReportScreen() {
   const router = useRouter();
   const { isDesktop } = useViewport();
-  const { projectId: routeProjectId, reset: resetKey } = useLocalSearchParams<{
+  const { projectId: routeProjectId, reset: resetKey, date: routeDate } = useLocalSearchParams<{
     projectId?: string | string[];
     reset?: string | string[];
+    date?: string | string[];
   }>();
   const activeProjectId = useAppStore((s) => s.activeProjectId);
   const setActiveProject = useAppStore((s) => s.setActiveProject);
@@ -189,6 +190,8 @@ export default function CreateReportScreen() {
     typeof routeProjectId === 'string' ? routeProjectId : routeProjectId?.[0];
   const resetToken =
     typeof resetKey === 'string' ? resetKey : resetKey?.[0];
+  const initialDate =
+    typeof routeDate === 'string' ? routeDate : routeDate?.[0];
   const isProjectLocked = Boolean(routeId);
 
   const [selectedProjectId, setSelectedProjectId] = useState('');
@@ -215,10 +218,10 @@ export default function CreateReportScreen() {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [issues, setIssues] = useState('');
 
-  const resetForm = useCallback((projectIdForForm: string) => {
+  const resetForm = useCallback((projectIdForForm: string, dateOverride?: string) => {
     setStep(1);
     setFormError(null);
-    setReportDate(todayDateOnly());
+    setReportDate(dateOverride && /^\d{4}-\d{2}-\d{2}$/.test(dateOverride) ? dateOverride : todayDateOnly());
     setWeather(null);
     setWorkersCount('');
     setSiteStatus(null);
@@ -240,16 +243,16 @@ export default function CreateReportScreen() {
     if (resetToken) {
       if (lastResetRef.current === resetToken) return;
       lastResetRef.current = resetToken;
-      resetForm(routeId ?? pid);
+      resetForm(routeId ?? pid, initialDate);
       if (routeId) setActiveProject(routeId);
       return;
     }
 
     if (lastResetRef.current || !pid) return;
     lastResetRef.current = 'initial';
-    resetForm(pid);
+    resetForm(pid, initialDate);
     if (routeId) setActiveProject(routeId);
-  }, [resetToken, routeId, projects, activeProjectId, resetForm, setActiveProject]);
+  }, [resetToken, routeId, projects, activeProjectId, resetForm, setActiveProject, initialDate]);
 
   const projectId = isProjectLocked ? routeId! : selectedProjectId;
 

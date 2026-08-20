@@ -46,8 +46,13 @@ export function reportDetailHref(reportId: string, returnTo?: string): string {
   return withReturnTo(`/reports/${reportId}`, returnTo);
 }
 
-export function createReportHref(projectId: string): string {
-  return `/reports/create?projectId=${encodeURIComponent(projectId)}&reset=${Date.now()}`;
+/** Open the daily-report wizard. Optional `date` (YYYY-MM-DD) prefills the report date. */
+export function createReportHref(projectId: string, opts?: { date?: string }): string {
+  const params = new URLSearchParams();
+  params.set('projectId', projectId);
+  params.set('reset', String(Date.now()));
+  if (opts?.date) params.set('date', opts.date);
+  return `/reports/create?${params.toString()}`;
 }
 
 /**
