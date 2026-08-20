@@ -90,14 +90,30 @@ export default function InventoryStockScreen() {
   const [issueInitialResourceId, setIssueInitialResourceId] = useState<string | null>(null);
   const [buffering, setBuffering] = useState(false);
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4): searchable stock rows.
+  // INVENTORY_UX_POLISH (M4): 150ms debounce + match name/sku/itemCode/barcode/unit.
   const [stockSearch, setStockSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(stockSearch), 150);
+    return () => clearTimeout(t);
+  }, [stockSearch]);
   const filteredSummary = useMemo(() => {
-    const q = stockSearch.trim().toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
     if (!q) return summary ?? [];
-    return (summary ?? []).filter(
-      (r: StockSummaryRow) => r.name.toLowerCase().includes(q) || r.unit.toLowerCase().includes(q),
-    );
-  }, [summary, stockSearch]);
+    return (summary ?? []).filter((r: StockSummaryRow) => {
+      const haystack = [
+        r.name,
+        r.unit,
+        r.sku ?? '',
+        r.itemCode ?? '',
+        r.barcode ?? '',
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [summary, debouncedSearch]);
+  const isSearchActive = debouncedSearch.trim().length > 0;
 
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.4): barcode identify - type/paste a
   // barcode to jump to its item row.
@@ -257,7 +273,7 @@ export default function InventoryStockScreen() {
           <Text className="text-2xl font-bold text-text">
             {translate('inventory.stock.title', 'Stock')}
           </Text>
-          <Text className="text-sm text-muted mt-0.5">
+          <Text className="text-sm text-muted mt-0.5" numberOfLines={1}>
             {user?.companyName}
             {multiWarehouseEnabled
               ? ` · ${warehouses?.find((w) => w.id === selectedLocationId)?.name ?? translate('inventory.stock.allStores', 'All stores')}`
@@ -343,6 +359,18 @@ export default function InventoryStockScreen() {
         </View>
       ) : null}
 
+      {/* INVENTORY_UX_POLISH (M4): stock search lives ABOVE the FlatList so the
+          input is never remounted by list header re-renders (focus stays put). */}
+      <View className="px-4 pb-2">
+        <Input
+          label=""
+          accessibilityLabel={`Search ${localizedItemsLabel.toLowerCase()}`}
+          value={stockSearch}
+          onChangeText={setStockSearch}
+          placeholder={translate('inventory.stock.searchPlaceholder', `Search ${localizedItemsLabel.toLowerCase()} (name, SKU, barcode)…`)}
+        />
+      </View>
+
       {isLoading ? (
         <View className="px-4 gap-3">
           {[1, 2, 3].map((i) => (
@@ -363,16 +391,6 @@ export default function InventoryStockScreen() {
           }
           ListHeaderComponent={
             <View className="px-4 pb-2">
-              {/* INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4): searchable rows. */}
-              <View className="mb-3">
-                <Input
-                  label=""
-                  accessibilityLabel={`Search ${localizedItemsLabel.toLowerCase()}`}
-                  value={stockSearch}
-                  onChangeText={setStockSearch}
-                  placeholder={translate('inventory.stock.searchPlaceholder', `Search ${localizedItemsLabel.toLowerCase()}…`)}
-                />
-              </View>
               <View className={`flex-row gap-3 ${isDesktop ? '' : 'flex-wrap'}`}>
                 <Card className="flex-1 min-w-[140px] p-4">
                   <Text className="text-xs text-muted">{localizedItemsLabel}</Text>
@@ -545,6 +563,12 @@ export default function InventoryStockScreen() {
               <EmptyState
                 title="Could not load stock"
                 description={error instanceof Error ? error.message : 'Check your connection and try again.'}
+              />
+            ) : isSearchActive ? (
+              // INVENTORY_UX_POLISH (M4): clear "no match" feedback while searching.
+              <EmptyState
+                title="No items match"
+                description={`No ${localizedItemsLabel.toLowerCase()} match “${debouncedSearch.trim()}”. Try a name, SKU, barcode or unit.`}
               />
             ) : (
               <EmptyState

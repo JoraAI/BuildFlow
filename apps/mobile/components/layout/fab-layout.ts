@@ -14,13 +14,19 @@ export const DESKTOP_PANEL_TOP_GAP = 12;
 
 /**
  * Bottom padding for the mobile tab bar so labels sit above the iOS home
- * indicator / mobile-browser toolbar. Web uses a larger floor because
- * `insets.bottom` is often 0 in Safari/Chrome.
+ * indicator.
+ *
+ * M2 (INVENTORY_UX_POLISH): on web the app is pinned to the *visual* viewport
+ * (`useAppViewportLock` sets `--app-height` = visualViewport.height), which
+ * already excludes the browser toolbar. Padding `chromeBottom` / a 56px web
+ * floor again inside that already-shrunk viewport created an empty strip under
+ * the tabs. We now use the safe-area inset only (small floor on every
+ * platform); the `chromeBottom` parameter is kept for call-site compatibility.
  */
 export function tabBarPaddingBottom(safeBottom: number, isWeb: boolean, chromeBottom = 0): number {
-  // Mobile Safari/Chrome overlay ~5–10% of the screen; 56px is a safe web floor
-  // when visualViewport chrome is under-reported.
-  return Math.max(safeBottom, chromeBottom, isWeb ? 56 : 8);
+  void isWeb;
+  void chromeBottom;
+  return Math.max(safeBottom, 8);
 }
 
 /** Bottom offset for the desktop Assistant FAB. Phone uses the right-edge handle. */

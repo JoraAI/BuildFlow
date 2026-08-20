@@ -190,6 +190,10 @@ export interface StockSummaryRow {
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor unit cost (null when
   // not captured). Read-only in checkout; prefills PO/GRN/receipt/reorder.
   costPrice?: number | null;
+  // INVENTORY_UX_POLISH (M4): item master search keys for stock search.
+  sku?: string | null;
+  itemCode?: string | null;
+  barcode?: string | null;
   /** Phase 1.5: low-stock threshold. */
   reorderPoint?: number;
   received: number;

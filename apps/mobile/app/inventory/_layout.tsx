@@ -33,7 +33,7 @@ function InventoryLayoutBody() {
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const { isDesktop } = useViewport();
+  const { isDesktop, isPhone } = useViewport();
   const pathname = usePathname();
   const router = useRouter();
   const { translate } = useInventoryLanguage();
@@ -75,18 +75,25 @@ function InventoryLayoutBody() {
                 minHeight: 56 + (Platform.OS !== 'web' ? insets.top : 0),
               }}
             >
-              <View className="flex-row items-center gap-2 shrink-0">
-                <View className="w-8 h-8 rounded-lg bg-primary items-center justify-center">
+              <View className="flex-row items-center gap-2 shrink-0 min-w-0">
+                <View className="w-8 h-8 rounded-lg bg-primary items-center justify-center shrink-0">
                   <Text className="text-accent font-bold text-sm">BF</Text>
                 </View>
-                <Text className="text-sm font-bold text-text">
-                  {translate('inventory.shell.title', 'BuildFlow · Inventory')}
+                {/* M3: shorter mobile title; min-w-0 + numberOfLines so the
+                    company chip never gets crushed mid-name. */}
+                <Text
+                  className="text-sm font-bold text-text shrink"
+                  numberOfLines={1}
+                >
+                  {isPhone
+                    ? translate('inventory.shell.titleMobile', 'Inventory')
+                    : translate('inventory.shell.title', 'BuildFlow · Inventory')}
                 </Text>
               </View>
-              <View className="flex-1" />
+              <View className="flex-1 min-w-0" />
               <Pressable
                 onPress={() => router.push('/inventory/notifications')}
-                className="relative p-2 rounded-lg border border-border bg-surface items-center justify-center"
+                className="relative p-2 rounded-lg border border-border bg-surface items-center justify-center shrink-0"
               >
                 <Text className="text-lg text-text">🔔</Text>
                 {Number(unreadCount ?? 0) > 0 ? (
@@ -95,9 +102,9 @@ function InventoryLayoutBody() {
                   </View>
                 ) : null}
               </Pressable>
-              <View className="flex-row items-center bg-surface rounded-lg px-3 py-1.5 border border-border gap-2 max-w-[220px]">
+              <View className="flex-row items-center bg-surface rounded-lg px-3 py-1.5 border border-border gap-2 max-w-[220px] min-w-0 shrink">
                 <CompanyLogo name={user.companyName} logoUrl={user.companyLogoUrl} size={26} />
-                <Text className="text-sm font-semibold text-text" numberOfLines={1}>
+                <Text className="text-sm font-semibold text-text shrink" numberOfLines={1}>
                   {user.companyName}
                 </Text>
               </View>

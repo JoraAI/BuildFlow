@@ -250,7 +250,7 @@ Highest-value leftovers after Phases 0–7 - keep construction isolation + ₹49
 | # | Feature | Notes |
 |---|---------|-------|
 | 8.1 | **Image OCR for invoice scan** | ✅ Tesseract.js so JPG/PNG work in Phase 7 extract path |
-| 8.2 | **Barcode camera** | ✅ Stock Find camera overlay (keyboard/paste primary) |
+| 8.2 | **Barcode camera** | ✅ Native expo-camera overlay; **M1 (2026-08-20):** mobile-browser Scan now opens the camera too (`getUserMedia` + `BarcodeDetector`/`@zxing/browser`) - see `INVENTORY_UX_POLISH.md` § Mobile/PWA polish. Desktop web stays keyboard-only. |
 | 8.3 | **Batch / lot lite** | ✅ Optional `batchCode` on GRN / Issue / DC → StockMovement |
 | 8.4 | **Invoice↔resource link** | ✅ `InvoiceLineItem.resourceId` + billed margin source |
 | 8.5 | **In-app notifications** | ✅ Low-stock / PO-rate / count variance via shared `notify()` |
@@ -1043,7 +1043,7 @@ Production assistant (Construction **and** Inventory): **Settings → Integratio
 2. **Batch/lot is a single optional code** carried per line on GRN/issue and per-challan (or per-line) on DC - stored on the movement; **no** serial numbers, expiry/MRP or FEFO allocation.
 3. **Margin `revenueSource: 'BILLED'`** = Σ resource-linked invoice-line amounts (ex-GST); `'CATALOG'` = qty sold × `Resource.rate`. The auto draft-issue invoice links resources by default, so margin becomes billed-based as soon as invoices are confirmed.
 4. **Notifications reuse `notify()`** - in-app rows always created; PUSH/WhatsApp/SMS honour existing user prefs; all hooks are non-fatal (never break the business flow) and inventory-only.
-5. **Barcode camera is native-only** (`Platform.OS !== 'web'` + feature flag); the web/desktop path intentionally stays keyboard/paste.
+5. **Barcode camera:** native Expo path + **mobile web** (`getUserMedia` + `BarcodeDetector` / `@zxing/browser`) for phone/tablet — see UX polish **M1** (2026-08-20). Desktop web stays keyboard/paste.
 
 ### 29.3 Notes (non-blocking)
 

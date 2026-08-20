@@ -91,6 +91,23 @@ export const translations: TranslationDict = {
     es: 'BuildFlow · Inventario',
     fr: 'BuildFlow · Inventaire',
   },
+  // M3: short phone header title so company name is not crushed.
+  'inventory.shell.titleMobile': {
+    en: 'Inventory',
+    hi: 'इन्वेंटरी',
+    bn: 'ইনভেন্টরি',
+    te: 'ఇన్వెంటరీ',
+    mr: 'इन्व्हेंटरी',
+    ta: 'இன்வென்டரி',
+    ur: 'انوینٹری',
+    gu: 'ઇન્વેન્ટરી',
+    kn: 'ಇನ್ವೆಂಟರಿ',
+    ml: 'ഇൻവെന്ററി',
+    pa: 'ਇਨਵੈਂਟਰੀ',
+    ar: 'المخزون',
+    es: 'Inventario',
+    fr: 'Inventaire',
+  },
   'inventory.shell.store': {
     en: 'Store',
     hi: 'स्टोर',

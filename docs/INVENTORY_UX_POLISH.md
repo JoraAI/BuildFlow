@@ -71,19 +71,16 @@ Do **not** reimplement D1–D10. Only:
 
 ## 2. What Deepseek should do THIS pass
 
-**Goal:** Optional manual smoke + ops checklist. **Do not** reimplement D1–D10 or expand RAG.
+**Status (2026-08-20): M1–M4 code-complete** (see §3 evidence). Remaining work is optional device/browser smoke only.
 
-1. Re-read §1.3 and §3.  
-2. If the environment is up, run smoke in §1.3.1; fix only real bugs.  
-3. If no app environment: leave smoke unchecked and note “code complete; smoke deferred”.  
-4. Re-run tests after any code fix:
+**Goal (completed in code):** Mobile / PWA polish M1–M4 — camera on mobile browsers, tab bar gap, header name cutoff, stock search.
 
-```bash
-cd /home/prasanna/work/BuildFlow/packages/shared && npm run build
-cd /home/prasanna/work/BuildFlow/apps/backend && npm test -- --testPathPattern='inventory-product|procurement.test' --forceExit
-```
+If revisiting this pass:
 
-5. Flip §3 checkboxes for what you completed.
+1. Re-read §3 **Mobile / PWA polish** + evidence.  
+2. Do not reimplement M1–M4 unless a smoke bug is found.  
+3. Optional: manual smoke on phone/iPad Safari or Chrome (HTTPS).  
+4. Leave smoke/ops boxes unchecked if env unavailable.  
 
 **Do not:**
 
@@ -91,7 +88,7 @@ cd /home/prasanna/work/BuildFlow/apps/backend && npm test -- --testPathPattern='
 - Rewrite Draft→Submit→Approve  
 - Hard-code Deepseek as product chat model  
 - Build RAG / embedding / upload AI product this pass  
-- Re-open pricing / reimplement D9  
+- Re-open pricing / reimplement D9 / D10 / D11  
 
 ---
 
@@ -122,6 +119,56 @@ cd /home/prasanna/work/BuildFlow/apps/backend && npm test -- --testPathPattern='
 - [ ] Manual smoke construction Draft → Submit → Approve + assistant overlay  
 - [ ] Prod migrate `20260811140000_invoice_client_contact` if needed  
 - [ ] Confirm login returns `productMode` / `subscriptionPlan` / `defaultProjectId`  
+
+### Mobile / PWA polish (operator-reported 2026-08-20) - CODE COMPLETE
+
+Operator bugs on Inventory **mobile browsers / iPad / phone** (Kirana or materials demo). Fixed in code; optional live-device smoke remains.
+
+| # | Bug | Root cause (repo) | Target fix |
+|---|-----|-------------------|------------|
+| **M1** | **Scan** does not open camera on iPad / phone **browser** | `BarcodeScannerOverlay.tsx` sets `isNative = Platform.OS !== 'web'` and shows “Camera scanner is mobile-only” on all web builds - including mobile Safari/Chrome. Native `expo-camera` path is fine for Expo Go / native builds only. | On web **phone/tablet** (`useViewport` + UA / coarse pointer): open camera via `getUserMedia` + `BarcodeDetector` where available, else `@zxing/browser` (or equivalent) continuous decode. Keep keyboard/paste + Find. Desktop web may keep keyboard-only. Same overlay used from Stock (`inventory/index.tsx`) and checkout (`CheckoutCart.tsx`). Request `navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })`. HTTPS / secure context required. |
+| **M2** | Inventory **bottom tab bar** sits high with empty gap above the screen bottom | Double chrome padding: `useAppViewportLock` already sets `--app-height` to **visualViewport.height** (chrome excluded), but `InventoryMobileTabBar` still adds `tabBarPaddingBottom(..., chromeBottom)` with a **56px web floor** (`fab-layout.ts`). That pads *inside* an already-shrunk viewport. | When app height is locked to visual viewport, tab bar bottom padding should use **safe-area / env(safe-area-inset-bottom) only** (small floor on native), **not** re-add `chromeBottom` / 56px. Align `AppTabBar` the same way if it shows the same gap. Verify on iOS Safari + Android Chrome. |
+| **M3** | Top bar **company / profile name cut off mid-string** on mobile | `inventory/_layout.tsx` top bar: left title `BuildFlow · Inventory` is `shrink-0`; right chip is `max-w-[220px]` but competes with bell + title on narrow widths → name truncates badly / looks chopped. Stock page also prints `user.companyName` under the title without a resilient ellipsis layout. | Mobile header: allow title to shrink (`min-w-0`), shorter mobile title (“Inventory”), put company name in a `flex-1 min-w-0` row with `numberOfLines={1}` + ellipsis; show user initial avatar if space is tight (mirror `AppMobileHeader`). Do not clip mid-glyph without ellipsis. |
+| **M4** | Stock page **search works poorly** | Client filter only matches `name` + `unit` (`inventory/index.tsx` `filteredSummary`). `getStockSummary` / `StockSummaryRow` omit `sku`, `itemCode`, `barcode`. Search `Input` lives in FlatList `ListHeaderComponent` (focus / re-render jank on mobile). | (1) Include `sku`, `itemCode`, `barcode` on stock summary API + shared types. (2) Filter on name, sku, itemCode, barcode, unit (case-insensitive). (3) Move search field **above** the list (sticky / outside `ListHeaderComponent`) so typing does not remount the input. Optional: debounce 150–200ms. Empty state: “No items match …”. |
+
+**Acceptance (Inventory `owner@hydmaterials.com` / `Test@1234` or Kirana demo):**
+
+1. Phone/iPad **Safari or Chrome** on HTTPS: Stock → **Scan** → camera preview → scan EAN/Code128 → item found (or clear miss toast). Keyboard Find still works.  
+2. Bottom nav sits flush to the visible bottom (home indicator / browser bar) with **no large empty strip** under the tabs.  
+3. Top bar shows full company name with ellipsis if needed; never mid-word cut without `…`.  
+4. Typing a SKU / barcode / partial name filters the stock list immediately and reliably; focus does not jump.
+
+**Do not:** change Construction indent gating; change Inventory ₹499 pricing; hard-code Deepseek as chat model; disable keyboard barcode Find.
+
+**Primary files:**
+
+```
+apps/mobile/components/inventory/BarcodeScannerOverlay.tsx
+apps/mobile/app/inventory/index.tsx
+apps/mobile/app/inventory/_layout.tsx
+apps/mobile/components/navigation/InventoryTabBar.tsx
+apps/mobile/components/navigation/AppTabBar.tsx
+apps/mobile/components/layout/fab-layout.ts
+apps/mobile/hooks/useAppViewportLock.ts
+apps/mobile/hooks/useVisualViewportFrame.ts
+apps/backend/src/services/procurement.service.ts   # getStockSummary select + StockSummaryRow
+apps/mobile/services/expansion.queries.ts         # StockSummaryRow type
+```
+
+**Verify:** `pnpm --filter @buildflow/mobile typecheck`; backend tests touching stock summary if API shape changes; manual mobile-browser smoke for M1–M4.
+
+**M1–M4 status:**
+
+- [x] M1 web mobile camera Scan  
+- [x] M2 tab bar gap removed  
+- [x] M3 header name ellipsis / layout  
+- [x] M4 stock search fields + sticky input  
+
+**Evidence (2026-08-20, code-complete; re-verified):** mobile `tsc --noEmit` clean; backend `tsc` clean; `procurement.test` **22/22** + `inventory-product` **69/69** green. `@zxing/browser` in `apps/mobile/package.json`. i18n key `inventory.shell.titleMobile` added for M3 phone header. Live phone/iPad Scan smoke still optional.
+- **M1** `BarcodeScannerOverlay.tsx`: web phone/tablet now calls `navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })`; decodes via native `BarcodeDetector` when present, else `@zxing/browser` (added dep `@zxing/browser ^0.2.1`). Secure-context check + clear permission/unsupported/denied messages; rear-camera flip supported; desktop web keeps the keyboard/paste note; native `expo-camera` path unchanged.
+- **M2** `fab-layout.ts tabBarPaddingBottom`: no longer re-adds `chromeBottom`/56px web floor when the app is pinned to the visual viewport — safe-area inset only (`max(safeBottom, 8)`); `InventoryMobileTabBar` + `AppTabBar` both use the shared helper.
+- **M3** `inventory/_layout.tsx`: phone title shortens to “Inventory”; title + company chip are `min-w-0`/`shrink` with `numberOfLines={1}` ellipsis; Stock page subtitle ellipsizes.
+- **M4** `getStockSummary` select + `StockSummaryRow` + mobile type expose `sku`/`itemCode`/`barcode`; stock search filters name/unit/sku/itemCode/barcode case-insensitively with a 150 ms debounce; search input moved above the FlatList (no remount jank); empty state “No items match …”.
 
 ---
 

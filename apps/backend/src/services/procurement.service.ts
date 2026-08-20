@@ -1689,6 +1689,10 @@ export interface StockSummaryRow {
   /** INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor unit cost; null when
    *  not captured yet. Used for read-only cost hints + cost/sell list columns. */
   costPrice: number | null;
+  /** Item master search keys (INVENTORY_UX_POLISH M4): SKU / item code / barcode. */
+  sku: string | null;
+  itemCode: string | null;
+  barcode: string | null;
   /** Low-stock threshold (Phase 1.5): balance below this = needs reorder. */
   reorderPoint: number;
   received: number;
@@ -1736,6 +1740,9 @@ export async function getStockSummary(
             rate: true,
             mrp: true,
             costPrice: true,
+            sku: true,
+            itemCode: true,
+            barcode: true,
             reorderPoint: true,
             avgCost: true,
             gstRate: true,
@@ -1755,6 +1762,9 @@ export async function getStockSummary(
             rate: true,
             mrp: true,
             costPrice: true,
+            sku: true,
+            itemCode: true,
+            barcode: true,
             reorderPoint: true,
             avgCost: true,
             gstRate: true,
@@ -1778,6 +1788,9 @@ export async function getStockSummary(
     catalogRate: number,
     mrp: number | null,
     costPrice: number | null,
+    sku: string | null,
+    itemCode: string | null,
+    barcode: string | null,
     reorderPoint: number,
     avgCost: number,
     gstRate: number,
@@ -1792,6 +1805,9 @@ export async function getStockSummary(
         catalogRate,
         mrp,
         costPrice,
+        sku,
+        itemCode,
+        barcode,
         reorderPoint,
         received: 0,
         issued: 0,
@@ -1819,6 +1835,9 @@ export async function getStockSummary(
       rate,
       m.resource.mrp == null ? null : Number(m.resource.mrp),
       m.resource.costPrice == null ? null : Number(m.resource.costPrice),
+      m.resource.sku ?? null,
+      m.resource.itemCode ?? null,
+      m.resource.barcode ?? null,
       reorder,
       Number(m.resource.avgCost) || 0,
       gst,
@@ -1841,6 +1860,9 @@ export async function getStockSummary(
       rate,
       b.resource.mrp == null ? null : Number(b.resource.mrp),
       b.resource.costPrice == null ? null : Number(b.resource.costPrice),
+      b.resource.sku ?? null,
+      b.resource.itemCode ?? null,
+      b.resource.barcode ?? null,
       reorder,
       avgCost,
       gst,
