@@ -11,6 +11,7 @@ import {
   FlatList,
   RefreshControl,
   Pressable,
+  ScrollView,
 } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, Badge, Button, EmptyState, LoadingSkeleton, Input, Select, toast, BusyOverlay } from '@/components/ui';
@@ -26,6 +27,7 @@ import DashboardCards, { KiranaKpiCards } from '@/components/inventory/Dashboard
 import AnomalyStrip from '@/components/inventory/AnomalyStrip';
 import { BarcodeScannerOverlay } from '@/components/inventory/BarcodeScannerOverlay';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
+import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 import {
   useStockSummary,
   useIssueStock,
@@ -54,7 +56,7 @@ export default function InventoryStockScreen() {
   const user = useAuthStore((s) => s.user);
   const router = useRouter();
   const qc = useQueryClient();
-  const { isDesktop } = useViewport();
+  const { isDesktop, isPhone } = useViewport();
   const projectId = user?.defaultProjectId ?? '';
 
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.1): multi-warehouse - the stock
@@ -256,8 +258,127 @@ export default function InventoryStockScreen() {
     void refetch();
   };
 
+  const checkoutLabel = posCheckoutEnabled
+    ? translate('inventory.stock.checkout', 'Checkout')
+    : translate('inventory.stock.bulkIssue', 'Bulk issue');
+
+  /** Phone: warehouse + barcode scroll with the list so sticky chrome stays tiny. */
+  const filtersBlock = (multiWarehouseEnabled || barcodeEnabled) ? (
+    <View className={`flex-row flex-wrap items-end gap-2 ${isPhone ? 'mb-3' : ''}`}>
+      {multiWarehouseEnabled ? (
+        <View className={isPhone ? 'w-full' : 'min-w-[180px] flex-1'}>
+          <Select
+            label={translate('inventory.stock.warehouse', 'Warehouse')}
+            value={selectedLocationId}
+            options={(warehouses ?? []).map((w) => ({ title: `${w.name}${w.isDefault ? ' (default)' : ''}`, value: w.id }))}
+            onChange={(v) => v && setSelectedLocationId(v)}
+            placeholder={translate('inventory.stock.allStores', 'All stores')}
+          />
+        </View>
+      ) : null}
+      {barcodeEnabled ? (
+        <View className={`${isPhone ? 'w-full' : 'flex-1 min-w-[220px]'} flex-row items-end gap-2`}>
+          <View className="flex-1">
+            <Input
+              label={isPhone ? undefined : translate('inventory.stock.barcode', 'Barcode / scan')}
+              value={barcodeInput}
+              onChangeText={setBarcodeInput}
+              placeholder={translate('inventory.stock.barcodePlaceholder', 'Type or paste a barcode')}
+              accessibilityLabel={translate('inventory.stock.barcode', 'Barcode / scan')}
+            />
+          </View>
+          <Button
+            label={translate('inventory.stock.scan', 'Scan')}
+            variant="secondary"
+            size="sm"
+            onPress={() => setScannerOpen(true)}
+          />
+          <Button
+            label={translate('inventory.stock.find', 'Find')}
+            variant="secondary"
+            size="sm"
+            disabled={!barcodeInput.trim() || buffering}
+            onPress={() => setBarcodeQuery(barcodeInput.trim())}
+          />
+        </View>
+      ) : null}
+    </View>
+  ) : null;
+
+  const totalsStrip = isPhone ? (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
+      {(
+        [
+          { label: localizedItemsLabel, value: String(totals.items), tone: 'text-primary' },
+          { label: translate('inventory.stock.onHand', 'On hand'), value: String(totals.onHand), tone: 'text-primary' },
+          { label: translate('inventory.stock.received', 'Received'), value: String(totals.received), tone: 'text-success' },
+          { label: translate('inventory.stock.issued', 'Issued'), value: String(totals.issued), tone: 'text-danger' },
+        ] as const
+      ).map((c) => (
+        <Card key={c.label} className="p-3 w-[112px]">
+          <Text className="text-[10px] text-muted" numberOfLines={1}>{c.label}</Text>
+          <Text className={`text-lg font-bold mt-0.5 ${c.tone}`}>{c.value}</Text>
+        </Card>
+      ))}
+    </ScrollView>
+  ) : (
+    <View className={`flex-row gap-3 ${isDesktop ? '' : 'flex-wrap'}`}>
+      <Card className="flex-1 min-w-[140px] p-4">
+        <Text className="text-xs text-muted">{localizedItemsLabel}</Text>
+        <Text className="text-2xl font-bold text-primary">{totals.items}</Text>
+      </Card>
+      <Card className="flex-1 min-w-[140px] p-4">
+        <Text className="text-xs text-muted">{translate('inventory.stock.onHand', 'On hand')}</Text>
+        <Text className="text-2xl font-bold text-primary">{totals.onHand}</Text>
+      </Card>
+      <Card className="flex-1 min-w-[140px] p-4">
+        <Text className="text-xs text-muted">{translate('inventory.stock.received', 'Received')}</Text>
+        <Text className="text-2xl font-bold text-success">{totals.received}</Text>
+      </Card>
+      <Card className="flex-1 min-w-[140px] p-4">
+        <Text className="text-xs text-muted">{translate('inventory.stock.issued', 'Issued')}</Text>
+        <Text className="text-2xl font-bold text-danger">{totals.issued}</Text>
+      </Card>
+    </View>
+  );
+
+  const listHeader = (
+    <View className="px-4 pb-2">
+      {isPhone ? filtersBlock : null}
+
+      <View className={isPhone ? 'mb-2' : undefined}>{totalsStrip}</View>
+
+      <View className="mt-2">
+        <Text className="text-xs font-semibold text-muted mb-2 uppercase tracking-wide">
+          {kiranaVertical
+            ? translate('inventory.stock.storeOverview', 'Store overview')
+            : translate('inventory.stock.executiveOverview', 'Executive overview')}
+        </Text>
+        {kiranaVertical ? <KiranaKpiCards /> : <DashboardCards />}
+      </View>
+
+      <AnomalyStrip />
+
+      {isDesktop && filteredSummary.length > 0 ? (
+        <View className="flex-row items-center px-1 py-2 bg-surface border-b border-border mt-3">
+          <Text className="flex-[2] text-[11px] font-bold text-muted uppercase">Name</Text>
+          <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Balance</Text>
+          <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Cost</Text>
+          <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Sell</Text>
+          <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">WAC</Text>
+          <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Value</Text>
+          <Text className="flex-[1.8] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+        </View>
+      ) : null}
+
+      <Text className="text-sm font-bold text-text mt-3 mb-2">
+        {translate('inventory.stock.summary', 'Stock summary')}
+      </Text>
+    </View>
+  );
+
   return (
-    <View className="flex-1 bg-surface">
+    <View className="flex-1 bg-surface min-h-0">
       <BusyOverlay
         visible={buffering}
         title={translate('inventory.stock.title', 'Stock')}
@@ -265,114 +386,120 @@ export default function InventoryStockScreen() {
       />
 
       <View
-        className={`px-4 pt-4 pb-2 ${
-          isDesktop ? 'flex-row items-center justify-between gap-4' : 'gap-3'
+        className={`px-4 pt-3 pb-2 shrink-0 ${
+          isDesktop ? 'flex-row items-center justify-between gap-4' : 'gap-2'
         }`}
       >
-        <View className={isDesktop ? 'flex-1 min-w-0' : undefined}>
-          <Text className="text-2xl font-bold text-text">
-            {translate('inventory.stock.title', 'Stock')}
-          </Text>
-          <Text className="text-sm text-muted mt-0.5" numberOfLines={1}>
-            {user?.companyName}
-            {multiWarehouseEnabled
-              ? ` · ${warehouses?.find((w) => w.id === selectedLocationId)?.name ?? translate('inventory.stock.allStores', 'All stores')}`
-              : ` · ${translate('inventory.stock.oneStore', '1 store')}`}
-          </Text>
+        <View className={isDesktop ? 'flex-1 min-w-0' : 'flex-row items-center justify-between gap-2'}>
+          <View className="min-w-0 flex-1">
+            <Text className={`font-bold text-text ${isPhone ? 'text-xl' : 'text-2xl'}`}>
+              {translate('inventory.stock.title', 'Stock')}
+            </Text>
+            {!isPhone ? (
+              <Text className="text-sm text-muted mt-0.5" numberOfLines={1}>
+                {user?.companyName}
+                {multiWarehouseEnabled
+                  ? ` · ${warehouses?.find((w) => w.id === selectedLocationId)?.name ?? translate('inventory.stock.allStores', 'All stores')}`
+                  : ` · ${translate('inventory.stock.oneStore', '1 store')}`}
+              </Text>
+            ) : null}
+          </View>
+          {isPhone ? (
+            <View className="flex-row items-center gap-1.5 shrink-0">
+              <Button
+                label={checkoutLabel}
+                accessibilityLabel={posCheckoutEnabled ? 'Open counter checkout' : 'Open bulk issue'}
+                variant="accent"
+                size="sm"
+                disabled={buffering || !hasIssuableStock}
+                onPress={() => {
+                  setIssueInitialResourceId(null);
+                  setIssueOpen(true);
+                }}
+              />
+              {barcodeEnabled ? (
+                <Button
+                  label={translate('inventory.stock.scan', 'Scan')}
+                  variant="secondary"
+                  size="sm"
+                  onPress={() => setScannerOpen(true)}
+                />
+              ) : null}
+            </View>
+          ) : null}
         </View>
-        {/* Desktop: compact toolbar (Materials + Bulk issue). Phone: same actions, wrap neatly. */}
-        <View
-          className={`flex-row items-center gap-2 ${isDesktop ? '' : 'flex-wrap'}`}
-        >
-          <Button
-            label={localizedItemsLabel}
-            variant="secondary"
-            size="sm"
-            disabled={buffering}
-            onPress={() => router.push('/inventory/materials' as never)}
-          />
-          <Button
-            label={
-              posCheckoutEnabled
-                ? translate('inventory.stock.checkout', 'Checkout')
-                : translate('inventory.stock.bulkIssue', 'Bulk issue')
-            }
-            accessibilityLabel={posCheckoutEnabled ? 'Open counter checkout' : 'Open bulk issue'}
-            variant="accent"
-            size="sm"
-            disabled={buffering || !hasIssuableStock}
-            onPress={() => {
-              setIssueInitialResourceId(null);
-              setIssueOpen(true);
-            }}
-          />
-          {stockAdjustEnabled ? (
+        {!isPhone ? (
+          <View className={`flex-row items-center gap-2 ${isDesktop ? '' : 'flex-wrap'}`}>
             <Button
-                label={translate('inventory.stock.importOpening', 'Import opening stock')}
+              label={localizedItemsLabel}
               variant="secondary"
               size="sm"
               disabled={buffering}
-              onPress={() => setOpeningOpen(true)}
+              onPress={() => router.push('/inventory/materials' as never)}
             />
-          ) : null}
-        </View>
+            <Button
+              label={checkoutLabel}
+              accessibilityLabel={posCheckoutEnabled ? 'Open counter checkout' : 'Open bulk issue'}
+              variant="accent"
+              size="sm"
+              disabled={buffering || !hasIssuableStock}
+              onPress={() => {
+                setIssueInitialResourceId(null);
+                setIssueOpen(true);
+              }}
+            />
+            {stockAdjustEnabled ? (
+              <Button
+                label={translate('inventory.stock.importOpening', 'Import opening stock')}
+                variant="secondary"
+                size="sm"
+                disabled={buffering}
+                onPress={() => setOpeningOpen(true)}
+              />
+            ) : null}
+          </View>
+        ) : null}
       </View>
 
-      {(multiWarehouseEnabled || barcodeEnabled) ? (
-        <View className="px-4 pb-3 flex-row flex-wrap items-center gap-2">
-          {multiWarehouseEnabled ? (
-            <View className="min-w-[180px] flex-1">
-              <Select
-                label={translate('inventory.stock.warehouse', 'Warehouse')}
-                value={selectedLocationId}
-                options={(warehouses ?? []).map((w) => ({ title: `${w.name}${w.isDefault ? ' (default)' : ''}`, value: w.id }))}
-                onChange={(v) => v && setSelectedLocationId(v)}
-                placeholder={translate('inventory.stock.allStores', 'All stores')}
-              />
-            </View>
-          ) : null}
-          {barcodeEnabled ? (
-            <View className="flex-1 min-w-[220px] flex-row items-end gap-2">
-              <View className="flex-1">
-                <Input
-                  label={translate('inventory.stock.barcode', 'Barcode / scan')}
-                  value={barcodeInput}
-                  onChangeText={setBarcodeInput}
-                  placeholder={translate('inventory.stock.barcodePlaceholder', 'Type or paste a barcode')}
-                />
-              </View>
-              <Button
-                label={translate('inventory.stock.scan', 'Scan')}
-                variant="secondary"
-                size="sm"
-                onPress={() => setScannerOpen(true)}
-              />
-              <Button
-                label={translate('inventory.stock.find', 'Find')}
-                variant="secondary"
-                size="sm"
-                disabled={!barcodeInput.trim() || buffering}
-                onPress={() => setBarcodeQuery(barcodeInput.trim())}
-              />
-            </View>
-          ) : null}
-        </View>
+      {!isPhone && (multiWarehouseEnabled || barcodeEnabled) ? (
+        <View className="px-4 pb-3 shrink-0">{filtersBlock}</View>
       ) : null}
 
-      {/* INVENTORY_UX_POLISH (M4): stock search lives ABOVE the FlatList so the
-          input is never remounted by list header re-renders (focus stays put). */}
-      <View className="px-4 pb-2">
+      <View className="px-4 pb-2 shrink-0">
         <Input
           label=""
           accessibilityLabel={`Search ${localizedItemsLabel.toLowerCase()}`}
           value={stockSearch}
           onChangeText={setStockSearch}
-          placeholder={translate('inventory.stock.searchPlaceholder', `Search ${localizedItemsLabel.toLowerCase()} (name, SKU, barcode)…`)}
+          placeholder={translate(
+            'inventory.stock.searchPlaceholder',
+            `Search ${localizedItemsLabel.toLowerCase()} (name, SKU, barcode)…`,
+          )}
         />
+        {isPhone ? (
+          <View className="flex-row flex-wrap gap-2 mt-2">
+            <Button
+              label={localizedItemsLabel}
+              variant="ghost"
+              size="sm"
+              disabled={buffering}
+              onPress={() => router.push('/inventory/materials' as never)}
+            />
+            {stockAdjustEnabled ? (
+              <Button
+                label={translate('inventory.stock.importOpening', 'Import opening')}
+                variant="ghost"
+                size="sm"
+                disabled={buffering}
+                onPress={() => setOpeningOpen(true)}
+              />
+            ) : null}
+          </View>
+        ) : null}
       </View>
 
       {isLoading ? (
-        <View className="px-4 gap-3">
+        <View className="px-4 gap-3 flex-1 min-h-0">
           {[1, 2, 3].map((i) => (
             <LoadingSkeleton key={i} className="rounded-xl h-16" />
           ))}
@@ -380,6 +507,7 @@ export default function InventoryStockScreen() {
       ) : (
         <FlatList
           className="flex-1"
+          style={{ flex: 1, minHeight: 0 }}
           data={filteredSummary}
           keyExtractor={(item) => item.resourceId}
           refreshControl={
@@ -389,63 +517,10 @@ export default function InventoryStockScreen() {
               tintColor="#1E3A5F"
             />
           }
-          ListHeaderComponent={
-            <View className="px-4 pb-2">
-              <View className={`flex-row gap-3 ${isDesktop ? '' : 'flex-wrap'}`}>
-                <Card className="flex-1 min-w-[140px] p-4">
-                  <Text className="text-xs text-muted">{localizedItemsLabel}</Text>
-                  <Text className="text-2xl font-bold text-primary">{totals.items}</Text>
-                </Card>
-                <Card className="flex-1 min-w-[140px] p-4">
-                  <Text className="text-xs text-muted">{translate('inventory.stock.onHand', 'On hand')}</Text>
-                  <Text className="text-2xl font-bold text-primary">{totals.onHand}</Text>
-                </Card>
-                <Card className="flex-1 min-w-[140px] p-4">
-                  <Text className="text-xs text-muted">{translate('inventory.stock.received', 'Received')}</Text>
-                  <Text className="text-2xl font-bold text-success">{totals.received}</Text>
-                </Card>
-                <Card className="flex-1 min-w-[140px] p-4">
-                  <Text className="text-xs text-muted">{translate('inventory.stock.issued', 'Issued')}</Text>
-                  <Text className="text-2xl font-bold text-danger">{totals.issued}</Text>
-                </Card>
-              </View>
-
-              {/* INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4.2): Kirana KPIs -
-                  counter sales today, low stock, expiring soon, expired value.
-                  Non-Kirana verticals keep the executive DashboardCards row. */}
-              <View className="mt-3">
-                <Text className="text-xs font-semibold text-muted mb-2 uppercase tracking-wide">
-                  {kiranaVertical
-                    ? translate('inventory.stock.storeOverview', 'Store overview')
-                    : translate('inventory.stock.executiveOverview', 'Executive overview')}
-                </Text>
-                {kiranaVertical ? <KiranaKpiCards /> : <DashboardCards />}
-              </View>
-
-              {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 7.3): rules-first anomaly hints. */}
-              <AnomalyStrip />
-
-              {isDesktop && filteredSummary.length > 0 ? (
-                <View className="flex-row items-center px-1 py-2 bg-surface border-b border-border mt-3">
-                  <Text className="flex-[2] text-[11px] font-bold text-muted uppercase">Name</Text>
-                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Balance</Text>
-                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Cost</Text>
-                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Sell</Text>
-                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">WAC</Text>
-                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Value</Text>
-                  <Text className="flex-[1.8] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
-                </View>
-              ) : null}
-
-              <Text className="text-sm font-bold text-text mt-4 mb-2">
-                {translate('inventory.stock.summary', 'Stock summary')}
-              </Text>
-            </View>
-          }
+          ListHeaderComponent={listHeader}
           renderItem={({ item }) => {
             const isLowStock =
               item.reorderPoint != null && Number(item.reorderPoint) > 0 && Number(item.balance) < Number(item.reorderPoint);
-            // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4.3): desktop stock table row.
             if (isDesktop) {
               return (
                 <Pressable
@@ -503,25 +578,23 @@ export default function InventoryStockScreen() {
               <Pressable
                 disabled={buffering}
                 onPress={() => router.push(inventoryStockItemHref(item.resourceId, selectedLocationId) as never)}
-                className="px-4 py-3"
+                className="px-4 py-3 border-b border-border/50"
               >
                 <View className="flex-row items-center justify-between">
                   <View className="flex-1 min-w-0 mr-2">
                     <Text className="text-sm font-semibold text-text" numberOfLines={1}>
                       {item.name}
                     </Text>
-                    <View className="flex-row items-center gap-1.5 mt-0.5">
+                    <View className="flex-row items-center gap-1.5 mt-0.5 flex-wrap">
                       <Text className="text-[11px] text-muted">{item.unit}</Text>
-                      {/* INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7.5): cost · sell. */}
                       {item.costPrice != null && Number(item.costPrice) > 0 ? (
                         <Text className="text-[11px] text-muted">
                           · Cost ₹{Number(item.costPrice).toFixed(2)} · Sell ₹{Number(item.catalogRate).toFixed(2)}
                         </Text>
                       ) : null}
-                      {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 5.2): WAC valuation. */}
                       {Number(item.unitCost) > 0 ? (
                         <Text className="text-[11px] text-muted">
-                          · WAC ₹{Number(item.unitCost).toFixed(2)} · Value ₹{Number(item.inventoryValue).toFixed(2)}
+                          · WAC ₹{Number(item.unitCost).toFixed(2)}
                         </Text>
                       ) : null}
                       {isLowStock ? (
@@ -529,9 +602,9 @@ export default function InventoryStockScreen() {
                       ) : null}
                     </View>
                   </View>
-                  <View className="flex-row items-center gap-3">
-                    <View className="w-16">
-                      <Text className="text-xs text-muted">Bal</Text>
+                  <View className="flex-row items-center gap-2">
+                    <View className="items-end min-w-[44px]">
+                      <Text className="text-[10px] text-muted">Bal</Text>
                       <Text className="text-sm font-bold text-primary">{item.balance}</Text>
                     </View>
                     <Button
@@ -565,7 +638,6 @@ export default function InventoryStockScreen() {
                 description={error instanceof Error ? error.message : 'Check your connection and try again.'}
               />
             ) : isSearchActive ? (
-              // INVENTORY_UX_POLISH (M4): clear "no match" feedback while searching.
               <EmptyState
                 title="No items match"
                 description={`No ${localizedItemsLabel.toLowerCase()} match “${debouncedSearch.trim()}”. Try a name, SKU, barcode or unit.`}
@@ -577,7 +649,10 @@ export default function InventoryStockScreen() {
               />
             )
           }
-          contentContainerStyle={{ paddingBottom: 24 }}
+          contentContainerStyle={{
+            paddingBottom: isPhone ? mobileListBottomPadding(false) : 24,
+            flexGrow: 1,
+          }}
         />
       )}
 
@@ -670,7 +745,6 @@ export default function InventoryStockScreen() {
         }}
       />
 
-      {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 8.2): camera barcode scan overlay. */}
       <BarcodeScannerOverlay
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}

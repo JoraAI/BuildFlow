@@ -112,7 +112,12 @@ function InventoryLayoutBody() {
           ) : null}
 
           <View className="flex-1 min-h-0">
-            <Stack screenOptions={{ headerShown: false }}>
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { flex: 1, minHeight: 0, backgroundColor: 'transparent' },
+              }}
+            >
               <Stack.Screen name="index" />
               <Stack.Screen name="stock/[resourceId]" />
               <Stack.Screen name="materials" />

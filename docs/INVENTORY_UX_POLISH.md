@@ -170,6 +170,16 @@ apps/mobile/services/expansion.queries.ts         # StockSummaryRow type
 - **M3** `inventory/_layout.tsx`: phone title shortens to “Inventory”; title + company chip are `min-w-0`/`shrink` with `numberOfLines={1}` ellipsis; Stock page subtitle ellipsizes.
 - **M4** `getStockSummary` select + `StockSummaryRow` + mobile type expose `sku`/`itemCode`/`barcode`; stock search filters name/unit/sku/itemCode/barcode case-insensitively with a 150 ms debounce; search input moved above the FlatList (no remount jank); empty state “No items match …”.
 
+### M5 - Stock home mobile viewport (2026-08-20)
+
+Operator: on phone Inventory Stock, fixed top chrome (~title + filters + KPIs) ate ~70% of the screen; only ~30% scrolled.
+
+- [x] Phone sticky chrome compacted to title + Checkout/Scan + search (+ ghost Materials/Import links)
+- [x] Warehouse / barcode filters moved into FlatList header (scroll away)
+- [x] Totals + executive/Kirana KPI cards are horizontal strips on phone (no 2×N stacked card grid)
+- [x] Stack `contentStyle: { flex: 1, minHeight: 0 }` so the list fills remaining viewport
+- [x] List bottom padding uses `mobileListBottomPadding` so rows clear the tab bar
+
 ---
 
 ## 4. Credentials
