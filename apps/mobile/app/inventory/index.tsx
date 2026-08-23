@@ -564,16 +564,17 @@ export default function InventoryStockScreen() {
                       {item.name}
                     </Text>
                     <View className="flex-row items-center gap-1.5 mt-0.5 flex-wrap">
-                      <Text className="text-[11px] text-muted">{item.unit}</Text>
+                      <Text className="text-[11px] text-muted">
+                        On hand {item.balance} {item.unit} · Sell ₹{Number(item.catalogRate).toFixed(2)}
+                      </Text>
+                      {item.sku ? (
+                        <Text className="text-[11px] text-muted">{item.sku}</Text>
+                      ) : null}
                       {item.costPrice != null && Number(item.costPrice) > 0 ? (
-                        <Text className="text-[11px] text-muted">
-                          · Cost ₹{Number(item.costPrice).toFixed(2)} · Sell ₹{Number(item.catalogRate).toFixed(2)}
-                        </Text>
+                        <Text className="text-[11px] text-muted">· Cost ₹{Number(item.costPrice).toFixed(2)}</Text>
                       ) : null}
                       {Number(item.unitCost) > 0 ? (
-                        <Text className="text-[11px] text-muted">
-                          · WAC ₹{Number(item.unitCost).toFixed(2)}
-                        </Text>
+                        <Text className="text-[11px] text-muted">· WAC ₹{Number(item.unitCost).toFixed(2)}</Text>
                       ) : null}
                       {isLowStock ? (
                         <Badge color="danger" label={`Low (reorder ${Number(item.reorderPoint)})`} />
@@ -582,13 +583,13 @@ export default function InventoryStockScreen() {
                   </View>
                   <View className="flex-row items-center gap-2">
                     <View className="items-end min-w-[44px]">
-                      <Text className="text-[10px] text-muted">Bal</Text>
+                      <Text className="text-[10px] text-muted">On hand</Text>
                       <Text className="text-sm font-bold text-primary">{item.balance}</Text>
                     </View>
                     <Button
-                      label="Issue"
+                      label={posCheckoutEnabled ? translate('inventory.stock.checkoutRow', 'Checkout') : translate('inventory.stock.issue', 'Issue')}
                       size="sm"
-                      variant="secondary"
+                      variant="accent"
                       disabled={buffering || Number(item.balance) <= 0}
                       onPress={() => {
                         setIssueInitialResourceId(item.resourceId);
@@ -597,7 +598,7 @@ export default function InventoryStockScreen() {
                     />
                     {stockAdjustEnabled ? (
                       <Button
-                        label="Adjust"
+                        label={translate('inventory.stock.adjust', 'Adjust')}
                         size="sm"
                         variant="secondary"
                         disabled={buffering}

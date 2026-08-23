@@ -6,7 +6,7 @@
  * `issueStockManual` API:
  *   - Desktop/tablet: searchable catalog list LEFT + persistent cart RIGHT
  *     (qty, price, GST, line/subtotal/tax/grand total, low-stock warnings).
- *   - Phone: search/scan-first + compact cart cards + STICKY checkout footer.
+ *   - Phone (M7 / 11.8): Browse | Cart (N) — full-height catalog vs compact cart + sticky Charge.
  *   - Barcode while checkout is open adds / increments the cart line (reused
  *     BarcodeScannerOverlay + direct barcode lookup). The Stock-home "Find"
  *     input keeps navigating only when the checkout is CLOSED.
@@ -15,9 +15,11 @@
  *     issue response. It NEVER chooses lot quantities.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, Modal, Pressable, ScrollView, Platform, TextInput } from 'react-native';
+import { View, Text, Modal, Pressable, ScrollView, Platform, TextInput, KeyboardAvoidingView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, Input, Select, Badge, toast } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
+import { useKeyboardOpen } from '@/hooks/useKeyboardOpen';
 import { BarcodeScannerOverlay } from '@/components/inventory/BarcodeScannerOverlay';
 import { useCustomers } from '@/services/party.queries';
 import { apiFetch } from '@/lib/api-client';
@@ -87,11 +89,16 @@ export function CheckoutCart({
   onSubmit: (input: CheckoutSubmitInput) => Promise<void>;
 }) {
   const { isPhone } = useViewport();
+  const insets = useSafeAreaInsets();
+  const keyboardOpen = useKeyboardOpen();
   const { data: customers } = useCustomers();
   const rowFor = (resourceId: string) => rows.find((r) => r.resourceId === resourceId);
 
   const [lines, setLines] = useState<CartLine[]>([]);
   const [search, setSearch] = useState('');
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.8 / UX polish M7.1): phone POS
+  // uses two modes - Browse (full-height catalog) | Cart (lines + Charge).
+  const [mode, setMode] = useState<'browse' | 'cart'>('browse');
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7.6): customer block stays
   // collapsed behind "Add customer" until the shopkeeper needs it.
   const [customerOpen, setCustomerOpen] = useState(false);
@@ -120,6 +127,9 @@ export function CheckoutCart({
           ]
         : [],
     );
+    // 11.8/M7.1: opened from a stock row → land on Cart (line already seeded);
+    // otherwise start on Browse so the cashier can pick items fast.
+    setMode(seed && Number(seed.balance) > 0 ? 'cart' : 'browse');
     setSearch('');
     setCustomerId('');
     setCustomerName('');
@@ -149,7 +159,14 @@ export function CheckoutCart({
   // catalogs; a Kirana store is a few hundred rows at most.
   const catalog = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return issuable.filter((r) => !q || r.name.toLowerCase().includes(q));
+    if (!q) return issuable;
+    // 11.8/M7.1: search also matches sku / itemCode / barcode when present.
+    return issuable.filter((r) =>
+      [r.name, r.unit, r.sku ?? '', r.itemCode ?? '', r.barcode ?? '']
+        .join(' ')
+        .toLowerCase()
+        .includes(q),
+    );
   }, [issuable, search]);
 
   const addItem = (resourceId: string) => {
@@ -182,6 +199,17 @@ export function CheckoutCart({
   const updateLine = (key: string, patch: Partial<CartLine>) =>
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   const removeLine = (key: string) => setLines((prev) => prev.filter((l) => l.key !== key));
+  // 11.8/M7.1: phone qty stepper — decrement, removing the line at 0.
+  const decrementLine = (key: string, row: StockSummaryRow) => {
+    const existing = lines.find((l) => l.key === key);
+    if (!existing) return;
+    const next = (Number(existing.quantity) || 0) - 1;
+    if (next <= 0) {
+      removeLine(key);
+      return;
+    }
+    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, quantity: String(next) } : l)));
+  };
 
   // Barcode add/increment while checkout is open (11.3.4). Direct call (no
   // query cache) so the same code can be scanned repeatedly.
@@ -274,6 +302,8 @@ export function CheckoutCart({
       allowExpired,
     });
   };
+  // 11.8/M7.1: PHONE cart content — compact qty stepper + sell CellInput, no
+  // tall labeled Input pairs. Used only in the phone Cart mode.
   const cart = (
     <View className="flex-1">
       {lines.length === 0 ? (
@@ -302,33 +332,56 @@ export function CheckoutCart({
                   <Text className="text-xs font-semibold text-danger">Remove</Text>
                 </Pressable>
               </View>
-              {row.trackingMode === 'BATCH_EXPIRY' ? (
-                <Text className="text-[10px] text-muted mb-1">Batches closest to expiry are sold first</Text>
-              ) : null}
-              {lowStock ? <Badge color="warning" label={`Low stock: ${row.balance} ${row.unit}`} /> : null}
-              <View className="flex-row gap-2 mt-2">
-                <View className="w-28">
-                  <Input
-                    label={`Qty (max ${row.balance})`}
-                    value={l.quantity}
-                    onChangeText={(t) => updateLine(l.key, { quantity: t })}
-                    keyboardType="decimal-pad"
-                  />
+              <View className="flex-row items-center gap-2 mt-2">
+                {/* Compact qty stepper (decrement at 0 removes the line). */}
+                <View className="flex-row items-center rounded-lg border border-border overflow-hidden">
+                  <Pressable
+                    disabled={submitting}
+                    onPress={() => decrementLine(l.key, row)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Decrease quantity of ${row.name}`}
+                    className="w-9 h-9 items-center justify-center bg-surface"
+                  >
+                    <Text className="text-lg text-text">−</Text>
+                  </Pressable>
+                  <View className="w-14">
+                    <TextInput
+                      value={l.quantity}
+                      onChangeText={(t) => updateLine(l.key, { quantity: t })}
+                      keyboardType="decimal-pad"
+                      accessibilityLabel={`Quantity of ${row.name}`}
+                      placeholder="0"
+                      placeholderTextColor="#94A3B8"
+                      className="h-9 text-center text-sm text-text"
+                    />
+                  </View>
+                  <Pressable
+                    disabled={submitting}
+                    onPress={() => addItem(l.resourceId)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Increase quantity of ${row.name}`}
+                    className="w-9 h-9 items-center justify-center bg-surface"
+                  >
+                    <Text className="text-lg text-text">+</Text>
+                  </Pressable>
                 </View>
                 <View className="flex-1">
-                  <Input
-                    label="Selling ₹ / unit"
+                  <CellInput
+                    accessibilityLabel={`Selling price of ${row.name}`}
                     value={l.unitPrice}
                     onChangeText={(t) => updateLine(l.key, { unitPrice: t })}
-                    keyboardType="decimal-pad"
+                    placeholder={row.catalogRate != null ? `₹${row.catalogRate}` : '₹0'}
                   />
                 </View>
               </View>
-              <Text className="text-[11px] text-muted mt-1">
-                Line ₹{round2(lineNet)} · {row.gstRate ?? 0}% GST · in stock {row.balance} {row.unit}
+              <Text className="text-[11px] text-muted mt-1.5">
+                Line ₹{round2(lineNet)} · {row.gstRate ?? 0}% GST · max {row.balance} {row.unit}
                 {row.costPrice != null && Number(row.costPrice) > 0 ? ` · Cost ₹${Number(row.costPrice).toFixed(2)}` : ''}
-                {row.mrp != null ? ` · MRP ₹${Number(row.mrp).toFixed(2)}` : ''}
               </Text>
+              {row.trackingMode === 'BATCH_EXPIRY' ? (
+                <Text className="text-[10px] text-muted mt-0.5">Batches closest to expiry are sold first</Text>
+              ) : null}
+              {lowStock ? <Badge color="warning" label={`Low stock: ${row.balance} ${row.unit}`} /> : null}
               {issue ? <Text className="text-[11px] text-danger mt-1">{issue}</Text> : null}
             </View>
           );
@@ -438,37 +491,116 @@ export function CheckoutCart({
           </View>
 
           {isPhone ? (
-            <View className="flex-1 p-4">
-              {/* 11.6.3: phone browse — catalog is ALWAYS visible; search filters. */}
-              <View className="flex-row gap-2 mb-2">
-                <View className="flex-1">
-                  <Input label="" accessibilityLabel="Search items" value={search} onChangeText={setSearch} placeholder={`Search ${itemLabel}s…`} />
-                </View>
-                <View className="w-24">
-                  <Button label="Scan" accessibilityLabel="Scan barcode to add to cart" variant="secondary" onPress={() => setScannerOpen(true)} disabled={submitting} />
-                </View>
+            /* 11.8 / UX polish M7.1: phone POS — segmented Browse | Cart (N).
+               Browse = full-height catalog (search + Scan sticky); Cart =
+               full-height lines + customer + sticky Charge. No more permanent
+               max-h-[38%] catalog/cart split on one screen. */
+            <View className="flex-1 min-h-0">
+              <View className="flex-row mx-4 mt-3 bg-surface rounded-lg p-0.5 border border-border">
+                <Pressable
+                  onPress={() => setMode('browse')}
+                  accessibilityRole="button"
+                  className={`flex-1 py-2 rounded-md items-center ${mode === 'browse' ? 'bg-card border border-border' : ''}`}
+                >
+                  <Text className={`text-sm font-semibold ${mode === 'browse' ? 'text-primary' : 'text-muted'}`}>Browse</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setMode('cart')}
+                  accessibilityRole="button"
+                  className={`flex-1 py-2 rounded-md items-center ${mode === 'cart' ? 'bg-card border border-border' : ''}`}
+                >
+                  <Text className={`text-sm font-semibold ${mode === 'cart' ? 'text-primary' : 'text-muted'}`}>
+                    Cart ({lines.length})
+                  </Text>
+                </Pressable>
               </View>
-              <View className="max-h-[38%] mb-2">
-                <ScrollView keyboardShouldPersistTaps="handled">
-                  {catalog.map((r) => (
+
+              {mode === 'browse' ? (
+                <View className="flex-1 min-h-0">
+                  {/* Sticky search + Scan on top of the full-height catalog. */}
+                  <View className="px-4 pt-3 pb-2 flex-row gap-2">
+                    <View className="flex-1">
+                      <Input label="" accessibilityLabel="Search items" value={search} onChangeText={setSearch} placeholder={`Search ${itemLabel}s (name, SKU, barcode)…`} />
+                    </View>
+                    <View className="w-24">
+                      <Button label="Scan" accessibilityLabel="Scan barcode to add to cart" variant="secondary" onPress={() => setScannerOpen(true)} disabled={submitting} />
+                    </View>
+                  </View>
+                  <ScrollView className="flex-1" keyboardShouldPersistTaps="handled">
+                    {catalog.map((r) => {
+                      const inCart = lines.find((l) => l.resourceId === r.resourceId);
+                      const inCartQty = inCart ? (Number(inCart.quantity) || 0) : 0;
+                      const low = Number(r.balance) <= Number(r.reorderPoint ?? 0) && Number(r.reorderPoint ?? 0) > 0;
+                      return (
+                        <Pressable
+                          key={r.resourceId}
+                          onPress={() => addItem(r.resourceId)}
+                          className="flex-row items-center px-4 py-3 border-b border-border/60 bg-card active:bg-surface"
+                          accessibilityRole="button"
+                          accessibilityLabel={`Add ${r.name}`}
+                        >
+                          <View className="flex-1 min-w-0 mr-3">
+                            <Text className="text-sm font-semibold text-text" numberOfLines={1}>{r.name}</Text>
+                            <View className="flex-row items-center gap-1.5 mt-0.5 flex-wrap">
+                              <Text className="text-[11px] text-muted">On hand {r.balance} {r.unit}</Text>
+                              {r.mrp != null && Number(r.mrp) > 0 ? (
+                                <Text className="text-[11px] text-muted">MRP ₹{Number(r.mrp).toFixed(2)}</Text>
+                              ) : null}
+                              {low ? <Badge color="warning" label="Low" /> : null}
+                            </View>
+                          </View>
+                          <View className="items-end mr-3">
+                            <Text className="text-sm font-bold text-text">
+                              {r.catalogRate != null && Number(r.catalogRate) > 0 ? `₹${Number(r.catalogRate).toFixed(2)}` : '—'}
+                            </Text>
+                            {inCartQty > 0 ? (
+                              <Text className="text-[11px] font-semibold text-accent">In cart · {inCartQty}</Text>
+                            ) : null}
+                          </View>
+                          <View className="w-8 h-8 rounded-full bg-accent items-center justify-center shrink-0">
+                            <Text className="text-white text-base font-bold">{inCartQty > 0 ? '＋' : '+'}</Text>
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                    {catalog.length === 0 ? (
+                      <Text className="text-xs text-muted py-8 text-center">No matching items with stock.</Text>
+                    ) : null}
+                  </ScrollView>
+                  {/* Floating mini cart bar once items are picked - switch to Cart. */}
+                  {lines.length > 0 ? (
                     <Pressable
-                      key={r.resourceId}
-                      onPress={() => addItem(r.resourceId)}
-                      className="px-3 py-2 border-b border-border/60 flex-row justify-between"
+                      onPress={() => setMode('cart')}
+                      accessibilityRole="button"
+                      className="flex-row items-center justify-between px-4 py-3 border-t border-border bg-surface"
+                      style={{ paddingBottom: Math.max(insets.bottom, keyboardOpen ? 20 : 8) }}
                     >
-                      <Text className="text-sm text-text flex-1 mr-2" numberOfLines={1}>{r.name}</Text>
-                      <Text className="text-xs text-muted">{r.balance} {r.unit}</Text>
+                      <Text className="text-sm font-semibold text-text">
+                        {lines.length} item{lines.length === 1 ? '' : 's'} · ₹{totals.grandTotal.toFixed(2)}
+                      </Text>
+                      <Text className="text-sm font-bold text-accent">View cart →</Text>
                     </Pressable>
-                  ))}
-                  {catalog.length === 0 ? (
-                    <Text className="text-xs text-muted py-6 text-center">No matching items with stock.</Text>
                   ) : null}
-                </ScrollView>
-              </View>
-              <ScrollView className="flex-1" keyboardShouldPersistTaps="handled">{cart}</ScrollView>
-              <View className="pt-2 pb-1">{customerBlock}</View>
-              {error ? <Text className="text-sm text-danger mt-2">{error}</Text> : null}
-              <View className="border-t border-border pt-3 mt-2">{checkoutButton}</View>
+                </View>
+              ) : (
+                <KeyboardAvoidingView
+                  className="flex-1 min-h-0"
+                  behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                  keyboardVerticalOffset={0}
+                >
+                  <ScrollView className="flex-1 px-4 py-2" keyboardShouldPersistTaps="handled">
+                    {cart}
+                  </ScrollView>
+                  <View
+                    className="px-4 border-t border-border bg-surface"
+                    style={{ paddingBottom: Math.max(insets.bottom, keyboardOpen ? 20 : 8) }}
+                  >
+                    <View className="pt-2">{customerBlock}</View>
+                    {error ? <Text className="text-sm text-danger mt-1">{error}</Text> : null}
+                    <View className="pt-3 pb-2">{checkoutButton}</View>
+                  </View>
+                </KeyboardAvoidingView>
+              )}
             </View>
           ) : (
             <View className="flex-1 flex-row">

@@ -6,7 +6,7 @@
 > **Sibling product:** **BuildFlow Construction ERP** - project-centric (estimates, BOQ, WBS, site ops). **Do not merge domain models.**  
 > **Pricing (locked):** Inventory **₹499/mo**, **₹4,990/yr** ex-GST - see `packages/shared/src/pricing.ts`. Do not regress.  
 > **Prior work:** [`INVENTORY_PRODUCT_IMPL.md`](./INVENTORY_PRODUCT_IMPL.md) (shipped MVP), [`INVENTORY_UX_POLISH.md`](./INVENTORY_UX_POLISH.md) (D1–D10 complete).
-> **Next commercial pass:** Phase 11.7 + D11 are **code-complete**. Operator device smoke remaining. See [`INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md`](./INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md) and [`INVENTORY_UX_POLISH.md`](./INVENTORY_UX_POLISH.md) D11.
+> **Next commercial pass:** M7 / Phase 11.8 **code-complete (audited 2026-08-23)**. Remaining: operator phone/PWA smoke. Spec evidence: [`INVENTORY_UX_POLISH.md`](./INVENTORY_UX_POLISH.md) §3 M7; [`INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md`](./INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md) Phase 11.8. Use §10b only for smoke bugfixes.
 
 ---
 
@@ -709,19 +709,19 @@ Do NOT: e-invoice, RFQ, variants, rental, new pricing, hard-code deepseek as cha
 
 ---
 
-## 10b. Deepseek agent command - Phase 11 Kirana (copy-paste)
+## 10b. Deepseek agent command - post-11.8 / M7 smoke (copy-paste)
 
 ```
-Read docs/INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md §3 Phase 11.7 + §8 + §9
-AND docs/INVENTORY_UX_POLISH.md D11
+Read docs/INVENTORY_UX_POLISH.md §3 M7 (DONE) + §7
+AND docs/INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md Phase 11.8 (DONE) + §9
 AND this file §1.3 + §3.
 
-Phases 0–10 and 11.0–11.7 + D11 are CODE-COMPLETE.
-Do not re-implement 11.7. Operator device smoke only unless a concrete bug is found.
+M7 / Kirana 11.8 are CODE-COMPLETE (phone Browse|Cart Checkout).
+Do NOT re-implement. Fix only concrete operator smoke bugs, else STOP.
 Deepseek-v4-flash = coding agent. Do NOT hard-code it as the in-app chat model (D10).
+Desktop Kirana checkout tables must stay unchanged.
 ```
 
----
 
 ## 11. Deepseek agent command - Phase 10 (archived)
 

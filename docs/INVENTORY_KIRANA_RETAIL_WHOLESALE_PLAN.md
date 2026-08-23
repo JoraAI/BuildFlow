@@ -6,7 +6,7 @@
 > **Sibling product:** **BuildFlow Construction ERP** - do **not** change Draft → Submit → Approve, daily-report issue, or construction catalogs.  
 > **Pricing (locked):** Inventory **₹499/mo**, **₹4,990/yr** ex-GST - do not regress.  
 > **Prior work:** [`INVENTORY_HORIZONTAL_PLATFORM.md`](./INVENTORY_HORIZONTAL_PLATFORM.md) Phases 0–10 complete; [`INVENTORY_UX_POLISH.md`](./INVENTORY_UX_POLISH.md) D1–D10 complete.  
-> **This doc is Phase 11** of the inventory roadmap. Implement **one phase at a time**. **11.7 + D11 are code-complete.** Remaining: operator device smoke (not a coding pass unless a bug is found).
+> **This doc is Phase 11** of the inventory roadmap. Implement **one phase at a time**. **11.7 + D11 and Phase 11.8 (phone Checkout picker, M7) are code-complete.** Operator device smoke for 11.0–11.8 remaining when no code bugs.
 
 ---
 
@@ -223,6 +223,22 @@ This refinement replaces the “copy all 122 rows, then find them” onboarding 
 
 **Exit:** Kirana demo can set cost ₹80 and sell ₹95 on a SKU; a new PO line prefills ₹80; checkout prefills ₹95; GRN at ₹82 updates cost to ₹82 and WAC; construction estimates still use `rate`. Assistant replies are formatted and do not append “you can also ask…”.
 
+### Phase 11.8 - Kirana phone Checkout item picker (DONE)
+
+**Problem:** Desktop/tablet Checkout catalog is usable (Item · Unit · On hand · MRP · Selling · Status · Add). On **phone**, after Checkout opens, selecting *different* items is not counter-friendly: `CheckoutCart.tsx` caps catalog at `max-h-[38%]` with name-only rows, cart uses tall labeled `Input`s, nested scrolls fight, adding SKU #2/#3 is slow.
+
+**Inspiration:** Marketed Inventory POS / counter speed (`apps/mobile/constants/marketing.ts`, `docs/INVENTORY_TYPES_GUIDE.md`) — phone must feel like a shop counter. Profiles still only change labels. Full detail: `INVENTORY_UX_POLISH.md` **M7**.
+
+| ID | Work | Primary files |
+|----|------|----------------|
+| 11.8.1 | Phone **Browse \| Cart (N)** modes; Browse = full-height catalog (search+Scan sticky); Cart = full-height lines + sticky Charge. Remove permanent `max-h-[38%]` catalog+cart split. Desktop/tablet tables **unchanged**. | `CheckoutCart.tsx` |
+| 11.8.2 | Phone catalog rows: name, on hand+unit, selling ₹ (+MRP), Low badge, Add/tap-to-add (increment if in cart). Search also matches sku/itemCode/barcode. | `CheckoutCart.tsx` |
+| 11.8.3 | Phone cart lines: compact qty steppers / cell inputs + sell price; no tall labeled Input pairs; line ₹ + GST% + remove. | `CheckoutCart.tsx` |
+| 11.8.4 | Safe-area / keyboard-safe sticky Charge; Scan still adds to cart; FEFO/server allocation unchanged. | `CheckoutCart.tsx`, `useKeyboardOpen.ts` |
+| 11.8.5 | Light phone Stock shell polish if needed (readable rows, single CTA) — UX polish M7.2. | `inventory/index.tsx` |
+
+**Exit (11.8):** Phone browses full-height catalog, adds 5 different items quickly, edits cart, Charges; desktop checkout unchanged; mobile `tsc` clean; tick §8 + UX polish M7.
+
 ---
 
 ## 4. Schema sketch (implement carefully)
@@ -438,51 +454,45 @@ Add new test files under `apps/backend/src/__tests__/` for catalog template + FE
 - Backend jest **all green**: `inventory-product.test.ts` 69/69 (includes 4 new Phase 11.7 cases: cost/sell capture + indent/reorder use cost + summary exposes sell/cost; GRN at ₹82 → costPrice 82 + WAC + rate untouched; quick receipt updates costPrice + WAC; construction resource costPrice stays null), `procurement.test.ts`, `inventory-labels.test.ts`. Reorder Phase 4.3 test updated to assert PO rate = costPrice (K11).
 - Exit criteria: SKU cost ₹80 / sell ₹95 → indent/reorder/PO prefill ₹80; stock summary `catalogRate` (checkout prefill) = ₹95 with `costPrice` ₹80 read-only; GRN at ₹82 updates costPrice + WAC and leaves rate; construction estimates keep `rate`.
 
+### Phase 11.8 - Kirana phone Checkout item picker
+
+- [x] 11.8.1 Phone Browse | Cart (N) modes; Browse full-height catalog; Cart full-height + sticky Charge; no permanent `max-h-[38%]` split
+- [x] 11.8.2 Phone catalog rows show name, on hand+unit, selling ₹ (+MRP), Low, Add; search matches sku/itemCode/barcode
+- [x] 11.8.3 Phone cart lines compact (qty steppers + sell); no tall labeled Inputs
+- [x] 11.8.4 Safe-area / keyboard-safe Charge; Scan→cart unchanged; FEFO unchanged
+- [x] 11.8.5 Optional Stock phone row/CTA polish (M7.2)
+- [x] Desktop/tablet Checkout layout visually unchanged
+- [x] Mobile `tsc --noEmit` clean; evidence below
+
+**Verification (2026-08-23, code-complete):** UI-only pass — `CheckoutCart.tsx` phone branch only (desktop/tablet two-pane tables untouched). `pnpm --filter @buildflow/mobile exec tsc --noEmit` clean. No schema/API change (stock summary `sku`/`itemCode`/`barcode` already surfaced in M4); no construction gating, pricing, or FEFO changes. Code path reviewed for the same flow; **live phone/PWA smoke still operator-owned** (Kirana `owner@kirana-demo.com` / `Test@1234`): Browse → 5 adds → Cart edit → Charge.
+
 ---
 
-## 9. Deepseek agent command (copy-paste)
+## 9. Deepseek agent command (copy-paste) — post-11.8
+
+> Phase 11.8 / M7 are **code-complete**. Do not re-build Browse|Cart unless fixing a filed smoke bug.
 
 ```
 Read:
-- docs/INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md (authoritative for 11.7)
-- docs/INVENTORY_UX_POLISH.md D11 (chatbot format, entire system)
-- docs/INVENTORY_HORIZONTAL_PLATFORM.md §1.3 construction isolation + §3
+- docs/INVENTORY_UX_POLISH.md §3 M7 (DONE) + §7 post-M7 command
+- docs/INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md Phase 11.8 (DONE) + this §9
+- docs/INVENTORY_HORIZONTAL_PLATFORM.md §1.3 + §3
 
-You are implementing BuildFlow Inventory Phase 11.7 + D11.
-Deepseek-v4-flash = coding agent only. Do NOT hard-code it as the product chat model (D10).
+Deepseek-v4-flash = coding agent only. Do NOT hard-code it as the chat model (D10).
 
-CURRENT PASS: Phase 11.7 + D11 only.
-11.0–11.6 are complete (checkout is already full-screen with tables). Do not
-re-litigate 11.6 except 11.7.6 residuals (compact table cells, collapse customer).
+11.0–11.8 + M1–M7 are CODE-COMPLETE (CheckoutCart phone Browse|Cart shipped).
 
-Locked: K1–K11 and Non-goals. K11 is new: inventory cost vs sell.
+THIS PASS:
+- Fix only concrete phone/PWA Checkout or Stock bugs found in operator smoke
+- OR stop if none
 
-Must implement:
-1) Resource.costPrice (nullable). rate = selling. avgCost = WAC (read-only).
-   Construction: ignore costPrice; keep rate as estimate/catalog rate.
-2) Add/edit SKU and Kirana import: capture Cost + Selling (+ MRP).
-3) Checkout / SO / invoice lines: edit Selling only (prefill rate).
-4) PO / GRN / indent / quick receipt / reorder: edit Cost only (prefill
-   costPrice, never selling rate). GRN/receipt updates costPrice + WAC.
-5) Fix the materials helper that still calls selling “catalog rate for POs”.
-6) Walk inventory flows and fix only real inventory bugs. Construction
-   ProcurementTab Draft→Submit→Approve must stay DRAFT on create.
-7) D11: chatbot answers the question only — no trailing suggestions /
-   “you can also ask” / extra chips after a reply. Format with markdown
-   (short heading, bullets, numbers in lists/tables). Render markdown in
-   AssistantChatContent for Construction + Inventory; same answer-only
-   rule on the marketing prompt.
+Do NOT: re-litigate 11.8 UX, change Construction gating, change ₹499 price,
+rewrite FEFO, remove desktop checkout tables.
 
-After the phase:
-1) Tick §8 Phase 11.7 and D11 checkboxes with evidence
-2) Run Kirana plan §6 commands
-3) Stop
-
-Do NOT: FIFO rewrite, separate Item table, Construction Draft→Submit→Approve
-changes, Inventory price change, i18n expansion, rewrite Phases 0–10 / 11.0–11.6.
+VERIFY: pnpm --filter @buildflow/mobile exec tsc --noEmit
+AFTER: append smoke notes under §8 Phase 11.8; stop.
 ```
 
----
 
 ## 10. File touch map (expected)
 
@@ -509,3 +519,4 @@ changes, Inventory price change, i18n expansion, rewrite Phases 0–10 / 11.0–
 | 11.5 Selective SKU/MRP intake | DONE - tenant-only item master, library/custom add, HSN + tracking edit, PO/GRN or quick vendor receipt, optional editable batch expiry (§8 evidence) | 2026-08-16 |
 | 11.6 Inventory workspace UX | DONE - full-screen checkout + desktop tables; residuals in 11.7.6 | 2026-08-19 |
 | 11.7 Cost vs sell + flow audit + D11 | DONE - `costPrice` vs selling `rate`, procurement/checkout split, compact checkout cells, D11 answer-only markdown (§8 evidence). Operator device smoke remaining. | 2026-08-19 |
+| 11.8 Kirana phone Checkout item picker | **DONE** - Browse\|Cart modes, rich catalog rows, compact cart; desktop unchanged (M7). Operator device smoke remaining. | 2026-08-23 |

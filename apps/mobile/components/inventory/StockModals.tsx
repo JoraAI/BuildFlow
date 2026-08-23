@@ -590,13 +590,14 @@ export function MultiIssueStockModal({
                         placeholder={`Choose ${itemLower}`}
                         disabled={submitting || !!initialResourceId}
                       />
-                      <View className="flex-row gap-2 mt-2">
+                      <View className="flex-row gap-2 mt-2 items-center">
                         <View className="flex-1">
-                          <Input
-                            label={row ? `Quantity (${row.unit}, max ${row.balance})` : 'Quantity'}
+                          {/* UX polish M7 / 11.8: compact cell, no tall labeled Input. */}
+                          <CellInput
+                            keyboardType="decimal-pad"
+                            accessibilityLabel={row ? `Quantity of ${row.name}` : 'Quantity'}
                             value={line.quantity}
                             onChangeText={(t) => updateLine(line.key, { quantity: t })}
-                            keyboardType="decimal-pad"
                             placeholder="0"
                           />
                           {row && Number(line.quantity) > Number(row.balance) ? (
@@ -606,22 +607,24 @@ export function MultiIssueStockModal({
                           ) : null}
                         </View>
                         <View className="flex-1">
-                          <Input
-                            label="Selling ₹ / unit"
+                          <CellInput
+                            keyboardType="decimal-pad"
+                            accessibilityLabel={`Selling price of ${row?.name ?? itemLower}`}
                             value={line.unitPrice}
                             onChangeText={(t) => updateLine(line.key, { unitPrice: t })}
-                            keyboardType="decimal-pad"
-                            placeholder={row?.catalogRate != null ? `Catalog ₹${row.catalogRate}` : 'Price'}
+                            placeholder={row?.catalogRate != null ? `₹${row.catalogRate}` : 'Price'}
                           />
                         </View>
                       </View>
-                      <Input
-                        label="Batch / lot code (optional)"
-                        value={line.batchCode}
-                        onChangeText={(t) => updateLine(line.key, { batchCode: t })}
-                        autoCapitalize="characters"
-                        placeholder="e.g. LOT-2026-A"
-                      />
+                      <View className="mt-2">
+                        <CellInput
+                          autoCapitalize="characters"
+                          accessibilityLabel={`Batch code of ${row?.name ?? itemLower}`}
+                          value={line.batchCode}
+                          onChangeText={(t) => updateLine(line.key, { batchCode: t })}
+                          placeholder="Batch / lot (optional)"
+                        />
+                      </View>
                     </View>
                   );
                 })}
