@@ -18,7 +18,7 @@ const CATEGORIES = [
   { id: 'BILLING', label: 'Billing & subscription' },
   { id: 'BUG', label: 'Bug report' },
   { id: 'DATA_FIX', label: 'Data correction' },
-  { id: 'OTHER', label: 'Other' },
+  { id: 'OTHER', label: 'Feature / Enhancement / Other' },
 ] as const;
 
 type CategoryId = (typeof CATEGORIES)[number]['id'];

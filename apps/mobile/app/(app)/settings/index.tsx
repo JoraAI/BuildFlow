@@ -81,6 +81,14 @@ const SETTINGS_GROUPS: SettingsGroup[] = [
         ownerOnly: true,
       },
       {
+        id: 'permissions',
+        label: 'Role Permissions',
+        description: 'Granular permissions & access control',
+        href: '/(app)/settings/permissions',
+        icon: 'shield-checkmark-outline',
+        ownerOnly: true,
+      },
+      {
         id: 'billing',
         label: 'Billing & plan',
         description: 'Trial status and subscription',

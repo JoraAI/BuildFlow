@@ -2,6 +2,7 @@
  * BuildFlow - Users & Roles settings screen.
  */
 import React, { useState } from 'react';
+import { useRouter } from 'expo-router';
 import {
   View,
   Text,
@@ -107,8 +108,17 @@ export default function UsersScreen() {
     refetchInvites();
   };
 
+  const router = useRouter();
   const inviteAction = (
-    <Button label="Invite" size="sm" onPress={() => setInviteOpen(true)} />
+    <View className="flex-row items-center gap-2">
+      <Button
+        label="Role Permissions"
+        size="sm"
+        variant="secondary"
+        onPress={() => router.push('/(app)/settings/permissions' as never)}
+      />
+      <Button label="Invite" size="sm" onPress={() => setInviteOpen(true)} />
+    </View>
   );
 
   const content = isLoading ? (
