@@ -7,7 +7,7 @@ import { useViewport } from '@/hooks/useViewport';
 import {
   useSalesOrders, useCreateSalesOrder, useSalesOrderAction, useInvoiceFromSalesOrder,
   useDeliveryChallans, useCreateDeliveryChallan, useChallanTransition,
-  useSalesReturns, useCreateSalesReturn,
+  useSalesReturns, useCreateSalesReturn, useApproveSalesReturn,
   usePurchaseReturns, useCreatePurchaseReturn,
   useCreditNotes, useDebitNotes, useIssueCreditNote, useIssueDebitNote,
   type SalesOrder, type DeliveryChallan, type SalesReturn, type PurchaseReturn, type CreditNote, type DebitNote,
@@ -15,6 +15,7 @@ import {
 import {
   NewSalesOrderModal, NewChallanModal, SalesReturnModal, PurchaseReturnModal, DispatchChallanSheet, NewQuoteModal,
 } from '@/components/inventory/TransactionModals';
+import { QuickReturnScanModal } from '@/components/inventory/QuickReturnScanModal';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 import {
   useQuotes, useCreateQuote, useQuoteAction, useQuoteToSalesOrder, type Quote,
@@ -52,6 +53,8 @@ export default function InventorySalesScreen() {
   const [dispatchChallan, setDispatchChallan] = useState<DeliveryChallan | null>(null);
   const [salesReturnOpen, setSalesReturnOpen] = useState(false);
   const [purchaseReturnOpen, setPurchaseReturnOpen] = useState(false);
+  const [quickReturnOpen, setQuickReturnOpen] = useState(false);
+  const approveSalesReturn = useApproveSalesReturn();
 
   const orders = useSalesOrders();
   const quotes = useQuotes();
@@ -330,7 +333,8 @@ export default function InventorySalesScreen() {
     const party = isSales ? item.customerName : (item as PurchaseReturn).vendorName;
     const note = isSales ? (item as SalesReturn).creditNote : (item as PurchaseReturn).debitNote;
     const noteLabel = note ? ('creditNoteNumber' in note ? note.creditNoteNumber : note.debitNoteNumber) : null;
-    // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4, K8): desktop/tablet row.
+    const isPending = item.status === 'DRAFT';
+
     if (tableMode) {
       return (
         <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
@@ -341,7 +345,21 @@ export default function InventorySalesScreen() {
             <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
           </View>
           <Text className="flex-1 text-sm font-semibold text-text text-right">₹{Number(item.total).toFixed(2)}</Text>
-          <View className="flex-[1.2] flex-row justify-end gap-1">
+          <View className="flex-[1.5] flex-row justify-end gap-1">
+            {isSales && isPending ? (
+              <Button
+                label="Approve & Restock"
+                size="sm"
+                variant="accent"
+                disabled={busy}
+                onPress={() =>
+                  void run(async () => {
+                    await approveSalesReturn.mutateAsync({ returnId: item.id });
+                    toast.success(`Sales return ${item.returnNumber} approved & stock restocked.`);
+                  })
+                }
+              />
+            ) : null}
             <Button
               label={isSales ? 'Invoices' : 'Vendor bills'}
               size="sm"
@@ -366,6 +384,20 @@ export default function InventorySalesScreen() {
           <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
         </View>
         <View className="flex-row flex-wrap gap-2 mt-3">
+          {isSales && isPending ? (
+            <Button
+              label="Approve & Restock"
+              size="sm"
+              variant="accent"
+              disabled={busy}
+              onPress={() =>
+                void run(async () => {
+                  await approveSalesReturn.mutateAsync({ returnId: item.id });
+                  toast.success(`Sales return ${item.returnNumber} approved & restocked.`);
+                })
+              }
+            />
+          ) : null}
           <Button
             label={isSales ? 'Go to invoices' : 'Go to vendor bills'}
             size="sm"
@@ -545,6 +577,12 @@ export default function InventorySalesScreen() {
               ) : null}
               {tab === 'returns' ? (
                 <View className="flex-row flex-wrap gap-2 pb-2">
+                  <Button
+                    label="POS Scan & Return"
+                    size="sm"
+                    variant="accent"
+                    onPress={() => setQuickReturnOpen(true)}
+                  />
                   <Button label="New sales return" size="sm" variant="secondary" onPress={() => setSalesReturnOpen(true)} />
                   <Button label="New purchase return" size="sm" variant="secondary" onPress={() => setPurchaseReturnOpen(true)} />
                 </View>
@@ -628,6 +666,16 @@ export default function InventorySalesScreen() {
               setSalesReturnOpen(false);
               router.push('/inventory/invoices' as never);
             });
+          }}
+        />
+      ) : null}
+      {quickReturnOpen ? (
+        <QuickReturnScanModal
+          open={quickReturnOpen}
+          projectId={projectId}
+          onClose={() => setQuickReturnOpen(false)}
+          onSuccess={(returnNumber) => {
+            toast.success(`Return voucher ${returnNumber} created`);
           }}
         />
       ) : null}

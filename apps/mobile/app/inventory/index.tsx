@@ -69,12 +69,13 @@ export default function InventoryStockScreen() {
     (user?.subscriptionPlan ?? 'INVENTORY') as SubscriptionPlanKey,
     'barcode',
   );
-  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.3): POS counter checkout cart
-  // (K7–K8) is the Kirana-vertical UX; non-Kirana inventory keeps the same
-  // MultiIssueStockModal counter issue - nothing breaks.
-  const posCheckoutEnabled =
-    hasInventoryFeature((user?.subscriptionPlan ?? 'INVENTORY') as SubscriptionPlanKey, 'pos_checkout') &&
-    user?.inventoryVertical === 'KIRANA';
+  // INVENTORY_KIRANA_RETAIL_WHOLESALE & HORIZONTAL PARITY:
+  // POS counter checkout cart is enabled for all inventory plans
+  // (Kirana, Electronics, Hardware, Retail, Wholesale, etc.).
+  const posCheckoutEnabled = hasInventoryFeature(
+    (user?.subscriptionPlan ?? 'INVENTORY') as SubscriptionPlanKey,
+    'pos_checkout',
+  );
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4): Kirana-vertical KPI row.
   const kiranaVertical = user?.inventoryVertical === 'KIRANA';
   const { data: warehouses }: { data?: Warehouse[] } = useWarehouses();

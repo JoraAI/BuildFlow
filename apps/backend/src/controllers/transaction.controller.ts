@@ -94,6 +94,39 @@ export async function createSalesReturn(req: Request, res: Response, next: NextF
     next(err);
   }
 }
+export async function validateReturnScan(req: Request, res: Response, next: NextFunction) {
+  try {
+    ok(
+      res,
+      await returnService.validateReturnScan(
+        req.user!.companyId,
+        req.user!.id,
+        req.user!.role,
+        req.body,
+      ),
+    );
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function approveSalesReturn(req: Request, res: Response, next: NextFunction) {
+  try {
+    ok(
+      res,
+      await returnService.approveSalesReturn(
+        req.user!.companyId,
+        req.user!.id,
+        req.user!.role,
+        req.params.id,
+        req.body,
+      ),
+    );
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function listSalesReturns(req: Request, res: Response, next: NextFunction) {
   try {
     ok(res, await returnService.listSalesReturns(req.user!.companyId, req.user!.id, req.user!.role));

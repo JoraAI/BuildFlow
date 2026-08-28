@@ -17,6 +17,8 @@ import {
   createInvoiceFromSalesOrderSchema,
   createSalesReturnSchema,
   createPurchaseReturnSchema,
+  validateReturnScanSchema,
+  approveSalesReturnSchema,
 } from '@buildflow/shared';
 import { Role } from '@buildflow/shared';
 import { z } from 'zod';
@@ -50,6 +52,18 @@ transactionRouter.post('/delivery-challans/:id/deliver', canManage, validate({ p
 // Returns
 transactionRouter.get('/returns/sales', transactionController.listSalesReturns);
 transactionRouter.post('/returns/sales', canManage, validate({ body: createSalesReturnSchema }), transactionController.createSalesReturn);
+transactionRouter.post(
+  '/returns/sales/:id/approve',
+  canManage,
+  validate({ params: idParams, body: approveSalesReturnSchema }),
+  transactionController.approveSalesReturn,
+);
+transactionRouter.post(
+  '/returns/validate-scan',
+  canManage,
+  validate({ body: validateReturnScanSchema }),
+  transactionController.validateReturnScan,
+);
 transactionRouter.get('/returns/purchase', transactionController.listPurchaseReturns);
 transactionRouter.post('/returns/purchase', canManage, validate({ body: createPurchaseReturnSchema }), transactionController.createPurchaseReturn);
 

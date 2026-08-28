@@ -243,6 +243,55 @@ export function useSalesReturns() {
   });
 }
 
+export interface ValidatedScanResult {
+  resource: {
+    id: string;
+    name: string;
+    unit: string;
+    barcode?: string | null;
+    sku?: string | null;
+    itemCode?: string | null;
+    catalogRate: number;
+  };
+  matchingLines: Array<{
+    invoiceId: string;
+    invoiceNumber: string;
+    clientName: string;
+    invoiceDate: string;
+    invoiceLineItemId: string;
+    dispatchedQty: number;
+    rate: number;
+    gstRate: number;
+    amount: number;
+  }>;
+  totalDispatched: number;
+  totalPreviouslyReturned: number;
+  maxReturnable: number;
+  isValidDispatch: boolean;
+}
+
+export function useValidateReturnScan() {
+  return useMutation({
+    mutationFn: (input: { barcode: string; invoiceId?: string; customerId?: string }) =>
+      apiFetch<ValidatedScanResult>('/inventory/transactions/returns/validate-scan', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+  });
+}
+
+export function useApproveSalesReturn() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ returnId, data }: { returnId: string; data?: { targetLocationId?: string; notes?: string } }) =>
+      apiFetch<{ salesReturn: SalesReturn; approved: boolean }>(`/inventory/transactions/returns/sales/${returnId}/approve`, {
+        method: 'POST',
+        body: JSON.stringify(data ?? {}),
+      }),
+    onSuccess: () => invalidateTransactions(qc),
+  });
+}
+
 export function useCreateSalesReturn() {
   const qc = useQueryClient();
   return useMutation({
@@ -250,6 +299,8 @@ export function useCreateSalesReturn() {
       invoiceId: string;
       returnDate: string;
       reason?: string;
+      targetLocationId?: string;
+      status?: 'DRAFT' | 'PENDING_APPROVAL' | 'ISSUED';
       lines: Array<{
         resourceId: string;
         quantity: number;

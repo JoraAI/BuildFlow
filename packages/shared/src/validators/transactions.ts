@@ -69,9 +69,24 @@ export const createSalesReturnSchema = z.object({
   invoiceId: z.string().uuid(),
   returnDate: z.coerce.date(),
   reason: z.string().max(2000).optional(),
+  targetLocationId: z.string().uuid().optional(),
+  status: z.enum(['DRAFT', 'PENDING_APPROVAL', 'ISSUED']).optional(),
   lines: z.array(salesReturnLineSchema).min(1),
 });
 export type CreateSalesReturnInput = z.infer<typeof createSalesReturnSchema>;
+
+export const validateReturnScanSchema = z.object({
+  barcode: z.string().min(1).max(100),
+  invoiceId: z.string().uuid().optional(),
+  customerId: z.string().uuid().optional(),
+});
+export type ValidateReturnScanInput = z.infer<typeof validateReturnScanSchema>;
+
+export const approveSalesReturnSchema = z.object({
+  targetLocationId: z.string().uuid().optional(),
+  notes: z.string().max(2000).optional(),
+});
+export type ApproveSalesReturnInput = z.infer<typeof approveSalesReturnSchema>;
 
 export const purchaseReturnLineSchema = z.object({
   goodsReceiptLineId: z.string().uuid().optional(),

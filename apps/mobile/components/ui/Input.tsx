@@ -23,6 +23,7 @@ interface InputProps {
   compact?: boolean;
   onFocus?: () => void;
   onBlur?: () => void;
+  onSubmitEditing?: () => void;
 }
 
 export function Input({
@@ -43,6 +44,7 @@ export function Input({
   compact = false,
   onFocus,
   onBlur,
+  onSubmitEditing,
 }: InputProps) {
   const { isDesktop } = useViewport();
   const widthClass =
@@ -66,6 +68,7 @@ export function Input({
           onChangeText={onChangeText}
           onFocus={onFocus}
           onBlur={onBlur}
+          onSubmitEditing={onSubmitEditing}
           placeholder={placeholder}
           secureTextEntry={secureTextEntry}
           keyboardType={keyboardType}
