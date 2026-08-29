@@ -8,6 +8,10 @@ export type ProjectTabId =
   | 'variations'
   | 'procurement'
   | 'subcontracts'
+  | 'pettyCash'
+  | 'drawings'
+  | 'snags'
+  | 'laborWages'
   | 'resources'
   | 'reports'
   | 'settings';
@@ -21,6 +25,10 @@ export const PROJECT_TAB_HINTS: Record<ProjectTabId, string> = {
   variations: 'Extra scope after BOQ was fixed',
   procurement: 'Buy materials: request → order → receive',
   subcontracts: 'Subcontractors: measure work → pay bills',
+  pettyCash: 'Site float, snap receipts & 1-tap reconcile',
+  drawings: 'GFC architectural, structural & MEP plans with pin drop',
+  snags: 'Quality defect NCRs with before/after photos & sign-off',
+  laborWages: 'Daily muster steppers & Saturday wage settlement',
   resources: 'People, plant and material usage vs plan',
   reports: 'Daily site diary and photos',
   settings: 'Team, rates, and portal access',

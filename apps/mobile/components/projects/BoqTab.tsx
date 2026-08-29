@@ -33,6 +33,7 @@ import {
 } from "@/services/expansion.queries";
 import { downloadReportPdf, reportPaths } from '@/services/report-download';
 import { alertAsync } from '@/utils/confirm';
+import { usePermission } from '@/hooks/usePermission';
 
 interface BoqTabProps {
   projectId: string;
@@ -63,9 +64,9 @@ function formatCategoryLabel(category: string | null): string {
 }
 
 export function BoqTab({ projectId }: BoqTabProps) {
-  const user = useAuthStore((s) => s.user);
-  const canMeasure =
-    user?.role === 'OWNER' || user?.role === 'PM' || user?.role === 'SUPERVISOR';
+  const canMeasure = usePermission('boq.record_measurement');
+  const canViewRates = usePermission('boq.view_rates');
+  const canManageSub = usePermission('subcontract.create_wo');
 
   const { data: boq, isLoading } = useBoq(projectId);
   const { data: vsActual } = useBoqVsActual(projectId);
@@ -81,8 +82,6 @@ export function BoqTab({ projectId }: BoqTabProps) {
   const [notes, setNotes] = useState('');
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'section' | 'category'>('section');
-
-  const canManageSub = user?.role === 'OWNER' || user?.role === 'PM';
 
   const onCreateWoFromBoq = () => {
     if (!woItem || !woNumber.trim() || !selectedSub) {
@@ -168,7 +167,11 @@ export function BoqTab({ projectId }: BoqTabProps) {
       <Card>
         <View className="flex-row justify-between items-center mb-2">
           <Text className="text-sm font-bold text-text">BOQ Summary</Text>
-          <Text className="text-lg font-bold text-primary">{formatINR(boq.total)}</Text>
+          {canViewRates ? (
+            <Text className="text-lg font-bold text-primary">{formatINR(boq.total)}</Text>
+          ) : (
+            <Text className="text-sm font-medium text-muted">{boq.items.length} billable items</Text>
+          )}
         </View>
         <Text className="text-xs text-muted">
           BOQ lines are billable scope. Link estimate MATERIAL lines to catalog resources or rate
@@ -276,9 +279,11 @@ export function BoqTab({ projectId }: BoqTabProps) {
                           {item.description}
                         </Text>
                       </View>
-                      <Text className="text-sm font-bold text-text">
-                        {formatINR(parseFloat(item.amount))}
-                      </Text>
+                      {canViewRates ? (
+                        <Text className="text-sm font-bold text-text">
+                          {formatINR(parseFloat(item.amount))}
+                        </Text>
+                      ) : null}
                     </View>
                     <View className="flex-row flex-wrap gap-x-3 gap-y-1 mt-1">
                       <Text className="text-xs text-muted">
@@ -347,7 +352,7 @@ export function BoqTab({ projectId }: BoqTabProps) {
         );
       })}
 
-      {vsActual && vsActual.lines.some((l: BoqVsActualLine) => l.variance !== 0) && (
+      {canViewRates && vsActual && vsActual.lines.some((l: BoqVsActualLine) => l.variance !== 0) && (
         <>
           <Text className="text-sm font-bold text-text mt-2">Cost variance (by category allocation)</Text>
           {vsActual.lines

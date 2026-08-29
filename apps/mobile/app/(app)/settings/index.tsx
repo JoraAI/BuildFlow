@@ -100,7 +100,7 @@ const SETTINGS_GROUPS: SettingsGroup[] = [
         id: 'material-prices',
         label: 'Material Prices',
         description: 'Company-wide resource catalog',
-        href: '/(app)/settings/material-prices',
+        href: '/(app)/settings/material-prices?from=settings',
         icon: 'cube-outline',
       },
       {

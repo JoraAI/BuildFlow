@@ -83,3 +83,5 @@ apps/backend/prisma/migrations/**/*.bak
 .netlify
 apps/backend/.filestore/
 .filestore/
+apps/backend/.filestore-test/
+.filestore-test/

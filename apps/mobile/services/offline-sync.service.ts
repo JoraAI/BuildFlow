@@ -12,6 +12,35 @@ import { useAppStore } from '@/stores/app.store';
 let syncing = false;
 let unsubscribe: (() => void) | null = null;
 
+export type SyncProgress = {
+  isSyncing: boolean;
+  total: number;
+  current: number;
+  lastSyncedAt: Date | null;
+  justCompleted: boolean;
+};
+
+let syncProgress: SyncProgress = {
+  isSyncing: false,
+  total: 0,
+  current: 0,
+  lastSyncedAt: null,
+  justCompleted: false,
+};
+
+const listeners = new Set<(progress: SyncProgress) => void>();
+
+export function subscribeSyncProgress(fn: (progress: SyncProgress) => void): () => void {
+  listeners.add(fn);
+  fn(syncProgress);
+  return () => listeners.delete(fn);
+}
+
+function updateProgress(next: Partial<SyncProgress>) {
+  syncProgress = { ...syncProgress, ...next };
+  listeners.forEach((fn) => fn(syncProgress));
+}
+
 /** Map each operation type to its replay path + method. */
 function getReplayConfig(op: OfflineOperation): { method: string; path: string } | null {
   switch (op.type) {
@@ -29,6 +58,8 @@ function getReplayConfig(op: OfflineOperation): { method: string; path: string }
       return { method: 'POST', path: `/projects/${op.projectId}/checkin` };
     case 'UPDATE_ATTENDANCE':
       return { method: 'POST', path: `/projects/${op.projectId}/checkout` };
+    case 'CREATE_PETTY_CASH':
+      return { method: 'POST', path: '/petty-cash' };
     default:
       return null;
   }
@@ -42,7 +73,11 @@ export async function replayOfflineQueue(): Promise<{ synced: number; failed: nu
 
   try {
     const ops = await offlineQueueStore.getPending();
-    for (const op of ops) {
+    if (ops.length > 0) {
+      updateProgress({ isSyncing: true, total: ops.length, current: 0, justCompleted: false });
+    }
+    for (let i = 0; i < ops.length; i++) {
+      const op = ops[i];
       try {
         const config = getReplayConfig(op);
         if (!config) {
@@ -57,9 +92,18 @@ export async function replayOfflineQueue(): Promise<{ synced: number; failed: nu
         });
         await offlineQueueStore.remove(op.id);
         synced += 1;
+        updateProgress({ current: i + 1 });
       } catch {
         failed += 1;
       }
+    }
+    if (synced > 0) {
+      updateProgress({ isSyncing: false, justCompleted: true, lastSyncedAt: new Date() });
+      setTimeout(() => {
+        updateProgress({ justCompleted: false, total: 0, current: 0 });
+      }, 3500);
+    } else {
+      updateProgress({ isSyncing: false, total: 0, current: 0 });
     }
   } finally {
     syncing = false;

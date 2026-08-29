@@ -177,7 +177,7 @@ export default function ProposalsHubScreen() {
           <Text className="text-primary text-2xl">›</Text>
         </View>
       </Card>
-      <Card onPress={() => router.push('/(app)/settings/material-prices')}>
+      <Card onPress={() => router.push('/(app)/settings/material-prices?from=proposals')}>
         <View className="flex-row items-center justify-between">
           <View>
             <Text className="text-base font-semibold text-text">Material Price Tracker</Text>

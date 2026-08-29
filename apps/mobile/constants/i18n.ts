@@ -44,16 +44,37 @@ type TranslationDict = Record<string, { en: string } & Partial<Record<SupportedL
 
 export const translations: TranslationDict = {
   // Navigation
-  'nav.dashboard': { en: 'Dashboard', hi: 'डैशबोर्ड', mr: 'डॅशबोर्ड', ta: 'டாஷ்போர்டு', te: 'డాష్‌బోర్డ్' },
-  'nav.projects': { en: 'Projects', hi: 'परियोजनाएं', mr: 'प्रकल्प', ta: 'திட்டங்கள்', te: 'ప్రాజెక్ట్‌లు' },
-  'nav.estimation': { en: 'Estimation', hi: 'अनुमान', mr: 'अंदाज', ta: 'மதிப்பீடு', te: 'అంచనా' },
-  'nav.boq': { en: 'BOQ', hi: 'बीओक्यू', mr: 'बीओक्यू', ta: 'பிஓக்யு', te: 'బిఓక్యూ' },
-  'nav.procurement': { en: 'Procurement', hi: 'खरीद', mr: 'खरेदी', ta: 'கொள்முதல்', te: 'కొనుగోలు' },
-  'nav.accounting': { en: 'Accounting', hi: 'लेखाशास्त्र', mr: 'हिशोब', ta: 'கணக்கியல்', te: 'అకౌంటింగ్' },
-  'nav.reports': { en: 'Reports', hi: 'रिपोर्ट', mr: 'अहवाल', ta: 'அறிக்கைகள்', te: 'నివేదికలు' },
-  'nav.settings': { en: 'Settings', hi: 'सेटिंग्स', mr: 'सेटिंग्ज', ta: 'அமைப்புகள்', te: 'సెట్టింగ్‌లు' },
-  'nav.subcontractors': { en: 'Subcontractors', hi: 'उप-ठेकेदार', mr: 'उप-कंत्राटदार', ta: 'துணை-ஒப்பந்ததாரர்கள்', te: 'ఉప-కాంట్రాక్టర్‌లు' },
-  'nav.chat': { en: 'Assistant', hi: 'सहायक', mr: 'सहाय्यक', ta: 'உதவியாளர்', te: 'సహాయకుడు' },
+  'nav.dashboard': { en: 'Dashboard', hi: 'डैशबोर्ड', mr: 'डॅशबोर्ड', ta: 'டாஷ்போர்டு', te: 'డాష్‌బోర్డ్', bn: 'ড্যাশবোর্ড', gu: 'ડેશબોર્ડ', kn: 'ಡ್ಯಾಶ್‌ಬೋರ್ಡ್', ml: 'ഡാഷ്‌ബോർഡ്', pa: 'ਡੈਸ਼ਬੋਰਡ', ur: 'ڈیش بورڈ' },
+  'nav.home': { en: 'Home', hi: 'होम', mr: 'मुख्यपृष्ठ', ta: 'முகப்பு', te: 'హోమ్', bn: 'হোম', gu: 'હોમ', kn: 'ಮುಖಪುಟ', ml: 'ഹോം', pa: 'ਹੋਮ', ur: 'ہوم' },
+  'nav.projects': { en: 'Projects', hi: 'परियोजनाएं', mr: 'प्रकल्प', ta: 'திட்டங்கள்', te: 'ప్రాజెక్ట్‌లు', bn: 'প্রকল্প', gu: 'પ્રોજેક્ટ્સ', kn: 'ಯೋಜನೆಗಳು', ml: 'പ്രോജക്റ്റുകൾ', pa: 'ਪ੍ਰੋਜੈਕਟ', ur: 'پروجیکٹس' },
+  'nav.proposals': { en: 'Proposals', hi: 'प्रस्ताव', mr: 'प्रस्ताव', ta: 'முன்மொழிவுகள்', te: 'ప్రతిపాదనలు', bn: 'প্রস্তাবনা', gu: 'દરખાસ્તો', kn: 'ಪ್ರಸ್ತಾಪಗಳು', ml: 'നിർദ്ദേശങ്ങൾ', pa: 'ਪ੍ਰਸਤਾਵ', ur: 'تجویزیں' },
+  'nav.planning': { en: 'Planning', hi: 'प्लानिंग', mr: 'नियोजन', ta: 'திட்டமிடல்', te: 'ప్లానింగ్', bn: 'পরিকল্পনা', gu: 'આયોજન', kn: 'ಯೋಜನೆ', ml: 'പ്ലാനിംഗ്', pa: 'ਯੋਜਨਾਬੰਦੀ', ur: 'منصوبہ بندی' },
+  'nav.estimation': { en: 'Estimation', hi: 'अनुमान', mr: 'अंदाज', ta: 'மதிப்பீடு', te: 'అంచనా', bn: 'প্রাক্কলন', gu: 'અંદાજ', kn: 'ಅಂದಾಜು', ml: 'എസ്റ്റിമേറ്റ്', pa: 'ਅੰਦਾਜ਼ਾ', ur: 'تخمینہ' },
+  'nav.boq': { en: 'BOQ', hi: 'बीओक्यू', mr: 'बीओक्यू', ta: 'பிஓக்யு', te: 'బిఓక్యూ', bn: 'বিওকিউ', gu: 'બીઓક્યુ', kn: 'ಬಿಒಕ್ಯೂ', ml: 'ബിഒക്യു', pa: 'ਬੀਓਕਿਊ', ur: 'بی او کیو' },
+  'nav.procurement': { en: 'Procurement', hi: 'खरीद', mr: 'खरेदी', ta: 'கொள்முதல்', te: 'కొనుగోలు', bn: 'ক্রয়', gu: 'ખરીદી', kn: 'ಖರೀದಿ', ml: 'സംഭരണം', pa: 'ਖਰੀਦ', ur: 'خریداری' },
+  'nav.accounting': { en: 'Accounting', hi: 'लेखाशास्त्र', mr: 'हिशोब', ta: 'கணக்கியல்', te: 'అకౌంటింగ్', bn: 'হিসাববিজ্ঞান', gu: 'નામાપદ્ધતિ', kn: 'ಲೆಕ್ಕಪತ್ರ', ml: 'അക്കೌണ്ടിംഗ്', pa: 'ਲੇਖਾਕਾਰੀ', ur: 'اکاؤنٹنگ' },
+  'nav.reports': { en: 'Reports', hi: 'रिपोर्ट्स', mr: 'अहवाल', ta: 'அறிக்கைகள்', te: 'నివేదికలు', bn: 'প্রতিবেদন', gu: 'અહેવાલો', kn: 'ವರದಿಗಳು', ml: 'റിപ്പോർട്ടുകൾ', pa: 'ਰਿਪੋਰਟਾਂ', ur: 'رپورٹس' },
+  'nav.settings': { en: 'Settings', hi: 'सेटिंग्स', mr: 'सेटिंग्ज', ta: 'அமைப்புகள்', te: 'సెట్టింగ్‌లు', bn: 'সেটিংস', gu: 'સેટિંગ્સ', kn: 'ಸೆಟ್ಟಿಂಗ್‌ಗಳು', ml: 'ക്രമീകരണങ്ങൾ', pa: 'ਸੈਟਿੰਗਾਂ', ur: 'ترتیبات' },
+  'nav.subcontractors': { en: 'Subcontractors', hi: 'उप-ठेकेदार', mr: 'उप-कंत्राटदार', ta: 'துணை-ஒப்பந்ததாரர்கள்', te: 'ఉప-కాంట్రాక్టర్‌లు', bn: 'সাবকন্ট্রাক্টর', gu: 'પેટા કોન્ટ્રાક્ટર', kn: 'ಉಪ ಗುತ್ತಿಗೆದಾರರು', ml: 'സബ് കോൺട്രാക്ടർമാർ', pa: 'ਸਬ-ਕੰਟਰੈਕਟਰ', ur: 'ذیلی ٹھیکیدار' },
+  'nav.chat': { en: 'Assistant', hi: 'सहायक', mr: 'सहाय्यक', ta: 'உதவியாளர்', te: 'సహాయకుడు', bn: 'সহকারী', gu: 'સહાયક', kn: 'ಸಹಾಯಕ', ml: 'സഹായി', pa: 'ਸਹਾਇਕ', ur: 'معاون' },
+  'nav.notifications': { en: 'Alerts', hi: 'अलर्ट', mr: 'सूचना', ta: 'எச்சரிக்கைகள்', te: 'హెచ్చరికలు', bn: 'সতর্কতা', gu: 'ચેતવણીઓ', kn: 'ಎಚ್ಚರಿಕೆಗಳು', ml: 'അലേർട്ടുകൾ', pa: 'ਚੇਤਾਵਨੀਆਂ', ur: 'انتباہات' },
+  'nav.more': { en: 'More', hi: 'अधिक', mr: 'अधिक', ta: 'மேலும்', te: 'మరిన్ని', bn: 'আরও', gu: 'વધુ', kn: 'ಇನ್ನಷ್ಟು', ml: 'കൂടുതൽ', pa: 'ਹੋਰ', ur: 'مزید' },
+  'nav.reportsHub': { en: 'Reports Hub', hi: 'रिपोर्ट्स हब', mr: 'अहवाल केंद्र', ta: 'அறிக்கை மையம்', te: 'రిపోర్ట్స్ హబ్', bn: 'রিপোর্ট হাব', gu: 'રિપોર્ટ હબ', kn: 'ವರದಿಗಳ ಹಬ್', ml: 'റിപ്പോർട്ട്സ് ಹಬ್', pa: 'ਰਿਪੋਰਟ ਹੱਬ', ur: 'رپورٹس حب' },
+
+  // Project Tabs
+  'tab.overview': { en: 'Overview', hi: 'अवलोकन', mr: 'आढावा', ta: 'மேலோட்டம்', te: 'అవలోకనం', bn: 'সংক্ষিপ্ত বিবরণ', gu: 'ઝાંખી', kn: 'ಅವಲೋಕನ', ml: 'അവലോകനം', pa: 'ਸੰਖੇਪ ਜਾਣਕਾਰੀ', ur: 'جائزہ' },
+  'tab.estimate': { en: 'Estimate', hi: 'अनुमान', mr: 'अंदाज', ta: 'மதிப்பீடு', te: 'అంచనా', bn: 'প্রাক্কলন', gu: 'અંદાજ', kn: 'ಅಂದಾಜು', ml: 'എസ്റ്റിമേറ്റ്', pa: 'ਅੰਦਾਜ਼ਾ', ur: 'تخمینہ' },
+  'tab.schedule': { en: 'Schedule', hi: 'शेड्यूल', mr: 'वेळापत्रक', ta: 'கால அட்டவணை', te: 'షెడ్యూల్', bn: 'সময়সূচী', gu: 'સમયપત્રક', kn: 'ವೇಳಾಪಟ್ಟಿ', ml: 'ഷെഡ്യൂൾ', pa: 'ਸਮਾਸੂਚੀ', ur: 'شیڈول' },
+  'tab.boq': { en: 'BOQ', hi: 'बीओक्यू', mr: 'बीओक्यू', ta: 'பிஓக்யூ', te: 'బిఓక్యూ', bn: 'বিওকিউ', gu: 'બીઓક્યુ', kn: 'ಬಿಒಕ್ಯೂ', ml: 'ബിಒക്യു', pa: 'ਬੀਓਕਿਊ', ur: 'بی او کیو' },
+  'tab.bills': { en: 'Bills', hi: 'बिल', mr: 'बिले', ta: 'பில்கள்', te: 'బిల్లులు', bn: 'বিল', gu: 'બિલ', kn: 'ಬಿಲ್ಲುಗಳು', ml: 'ബില്ലുകൾ', pa: 'ਬਿੱਲ', ur: 'بلز' },
+  'tab.variations': { en: 'Variations', hi: 'विविधताएं', mr: 'बदल आदेश', ta: 'மாறுபாடுகள்', te: 'మార్పులు', bn: 'পরিবর্তন', gu: 'ફેરફારો', kn: 'ವ್ಯತ್ಯಾಸಗಳು', ml: 'വ്യതിയാനങ്ങൾ', pa: 'ਤਬਦੀਲੀਆਂ', ur: 'تبدیلیاں' },
+  'tab.procurement': { en: 'Procurement', hi: 'खरीद', mr: 'खरेदी', ta: 'கொள்முதல்', te: 'కొనుగోలు', bn: 'ক্রয়', gu: 'ખરીદી', kn: 'ಖರೀದಿ', ml: 'സംഭരണം', pa: 'ਖਰੀਦ', ur: 'خریداری' },
+  'tab.subcontracts': { en: 'Subcontracts', hi: 'उप-अनुबंध', mr: 'उप-कंत्राट', ta: 'துணை ஒப்பந்தங்கள்', te: 'ఉప కాంట్రాక్టులు', bn: 'সাবকন্ট্রাক্ট', gu: 'પેટા કરારો', kn: 'ಉಪ ಗುತ್ತಿಗೆಗಳು', ml: 'ഉപകരാറുകൾ', pa: 'ਸਬ-ਕੰਟਰੈਕਟ', ur: 'ذیلی معاہدے' },
+  'tab.pettyCash': { en: 'Petty Cash', hi: 'पेटी कैश', mr: 'किरकोळ खर्च', ta: 'சில்லறை ரொக்கம்', te: 'పెట్టీ క్యాష్', bn: 'খুচরা নগদ', gu: 'પેટી કેશ', kn: 'ಚಿಲ್ಲರೆ ನಗದು', ml: 'പെറ്റി ക്യാഷ്', pa: 'ਪੈਟੀ ਕੈਸ਼', ur: 'پیٹی کیش' },
+  'tab.drawings': { en: 'Drawings', hi: 'ड्राइंग्स', mr: 'नकाशे', ta: 'வரைபடங்கள்', te: 'డ్రాయింగ్స్', bn: 'নকশা', gu: 'ડ્રોઇંગ્સ', kn: 'ಚಿತ್ರಗಳು', ml: 'ഡ്രോയിംഗുകൾ', pa: 'ਡਰਾਇੰਗ', ur: 'ڈرائنگز' },
+  'tab.snags': { en: 'Snags / NCR', hi: 'दोष सूची (स्नैग्स)', mr: 'दोष यादी / NCR', ta: 'குறைபாடுகள் / NCR', te: 'స్నాగ్స్ / NCR', bn: 'ত্রুটি / NCR', gu: 'ખામੀઓ / NCR', kn: 'ದೋಷಗಳು / NCR', ml: 'സ്നാഗ്സ് / NCR', pa: 'ਖਾਮੀਆਂ / NCR', ur: 'نقائص / این سی آر' },
+  'tab.laborWages': { en: 'Labor & Wages', hi: 'श्रमिक व मजदूरी', mr: 'मजूर व मजुरी', ta: 'தொழிலாளர் & ஊதியம்', te: 'లేబర్ & వేతనాలు', bn: 'শ্রমিক ও মজুরি', gu: 'મજૂર અને વેતન', kn: 'ಕಾರ್ಮಿಕರು ಮತ್ತು ವೇತನ', ml: 'തൊഴിലാളികളും വേതനവും', pa: 'ਮਜ਼ਦੂਰ ਅਤੇ ਤਨਖਾਹ', ur: 'مزدور اور اجرت' },
+  'tab.resources': { en: 'Resources', hi: 'संसाधन', mr: 'संसाधने', ta: 'வளங்கள்', te: 'వనరులు', bn: 'সম্পদ', gu: 'સંસાધનો', kn: 'ಸಂಪನ್ಮೂಲಗಳು', ml: 'ವಿಭವಗಳು', pa: 'ਸਰੋਤ', ur: 'وسائل' },
 
   // Common actions
   'common.create': { en: 'Create', hi: 'बनाएं', mr: 'तयार करा', ta: 'உருவாக்கு', te: 'సృష్టించు' },
@@ -64,9 +85,19 @@ export const translations: TranslationDict = {
   'common.approve': { en: 'Approve', hi: 'स्वीकृत करें', mr: 'मंजूर करा', ta: 'அங்கீகரி', te: 'ఆమోదించు' },
   'common.reject': { en: 'Reject', hi: 'अस्वीकृत करें', mr: 'नकार', ta: 'நிராகரி', te: 'తిరస్కరించు' },
   'common.search': { en: 'Search', hi: 'खोजें', mr: 'शोधा', ta: 'தேடு', te: 'వెతకండి' },
+  'common.back': { en: 'Back', hi: 'वापस', mr: 'मागे', ta: 'பின்செல்', te: 'వెనుకకు', bn: 'ফিরে যান', gu: 'પાછળ', kn: 'ಹಿಂದೆ', ml: 'പിന്നോട്ട്', pa: 'ਪਿੱਛੇ', ur: 'پیچھے' },
   'common.loading': { en: 'Loading...', hi: 'लोड हो रहा है...', mr: 'लोड होत आहे...', ta: 'ஏற்றுகிறது...', te: 'లోడ్ అవుతోంది...' },
   'common.error': { en: 'Error', hi: 'त्रुटि', mr: 'त्रुटी', ta: 'பிழை', te: 'లోపం' },
   'common.success': { en: 'Success', hi: 'सफल', mr: 'यशस्वी', ta: 'வெற்றி', te: 'విజయం' },
+
+  // Site Execution Modules
+  'labor.morningMuster': { en: 'Morning Muster', hi: 'सुबह की हाजिरी (मस्टर)', mr: 'सकाळची हजेरी', ta: 'காலை வரவு', te: 'ఉదయం మస్టర్', bn: 'সকালের হাজিরা', gu: 'સવારની હાજરી', kn: 'ಬೆಳಗಿನ ಹಾಜರಾತಿ', ml: 'രാവിലത്തെ ഹാജർ', pa: 'ਸਵੇਰ ਦੀ ਹਾਜ਼ਰੀ', ur: 'صبح کی حاضری' },
+  'labor.saveMuster': { en: 'Save Morning Muster', hi: 'हाजिरी सुरक्षित करें', mr: 'हजेरी जतन करा', ta: 'காலை வரவைச் சேமி', te: 'ఉదయం మస్టర్ సేవ్ చేయండి', bn: 'হাজিরা সংরক্ষণ করুন', gu: 'હાજरी સાચવો', kn: 'ಹಾಜರಾತಿ ಉಳಿಸಿ', ml: 'ഹാജർ സേവ് ചെയ്യുക', pa: 'ਹਾਜ਼ਰੀ ਸੰਭਾਲੋ', ur: 'حاضری محفوظ کریں' },
+  'labor.pushDpr': { en: 'Push Headcount to DPR', hi: 'दैनिक रिपोर्ट (DPR) में भेजें', mr: 'DPR मध्ये पाठवा', ta: 'DPR-க்கு எண்ணிக்கை அனுப்பு', te: 'DPR కు సింక్ చేయండి', bn: 'DPR-এ পাঠান', gu: 'DPR માં મોકલો', kn: 'DPR ಗೆ ಕಳುಹಿಸಿ', ml: 'DPR-ലേക്ക് അയക്കുക', pa: 'DPR ਵਿੱਚ ਭੇਜੋ', ur: 'ڈی پی آر میں بھیجیں' },
+  'labor.payroll': { en: 'Weekly Wage Payroll', hi: 'साप्ताहिक मजदूरी पेरोल', mr: 'साप्ताहिक मजुरी पेरोल', ta: 'வாராந்திர சம்பள பட்டியல்', te: 'వారపు వేతన పేరోల్', bn: 'সাপ্তাহিক মজুরি পেরোল', gu: 'સાપ્તાહિક વેતન પેરોલ', kn: 'ಸಾಪ್ತಾಹಿಕ ವೇತನ ಪಾವತಿ', ml: 'പ്രതിവാര വേതന പേറോൾ', pa: 'ਹਫ਼ਤਾਵਾਰੀ ਤਨਖਾਹ ਪੇਰੋਲ', ur: 'ہفتہ وار اجرت کا پے رول' },
+  'drawings.upload': { en: 'Upload Drawing', hi: 'ड्राइंग अपलोड करें', mr: 'नकाशा अपलोड करा', ta: 'வரைபடம் பதிவேற்று', te: 'డ్రాయింగ్ అప్‌లోడ్ చేయండి', bn: 'নকশা আপলোড করুন', gu: 'ડ્રોઇંગ અપલોડ કરો', kn: 'ಡ್ರಾಯಿಂಗ್ ಅಪ್‌ಲೋಡ್ ಮಾಡಿ', ml: 'ഡ്രോയിംഗ് അപ്‌ലോഡ് ചെയ്യുക', pa: 'ਡਰਾਇੰਗ ਅੱਪਲੋਡ ਕਰੋ', ur: 'ڈرائنگ اپ لوڈ کریں' },
+  'snags.log': { en: 'Log Snag / NCR', hi: 'दोष दर्ज करें (NCR)', mr: 'दोष नोंदवा (NCR)', ta: 'குறைபாட்டைப் பதிவு செய்', te: 'స్నాగ్ నమోదు చేయండి', bn: 'ত্রুটি নথিভুক্ত করুন', gu: 'ખામી નોંધો', kn: 'ದೋಷ ದಾಖಲಿಸಿ', ml: 'സ്നാഗ് രേഖപ്പെടുത്തുക', pa: 'ਖਾਮੀ ਦਰਜ ਕਰੋ', ur: 'نقص درج کریں' },
+  'pettyCash.log': { en: 'Log Site Expense', hi: 'साइट खर्च दर्ज करें', mr: 'साइट खर्च नोंदवा', ta: 'தள செலவை பதிவு செய்', te: 'సైట్ ఖర్చు నమోదు చేయండి', bn: 'সাইট খরচ নথিভুক্ত করুন', gu: 'સાઇટ ખર્ચ નોંધો', kn: 'ಸೈಟ್ ವೆಚ್ಚ ದಾಖಲಿಸಿ', ml: 'സൈറ്റ് ചെലവ് രേഖപ്പെടുത്തുക', pa: 'ਸਾਈਟ ਖਰਚ ਦਰਜ ਕਰੋ', ur: 'سائٹ کا خرچہ درج کریں' },
 
   // Auth
   'auth.login': { en: 'Login', hi: 'लॉगिन', mr: 'लॉगिन', ta: 'உள்நுழைய', te: 'లాగిన్' },
@@ -289,7 +320,7 @@ export const translations: TranslationDict = {
   'inventory.stock.issued': { en: 'Issued', hi: 'जारी', mr: 'जारी', ta: 'வழங்கியது', te: 'జారీ' },
   'inventory.stock.storeOverview': { en: 'Store overview', hi: 'स्टोर अवलोकन', mr: 'स्टोअर आढावा', ta: 'கடை சுருக்கம்', te: 'స్టోర్ అవలోకనం' },
   'inventory.stock.executiveOverview': { en: 'Executive overview', hi: 'कार्यकारी अवलोकन', mr: 'कार्यकारी आढावा', ta: 'நிர்வாக சுருக்கம்', te: 'ఎగ్జిక్యూటివ్ అవలోకనం' },
-  'inventory.stock.summary': { en: 'Stock summary', hi: 'स्टॉक सारांश', mr: 'साठा सारांश', ta: 'சரக்கு சுருக்கம்', te: 'స్టాక్ సారాంశం' },
+  'inventory.stock.summary': { en: 'Stock summary', hi: 'स्टॉक सारांश', mr: 'साठा सारांश', ta: 'சரக்கு சுருக்கம்', te: 'స్టాక్ సారాంశം' },
   'inventory.stock.issue': { en: 'Issue', hi: 'निर्गम', mr: 'इश्यू', ta: 'வழங்கு', te: 'ఇష్యూ' },
   'inventory.stock.adjust': { en: 'Adjust', hi: 'समायोजित करें', mr: 'समायोजित करा', ta: 'சரி செய்', te: 'సర్దుబాటు చేయండి' },
   'inventory.materials.masterSubtitle': {
@@ -300,13 +331,13 @@ export const translations: TranslationDict = {
     te: 'మీ ఐటమ్ మాస్టర్ - ధరలు, పన్ను మరియు ట్రాకింగ్',
   },
   'inventory.materials.importCsv': { en: 'Import CSV', hi: 'CSV आयात करें', mr: 'CSV आयात करा', ta: 'CSV இறக்குமதி', te: 'CSV దిగుమతి' },
-  'inventory.materials.addItem': { en: 'Add item', hi: 'आइटम जोड़ें', mr: 'आयटम जोडा', ta: 'பொருள் சேர்க்க', te: 'అంశాన్ని జోడించండి' },
+  'inventory.materials.addItem': { en: 'Add item', hi: 'आइटम जोड़ें', mr: 'आयटम जोडा', ta: 'பொருள் சேர்க்க', te: 'అంశాన్ని జోಡించండి' },
   'inventory.materials.searchLabel': { en: 'Search items', hi: 'आइटम खोजें', mr: 'आयटम शोधा', ta: 'பொருட்களை தேடு', te: 'అంశాలను వెతకండి' },
   'inventory.materials.inStock': { en: 'in stock', hi: 'स्टॉक में', mr: 'स्टॉकमध्ये', ta: 'கையிருப்பில்', te: 'స్టాక్‌లో' },
   'inventory.materials.outOfStock': { en: 'Out of stock', hi: 'स्टॉक खत्म', mr: 'स्टॉक संपला', ta: 'சரக்கு இல்லை', te: 'స్టాక్ లేదు' },
   'inventory.materials.batchTracked': { en: 'batch expiry tracked', hi: 'बैच एक्सपायरी ट्रैकिंग', mr: 'बॅच एक्सपायरी ट्रॅकिंग', ta: 'பேச் காலாவதி கண்காணிப்பு', te: 'బ్యాచ్ గడువు ట్రాకింగ్' },
   'inventory.materials.earliestExpiry': { en: 'Earliest expiry', hi: 'सबसे नज़दीकी एक्सपायरी', mr: 'सर्वात जवळची एक्सपायरी', ta: 'அடுத்த காலாவதி', te: 'అత్యంత దగ్గరి గడువు' },
-  'inventory.materials.activeBatches': { en: 'active batches', hi: 'सक्रिय बैच', mr: 'सक्रिय बॅच', ta: 'செயலில் உள்ள பேட்ச்கள்', te: 'సక్రియ బ్యాచ్‌లు' },
+  'inventory.materials.activeBatches': { en: 'active batches', hi: 'सक्रिय बैच', mr: 'सक्रिय बॅच', ta: 'செயலில் உள்ள பேட்ச்கள்', te: 'ಸಕ్రియ ಬ್ಯಾಚ್‌లు' },
   'inventory.materials.receiveStock': { en: 'Receive stock', hi: 'स्टॉक प्राप्त करें', mr: 'स्टॉक घ्या', ta: 'சரக்கு பெறுக', te: 'స్టాక్ స్వీకరించండి' },
   'inventory.page.procurement': { en: 'Procurement', hi: 'खरीद', bn: 'ক্রয়', te: 'కొనుగోలు', mr: 'खरेदी', ta: 'கொள்முதல்', ur: 'خریداری', gu: 'ખરીદી', kn: 'ಖರೀದಿ', ml: 'വാങ്ങൽ', pa: 'ਖਰੀਦ', ar: 'المشتريات', es: 'Compras', fr: 'Achats' },
   'inventory.page.sales': { en: 'Sales', hi: 'बिक्री', bn: 'বিক্রি', te: 'అమ్మకాలు', mr: 'विक्री', ta: 'விற்பனை', ur: 'فروخت', gu: 'વેચાણ', kn: 'ಮಾರಾಟ', ml: 'വില്പന', pa: 'ਵਿਕਰੀ', ar: 'المبيعات', es: 'Ventas', fr: 'Ventes' },
@@ -314,7 +345,7 @@ export const translations: TranslationDict = {
   'inventory.page.bills': { en: 'Vendor bills', hi: 'विक्रेता बिल', bn: 'সরবরাহকারী বিল', te: 'వెండర్ బిల్లులు', mr: 'पुरवठादार बिल', ta: 'விற்பனையாளர் பில்கள்', ur: 'وینڈر بل', gu: 'વેન્ડર બિલ', kn: 'ವಿಕ್ರೇತಾ ಬಿಲ್‌ಗಳು', ml: 'വെൻഡർ ബില്ലുകൾ', pa: 'ਵੈਂਡਰ ਬਿਲ', ar: 'فواتير الموردين', es: 'Facturas de proveedores', fr: 'Factures fournisseurs' },
   'inventory.page.warehouse': { en: 'Warehouse', hi: 'गोदाम', bn: 'গুদাম', te: 'గోదాం', mr: 'गोदाम', ta: 'கிடங்கு', ur: 'گودام', gu: 'ગોડાઉન', kn: 'ಗೋದಾಮು', ml: 'ഗോഡൗൺ', pa: 'ਗੋਦਾਮ', ar: 'المستودع', es: 'Almacén', fr: 'Entrepôt' },
   'inventory.page.parties': { en: 'Parties', hi: 'पार्टी', bn: 'পার্টি', te: 'పార్టీలు', mr: 'पार्टी', ta: 'பார்டிகள்', ur: 'پارٹیاں', gu: 'પાર્ટીઓ', kn: 'ಪಕ್ಷಗಳು', ml: 'പാർട്ടികൾ', pa: 'ਪਾਰਟੀਆਂ', ar: 'الأطراف', es: 'Partes', fr: 'Parties' },
-  'inventory.page.notifications': { en: 'Notifications', hi: 'सूचनाएं', bn: 'বিজ্ঞপ্তি', te: 'నోటిఫికేషన్‌లు', mr: 'सूचना', ta: 'அறிவிப்புகள்', ur: 'اطلاعات', gu: 'સૂચનાઓ', kn: 'ಅಧಿಸೂಚನೆಗಳು', ml: 'അറിയിപ്പുകൾ', pa: 'ਸੂਚਨਾਵਾਂ', ar: 'الإشعارات', es: 'Notificaciones', fr: 'Notifications' },
+  'inventory.page.notifications': { en: 'Notifications', hi: 'सूचनाएं', bn: 'বিজ্ঞপ্তি', te: 'నోటిఫಿಕేషన్‌లు', mr: 'सूचना', ta: 'அறிவிப்புகள்', ur: 'اطلاعات', gu: 'સૂચનાઓ', kn: 'ಅಧಿಸೂಚನೆಗಳು', ml: 'അറിയിപ്പുകൾ', pa: 'ਸੂਚਨਾਵਾਂ', ar: 'الإشعارات', es: 'Notificaciones', fr: 'Notifications' },
   'inventory.page.reports': { en: 'Reports & analytics', hi: 'रिपोर्ट और विश्लेषण', bn: 'রিপোর্ট ও বিশ্লেষণ', te: 'రిపోర్టులు మరియు విశ్లేషణలు', mr: 'अहवाल आणि विश्लेषण', ta: 'அறிக்கைகள் மற்றும் பகுப்பாய்வு', ur: 'رپورٹس اور تجزیات', gu: 'રિપોર્ટ અને એનાલિટિક્સ', kn: 'ವರದಿ ಮತ್ತು ವಿಶ್ಲೇಷಣೆ', ml: 'റിപ്പോർട്ടുകളും വിശകലനവും', pa: 'ਰਿਪੋਰਟਾਂ ਅਤੇ ਵਿਸ਼ਲੇਸ਼ਣ', ar: 'التقارير والتحليلات', es: 'Informes y analíticas', fr: 'Rapports et analyses' },
   'inventory.parties.customers': { en: 'Customers', hi: 'ग्राहक', bn: 'গ্রাহক', te: 'కస్టమర్లు', mr: 'ग्राहक', ta: 'வாடிக்கையாளர்கள்', ur: 'گاہک', gu: 'ગ્રાહકો', kn: 'ಗ್ರಾಹಕರು', ml: 'ഉപഭോക്താക്കൾ', pa: 'ਗਾਹਕ', ar: 'العملاء', es: 'Clientes', fr: 'Clients' },
   'inventory.parties.vendors': { en: 'Vendors', hi: 'विक्रेता', bn: 'বিক্রেতা', te: 'వెండర్లు', mr: 'पुरवठादार', ta: 'விற்பனையாளர்கள்', ur: 'فروخت کنندہ', gu: 'વેન્ડરો', kn: 'ವಿಕ್ರೇತರು', ml: 'വെൻഡർമാർ', pa: 'ਵਿਕਰੇਤਾ', ar: 'الموردون', es: 'Proveedores', fr: 'Fournisseurs' },
@@ -336,9 +367,28 @@ export const translations: TranslationDict = {
 };
 
 export function t(key: string, lang: SupportedLanguage = 'en'): string {
+  if (!key) return '';
+  if (lang === 'en') {
+    const entry = translations[key];
+    if (entry) return entry.en ?? key;
+    return key;
+  }
+  
+  // 1. Direct translation key lookup
   const entry = translations[key];
-  if (!entry) return key;
-  return entry[lang] ?? entry.en ?? key;
+  if (entry) {
+    return entry[lang] ?? entry.en ?? key;
+  }
+
+  // 2. Direct string match on English dictionary entry
+  const trimmed = key.trim().toLowerCase();
+  for (const k in translations) {
+    if (translations[k].en?.toLowerCase() === trimmed) {
+      return translations[k][lang] ?? translations[k].en ?? key;
+    }
+  }
+
+  return key;
 }
 
 // Role-based dashboard widget configurations

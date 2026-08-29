@@ -18,6 +18,7 @@ import { useAssistantStore } from '@/stores/assistant.store';
 import { useViewport } from '@/hooks/useViewport';
 import { useVisualViewportFrame } from '@/hooks/useVisualViewportFrame';
 import { tabBarPaddingBottom } from '@/components/layout/fab-layout';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface AppTabBarProps extends BottomTabBarProps {
   allowedTabs: TabName[];
@@ -29,12 +30,13 @@ export function AppTabBar({ allowedTabs }: AppTabBarProps) {
   const { chromeBottom } = useVisualViewportFrame();
   const router = useRouter();
   const pathname = usePathname();
-  const params = useGlobalSearchParams<{ returnTo?: string }>();
+  const params = useGlobalSearchParams<{ returnTo?: string; from?: string }>();
   const returnTo = parseReturnTo(params.returnTo);
   const user = useAuthStore((s) => s.user);
+  const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const activeTab = getActiveTabFromPath(pathname, returnTo);
+  const activeTab = getActiveTabFromPath(pathname, returnTo, params.from);
   const primaryTabs = MOBILE_PRIMARY_TABS.filter((t) => allowedTabs.includes(t));
   const overflowTabs = user ? getMobileOverflowTabs(user.role) : [];
   const appLinks = user ? getAppLinksForRole(user.role) : [];
@@ -60,13 +62,14 @@ export function AppTabBar({ allowedTabs }: AppTabBarProps) {
           {primaryTabs.map((tabName) => {
             const config = TAB_CONFIG[tabName];
             const isActive = activeTab === tabName;
+            const displayLabel = t(config.label);
             return (
               <Pressable
                 key={tabName}
                 onPress={() => navigate(config.href)}
                 className="flex-1 items-center py-2 active:opacity-70"
                 accessibilityRole="button"
-                accessibilityLabel={config.label}
+                accessibilityLabel={displayLabel}
                 accessibilityState={{ selected: isActive }}
               >
                 <View
@@ -86,7 +89,7 @@ export function AppTabBar({ allowedTabs }: AppTabBarProps) {
                   }`}
                   numberOfLines={1}
                 >
-                  {config.label}
+                  {displayLabel}
                 </Text>
                 {isActive && (
                   <View className="w-1 h-1 rounded-full bg-accent mt-0.5" />
@@ -100,7 +103,7 @@ export function AppTabBar({ allowedTabs }: AppTabBarProps) {
               onPress={() => setMenuOpen(true)}
               className="flex-1 items-center py-2 active:opacity-70"
               accessibilityRole="button"
-              accessibilityLabel="More"
+              accessibilityLabel={t('More')}
               accessibilityState={{ selected: isOverflowActive }}
             >
               <View
@@ -118,8 +121,9 @@ export function AppTabBar({ allowedTabs }: AppTabBarProps) {
                 className={`text-[10px] font-semibold ${
                   isOverflowActive ? 'text-primary' : 'text-muted'
                 }`}
+                numberOfLines={1}
               >
-                More
+                {t('More')}
               </Text>
               {isOverflowActive && (
                 <View className="w-1 h-1 rounded-full bg-accent mt-0.5" />
@@ -147,11 +151,12 @@ export function AppTabBar({ allowedTabs }: AppTabBarProps) {
             <View className="items-center pt-3 pb-2">
               <View className="w-10 h-1 rounded-full bg-border" />
             </View>
-            <Text className="text-base font-bold text-text px-5 pb-3">More</Text>
+            <Text className="text-base font-bold text-text px-5 pb-3">{t('More')}</Text>
             <ScrollView className="max-h-80 px-3">
               {overflowTabs.map((tabName) => {
                 const config = TAB_CONFIG[tabName];
                 const isActive = activeTab === tabName;
+                const displayLabel = t(config.label);
                 return (
                   <Pressable
                     key={tabName}
@@ -176,7 +181,7 @@ export function AppTabBar({ allowedTabs }: AppTabBarProps) {
                         isActive ? 'text-primary' : 'text-text'
                       }`}
                     >
-                      {config.label}
+                      {displayLabel}
                     </Text>
                     <Ionicons
                       name="chevron-forward"

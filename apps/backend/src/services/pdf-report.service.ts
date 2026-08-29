@@ -104,7 +104,7 @@ function inr(n: number): string {
 function drawHeader(
   doc: PDFKit.PDFDocument,
   title: string,
-  company?: { name: string; gstin?: string | null; logoUrl?: string | null; address?: string | null },
+  company?: { name: string; gstin?: string | null; logoUrl?: string | null; logoBuffer?: Buffer | null; address?: string | null },
   opts?: { accentColor?: string; showLogo?: boolean },
 ) {
   const accentColor = opts?.accentColor ?? AMBER;
@@ -114,29 +114,35 @@ function drawHeader(
   doc.rect(0, 0, PAGE_W, 6).fill(accentColor);
 
   // RPT-C1: Try to render company logo top-right (skip if showLogo === false)
-  const hasLogo = showLogo && company?.logoUrl && company.logoUrl.startsWith('http');
-  if (hasLogo) {
+  let logoRendered = false;
+  if (showLogo && company?.logoBuffer) {
     try {
-      doc.image(company!.logoUrl!, PAGE_W - MARGIN - 60, 20, { width: 60, height: 40, fit: [60, 40], align: 'right' });
+      doc.image(company.logoBuffer, PAGE_W - MARGIN - 70, 16, { fit: [70, 42], align: 'right' });
+      logoRendered = true;
     } catch {
-      // Logo load failed - fall back to text
-      doc.fillColor(NAVY).fontSize(18).font('Helvetica-Bold').text(company?.name ?? 'BuildFlow', MARGIN, 24);
+      logoRendered = false;
     }
-  } else {
-    doc.fillColor(NAVY).fontSize(18).font('Helvetica-Bold').text(company?.name ?? 'BuildFlow', MARGIN, 24);
   }
+
+  // Company Name on the left
+  doc.fillColor(NAVY).fontSize(16).font('Helvetica-Bold').text(company?.name ?? 'BuildFlow', MARGIN, 20, { width: logoRendered ? CONTENT_W - 80 : CONTENT_W });
 
   // Company GSTIN + address under name
+  let nextY = 38;
   if (company?.gstin) {
-    doc.fillColor(MUTED).fontSize(9).font('Helvetica').text(`GSTIN: ${company.gstin}`, MARGIN, 46);
+    doc.fillColor(MUTED).fontSize(8.5).font('Helvetica').text(`GSTIN: ${company.gstin}`, MARGIN, nextY);
+    nextY += 12;
   }
   if (company?.address) {
-    doc.fillColor(MUTED).fontSize(8).font('Helvetica').text(company.address, MARGIN, 58, { width: 300 });
+    doc.fillColor(MUTED).fontSize(8).font('Helvetica').text(company.address, MARGIN, nextY, { width: logoRendered ? CONTENT_W - 80 : 350 });
+    nextY += 12;
   }
 
-  doc.fillColor(NAVY).fontSize(13).font('Helvetica-Bold').text(title, MARGIN, 72);
-  doc.moveTo(MARGIN, 90).lineTo(PAGE_W - MARGIN, 90).strokeColor(BORDER).lineWidth(1).stroke();
-  doc.y = 100;
+  const titleY = Math.max(nextY + 2, 64);
+  doc.fillColor(NAVY).fontSize(13).font('Helvetica-Bold').text(title, MARGIN, titleY);
+  const lineY = titleY + 18;
+  doc.moveTo(MARGIN, lineY).lineTo(PAGE_W - MARGIN, lineY).strokeColor(BORDER).lineWidth(1).stroke();
+  doc.y = lineY + 10;
 }
 
 /**
@@ -150,22 +156,52 @@ function drawFooter(
 ) {
   const pages = doc.bufferedPageRange();
   const footerCompany = company?.name ?? 'BuildFlow';
-  const footerAddress = company?.address ? ` | ${company.address}` : '';
-  const footerGstin = company?.gstin ? ` | GSTIN: ${company.gstin}` : '';
+  const footerGstin = company?.gstin ? ` · GSTIN: ${company.gstin}` : '';
   const customPrefix = opts?.footerText?.trim();
-  const identity = `${footerCompany}${footerGstin}${footerAddress}`;
-  const footerLead = customPrefix ? `${customPrefix} | ${identity}` : identity;
+  const leftIdentity = customPrefix
+    ? `${customPrefix} | ${footerCompany}${footerGstin}`
+    : `${footerCompany}${footerGstin}`;
+
   for (let i = 0; i < pages.count; i++) {
     doc.switchToPage(pages.start + i);
-    doc.fillColor(MUTED)
-      .fontSize(8)
+    // Zero the bottom margin check so PDFKit never triggers an extra blank page
+    const origBottomMargin = doc.page.margins.bottom;
+    doc.page.margins.bottom = 0;
+
+    const footerY = doc.page.height - 24;
+
+    // Divider rule above footer
+    doc
+      .moveTo(MARGIN, footerY - 5)
+      .lineTo(PAGE_W - MARGIN, footerY - 5)
+      .strokeColor(BORDER)
+      .lineWidth(0.5)
+      .stroke();
+
+    // Left side: Company / Custom Footer
+    doc
+      .fillColor(MUTED)
+      .fontSize(7.5)
       .font('Helvetica')
-      .text(
-        `${footerLead} | Generated ${new Date().toLocaleString('en-IN')} | Page ${i + 1} of ${pages.count}`,
-        MARGIN,
-        doc.page.height - 28,
-        { align: 'center', width: CONTENT_W },
-      );
+      .text(leftIdentity, MARGIN, footerY, {
+        width: CONTENT_W - 150,
+        align: 'left',
+        lineBreak: false,
+      });
+
+    // Right side: Page X of Y · Generated Date
+    const rightText = `Page ${i + 1} of ${pages.count} · ${new Date().toLocaleDateString('en-IN')}`;
+    doc
+      .fillColor(MUTED)
+      .fontSize(7.5)
+      .font('Helvetica')
+      .text(rightText, PAGE_W - MARGIN - 150, footerY, {
+        width: 150,
+        align: 'right',
+        lineBreak: false,
+      });
+
+    doc.page.margins.bottom = origBottomMargin;
   }
 }
 
@@ -234,9 +270,68 @@ function fmtDate(d: Date | null | undefined): string {
  * RPT-C1b: Load company for PDF with resolved logo URL + report settings.
  * Centralizes the company query + logo resolution for all PDF generators.
  */
-export type PdfCompany = Awaited<ReturnType<typeof loadCompanyForPdf>>;
+export interface PdfCompany {
+  name: string;
+  gstin?: string | null;
+  address?: string | null;
+  logoUrl?: string | null;
+  logoBuffer?: Buffer | null;
+  reportSettings: Record<string, unknown>;
+  accentColor: string;
+}
 
-export async function loadCompanyForPdf(companyId: string) {
+/**
+ * RPT-C1: Safely load image bytes as Buffer for PDFKit.
+ * Supports:
+ *   - Base64 data URLs (`data:image/png;base64,...`)
+ *   - HTTP / HTTPS URLs (fetched with timeout)
+ *   - Local filesystem paths
+ */
+export async function fetchLogoBuffer(urlOrPath: string | null | undefined): Promise<Buffer | null> {
+  if (!urlOrPath) return null;
+
+  // 1. Data URLs
+  if (urlOrPath.startsWith('data:')) {
+    const commaIndex = urlOrPath.indexOf(',');
+    if (commaIndex !== -1) {
+      try {
+        return Buffer.from(urlOrPath.slice(commaIndex + 1), 'base64');
+      } catch {
+        return null;
+      }
+    }
+  }
+
+  // 2. HTTP / HTTPS URLs
+  if (urlOrPath.startsWith('http://') || urlOrPath.startsWith('https://')) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(urlOrPath, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (res.ok) {
+        const arrayBuf = await res.arrayBuffer();
+        return Buffer.from(arrayBuf);
+      }
+    } catch {
+      // Network fetch failed or timed out
+    }
+  }
+
+  // 3. Local filesystem path fallback
+  try {
+    const fs = await import('fs');
+    if (fs.existsSync(urlOrPath)) {
+      return fs.readFileSync(urlOrPath);
+    }
+  } catch {
+    // Filesystem read failed
+  }
+
+  return null;
+}
+
+export async function loadCompanyForPdf(companyId: string): Promise<PdfCompany> {
   const company = await prisma.company.findFirstOrThrow({
     where: { id: companyId },
     select: {
@@ -250,11 +345,20 @@ export async function loadCompanyForPdf(companyId: string) {
   const logoDisplayUrl = await resolveLogoDisplayUrl(companyId, company.logoUrl);
   const settings = (company.reportSettings as Record<string, unknown> | null) ?? {};
   const accentColor = (settings.accentColor as string) ?? AMBER;
+
+  let logoBuffer: Buffer | null = null;
+  if (logoDisplayUrl) {
+    logoBuffer = await fetchLogoBuffer(logoDisplayUrl);
+  } else if (company.logoUrl && (company.logoUrl.startsWith('data:') || company.logoUrl.startsWith('http'))) {
+    logoBuffer = await fetchLogoBuffer(company.logoUrl);
+  }
+
   return {
     name: company.name,
     gstin: company.gstin,
     address: company.address,
     logoUrl: logoDisplayUrl,
+    logoBuffer,
     reportSettings: settings,
     accentColor,
   };
@@ -274,29 +378,34 @@ function footerOptsFromCompany(company?: PdfCompany | null) {
   return { footerText: footerText.trim() };
 }
 
-/** RPT-WM1: Faint centered logo watermark on every page when showWatermark is true. */
+/** RPT-WM1: Centered logo watermark on every page when showWatermark is true. */
 function drawBrandedWatermark(doc: PDFKit.PDFDocument, company?: PdfCompany | null) {
   if (company?.reportSettings?.showWatermark !== true) return;
-  const logoUrl = company.logoUrl;
-  if (!logoUrl?.startsWith('http')) return;
+  const logoBuffer = company?.logoBuffer;
+  if (!logoBuffer) return;
 
   const pages = doc.bufferedPageRange();
-  const wmSize = 180;
+  const wmSize = 300; // Increased size for bold watermark
   const pageH = doc.page.height;
 
   for (let i = 0; i < pages.count; i++) {
     doc.switchToPage(pages.start + i);
+    const origBottomMargin = doc.page.margins.bottom;
+    doc.page.margins.bottom = 0;
+
     const x = (PAGE_W - wmSize) / 2;
     const y = (pageH - wmSize) / 2;
     try {
       doc.save();
-      doc.opacity(0.08);
-      doc.image(logoUrl, x, y, { fit: [wmSize, wmSize], align: 'center', valign: 'center' });
+      doc.opacity(0.14); // Increased opacity for distinct, professional appearance
+      doc.image(logoBuffer, x, y, { fit: [wmSize, wmSize], align: 'center', valign: 'center' });
       doc.restore();
     } catch {
       doc.restore();
-      // Logo fetch/decode failed - skip watermark for this page
+      // Logo watermark render failed - skip watermark for this page
     }
+
+    doc.page.margins.bottom = origBottomMargin;
   }
 }
 

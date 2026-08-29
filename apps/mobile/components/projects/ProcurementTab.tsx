@@ -88,12 +88,12 @@ type SubTab = 'indents' | 'pos' | 'stock' | 'shortfalls';
 export function ProcurementTab({ projectId }: { projectId: string }) {
   const router = useRouter();
   const { isDesktop } = useViewport();
-  const user = useAuthStore((s) => s.user);
-  const canCreate = user?.role === 'OWNER' || user?.role === 'PM' || user?.role === 'SUPERVISOR';
-  const canApprove = user?.role === 'OWNER' || user?.role === 'PM';
-  const canCreatePO = user?.role === 'OWNER' || user?.role === 'PM' || user?.role === 'ACCOUNTANT';
-  // R9-B1: Use granular permission instead of role check
-  const canCreateBill = usePermission('bill.create' as never);
+  const canCreate = usePermission('procurement.create_indent');
+  const canApprove = usePermission('procurement.approve_indent');
+  const canCreatePO = usePermission('procurement.approve_po');
+  const canIndentFromBoq = usePermission('procurement.indent_from_boq');
+  const canViewRates = usePermission('procurement.view_rates');
+  const canCreateBill = usePermission('bill.create');
 
   const [subTab, setSubTab] = useState<SubTab>('indents');
 
@@ -103,10 +103,15 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
   return (
     <View className="gap-3">
       {/* Sub-tab bar */}
-      <SubTabBar active={subTab} onChange={setSubTab} counts={{
-        indents: requisitions.length,
-        pos: requisitions.filter((r: Requisition) => r.purchaseOrders?.length).length,
-      }} />
+      <SubTabBar
+        active={subTab}
+        onChange={setSubTab}
+        counts={{
+          indents: requisitions.length,
+          pos: requisitions.filter((r: Requisition) => r.purchaseOrders?.length).length,
+        }}
+        canIndentFromBoq={canIndentFromBoq}
+      />
 
       {subTab === 'indents' && (
         <IndentsSection
@@ -115,6 +120,8 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
           canApprove={canApprove}
           canCreatePO={canCreatePO}
           canCreateBill={canCreateBill}
+          canIndentFromBoq={canIndentFromBoq}
+          canViewRates={canViewRates}
           requisitions={requisitions}
           isLoading={reqQ.isLoading}
           allReqs={requisitions}
@@ -124,7 +131,7 @@ export function ProcurementTab({ projectId }: { projectId: string }) {
 
       {subTab === 'stock' && <StockSection projectId={projectId} />}
 
-      {subTab === 'shortfalls' && (
+      {subTab === 'shortfalls' && canIndentFromBoq && (
         <ShortfallsSection projectId={projectId} canCreate={canCreate} />
       )}
     </View>
@@ -139,15 +146,17 @@ function SubTabBar({
   active,
   onChange,
   counts,
+  canIndentFromBoq = true,
 }: {
   active: SubTab;
   onChange: (tab: SubTab) => void;
   counts: { indents: number; pos: number };
+  canIndentFromBoq?: boolean;
 }) {
   const tabs: { key: SubTab; label: string; count?: number }[] = [
     { key: 'indents', label: 'Indents', count: counts.indents },
     { key: 'stock', label: 'Stock' },
-    { key: 'shortfalls', label: 'Shortfalls' },
+    ...(canIndentFromBoq ? [{ key: 'shortfalls' as const, label: 'Shortfalls' }] : []),
   ];
 
   return (
@@ -186,6 +195,8 @@ function IndentsSection({
   canApprove,
   canCreatePO,
   canCreateBill,
+  canIndentFromBoq = true,
+  canViewRates = true,
   requisitions,
   isLoading,
   allReqs,
@@ -196,6 +207,8 @@ function IndentsSection({
   canApprove: boolean;
   canCreatePO: boolean;
   canCreateBill: boolean;
+  canIndentFromBoq?: boolean;
+  canViewRates?: boolean;
   requisitions: Requisition[];
   isLoading: boolean;
   allReqs: Requisition[];
@@ -542,6 +555,8 @@ function IndentsSection({
             boqItems={boqItems}
             shortfalls={shortfalls}
             canRemove={draftLines.length > 1}
+            canIndentFromBoq={canIndentFromBoq}
+            canViewRates={canViewRates}
             onChange={(updated) => updateDraftLine(line.id, updated)}
             onRemove={() => removeDraftLine(line.id)}
             stockByResource={stockByResource}
@@ -563,9 +578,11 @@ function IndentsSection({
         </Pressable>
         <View className="rounded-lg bg-primary/10 p-3 flex-row justify-between items-center">
           <Text className="text-sm font-semibold text-text">
-            {draftLineCount} item{draftLineCount === 1 ? '' : 's'} · est. total
+            {draftLineCount} item{draftLineCount === 1 ? '' : 's'}{canViewRates ? ' · est. total' : ''}
           </Text>
-          <Text className="text-base font-bold text-primary">Rs {draftTotal.toFixed(0)}</Text>
+          {canViewRates ? (
+            <Text className="text-base font-bold text-primary">Rs {draftTotal.toFixed(0)}</Text>
+          ) : null}
         </View>
       </AdaptiveSheet>
 

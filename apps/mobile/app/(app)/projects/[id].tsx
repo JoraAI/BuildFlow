@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl, Linking, Share, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -23,6 +23,10 @@ import { ProjectReportsTab } from '@/components/projects/ProjectReportsTab';
 import { BoqTab } from '@/components/projects/BoqTab';
 import { BillsTab } from '@/components/projects/BillsTab';
 import { ResourcesTab } from '@/components/projects/ResourcesTab';
+import { PettyCashTab } from '@/components/projects/PettyCashTab';
+import { DrawingsTab } from '@/components/projects/DrawingsTab';
+import { SnagsTab } from '@/components/projects/SnagsTab';
+import { LaborWagesTab } from '@/components/projects/LaborWagesTab';
 import { ProjectMembersSection } from '@/components/projects/ProjectMembersSection';
 import { ProjectMaterialRatesSection } from '@/components/projects/ProjectMaterialRatesSection';
 import { ProjectStatusSection } from '@/components/projects/ProjectStatusSection';
@@ -31,9 +35,25 @@ import { TermHint } from '@/components/ui/TermHint';
 import { PROJECT_TAB_HINTS } from '@/constants/project-workflow';
 import { useCreatePortalAccess } from '@/services/expansion.queries';
 import { useAuthStore } from '@/stores/auth.store';
+import { useTranslation } from '@/hooks/useTranslation';
 import { formatINR, formatINRCompact, formatDate, daysBetween } from '@/utils/format';
 
-type Tab = 'overview' | 'estimate' | 'schedule' | 'boq' | 'bills' | 'variations' | 'procurement' | 'subcontracts' | 'resources' | 'reports' | 'settings';
+type Tab =
+  | 'overview'
+  | 'estimate'
+  | 'schedule'
+  | 'boq'
+  | 'bills'
+  | 'variations'
+  | 'procurement'
+  | 'subcontracts'
+  | 'pettyCash'
+  | 'drawings'
+  | 'snags'
+  | 'laborWages'
+  | 'resources'
+  | 'reports'
+  | 'settings';
 
 const TABS: { label: string; value: Tab }[] = [
   { label: 'Overview', value: 'overview' },
@@ -44,6 +64,10 @@ const TABS: { label: string; value: Tab }[] = [
   { label: 'Variations', value: 'variations' },
   { label: 'Procurement', value: 'procurement' },
   { label: 'Subcontracts', value: 'subcontracts' },
+  { label: 'Petty Cash', value: 'pettyCash' },
+  { label: 'Drawings', value: 'drawings' },
+  { label: 'Snags / NCR', value: 'snags' },
+  { label: 'Labor & Wages', value: 'laborWages' },
   { label: 'Resources', value: 'resources' },
   { label: 'Reports', value: 'reports' },
   { label: 'Settings', value: 'settings' },
@@ -61,6 +85,50 @@ export default function ProjectDetailScreen() {
     ? changeOrderIdParam[0]
     : changeOrderIdParam;
   const { isDesktop } = useViewport();
+  const perms = useAuthStore((s) => s.user?.permissions);
+  const isOwner = useAuthStore((s) => s.user?.role === 'OWNER');
+  const { t: translate } = useTranslation();
+
+  const visibleTabs = useMemo(() => {
+    return TABS.filter((t) => {
+      if (isOwner || !perms) return true;
+      switch (t.value) {
+        case 'overview':
+          return true;
+        case 'estimate':
+          return perms.includes('estimate.view');
+        case 'schedule':
+          return perms.includes('planning.view');
+        case 'boq':
+          return perms.includes('boq.view');
+        case 'bills':
+          return perms.includes('bill.view');
+        case 'variations':
+          return perms.includes('change_order.view');
+        case 'procurement':
+          return perms.includes('procurement.view');
+        case 'subcontracts':
+          return perms.includes('subcontract.view');
+        case 'pettyCash':
+          return perms.includes('petty_cash.view');
+        case 'drawings':
+          return perms.includes('drawing.view');
+        case 'snags':
+          return perms.includes('snag.view');
+        case 'laborWages':
+          return perms.includes('labor.view');
+        case 'resources':
+          return perms.includes('project.view');
+        case 'reports':
+          return perms.includes('report.view');
+        case 'settings':
+          return perms.includes('project.edit') || perms.includes('settings.company');
+        default:
+          return true;
+      }
+    });
+  }, [perms, isOwner]);
+
   // Persist the active tab in the URL so it survives a page refresh.
   // On first load, read the ?tab= param. On tab change, update the URL.
   // This ensures F5/refresh keeps the user on the same tab.
@@ -144,16 +212,16 @@ export default function ProjectDetailScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerClassName={isDesktop ? 'py-2 gap-2' : 'px-4 py-2 gap-2'}
         >
-          {TABS.map((t) => (
+          {visibleTabs.map((tabItem: { label: string; value: Tab }) => (
             <Pressable
-              key={t.value}
-              onPress={() => setTab(t.value)}
+              key={tabItem.value}
+              onPress={() => setTab(tabItem.value)}
               className={`px-4 py-2 rounded-full ${
-                tab === t.value ? 'bg-primary' : 'bg-card border border-border'
+                tab === tabItem.value ? 'bg-primary' : 'bg-card border border-border'
               }`}
             >
-              <Text className={`text-sm font-semibold ${tab === t.value ? 'text-white' : 'text-muted'}`}>
-                {t.label}
+              <Text className={`text-sm font-semibold ${tab === tabItem.value ? 'text-white' : 'text-muted'}`}>
+                {translate(tabItem.label)}
               </Text>
             </Pressable>
           ))}
@@ -185,6 +253,10 @@ export default function ProjectDetailScreen() {
       )}
       {tab === 'procurement' && <ProcurementTab projectId={id} />}
       {tab === 'subcontracts' && <SubcontractsTab projectId={id} />}
+      {tab === 'pettyCash' && <PettyCashTab projectId={id} />}
+      {tab === 'drawings' && <DrawingsTab projectId={id} />}
+      {tab === 'snags' && <SnagsTab projectId={id} />}
+      {tab === 'laborWages' && <LaborWagesTab projectId={id} />}
       {tab === 'resources' && <ResourcesTab projectId={id} />}
       {tab === 'reports' && <ProjectReportsTab projectId={id} />}
       {tab === 'settings' && <SettingsTab projectId={id} />}
@@ -206,6 +278,7 @@ export default function ProjectDetailScreen() {
             <PageHeader
               title={project.name}
               subtitle={`${project.code} · ${project.clientName}`}
+              onBack={() => dismissTo(DISMISS.projects)}
               actions={
                 <View className="flex-row gap-1">
                   <Badge color="primary" label={project.type} />

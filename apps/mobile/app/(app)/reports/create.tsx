@@ -24,6 +24,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 import {
   Card,
   Button,
@@ -39,6 +40,7 @@ import { dismissTo, DISMISS } from '@/utils/navigation';
 import { todayDateOnly } from '@/utils/date-field';
 import { alertAsync } from '@/utils/confirm';
 import { useAppStore } from '@/stores/app.store';
+import { useLaborMusterStore } from '@/stores/labor-muster.store';
 import { useViewport } from '@/hooks/useViewport';
 import {
   useProjects,
@@ -219,11 +221,14 @@ export default function CreateReportScreen() {
   const [issues, setIssues] = useState('');
 
   const resetForm = useCallback((projectIdForForm: string, dateOverride?: string) => {
+    const targetDate =
+      dateOverride && /^\d{4}-\d{2}-\d{2}$/.test(dateOverride) ? dateOverride : todayDateOnly();
+    const musterForDate = useLaborMusterStore.getState().getMuster(projectIdForForm, targetDate);
     setStep(1);
     setFormError(null);
-    setReportDate(dateOverride && /^\d{4}-\d{2}-\d{2}$/.test(dateOverride) ? dateOverride : todayDateOnly());
+    setReportDate(targetDate);
     setWeather(null);
-    setWorkersCount('');
+    setWorkersCount(musterForDate?.totalHeadcount ? String(musterForDate.totalHeadcount) : '');
     setSiteStatus(null);
     setWorkDone('');
     setTaskSearch('');
@@ -255,6 +260,13 @@ export default function CreateReportScreen() {
   }, [resetToken, routeId, projects, activeProjectId, resetForm, setActiveProject, initialDate]);
 
   const projectId = isProjectLocked ? routeId! : selectedProjectId;
+  const syncedMuster = useLaborMusterStore((s) => s.getMuster(projectId, reportDate));
+
+  React.useEffect(() => {
+    if (syncedMuster?.totalHeadcount && (!workersCount || workersCount === '0')) {
+      setWorkersCount(String(syncedMuster.totalHeadcount));
+    }
+  }, [syncedMuster, workersCount]);
 
   const createMut = useCreateReport(projectId);
   const uploadMut = useUploadReportPhoto();
@@ -578,6 +590,53 @@ export default function CreateReportScreen() {
                     helper="Total workers on site today."
                   />
                 </Card>
+
+                {syncedMuster && (
+                  <Card className="p-4 border border-emerald-500/30 bg-emerald-500/5">
+                    <View className="flex-row items-center justify-between mb-2">
+                      <View className="flex-row items-center gap-2">
+                        <Ionicons name="people" size={18} color="#10B981" />
+                        <Text className="text-sm font-bold text-text">Synced from Morning Muster</Text>
+                      </View>
+                      <Badge label="Muster Linked" color="success" />
+                    </View>
+                    <Text className="text-xs text-muted mb-2.5">
+                      Muster records {syncedMuster.totalHeadcount} workers on site with{' '}
+                      {syncedMuster.totalOtHours.toFixed(1)} hrs OT.
+                    </Text>
+
+                    <View className="flex-row flex-wrap gap-1.5 mb-3">
+                      {syncedMuster.trades
+                        .filter((t) => t.headcount > 0)
+                        .map((t) => (
+                          <View
+                            key={t.id}
+                            className="bg-card border border-border px-2.5 py-1 rounded-md flex-row items-center gap-1.5"
+                          >
+                            <Text className="text-xs font-semibold text-text">{t.trade}:</Text>
+                            <Text className="text-xs font-bold text-primary">{t.headcount}</Text>
+                            {t.otHours > 0 ? (
+                              <Text className="text-[10px] text-amber-600 font-medium">
+                                ({t.otHours}h OT)
+                              </Text>
+                            ) : null}
+                          </View>
+                        ))}
+                    </View>
+
+                    {workersCount !== String(syncedMuster.totalHeadcount) ? (
+                      <Button
+                        label={`Apply Muster Count (${syncedMuster.totalHeadcount} workers)`}
+                        size="sm"
+                        variant="secondary"
+                        onPress={() => setWorkersCount(String(syncedMuster.totalHeadcount))}
+                        icon={
+                          <Ionicons name="checkmark-circle-outline" size={14} color="#1E3A5F" />
+                        }
+                      />
+                    ) : null}
+                  </Card>
+                )}
               </View>
             )}
 
@@ -593,6 +652,33 @@ export default function CreateReportScreen() {
                     multiline
                     fullWidth
                   />
+                  {syncedMuster && syncedMuster.trades.some((t) => t.headcount > 0) && (
+                    <View className="mt-3 pt-3 border-t border-border">
+                      <Pressable
+                        onPress={() => {
+                          const tradeSummary = syncedMuster.trades
+                            .filter((t) => t.headcount > 0)
+                            .map(
+                              (t) =>
+                                `${t.headcount} ${t.trade}${
+                                  t.otHours > 0 ? ` (${t.otHours}h OT)` : ''
+                                }`,
+                            )
+                            .join(', ');
+                          const musterNote = `Labor Deployed: ${tradeSummary} (Total ${syncedMuster.totalHeadcount} workers on site).`;
+                          setWorkDone((prev) =>
+                            prev ? `${prev}\n\n${musterNote}` : musterNote,
+                          );
+                        }}
+                        className="flex-row items-center gap-1.5 bg-primary/10 self-start px-3 py-1.5 rounded-lg border border-primary/20 active:opacity-75"
+                      >
+                        <Ionicons name="add-circle-outline" size={14} color="#1E3A5F" />
+                        <Text className="text-xs font-semibold text-primary">
+                          Insert Muster Labor Breakdown into Work Done
+                        </Text>
+                      </Pressable>
+                    </View>
+                  )}
                 </Card>
 
                 {taskDrafts.length > 0 && (

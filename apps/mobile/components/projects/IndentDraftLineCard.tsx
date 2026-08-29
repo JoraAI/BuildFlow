@@ -90,6 +90,8 @@ export function IndentDraftLineCard({
   boqItems,
   shortfalls,
   canRemove,
+  canIndentFromBoq = true,
+  canViewRates = true,
   onChange,
   onRemove,
   onExplode,
@@ -102,6 +104,8 @@ export function IndentDraftLineCard({
   boqItems: BoqItem[];
   shortfalls: BoqShortfall[];
   canRemove: boolean;
+  canIndentFromBoq?: boolean;
+  canViewRates?: boolean;
   onChange: (line: IndentDraftLine) => void;
   onRemove: () => void;
   /** When set, selecting a composite BOQ item (with rateAnalysisId) will
@@ -137,51 +141,62 @@ export function IndentDraftLineCard({
 
   const options: SelectOption[] = useMemo(() => {
     const opts: SelectOption[] = [];
-    for (const b of boqItems) {
-      // Only show procurement-relevant BOQ items: MATERIAL and MISC.
-      // Skip LABOUR (daily reports), SUBCONTRACTOR (work orders), and
-      // EQUIPMENT (rented via hire orders, not stocked via GRN).
-      if (['LABOUR', 'SUBCONTRACTOR', 'EQUIPMENT'].includes(b.category ?? '')) continue;
 
-      const preview = shortfalls.find((s) => s.boqItemId === b.id);
-      const remaining = b.balanceQty ?? Math.max(0, parseFloat(b.quantity) - (b.executedQty ?? 0));
-      const shortfall = preview?.shortfall ?? remaining;
-      const boqQty = parseFloat(b.quantity);
-      const executed = b.executedQty ?? 0;
-      const procured = b.procuredQty ?? 0;
-      opts.push({
-        value: encodeBoq(b.id),
-        title: `${b.itemCode} · ${b.description.slice(0, 60)}${b.description.length > 60 ? '…' : ''}`,
-        subtitle: `BOQ: ${boqQty} ${b.unit} @ Rs ${parseFloat(b.rate)}`,
-        meta: shortfall > 0 ? `Shortfall: ${shortfall} ${b.unit}` : 'Covered',
-        tooltip: shortfall > 0
-          ? `BOQ: ${boqQty} ${b.unit} · Executed: ${executed} · Procured: ${procured} · Balance: ${remaining} ${b.unit}`
-          : undefined,
-        groupKey: 'From BOQ',
-        tone: shortfall > 0 ? 'warning' : 'success',
-      });
+    // BOQ items and Rate Analysis are only available if the user's role has
+    // the `procurement.indent_from_boq` permission. Otherwise, only Catalog
+    // Materials are available.
+    if (canIndentFromBoq) {
+      for (const b of boqItems) {
+        // Only show procurement-relevant BOQ items: MATERIAL and MISC.
+        // Skip LABOUR (daily reports), SUBCONTRACTOR (work orders), and
+        // EQUIPMENT (rented via hire orders, not stocked via GRN).
+        if (['LABOUR', 'SUBCONTRACTOR', 'EQUIPMENT'].includes(b.category ?? '')) continue;
+
+        const preview = shortfalls.find((s) => s.boqItemId === b.id);
+        const remaining = b.balanceQty ?? Math.max(0, parseFloat(b.quantity) - (b.executedQty ?? 0));
+        const shortfall = preview?.shortfall ?? remaining;
+        const boqQty = parseFloat(b.quantity);
+        const executed = b.executedQty ?? 0;
+        const procured = b.procuredQty ?? 0;
+        opts.push({
+          value: encodeBoq(b.id),
+          title: `${b.itemCode} · ${b.description.slice(0, 60)}${b.description.length > 60 ? '…' : ''}`,
+          subtitle: `BOQ: ${boqQty} ${b.unit}${canViewRates ? ` @ Rs ${parseFloat(b.rate)}` : ''}`,
+          meta: shortfall > 0 ? `Shortfall: ${shortfall} ${b.unit}` : 'Covered',
+          tooltip: shortfall > 0
+            ? `BOQ: ${boqQty} ${b.unit} · Executed: ${executed} · Procured: ${procured} · Balance: ${remaining} ${b.unit}`
+            : undefined,
+          groupKey: 'From BOQ',
+          tone: shortfall > 0 ? 'warning' : 'success',
+        });
+      }
     }
+
     for (const m of materials.slice(0, 100)) {
       opts.push({
         value: encodeMat(m.id),
         title: m.name,
         subtitle: `${m.type} · ${m.unit}`,
-        meta: `Rs ${parseFloat(m.rate)}`,
+        meta: canViewRates ? `Rs ${parseFloat(m.rate)}` : undefined,
         groupKey: 'Catalog Materials',
       });
     }
-    for (const ra of analyses.slice(0, 50)) {
-      opts.push({
-        value: encodeRa(ra.id),
-        title: ra.name,
-        subtitle: `Rate Analysis · ${ra.unit}`,
-        meta: `Rs ${parseFloat(ra.totalRate)}`,
-        groupKey: 'Rate Analysis (Composite)',
-        tone: 'accent',
-      });
+
+    if (canIndentFromBoq) {
+      for (const ra of analyses.slice(0, 50)) {
+        opts.push({
+          value: encodeRa(ra.id),
+          title: ra.name,
+          subtitle: `Rate Analysis · ${ra.unit}`,
+          meta: canViewRates ? `Rs ${parseFloat(ra.totalRate)}` : undefined,
+          groupKey: 'Rate Analysis (Composite)',
+          tone: 'accent',
+        });
+      }
     }
+
     return opts;
-  }, [boqItems, materials, analyses, shortfalls]);
+  }, [boqItems, materials, analyses, shortfalls, canIndentFromBoq, canViewRates]);
 
   const rateQ = useMaterialRate(projectId, line.resourceId, {
     boqItemId: line.boqItemId || undefined,
@@ -545,25 +560,27 @@ export function IndentDraftLineCard({
             placeholder="0"
           />
         </View>
-        <View className="flex-1">
-          <Input
-            label="Unit Rate (₹)"
-            value={line.expectedRate}
-            onChangeText={(expectedRate) =>
-              onChange({
-                ...line,
-                expectedRate,
-                rateSource: 'MANUAL',
-                rateManual: true,
-              })
-            }
-            keyboardType="numeric"
-            placeholder="0"
-          />
-        </View>
+        {canViewRates ? (
+          <View className="flex-1">
+            <Input
+              label="Unit Rate (₹)"
+              value={line.expectedRate}
+              onChangeText={(expectedRate) =>
+                onChange({
+                  ...line,
+                  expectedRate,
+                  rateSource: 'MANUAL',
+                  rateManual: true,
+                })
+              }
+              keyboardType="numeric"
+              placeholder="0"
+            />
+          </View>
+        ) : null}
       </View>
 
-      {rateQ.data && !line.rateManual ? (
+      {canViewRates && rateQ.data && !line.rateManual ? (
         <Text className="text-[10px] text-primary">
           Auto: Rs {rateQ.data.rate} ({RATE_SOURCE_LABEL[rateQ.data.source] ?? rateQ.data.source})
         </Text>

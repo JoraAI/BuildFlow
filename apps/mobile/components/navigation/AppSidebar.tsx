@@ -12,6 +12,7 @@ import {
   type TabName,
 } from '@/constants/navigation';
 import { parseReturnTo } from '@/utils/navigation';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface AppSidebarProps {
   allowedTabs: TabName[];
@@ -20,11 +21,12 @@ interface AppSidebarProps {
 export function AppSidebar({ allowedTabs }: AppSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const params = useGlobalSearchParams<{ returnTo?: string }>();
+  const params = useGlobalSearchParams<{ returnTo?: string; from?: string }>();
   const returnTo = parseReturnTo(params.returnTo);
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
-  const activeTab = getActiveTabFromPath(pathname, returnTo);
+  const { t } = useTranslation();
+  const activeTab = getActiveTabFromPath(pathname, returnTo, params.from);
   const allowedSet = new Set<string>(allowedTabs);
 
   const handleLogout = async () => {
@@ -53,7 +55,7 @@ export function AppSidebar({ allowedTabs }: AppSidebarProps) {
           </View>
           {user?.companyName ? (
             <View className="mt-4 bg-white/8 rounded-lg px-3 py-2 border border-white/10">
-              <Text className="text-white/50 text-[10px] uppercase tracking-wide">Company</Text>
+              <Text className="text-white/50 text-[10px] uppercase tracking-wide">{t('Company')}</Text>
               <Text className="text-white text-sm font-semibold mt-0.5" numberOfLines={1}>
                 {user.companyName}
               </Text>
@@ -74,7 +76,7 @@ export function AppSidebar({ allowedTabs }: AppSidebarProps) {
           return (
             <View key={group.title} className="mb-5">
               <Text className="text-white/40 text-[10px] font-bold uppercase tracking-widest px-3 mb-2">
-                {group.title}
+                {t(group.title)}
               </Text>
               {groupTabs.map((tabName) => {
                 const config = TAB_CONFIG[tabName];
@@ -106,7 +108,7 @@ export function AppSidebar({ allowedTabs }: AppSidebarProps) {
                         isActive ? 'text-white' : 'text-white/70'
                       }`}
                     >
-                      {config.label}
+                      {t(config.label)}
                     </Text>
                   </Pressable>
                 );
@@ -141,7 +143,7 @@ export function AppSidebar({ allowedTabs }: AppSidebarProps) {
                         isActive ? 'text-white' : 'text-white/70'
                       }`}
                     >
-                      {link.label}
+                      {t(link.label)}
                     </Text>
                   </Pressable>
                 );
@@ -172,7 +174,7 @@ export function AppSidebar({ allowedTabs }: AppSidebarProps) {
             className="flex-row items-center px-3 py-2.5 rounded-xl active:bg-white/8"
           >
             <Ionicons name="log-out-outline" size={18} color="#FFFFFF99" />
-            <Text className="ml-3 text-sm font-medium text-white/70">Sign out</Text>
+            <Text className="ml-3 text-sm font-medium text-white/70">{t('Logout')}</Text>
           </Pressable>
         </View>
       )}

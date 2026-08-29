@@ -55,15 +55,9 @@ export default function ProjectAccountingScreen() {
           <PageHeader
             title={project?.name ?? 'Project Accounting'}
             subtitle={project?.clientName ?? 'Invoices & vendor bills'}
+            onBack={() => dismissTo(DISMISS.accounting)}
             actions={
               <View className="flex-row gap-2">
-                <Button
-                  label="Back"
-                  size="sm"
-                  variant="secondary"
-                  onPress={() => dismissTo(DISMISS.accounting)}
-                  icon={<Ionicons name="arrow-back" size={16} color="#1E3A5F" />}
-                />
                 {tallyButton}
                 <Button
                   label={tab === 'invoices' ? 'New Invoice' : 'New Bill'}

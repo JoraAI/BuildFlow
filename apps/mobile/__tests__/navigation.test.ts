@@ -12,6 +12,7 @@ import {
   inventoryStockItemHref,
   createEstimateHref,
 } from '@/utils/navigation-paths';
+import { getActiveTabFromPath, getBreadcrumbs } from '@/constants/navigation';
 
 describe('parseReturnTo', () => {
   it('decodes encoded returnTo param', () => {
@@ -86,5 +87,32 @@ describe('href helpers', () => {
       estimateId: 'est-9',
     });
     expect(href).toContain('estimateId=est-9');
+  });
+});
+
+describe('getActiveTabFromPath and from navigation context', () => {
+  it('highlights proposals tab when material-prices is opened from proposals', () => {
+    expect(getActiveTabFromPath('/settings/material-prices', null, 'proposals')).toBe('proposals');
+  });
+
+  it('highlights settings tab when material-prices is opened from settings', () => {
+    expect(getActiveTabFromPath('/settings/material-prices', null, 'settings')).toBe('settings');
+  });
+
+  it('highlights dashboard tab when material-prices is opened from dashboard', () => {
+    expect(getActiveTabFromPath('/settings/material-prices', null, 'dashboard')).toBe('dashboard');
+  });
+
+  it('defaults to settings tab when opened directly without from param', () => {
+    expect(getActiveTabFromPath('/settings/material-prices', null, null)).toBe('settings');
+  });
+
+  it('builds context-aware breadcrumbs when opened from proposals', () => {
+    const crumbs = getBreadcrumbs('/settings/material-prices', undefined, null, 'proposals');
+    expect(crumbs).toEqual([
+      { label: 'BuildFlow', href: '/dashboard' },
+      { label: 'Proposals', href: '/proposals' },
+      { label: 'Material Prices' },
+    ]);
   });
 });

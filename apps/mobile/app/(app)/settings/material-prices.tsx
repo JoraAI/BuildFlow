@@ -37,7 +37,7 @@ import {
 import { formatINR, formatDate } from '@/utils/format';
 import { todayDateOnly } from '@/utils/date-field';
 import { alertAsync, confirmAsync } from '@/utils/confirm';
-import { navigateAppBack, DISMISS } from '@/utils/navigation';
+import { dismissTo, navigateAppBack, DISMISS } from '@/utils/navigation';
 import { ApiError } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth.store';
 import {
@@ -300,19 +300,19 @@ export default function MaterialPriceTrackerScreen() {
         maxWidth="default"
         refreshing={isFetching}
         onRefresh={refetch}
-        onBack={() =>
-          navigateAppBack(
-            from === 'estimation'
-              ? DISMISS.estimation
-              : from === 'proposals'
-                ? DISMISS.proposals
-                : from === 'projects'
-                  ? DISMISS.projects
-                  : from === 'dashboard'
-                    ? DISMISS.dashboard
-                    : DISMISS.settings,
-          )
-        }
+        onBack={() => {
+          if (from === 'proposals') {
+            dismissTo(DISMISS.proposals);
+          } else if (from === 'estimation') {
+            dismissTo(DISMISS.estimation);
+          } else if (from === 'projects') {
+            dismissTo(DISMISS.projects);
+          } else if (from === 'dashboard') {
+            dismissTo(DISMISS.dashboard);
+          } else {
+            dismissTo(DISMISS.settings);
+          }
+        }}
         actions={
           canManage && isDesktop ? (
             <Button

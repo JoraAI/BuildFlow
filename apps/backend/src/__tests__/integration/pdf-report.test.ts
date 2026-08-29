@@ -265,4 +265,51 @@ describe('PDF report line-item completeness (RPT-C4)', () => {
     const getRes = await authGet(token, '/api/settings/report-settings');
     expect(getRes.status).toBe(200);
   });
+
+  // RPT-C2b & RPT-WM1: Updates branding settings with logo and verifies PDF branding + watermark
+  it('updates branding settings with logo and renders branded PDF + watermark', async () => {
+    // 1. Update report settings (accent color, showLogo, showWatermark, footerText)
+    const updateRes = await request(app)
+      .patch('/api/settings/report-settings')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        accentColor: '#0D9488',
+        showLogo: true,
+        showWatermark: true,
+        footerText: 'Confidential - BuildFlow ERP Report',
+      });
+    expect(updateRes.status).toBe(200);
+
+    // 2. Set a valid base64 PNG logo on the company
+    const { prisma } = await import('../../lib/prisma');
+    const meRes = await authGet(token, '/api/auth/me');
+    const companyId = meRes.body.data.companyId as string;
+
+    // 1x1 transparent PNG data URL
+    const testLogoDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    await prisma.company.update({
+      where: { id: companyId },
+      data: { logoUrl: testLogoDataUrl },
+    });
+
+    // 3. Load company for PDF and verify logoBuffer is resolved
+    const { loadCompanyForPdf, reportProjectProgress } = await import('../../services/pdf-report.service');
+    const company = await loadCompanyForPdf(companyId);
+    expect(company.logoBuffer).not.toBeNull();
+    expect(company.reportSettings.showLogo).toBe(true);
+    expect(company.reportSettings.showWatermark).toBe(true);
+    expect(company.reportSettings.footerText).toBe('Confidential - BuildFlow ERP Report');
+    expect(company.accentColor).toBe('#0D9488');
+
+    // 4. Generate progress PDF with branding and watermark
+    const pdfResult = await reportProjectProgress(companyId, projectId);
+    expect(pdfResult.buffer).toBeInstanceOf(Buffer);
+    expect(pdfResult.buffer.length).toBeGreaterThan(500);
+
+    // 5. Test measurement book endpoint with branding active
+    const pdfRes = await authGet(token, `/api/reports/pdf/projects/${projectId}/measurement-book`);
+    expect(pdfRes.status).toBe(200);
+    expect(pdfRes.headers['content-type']).toContain('application/pdf');
+    expect(pdfRes.body.length).toBeGreaterThan(500);
+  });
 });

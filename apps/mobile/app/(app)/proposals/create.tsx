@@ -89,6 +89,7 @@ export default function CreateProposalScreen() {
             <PageHeader
               title="New Proposal"
               subtitle="Create a quote for your client before starting a full project"
+              onBack={() => navigateAppBack(DISMISS.proposals)}
             />
             <ScrollView contentContainerClassName="gap-4 pb-8 max-w-5xl">
               <ProposalForm

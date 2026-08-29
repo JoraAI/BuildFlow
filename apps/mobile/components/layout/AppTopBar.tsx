@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Pressable, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, usePathname, useGlobalSearchParams } from 'expo-router';
@@ -9,18 +9,22 @@ import { getBreadcrumbs, getProjectIdFromPath, getProjectIdFromReturnTo } from '
 import { parseReturnTo } from '@/utils/navigation';
 import { CompanyLogo } from '@/components/ui/Avatar';
 import { ProjectSearchField } from '@/components/layout/ProjectSearchField';
+import { LanguageSwitcherModal } from '@/components/common/LanguageSwitcherModal';
+import { useTranslation } from '@/hooks/useTranslation';
 
 export function AppTopBar() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const pathname = usePathname();
-  const params = useGlobalSearchParams<{ returnTo?: string }>();
+  const params = useGlobalSearchParams<{ returnTo?: string; from?: string }>();
   const returnTo = parseReturnTo(params.returnTo);
   const user = useAuthStore((s) => s.user);
+  const [langModalVisible, setLangModalVisible] = useState(false);
+  const { language, t } = useTranslation();
 
   const projectId = getProjectIdFromPath(pathname) ?? getProjectIdFromReturnTo(returnTo);
   const { data: project } = useProject(projectId ?? '');
-  const breadcrumbs = getBreadcrumbs(pathname, project?.name, returnTo);
+  const breadcrumbs = getBreadcrumbs(pathname, project?.name, returnTo, params.from);
 
   const today = new Date().toLocaleDateString('en-IN', {
     weekday: 'short',
@@ -55,7 +59,7 @@ export function AppTopBar() {
           <View className="flex-row items-center bg-surface rounded-lg px-3 py-1.5 border border-border shrink max-w-[200px] gap-2">
             <CompanyLogo name={user.companyName} logoUrl={user.companyLogoUrl} size={28} />
             <View className="flex-1 min-w-0">
-              <Text className="text-[10px] text-muted uppercase tracking-wide">Company</Text>
+              <Text className="text-[10px] text-muted uppercase tracking-wide">{t('Company')}</Text>
               <Text className="text-sm font-semibold text-text" numberOfLines={1}>
                 {user.companyName}
               </Text>
@@ -66,19 +70,20 @@ export function AppTopBar() {
         <View className="flex-row items-center gap-2 flex-1 min-w-0">
           {breadcrumbs.slice(1).map((crumb, index) => {
             const isLast = index === breadcrumbs.slice(1).length - 1;
+            const translatedLabel = t(crumb.label);
             return (
               <React.Fragment key={`${crumb.label}-${index}`}>
                 {index > 0 && <Ionicons name="chevron-forward" size={12} color="#94A3B8" />}
                 {crumb.href && !isLast ? (
                   <Pressable onPress={() => router.push(crumb.href as never)}>
-                    <Text className="text-sm text-muted hover:text-primary">{crumb.label}</Text>
+                    <Text className="text-sm text-muted hover:text-primary">{translatedLabel}</Text>
                   </Pressable>
                 ) : (
                   <Text
                     className={`text-sm ${isLast ? 'font-semibold text-text' : 'text-muted'}`}
                     numberOfLines={1}
                   >
-                    {crumb.label}
+                    {translatedLabel}
                   </Text>
                 )}
               </React.Fragment>
@@ -89,6 +94,15 @@ export function AppTopBar() {
 
       <View className="flex-row items-center gap-3 shrink-0">
         <ProjectSearchField />
+
+        {/* 1-Tap Language Switcher */}
+        <Pressable
+          onPress={() => setLangModalVisible(true)}
+          className="flex-row items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface border border-border active:bg-border/50"
+        >
+          <Ionicons name="globe-outline" size={16} color="#1E3A5F" />
+          <Text className="text-xs font-semibold text-text uppercase">{language}</Text>
+        </Pressable>
 
         <Text className="text-xs text-muted">{today}</Text>
 
@@ -120,6 +134,11 @@ export function AppTopBar() {
           </Pressable>
         )}
       </View>
+
+      <LanguageSwitcherModal
+        visible={langModalVisible}
+        onClose={() => setLangModalVisible(false)}
+      />
     </View>
   );
 }

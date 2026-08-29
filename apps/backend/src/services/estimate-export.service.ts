@@ -80,7 +80,12 @@ async function buildExcelBranding(company: PdfCompany): Promise<ExcelBranding> {
   const rawFooter = company.reportSettings.footerText;
   const footerText = typeof rawFooter === 'string' && rawFooter.trim() ? rawFooter.trim() : undefined;
   let logoImage: ExcelBranding['logoImage'];
-  if (showLogo && company.logoUrl?.startsWith('http')) {
+  if (showLogo && company.logoBuffer) {
+    logoImage = {
+      buffer: new Uint8Array(company.logoBuffer),
+      extension: company.logoUrl?.toLowerCase().includes('.png') ? 'png' : 'jpeg',
+    };
+  } else if (showLogo && company.logoUrl?.startsWith('http')) {
     logoImage = (await fetchLogoImage(company.logoUrl)) ?? undefined;
   }
   return { accentArgb, showLogo, footerText, logoImage };

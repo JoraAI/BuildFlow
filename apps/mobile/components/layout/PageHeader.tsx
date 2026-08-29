@@ -1,9 +1,13 @@
 import React from 'react';
 import { View, Text } from 'react-native';
+import { NavBackButton } from '@/components/layout/NavBackButton';
 
 interface PageHeaderProps {
   title: string;
   subtitle?: string;
+  /** Optional back navigation handler - renders at top-left before title */
+  onBack?: () => void;
+  backLabel?: string;
   /** Right-side actions (buttons, filters, etc.) */
   actions?: React.ReactNode;
   /** Optional stat chips below title on desktop */
@@ -12,20 +16,38 @@ interface PageHeaderProps {
   variant?: 'default' | 'inverse';
 }
 
-export function PageHeader({ title, subtitle, actions, stats, variant = 'default' }: PageHeaderProps) {
+export function PageHeader({
+  title,
+  subtitle,
+  onBack,
+  backLabel = 'Back',
+  actions,
+  stats,
+  variant = 'default',
+}: PageHeaderProps) {
   const isInverse = variant === 'inverse';
   return (
     <View className="mb-6">
-      <View className="flex-row items-start justify-between gap-4">
-        <View className="flex-1">
-          <Text className={`text-3xl font-bold tracking-tight ${isInverse ? 'text-white' : 'text-text'}`}>
-            {title}
-          </Text>
-          {subtitle ? (
-            <Text className={`text-base mt-1 ${isInverse ? 'text-white/75' : 'text-muted'}`}>
-              {subtitle}
-            </Text>
+      <View className="flex-row items-center justify-between gap-4">
+        <View className="flex-row items-center gap-3 flex-1 min-w-0">
+          {onBack ? (
+            <NavBackButton
+              onPress={onBack}
+              label={backLabel}
+              size="sm"
+              variant={isInverse ? 'inverse' : 'default'}
+            />
           ) : null}
+          <View className="flex-1 min-w-0">
+            <Text className={`text-3xl font-bold tracking-tight ${isInverse ? 'text-white' : 'text-text'}`}>
+              {title}
+            </Text>
+            {subtitle ? (
+              <Text className={`text-base mt-1 ${isInverse ? 'text-white/75' : 'text-muted'}`}>
+                {subtitle}
+              </Text>
+            ) : null}
+          </View>
         </View>
         {actions ? <View className="flex-row items-center gap-2 shrink-0">{actions}</View> : null}
       </View>

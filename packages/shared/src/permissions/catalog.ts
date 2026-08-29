@@ -22,6 +22,7 @@ export const PERMISSIONS = {
 
   // ── BOQ ────────────────────────────────────────────────────────────
   'boq.view': 'View Bill of Quantities',
+  'boq.view_rates': 'View financial rates & amounts in BOQ',
   'boq.edit': 'Create / edit / delete BOQ items',
   'boq.record_measurement': 'Record BOQ measurements (executed qty)',
   'boq.import': 'Import BOQ via CSV',
@@ -43,11 +44,17 @@ export const PERMISSIONS = {
   // ── Procurement & Inventory ────────────────────────────────────────
   'procurement.view': 'View indents, POs & GRNs',
   'procurement.create_indent': 'Create material indents / requisitions',
+  'procurement.indent_from_boq': 'Indent / purchase from BOQ list & shortfalls',
+  'procurement.view_rates': 'View expected rates & estimated amounts in indents',
   'procurement.approve_indent': 'Approve material indents / requisitions',
+  'procurement.create_direct_po': 'Create direct Purchase Orders without requisition',
+  'procurement.override_rates': 'Override material rates during PO creation',
   'procurement.approve_po': 'Approve purchase orders',
   'procurement.record_grn': 'Record goods receipt notes (GRN)',
+  'procurement.excess_order': 'Order quantities exceeding BOQ estimated limits',
   'stock.view': 'View stock levels & movements',
-  'stock.manage': 'Manage stock movements (in / out / adjust)',
+  'stock.manage': 'Manage stock movements (in / out / transfer)',
+  'stock.adjust': 'Perform manual stock adjustments',
 
   // ── Subcontracting ─────────────────────────────────────────────────
   'subcontract.view': 'View subcontractor work orders',
@@ -77,6 +84,26 @@ export const PERMISSIONS = {
   'change_order.view': 'View change orders / variations',
   'change_order.create': 'Create change orders',
   'change_order.approve': 'Approve / reject change orders',
+
+  // ── Site Petty Cash & Float ─────────────────────────────────────────
+  'petty_cash.view': 'View site petty cash & expense vouchers',
+  'petty_cash.create': 'Log site petty cash expenses & snap receipts',
+  'petty_cash.approve': 'Approve / reject petty cash expense vouchers',
+
+  // ── Drawings & Blueprints ───────────────────────────────────────────
+  'drawing.view': 'View blueprints & architectural / structural drawings',
+  'drawing.upload': 'Upload project drawings & new revisions',
+  'drawing.manage': 'Manage drawing status & approval revisions',
+
+  // ── Snag List & Quality NCRs ────────────────────────────────────────
+  'snag.view': 'View snag list & defect items',
+  'snag.create': 'Log new site snags & defect evidence photos',
+  'snag.rectify': 'Rectify, update status & sign-off snags / NCRs',
+
+  // ── Labor Muster & Wages ────────────────────────────────────────────
+  'labor.view': 'View site gang muster & wage settlement sheets',
+  'labor.muster_edit': 'Record morning gang muster & overtime hours',
+  'labor.wage_settle': 'Approve & settle weekly labor wage payouts',
 
   // ── Proposals & Portals ────────────────────────────────────────────
   'proposal.view': 'View proposals',
@@ -124,7 +151,7 @@ export const PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] =
   },
   {
     label: 'BOQ',
-    permissions: ['boq.view', 'boq.edit', 'boq.record_measurement', 'boq.import'],
+    permissions: ['boq.view', 'boq.view_rates', 'boq.edit', 'boq.record_measurement', 'boq.import'],
   },
   {
     label: 'Projects & Planning',
@@ -146,11 +173,17 @@ export const PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] =
     permissions: [
       'procurement.view',
       'procurement.create_indent',
+      'procurement.indent_from_boq',
+      'procurement.view_rates',
       'procurement.approve_indent',
+      'procurement.create_direct_po',
+      'procurement.override_rates',
       'procurement.approve_po',
       'procurement.record_grn',
+      'procurement.excess_order',
       'stock.view',
       'stock.manage',
+      'stock.adjust',
     ],
   },
   {
@@ -176,6 +209,22 @@ export const PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] =
   {
     label: 'Change Orders',
     permissions: ['change_order.view', 'change_order.create', 'change_order.approve'],
+  },
+  {
+    label: 'Site Petty Cash',
+    permissions: ['petty_cash.view', 'petty_cash.create', 'petty_cash.approve'],
+  },
+  {
+    label: 'Drawings & Blueprints',
+    permissions: ['drawing.view', 'drawing.upload', 'drawing.manage'],
+  },
+  {
+    label: 'Snag List & Quality NCRs',
+    permissions: ['snag.view', 'snag.create', 'snag.rectify'],
+  },
+  {
+    label: 'Labor Muster & Wages',
+    permissions: ['labor.view', 'labor.muster_edit', 'labor.wage_settle'],
   },
   {
     label: 'Proposals & Portals',

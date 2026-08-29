@@ -284,7 +284,7 @@ export default function DashboardScreen() {
             const change = first ? ((last - first) / first) * 100 : 0;
             const up = change > 0;
             return (
-              <Pressable key={m.resourceId} onPress={() => router.push('/settings/material-prices')}>
+              <Pressable key={m.resourceId} onPress={() => router.push('/(app)/settings/material-prices?from=dashboard')}>
                 <View className="flex-row justify-between items-center">
                   <Text className="text-sm font-semibold text-text" numberOfLines={1}>{m.name}</Text>
                   <Text className={`text-xs ${up ? 'text-danger' : 'text-success'}`}>

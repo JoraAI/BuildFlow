@@ -17,7 +17,8 @@ export type OfflineOperationType =
   | 'CREATE_RFI'
   | 'ANSWER_RFI'
   | 'CREATE_ATTENDANCE'
-  | 'UPDATE_ATTENDANCE';
+  | 'UPDATE_ATTENDANCE'
+  | 'CREATE_PETTY_CASH';
 
 export interface OfflineOperation {
   id: string;

@@ -123,8 +123,29 @@ export function getProjectIdFromReturnTo(returnTo: string | null | undefined): s
   return getProjectIdFromPath(pathOnly);
 }
 
-export function getActiveTabFromPath(pathname: string, returnTo?: string | null): string {
-  const source = returnTo?.split('?')[0] ?? pathname;
+export function getActiveTabFromPath(
+  pathname: string,
+  returnTo?: string | null,
+  from?: string | string[] | null,
+): string {
+  const fromStr = Array.isArray(from) ? from[0] : from;
+  let source = returnTo?.split('?')[0];
+  if (!source && fromStr) {
+    if (fromStr === 'proposals' || fromStr === 'estimation') {
+      source = '/proposals';
+    } else if (fromStr === 'dashboard') {
+      source = '/dashboard';
+    } else if (fromStr === 'projects') {
+      source = '/projects';
+    } else if (fromStr === 'settings') {
+      source = '/settings';
+    } else if (fromStr in TAB_CONFIG) {
+      source = `/${fromStr}`;
+    }
+  }
+  if (!source) {
+    source = pathname;
+  }
   if (isReportsHubPath(source)) return 'reportsHub';
   const segment = source.split('/').filter(Boolean)[0] ?? 'dashboard';
   return segment in TAB_CONFIG ? segment : 'dashboard';
@@ -138,6 +159,8 @@ function nestedRouteLabel(segments: string[]): string | null {
   if (root === 'reports' && second && second !== 'create' && !second.startsWith('check-in')) return 'Report';
   if (root === 'projects' && second === 'create') return 'New project';
   if (root === 'proposals' && second === 'create') return 'New proposal';
+  if (root === 'settings' && second) return SETTINGS_CHILD_LABELS[second] ?? second.replace(/-/g, ' ');
+  if (root === 'estimation' && second === 'rate-analysis') return 'Rate Analysis';
   return null;
 }
 
@@ -146,13 +169,34 @@ export function getBreadcrumbs(
   pathname: string,
   projectName?: string,
   returnTo?: string | null,
+  from?: string | string[] | null,
 ): Breadcrumb[] {
   const normalized = normalizePath(pathname);
   const segments = normalized.split('/').filter(Boolean);
+  const fromStr = Array.isArray(from) ? from[0] : from;
 
   if (returnTo) {
     const basePath = returnTo.split('?')[0] ?? returnTo;
-    const baseCrumbs = getBreadcrumbs(basePath, projectName);
+    const rawCrumbs = getBreadcrumbs(basePath, projectName);
+    const baseCrumbs = rawCrumbs.map((c, i, arr) => {
+      if (i === arr.length - 1 && !c.href) {
+        return { ...c, href: basePath };
+      }
+      return c;
+    });
+    const childLabel = nestedRouteLabel(segments);
+    return childLabel ? [...baseCrumbs, { label: childLabel }] : baseCrumbs;
+  }
+
+  if (fromStr && (fromStr === 'proposals' || fromStr === 'dashboard' || fromStr === 'projects')) {
+    const basePath = `/${fromStr}`;
+    const rawCrumbs = getBreadcrumbs(basePath, projectName);
+    const baseCrumbs = rawCrumbs.map((c, i, arr) => {
+      if (i === arr.length - 1 && !c.href) {
+        return { ...c, href: basePath };
+      }
+      return c;
+    });
     const childLabel = nestedRouteLabel(segments);
     return childLabel ? [...baseCrumbs, { label: childLabel }] : baseCrumbs;
   }

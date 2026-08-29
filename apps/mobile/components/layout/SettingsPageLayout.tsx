@@ -51,16 +51,9 @@ export function SettingsPageLayout({
           <PageHeader
             title={title}
             subtitle={subtitle}
-            actions={
-              backControl || actions ? (
-                <View className="flex-row items-center gap-2">
-                  {backControl}
-                  {actions}
-                </View>
-              ) : (
-                actions
-              )
-            }
+            onBack={showBack ? handleBack : undefined}
+            backLabel={backLabel}
+            actions={actions}
           />
           <View className={contentMax}>{children}</View>
         </ScreenContainer>
