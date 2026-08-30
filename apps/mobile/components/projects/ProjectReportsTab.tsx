@@ -203,11 +203,28 @@ export function ProjectReportsTab({ projectId }: ProjectReportsTabProps) {
 }
 
 function ReportRow({ item, onPress }: { item: ReportListItem; onPress: () => void }) {
+  const weatherIcon = item.weather === 'SUNNY'
+    ? '☀️'
+    : item.weather === 'CLOUDY'
+    ? '☁️'
+    : item.weather === 'RAIN'
+    ? '🌧️'
+    : item.weather === 'STORM'
+    ? '⛈️'
+    : item.weather === 'FOG'
+    ? '🌫️'
+    : item.weather
+    ? '🌤️'
+    : null;
+
   return (
     <Pressable onPress={onPress} accessibilityRole="button">
       <Card className="p-3 mb-2">
         <View className="flex-row items-center justify-between mb-1">
-          <Text className="text-sm font-semibold text-text">{formatDate(item.reportDate)}</Text>
+          <View className="flex-row items-center gap-2">
+            <Text className="text-sm font-semibold text-text">{formatDate(item.reportDate)}</Text>
+            {weatherIcon ? <Text className="text-sm">{weatherIcon}</Text> : null}
+          </View>
           <Badge label={item.siteStatus ?? 'LOGGED'} color={siteStatusColor(item.siteStatus)} />
         </View>
         {item.workDone ? (
@@ -216,9 +233,14 @@ function ReportRow({ item, onPress }: { item: ReportListItem; onPress: () => voi
           </Text>
         ) : null}
         <View className="flex-row flex-wrap gap-x-3 gap-y-1 mt-2">
-          <Text className="text-xs text-muted">{item.workersCount} workers</Text>
-          <Text className="text-xs text-muted">{item.materialUsages.length} materials</Text>
-          <Text className="text-xs text-muted">{item.photos.length} photos</Text>
+          <Text className="text-xs text-muted font-medium">👥 {item.workersCount} workers</Text>
+          {item.materialUsages?.length ? (
+            <Text className="text-xs text-muted">📦 {item.materialUsages.length} materials</Text>
+          ) : null}
+          {item.photos?.length ? (
+            <Text className="text-xs text-muted">📷 {item.photos.length} photos</Text>
+          ) : null}
+          <Text className="text-xs text-muted">👤 {item.reportedByUser?.name}</Text>
         </View>
       </Card>
     </Pressable>

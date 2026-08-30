@@ -839,6 +839,31 @@ export default function CreateReportScreen() {
                     fullWidth
                   />
                 </Card>
+
+                {/* Day Summary Preview before Submit */}
+                <Card className="p-4 border border-primary/20 bg-surface">
+                  <View className="flex-row items-center justify-between mb-2">
+                    <Text className="text-sm font-bold text-text">Report Summary</Text>
+                    <Badge label={siteStatus ?? 'ON_SCHEDULE'} color={siteStatus === 'DELAYED' ? 'warning' : siteStatus === 'BLOCKED' ? 'danger' : 'success'} />
+                  </View>
+                  <View className="flex-row flex-wrap gap-2 pt-1">
+                    {weather && (
+                      <View className="flex-row items-center gap-1 bg-surface-dark px-2.5 py-1 rounded-md border border-border">
+                        <Text className="text-xs">
+                          {weather === 'SUNNY' ? '☀️ Sunny' : weather === 'CLOUDY' ? '☁️ Cloudy' : weather === 'RAIN' ? '🌧️ Rain' : weather === 'STORM' ? '⛈️ Storm' : '🌫️ Fog'}
+                        </Text>
+                      </View>
+                    )}
+                    <View className="flex-row items-center gap-1 bg-surface-dark px-2.5 py-1 rounded-md border border-border">
+                      <Text className="text-xs text-text font-medium">👥 {workersCount || '0'} Workers</Text>
+                    </View>
+                    {materials.length > 0 && (
+                      <View className="flex-row items-center gap-1 bg-surface-dark px-2.5 py-1 rounded-md border border-border">
+                        <Text className="text-xs text-text font-medium">📦 {materials.length} Materials</Text>
+                      </View>
+                    )}
+                  </View>
+                </Card>
               </View>
             )}
           </View>

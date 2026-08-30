@@ -15,7 +15,6 @@ import {
 import {
   NewSalesOrderModal, NewChallanModal, SalesReturnModal, PurchaseReturnModal, DispatchChallanSheet, NewQuoteModal,
 } from '@/components/inventory/TransactionModals';
-import { QuickReturnScanModal } from '@/components/inventory/QuickReturnScanModal';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 import {
   useQuotes, useCreateQuote, useQuoteAction, useQuoteToSalesOrder, type Quote,
@@ -53,7 +52,6 @@ export default function InventorySalesScreen() {
   const [dispatchChallan, setDispatchChallan] = useState<DeliveryChallan | null>(null);
   const [salesReturnOpen, setSalesReturnOpen] = useState(false);
   const [purchaseReturnOpen, setPurchaseReturnOpen] = useState(false);
-  const [quickReturnOpen, setQuickReturnOpen] = useState(false);
   const approveSalesReturn = useApproveSalesReturn();
 
   const orders = useSalesOrders();
@@ -578,13 +576,17 @@ export default function InventorySalesScreen() {
               {tab === 'returns' ? (
                 <View className="flex-row flex-wrap gap-2 pb-2">
                   <Button
-                    label="POS Scan & Return"
+                    label="+ New sales return"
                     size="sm"
                     variant="accent"
-                    onPress={() => setQuickReturnOpen(true)}
+                    onPress={() => setSalesReturnOpen(true)}
                   />
-                  <Button label="New sales return" size="sm" variant="secondary" onPress={() => setSalesReturnOpen(true)} />
-                  <Button label="New purchase return" size="sm" variant="secondary" onPress={() => setPurchaseReturnOpen(true)} />
+                  <Button
+                    label="+ New purchase return"
+                    size="sm"
+                    variant="secondary"
+                    onPress={() => setPurchaseReturnOpen(true)}
+                  />
                 </View>
               ) : null}
             </View>
@@ -666,16 +668,6 @@ export default function InventorySalesScreen() {
               setSalesReturnOpen(false);
               router.push('/inventory/invoices' as never);
             });
-          }}
-        />
-      ) : null}
-      {quickReturnOpen ? (
-        <QuickReturnScanModal
-          open={quickReturnOpen}
-          projectId={projectId}
-          onClose={() => setQuickReturnOpen(false)}
-          onSuccess={(returnNumber) => {
-            toast.success(`Return voucher ${returnNumber} created`);
           }}
         />
       ) : null}

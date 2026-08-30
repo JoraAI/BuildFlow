@@ -1,15 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, Modal, ScrollView, Pressable } from 'react-native';
-import { Button, Input, Select } from '@/components/ui';
+import { View, Text, Modal, ScrollView, Pressable, TextInput, Platform } from 'react-native';
+import { Button, Input, Select, Badge } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
 import { useAuthStore } from '@/stores/auth.store';
 import { useCustomers } from '@/services/party.queries';
 import { useResources } from '@/services/estimate.queries';
 import { useInvoices, useBills } from '@/services/accounting.queries';
 import { useStockSummary } from '@/services/expansion.queries';
-import { useSalesOrders } from '@/services/sales.queries';
+import { useSalesOrders, useValidateReturnScan } from '@/services/sales.queries';
 import { useWarehouses, type Warehouse } from '@/services/warehouse.queries';
 import { useEffectiveRates } from '@/services/inventory-gtm.queries';
+import { BarcodeScannerOverlay } from '@/components/inventory/BarcodeScannerOverlay';
+import { Ionicons } from '@expo/vector-icons';
 
 function Sheet({
   title,
@@ -624,7 +626,7 @@ export function DispatchChallanSheet({
   );
 }
 
-/* ── Sales return (from a sent/paid invoice) ──────────────────────── */
+/* ── Sales return (from a sent/paid invoice or quick scan) ────────── */
 export function SalesReturnModal({
   open,
   projectId,
@@ -650,12 +652,21 @@ export function SalesReturnModal({
 }) {
   const { isPhone } = useViewport();
   const { data: invoices } = useInvoices(projectId);
+  const { data: resourceData } = useResources();
+  const resources: Array<{ id: string; name: string; unit: string; barcode?: string | null; sku?: string | null }> =
+    Array.isArray(resourceData) ? resourceData : (resourceData?.data ?? []);
+
   const [invoiceId, setInvoiceId] = useState('');
   const [returnDate, setReturnDate] = useState(new Date().toISOString().slice(0, 10));
   const [reason, setReason] = useState('');
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [scanBuffer, setScanBuffer] = useState('');
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanToast, setScanToast] = useState('');
+
+  const validateScan = useValidateReturnScan();
 
   useEffect(() => {
     if (open) {
@@ -664,22 +675,112 @@ export function SalesReturnModal({
       setReason('');
       setLines([{ key: newKey(), resourceId: '', quantity: '', rate: '', gstRate: '18', unit: '', returnKind: 'GOOD' }]);
       setError('');
+      setScanBuffer('');
+      setScanToast('');
     }
   }, [open]);
 
   const invoiceOptions = useMemo(
     () =>
-      (invoices ?? []).filter((i: { id: string; status: string; invoiceNumber: string; clientName: string; lineItems: Array<{ description: string; quantity: number }> }) =>
+      (invoices ?? []).filter((i: { id: string; status: string; invoiceNumber: string; clientName: string }) =>
         ['SENT', 'PAID', 'OVERDUE'].includes(i.status),
       ).map((i: { id: string; invoiceNumber: string; clientName: string }) => ({ title: `${i.invoiceNumber} · ${i.clientName}`, value: i.id })),
     [invoices],
   );
-  const selectedInvoice = (invoices ?? []).find((i: { id: string; status: string; invoiceNumber: string; clientName: string; lineItems: Array<{ description: string; quantity: number }> }) => i.id === invoiceId);
+  const selectedInvoice = (invoices ?? []).find((i: { id: string; status: string; invoiceNumber: string; clientName: string; lineItems?: Array<{ description: string; quantity: number }> }) => i.id === invoiceId);
+
+  // Handle barcode / fast scan
+  const handleBarcodeScan = async (code: string) => {
+    const trimmed = code.trim();
+    if (!trimmed) return;
+    setError('');
+    setScanToast('');
+
+    try {
+      const result = await validateScan.mutateAsync({
+        barcode: trimmed,
+        invoiceId: invoiceId || undefined,
+      });
+
+      if (!result.isValidDispatch || result.matchingLines.length === 0) {
+        setError(`"${result.resource.name}" was not found in dispatches.`);
+        return;
+      }
+
+      // Auto-lock invoice if not chosen yet
+      if (!invoiceId && result.matchingLines.length > 0) {
+        setInvoiceId(result.matchingLines[0].invoiceId);
+      }
+
+      const match = result.matchingLines[0];
+      setLines((prev) => {
+        const clean = prev.filter((l) => l.resourceId);
+        const existingIdx = clean.findIndex((l) => l.resourceId === result.resource.id);
+        if (existingIdx >= 0) {
+          const current = clean[existingIdx];
+          const currQty = Number(current.quantity) || 0;
+          const nextQty = Math.min(currQty + 1, result.maxReturnable);
+          if (nextQty === currQty && currQty >= result.maxReturnable) {
+            setError(`Max returnable limit (${result.maxReturnable} ${result.resource.unit}) reached for "${result.resource.name}".`);
+            return clean;
+          }
+          const updated = [...clean];
+          updated[existingIdx] = { ...current, quantity: String(nextQty) };
+          return updated;
+        }
+
+        const initQty = Math.min(1, result.maxReturnable);
+        return [
+          ...clean,
+          {
+            key: newKey(),
+            resourceId: result.resource.id,
+            quantity: String(initQty),
+            unit: result.resource.unit || 'no',
+            rate: String(match.rate),
+            gstRate: String(match.gstRate ?? 18),
+            returnKind: 'GOOD',
+          },
+        ];
+      });
+
+      setScanToast(`Scanned: ${result.resource.name} (${match.invoiceNumber})`);
+      setScanBuffer('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Item verification failed');
+    }
+  };
+
+  // Hardware scanner key listener on Web
+  useEffect(() => {
+    if (!open || Platform.OS !== 'web' || typeof window === 'undefined') return;
+    let buffer = '';
+    let lastKeyTime = Date.now();
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return;
+      const now = Date.now();
+      if (now - lastKeyTime > 100) buffer = '';
+      lastKeyTime = now;
+      if (e.key === 'Enter') {
+        if (buffer.length >= 2) {
+          void handleBarcodeScan(buffer);
+          buffer = '';
+        }
+      } else if (e.key.length === 1) {
+        buffer += e.key;
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open, invoiceId]);
 
   const submit = async () => {
     setError('');
     if (!invoiceId) {
-      setError('Pick an invoice to return against.');
+      setError('Pick an invoice or scan an item to link the return.');
       return;
     }
     const goodLines = lines.filter((l) => l.resourceId && Number(l.quantity) > 0);
@@ -715,36 +816,105 @@ export function SalesReturnModal({
     <Sheet
       visible={open}
       title="New sales return"
-      subtitle="Good items restock; damaged items are scrapped. A draft credit note is created."
+      subtitle="Restock good items or scrap damaged goods. Creates an automated draft credit note."
       fullScreen
       saving={saving}
       onClose={onClose}
     >
+      {/* Fast POS Barcode Scanner Section */}
+      <View className="bg-primary/5 rounded-xl border border-primary/20 p-3 mb-3">
+        <View className="flex-row items-center justify-between mb-2">
+          <View className="flex-row items-center gap-1.5">
+            <Ionicons name="barcode-outline" size={18} color="#0284c7" />
+            <Text className="text-xs font-bold text-primary uppercase tracking-wide">POS Scan & Match</Text>
+          </View>
+          <Pressable
+            onPress={() => setScannerOpen(true)}
+            className="flex-row items-center gap-1 bg-primary px-2.5 py-1 rounded-md active:opacity-80"
+          >
+            <Ionicons name="camera-outline" size={14} color="#ffffff" />
+            <Text className="text-xs font-semibold text-white">Camera Scan</Text>
+          </Pressable>
+        </View>
+        <View className="flex-row gap-2">
+          <View className="flex-1">
+            <TextInput
+              value={scanBuffer}
+              onChangeText={setScanBuffer}
+              onSubmitEditing={() => handleBarcodeScan(scanBuffer)}
+              placeholder="Scan barcode / enter SKU..."
+              placeholderTextColor="#94a3b8"
+              className="bg-card text-text border border-border rounded-lg px-3 py-2 text-sm"
+              returnKeyType="search"
+            />
+          </View>
+          <Button
+            label="Lookup"
+            size="sm"
+            variant="secondary"
+            onPress={() => handleBarcodeScan(scanBuffer)}
+            disabled={!scanBuffer.trim()}
+          />
+        </View>
+        {scanToast ? (
+          <View className="flex-row items-center gap-1.5 mt-2 bg-success/10 border border-success/20 px-2.5 py-1.5 rounded-md">
+            <Ionicons name="checkmark-circle" size={14} color="#16a34a" />
+            <Text className="text-xs text-success font-medium flex-1">{scanToast}</Text>
+          </View>
+        ) : null}
+      </View>
+
       <Select
-        label="Invoice"
+        label="Target Tax Invoice"
         value={invoiceId || undefined}
         options={invoiceOptions}
         onChange={(v) => setInvoiceId(v ?? '')}
-        placeholder="Sent / paid invoices"
+        placeholder="Select sent / paid invoice"
       />
-      {selectedInvoice && selectedInvoice.lineItems.length > 0 ? (
+      {selectedInvoice && selectedInvoice.lineItems && selectedInvoice.lineItems.length > 0 ? (
         <Text className="text-xs text-muted mt-1 mb-2">
           Invoice lines: {selectedInvoice.lineItems.map((l: { description: string; quantity: number }) => `${l.description} × ${l.quantity}`).join(', ')}
         </Text>
       ) : null}
-      <Input label="Return date" value={returnDate} onChangeText={setReturnDate} />
-      <Input label="Reason (optional)" value={reason} onChangeText={setReason} multiline />
-      <LineEditor lines={lines} setLines={setLines} showKind />
-      {error ? <Text className="text-sm text-danger mt-2">{error}</Text> : null}
-      <View className={`flex-row gap-2 mt-4 mb-4 ${isPhone ? '' : ''}`}>
-        <Button label="Cancel" variant="secondary" className="flex-1" disabled={saving} onPress={onClose} />
-        <Button label={saving ? 'Saving…' : 'Record return'} variant="accent" className="flex-1" loading={saving} onPress={submit} />
+
+      <View className="flex-row gap-2 mt-1">
+        <View className="flex-1">
+          <Input label="Return date" value={returnDate} onChangeText={setReturnDate} />
+        </View>
+        <View className="flex-1">
+          <Input label="Reason (optional)" value={reason} onChangeText={setReason} placeholder="e.g. excess return, defective" />
+        </View>
       </View>
+
+      <LineEditor lines={lines} setLines={setLines} showKind />
+
+      {error ? (
+        <View className="flex-row items-center gap-1.5 mt-3 p-2 bg-danger/10 border border-danger/20 rounded-lg">
+          <Ionicons name="alert-circle" size={16} color="#dc2626" />
+          <Text className="text-xs text-danger font-medium flex-1">{error}</Text>
+        </View>
+      ) : null}
+
+      <View className="flex-row gap-2 mt-4 mb-4">
+        <Button label="Cancel" variant="secondary" className="flex-1" disabled={saving} onPress={onClose} />
+        <Button label={saving ? 'Saving…' : 'Record return & credit note'} variant="accent" className="flex-1" loading={saving} onPress={submit} />
+      </View>
+
+      {scannerOpen ? (
+        <BarcodeScannerOverlay
+          open={scannerOpen}
+          onClose={() => setScannerOpen(false)}
+          onScanned={(code) => {
+            setScannerOpen(false);
+            void handleBarcodeScan(code);
+          }}
+        />
+      ) : null}
     </Sheet>
   );
 }
 
-/* ── Purchase return (from a bill) ────────────────────────────────── */
+/* ── Purchase return (from a bill or fast SKU match) ─────────────── */
 
 export function PurchaseReturnModal({
   open,
@@ -764,12 +934,19 @@ export function PurchaseReturnModal({
 }) {
   const { isPhone } = useViewport();
   const { data: bills } = useBills(projectId);
+  const { data: resourceData } = useResources();
+  const resources: Array<{ id: string; name: string; unit: string; barcode?: string | null; sku?: string | null; rate?: number | string | null; gstRate?: number | string | null }> =
+    Array.isArray(resourceData) ? resourceData : (resourceData?.data ?? []);
+
   const [billId, setBillId] = useState('');
   const [returnDate, setReturnDate] = useState(new Date().toISOString().slice(0, 10));
   const [reason, setReason] = useState('');
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [scanBuffer, setScanBuffer] = useState('');
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanToast, setScanToast] = useState('');
 
   useEffect(() => {
     if (open) {
@@ -778,6 +955,8 @@ export function PurchaseReturnModal({
       setReason('');
       setLines([{ key: newKey(), resourceId: '', quantity: '', rate: '', gstRate: '18', unit: '', returnKind: 'GOOD' }]);
       setError('');
+      setScanBuffer('');
+      setScanToast('');
     }
   }, [open]);
 
@@ -789,10 +968,57 @@ export function PurchaseReturnModal({
     [bills],
   );
 
+  const handleBarcodeScan = (code: string) => {
+    const trimmed = code.trim().toLowerCase();
+    if (!trimmed) return;
+    setError('');
+    setScanToast('');
+
+    const match = resources.find(
+      (r) =>
+        r.barcode?.toLowerCase() === trimmed ||
+        r.sku?.toLowerCase() === trimmed ||
+        r.name.toLowerCase().includes(trimmed),
+    );
+
+    if (!match) {
+      setError(`No catalog item found matching "${code.trim()}".`);
+      return;
+    }
+
+    setLines((prev) => {
+      const clean = prev.filter((l) => l.resourceId);
+      const existingIdx = clean.findIndex((l) => l.resourceId === match.id);
+      if (existingIdx >= 0) {
+        const current = clean[existingIdx];
+        const nextQty = (Number(current.quantity) || 0) + 1;
+        const updated = [...clean];
+        updated[existingIdx] = { ...current, quantity: String(nextQty) };
+        return updated;
+      }
+
+      return [
+        ...clean,
+        {
+          key: newKey(),
+          resourceId: match.id,
+          quantity: '1',
+          unit: match.unit || 'no',
+          rate: match.rate != null ? String(match.rate) : '',
+          gstRate: match.gstRate != null ? String(match.gstRate) : '18',
+          returnKind: 'GOOD',
+        },
+      ];
+    });
+
+    setScanToast(`Scanned: ${match.name}`);
+    setScanBuffer('');
+  };
+
   const submit = async () => {
     setError('');
     if (!billId) {
-      setError('Pick a bill to return against.');
+      setError('Pick a vendor bill to return goods against.');
       return;
     }
     const goodLines = lines.filter((l) => l.resourceId && Number(l.quantity) > 0);
@@ -827,26 +1053,94 @@ export function PurchaseReturnModal({
     <Sheet
       visible={open}
       title="New purchase return"
-      subtitle="Return stock to the vendor. A draft debit note is created."
+      subtitle="Return stock to the vendor (Stock OUT). An automated draft debit note is created."
       fullScreen
       saving={saving}
       onClose={onClose}
     >
+      {/* Fast Barcode / SKU Scanner Section */}
+      <View className="bg-primary/5 rounded-xl border border-primary/20 p-3 mb-3">
+        <View className="flex-row items-center justify-between mb-2">
+          <View className="flex-row items-center gap-1.5">
+            <Ionicons name="barcode-outline" size={18} color="#0284c7" />
+            <Text className="text-xs font-bold text-primary uppercase tracking-wide">Barcode / SKU Scanner</Text>
+          </View>
+          <Pressable
+            onPress={() => setScannerOpen(true)}
+            className="flex-row items-center gap-1 bg-primary px-2.5 py-1 rounded-md active:opacity-80"
+          >
+            <Ionicons name="camera-outline" size={14} color="#ffffff" />
+            <Text className="text-xs font-semibold text-white">Camera Scan</Text>
+          </Pressable>
+        </View>
+        <View className="flex-row gap-2">
+          <View className="flex-1">
+            <TextInput
+              value={scanBuffer}
+              onChangeText={setScanBuffer}
+              onSubmitEditing={() => handleBarcodeScan(scanBuffer)}
+              placeholder="Scan barcode / enter SKU / product name..."
+              placeholderTextColor="#94a3b8"
+              className="bg-card text-text border border-border rounded-lg px-3 py-2 text-sm"
+              returnKeyType="search"
+            />
+          </View>
+          <Button
+            label="Lookup"
+            size="sm"
+            variant="secondary"
+            onPress={() => handleBarcodeScan(scanBuffer)}
+            disabled={!scanBuffer.trim()}
+          />
+        </View>
+        {scanToast ? (
+          <View className="flex-row items-center gap-1.5 mt-2 bg-success/10 border border-success/20 px-2.5 py-1.5 rounded-md">
+            <Ionicons name="checkmark-circle" size={14} color="#16a34a" />
+            <Text className="text-xs text-success font-medium flex-1">{scanToast}</Text>
+          </View>
+        ) : null}
+      </View>
+
       <Select
-        label="Bill"
+        label="Vendor Bill"
         value={billId || undefined}
         options={billOptions}
         onChange={(v) => setBillId(v ?? '')}
-        placeholder="Approved / paid bills"
+        placeholder="Select approved / paid vendor bill"
       />
-      <Input label="Return date" value={returnDate} onChangeText={setReturnDate} />
-      <Input label="Reason (optional)" value={reason} onChangeText={setReason} multiline />
-      <LineEditor lines={lines} setLines={setLines} />
-      {error ? <Text className="text-sm text-danger mt-2">{error}</Text> : null}
-      <View className={`flex-row gap-2 mt-4 mb-4 ${isPhone ? '' : ''}`}>
-        <Button label="Cancel" variant="secondary" className="flex-1" disabled={saving} onPress={onClose} />
-        <Button label={saving ? 'Saving…' : 'Record return'} variant="accent" className="flex-1" loading={saving} onPress={submit} />
+      <View className="flex-row gap-2 mt-1">
+        <View className="flex-1">
+          <Input label="Return date" value={returnDate} onChangeText={setReturnDate} />
+        </View>
+        <View className="flex-1">
+          <Input label="Reason (optional)" value={reason} onChangeText={setReason} placeholder="e.g. transit damage, rejected spec" />
+        </View>
       </View>
+
+      <LineEditor lines={lines} setLines={setLines} />
+
+      {error ? (
+        <View className="flex-row items-center gap-1.5 mt-3 p-2 bg-danger/10 border border-danger/20 rounded-lg">
+          <Ionicons name="alert-circle" size={16} color="#dc2626" />
+          <Text className="text-xs text-danger font-medium flex-1">{error}</Text>
+        </View>
+      ) : null}
+
+      <View className="flex-row gap-2 mt-4 mb-4">
+        <Button label="Cancel" variant="secondary" className="flex-1" disabled={saving} onPress={onClose} />
+        <Button label={saving ? 'Saving…' : 'Record return & debit note'} variant="accent" className="flex-1" loading={saving} onPress={submit} />
+      </View>
+
+      {scannerOpen ? (
+        <BarcodeScannerOverlay
+          open={scannerOpen}
+          onClose={() => setScannerOpen(false)}
+          onScanned={(code) => {
+            setScannerOpen(false);
+            handleBarcodeScan(code);
+          }}
+        />
+      ) : null}
     </Sheet>
   );
 }
