@@ -6,7 +6,7 @@
  * `issueStockManual` API:
  *   - Desktop/tablet: searchable catalog list LEFT + persistent cart RIGHT
  *     (qty, price, GST, line/subtotal/tax/grand total, low-stock warnings).
- *   - Phone (M7 / 11.8): Browse | Cart (N) — full-height catalog vs compact cart + sticky Charge.
+ *   - Phone (M7 / 11.8): Browse | Cart (N) - full-height catalog vs compact cart + sticky Charge.
  *   - Barcode while checkout is open adds / increments the cart line (reused
  *     BarcodeScannerOverlay + direct barcode lookup). The Stock-home "Find"
  *     input keeps navigating only when the checkout is CLOSED.
@@ -154,7 +154,7 @@ export function CheckoutCart({
 
   const issuable = useMemo(() => rows.filter((r) => Number(r.balance) > 0), [rows]);
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.4): do NOT truncate the
-  // catalog at 60 rows — render all filtered issuable items (search still
+  // catalog at 60 rows - render all filtered issuable items (search still
   // filters by name). FlatList virtualization elsewhere covers very large
   // catalogs; a Kirana store is a few hundred rows at most.
   const catalog = useMemo(() => {
@@ -199,7 +199,7 @@ export function CheckoutCart({
   const updateLine = (key: string, patch: Partial<CartLine>) =>
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   const removeLine = (key: string) => setLines((prev) => prev.filter((l) => l.key !== key));
-  // 11.8/M7.1: phone qty stepper — decrement, removing the line at 0.
+  // 11.8/M7.1: phone qty stepper - decrement, removing the line at 0.
   const decrementLine = (key: string, row: StockSummaryRow) => {
     const existing = lines.find((l) => l.key === key);
     if (!existing) return;
@@ -302,7 +302,7 @@ export function CheckoutCart({
       allowExpired,
     });
   };
-  // 11.8/M7.1: PHONE cart content — compact qty stepper + sell CellInput, no
+  // 11.8/M7.1: PHONE cart content - compact qty stepper + sell CellInput, no
   // tall labeled Input pairs. Used only in the phone Cart mode.
   const cart = (
     <View className="flex-1">
@@ -471,7 +471,7 @@ export function CheckoutCart({
     </>
   );
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.1/11.6.2): viewport-filling
-  // workspace — no max-w-4xl / h-[85%] / outer gutter on tablet+desktop; phone
+  // workspace - no max-w-4xl / h-[85%] / outer gutter on tablet+desktop; phone
   // near-fullscreen. Backdrop dismiss is disabled while submitting; × / Esc close.
   return (
     <Modal visible={open} transparent animationType={isPhone ? 'slide' : 'fade'} onRequestClose={submitting ? undefined : onClose}>
@@ -491,7 +491,7 @@ export function CheckoutCart({
           </View>
 
           {isPhone ? (
-            /* 11.8 / UX polish M7.1: phone POS — segmented Browse | Cart (N).
+            /* 11.8 / UX polish M7.1: phone POS - segmented Browse | Cart (N).
                Browse = full-height catalog (search + Scan sticky); Cart =
                full-height lines + customer + sticky Charge. No more permanent
                max-h-[38%] catalog/cart split on one screen. */
@@ -551,7 +551,7 @@ export function CheckoutCart({
                           </View>
                           <View className="items-end mr-3">
                             <Text className="text-sm font-bold text-text">
-                              {r.catalogRate != null && Number(r.catalogRate) > 0 ? `₹${Number(r.catalogRate).toFixed(2)}` : '—'}
+                              {r.catalogRate != null && Number(r.catalogRate) > 0 ? `₹${Number(r.catalogRate).toFixed(2)}` : '-'}
                             </Text>
                             {inCartQty > 0 ? (
                               <Text className="text-[11px] font-semibold text-accent">In cart · {inCartQty}</Text>
@@ -632,10 +632,10 @@ export function CheckoutCart({
                       <Text className="flex-1 text-xs text-muted">{r.unit}</Text>
                       <Text className="flex-1 text-sm font-semibold text-primary text-right">{r.balance}</Text>
                       <Text className="flex-1 text-xs text-muted text-right">
-                        {r.mrp != null && Number(r.mrp) > 0 ? `₹${Number(r.mrp).toFixed(2)}` : '—'}
+                        {r.mrp != null && Number(r.mrp) > 0 ? `₹${Number(r.mrp).toFixed(2)}` : '-'}
                       </Text>
                       <Text className="flex-1 text-xs text-text text-right">
-                        {r.catalogRate != null && Number(r.catalogRate) > 0 ? `₹${Number(r.catalogRate).toFixed(2)}` : '—'}
+                        {r.catalogRate != null && Number(r.catalogRate) > 0 ? `₹${Number(r.catalogRate).toFixed(2)}` : '-'}
                       </Text>
                       <View className="flex-[1.2] items-end">
                         {Number(r.balance) <= Number(r.reorderPoint ?? 0) && Number(r.reorderPoint ?? 0) > 0 ? (
@@ -666,7 +666,7 @@ export function CheckoutCart({
                 </View>
                 <ScrollView className="flex-1" keyboardShouldPersistTaps="handled">
                   {lines.length === 0 ? (
-                    <Text className="text-sm text-muted py-10 text-center">Cart is empty — tap items to add.</Text>
+                    <Text className="text-sm text-muted py-10 text-center">Cart is empty - tap items to add.</Text>
                   ) : (
                     lines.map((l) => {
                       const row = rowFor(l.resourceId);

@@ -397,7 +397,7 @@ function IndentsSection({
           return (
             <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
               <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.reqNumber}</Text>
-              <Text className="flex-[2] text-xs text-muted" numberOfLines={1}>{item.notes || '—'}</Text>
+              <Text className="flex-[2] text-xs text-muted" numberOfLines={1}>{item.notes || '-'}</Text>
               <Text className="flex-1 text-xs text-text text-right">{item.lines.length}</Text>
               <Text className="flex-1 text-xs text-muted text-right">{new Date(item.createdAt).toLocaleDateString('en-IN')}</Text>
               <View className="flex-1 items-end">
@@ -740,7 +740,7 @@ function OrdersSection({
               </Text>
               <Text className="flex-1 text-xs text-text text-right">₹{Number(item.totalAmount ?? 0).toLocaleString('en-IN')}</Text>
               <Text className="flex-1 text-xs text-success text-right">
-                {item.goodsReceipts && item.goodsReceipts.length > 0 ? `${item.goodsReceipts.length} GRN(s)` : '—'}
+                {item.goodsReceipts && item.goodsReceipts.length > 0 ? `${item.goodsReceipts.length} GRN(s)` : '-'}
               </Text>
               <View className="flex-1 items-end">
                 <Badge label={item.status ?? 'DRAFT'} color={item.status === 'SUBMITTED' ? 'warning' : undefined} />
@@ -876,7 +876,7 @@ function GrnsSection({
           return (
             <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
               <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.grnNumber}</Text>
-              <Text className="flex-[1.2] text-xs text-muted" numberOfLines={1}>{item.poNumber || '—'}</Text>
+              <Text className="flex-[1.2] text-xs text-muted" numberOfLines={1}>{item.poNumber || '-'}</Text>
               <Text className="flex-1 text-xs text-text text-right">{item.lines.length}</Text>
               <Text className="flex-1 text-xs text-muted text-right">{new Date(item.receivedDate).toLocaleDateString('en-IN')}</Text>
               <View className="flex-[1.6] flex-row flex-wrap justify-end gap-1">

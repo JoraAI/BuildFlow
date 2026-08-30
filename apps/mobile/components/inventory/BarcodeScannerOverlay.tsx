@@ -309,7 +309,7 @@ export function BarcodeScannerOverlay({
               <View className="p-6 items-center">
                 <Text className="text-sm text-text text-center mb-1">Camera scanner is mobile-only</Text>
                 <Text className="text-xs text-muted text-center mb-4">
-                  On desktop, type or paste into the stock search box — matches filter as you type.
+                  On desktop, type or paste into the stock search box - matches filter as you type.
                 </Text>
                 <Button label="Close" variant="secondary" onPress={onClose} />
               </View>

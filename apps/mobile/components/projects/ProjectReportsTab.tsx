@@ -87,7 +87,7 @@ export function ProjectReportsTab({ projectId }: ProjectReportsTabProps) {
       }
     >
       <View className={`gap-3 ${isDesktop ? 'max-w-5xl' : ''}`}>
-        {/* Today status — single primary action for today */}
+        {/* Today status - single primary action for today */}
         <Card
           className={`p-3 ${
             todayReportId ? 'border-success/30 bg-success/5' : 'border-accent/30 bg-accent/5'
@@ -170,7 +170,7 @@ export function ProjectReportsTab({ projectId }: ProjectReportsTabProps) {
 
         <View className="flex-row items-center justify-between gap-2">
           <Text className="text-sm font-semibold text-text">Recent reports</Text>
-          {/* Only when list has items — empty state owns the create CTA */}
+          {/* Only when list has items - empty state owns the create CTA */}
           {hasReports ? (
             <Button label="New report" variant="secondary" size="sm" onPress={() => openCreate()} />
           ) : null}

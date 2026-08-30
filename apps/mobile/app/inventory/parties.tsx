@@ -147,9 +147,9 @@ export default function InventoryPartiesScreen() {
                     {item.businessName ? <Text className="text-[11px] text-muted">{item.businessName}</Text> : null}
                   </View>
                   <Text className="flex-[1.4] text-xs text-muted" numberOfLines={1}>
-                    {[item.phone, item.email].filter(Boolean).join(' · ') || '—'}
+                    {[item.phone, item.email].filter(Boolean).join(' · ') || '-'}
                   </Text>
-                  <Text className="flex-1 text-xs text-muted" numberOfLines={1}>{item.gstin ?? '—'}</Text>
+                  <Text className="flex-1 text-xs text-muted" numberOfLines={1}>{item.gstin ?? '-'}</Text>
                   <View className="flex-1 items-end">
                     <Badge color={item.isActive ? 'success' : 'neutral'} label={item.isActive ? 'Active' : 'Inactive'} />
                   </View>

@@ -1,7 +1,7 @@
 -- INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): batch / expiry / FEFO.
 -- Resource.trackingMode NONE|BATCH_EXPIRY + per-lot StockBatchBalance table.
 -- Aggregate StockBalance stays the single analytics/construction key (K6).
--- Construction + untracked inventory keep tracking_mode 'NONE' — no mandatory
+-- Construction + untracked inventory keep tracking_mode 'NONE' - no mandatory
 -- batch/expiry anywhere outside batch-tracked Kirana items.
 
 CREATE TYPE "ResourceTrackingMode" AS ENUM ('NONE', 'BATCH_EXPIRY');
@@ -21,7 +21,7 @@ CREATE TABLE "stock_batch_balances" (
     CONSTRAINT "stock_batch_balances_pkey" PRIMARY KEY ("id")
 );
 
--- Receipt lot dates (11.2.5) — audit + batch copy source for GRN lines.
+-- Receipt lot dates (11.2.5) - audit + batch copy source for GRN lines.
 ALTER TABLE "goods_receipt_lines"
     ADD COLUMN "manufactured_at" TIMESTAMP(3),
     ADD COLUMN "expires_at" TIMESTAMP(3);

@@ -537,7 +537,7 @@ export function MultiIssueStockModal({
                     );
                   })}
                   {lines.length === 0 ? (
-                    <Text className="text-xs text-muted py-8 text-center">No lines yet — add a line below.</Text>
+                    <Text className="text-xs text-muted py-8 text-center">No lines yet - add a line below.</Text>
                   ) : null}
                 </View>
                 {!initialResourceId ? (

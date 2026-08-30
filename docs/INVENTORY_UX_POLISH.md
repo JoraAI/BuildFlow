@@ -71,7 +71,7 @@ Do **not** reimplement D1–D10. Only:
 
 ## 2. What Deepseek should do THIS pass
 
-**Status (2026-08-23): M1–M7 code-complete (audited).** M7/11.8 implemented; remaining work is **operator device smoke** — Inventory phone shell polish + Kirana **phone Checkout item picker** (desktop checkout already OK). Spec: §3 M7. Do **not** reimplement M1–M7 / D10 / D11 unless a smoke bug is found.
+**Status (2026-08-23): M1–M7 code-complete (audited).** M7/11.8 implemented; remaining work is **operator device smoke** - Inventory phone shell polish + Kirana **phone Checkout item picker** (desktop checkout already OK). Spec: §3 M7. Do **not** reimplement M1–M7 / D10 / D11 unless a smoke bug is found.
 
 **Do not:**
 
@@ -157,7 +157,7 @@ apps/mobile/services/expansion.queries.ts         # StockSummaryRow type
 
 **Evidence (2026-08-20, code-complete; re-verified):** mobile `tsc --noEmit` clean; backend `tsc` clean; `procurement.test` **22/22** + `inventory-product` **69/69** green. `@zxing/browser` in `apps/mobile/package.json`. i18n key `inventory.shell.titleMobile` added for M3 phone header. Live phone/iPad Scan smoke still optional.
 - **M1** `BarcodeScannerOverlay.tsx`: web phone/tablet now calls `navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })`; decodes via native `BarcodeDetector` when present, else `@zxing/browser` (added dep `@zxing/browser ^0.2.1`). Secure-context check + clear permission/unsupported/denied messages; rear-camera flip supported; desktop web keeps the keyboard/paste note; native `expo-camera` path unchanged.
-- **M2** `fab-layout.ts tabBarPaddingBottom`: no longer re-adds `chromeBottom`/56px web floor when the app is pinned to the visual viewport — safe-area inset only (`max(safeBottom, 8)`); `InventoryMobileTabBar` + `AppTabBar` both use the shared helper.
+- **M2** `fab-layout.ts tabBarPaddingBottom`: no longer re-adds `chromeBottom`/56px web floor when the app is pinned to the visual viewport - safe-area inset only (`max(safeBottom, 8)`); `InventoryMobileTabBar` + `AppTabBar` both use the shared helper.
 - **M3** `inventory/_layout.tsx`: phone title shortens to “Inventory”; title + company chip are `min-w-0`/`shrink` with `numberOfLines={1}` ellipsis; Stock page subtitle ellipsizes.
 - **M4** `getStockSummary` select + `StockSummaryRow` + mobile type expose `sku`/`itemCode`/`barcode`; stock search filters name/unit/sku/itemCode/barcode case-insensitively with a 150 ms debounce; search input moved above the FlatList (no remount jank); empty state “No items match …”.
 
@@ -176,7 +176,7 @@ Operator: on phone Inventory Stock, fixed top chrome (~title + filters + KPIs) a
 Operator: typing in stock search was covered by the bottom tab bar; Scan/Find were not inline with search; typed characters could appear reversed (RN-web LTR); Find button was redundant with live filter.
 
 - [x] Sticky row is **search + Scan** inline (Find removed) on phone and desktop
-- [x] Live filter as you type (150ms debounce) — name / SKU / itemCode / barcode / unit; results sorted A–Z by name
+- [x] Live filter as you type (150ms debounce) - name / SKU / itemCode / barcode / unit; results sorted A–Z by name
 - [x] Bottom tab bar hides while keyboard / text field is focused (`useKeyboardOpen`)
 - [x] Search `Input` uses LTR `writingDirection` + `autoCorrect={false}` + `compact` (no remount / reverse-type quirks)
 - [x] Separate barcode + Find row removed; Scan fills search and runs barcode API lookup → item detail
@@ -186,12 +186,12 @@ Operator: typing in stock search was covered by the bottom tab bar; Scan/Find we
 
 **Operator / product ask:** Inventory on **phone** still feels weaker than the marketed product (counter-speed stock, scan, multi-warehouse trading). Desktop Kirana **Checkout** catalog is usable (full table: Item · Unit · On hand · MRP · Selling · Status · Add). On **phone**, picking *more* items after checkout opens is **not** counter-friendly: catalog is a thin `max-h-[38%]` name-only strip, cart cards are tall (labeled `Input`s), nested scrolls fight each other, and adding a second/third SKU is slow.
 
-**Marketing inspiration (do not invent new product claims — match shipped positioning in `apps/mobile/constants/marketing.ts` + `docs/INVENTORY_TYPES_GUIDE.md`):**
+**Marketing inspiration (do not invent new product claims - match shipped positioning in `apps/mobile/constants/marketing.ts` + `docs/INVENTORY_TYPES_GUIDE.md`):**
 
 | Marketed promise | Mobile UX implication for M7 |
 |------------------|------------------------------|
 | “Stock product for retail / wholesale / trading / materials / equipment” | Phone Stock home stays **scan + search + list-first**; chrome stays thin (M5/M6). |
-| Counter / walk-in **Issue** and Kirana **Checkout** | Phone checkout must feel like a **POS**: browse/add fast, then edit cart — not a cramped half-sheet. |
+| Counter / walk-in **Issue** and Kirana **Checkout** | Phone checkout must feel like a **POS**: browse/add fast, then edit cart - not a cramped half-sheet. |
 | Multi-warehouse, SO→challan, parties, Tally | Do **not** redesign those modules this pass; only polish phone patterns that already exist (cards, sticky CTAs). |
 | Inventory from ₹499/mo | **Do not change pricing** (locked ₹499/mo in plans). |
 | Profiles change **labels**, not engines | Keep `getInventoryLabel` / vertical gates; Kirana-only checkout improvements stay behind `pos_checkout` + `KIRANA`. |
@@ -199,11 +199,11 @@ Operator: typing in stock search was covered by the bottom tab bar; Scan/Find we
 **Root cause (repo):** `apps/mobile/components/inventory/CheckoutCart.tsx` phone branch (~L440–472):
 
 1. Catalog capped `max-h-[38%]` with bare `name | balance` rows (no MRP / sell / Add / low-stock).
-2. Nested `ScrollView` (catalog) + `ScrollView` (cart) + sticky Charge — hard to browse while cart grows.
+2. Nested `ScrollView` (catalog) + `ScrollView` (cart) + sticky Charge - hard to browse while cart grows.
 3. Cart uses full `Input` with labels (qty + selling) → each line ~3× desktop `CellInput` height.
 4. After first add, catalog shrinks in attention; “selection of different items” feels broken vs desktop split pane.
 
-**Also polish (phone Inventory shell — light touch, same pass):**
+**Also polish (phone Inventory shell - light touch, same pass):**
 
 | Area | Problem | Target |
 |------|---------|--------|
@@ -211,9 +211,9 @@ Operator: typing in stock search was covered by the bottom tab bar; Scan/Find we
 | Tab / secondary screens | Parties, Materials, Sales, Warehouse on phone | Keep **cards**; ensure list search is sticky; primary FAB/header CTA not duplicated with empty-state button (same rule as Construction Reports) |
 | Modals on phone | Some still feel “desktop squeezed” | Prefer bottom-sheet / near-fullscreen for multi-line ops; single-field forms stay compact |
 
-#### M7.1 Kirana phone checkout — item selection (primary)
+#### M7.1 Kirana phone checkout - item selection (primary)
 
-Implement in `CheckoutCart.tsx` when `isPhone` (desktop/tablet **unchanged** — keep the two-pane tables).
+Implement in `CheckoutCart.tsx` when `isPhone` (desktop/tablet **unchanged** - keep the two-pane tables).
 
 **Interaction model (phone POS):**
 
@@ -226,21 +226,21 @@ Implement in `CheckoutCart.tsx` when `isPhone` (desktop/tablet **unchanged** —
 4. **Cart lines (phone):** compact qty ± steppers (or `CellInput`-style) + sell price field; remove tall labeled `Input` pairs. Show line ₹, GST%, remove.
 5. Search filters catalog live (already); also match **sku / itemCode / barcode** like Stock M4 if those fields exist on `StockSummaryRow`.
 6. Scan still adds/increments cart (11.3); after scan, toast + stay on Browse or briefly flash Cart chip count.
-7. Sticky Charge footer only in **Cart** mode (or always visible mini-bar: `N items · ₹total` + Charge) — must clear home indicator / keyboard (`useKeyboardOpen` / safe area).
+7. Sticky Charge footer only in **Cart** mode (or always visible mini-bar: `N items · ₹total` + Charge) - must clear home indicator / keyboard (`useKeyboardOpen` / safe area).
 8. Keep FEFO / allow-expired / server allocation behavior; no lot picking in UI.
 
-**Acceptance (Kirana phone — `owner@kirana-demo.com` / `Test@1234` or seeded Kirana vertical):**
+**Acceptance (Kirana phone - `owner@kirana-demo.com` / `Test@1234` or seeded Kirana vertical):**
 
 1. Open Checkout → browse catalog **full-height** without typing; tap 5 different items quickly; each appears in cart with qty ≥1.  
 2. Switch to Cart → edit qty/price → Charge works; draft invoice path unchanged.  
 3. Search “biscuit” / scan barcode adds the right SKU.  
 4. Desktop/tablet checkout layout **visually unchanged**.  
-5. Non-Kirana Inventory still uses `MultiIssueStockModal` (or improve phone multi-issue lightly with same compact patterns — optional, do not break).
+5. Non-Kirana Inventory still uses `MultiIssueStockModal` (or improve phone multi-issue lightly with same compact patterns - optional, do not break).
 
 #### M7.2 Broader Inventory phone shell (secondary, same pass if time)
 
 - Stock home: keep M5/M6 sticky search+Scan; ensure Issue/Checkout CTA not duplicated; list rows readable one-handed.  
-- Empty states: one create CTA (header **or** empty action **or** FAB — not two).  
+- Empty states: one create CTA (header **or** empty action **or** FAB - not two).  
 - No new tabs; no Construction changes.
 
 #### M7 files
@@ -273,7 +273,7 @@ pnpm --filter @buildflow/mobile exec tsc --noEmit
 - [x] M7.2 light Stock/shell CTA polish (if done)  
 - [x] Evidence + checkboxes updated below
 
-**Evidence (2026-08-23, code-complete; audited):** `pnpm --filter @buildflow/mobile exec tsc --noEmit` clean. UI-only — no backend/API change (stock summary already exposes `sku`/`itemCode`/`barcode` from M4).
+**Evidence (2026-08-23, code-complete; audited):** `pnpm --filter @buildflow/mobile exec tsc --noEmit` clean. UI-only - no backend/API change (stock summary already exposes `sku`/`itemCode`/`barcode` from M4).
 - **M7.1** `CheckoutCart.tsx` phone branch: segmented **Browse | Cart (N)**; Browse = full-height catalog (sticky search + Scan); Cart = full-height compact lines + collapsed customer + sticky Charge (`KeyboardAvoidingView` + safe-area). No permanent `max-h-[38%]` split (only mentioned in comments). Catalog rows: name, on hand+unit, selling ₹ (+ MRP), Low badge, round Add; tap increments ("In cart · N"); floating `N items · ₹total → View cart`. Cart lines: qty ± steppers + `CellInput` sell. Search matches name/unit/sku/itemCode/barcode. Seed from stock row opens **Cart**. Desktop/tablet two-pane tables unchanged. FEFO / allow-expired / scan path unchanged.
 - **M7.2** Stock phone row secondary `On hand · Sell · SKU`; primary CTA accent Checkout/Issue; Adjust secondary. `MultiIssueStockModal` phone qty/price/batch use `CellInput`s.
 - **Residual (operator smoke, not blocking code):** live phone/PWA Checkout browse→5 adds→Charge; keyboard + home-indicator clearance on Charge; confirm desktop checkout still side-by-side after deploy.  
@@ -371,7 +371,7 @@ flowchart TD
 
 ---
 
-## 7. Deepseek-v4-flash agent command — post-M7 (copy-paste)
+## 7. Deepseek-v4-flash agent command - post-M7 (copy-paste)
 
 > **M7 / Phase 11.8 are CODE-COMPLETE (audited 2026-08-23).** Do **not** re-implement Browse|Cart unless a concrete smoke bug is filed. Use this prompt only for smoke fixes or the next polish pass.
 
@@ -390,11 +390,11 @@ Phone Checkout already has Browse | Cart (N), rich catalog rows, compact cart
 lines, sticky Charge, sku/itemCode/barcode search (CheckoutCart.tsx).
 
 THIS PASS (pick one):
-A) Operator smoke only — fix concrete bugs found on phone/PWA Kirana Checkout
+A) Operator smoke only - fix concrete bugs found on phone/PWA Kirana Checkout
    or Stock list. Prefer minimal diffs. Do not redesign.
 B) If no smoke bugs: STOP. Do not invent drive-by refactors.
 
-SMOKE CHECKLIST (Kirana phone — owner@kirana-demo.com / Test@1234 or seeded):
+SMOKE CHECKLIST (Kirana phone - owner@kirana-demo.com / Test@1234 or seeded):
 1) Checkout → Browse full-height without typing; tap 5 different items; each in cart
 2) View cart / Cart tab → edit qty/price → Charge; draft invoice path OK
 3) Search name/SKU/barcode + Scan add while in Browse
@@ -433,7 +433,7 @@ In `packages/shared/src/permissions/prompt-builder.ts` add CORE RULES for both `
 `apps/mobile/components/assistant/AssistantChatContent.tsx` (used by Construction overlay, Inventory overlay, and any shared chat surface):
 
 - Parse **bot** messages as markdown. Minimum: headings, `**bold**`, unordered/ordered lists, fenced or indented not required, GFM tables (`| a | b |`).
-- Prefer a small existing helper or a few `Text` styles — do **not** add a heavy markdown WebView if a lightweight renderer is enough. If you add a dependency, it must work on web + native Expo.
+- Prefer a small existing helper or a few `Text` styles - do **not** add a heavy markdown WebView if a lightweight renderer is enough. If you add a dependency, it must work on web + native Expo.
 - User messages stay plain text.
 - Starter chips stay on **empty** threads only (already implemented). Do **not** add suggestion chips under a completed bot reply.
 - Marketing FAB uses the marketing prompt; apply the same answer-only rule even if that UI stays simpler.

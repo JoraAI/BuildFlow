@@ -100,7 +100,7 @@ export default function InventoryStockScreen() {
     const t = setTimeout(() => setDebouncedSearch(stockSearch), 150);
     return () => clearTimeout(t);
   }, [stockSearch]);
-  // Live filter as you type (150ms debounce). No Find button — search is automatic.
+  // Live filter as you type (150ms debounce). No Find button - search is automatic.
   const filteredSummary = useMemo(() => {
     const rows = summary ?? [];
     const q = debouncedSearch.trim().toLowerCase();
@@ -264,7 +264,7 @@ export default function InventoryStockScreen() {
     ? translate('inventory.stock.checkout', 'Checkout')
     : translate('inventory.stock.bulkIssue', 'Bulk issue');
 
-  /** Warehouse only — search + Scan live in the sticky search row (no Find button). */
+  /** Warehouse only - search + Scan live in the sticky search row (no Find button). */
   const filtersBlock = multiWarehouseEnabled ? (
     <View className={isPhone ? 'mb-3' : undefined}>
       <Select

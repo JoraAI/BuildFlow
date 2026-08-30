@@ -174,7 +174,7 @@ This refinement replaces the “copy all 122 rows, then find them” onboarding 
 | 11.6.4 | **All issuable items.** Remove `.slice(0, 60)` (or replace with virtualized list / paginated fetch). Search still filters name/SKU. Empty state: “No matching items with stock.” | `CheckoutCart.tsx` |
 | 11.6.5 | **Non-Kirana Bulk issue** gets the same workspace: full-screen; tablet+desktop line **table** (item picker, qty, selling ₹, optional batch, remove); phone keeps stacked lines but full-height. Same `issueStockManual` API. | `StockModals.tsx` (`MultiIssueStockModal`) |
 | 11.6.6 | **Other inventory UX (bounded).** Apply full-screen / large workspace **only** to multi-line operational modals: Kirana SKU picker, quick vendor receipt, New indent, New PO, Record GRN, New sales order, New challan, New invoice, New bill, stock transfer, stock count. Keep **compact** dialogs for single-entity forms (party, warehouse CRUD, adjust stock, opening CSV, price list, scan overlay). Desktop list pages that are still cards-only become tables like Sales/Stock: **Materials, Parties, Warehouse, Procurement (indents/POs/GRNs)**. Phone stays cards. | `KiranaSkuPicker.tsx`, `materials.tsx`, `procurement.tsx`, `TransactionModals.tsx`, `WarehouseModals.tsx`, `parties.tsx`, `warehouse.tsx`, invoice/bill create modals |
-| 11.6.7 | **Do not regress.** Formal SO → DC → invoice unchanged. Construction `ProcurementTab` Draft→Submit→Approve untouched. Language pass is **out of this phase** (do not expand i18n). No schema/migration. No new feature flags. | — |
+| 11.6.7 | **Do not regress.** Formal SO → DC → invoice unchanged. Construction `ProcurementTab` Draft→Submit→Approve untouched. Language pass is **out of this phase** (do not expand i18n). No schema/migration. No new feature flags. | - |
 
 **Layout (tablet + desktop, Kirana checkout):**
 
@@ -206,7 +206,7 @@ This refinement replaces the “copy all 122 rows, then find them” onboarding 
 | 11.7.1 | **Schema.** Nullable `Resource.costPrice` `Decimal(12,2)` mapped `cost_price`. Construction-safe (unused there). Backfill **inventory** companies only: `costPrice = avgCost` when `avgCost > 0`, else null. Do **not** overwrite `rate`. Keep `avgCost` WAC updates on stock IN. | schema + migration + resource validators/service |
 | 11.7.2 | **Capture on add/edit SKU.** Materials add/edit + Kirana library import + custom item: **Cost price (₹)** and **Selling price (₹)** (+ optional MRP). Helper: cost → future POs/GRNs; sell → checkout/invoices; MRP → printed ceiling. Import API accepts `costPrice`. Sell cannot exceed positive MRP; cost has no MRP cap. | `materials.tsx`, `KiranaSkuPicker.tsx`, catalog import |
 | 11.7.3 | **Checkout / bulk issue / sales = sell only.** Prefill from `rate`. Inline-edit selling ₹. Optional muted read-only cost hint. Do not write checkout edits onto `costPrice`. | `CheckoutCart.tsx`, `StockModals.tsx`, `TransactionModals.tsx` |
-| 11.7.4 | **Procurement = cost only.** Indent expected rate, PO line, GRN line, quick vendor receipt prefill from `costPrice` (fallback `avgCost`, then 0) — **never** from selling `rate`. GRN/quick receipt updates `costPrice` to that purchase unit cost **and** existing WAC `avgCost`. Labels: “Cost ₹” / “Purchase rate ₹”. | `procurement.tsx`, `StockModals.tsx`, procurement/stock/reorder services |
+| 11.7.4 | **Procurement = cost only.** Indent expected rate, PO line, GRN line, quick vendor receipt prefill from `costPrice` (fallback `avgCost`, then 0) - **never** from selling `rate`. GRN/quick receipt updates `costPrice` to that purchase unit cost **and** existing WAC `avgCost`. Labels: “Cost ₹” / “Purchase rate ₹”. | `procurement.tsx`, `StockModals.tsx`, procurement/stock/reorder services |
 | 11.7.5 | **Lists.** Items/stock desktop tables: Cost and Selling columns. Phone cards: “Cost ₹x · Sell ₹y”. Reorder `catalogRate` = `costPrice`. | `materials.tsx`, `index.tsx`, `reorder.service.ts` |
 | 11.7.6 | **11.6 residual UX.** Compact numeric cells in checkout/bulk-issue tables (no labeled `Input` in a table row). Collapse customer block behind “Add customer”. Keep full-screen workspace. | `CheckoutCart.tsx`, `StockModals.tsx` |
 | 11.7.7 | **Flow audit (inventory product).** Fix only real bugs on: Add item (no stock) → Quick receipt or PO→GRN (qty + cost) → Stock on hand → Checkout (sell, FEFO, draft invoice → Mark sent → Record payment) → Formal SO→DC→invoice → Returns → Transfer/count → Parties/warehouses. Construction `ProcurementTab` create stays **DRAFT**. | tests + UI |
@@ -227,7 +227,7 @@ This refinement replaces the “copy all 122 rows, then find them” onboarding 
 
 **Problem:** Desktop/tablet Checkout catalog is usable (Item · Unit · On hand · MRP · Selling · Status · Add). On **phone**, after Checkout opens, selecting *different* items is not counter-friendly: `CheckoutCart.tsx` caps catalog at `max-h-[38%]` with name-only rows, cart uses tall labeled `Input`s, nested scrolls fight, adding SKU #2/#3 is slow.
 
-**Inspiration:** Marketed Inventory POS / counter speed (`apps/mobile/constants/marketing.ts`, `docs/INVENTORY_TYPES_GUIDE.md`) — phone must feel like a shop counter. Profiles still only change labels. Full detail: `INVENTORY_UX_POLISH.md` **M7**.
+**Inspiration:** Marketed Inventory POS / counter speed (`apps/mobile/constants/marketing.ts`, `docs/INVENTORY_TYPES_GUIDE.md`) - phone must feel like a shop counter. Profiles still only change labels. Full detail: `INVENTORY_UX_POLISH.md` **M7**.
 
 | ID | Work | Primary files |
 |----|------|----------------|
@@ -235,7 +235,7 @@ This refinement replaces the “copy all 122 rows, then find them” onboarding 
 | 11.8.2 | Phone catalog rows: name, on hand+unit, selling ₹ (+MRP), Low badge, Add/tap-to-add (increment if in cart). Search also matches sku/itemCode/barcode. | `CheckoutCart.tsx` |
 | 11.8.3 | Phone cart lines: compact qty steppers / cell inputs + sell price; no tall labeled Input pairs; line ₹ + GST% + remove. | `CheckoutCart.tsx` |
 | 11.8.4 | Safe-area / keyboard-safe sticky Charge; Scan still adds to cart; FEFO/server allocation unchanged. | `CheckoutCart.tsx`, `useKeyboardOpen.ts` |
-| 11.8.5 | Light phone Stock shell polish if needed (readable rows, single CTA) — UX polish M7.2. | `inventory/index.tsx` |
+| 11.8.5 | Light phone Stock shell polish if needed (readable rows, single CTA) - UX polish M7.2. | `inventory/index.tsx` |
 
 **Exit (11.8):** Phone browses full-height catalog, adds 5 different items quickly, edits cart, Charges; desktop checkout unchanged; mobile `tsc` clean; tick §8 + UX polish M7.
 
@@ -464,11 +464,11 @@ Add new test files under `apps/backend/src/__tests__/` for catalog template + FE
 - [x] Desktop/tablet Checkout layout visually unchanged
 - [x] Mobile `tsc --noEmit` clean; evidence below
 
-**Verification (2026-08-23, code-complete):** UI-only pass — `CheckoutCart.tsx` phone branch only (desktop/tablet two-pane tables untouched). `pnpm --filter @buildflow/mobile exec tsc --noEmit` clean. No schema/API change (stock summary `sku`/`itemCode`/`barcode` already surfaced in M4); no construction gating, pricing, or FEFO changes. Code path reviewed for the same flow; **live phone/PWA smoke still operator-owned** (Kirana `owner@kirana-demo.com` / `Test@1234`): Browse → 5 adds → Cart edit → Charge.
+**Verification (2026-08-23, code-complete):** UI-only pass - `CheckoutCart.tsx` phone branch only (desktop/tablet two-pane tables untouched). `pnpm --filter @buildflow/mobile exec tsc --noEmit` clean. No schema/API change (stock summary `sku`/`itemCode`/`barcode` already surfaced in M4); no construction gating, pricing, or FEFO changes. Code path reviewed for the same flow; **live phone/PWA smoke still operator-owned** (Kirana `owner@kirana-demo.com` / `Test@1234`): Browse → 5 adds → Cart edit → Charge.
 
 ---
 
-## 9. Deepseek agent command (copy-paste) — post-11.8
+## 9. Deepseek agent command (copy-paste) - post-11.8
 
 > Phase 11.8 / M7 are **code-complete**. Do not re-build Browse|Cart unless fixing a filed smoke bug.
 

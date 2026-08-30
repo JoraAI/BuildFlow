@@ -300,13 +300,13 @@ Commercial follow-on after Phases 0–10. **Do not implement inside this file** 
 
 | Sub-phase | Goal |
 |-----------|------|
-| 11.1 | Kirana vertical + tenant-copy starter item catalog (RETAIL/WHOLESALE only) — **DONE** |
-| 11.2 | Batch manufacture/expiry + FEFO allocation (Construction untouched) — **DONE** |
-| 11.3 | POS-style multi-item counter checkout (issue → invoice); formal SO unchanged — **DONE** |
-| 11.4 | Desktop/tablet sales & stock tables; phone card/scan alternatives — **DONE** |
-| 11.5 | Selective SKU library, Indian MRP, quantity intake — **DONE** |
-| 11.6 | Inventory workspace UX: full-screen checkout/bulk issue, real item/cart tables — **DONE** (residuals in 11.7.6) |
-| 11.7 | Cost vs sell (`costPrice` vs `rate`), remaining UX, inventory flow audit + D11 chatbot format — **DONE** (operator device smoke remaining) |
+| 11.1 | Kirana vertical + tenant-copy starter item catalog (RETAIL/WHOLESALE only) - **DONE** |
+| 11.2 | Batch manufacture/expiry + FEFO allocation (Construction untouched) - **DONE** |
+| 11.3 | POS-style multi-item counter checkout (issue → invoice); formal SO unchanged - **DONE** |
+| 11.4 | Desktop/tablet sales & stock tables; phone card/scan alternatives - **DONE** |
+| 11.5 | Selective SKU library, Indian MRP, quantity intake - **DONE** |
+| 11.6 | Inventory workspace UX: full-screen checkout/bulk issue, real item/cart tables - **DONE** (residuals in 11.7.6) |
+| 11.7 | Cost vs sell (`costPrice` vs `rate`), remaining UX, inventory flow audit + D11 chatbot format - **DONE** (operator device smoke remaining) |
 
 **Agent rule:** one sub-phase per pass; update the Kirana doc checklist with evidence; run construction regressions every pass.
 
@@ -1043,7 +1043,7 @@ Production assistant (Construction **and** Inventory): **Settings → Integratio
 2. **Batch/lot is a single optional code** carried per line on GRN/issue and per-challan (or per-line) on DC - stored on the movement; **no** serial numbers, expiry/MRP or FEFO allocation.
 3. **Margin `revenueSource: 'BILLED'`** = Σ resource-linked invoice-line amounts (ex-GST); `'CATALOG'` = qty sold × `Resource.rate`. The auto draft-issue invoice links resources by default, so margin becomes billed-based as soon as invoices are confirmed.
 4. **Notifications reuse `notify()`** - in-app rows always created; PUSH/WhatsApp/SMS honour existing user prefs; all hooks are non-fatal (never break the business flow) and inventory-only.
-5. **Barcode camera:** native Expo path + **mobile web** (`getUserMedia` + `BarcodeDetector` / `@zxing/browser`) for phone/tablet — see UX polish **M1** (2026-08-20). Desktop web stays keyboard/paste.
+5. **Barcode camera:** native Expo path + **mobile web** (`getUserMedia` + `BarcodeDetector` / `@zxing/browser`) for phone/tablet - see UX polish **M1** (2026-08-20). Desktop web stays keyboard/paste.
 
 ### 29.3 Notes (non-blocking)
 

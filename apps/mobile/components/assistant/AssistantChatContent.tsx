@@ -269,7 +269,7 @@ export function AssistantChatContent({
                 {isInventory
                   ? 'Ask about stock, POs, GRNs, invoices, or vendor bills. I fetch live data for anything your role can access.'
                   : projectId
-                    ? 'Ask about this project — status, bills, estimates, BOQ, or overdue tasks.'
+                    ? 'Ask about this project - status, bills, estimates, BOQ, or overdue tasks.'
                     : 'Ask about project status, estimates, bills, GST, or overdue tasks.'}
               </Text>
             </View>

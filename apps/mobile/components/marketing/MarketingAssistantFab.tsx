@@ -1,6 +1,6 @@
 /**
  * Pre-login BuildFlow Product Guide: marketing assistant (no auth).
- * Same right-edge handle as the logged-in assistant — not a floating FAB.
+ * Same right-edge handle as the logged-in assistant - not a floating FAB.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {

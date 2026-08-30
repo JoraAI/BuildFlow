@@ -84,7 +84,7 @@ export default function InventoryWarehouseScreen() {
               <Text className="text-sm font-bold text-text" numberOfLines={1}>{item.name}</Text>
               {item.isDefault ? <Badge color="accent" label="Default" /> : null}
             </View>
-            <Text className="text-[11px] text-muted">{[item.code, item.address].filter(Boolean).join(' · ') || '—'}</Text>
+            <Text className="text-[11px] text-muted">{[item.code, item.address].filter(Boolean).join(' · ') || '-'}</Text>
           </View>
           <Text className="flex-1 text-xs text-text text-right">{skus} item(s)</Text>
           <View className="flex-1 items-end">

@@ -198,16 +198,16 @@ export default function InventoryMaterialsScreen() {
                       {row.resource.trackingMode === 'BATCH_EXPIRY' ? ' · batch tracked' : ''}
                     </Text>
                   </View>
-                  <Text className="flex-1 text-xs text-muted" numberOfLines={1}>{row.category ?? '—'}</Text>
-                  <Text className="flex-1 text-xs text-muted" numberOfLines={1}>{row.resource.hsnSacCode ?? '—'}</Text>
+                  <Text className="flex-1 text-xs text-muted" numberOfLines={1}>{row.category ?? '-'}</Text>
+                  <Text className="flex-1 text-xs text-muted" numberOfLines={1}>{row.resource.hsnSacCode ?? '-'}</Text>
                   <Text className="flex-1 text-xs text-text text-right">
                     {Number(row.stock?.balance ?? 0) > 0 ? `${row.stock?.balance} ${row.unit}` : 'Out of stock'}
                   </Text>
                   <Text className="flex-1 text-xs text-muted text-right">
-                    {row.resource.mrp != null ? `₹${Number(row.resource.mrp).toFixed(2)}` : '—'}
+                    {row.resource.mrp != null ? `₹${Number(row.resource.mrp).toFixed(2)}` : '-'}
                   </Text>
                   <Text className="flex-1 text-xs text-muted text-right">
-                    {row.resource.costPrice != null ? `₹${Number(row.resource.costPrice).toFixed(2)}` : '—'}
+                    {row.resource.costPrice != null ? `₹${Number(row.resource.costPrice).toFixed(2)}` : '-'}
                   </Text>
                   <Text className="flex-1 text-sm font-bold text-primary text-right">{formatINR(Number(row.resource.rate))}</Text>
                   <View className="flex-[1.6] flex-row flex-wrap justify-end gap-1">
