@@ -15,7 +15,7 @@ import {
   createSalesOrderFromQuote,
 } from '../services/quote.service';
 import { remindOverdueInvoice } from '../services/inventory-alerts.service';
-import { reportSalesOrder, reportDeliveryChallan, reportGoodsReceipt } from '../services/pdf-report.service';
+import { reportSalesOrder, reportDeliveryChallan, reportGoodsReceipt, reportQuote } from '../services/pdf-report.service';
 import { ok, created } from '../utils/response';
 import { recordAudit } from '../utils/audit';
 
@@ -151,6 +151,14 @@ export async function deliveryChallanPdf(req: Request, res: Response, next: Next
 export async function goodsReceiptPdf(req: Request, res: Response, next: NextFunction) {
   try {
     sendPdf(res, await reportGoodsReceipt(req.user!.companyId, req.params.id));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function quotePdf(req: Request, res: Response, next: NextFunction) {
+  try {
+    sendPdf(res, await reportQuote(req.user!.companyId, req.params.id));
   } catch (err) {
     next(err);
   }

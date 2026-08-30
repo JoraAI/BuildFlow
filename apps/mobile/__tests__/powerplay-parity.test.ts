@@ -6,6 +6,7 @@ import {
   generateWhatsAppPettyCashShare,
   generateWhatsAppLaborWageShare,
   generateWhatsAppDailyReportShare,
+  generateWhatsAppQuoteShare,
 } from '@/utils/whatsapp-share';
 import { subscribeSyncProgress } from '@/services/offline-sync.service';
 import { Linking, Platform } from 'react-native';
@@ -102,6 +103,38 @@ describe('Powerplay Parity - WhatsApp Studio Utility (Module 7)', () => {
     const calledUrl = (Linking.openURL as jest.Mock).mock.calls[0][0];
     expect(decodeURIComponent(calledUrl)).toContain('DAILY PROGRESS REPORT (DPR)');
     expect(decodeURIComponent(calledUrl)).toContain('45 workers');
+  });
+
+  it('generates rich event quotation for WhatsApp', () => {
+    generateWhatsAppQuoteShare({
+      quoteNumber: 'QT-2026-004',
+      customerName: 'Grand Hyatt Events',
+      eventName: 'Annual Gala Stage Lighting',
+      quoteDate: '2026-08-30',
+      validUntil: '2026-09-15',
+      items: [
+        { name: 'Warm White LED Bulb 9W', qty: 50, unit: 'nos', rate: 110, amount: 5500 },
+        { name: 'Vintage Edison Filament Bulb', qty: 20, unit: 'nos', rate: 280, amount: 5600 },
+      ],
+      total: 13098,
+    });
+
+    expect(Linking.openURL).toHaveBeenCalledTimes(1);
+    const calledUrl = (Linking.openURL as jest.Mock).mock.calls[0][0];
+    expect(decodeURIComponent(calledUrl)).toContain('EVENT ESTIMATE & QUOTATION');
+    expect(decodeURIComponent(calledUrl)).toContain('QT-2026-004');
+    expect(decodeURIComponent(calledUrl)).toContain('Grand Hyatt Events');
+    expect(decodeURIComponent(calledUrl)).toContain('Annual Gala Stage Lighting');
+    expect(decodeURIComponent(calledUrl)).toContain('13,098');
+  });
+});
+
+describe('Inventory Quotes Localization & Translations', () => {
+  it('translates quotes tab into multiple regional languages', () => {
+    expect(t('inventory.tab.quotes', 'hi')).toBe('कोट्स');
+    expect(t('inventory.tab.quotes', 'te')).toBe('కోట్స్');
+    expect(t('inventory.tab.quotes', 'ta')).toBe('மேற்கோள்கள்');
+    expect(t('inventory.tab.quotes', 'mr')).toBe('कोटेशन');
   });
 });
 

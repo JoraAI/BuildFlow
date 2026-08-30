@@ -20,13 +20,15 @@ export const INVENTORY_TABS = [
   { key: 'index', label: 'Stock', icon: 'cube-outline', href: '/inventory' },
   { key: 'materials', label: 'Materials', icon: 'layers-outline', href: '/inventory/materials' },
   { key: 'parties', label: 'Parties', icon: 'people-outline', href: '/inventory/parties' },
+  // Event & client estimates / quotations.
+  { key: 'quotes', label: 'Quotes', icon: 'document-text-outline', href: '/inventory/quotes' },
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.1): formal sales flow (SO/DC/returns/notes).
   { key: 'sales', label: 'Sales', icon: 'receipt-outline', href: '/inventory/sales' },
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 3): multi-warehouse / transfers / counts.
   { key: 'warehouse', label: 'Warehouse', icon: 'business-outline', href: '/inventory/warehouse' },
   { key: 'procurement', label: 'Procurement', icon: 'cart-outline', href: '/inventory/procurement' },
   { key: 'invoices', label: 'Invoices', icon: 'cash-outline', href: '/inventory/invoices' },
-  { key: 'bills', label: 'Bills', icon: 'document-text-outline', href: '/inventory/bills' },
+  { key: 'bills', label: 'Bills', icon: 'newspaper-outline', href: '/inventory/bills' },
   { key: 'settings', label: 'Settings', icon: 'settings-outline', href: '/inventory/settings' },
 ] as const;
 

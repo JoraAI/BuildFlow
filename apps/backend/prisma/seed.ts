@@ -1137,6 +1137,10 @@ async function main(): Promise<void> {
     name: string;
     unit: string;
     rate: number;
+    costPrice?: number;
+    mrp?: number;
+    brandOrSpec?: string;
+    hsn?: string;
     gstRate: number;
     category: string;
     sku?: string;
@@ -1158,6 +1162,20 @@ async function main(): Promise<void> {
     storeCode: string;
     catalog: InvCatalogItem[];
     openingQtys: number[];
+    extraWarehouses?: Array<{
+      name: string;
+      code?: string;
+      address?: string;
+      stock: Array<{ itemIndex: number; quantity: number }>;
+    }>;
+    quotes?: Array<{
+      customerIndex: number;
+      quoteNumber: string;
+      notes?: string;
+      status: 'DRAFT' | 'SENT' | 'ACCEPTED' | 'REJECTED';
+      validDays?: number;
+      lines: Array<{ itemIndex: number; quantity: number; rate?: number }>;
+    }>;
     rich?: boolean;
   }): Promise<void> {
     const company = await prisma.company.create({
@@ -1248,7 +1266,7 @@ async function main(): Promise<void> {
       },
     });
 
-    const resources: { id: string; name: string }[] = [];
+    const resources: { id: string; name: string; unit: string; rate: number; gstRate: number }[] = [];
     for (const m of opts.catalog) {
       const r = await prisma.resource.create({
         data: {
@@ -1257,6 +1275,11 @@ async function main(): Promise<void> {
           type: m.type ?? ResourceType.MATERIAL,
           unit: m.unit,
           rate: m.rate,
+          costPrice: m.costPrice ?? Math.round(m.rate * 0.7),
+          mrp: m.mrp ?? Math.round(m.rate * 1.2),
+          brandOrSpec: m.brandOrSpec ?? null,
+          hsnSacCode: m.hsn ?? null,
+          avgCost: m.costPrice ?? Math.round(m.rate * 0.7),
           gstRate: m.gstRate,
           category: m.category,
           sku: m.sku ?? null,
@@ -1264,14 +1287,15 @@ async function main(): Promise<void> {
           lastRateUpdatedAt: new Date(),
         },
       });
-      resources.push(r);
+      resources.push({ id: r.id, name: r.name, unit: r.unit, rate: Number(r.rate), gstRate: Number(r.gstRate) });
     }
 
     const mainLoc = await prisma.stockLocation.create({
       data: {
         companyId: company.id,
         projectId: storeProject.id,
-        name: 'Main Store',
+        name: 'Main Godown & Central Depot',
+        code: 'MAIN',
         isDefault: true,
       },
     });
@@ -1283,53 +1307,245 @@ async function main(): Promise<void> {
       ]);
     }
 
-    if (opts.rich) {
+    const createdWarehouses = [mainLoc];
+    if (opts.extraWarehouses && opts.extraWarehouses.length > 0) {
+      for (const [whIdx, wh] of opts.extraWarehouses.entries()) {
+        const extraLoc = await prisma.stockLocation.create({
+          data: {
+            companyId: company.id,
+            projectId: storeProject.id,
+            name: wh.name,
+            code: wh.code ?? `WH-${whIdx + 1}`,
+            address: wh.address ?? null,
+            isDefault: false,
+          },
+        });
+        createdWarehouses.push(extraLoc);
+        for (const st of wh.stock) {
+          if (resources[st.itemIndex]) {
+            await applyStockIn(extraLoc.id, `seed-${opts.storeCode}-wh${whIdx}-${st.itemIndex}`, [
+              { resourceId: resources[st.itemIndex]!.id, quantity: st.quantity },
+            ]);
+          }
+        }
+      }
+    } else if (opts.rich) {
       const branch = await prisma.stockLocation.create({
         data: {
           companyId: company.id,
           projectId: storeProject.id,
-          name: 'Branch - Uppal',
-          code: 'UPP',
-          address: 'Uppal Industrial Area, Hyderabad',
+          name: 'Event Staging & Rental Depot',
+          code: 'STAGING',
+          address: 'Madhapur Near HITEX, Hyderabad',
           isDefault: false,
         },
       });
+      createdWarehouses.push(branch);
       if (resources[0]) {
         await applyStockIn(branch.id, `seed-${opts.storeCode}-branch-0`, [
           { resourceId: resources[0].id, quantity: 20 },
         ]);
       }
+    }
 
-      const customer = await prisma.customer.create({
+    const seededCustomers: Array<{ id: string; name: string }> = [];
+    if (opts.rich) {
+      const customer1 = await prisma.customer.create({
         data: {
           companyId: company.id,
-          name: 'Sri Sai Contractors',
-          businessName: 'Sri Sai Contractors',
+          name: 'Grand Royale Events & Decors',
+          businessName: 'Grand Royale Events Private Limited',
+          gstin: '36AABCG9999G1Z1',
+          phone: '+919876500001',
+          email: 'events@grandroyale.com',
+          billingAddress: 'Road No. 12, Banjara Hills, Hyderabad',
+          paymentTerms: 'Net 30',
+          creditLimit: 350000,
+        },
+      });
+      seededCustomers.push(customer1);
+
+      const customer2 = await prisma.customer.create({
+        data: {
+          companyId: company.id,
+          name: 'Skyline Convention & Banquet Centre',
+          businessName: 'Skyline Hospitality Hubs LLP',
+          gstin: '36AABCS8888S1Z2',
+          phone: '+919876500002',
+          email: 'banquets@skylinehub.com',
+          billingAddress: 'Financial District, Hitec City, Hyderabad',
+          paymentTerms: 'Net 15',
+          creditLimit: 500000,
+        },
+      });
+      seededCustomers.push(customer2);
+
+      const customer3 = await prisma.customer.create({
+        data: {
+          companyId: company.id,
+          name: 'Sri Sai Electrical & Lighting Contractors',
+          businessName: 'Sri Sai Electrical Projects',
           gstin: '36AABCS1234C1Z5',
           phone: '+919876543210',
-          billingAddress: 'Madhapur, Hyderabad',
+          email: 'srisaielectrical@gmail.com',
+          billingAddress: 'Gachibowli, Hyderabad',
           paymentTerms: 'Net 30',
           creditLimit: 250000,
         },
       });
+      seededCustomers.push(customer3);
+
       await prisma.vendor.create({
         data: {
           companyId: company.id,
-          name: 'UltraTech Depot',
-          businessName: 'UltraTech Cement Ltd (Depot)',
-          gstin: '36AABCU5678D1Z2',
+          name: 'Philips Lighting India Ltd',
+          businessName: 'Philips Lighting India Commercial Division',
+          gstin: '36AABCP1111P1Z3',
           phone: '+919812345678',
-          billingAddress: 'Patancheru, Hyderabad',
+          email: 'distribution@philips-lighting.in',
+          billingAddress: 'Patancheru Industrial Area, Hyderabad',
           paymentTerms: 'Net 15',
         },
       });
+
+      await prisma.vendor.create({
+        data: {
+          companyId: company.id,
+          name: 'Havells Electrical Depot',
+          businessName: 'Havells India Supply Hub',
+          gstin: '36AABCH2222H1Z4',
+          phone: '+919812345679',
+          email: 'orders@havellsdepot.in',
+          billingAddress: 'Jeedimetla, Hyderabad',
+          paymentTerms: 'Net 30',
+        },
+      });
+
       if (resources[0]) {
         await prisma.customerPrice.create({
           data: {
             companyId: company.id,
-            customerId: customer.id,
+            customerId: customer1.id,
             resourceId: resources[0].id,
-            rate: Math.max(1, Number(opts.catalog[0]!.rate) - 20),
+            rate: Math.max(1, Number(opts.catalog[0]!.rate) - 15),
+          },
+        });
+      }
+
+      // Seed Quotes & Sales Orders for rich demo
+      if (resources.length >= 4) {
+        // Quote 1: Accepted Event Lighting Quote
+        const q1Lines = [
+          { resourceId: resources[0]!.id, itemName: resources[0]!.name, unit: resources[0]!.unit, quantity: 40, rate: resources[0]!.rate, amount: 40 * resources[0]!.rate, gstRate: resources[0]!.gstRate },
+          { resourceId: resources[1]!.id, itemName: resources[1]!.name, unit: resources[1]!.unit, quantity: 30, rate: resources[1]!.rate, amount: 30 * resources[1]!.rate, gstRate: resources[1]!.gstRate },
+          { resourceId: resources[2]!.id, itemName: resources[2]!.name, unit: resources[2]!.unit, quantity: 15, rate: resources[2]!.rate, amount: 15 * resources[2]!.rate, gstRate: resources[2]!.gstRate },
+          { resourceId: resources[3]!.id, itemName: resources[3]!.name, unit: resources[3]!.unit, quantity: 8, rate: resources[3]!.rate, amount: 8 * resources[3]!.rate, gstRate: resources[3]!.gstRate },
+        ];
+        const q1Subtotal = q1Lines.reduce((acc, l) => acc + l.amount, 0);
+        const q1Gst = q1Lines.reduce((acc, l) => acc + (l.amount * l.gstRate) / 100, 0);
+        const q1Total = q1Subtotal + q1Gst;
+
+        const quote1 = await prisma.quote.create({
+          data: {
+            companyId: company.id,
+            projectId: storeProject.id,
+            quoteNumber: 'QT-001',
+            customerId: customer1.id,
+            customerName: customer1.name,
+            status: 'ACCEPTED',
+            quoteDate: new Date(Date.now() - 3 * 86_400_000),
+            validUntil: new Date(Date.now() + 14 * 86_400_000),
+            subtotal: q1Subtotal,
+            gstAmount: q1Gst,
+            total: q1Total,
+            notes: 'Grand Gala Wedding Sangeet Stage & Ambient Lighting Setup',
+            lines: { create: q1Lines },
+          },
+        });
+
+        // Sales order 1 linked to Quote 1
+        const so1 = await prisma.salesOrder.create({
+          data: {
+            companyId: company.id,
+            projectId: storeProject.id,
+            soNumber: 'SO-001',
+            customerId: customer1.id,
+            customerName: customer1.name,
+            status: 'CONFIRMED',
+            orderDate: new Date(Date.now() - 2 * 86_400_000),
+            notes: 'Converted from Quote QT-001 for Sangeet Stage Lighting',
+            subtotal: q1Subtotal,
+            gstAmount: q1Gst,
+            total: q1Total,
+            createdBy: owner.id,
+            lines: {
+              create: q1Lines.map((l) => ({
+                resourceId: l.resourceId,
+                itemName: l.itemName,
+                unit: l.unit,
+                quantity: l.quantity,
+                rate: l.rate,
+                amount: l.amount,
+                gstRate: l.gstRate,
+                deliveredQty: l.quantity,
+              })),
+            },
+          },
+        });
+
+        await prisma.quote.update({
+          where: { id: quote1.id },
+          data: { salesOrderId: so1.id },
+        });
+
+        // Delivery Challan 1 dispatched from staging warehouse
+        const stagingWh = createdWarehouses[1] || mainLoc;
+        await prisma.deliveryChallan.create({
+          data: {
+            companyId: company.id,
+            projectId: storeProject.id,
+            dcNumber: 'DC-001',
+            salesOrderId: so1.id,
+            customerId: customer1.id,
+            customerName: customer1.name,
+            status: 'DISPATCHED',
+            dispatchedAt: new Date(Date.now() - 1 * 86_400_000),
+            notes: `Dispatched from ${stagingWh.name} for venue setup`,
+            createdBy: owner.id,
+            lines: {
+              create: q1Lines.map((l) => ({
+                resourceId: l.resourceId,
+                itemName: l.itemName,
+                unit: l.unit,
+                quantity: l.quantity,
+                rate: l.rate,
+              })),
+            },
+          },
+        });
+
+        // Quote 2: Sent Corporate Summit Lighting Quote
+        const q2Lines = [
+          { resourceId: resources[1]!.id, itemName: resources[1]!.name, unit: resources[1]!.unit, quantity: 60, rate: resources[1]!.rate, amount: 60 * resources[1]!.rate, gstRate: resources[1]!.gstRate },
+          { resourceId: resources[2]!.id, itemName: resources[2]!.name, unit: resources[2]!.unit, quantity: 20, rate: resources[2]!.rate, amount: 20 * resources[2]!.rate, gstRate: resources[2]!.gstRate },
+        ];
+        const q2Subtotal = q2Lines.reduce((acc, l) => acc + l.amount, 0);
+        const q2Gst = q2Lines.reduce((acc, l) => acc + (l.amount * l.gstRate) / 100, 0);
+        await prisma.quote.create({
+          data: {
+            companyId: company.id,
+            projectId: storeProject.id,
+            quoteNumber: 'QT-002',
+            customerId: customer2.id,
+            customerName: customer2.name,
+            status: 'SENT',
+            quoteDate: new Date(),
+            validUntil: new Date(Date.now() + 21 * 86_400_000),
+            subtotal: q2Subtotal,
+            gstAmount: q2Gst,
+            total: q2Subtotal + q2Gst,
+            notes: 'Annual Corporate Tech Summit Main Hall Ambient Lighting',
+            lines: { create: q2Lines },
           },
         });
       }
@@ -1450,6 +1666,78 @@ async function main(): Promise<void> {
     console.log(`   Seeded Kirana vertical: ${opts.companyName} - ${opts.ownerEmail} (${selectedKeys.length} stocked SKUs)`);
   }
 
+  // 1. Lumina Lighting & Event Electricals (Dedicated Rich Lighting Demo)
+  await seedInventoryTenant({
+    companyName: 'Lumina Lighting & Event Electricals',
+    profile: InventoryBusinessProfile.WHOLESALE,
+    gstin: '36AABCL9999L1Z8',
+    pan: 'AABCL9999L',
+    state: 'Telangana',
+    address: 'Plot 42, Hitec City Main Road, Madhapur, Hyderabad, Telangana 500081',
+    ownerName: 'Ananya Sharma',
+    ownerEmail: 'owner@luminalighting.com',
+    managerName: 'Karthik Rao',
+    managerEmail: 'manager@luminalighting.com',
+    storeCode: 'LUMINA',
+    rich: true,
+    catalog: [
+      { name: 'Warm White LED Bulb 9W (B22)', unit: 'nos', rate: 110, costPrice: 65, mrp: 140, category: 'Bulbs & Lamps', sku: 'BULB-9W-WW', brandOrSpec: 'Havells B22 3000K', reorderPoint: 50 },
+      { name: 'Cool Daylight LED Bulb 12W (E27)', unit: 'nos', rate: 145, costPrice: 85, mrp: 180, category: 'Bulbs & Lamps', sku: 'BULB-12W-CD', brandOrSpec: 'Philips E27 6500K', reorderPoint: 40 },
+      { name: 'Vintage Edison Filament Bulb 40W (ST64)', unit: 'nos', rate: 280, costPrice: 150, mrp: 350, category: 'Decorative Bulbs', sku: 'BULB-ED-40W', brandOrSpec: 'Amber Glow Warm ST64', reorderPoint: 20 },
+      { name: 'RGB Smart WiFi Dimmable Bulb 15W', unit: 'nos', rate: 650, costPrice: 380, mrp: 799, category: 'Smart Lighting', sku: 'BULB-RGB-15W', brandOrSpec: 'Syska Smart 16M Colors', reorderPoint: 15 },
+      { name: '50W Outdoor Waterproof LED Flood Light IP65', unit: 'nos', rate: 1250, costPrice: 750, mrp: 1600, category: 'Outdoor & Stage', sku: 'FLD-50W-IP65', brandOrSpec: 'IP65 Die-Cast Aluminum', reorderPoint: 10 },
+      { name: '100W High-Bay Industrial LED Light', unit: 'nos', rate: 2800, costPrice: 1800, mrp: 3400, category: 'Industrial Fixtures', sku: 'HB-100W', brandOrSpec: 'UFO High Bay 140 lm/W', reorderPoint: 5 },
+      { name: '5m RGB LED Strip Light with Controller', unit: 'roll', rate: 480, costPrice: 260, mrp: 650, category: 'Strips & Accents', sku: 'STRIP-5M-RGB', brandOrSpec: 'SMD5050 Waterproof IP67', reorderPoint: 25 },
+      { name: 'Stage Spot Par Can Light 36x3W DMX', unit: 'nos', rate: 3200, costPrice: 2100, mrp: 4000, category: 'Stage & Events', sku: 'PAR-36-DMX', brandOrSpec: 'RGBW DMX512 Master-Slave', reorderPoint: 8 },
+      { name: 'Halogen Studio Flood Light 500W', unit: 'nos', rate: 850, costPrice: 480, mrp: 1100, category: 'Outdoor & Stage', sku: 'HAL-500W', brandOrSpec: 'Heavy Duty Metal Reflector', reorderPoint: 12 },
+      { name: 'Modern Crystal Chandelier 6-Arm E14', unit: 'nos', rate: 14500, costPrice: 9500, mrp: 18000, category: 'Chandeliers', sku: 'CHAN-6ARM', brandOrSpec: 'K9 Crystal Chrome Finish', reorderPoint: 2 },
+      { name: 'Heavy-Duty Stage Truss Cable 10m', unit: 'nos', rate: 750, costPrice: 420, mrp: 950, category: 'Cables & Accessories', sku: 'CBL-TRUSS-10M', brandOrSpec: '3-Core 2.5 sq mm Rubber', reorderPoint: 15 },
+      { name: 'Rotary Dimmer Switch 1000W', unit: 'nos', rate: 390, costPrice: 210, mrp: 499, category: 'Switches & Dimmers', sku: 'DIM-1000W', brandOrSpec: 'Smooth Triac Dimmer', reorderPoint: 20 },
+      { name: 'Fairy Decorative Rice Lights 20m Warm White', unit: 'nos', rate: 220, costPrice: 110, mrp: 299, category: 'Decorative Bulbs', sku: 'FAIRY-20M-WW', brandOrSpec: 'Copper Wire 200 LEDs', reorderPoint: 30 },
+      { name: 'Spike Garden Spotlight 10W', unit: 'nos', rate: 580, costPrice: 320, mrp: 750, category: 'Outdoor & Stage', sku: 'SPK-10W-GRN', brandOrSpec: 'IP67 Ground Spike Warm', reorderPoint: 15 },
+      { name: 'GU10 Warm White Spotlight 7W', unit: 'nos', rate: 160, costPrice: 90, mrp: 210, category: 'Bulbs & Lamps', sku: 'GU10-7W-WW', brandOrSpec: '38-degree Beam 3000K', reorderPoint: 35 },
+      { name: 'T8 LED Tube Light 4ft 20W', unit: 'nos', rate: 240, costPrice: 130, mrp: 300, category: 'Commercial Fixtures', sku: 'TUBE-T8-20W', brandOrSpec: 'Batten Tube Fixture', reorderPoint: 40 },
+      { name: '16A Extension Power Strip 5m', unit: 'nos', rate: 620, costPrice: 350, mrp: 799, category: 'Cables & Accessories', sku: 'EXT-16A-5M', brandOrSpec: 'Surge Protected 4-Socket', reorderPoint: 20 },
+    ],
+    openingQtys: [250, 180, 80, 60, 45, 20, 100, 24, 30, 6, 50, 60, 120, 40, 90, 150, 60],
+    extraWarehouses: [
+      {
+        name: 'Event Staging & Rental Depot',
+        code: 'STAGING',
+        address: 'Madhapur Near HITEX Exhibition Centre, Hyderabad',
+        stock: [
+          { itemIndex: 0, quantity: 100 }, // Warm white bulbs
+          { itemIndex: 2, quantity: 50 },  // Edison bulbs
+          { itemIndex: 4, quantity: 25 },  // 50W flood lights
+          { itemIndex: 6, quantity: 40 },  // RGB strips
+          { itemIndex: 7, quantity: 18 },  // Stage pars
+          { itemIndex: 8, quantity: 20 },  // Halogen floods
+          { itemIndex: 10, quantity: 35 }, // Truss cables
+          { itemIndex: 11, quantity: 30 }, // Dimmers
+          { itemIndex: 12, quantity: 80 }, // Fairy lights
+          { itemIndex: 16, quantity: 35 }, // Extension strips
+        ],
+      },
+      {
+        name: 'Banjara Hills Showroom & Counter',
+        code: 'SHOWROOM',
+        address: 'Road No. 36, Jubilee Hills / Banjara Hills, Hyderabad',
+        stock: [
+          { itemIndex: 0, quantity: 50 },
+          { itemIndex: 1, quantity: 50 },
+          { itemIndex: 2, quantity: 30 },
+          { itemIndex: 3, quantity: 35 },
+          { itemIndex: 6, quantity: 25 },
+          { itemIndex: 9, quantity: 5 },   // Chandeliers
+          { itemIndex: 11, quantity: 15 },
+          { itemIndex: 13, quantity: 20 },
+          { itemIndex: 14, quantity: 40 },
+          { itemIndex: 15, quantity: 30 },
+        ],
+      },
+    ],
+  });
+
   await seedInventoryTenant({
     companyName: 'Hyderabad Building Materials',
     profile: InventoryBusinessProfile.MATERIAL_SUPPLIER,
@@ -1464,13 +1752,15 @@ async function main(): Promise<void> {
     storeCode: 'STORE',
     rich: true,
     catalog: [
-      { name: 'OPC Cement 53 Grade', unit: 'bag', rate: 380, gstRate: 28, category: 'Cement', sku: 'CEM-53', reorderPoint: 40 },
-      { name: 'TMT Bar 12mm Fe500', unit: 'kg', rate: 68, gstRate: 18, category: 'Steel', sku: 'TMT-12', reorderPoint: 200 },
-      { name: 'River Sand', unit: 'cum', rate: 2200, gstRate: 5, category: 'Aggregates', sku: 'SAND-R', reorderPoint: 5 },
-      { name: 'Red Bricks (Class A)', unit: 'nos', rate: 9, gstRate: 5, category: 'Masonry', sku: 'BRK-A', reorderPoint: 500 },
-      { name: '20mm Aggregate', unit: 'cum', rate: 1850, gstRate: 5, category: 'Aggregates', sku: 'AGG-20', reorderPoint: 8 },
+      { name: 'OPC Cement 53 Grade', unit: 'bag', rate: 380, costPrice: 320, mrp: 410, category: 'Cement', sku: 'CEM-53', reorderPoint: 40 },
+      { name: 'TMT Bar 12mm Fe500', unit: 'kg', rate: 68, costPrice: 58, mrp: 75, category: 'Steel', sku: 'TMT-12', reorderPoint: 200 },
+      { name: 'River Sand', unit: 'cum', rate: 2200, costPrice: 1800, mrp: 2400, category: 'Aggregates', sku: 'SAND-R', reorderPoint: 5 },
+      { name: 'Red Bricks (Class A)', unit: 'nos', rate: 9, costPrice: 7.5, mrp: 11, category: 'Masonry', sku: 'BRK-A', reorderPoint: 500 },
+      { name: '20mm Aggregate', unit: 'cum', rate: 1850, costPrice: 1500, mrp: 2100, category: 'Aggregates', sku: 'AGG-20', reorderPoint: 8 },
+      { name: '50W Site Flood Light', unit: 'nos', rate: 1250, costPrice: 750, mrp: 1500, category: 'Electrical', sku: 'FLD-50W', reorderPoint: 10 },
+      { name: 'LED Bulb 9W (B22)', unit: 'nos', rate: 95, costPrice: 60, mrp: 130, category: 'Electrical', sku: 'LED-9W', reorderPoint: 30 },
     ],
-    openingQtys: [80, 500, 12, 2000, 15],
+    openingQtys: [80, 500, 12, 2000, 15, 30, 100],
   });
 
   await seedInventoryTenant({
@@ -1484,11 +1774,14 @@ async function main(): Promise<void> {
     ownerEmail: 'owner@cityhardware.com',
     storeCode: 'RETAIL',
     catalog: [
-      { name: 'PVC Elbow 1"', unit: 'nos', rate: 18, gstRate: 18, category: 'Plumbing', sku: 'PVC-EL1', reorderPoint: 50 },
-      { name: 'LED Bulb 9W', unit: 'nos', rate: 95, gstRate: 18, category: 'Electrical', sku: 'LED-9W', reorderPoint: 30 },
-      { name: 'Wall Putty 20kg', unit: 'bag', rate: 420, gstRate: 18, category: 'Finishing', sku: 'PUT-20', reorderPoint: 15 },
+      { name: 'PVC Elbow 1"', unit: 'nos', rate: 18, costPrice: 11, mrp: 25, category: 'Plumbing', sku: 'PVC-EL1', reorderPoint: 50 },
+      { name: 'LED Bulb 9W Warm White', unit: 'nos', rate: 95, costPrice: 60, mrp: 130, category: 'Electrical', sku: 'LED-9W', reorderPoint: 30 },
+      { name: 'LED Bulb 12W Cool White', unit: 'nos', rate: 135, costPrice: 85, mrp: 170, category: 'Electrical', sku: 'LED-12W', reorderPoint: 25 },
+      { name: 'Vintage Edison Bulb 40W', unit: 'nos', rate: 260, costPrice: 150, mrp: 320, category: 'Electrical', sku: 'ED-40W', reorderPoint: 15 },
+      { name: '5m RGB LED Strip', unit: 'roll', rate: 450, costPrice: 260, mrp: 600, category: 'Electrical', sku: 'STRIP-5M', reorderPoint: 20 },
+      { name: 'Wall Putty 20kg', unit: 'bag', rate: 420, costPrice: 340, mrp: 480, category: 'Finishing', sku: 'PUT-20', reorderPoint: 15 },
     ],
-    openingQtys: [120, 80, 25],
+    openingQtys: [120, 80, 60, 30, 40, 25],
   });
 
   await seedInventoryTenant({
@@ -1502,11 +1795,13 @@ async function main(): Promise<void> {
     ownerEmail: 'owner@deccanwholesale.com',
     storeCode: 'WHOLE',
     catalog: [
-      { name: 'Binder Clips Box', unit: 'box', rate: 85, gstRate: 18, category: 'Stationery', sku: 'BC-BX', reorderPoint: 40 },
-      { name: 'A4 Copier Paper Rim', unit: 'rim', rate: 240, gstRate: 12, category: 'Stationery', sku: 'A4-RIM', reorderPoint: 60 },
-      { name: 'Packing Tape 48mm', unit: 'roll', rate: 35, gstRate: 18, category: 'Packaging', sku: 'TAPE-48', reorderPoint: 100 },
+      { name: 'Warm White LED Bulb Pack (10x9W)', unit: 'pack', rate: 850, costPrice: 550, mrp: 1200, category: 'Lighting Wholesale', sku: 'LED-PK-9W', reorderPoint: 40 },
+      { name: '50W Flood Light Carton (5x50W)', unit: 'box', rate: 5200, costPrice: 3400, mrp: 7000, category: 'Lighting Wholesale', sku: 'FLD-BX-50W', reorderPoint: 15 },
+      { name: 'Binder Clips Box', unit: 'box', rate: 85, costPrice: 50, mrp: 110, category: 'Stationery', sku: 'BC-BX', reorderPoint: 40 },
+      { name: 'A4 Copier Paper Rim', unit: 'rim', rate: 240, costPrice: 170, mrp: 300, category: 'Stationery', sku: 'A4-RIM', reorderPoint: 60 },
+      { name: 'Packing Tape 48mm', unit: 'roll', rate: 35, costPrice: 20, mrp: 50, category: 'Packaging', sku: 'TAPE-48', reorderPoint: 100 },
     ],
-    openingQtys: [200, 150, 400],
+    openingQtys: [150, 40, 200, 150, 400],
   });
 
   await seedInventoryTenant({
@@ -1642,6 +1937,10 @@ async function main(): Promise<void> {
   console.log('   accounts@reddyconst.com (ACCOUNTANT)');
   // eslint-disable-next-line no-console
   console.log('── Inventory demos - password', PASSWORD);
+  // eslint-disable-next-line no-console
+  console.log('   owner@luminalighting.com (LIGHTING & EVENT ACCESSORIES, multi-warehouse + quotes) → /inventory');
+  // eslint-disable-next-line no-console
+  console.log('   manager@luminalighting.com (INVENTORY_MANAGER)');
   // eslint-disable-next-line no-console
   console.log('   owner@hydmaterials.com (MATERIAL_SUPPLIER, rich) → /inventory');
   // eslint-disable-next-line no-console

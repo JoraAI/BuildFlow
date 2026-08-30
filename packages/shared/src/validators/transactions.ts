@@ -23,6 +23,7 @@ export const createSalesOrderSchema = z.object({
   customerName: z.string().min(1).max(200),
   orderDate: z.coerce.date(),
   expectedDelivery: z.coerce.date().optional(),
+  locationId: z.string().uuid().optional(),
   notes: z.string().max(2000).optional(),
   lines: z.array(salesOrderLineSchema).min(1),
 });
@@ -32,6 +33,7 @@ export const salesOrderActionSchema = z.object({ action: z.enum(['confirm', 'can
 
 export const createDeliveryChallanSchema = z.object({
   salesOrderId: z.string().uuid(),
+  locationId: z.string().uuid().optional(),
   notes: z.string().max(2000).optional(),
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3): one batch code for the whole
   // challan (lite) - applied to every DC line → copied to each OUT movement.

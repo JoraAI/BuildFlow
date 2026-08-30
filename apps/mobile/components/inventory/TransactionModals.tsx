@@ -80,9 +80,9 @@ type DraftLine = {
 };
 const newKey = () => `l-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-function useProjectStockBalances() {
+function useProjectStockBalances(locationId?: string) {
   const projectId = useAuthStore((s) => s.user?.defaultProjectId ?? '');
-  const { data } = useStockSummary(projectId);
+  const { data } = useStockSummary(projectId, locationId);
   const rows: Array<{ resourceId: string; balance: number }> = data ?? [];
   return useMemo(() => new Map(rows.map((r) => [r.resourceId, r.balance])), [rows]);
 }
@@ -94,24 +94,31 @@ function LineEditor({
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 9.1): customer price-list overrides.
   rateOverrides,
   allowedResourceIds,
+  locationId,
+  warehouseName,
 }: {
   lines: DraftLine[];
   setLines: React.Dispatch<React.SetStateAction<DraftLine[]>>;
   showKind?: boolean;
   rateOverrides?: Record<string, number>;
   allowedResourceIds?: string[];
+  locationId?: string;
+  warehouseName?: string;
 }) {
   const { data } = useResources();
   const resources: Array<{ id: string; name: string; unit: string; rate?: number | string | null; gstRate?: number | string | null }> =
     Array.isArray(data) ? data : (data?.data ?? []);
-  const balances = useProjectStockBalances();
+  const balances = useProjectStockBalances(locationId);
   const filteredResources = allowedResourceIds && allowedResourceIds.length > 0
     ? resources.filter((r) => allowedResourceIds.includes(r.id))
     : resources;
-  const options = filteredResources.map((r) => ({
-    title: `${r.name}${balances.has(r.id) ? ` · on hand ${balances.get(r.id)}` : ''}`,
-    value: r.id,
-  }));
+  const options = filteredResources.map((r) => {
+    const bal = balances.get(r.id) ?? 0;
+    return {
+      title: `${r.name} · on hand ${bal} ${r.unit || ''}`,
+      value: r.id,
+    };
+  });
   const patch = (key: string, field: keyof DraftLine, value: string) =>
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, [field]: value } : l)));
 
@@ -119,6 +126,10 @@ function LineEditor({
     <View className="gap-2 mt-2">
       {lines.map((l, idx) => {
         const resource = resources.find((r) => r.id === l.resourceId);
+        const onHand = l.resourceId ? (balances.get(l.resourceId) ?? 0) : 0;
+        const requestedQty = Number(l.quantity) || 0;
+        const isShortage = l.resourceId && requestedQty > onHand;
+
         return (
           <View key={l.key} className="bg-surface rounded-xl border border-border p-3">
             <Select
@@ -154,6 +165,20 @@ function LineEditor({
                 <Text className="text-sm font-semibold text-danger">✕</Text>
               </Pressable>
             </View>
+
+            {l.resourceId ? (
+              <View className="flex-row items-center justify-between mt-1 px-0.5">
+                <Text className="text-[11px] text-muted">
+                  {warehouseName ? `${warehouseName} on-hand:` : 'Store on-hand:'} <Text className="font-semibold text-text">{onHand} {l.unit}</Text>
+                </Text>
+                {isShortage ? (
+                  <Text className="text-[11px] font-semibold text-warning">
+                    ⚠️ Qty exceeds stock on hand ({onHand})
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+
             {showKind ? (
               <View className="flex-row gap-2 mt-2">
                 {(['GOOD', 'DAMAGED'] as const).map((k) => {
@@ -197,13 +222,16 @@ export function NewSalesOrderModal({
     customerId?: string;
     customerName: string;
     orderDate: string;
+    locationId?: string;
     notes?: string;
     lines: Array<{ resourceId: string; quantity: number; unit: string; rate: number; gstRate?: number }>;
   }) => Promise<void>;
 }) {
   const { isPhone } = useViewport();
   const { data: customers } = useCustomers();
+  const { data: warehouses } = useWarehouses();
   const [customerId, setCustomerId] = useState('');
+  const [locationId, setLocationId] = useState('');
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 9.1): effective-rate prefill.
   const { data: effectiveRates } = useEffectiveRates(customerId || undefined);
   const [customerName, setCustomerName] = useState('');
@@ -221,10 +249,15 @@ export function NewSalesOrderModal({
       setNotes('');
       setLines([{ key: newKey(), resourceId: '', quantity: '', rate: '', gstRate: '18', unit: '', returnKind: 'GOOD' }]);
       setError('');
+      if (warehouses && warehouses.length > 0) {
+        const def = warehouses.find((w: Warehouse) => w.isDefault) ?? warehouses[0];
+        if (def) setLocationId(def.id);
+      }
     }
-  }, [open]);
+  }, [open, warehouses]);
 
   const customerOptions = (customers ?? []).map((c: { id: string; name: string }) => ({ title: c.name, value: c.id }));
+  const selectedWarehouse = (warehouses ?? []).find((w: Warehouse) => w.id === locationId);
 
   const submit = async () => {
     setError('');
@@ -238,11 +271,15 @@ export function NewSalesOrderModal({
     }
     setSaving(true);
     try {
+      const warehouseNote = selectedWarehouse ? `[Fulfillment Store: ${selectedWarehouse.name}]` : '';
+      const finalNotes = [warehouseNote, notes.trim()].filter(Boolean).join(' ');
+
       await onSubmit({
         ...(customerId ? { customerId } : {}),
         customerName: name,
         orderDate,
-        ...(notes.trim() ? { notes: notes.trim() } : {}),
+        ...(locationId ? { locationId } : {}),
+        ...(finalNotes ? { notes: finalNotes } : {}),
         lines: goodLines.map((l) => ({
           resourceId: l.resourceId,
           quantity: Number(l.quantity),
@@ -261,7 +298,17 @@ export function NewSalesOrderModal({
   if (!open) return null;
 
   return (
-    <Sheet visible={open} title="New sales order" subtitle="Draft → confirm → challan → invoice" saving={saving} onClose={onClose} fullScreen>
+    <Sheet visible={open} title="New sales order" subtitle="Draft → confirm → challan → invoice. Items are dispatched from selected warehouse." saving={saving} onClose={onClose} fullScreen>
+      <Select
+        label="Dispatch From Warehouse / Store"
+        value={locationId || undefined}
+        options={(warehouses ?? []).map((w: Warehouse) => ({
+          title: `${w.name}${w.isDefault ? ' (Default Store)' : ''}${w.code ? ` · ${w.code}` : ''}`,
+          value: w.id,
+        }))}
+        onChange={(v) => v && setLocationId(v)}
+        placeholder="Select Warehouse / Store"
+      />
       <Select
         label="Customer"
         value={customerId || undefined}
@@ -276,7 +323,13 @@ export function NewSalesOrderModal({
       <Input label="Customer name (if not in master)" value={customerName} onChangeText={setCustomerName} />
       <Input label="Order date" value={orderDate} onChangeText={setOrderDate} />
       <Input label="Notes (optional)" value={notes} onChangeText={setNotes} multiline />
-      <LineEditor lines={lines} setLines={setLines} rateOverrides={effectiveRates} />
+      <LineEditor
+        lines={lines}
+        setLines={setLines}
+        rateOverrides={effectiveRates}
+        locationId={locationId}
+        warehouseName={selectedWarehouse?.name}
+      />
       {error ? <Text className="text-sm text-danger mt-2">{error}</Text> : null}
       <View className="flex-row flex-wrap gap-2 mt-4 mb-4">
         <Button label="Cancel" variant="secondary" className="flex-1 min-w-[120px]" disabled={saving} onPress={onClose} />
@@ -297,6 +350,7 @@ export function NewChallanModal({
   onClose: () => void;
   onSubmit: (input: {
     salesOrderId: string;
+    locationId?: string;
     notes?: string;
     // INVENTORY_HORIZONTAL_PLATFORM (Phase 9.6): subset lines + per-line batch.
     lines?: Array<{ salesOrderLineId: string; quantity: number; batchCode?: string }>;
@@ -304,13 +358,17 @@ export function NewChallanModal({
 }) {
   const { isPhone } = useViewport();
   const { data: orders } = useSalesOrders();
+  const { data: warehouses } = useWarehouses();
   const [salesOrderId, setSalesOrderId] = useState('');
+  const [locationId, setLocationId] = useState('');
   const [notes, setNotes] = useState('');
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3/9.6): per-line qty + batch.
   const [qtyByLine, setQtyByLine] = useState<Record<string, string>>({});
   const [batchByLine, setBatchByLine] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  const balances = useProjectStockBalances(locationId);
 
   useEffect(() => {
     if (open) {
@@ -319,8 +377,12 @@ export function NewChallanModal({
       setQtyByLine({});
       setBatchByLine({});
       setError('');
+      if (warehouses && warehouses.length > 0) {
+        const def = warehouses.find((w: Warehouse) => w.isDefault) ?? warehouses[0];
+        if (def) setLocationId(def.id);
+      }
     }
-  }, [open]);
+  }, [open, warehouses]);
 
   const eligible = useMemo(
     () =>
@@ -332,6 +394,7 @@ export function NewChallanModal({
   );
 
   const selectedOrder = eligible.find((o: { id: string }) => o.id === salesOrderId);
+  const selectedWarehouse = (warehouses ?? []).find((w: Warehouse) => w.id === locationId);
 
   const remainingFor = (l: { quantity: string; deliveredQty: string }): number => {
     const rem = Number(l.quantity) - Number(l.deliveredQty);
@@ -362,9 +425,13 @@ export function NewChallanModal({
     }
     setSaving(true);
     try {
+      const warehouseNote = selectedWarehouse ? `[Dispatched from: ${selectedWarehouse.name}]` : '';
+      const finalNotes = [warehouseNote, notes.trim()].filter(Boolean).join(' ');
+
       await onSubmit({
         salesOrderId,
-        ...(notes.trim() ? { notes: notes.trim() } : {}),
+        ...(locationId ? { locationId } : {}),
+        ...(finalNotes ? { notes: finalNotes } : {}),
         lines,
       });
     } catch (e) {
@@ -380,11 +447,21 @@ export function NewChallanModal({
     <Sheet
       visible={open}
       title="New delivery challan"
-      subtitle="Pick which undelivered lines to ship (defaults to all). Dispatch moves stock OUT."
+      subtitle="Pick undelivered lines to ship from the selected warehouse. Dispatch moves stock OUT."
       fullScreen
       saving={saving}
       onClose={onClose}
     >
+      <Select
+        label="Dispatch From Warehouse / Store"
+        value={locationId || undefined}
+        options={(warehouses ?? []).map((w: Warehouse) => ({
+          title: `${w.name}${w.isDefault ? ' (Default Store)' : ''}${w.code ? ` · ${w.code}` : ''}`,
+          value: w.id,
+        }))}
+        onChange={(v) => v && setLocationId(v)}
+        placeholder="Select Warehouse"
+      />
       <Select
         label="Sales order"
         value={salesOrderId || undefined}
@@ -401,6 +478,7 @@ export function NewChallanModal({
           <Text className="text-xs font-semibold text-muted uppercase mb-1.5">Lines to ship</Text>
           {(selectedOrder.lines as Array<{
             id: string;
+            resourceId?: string;
             itemName: string;
             unit: string;
             quantity: string;
@@ -409,13 +487,22 @@ export function NewChallanModal({
             .filter((l) => remainingFor(l) > 0)
             .map((l) => {
               const rem = remainingFor(l);
+              const onHandInWh = l.resourceId ? (balances.get(l.resourceId) ?? 0) : 0;
+              const requested = qtyByLine[l.id] !== undefined ? Number(qtyByLine[l.id]) : rem;
+              const isInsufficient = l.resourceId && requested > onHandInWh;
+
               return (
-                <View key={l.id} className="mb-2">
+                <View key={l.id} className="mb-2 pb-2 border-b border-border/40">
                   <View className="flex-row items-center gap-2">
-                    <Text className="flex-1 text-xs text-text" numberOfLines={1}>
-                      {l.itemName} (undelivered {rem} {l.unit})
-                    </Text>
-                    <View className="w-20">
+                    <View className="flex-1">
+                      <Text className="text-xs font-semibold text-text" numberOfLines={1}>
+                        {l.itemName}
+                      </Text>
+                      <Text className="text-[11px] text-muted">
+                        Remaining: {rem} {l.unit} {l.resourceId ? `· ${selectedWarehouse?.name || 'Store'} on-hand: ${onHandInWh} ${l.unit}` : ''}
+                      </Text>
+                    </View>
+                    <View className="w-24">
                       <Input
                         label=""
                         placeholder={String(rem)}
@@ -425,14 +512,21 @@ export function NewChallanModal({
                       />
                     </View>
                   </View>
+                  {isInsufficient ? (
+                    <Text className="text-[11px] font-semibold text-warning mt-0.5">
+                      ⚠️ Requested {requested} exceeds on-hand ({onHandInWh}) in {selectedWarehouse?.name || 'warehouse'}
+                    </Text>
+                  ) : null}
                   {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3/9.6): per-line batch. */}
-                  <Input
-                    label="Batch / lot code (optional)"
-                    value={batchByLine[l.id] ?? ''}
-                    onChangeText={(v) => setBatchByLine((prev) => ({ ...prev, [l.id]: v }))}
-                    autoCapitalize="characters"
-                    placeholder="e.g. LOT-2026-A - copied to the OUT movement on dispatch"
-                  />
+                  <View className="mt-1">
+                    <Input
+                      label="Batch / lot code (optional)"
+                      value={batchByLine[l.id] ?? ''}
+                      onChangeText={(v) => setBatchByLine((prev) => ({ ...prev, [l.id]: v }))}
+                      autoCapitalize="characters"
+                      placeholder="e.g. LOT-2026-A - copied to the OUT movement on dispatch"
+                    />
+                  </View>
                 </View>
               );
             })}
@@ -467,7 +561,9 @@ export function NewQuoteModal({
   }) => Promise<void>;
 }) {
   const { data: customers } = useCustomers();
+  const { data: warehouses } = useWarehouses();
   const [customerId, setCustomerId] = useState('');
+  const [locationId, setLocationId] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [quoteDate, setQuoteDate] = useState(new Date().toISOString().slice(0, 10));
   const [validUntil, setValidUntil] = useState('');
@@ -487,10 +583,15 @@ export function NewQuoteModal({
       setNotes('');
       setLines([{ key: newKey(), resourceId: '', quantity: '', rate: '', gstRate: '18', unit: '', returnKind: 'GOOD' }]);
       setError('');
+      if (warehouses && warehouses.length > 0) {
+        const def = warehouses.find((w: Warehouse) => w.isDefault) ?? warehouses[0];
+        if (def) setLocationId(def.id);
+      }
     }
-  }, [open]);
+  }, [open, warehouses]);
 
   const customerOptions = (customers ?? []).map((c: { id: string; name: string }) => ({ title: c.name, value: c.id }));
+  const selectedWarehouse = (warehouses ?? []).find((w: Warehouse) => w.id === locationId);
 
   const submit = async () => {
     setError('');
@@ -528,9 +629,19 @@ export function NewQuoteModal({
   if (!open) return null;
 
   return (
-    <Sheet visible={open} title="New quote" subtitle="Draft → send → accept → convert to a sales order" saving={saving} onClose={onClose} fullScreen>
+    <Sheet visible={open} title="New Event / Client Quote" subtitle="Draft → Send → Accept → Convert to Sales Order. Item rates and event requirements are itemized below." saving={saving} onClose={onClose} fullScreen>
       <Select
-        label="Customer"
+        label="Check Stock Availability from Warehouse / Store"
+        value={locationId || undefined}
+        options={(warehouses ?? []).map((w: Warehouse) => ({
+          title: `${w.name}${w.isDefault ? ' (Default Store)' : ''}${w.code ? ` · ${w.code}` : ''}`,
+          value: w.id,
+        }))}
+        onChange={(v) => v && setLocationId(v)}
+        placeholder="Select Warehouse"
+      />
+      <Select
+        label="Customer / Client"
         value={customerId || undefined}
         options={customerOptions}
         onChange={(v) => {
@@ -538,9 +649,9 @@ export function NewQuoteModal({
           const c = (customers ?? []).find((x: { id: string; name: string }) => x.id === v);
           if (c) setCustomerName(c.name);
         }}
-        placeholder="Pick from customers"
+        placeholder="Pick from master customers"
       />
-      <Input label="Customer name (if not in master)" value={customerName} onChangeText={setCustomerName} />
+      <Input label="Customer / Client name (if not in master)" value={customerName} onChangeText={setCustomerName} />
       <View className="flex-row gap-2">
         <View className="flex-1">
           <Input label="Quote date" value={quoteDate} onChangeText={setQuoteDate} />
@@ -549,12 +660,18 @@ export function NewQuoteModal({
           <Input label="Valid until" value={validUntil} onChangeText={setValidUntil} placeholder="YYYY-MM-DD" />
         </View>
       </View>
-      <Input label="Notes (optional)" value={notes} onChangeText={setNotes} multiline />
-      <LineEditor lines={lines} setLines={setLines} rateOverrides={effectiveRates} />
+      <Input label="Event / Occasion / Reference (e.g. Wedding Stage Lighting Setup)" value={notes} onChangeText={setNotes} multiline />
+      <LineEditor
+        lines={lines}
+        setLines={setLines}
+        rateOverrides={effectiveRates}
+        locationId={locationId}
+        warehouseName={selectedWarehouse?.name}
+      />
       {error ? <Text className="text-sm text-danger mt-2">{error}</Text> : null}
       <View className="flex-row gap-2 mt-4 mb-4">
         <Button label="Cancel" variant="secondary" className="flex-1" disabled={saving} onPress={onClose} />
-        <Button label={saving ? 'Saving…' : 'Create quote'} variant="accent" className="flex-1" loading={saving} onPress={submit} />
+        <Button label={saving ? 'Saving…' : 'Create event quote'} variant="accent" className="flex-1" loading={saving} onPress={submit} />
       </View>
     </Sheet>
   );
@@ -580,11 +697,16 @@ export function DispatchChallanSheet({
 
   useEffect(() => {
     if (open) {
-      setLocationId('');
+      if (warehouses && warehouses.length > 0) {
+        const def = warehouses.find((w: Warehouse) => w.isDefault) ?? warehouses[0];
+        if (def) setLocationId(def.id);
+      } else {
+        setLocationId('');
+      }
       setError('');
       setSaving(false);
     }
-  }, [open]);
+  }, [open, warehouses]);
 
   if (!open) return null;
 
@@ -592,17 +714,20 @@ export function DispatchChallanSheet({
     <Sheet
       visible={open}
       title={`Dispatch ${dcNumber ?? 'challan'}`}
-      subtitle="Stock moves OUT for the challan lines. Optionally pick the dispatch warehouse."
+      subtitle="Stock moves OUT from the selected warehouse for all challan lines."
       fullScreen
       saving={saving}
       onClose={onClose}
     >
       <Select
-        label="Dispatch from warehouse (optional)"
+        label="Dispatch from Warehouse / Store"
         value={locationId || undefined}
         onChange={(v) => setLocationId(v ?? '')}
-        options={(warehouses ?? []).map((w: Warehouse) => ({ title: w.name, value: w.id }))}
-        placeholder="Company default warehouse"
+        options={(warehouses ?? []).map((w: Warehouse) => ({
+          title: `${w.name}${w.isDefault ? ' (Default Store)' : ''}${w.code ? ` · ${w.code}` : ''}`,
+          value: w.id,
+        }))}
+        placeholder="Select Warehouse"
       />
       {error ? <Text className="text-sm text-danger mt-2">{error}</Text> : null}
       <View className="flex-row flex-wrap gap-2 mt-4 mb-4">

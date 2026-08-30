@@ -86,3 +86,35 @@ export function generateWhatsAppDailyReportShare(params: {
 
   openWhatsAppUrl(msg);
 }
+
+export function generateWhatsAppQuoteShare(params: {
+  quoteNumber: string;
+  customerName: string;
+  eventName?: string | null;
+  quoteDate: string;
+  validUntil?: string | null;
+  items: Array<{ name: string; qty: number; unit: string; rate: number; amount: number }>;
+  total: number;
+}) {
+  const lineSummary = params.items
+    .map((it) => `• ${it.name} - ${it.qty} ${it.unit} @ ${formatINR(it.rate)} = ${formatINR(it.amount)}`)
+    .join('\n');
+
+  const msg =
+    `*EVENT ESTIMATE & QUOTATION* 💡✨\n` +
+    `--------------------------------\n` +
+    `*Quote No:* ${params.quoteNumber}\n` +
+    `*Client / Organization:* ${params.customerName}\n` +
+    (params.eventName ? `*Event / Occasion:* ${params.eventName}\n` : '') +
+    `*Quote Date:* ${params.quoteDate}\n` +
+    (params.validUntil ? `*Valid Until:* ${params.validUntil}\n` : '') +
+    `--------------------------------\n` +
+    `*Requirement Breakdown:*\n` +
+    lineSummary + '\n' +
+    `--------------------------------\n` +
+    `*Estimated Total:* ${formatINR(params.total)}\n` +
+    `--------------------------------\n` +
+    `_Prepared via BuildFlow Lighting & Inventory Platform_`;
+
+  openWhatsAppUrl(msg);
+}

@@ -727,6 +727,57 @@ export async function reportSalesOrder(companyId: string, salesOrderId: string):
   return { buffer: await endBuffer(doc), filename: `sales-order-${so.soNumber}.pdf` };
 }
 
+export async function reportQuote(companyId: string, quoteId: string): Promise<PdfResult> {
+  const quote = await prisma.quote.findFirstOrThrow({
+    where: { id: quoteId, companyId },
+    include: { lines: true, customer: { select: { name: true, gstin: true } } },
+  });
+  const company = await loadCompanyForPdf(companyId);
+
+  const doc = newDoc();
+  drawBrandedHeader(doc, 'EVENT & CLIENT ESTIMATE / QUOTATION', company);
+  doc.fontSize(11).font('Helvetica-Bold').fillColor(NAVY).text(`Quote #: ${quote.quoteNumber}`, MARGIN);
+  const meta = `Date: ${quote.quoteDate.toISOString().slice(0, 10)}${quote.validUntil ? ` | Valid Until: ${quote.validUntil.toISOString().slice(0, 10)}` : ''} | Customer: ${quote.customer?.name ?? quote.customerName}`;
+  doc.font('Helvetica').fontSize(9).fillColor(MUTED).text(meta);
+  if (quote.notes) {
+    doc.moveDown(0.3);
+    doc.fontSize(9).font('Helvetica-Oblique').fillColor('#334155').text(`Event / Reference: ${quote.notes}`);
+  }
+  doc.moveDown(0.5);
+  if (quote.customer?.gstin) {
+    doc.font('Helvetica-Bold').fillColor('#0F172A').text('Quoted To:', MARGIN);
+    doc.font('Helvetica').text(quote.customer.name, MARGIN);
+    doc.text(`GSTIN: ${quote.customer.gstin}`);
+    doc.moveDown(1);
+  }
+
+  const widths = [40, 200, 70, 70, 90, 90];
+  let y = tableHeaders(doc, ['Sr', 'Item Description', 'Unit', 'Qty', 'Rate (Rs)', 'Amount (Rs)'], widths, doc.y);
+  quote.lines.forEach((li, i) => {
+    y = tableRow(
+      doc,
+      [
+        `${i + 1}`,
+        li.itemName,
+        li.unit,
+        `${num(li.quantity)}`,
+        num(li.rate).toLocaleString('en-IN'),
+        num(li.amount).toLocaleString('en-IN'),
+      ],
+      widths,
+      y,
+      i % 2 === 1,
+    );
+  });
+  doc.moveDown(1);
+  summaryLine(doc, 'Subtotal', inr(num(quote.subtotal)));
+  summaryLine(doc, 'GST', inr(num(quote.gstAmount)));
+  doc.moveTo(MARGIN, doc.y).lineTo(PAGE_W - MARGIN, doc.y).strokeColor(NAVY).lineWidth(1.5).stroke();
+  summaryLine(doc, 'ESTIMATED TOTAL', inr(num(quote.total)), true);
+  drawBrandedFooter(doc, company);
+  return { buffer: await endBuffer(doc), filename: `quote-${quote.quoteNumber}.pdf` };
+}
+
 export async function reportDeliveryChallan(companyId: string, dcId: string): Promise<PdfResult> {
   const dc = await prisma.deliveryChallan.findFirstOrThrow({
     where: { id: dcId, companyId },

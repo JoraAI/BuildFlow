@@ -123,6 +123,7 @@ function InventoryLayoutBody() {
               <Stack.Screen name="stock/[resourceId]" />
               <Stack.Screen name="materials" />
               <Stack.Screen name="parties" />
+              <Stack.Screen name="quotes" />
               <Stack.Screen name="sales" />
               <Stack.Screen name="warehouse" />
               <Stack.Screen name="procurement" />

@@ -272,7 +272,7 @@ export async function dispatchDeliveryChallan(
       const qty = Number(line.quantity);
       if (!balance || onHand < qty) {
         throw ApiError.unprocessable(
-          `${line.itemName}: only ${onHand} on hand, challan requires ${qty} - dispatch aborted.`,
+          `${line.itemName}: only ${onHand} on hand in ${location.name}, challan requires ${qty} - dispatch aborted.`,
         );
       }
       await tx.stockBalance.update({ where: { id: balance.id }, data: { quantity: { decrement: qty } } });
