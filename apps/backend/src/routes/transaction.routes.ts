@@ -19,6 +19,7 @@ import {
   createPurchaseReturnSchema,
   validateReturnScanSchema,
   approveSalesReturnSchema,
+  recordChallanReturnSchema,
 } from '@buildflow/shared';
 import { Role } from '@buildflow/shared';
 import { z } from 'zod';
@@ -48,6 +49,12 @@ transactionRouter.post(
   transactionController.dispatchDeliveryChallan,
 );
 transactionRouter.post('/delivery-challans/:id/deliver', canManage, validate({ params: idParams }), transactionController.deliverDeliveryChallan);
+transactionRouter.post(
+  '/delivery-challans/:id/return',
+  canManage,
+  validate({ params: idParams, body: recordChallanReturnSchema }),
+  transactionController.recordChallanReturn,
+);
 
 // Returns
 transactionRouter.get('/returns/sales', transactionController.listSalesReturns);

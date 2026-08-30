@@ -85,6 +85,22 @@ export async function deliverDeliveryChallan(req: Request, res: Response, next: 
     next(err);
   }
 }
+export async function recordChallanReturn(req: Request, res: Response, next: NextFunction) {
+  try {
+    ok(
+      res,
+      await salesOrderService.recordChallanReturn(
+        req.user!.companyId,
+        req.user!.id,
+        req.user!.role,
+        req.params.id,
+        req.body,
+      ),
+    );
+  } catch (err) {
+    next(err);
+  }
+}
 
 /* ── Returns ──────────────────────────────────────────────────────── */
 export async function createSalesReturn(req: Request, res: Response, next: NextFunction) {

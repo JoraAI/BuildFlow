@@ -22,6 +22,7 @@ import type {
   CreateSalesOrderInput,
   CreateDeliveryChallanInput,
   CreateInvoiceFromSalesOrderInput,
+  RecordChallanReturnInput,
 } from '@buildflow/shared';
 
 function round2(n: number) {
@@ -183,6 +184,15 @@ export async function createDeliveryChallan(
   });
   if (!so) throw ApiError.notFound('Sales order not found');
   if (so.status !== 'CONFIRMED') throw ApiError.badRequest('Sales order must be confirmed before creating a challan');
+
+  const existingDraft = await prisma.deliveryChallan.findFirst({
+    where: { salesOrderId: so.id, companyId, projectId, status: 'DRAFT' },
+  });
+  if (existingDraft) {
+    throw ApiError.badRequest(
+      `Sales order already has draft delivery challan ${existingDraft.dcNumber}. Please dispatch or edit it before creating a new one.`,
+    );
+  }
 
   const lines = so.lines
     .map((l) => {
@@ -399,6 +409,137 @@ export async function deliverDeliveryChallan(companyId: string, userId: string, 
     where: { id: dcId },
     data: { status: 'DELIVERED', deliveredAt: new Date() },
     include: { lines: true },
+  });
+}
+
+/**
+ * Records on-site return / unconsumed buffer items against a dispatched delivery challan
+ * before final invoicing. Restocks items to warehouse (Stock IN) and decrements delivered quantities.
+ */
+export async function recordChallanReturn(
+  companyId: string,
+  userId: string,
+  role: string,
+  dcId: string,
+  input: RecordChallanReturnInput,
+) {
+  const projectId = await resolveDefaultProject(companyId, userId, role);
+  const dc = await prisma.deliveryChallan.findFirst({
+    where: { id: dcId, companyId, projectId },
+    include: { lines: true, salesOrder: { include: { lines: true } } },
+  });
+  if (!dc) throw ApiError.notFound('Delivery challan not found');
+  if (dc.status !== 'DISPATCHED' && dc.status !== 'DELIVERED') {
+    throw ApiError.badRequest('Returns can only be recorded for dispatched or delivered challans');
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const location = await getOrCreateProjectStockLocation(companyId, projectId, tx, {
+      locationId: input.locationId,
+    });
+
+    for (const retLine of input.lines) {
+      const dcLine = dc.lines.find((l) => l.resourceId === retLine.resourceId);
+      if (!dcLine) {
+        throw ApiError.badRequest(`Item not found on delivery challan ${dc.dcNumber}`);
+      }
+      const returnQty = Number(retLine.quantity);
+      if (returnQty <= 0) continue;
+      if (returnQty > Number(dcLine.quantity)) {
+        throw ApiError.badRequest(
+          `Cannot return ${returnQty} of ${dcLine.itemName}; only ${dcLine.quantity} was dispatched on this challan.`,
+        );
+      }
+
+      // Restock to warehouse if GOOD
+      const returnKind = retLine.returnKind ?? 'GOOD';
+      if (returnKind === 'GOOD') {
+        await tx.stockBalance.upsert({
+          where: { locationId_resourceId: { locationId: location.id, resourceId: retLine.resourceId } },
+          create: { locationId: location.id, resourceId: retLine.resourceId, quantity: returnQty },
+          update: { quantity: { increment: returnQty } },
+        });
+        const res = await tx.resource.findUnique({
+          where: { id: retLine.resourceId },
+          select: { avgCost: true, name: true, unit: true },
+        });
+        await tx.stockMovement.create({
+          data: {
+            locationId: location.id,
+            resourceId: retLine.resourceId,
+            quantity: returnQty,
+            type: 'IN',
+            referenceType: 'DELIVERY_CHALLAN',
+            referenceId: dc.id,
+            notes: `Challan return ${dc.dcNumber} (${retLine.reason ?? 'Unconsumed on-site return'})`,
+            unitCost: Number(res?.avgCost ?? 0),
+            inventoryValue: Math.round(Number(res?.avgCost ?? 0) * returnQty * 100) / 100,
+          },
+        });
+      }
+
+      // Decrement DC line qty
+      const newDcQty = Number(dcLine.quantity) - returnQty;
+      await tx.deliveryChallanLine.update({
+        where: { id: dcLine.id },
+        data: { quantity: newDcQty },
+      });
+
+      // Decrement SO line deliveredQty
+      if (dcLine.salesOrderLineId) {
+        await tx.salesOrderLine.update({
+          where: { id: dcLine.salesOrderLineId },
+          data: { deliveredQty: { decrement: returnQty } },
+        });
+      }
+    }
+
+    // Sync any DRAFT invoice linked to this Sales Order so it reflects the net delivered items
+    if (dc.salesOrderId) {
+      const draftInvoices = await tx.invoice.findMany({
+        where: { companyId, salesOrderId: dc.salesOrderId, status: 'DRAFT' },
+        include: { lineItems: true },
+      });
+      const updatedDcLines = await tx.deliveryChallanLine.findMany({
+        where: { deliveryChallanId: dc.id },
+      });
+
+      for (const draftInv of draftInvoices) {
+        for (const dcL of updatedDcLines) {
+          const invLine = draftInv.lineItems.find((il) => il.resourceId === dcL.resourceId);
+          if (invLine) {
+            const netQty = Number(dcL.quantity);
+            if (netQty > 0) {
+              await tx.invoiceLineItem.update({
+                where: { id: invLine.id },
+                data: {
+                  quantity: netQty,
+                  amount: Math.round(netQty * Number(invLine.rate) * 100) / 100,
+                },
+              });
+            } else {
+              await tx.invoiceLineItem.delete({ where: { id: invLine.id } });
+            }
+          }
+        }
+        // Recalculate draft invoice total
+        const remainingLines = await tx.invoiceLineItem.findMany({
+          where: { invoiceId: draftInv.id },
+        });
+        const subtotal = remainingLines.reduce((acc, l) => acc + Number(l.amount), 0);
+        const gstAmount = Math.round(subtotal * (Number(draftInv.gstRate || 18) / 100) * 100) / 100;
+        const total = subtotal + gstAmount;
+        await tx.invoice.update({
+          where: { id: draftInv.id },
+          data: { subtotal, gstAmount, total },
+        });
+      }
+    }
+
+    return tx.deliveryChallan.findUnique({
+      where: { id: dc.id },
+      include: { lines: true },
+    });
   });
 }
 

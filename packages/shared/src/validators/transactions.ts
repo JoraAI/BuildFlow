@@ -45,6 +45,21 @@ export const createDeliveryChallanSchema = z.object({
 });
 export type CreateDeliveryChallanInput = z.infer<typeof createDeliveryChallanSchema>;
 
+export const recordChallanReturnSchema = z.object({
+  lines: z
+    .array(
+      z.object({
+        resourceId: z.string().uuid(),
+        quantity: z.coerce.number().positive(),
+        reason: z.string().max(500).optional(),
+        returnKind: returnKindSchema.default('GOOD'),
+      }),
+    )
+    .min(1),
+  locationId: z.string().uuid().optional(),
+});
+export type RecordChallanReturnInput = z.infer<typeof recordChallanReturnSchema>;
+
 export const createInvoiceFromSalesOrderSchema = z.object({
   // Route also accepts /sales-orders/:id/invoice with the id in the URL params.
   salesOrderId: z.string().uuid().optional(),

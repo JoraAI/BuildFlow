@@ -287,4 +287,60 @@ describe('POS Barcode Scan-and-Return & Approval Workflow', () => {
     });
     expect(res.status).toBe(404);
   });
+
+  it('6. Records on-site buffer return on Delivery Challan before invoicing and restocks to warehouse', async () => {
+    // Create new SO for 30 units
+    const soRes = await authPost(token, '/api/inventory/transactions/sales-orders', {
+      customerName: 'Acro Lighting Ltd',
+      orderDate: new Date().toISOString(),
+      lines: [
+        {
+          resourceId: fixtureId,
+          quantity: 30,
+          unit: 'NOS',
+          rate: 1200,
+          gstRate: 18,
+        },
+      ],
+    });
+    const soId = soRes.body.data.id;
+    await authPost(token, `/api/inventory/transactions/sales-orders/${soId}/action`, { action: 'confirm' });
+
+    // Dispatch 30 units on Delivery Challan
+    const dcRes = await authPost(token, '/api/inventory/transactions/delivery-challans', {
+      salesOrderId: soId,
+    });
+    const dcId = dcRes.body.data.id;
+    await authPost(token, `/api/inventory/transactions/delivery-challans/${dcId}/dispatch`, {
+      locationId: defaultLocationId,
+    });
+
+    const preBalance = await prisma.stockBalance.findUnique({
+      where: { locationId_resourceId: { locationId: defaultLocationId, resourceId: fixtureId } },
+    });
+
+    // Customer returns 6 buffer units on-site directly against the Challan
+    const retRes = await authPost(token, `/api/inventory/transactions/delivery-challans/${dcId}/return`, {
+      locationId: defaultLocationId,
+      lines: [
+        {
+          resourceId: fixtureId,
+          quantity: 6,
+          reason: '6 unconsumed buffer fixtures returned by driver',
+          returnKind: 'GOOD',
+        },
+      ],
+    });
+    expect(retRes.status).toBe(200);
+
+    // DC quantity should now be 24 (net accepted)
+    const updatedDcLine = retRes.body.data.lines.find((l: { resourceId: string }) => l.resourceId === fixtureId);
+    expect(Number(updatedDcLine.quantity)).toBe(24);
+
+    // Stock in warehouse should have increased by 6
+    const postBalance = await prisma.stockBalance.findUnique({
+      where: { locationId_resourceId: { locationId: defaultLocationId, resourceId: fixtureId } },
+    });
+    expect(Number(postBalance!.quantity)).toBe(Number(preBalance!.quantity) + 6);
+  });
 });

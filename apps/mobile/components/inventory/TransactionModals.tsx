@@ -7,7 +7,7 @@ import { useCustomers } from '@/services/party.queries';
 import { useResources } from '@/services/estimate.queries';
 import { useInvoices, useBills } from '@/services/accounting.queries';
 import { useStockSummary } from '@/services/expansion.queries';
-import { useSalesOrders, useValidateReturnScan } from '@/services/sales.queries';
+import { useSalesOrders, useValidateReturnScan, type DeliveryChallan } from '@/services/sales.queries';
 import { useWarehouses, type Warehouse } from '@/services/warehouse.queries';
 import { useEffectiveRates } from '@/services/inventory-gtm.queries';
 import { BarcodeScannerOverlay } from '@/components/inventory/BarcodeScannerOverlay';
@@ -93,17 +93,22 @@ function LineEditor({
   showKind,
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 9.1): customer price-list overrides.
   rateOverrides,
+  allowedResourceIds,
 }: {
   lines: DraftLine[];
   setLines: React.Dispatch<React.SetStateAction<DraftLine[]>>;
   showKind?: boolean;
   rateOverrides?: Record<string, number>;
+  allowedResourceIds?: string[];
 }) {
   const { data } = useResources();
   const resources: Array<{ id: string; name: string; unit: string; rate?: number | string | null; gstRate?: number | string | null }> =
     Array.isArray(data) ? data : (data?.data ?? []);
   const balances = useProjectStockBalances();
-  const options = resources.map((r) => ({
+  const filteredResources = allowedResourceIds && allowedResourceIds.length > 0
+    ? resources.filter((r) => allowedResourceIds.includes(r.id))
+    : resources;
+  const options = filteredResources.map((r) => ({
     title: `${r.name}${balances.has(r.id) ? ` · on hand ${balances.get(r.id)}` : ''}`,
     value: r.id,
   }));
@@ -626,6 +631,301 @@ export function DispatchChallanSheet({
   );
 }
 
+/* ── Delivery Challan Pre-Invoice Return (On-Site / Buffer Return) ── */
+
+export function ChallanReturnModal({
+  open,
+  challan,
+  onClose,
+  onSubmit,
+}: {
+  open: boolean;
+  challan: DeliveryChallan | null;
+  onClose: () => void;
+  onSubmit: (input: {
+    lines: Array<{ resourceId: string; quantity: number; reason?: string; returnKind?: 'GOOD' | 'DAMAGED' }>;
+    locationId?: string;
+  }) => Promise<void>;
+}) {
+  const { isPhone } = useViewport();
+  const { data: warehouses } = useWarehouses();
+  const { data: resourceData } = useResources();
+  const resources: Array<{ id: string; name: string; unit: string; barcode?: string | null; sku?: string | null }> =
+    Array.isArray(resourceData) ? resourceData : (resourceData?.data ?? []);
+
+  const [locationId, setLocationId] = useState('');
+  const [reason, setReason] = useState('Unconsumed site buffer return');
+  const [lines, setLines] = useState<DraftLine[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [scanBuffer, setScanBuffer] = useState('');
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanToast, setScanToast] = useState('');
+
+  useEffect(() => {
+    if (open && challan) {
+      setLocationId('');
+      setReason('Unconsumed site buffer return');
+      setLines(
+        challan.lines.map((l: { resourceId: string; rate?: string | number; unit?: string }) => ({
+          key: newKey(),
+          resourceId: l.resourceId,
+          quantity: '',
+          rate: String(l.rate ?? 0),
+          gstRate: '18',
+          unit: l.unit || 'no',
+          returnKind: 'GOOD',
+        })),
+      );
+      setError('');
+      setScanBuffer('');
+      setScanToast('');
+    }
+  }, [open, challan]);
+
+  const handleBarcodeScan = (code: string) => {
+    const trimmed = code.trim().toLowerCase();
+    if (!trimmed || !challan) return;
+    setError('');
+    setScanToast('');
+
+    const catalogMatch = resources.find(
+      (r) =>
+        r.barcode?.toLowerCase() === trimmed ||
+        r.sku?.toLowerCase() === trimmed ||
+        r.name.toLowerCase().includes(trimmed),
+    );
+
+    if (!catalogMatch) {
+      setError(`No item found matching "${code.trim()}".`);
+      return;
+    }
+
+    const dcLine = challan.lines.find((l: { resourceId: string }) => l.resourceId === catalogMatch.id);
+    if (!dcLine) {
+      setError(
+        `Item "${catalogMatch.name}" was not dispatched on Delivery Challan ${challan.dcNumber}. Only items on this challan can be returned.`,
+      );
+      return;
+    }
+
+    const maxDispatched = Number(dcLine.quantity);
+
+    setLines((prev) => {
+      const existingIdx = prev.findIndex((l) => l.resourceId === catalogMatch.id);
+      if (existingIdx >= 0) {
+        const current = prev[existingIdx];
+        const currQty = Number(current.quantity) || 0;
+        const nextQty = Math.min(currQty + 1, maxDispatched);
+        if (nextQty === currQty && currQty >= maxDispatched) {
+          setError(`Max return limit (${maxDispatched} ${dcLine.unit}) reached for "${catalogMatch.name}".`);
+          return prev;
+        }
+        const updated = [...prev];
+        updated[existingIdx] = { ...current, quantity: String(nextQty) };
+        return updated;
+      }
+      return [
+        ...prev,
+        {
+          key: newKey(),
+          resourceId: catalogMatch.id,
+          quantity: '1',
+          unit: dcLine.unit || 'no',
+          rate: String(dcLine.rate ?? 0),
+          gstRate: '18',
+          returnKind: 'GOOD',
+        },
+      ];
+    });
+
+    setScanToast(`Scanned: ${catalogMatch.name}`);
+    setScanBuffer('');
+  };
+
+  const submit = async () => {
+    setError('');
+    if (!challan) return;
+    const returnItems = lines.filter((l) => l.resourceId && Number(l.quantity) > 0);
+    if (returnItems.length === 0) {
+      setError('Enter return quantities for at least one item.');
+      return;
+    }
+
+    // Validate quantities against dispatched lines
+    for (const item of returnItems) {
+      const dcLine = challan.lines.find((l: { resourceId: string }) => l.resourceId === item.resourceId);
+      if (!dcLine) {
+        setError(`Item is not on challan ${challan.dcNumber}.`);
+        return;
+      }
+      if (Number(item.quantity) > Number(dcLine.quantity)) {
+        setError(`Cannot return ${item.quantity} ${item.unit} of "${dcLine.itemName}"; only ${dcLine.quantity} was dispatched.`);
+        return;
+      }
+    }
+
+    setSaving(true);
+    try {
+      await onSubmit({
+        locationId: locationId || undefined,
+        lines: returnItems.map((l) => ({
+          resourceId: l.resourceId,
+          quantity: Number(l.quantity),
+          reason: reason.trim() || undefined,
+          returnKind: l.returnKind,
+        })),
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not record return');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!open || !challan) return null;
+
+  return (
+    <Sheet
+      visible={open}
+      title={`Return on Challan ${challan.dcNumber}`}
+      subtitle={`Customer: ${challan.customerName}. Good items immediately restock to warehouse (Stock IN). Final invoice will bill the net accepted quantity.`}
+      fullScreen
+      saving={saving}
+      onClose={onClose}
+    >
+      {/* Scanner Bar */}
+      <View className="bg-primary/5 rounded-xl border border-primary/20 p-3 mb-3">
+        <View className="flex-row items-center justify-between mb-2">
+          <View className="flex-row items-center gap-1.5">
+            <Ionicons name="barcode-outline" size={18} color="#0284c7" />
+            <Text className="text-xs font-bold text-primary uppercase tracking-wide">Scan Returned Item</Text>
+          </View>
+          <Pressable
+            onPress={() => setScannerOpen(true)}
+            className="flex-row items-center gap-1 bg-primary px-2.5 py-1 rounded-md active:opacity-80"
+          >
+            <Ionicons name="camera-outline" size={14} color="#ffffff" />
+            <Text className="text-xs font-semibold text-white">Camera Scan</Text>
+          </Pressable>
+        </View>
+        <View className="flex-row gap-2">
+          <View className="flex-1">
+            <TextInput
+              value={scanBuffer}
+              onChangeText={setScanBuffer}
+              onSubmitEditing={() => handleBarcodeScan(scanBuffer)}
+              placeholder="Scan barcode / SKU on challan..."
+              placeholderTextColor="#94a3b8"
+              className="bg-card text-text border border-border rounded-lg px-3 py-2 text-sm"
+              returnKeyType="search"
+            />
+          </View>
+          <Button
+            label="Lookup"
+            size="sm"
+            variant="secondary"
+            onPress={() => handleBarcodeScan(scanBuffer)}
+            disabled={!scanBuffer.trim()}
+          />
+        </View>
+        {scanToast ? (
+          <View className="flex-row items-center gap-1.5 mt-2 bg-success/10 border border-success/20 px-2.5 py-1.5 rounded-md">
+            <Ionicons name="checkmark-circle" size={14} color="#16a34a" />
+            <Text className="text-xs text-success font-medium flex-1">{scanToast}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      <Select
+        label="Restock into warehouse (optional)"
+        value={locationId || undefined}
+        onChange={(v) => setLocationId(v ?? '')}
+        options={(warehouses ?? []).map((w: Warehouse) => ({ title: w.name, value: w.id }))}
+        placeholder="Company default warehouse"
+      />
+
+      <Input label="Return Reason" value={reason} onChangeText={setReason} placeholder="e.g. Unconsumed site buffer, rejected finish" />
+
+      <Text className="text-xs font-bold text-muted uppercase mt-3 mb-1">Items Dispatched on Challan</Text>
+      <View className="gap-2">
+        {challan.lines.map((dcL: { id: string; resourceId: string; itemName: string; unit: string; quantity: string | number }) => {
+          const lineState = lines.find((l) => l.resourceId === dcL.resourceId);
+          const returnQty = lineState?.quantity ?? '';
+          const returnKind = lineState?.returnKind ?? 'GOOD';
+
+          return (
+            <View key={dcL.id} className="bg-surface rounded-xl border border-border p-3">
+              <View className="flex-row items-center justify-between mb-1">
+                <Text className="text-sm font-semibold text-text flex-1">{dcL.itemName}</Text>
+                <Text className="text-xs text-muted">Dispatched: {dcL.quantity} {dcL.unit}</Text>
+              </View>
+              <View className="flex-row items-center gap-2 mt-2">
+                <View className="flex-1">
+                  <Input
+                    label={`Return Qty (${dcL.unit})`}
+                    value={returnQty}
+                    onChangeText={(val) => {
+                      setLines((prev) =>
+                        prev.map((l) => (l.resourceId === dcL.resourceId ? { ...l, quantity: val } : l)),
+                      );
+                    }}
+                    placeholder={`Max ${dcL.quantity}`}
+                    keyboardType="numeric"
+                  />
+                </View>
+                <View className="flex-row gap-1 pt-4">
+                  {(['GOOD', 'DAMAGED'] as const).map((k) => {
+                    const active = returnKind === k;
+                    return (
+                      <Pressable
+                        key={k}
+                        onPress={() => {
+                          setLines((prev) =>
+                            prev.map((l) => (l.resourceId === dcL.resourceId ? { ...l, returnKind: k } : l)),
+                          );
+                        }}
+                        className={`px-2.5 py-1.5 rounded-lg border ${active ? 'bg-primary border-primary' : 'bg-card border-border'}`}
+                      >
+                        <Text className={`text-xs font-medium ${active ? 'text-white' : 'text-muted'}`}>
+                          {k === 'GOOD' ? 'Restock' : 'Damaged'}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+          );
+        })}
+      </View>
+
+      {error ? (
+        <View className="flex-row items-center gap-1.5 mt-3 p-2 bg-danger/10 border border-danger/20 rounded-lg">
+          <Ionicons name="alert-circle" size={16} color="#dc2626" />
+          <Text className="text-xs text-danger font-medium flex-1">{error}</Text>
+        </View>
+      ) : null}
+
+      <View className="flex-row gap-2 mt-4 mb-4">
+        <Button label="Cancel" variant="secondary" className="flex-1" disabled={saving} onPress={onClose} />
+        <Button label={saving ? 'Restocking…' : 'Restock Returned Items (Stock IN)'} variant="accent" className="flex-1" loading={saving} onPress={submit} />
+      </View>
+
+      {scannerOpen ? (
+        <BarcodeScannerOverlay
+          open={scannerOpen}
+          onClose={() => setScannerOpen(false)}
+          onScanned={(code) => {
+            setScannerOpen(false);
+            handleBarcodeScan(code);
+          }}
+        />
+      ) : null}
+    </Sheet>
+  );
+}
+
 /* ── Sales return (from a sent/paid invoice or quick scan) ────────── */
 export function SalesReturnModal({
   open,
@@ -687,7 +987,14 @@ export function SalesReturnModal({
       ).map((i: { id: string; invoiceNumber: string; clientName: string }) => ({ title: `${i.invoiceNumber} · ${i.clientName}`, value: i.id })),
     [invoices],
   );
-  const selectedInvoice = (invoices ?? []).find((i: { id: string; status: string; invoiceNumber: string; clientName: string; lineItems?: Array<{ description: string; quantity: number }> }) => i.id === invoiceId);
+  const selectedInvoice = (invoices ?? []).find((i: { id: string; status: string; invoiceNumber: string; clientName: string; lineItems?: Array<{ description: string; quantity: number; resourceId?: string }> }) => i.id === invoiceId);
+
+  const invoiceResourceIds = useMemo(() => {
+    if (!selectedInvoice?.lineItems) return undefined;
+    return selectedInvoice.lineItems
+      .map((l: { resourceId?: string }) => l.resourceId)
+      .filter((id: string | undefined): id is string => !!id);
+  }, [selectedInvoice]);
 
   // Handle barcode / fast scan
   const handleBarcodeScan = async (code: string) => {
@@ -705,6 +1012,21 @@ export function SalesReturnModal({
       if (!result.isValidDispatch || result.matchingLines.length === 0) {
         setError(`"${result.resource.name}" was not found in dispatches.`);
         return;
+      }
+
+      // If an invoice was already chosen, strictly ensure item was on that invoice
+      if (invoiceId && selectedInvoice?.lineItems) {
+        const isLineInInvoice = selectedInvoice.lineItems.some(
+          (l: { resourceId?: string; description: string }) =>
+            (l.resourceId && l.resourceId === result.resource.id) ||
+            (l.description && l.description.toLowerCase() === result.resource.name.toLowerCase()),
+        );
+        if (!isLineInInvoice) {
+          setError(
+            `Item "${result.resource.name}" was not found in Invoice ${selectedInvoice.invoiceNumber}. Only items on this bill can be returned.`,
+          );
+          return;
+        }
       }
 
       // Auto-lock invoice if not chosen yet
@@ -886,7 +1208,7 @@ export function SalesReturnModal({
         </View>
       </View>
 
-      <LineEditor lines={lines} setLines={setLines} showKind />
+      <LineEditor lines={lines} setLines={setLines} showKind allowedResourceIds={invoiceResourceIds} />
 
       {error ? (
         <View className="flex-row items-center gap-1.5 mt-3 p-2 bg-danger/10 border border-danger/20 rounded-lg">

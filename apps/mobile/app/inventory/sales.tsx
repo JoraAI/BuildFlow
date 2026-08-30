@@ -6,14 +6,14 @@ import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
 import {
   useSalesOrders, useCreateSalesOrder, useSalesOrderAction, useInvoiceFromSalesOrder,
-  useDeliveryChallans, useCreateDeliveryChallan, useChallanTransition,
+  useDeliveryChallans, useCreateDeliveryChallan, useChallanTransition, useChallanReturn,
   useSalesReturns, useCreateSalesReturn, useApproveSalesReturn,
   usePurchaseReturns, useCreatePurchaseReturn,
   useCreditNotes, useDebitNotes, useIssueCreditNote, useIssueDebitNote,
   type SalesOrder, type DeliveryChallan, type SalesReturn, type PurchaseReturn, type CreditNote, type DebitNote,
 } from '@/services/sales.queries';
 import {
-  NewSalesOrderModal, NewChallanModal, SalesReturnModal, PurchaseReturnModal, DispatchChallanSheet, NewQuoteModal,
+  NewSalesOrderModal, NewChallanModal, SalesReturnModal, PurchaseReturnModal, DispatchChallanSheet, ChallanReturnModal, NewQuoteModal,
 } from '@/components/inventory/TransactionModals';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 import {
@@ -21,7 +21,7 @@ import {
 } from '@/services/inventory-gtm.queries';
 import { downloadReportPdf } from '@/services/report-download';
 
-type Tab = 'orders' | 'quotes' | 'deliveries' | 'returns' | 'notes';
+  type Tab = 'quotes' | 'orders' | 'deliveries' | 'returns' | 'notes';
 
 const STATUS_COLOR: Record<string, 'success' | 'warning' | 'neutral' | 'danger'> = {
   DRAFT: 'neutral',
@@ -50,6 +50,7 @@ export default function InventorySalesScreen() {
   const [quoteOpen, setQuoteOpen] = useState(false);
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.6): dispatch with a warehouse picker.
   const [dispatchChallan, setDispatchChallan] = useState<DeliveryChallan | null>(null);
+  const [returnChallan, setReturnChallan] = useState<DeliveryChallan | null>(null);
   const [salesReturnOpen, setSalesReturnOpen] = useState(false);
   const [purchaseReturnOpen, setPurchaseReturnOpen] = useState(false);
   const approveSalesReturn = useApproveSalesReturn();
@@ -72,18 +73,22 @@ export default function InventorySalesScreen() {
   const invoiceFromSO = useInvoiceFromSalesOrder();
   const createChallan = useCreateDeliveryChallan();
   const challanTransition = useChallanTransition();
+  const challanReturn = useChallanReturn();
   const createSalesReturn = useCreateSalesReturn();
   const createPurchaseReturn = useCreatePurchaseReturn();
 
   const headerAction = () => {
-    if (tab === 'orders') setSoOpen(true);
-    else if (tab === 'quotes') setQuoteOpen(true);
+    if (tab === 'quotes') setQuoteOpen(true);
+    else if (tab === 'orders') setSoOpen(true);
     else if (tab === 'deliveries') setChallanOpen(true);
   };
-  const headerLabel = tab === 'orders' ? 'New order' : tab === 'quotes' ? 'New quote' : tab === 'deliveries' ? 'New challan' : undefined;
+  const headerLabel = tab === 'quotes' ? 'New quote' : tab === 'orders' ? 'New order' : tab === 'deliveries' ? 'New challan' : undefined;
 
   const renderOrder = ({ item }: { item: SalesOrder }) => {
+    const hasDraftChallan = item.deliveryChallans.some((d) => d.status === 'DRAFT');
+    const allDelivered = item.lines.length > 0 && item.lines.every((l) => Number(l.deliveredQty) >= Number(l.quantity) - 0.0001);
     const delivered = item.deliveryChallans.some((d) => d.status === 'DISPATCHED' || d.status === 'DELIVERED');
+
     // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4, K8): desktop/tablet row.
     if (tableMode) {
       return (
@@ -101,10 +106,14 @@ export default function InventorySalesScreen() {
                 toast.success('Order confirmed');
               })} />
             ) : null}
-            {item.status === 'CONFIRMED' ? (
+            {item.status === 'CONFIRMED' && hasDraftChallan ? (
+              <Button label="Draft Challan" size="sm" variant="secondary" onPress={() => setTab('deliveries')} />
+            ) : null}
+            {item.status === 'CONFIRMED' && !hasDraftChallan && !allDelivered ? (
               <Button label="Challan" size="sm" variant="secondary" disabled={busy} onPress={() => void run(async () => {
                 await createChallan.mutateAsync({ salesOrderId: item.id });
                 toast.success('Challan created - dispatch to move stock');
+                setTab('deliveries');
               })} />
             ) : null}
             {(item.status === 'CONFIRMED' || item.status === 'DELIVERED') && delivered ? (
@@ -149,10 +158,14 @@ export default function InventorySalesScreen() {
               toast.success('Order confirmed');
             })} />
           ) : null}
-          {item.status === 'CONFIRMED' ? (
+          {item.status === 'CONFIRMED' && hasDraftChallan ? (
+            <Button label="Draft Challan" size="sm" variant="secondary" onPress={() => setTab('deliveries')} />
+          ) : null}
+          {item.status === 'CONFIRMED' && !hasDraftChallan && !allDelivered ? (
             <Button label="Create challan" size="sm" variant="secondary" disabled={busy} onPress={() => void run(async () => {
               await createChallan.mutateAsync({ salesOrderId: item.id });
               toast.success('Challan created - dispatch to move stock');
+              setTab('deliveries');
             })} />
           ) : null}
           {(item.status === 'CONFIRMED' || item.status === 'DELIVERED') && delivered ? (
@@ -282,15 +295,26 @@ export default function InventorySalesScreen() {
             <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
           </View>
           <Text className="flex-1 text-sm text-text text-right">{item.lines.length} line(s)</Text>
-          <View className="flex-[1.6] flex-row flex-wrap justify-end gap-1">
+          <View className="flex-[2] flex-row flex-wrap justify-end gap-1">
             {item.status === 'DRAFT' ? (
               <Button label="Dispatch (stock OUT)" size="sm" variant="accent" onPress={() => setDispatchChallan(item)} />
             ) : null}
             {item.status === 'DISPATCHED' ? (
-              <Button label="Deliver" size="sm" variant="secondary" disabled={busy} onPress={() => void run(async () => {
-                await challanTransition.mutateAsync({ id: item.id, action: 'deliver' });
-                toast.success('Delivered');
-              })} />
+              <>
+                <Button label="Return on-site" size="sm" variant="secondary" onPress={() => setReturnChallan(item)} />
+                <Button label="Deliver" size="sm" variant="secondary" disabled={busy} onPress={() => void run(async () => {
+                  await challanTransition.mutateAsync({ id: item.id, action: 'deliver' });
+                  toast.success('Delivered');
+                })} />
+                {item.salesOrder ? (
+                  <Button label="Deliver & Invoice" size="sm" variant="accent" disabled={busy} onPress={() => void run(async () => {
+                    await challanTransition.mutateAsync({ id: item.id, action: 'deliver' });
+                    const r = await invoiceFromSO.mutateAsync({ id: item.salesOrder!.id });
+                    toast.success(`Delivered · Invoice ${r.invoiceNumber} created`);
+                    router.push('/inventory/invoices' as never);
+                  })} />
+                ) : null}
+              </>
             ) : null}
             <Button label="PDF" size="sm" variant="ghost" onPress={() => void downloadReportPdf(`/inventory/pdf/delivery-challans/${item.id}`, `dc-${item.dcNumber}.pdf`)} />
           </View>
@@ -314,10 +338,21 @@ export default function InventorySalesScreen() {
           <Button label="Dispatch (stock OUT)" size="sm" variant="accent" onPress={() => setDispatchChallan(item)} />
         ) : null}
         {item.status === 'DISPATCHED' ? (
-          <Button label="Deliver" size="sm" variant="secondary" disabled={busy} onPress={() => void run(async () => {
-            await challanTransition.mutateAsync({ id: item.id, action: 'deliver' });
-            toast.success('Delivered');
-          })} />
+          <>
+            <Button label="Return on-site / Unsold" size="sm" variant="secondary" onPress={() => setReturnChallan(item)} />
+            <Button label="Deliver" size="sm" variant="secondary" disabled={busy} onPress={() => void run(async () => {
+              await challanTransition.mutateAsync({ id: item.id, action: 'deliver' });
+              toast.success('Delivered');
+            })} />
+            {item.salesOrder ? (
+              <Button label="Deliver & Invoice" size="sm" variant="accent" disabled={busy} onPress={() => void run(async () => {
+                await challanTransition.mutateAsync({ id: item.id, action: 'deliver' });
+                const r = await invoiceFromSO.mutateAsync({ id: item.salesOrder!.id });
+                toast.success(`Delivered · Invoice ${r.invoiceNumber} created`);
+                router.push('/inventory/invoices' as never);
+              })} />
+            ) : null}
+          </>
         ) : null}
         {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 9.3): printable DC PDF. */}
         <Button label="PDF" size="sm" variant="ghost" onPress={() => void downloadReportPdf(`/inventory/pdf/delivery-challans/${item.id}`, `dc-${item.dcNumber}.pdf`)} />
@@ -480,18 +515,18 @@ export default function InventorySalesScreen() {
     (tab === 'notes' && (creditNotes.isLoading || debitNotes.isLoading));
 
   const tabs: Array<{ key: Tab; label: string }> = [
-    { key: 'orders', label: 'Sales orders' },
     { key: 'quotes', label: 'Quotes' },
+    { key: 'orders', label: 'Sales orders' },
     { key: 'deliveries', label: 'Deliveries' },
     { key: 'returns', label: 'Returns' },
     { key: 'notes', label: 'Credit/Debit notes' },
   ];
 
   const dataForTab: any[] =
-    tab === 'orders'
-      ? (orders.data ?? [])
-      : tab === 'quotes'
-        ? (quotes.data ?? [])
+    tab === 'quotes'
+      ? (quotes.data ?? [])
+      : tab === 'orders'
+        ? (orders.data ?? [])
         : tab === 'deliveries'
           ? (challans.data ?? [])
           : tab === 'returns'
@@ -652,6 +687,24 @@ export default function InventorySalesScreen() {
               );
               setDispatchChallan(null);
               if (r.draftInvoiceId) router.push('/inventory/invoices' as never);
+            });
+          }}
+        />
+      ) : null}
+      {returnChallan ? (
+        <ChallanReturnModal
+          open={!!returnChallan}
+          challan={returnChallan}
+          onClose={() => setReturnChallan(null)}
+          onSubmit={async (input) => {
+            await run(async () => {
+              await challanReturn.mutateAsync({
+                id: returnChallan.id,
+                lines: input.lines,
+                locationId: input.locationId,
+              });
+              toast.success(`Challan ${returnChallan.dcNumber} returned items restocked (Stock IN)`);
+              setReturnChallan(null);
             });
           }}
         />

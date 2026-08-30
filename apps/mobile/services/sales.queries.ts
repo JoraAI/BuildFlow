@@ -234,6 +234,26 @@ export function useChallanTransition() {
   });
 }
 
+export function useChallanReturn() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      lines,
+      locationId,
+    }: {
+      id: string;
+      lines: Array<{ resourceId: string; quantity: number; reason?: string; returnKind?: 'GOOD' | 'DAMAGED' }>;
+      locationId?: string;
+    }) =>
+      apiFetch<DeliveryChallan>(`/inventory/transactions/delivery-challans/${id}/return`, {
+        method: 'POST',
+        body: JSON.stringify({ lines, locationId }),
+      }),
+    onSuccess: () => invalidateTransactions(qc),
+  });
+}
+
 /* ── Returns ──────────────────────────────────────────────────────── */
 
 export function useSalesReturns() {
