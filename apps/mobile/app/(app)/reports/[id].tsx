@@ -21,8 +21,10 @@ import { Card, Badge, EmptyState, LoadingSkeleton } from '@/components/ui';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { DISMISS, parseReturnTo, navigateAppBack } from '@/utils/navigation';
 import { useReport, useReportPhotos, type ReportListItem } from '@/services/report.queries';
+import { useLaborMusterStore } from '@/stores/labor-muster.store';
+import { usePettyCashEntries, type PettyCashEntry } from '@/services/petty-cash.queries';
 import { downloadReportPdf, reportPaths } from '@/services/report-download';
-import { formatDate } from '@/utils/format';
+import { formatDate, formatINR } from '@/utils/format';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -37,6 +39,26 @@ export default function ReportDetailScreen() {
   const report = reportQ.data;
   const photoUrls = photosQ.data?.urls ?? [];
   const loading = reportQ.isLoading;
+
+  const reportDateStr = report?.reportDate
+    ? new Date(report.reportDate).toISOString().slice(0, 10)
+    : '';
+
+  const muster = useLaborMusterStore((s) =>
+    report?.projectId && reportDateStr ? s.getMuster(report.projectId, reportDateStr) : null
+  );
+
+  const pettyCashQ = usePettyCashEntries(
+    report?.projectId ? { projectId: report.projectId } : undefined
+  );
+
+  const dayExpenses = (pettyCashQ.data?.rows ?? []).filter((e: PettyCashEntry) => {
+    if (!reportDateStr) return false;
+    const eDate = e.expenseDate ? e.expenseDate.slice(0, 10) : '';
+    return eDate === reportDateStr;
+  });
+
+  const totalDayExpense = dayExpenses.reduce((sum: number, e: PettyCashEntry) => sum + Number(e.amount), 0);
 
   return (
     <SafeAreaView className="flex-1 bg-surface">
@@ -83,12 +105,44 @@ export default function ReportDetailScreen() {
                   <Text className="text-muted font-normal">({report.project.code})</Text>
                 </Text>
               )}
-              <View className="flex-row gap-4">
+              {/* Weather & Site Metrics */}
+              <View className="flex-row flex-wrap gap-2 my-2 pt-2 border-t border-border/50">
                 {report.weather && (
-                  <Text className="text-sm text-muted">Weather: {report.weather}</Text>
+                  <View className="flex-row items-center gap-1.5 bg-surface px-2.5 py-1.5 rounded-lg border border-border">
+                    <Text className="text-sm">
+                      {report.weather === 'SUNNY'
+                        ? '☀️'
+                        : report.weather === 'CLOUDY'
+                        ? '☁️'
+                        : report.weather === 'RAIN'
+                        ? '🌧️'
+                        : report.weather === 'STORM'
+                        ? '⛈️'
+                        : report.weather === 'FOG'
+                        ? '🌫️'
+                        : '🌤️'}
+                    </Text>
+                    <Text className="text-xs font-semibold text-text">
+                      {report.weather.charAt(0) + report.weather.slice(1).toLowerCase()}
+                    </Text>
+                  </View>
                 )}
-                <Text className="text-sm text-muted">Workers: {report.workersCount}</Text>
+                <View className="flex-row items-center gap-1.5 bg-surface px-2.5 py-1.5 rounded-lg border border-border">
+                  <Ionicons name="people" size={14} color="#1E3A5F" />
+                  <Text className="text-xs font-semibold text-text">
+                    {report.workersCount} Workers
+                  </Text>
+                </View>
+                {dayExpenses.length > 0 && (
+                  <View className="flex-row items-center gap-1.5 bg-surface px-2.5 py-1.5 rounded-lg border border-border">
+                    <Ionicons name="cash" size={14} color="#10B981" />
+                    <Text className="text-xs font-semibold text-emerald-600">
+                      {formatINR(totalDayExpense)} Expense
+                    </Text>
+                  </View>
+                )}
               </View>
+
               <Text className="text-xs text-muted mt-1">By {report.reportedByUser.name}</Text>
               {/* RPT-UI1b-daily: Download PDF button */}
               <View className="mt-3 pt-3 border-t border-border/60">
@@ -112,6 +166,132 @@ export default function ReportDetailScreen() {
               </Card>
             </View>
           )}
+
+          {/* Labor & Muster Section */}
+          <View className="px-4 pb-3">
+            <Card className="p-4">
+              <View className="flex-row items-center justify-between mb-2">
+                <View className="flex-row items-center gap-2">
+                  <Ionicons name="people-outline" size={18} color="#1E3A5F" />
+                  <Text className="text-sm font-semibold text-text">Labor & Gang Muster</Text>
+                </View>
+                <Badge
+                  label={`${report.workersCount ?? muster?.totalHeadcount ?? 0} Workers`}
+                  color="primary"
+                />
+              </View>
+
+              {muster && muster.trades && muster.trades.length > 0 ? (
+                <View className="gap-2 mt-1">
+                  <View className="flex-row gap-2 bg-surface p-2 rounded-lg border border-border">
+                    <View className="flex-1">
+                      <Text className="text-[10px] text-muted">Active Gangs</Text>
+                      <Text className="text-xs font-bold text-text">
+                        {muster.trades.filter((t) => t.headcount > 0).length} Trades
+                      </Text>
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-[10px] text-muted">Overtime (OT)</Text>
+                      <Text className="text-xs font-bold text-amber-600">
+                        {muster.totalOtHours?.toFixed(1) ?? '0.0'} hrs
+                      </Text>
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-[10px] text-muted">Est. Daily Wage</Text>
+                      <Text className="text-xs font-bold text-emerald-600">
+                        {formatINR(muster.totalEstimatedWage ?? 0)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View className="gap-1.5 mt-1">
+                    {muster.trades
+                      .filter((t) => t.headcount > 0)
+                      .map((t) => (
+                        <View
+                          key={t.id}
+                          className="flex-row items-center justify-between py-1 border-b border-border/50"
+                        >
+                          <Text className="text-xs text-text">{t.trade}</Text>
+                          <View className="flex-row items-center gap-2">
+                            <Text className="text-xs font-semibold text-text">
+                              {t.headcount} workers
+                            </Text>
+                            {t.otHours > 0 ? (
+                              <Text className="text-[10px] text-amber-600 font-medium">
+                                ({t.otHours}h OT)
+                              </Text>
+                            ) : null}
+                          </View>
+                        </View>
+                      ))}
+                  </View>
+                </View>
+              ) : (
+                <Text className="text-xs text-muted">
+                  Total {report.workersCount ?? 0} site workers logged for this date.
+                </Text>
+              )}
+            </Card>
+          </View>
+
+          {/* Site Expenses & Petty Cash Section */}
+          <View className="px-4 pb-3">
+            <Card className="p-4">
+              <View className="flex-row items-center justify-between mb-2">
+                <View className="flex-row items-center gap-2">
+                  <Ionicons name="cash-outline" size={18} color="#1E3A5F" />
+                  <Text className="text-sm font-semibold text-text">Site Expenses (Petty Cash)</Text>
+                </View>
+                {dayExpenses.length > 0 ? (
+                  <Badge label={formatINR(totalDayExpense)} color="success" />
+                ) : null}
+              </View>
+
+              {dayExpenses.length > 0 ? (
+                <View className="gap-1.5 mt-1">
+                  {dayExpenses.map((exp: PettyCashEntry) => (
+                    <View
+                      key={exp.id}
+                      className="flex-row items-center justify-between py-2 border-b border-border/60"
+                    >
+                      <View className="flex-1 mr-2">
+                        <Text className="text-xs font-semibold text-text" numberOfLines={1}>
+                          {exp.description}
+                        </Text>
+                        <View className="flex-row items-center gap-2 mt-0.5">
+                          <Text className="text-[10px] text-muted">Paid to: {exp.paidTo}</Text>
+                          <Text className="text-[10px] text-muted">·</Text>
+                          <Text className="text-[10px] font-medium text-primary">
+                            {exp.category}
+                          </Text>
+                        </View>
+                      </View>
+                      <View className="items-end">
+                        <Text className="text-xs font-bold text-text">
+                          {formatINR(Number(exp.amount))}
+                        </Text>
+                        <Badge
+                          label={exp.status}
+                          color={
+                            exp.status === 'APPROVED' || exp.status === 'RECONCILED'
+                              ? 'success'
+                              : exp.status === 'REJECTED'
+                              ? 'danger'
+                              : 'warning'
+                          }
+                        />
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text className="text-xs text-muted">
+                  No site petty cash expenses logged for this date.
+                </Text>
+              )}
+            </Card>
+          </View>
 
           {/* Schedule updates */}
           {report.taskUpdates && report.taskUpdates.length > 0 && (

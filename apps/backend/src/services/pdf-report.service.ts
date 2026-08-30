@@ -498,6 +498,18 @@ export async function reportDailyReport(companyId: string, reportId: string): Pr
   const company = await loadCompanyForPdf(companyId);
   const reporter = await prisma.user.findFirstOrThrow({ where: { id: report.reportedBy }, select: { name: true } });
 
+  // Load petty cash expenses logged on that day for this project
+  const expenses = await prisma.pettyCashEntry.findMany({
+    where: {
+      companyId,
+      projectId: report.projectId,
+      expenseDate: report.reportDate,
+    },
+    select: { description: true, amount: true, category: true, paidTo: true, status: true },
+    orderBy: { createdAt: 'asc' },
+  });
+  const totalExpense = expenses.reduce((sum, e) => sum + num(e.amount), 0);
+
   const doc = newDoc();
   drawBrandedHeader(doc, 'Daily Site Report', company);
   doc.fontSize(10).font('Helvetica-Bold').fillColor(NAVY).text(report.project.name, MARGIN);
@@ -507,6 +519,9 @@ export async function reportDailyReport(companyId: string, reportId: string): Pr
   summaryLine(doc, 'Weather', report.weather ?? 'N/A');
   summaryLine(doc, 'Workers Count', `${report.workersCount ?? 0}`);
   summaryLine(doc, 'Site Status', report.issues ? 'Issues Reported' : 'On Schedule');
+  if (expenses.length > 0) {
+    summaryLine(doc, 'Site Expenses (Petty Cash)', inr(totalExpense));
+  }
   doc.moveDown(1);
 
   doc.font('Helvetica-Bold').fontSize(11).fillColor(NAVY).text('Work Done', MARGIN, doc.y);
@@ -528,6 +543,23 @@ export async function reportDailyReport(companyId: string, reportId: string): Pr
       y = tableRow(
         doc,
         [m.resource.name, `${num(m.quantityUsed)} ${m.resource.unit ?? ''}`, m.notes ?? ''],
+        widths,
+        y,
+        i % 2 === 1,
+      );
+    });
+  }
+
+  if (expenses.length > 0) {
+    doc.moveDown(1);
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(NAVY).text('Site Expenses & Petty Cash Logged', MARGIN, doc.y);
+    doc.moveDown(0.5);
+    const widths = [180, 90, 100, 90];
+    let y = tableHeaders(doc, ['Expense Description', 'Category', 'Paid To', 'Amount'], widths, doc.y);
+    expenses.forEach((e, i) => {
+      y = tableRow(
+        doc,
+        [e.description, e.category, e.paidTo, inr(num(e.amount))],
         widths,
         y,
         i % 2 === 1,
