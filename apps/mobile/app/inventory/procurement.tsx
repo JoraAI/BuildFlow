@@ -631,12 +631,10 @@ function ModalShell({
   title: string;
   children: React.ReactNode;
   closeDisabled?: boolean;
-  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): multi-line operational
-  // modals (indent / PO / GRN) open as a viewport-filling workspace instead of
-  // the compact max-w-lg dialog. Single-entity forms keep the compact shell.
   fullScreen?: boolean;
 }) {
-  const { isPhone } = useViewport();
+  const { isPhone, isTablet, isDesktop } = useViewport();
+  const isDialog = isTablet || isDesktop;
   const dismiss = () => {
     if (!closeDisabled) onClose();
   };
@@ -648,19 +646,21 @@ function ModalShell({
       onRequestClose={dismiss}
     >
       <Pressable
-        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : fullScreen ? '' : 'items-center justify-center p-4'}`}
+        className={`flex-1 bg-black/50 ${
+          isDialog
+            ? 'items-center justify-center p-4 md:p-6'
+            : 'justify-end'
+        }`}
         onPress={dismiss}
       >
         <Pressable
           onPress={(e) => e.stopPropagation()}
           className={`bg-card w-full ${
-            fullScreen
-              ? isPhone
-                ? 'rounded-t-2xl h-[96%]'
-                : 'h-full'
-              : isPhone
-                ? 'rounded-t-2xl max-h-[90%]'
-                : 'rounded-2xl max-w-lg max-h-[85%]'
+            isDialog
+              ? fullScreen
+                ? 'max-w-2xl lg:max-w-3xl xl:max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl border border-border'
+                : 'max-w-lg max-h-[85vh] rounded-2xl shadow-2xl border border-border'
+              : 'rounded-t-3xl max-h-[94%] border-t border-border shadow-2xl'
           }`}
         >
           <View className="px-5 pt-4 pb-3 border-b border-border flex-row items-center justify-between">

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, Modal, ScrollView, Pressable, TextInput, Platform } from 'react-native';
+import { View, Text, Modal, ScrollView, Pressable, TextInput, Platform, KeyboardAvoidingView } from 'react-native';
 import { Button, Input, Select, Badge } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
 import { useAuthStore } from '@/stores/auth.store';
@@ -29,12 +29,11 @@ function Sheet({
   onClose: () => void;
   /** When false the modal is hidden. Prefer unmounting callers when closed. */
   visible?: boolean;
-  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): multi-line operational
-  // modals (SO / challan / quote / returns) open as a viewport-filling
-  // workspace; single-entity forms keep the compact dialog.
   fullScreen?: boolean;
 }) {
-  const { isPhone } = useViewport();
+  const { isPhone, isTablet, isDesktop } = useViewport();
+  const isDialog = isTablet || isDesktop;
+
   return (
     <Modal
       visible={visible}
@@ -42,29 +41,55 @@ function Sheet({
       transparent
       onRequestClose={saving ? undefined : onClose}
     >
-      <Pressable
-        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : fullScreen ? '' : 'items-center justify-center p-4'}`}
-        onPress={saving ? undefined : onClose}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        className="flex-1"
       >
         <Pressable
-          className={`bg-card w-full ${
-            fullScreen
-              ? isPhone
-                ? 'rounded-t-2xl h-[96%] p-4'
-                : 'h-full'
-              : isPhone
-                ? 'rounded-t-2xl max-h-[92%] p-4'
-                : 'rounded-2xl max-w-lg max-h-[85%] p-4'
+          className={`flex-1 bg-black/50 ${
+            isDialog
+              ? 'items-center justify-center p-4 md:p-6'
+              : 'justify-end'
           }`}
-          onPress={(e) => e.stopPropagation()}
+          onPress={saving ? undefined : onClose}
         >
-          <Text className="text-lg font-bold text-text mb-1">{title}</Text>
-          {subtitle ? <Text className="text-sm text-muted mb-3">{subtitle}</Text> : null}
-          <ScrollView keyboardShouldPersistTaps="handled" nestedScrollEnabled>
-            {children}
-          </ScrollView>
+          <Pressable
+            className={`bg-card w-full ${
+              isDialog
+                ? fullScreen
+                  ? 'max-w-2xl lg:max-w-3xl xl:max-w-4xl max-h-[90vh] rounded-2xl p-6 shadow-2xl border border-border'
+                  : 'max-w-lg max-h-[85vh] rounded-2xl p-6 shadow-2xl border border-border'
+                : 'rounded-t-3xl max-h-[94%] p-4 border-t border-border shadow-2xl'
+            }`}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View className="flex-row items-start justify-between gap-3 mb-2 pb-2 border-b border-border/40">
+              <View className="flex-1 pr-2">
+                <Text className="text-lg font-bold text-text">{title}</Text>
+                {subtitle ? (
+                  <Text className="text-xs text-muted mt-0.5 leading-relaxed">{subtitle}</Text>
+                ) : null}
+              </View>
+              <Pressable
+                onPress={saving ? undefined : onClose}
+                hitSlop={8}
+                className="w-8 h-8 rounded-full bg-surface items-center justify-center border border-border hover:bg-muted/20"
+                disabled={saving}
+              >
+                <Ionicons name="close" size={18} color="#64748B" />
+              </Pressable>
+            </View>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 16 }}
+            >
+              {children}
+            </ScrollView>
+          </Pressable>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
