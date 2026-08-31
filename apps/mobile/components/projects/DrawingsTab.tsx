@@ -283,36 +283,34 @@ export function DrawingsTab({ projectId }: DrawingsTabProps) {
       </View>
 
       {/* Discipline filter chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View className="flex-row gap-1.5">
-          <Pressable
-            onPress={() => setSelectedDiscipline(null)}
-            className={`px-3 py-1.5 rounded-lg border ${
-              selectedDiscipline === null ? 'bg-primary border-primary' : 'bg-card border-border'
-            }`}
-          >
-            <Text className={`text-xs font-semibold ${selectedDiscipline === null ? 'text-white' : 'text-text'}`}>
-              All Disciplines
-            </Text>
-          </Pressable>
-          {DISCIPLINES.map((d) => {
-            const active = selectedDiscipline === d;
-            return (
-              <Pressable
-                key={d}
-                onPress={() => setSelectedDiscipline(active ? null : d)}
-                className={`px-3 py-1.5 rounded-lg border ${
-                  active ? 'bg-primary border-primary' : 'bg-card border-border'
-                }`}
-              >
-                <Text className={`text-xs font-semibold ${active ? 'text-white' : 'text-text'}`}>
-                  {d}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </ScrollView>
+      <View className="flex-row flex-wrap items-center gap-1.5">
+        <Pressable
+          onPress={() => setSelectedDiscipline(null)}
+          className={`px-3 py-1.5 rounded-lg border ${
+            selectedDiscipline === null ? 'bg-primary border-primary' : 'bg-card border-border'
+          }`}
+        >
+          <Text className={`text-xs font-semibold ${selectedDiscipline === null ? 'text-white' : 'text-text'}`}>
+            All Disciplines
+          </Text>
+        </Pressable>
+        {DISCIPLINES.map((d) => {
+          const active = selectedDiscipline === d;
+          return (
+            <Pressable
+              key={d}
+              onPress={() => setSelectedDiscipline(active ? null : d)}
+              className={`px-3 py-1.5 rounded-lg border ${
+                active ? 'bg-primary border-primary' : 'bg-card border-border'
+              }`}
+            >
+              <Text className={`text-xs font-semibold ${active ? 'text-white' : 'text-text'}`}>
+                {d}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
       {/* Drawings Grid / List */}
       {isLoading ? (
@@ -388,26 +386,24 @@ export function DrawingsTab({ projectId }: DrawingsTabProps) {
           />
           <View>
             <Text className="text-xs font-semibold text-text mb-1">Discipline *</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View className="flex-row gap-1.5">
-                {DISCIPLINES.map((d) => {
-                  const active = discipline === d;
-                  return (
-                    <Pressable
-                      key={d}
-                      onPress={() => setDiscipline(d)}
-                      className={`px-3 py-1.5 rounded-lg border ${
-                        active ? 'bg-primary border-primary' : 'bg-surface border-border'
-                      }`}
-                    >
-                      <Text className={`text-xs font-medium ${active ? 'text-white' : 'text-text'}`}>
-                        {d}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </ScrollView>
+            <View className="flex-row flex-wrap items-center gap-1.5">
+              {DISCIPLINES.map((d) => {
+                const active = discipline === d;
+                return (
+                  <Pressable
+                    key={d}
+                    onPress={() => setDiscipline(d)}
+                    className={`px-3 py-1.5 rounded-lg border ${
+                      active ? 'bg-primary border-primary' : 'bg-surface border-border'
+                    }`}
+                  >
+                    <Text className={`text-xs font-medium ${active ? 'text-white' : 'text-text'}`}>
+                      {d}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
 
           <Input

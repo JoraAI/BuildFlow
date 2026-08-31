@@ -157,38 +157,36 @@ export function DrawingViewer({
       </View>
 
       {/* Revision pill selector */}
-      <View className="flex-row items-center gap-2">
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View className="flex-row gap-1.5">
-            {versions.length > 0 ? (
-              versions.map((v) => {
-                const isCurrent = (selectedVersion?.id ?? drawing.currentVersionId) === v.id;
-                return (
-                  <Pressable
-                    key={v.id}
-                    onPress={() => setSelectedVersion(v)}
-                    className={`px-2.5 py-1 rounded-md border flex-row items-center gap-1 ${
-                      isCurrent ? 'bg-primary border-primary' : 'bg-card border-border'
+      <View className="flex-row flex-wrap items-center gap-2">
+        <View className="flex-row flex-wrap items-center gap-1.5">
+          {versions.length > 0 ? (
+            versions.map((v) => {
+              const isCurrent = (selectedVersion?.id ?? drawing.currentVersionId) === v.id;
+              return (
+                <Pressable
+                  key={v.id}
+                  onPress={() => setSelectedVersion(v)}
+                  className={`px-2.5 py-1 rounded-md border flex-row items-center gap-1 ${
+                    isCurrent ? 'bg-primary border-primary' : 'bg-card border-border'
+                  }`}
+                >
+                  <Text
+                    className={`text-[11px] font-bold ${
+                      isCurrent ? 'text-white' : 'text-text'
                     }`}
                   >
-                    <Text
-                      className={`text-[11px] font-bold ${
-                        isCurrent ? 'text-white' : 'text-text'
-                      }`}
-                    >
-                      {v.versionLabel}
-                    </Text>
-                    {isCurrent ? (
-                      <Ionicons name="checkmark-circle" size={12} color="#10B981" />
-                    ) : null}
-                  </Pressable>
-                );
-              })
-            ) : (
-              <Badge label="Rev-01 (Current)" color="success" />
-            )}
-          </View>
-        </ScrollView>
+                    {v.versionLabel}
+                  </Text>
+                  {isCurrent ? (
+                    <Ionicons name="checkmark-circle" size={12} color="#10B981" />
+                  ) : null}
+                </Pressable>
+              );
+            })
+          ) : (
+            <Badge label="Rev-01 (Current)" color="success" />
+          )}
+        </View>
 
         <Button
           label={!currentFileUrl ? 'Upload Plan to Pin' : pinMode ? 'Tap plan to drop' : '+ Drop Pin'}

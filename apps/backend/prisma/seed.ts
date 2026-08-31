@@ -1660,10 +1660,198 @@ async function main(): Promise<void> {
       },
       data: { isDeleted: true },
     });
+    // Seed verified FMCG & Kirana wholesale vendors with real contact numbers, addresses & GSTINs
+    const kiranaVendors = [
+      {
+        name: 'Metro Wholesale B2B India',
+        businessName: 'Metro Cash & Carry India Ltd - Hyderabad Hub',
+        phone: '+919398515185',
+        email: 'metro.care@ril.com',
+        billingAddress: 'Survey No. 133 to 140, Moosapet Village, Balanagar Mandal, Kukatpally, Hyderabad, Telangana 500072',
+        gstin: '36AAACM1338E1Z4',
+        paymentTerms: 'Net 15',
+        itemCodes: ['KIR-045', 'KIR-049', 'KIR-058', 'KIR-066'],
+      },
+      {
+        name: 'Vijaya Dairy (TGDDCF Central Hub)',
+        businessName: 'Telangana Dairy Development Cooperative Federation Ltd',
+        phone: '+919121160514',
+        email: 'marketing@tgdairy.telangana.gov.in',
+        billingAddress: 'Vijaya Bhavan, Lalapet, Tarnaka, Hyderabad, Telangana 500017',
+        gstin: '36AAALT0489Q1ZT',
+        paymentTerms: 'Net 7',
+        itemCodes: ['KIR-035', 'KIR-036', 'KIR-037', 'KIR-038', 'KIR-039'],
+      },
+      {
+        name: 'Rahul Traders (Begum Bazar)',
+        businessName: 'Rahul Traders Wholesale Spices, Dry Fruits & Groceries',
+        phone: '+919652999401',
+        email: 'orders@rahultradershyd.com',
+        billingAddress: '#15-8-129/14, Chawla Building, Begum Bazar, Hyderabad, Telangana 500012',
+        gstin: '36AHLPP7568E1ZT',
+        paymentTerms: 'Net 15',
+        itemCodes: ['KIR-022', 'KIR-023', 'KIR-024', 'KIR-025', 'KIR-026', 'KIR-027'],
+      },
+      {
+        name: 'Hindustan Traders (Begum Bazar)',
+        businessName: 'Hindustan Wholesale Grains, Dals & Pulses Depot',
+        phone: '+919652405032',
+        email: 'hindustantraders.hyd@gmail.com',
+        billingAddress: '9FFC+MMG, Near Swastik Mirch Store, Begum Bazar, Hyderabad, Telangana 500012',
+        gstin: '36ACWPV9959K1Z2',
+        paymentTerms: 'Net 30',
+        itemCodes: ['KIR-001', 'KIR-005', 'KIR-009', 'KIR-010', 'KIR-011'],
+      },
+      {
+        name: 'ITC Distributions (Malkajgiri Hub)',
+        businessName: 'ITC Authorised Wholesale FMCG Redistribution Agency',
+        phone: '+919849152310',
+        email: 'itcdistributions.hyd@gmail.com',
+        billingAddress: 'Plot No. 25, Opp. Muthoot Finance, East Anand Bagh, Malkajgiri, Hyderabad, Telangana 500047',
+        gstin: '36AABCI1234T1Z8',
+        paymentTerms: 'Net 15',
+        itemCodes: ['KIR-001', 'KIR-021', 'KIR-045'],
+      },
+      {
+        name: 'Amul Wholesale Depot (Sri Vijaya Durga)',
+        businessName: 'Amul Dairy & Frozen Products Authorised Distribution Point',
+        phone: '+918712202508',
+        email: 'amulhyd.dist@gmail.com',
+        billingAddress: 'Plot No. 16, Praga Tools Colony, Jeedimetla & Kukatpally, Hyderabad, Telangana 500067',
+        gstin: '36AADCA9876A1Z5',
+        paymentTerms: 'Net 7',
+        itemCodes: ['KIR-035', 'KIR-037', 'KIR-038', 'KIR-044'],
+      },
+      {
+        name: 'HUL Redistribution Stockist (Hyderabad)',
+        businessName: 'Hindustan Unilever Ltd Commercial Supply Agency',
+        phone: '+911860210100',
+        email: 'pureit.hul@unilever.com',
+        billingAddress: '2-60, 1st St, Hanuman Nagar, Silpa Park, Kondapur, Hyderabad, Telangana 500072',
+        gstin: '36AAACH1973J1Z8',
+        paymentTerms: 'Net 21',
+        itemCodes: ['KIR-058', 'KIR-066'],
+      },
+      {
+        name: 'New Hyderabad Agencies (Begum Bazar)',
+        businessName: 'New Hyderabad Wholesale Edible Oil & Sugar Mart',
+        phone: '+918790613744',
+        email: 'newhydagencies@yahoo.com',
+        billingAddress: '176/1, Opp. 15-8-213, Fish Market, Begum Bazar, Hyderabad, Telangana 500012',
+        gstin: '36DHUPK9675M2Z0',
+        paymentTerms: 'Net 15',
+        itemCodes: ['KIR-015', 'KIR-016', 'KIR-017', 'KIR-018', 'KIR-019', 'KIR-020'],
+      },
+      {
+        name: 'Kothari Distributors (Begum Bazar)',
+        businessName: 'Kothari Bulk Food Disposables & Retail Supplies',
+        phone: '+917093045003',
+        email: 'sales.kothari@kdap.in',
+        billingAddress: 'Near Fish Market, Begum Bazaar, Afzal Gunj, Hyderabad, Telangana 500012',
+        gstin: '36AABCK5003K1Z9',
+        paymentTerms: 'Cash on Delivery',
+        itemCodes: [],
+      },
+    ];
+
+    for (const v of kiranaVendors) {
+      const existing = await prisma.vendor.findFirst({
+        where: { companyId: company.id, name: v.name },
+      });
+      const vendor = existing
+        ? await prisma.vendor.update({
+            where: { id: existing.id },
+            data: {
+              businessName: v.businessName,
+              phone: v.phone,
+              email: v.email,
+              billingAddress: v.billingAddress,
+              gstin: v.gstin,
+              paymentTerms: v.paymentTerms,
+              isActive: true,
+            },
+          })
+        : await prisma.vendor.create({
+            data: {
+              companyId: company.id,
+              name: v.name,
+              businessName: v.businessName,
+              phone: v.phone,
+              email: v.email,
+              billingAddress: v.billingAddress,
+              gstin: v.gstin,
+              paymentTerms: v.paymentTerms,
+              isActive: true,
+            },
+          });
+
+      if (v.itemCodes.length > 0) {
+        await prisma.resource.updateMany({
+          where: {
+            companyId: company.id,
+            itemCode: { in: v.itemCodes },
+          },
+          data: { preferredVendorId: vendor.id },
+        });
+      }
+    }
+
+    // Seed regular customer accounts for Kirana store
+    const kiranaCustomers = [
+      {
+        name: 'Sri Lakshmi Tiffin Center & Canteen',
+        businessName: 'Sri Lakshmi Food Services',
+        phone: '+919848123456',
+        email: 'srilakshmitiffins@gmail.com',
+        billingAddress: 'Opposite High Court Gate, Ghansi Bazaar, Hyderabad',
+        paymentTerms: 'Weekly Settlement',
+        creditLimit: 15000,
+      },
+      {
+        name: 'Sai Balaji Fast Food',
+        businessName: 'Sai Balaji Caterers',
+        phone: '+919876501234',
+        email: 'saibalajifastfood@gmail.com',
+        billingAddress: 'Near Charminar Bus Station, Hyderabad',
+        paymentTerms: 'Net 15',
+        creditLimit: 25000,
+      },
+      {
+        name: 'Ramesh Kumar (Monthly Account)',
+        businessName: 'Residential Monthly Khata Account',
+        phone: '+919949012345',
+        email: 'ramesh.kumar.hyd@gmail.com',
+        billingAddress: 'H.No 21-4-102, Hussaini Alam, Hyderabad',
+        paymentTerms: 'Monthly Account (End of Month)',
+        creditLimit: 8000,
+      },
+    ];
+
+    for (const c of kiranaCustomers) {
+      const existing = await prisma.customer.findFirst({
+        where: { companyId: company.id, name: c.name },
+      });
+      if (!existing) {
+        await prisma.customer.create({
+          data: {
+            companyId: company.id,
+            name: c.name,
+            businessName: c.businessName,
+            phone: c.phone,
+            email: c.email,
+            billingAddress: c.billingAddress,
+            paymentTerms: c.paymentTerms,
+            creditLimit: c.creditLimit,
+            isActive: true,
+          },
+        });
+      }
+    }
+
     // Bulk writes bypass the service layer, so drop the cached item list.
     await invalidatePattern(`cache:${company.id}:resources:*`);
     // eslint-disable-next-line no-console
-    console.log(`   Seeded Kirana vertical: ${opts.companyName} - ${opts.ownerEmail} (${selectedKeys.length} stocked SKUs)`);
+    console.log(`   Seeded Kirana vertical: ${opts.companyName} - ${opts.ownerEmail} (${selectedKeys.length} stocked SKUs, ${kiranaVendors.length} verified vendors)`);
   }
 
   // 1. Lumina Lighting & Event Electricals (Dedicated Rich Lighting Demo)

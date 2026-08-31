@@ -234,45 +234,43 @@ export function PettyCashTab({ projectId }: PettyCashTabProps) {
   );
 
   const categoryFilters = (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
-      <View className="flex-row gap-2">
-        <Pressable
-          onPress={() => setSelectedCategory(null)}
-          className={`px-3 py-1.5 rounded-lg border ${
-            selectedCategory === null ? 'bg-primary border-primary' : 'bg-card border-border'
+    <View className="flex-row flex-wrap items-center gap-1.5 mb-3">
+      <Pressable
+        onPress={() => setSelectedCategory(null)}
+        className={`px-3 py-1.5 rounded-lg border ${
+          selectedCategory === null ? 'bg-primary border-primary' : 'bg-card border-border'
+        }`}
+      >
+        <Text
+          className={`text-xs font-semibold ${
+            selectedCategory === null ? 'text-white' : 'text-text'
           }`}
         >
-          <Text
-            className={`text-xs font-semibold ${
-              selectedCategory === null ? 'text-white' : 'text-text'
+          {t('All Categories')}
+        </Text>
+      </Pressable>
+      {CATEGORIES.map((cat) => {
+        const active = selectedCategory === cat.id;
+        return (
+          <Pressable
+            key={cat.id}
+            onPress={() => setSelectedCategory(active ? null : cat.id)}
+            className={`flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg border ${
+              active ? 'bg-primary border-primary' : 'bg-card border-border'
             }`}
           >
-            {t('All Categories')}
-          </Text>
-        </Pressable>
-        {CATEGORIES.map((cat) => {
-          const active = selectedCategory === cat.id;
-          return (
-            <Pressable
-              key={cat.id}
-              onPress={() => setSelectedCategory(active ? null : cat.id)}
-              className={`flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg border ${
-                active ? 'bg-primary border-primary' : 'bg-card border-border'
+            <Ionicons name={cat.icon as never} size={14} color={active ? '#fff' : cat.color} />
+            <Text
+              className={`text-xs font-semibold ${
+                active ? 'text-white' : 'text-text'
               }`}
             >
-              <Ionicons name={cat.icon as never} size={14} color={active ? '#fff' : cat.color} />
-              <Text
-                className={`text-xs font-semibold ${
-                  active ? 'text-white' : 'text-text'
-                }`}
-              >
-                {cat.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </ScrollView>
+              {cat.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
   );
 
   const entriesList = (
@@ -478,31 +476,29 @@ export function PettyCashTab({ projectId }: PettyCashTabProps) {
 
           <View>
             <Text className="text-xs font-semibold text-text mb-1">Category *</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View className="flex-row gap-1.5">
-                {CATEGORIES.map((c) => {
-                  const active = category === c.id;
-                  return (
-                    <Pressable
-                      key={c.id}
-                      onPress={() => setCategory(c.id)}
-                      className={`flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg border ${
-                        active ? 'bg-primary border-primary' : 'bg-surface border-border'
+            <View className="flex-row flex-wrap items-center gap-1.5">
+              {CATEGORIES.map((c) => {
+                const active = category === c.id;
+                return (
+                  <Pressable
+                    key={c.id}
+                    onPress={() => setCategory(c.id)}
+                    className={`flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg border ${
+                      active ? 'bg-primary border-primary' : 'bg-surface border-border'
+                    }`}
+                  >
+                    <Ionicons name={c.icon as never} size={14} color={active ? '#fff' : c.color} />
+                    <Text
+                      className={`text-xs font-medium ${
+                        active ? 'text-white' : 'text-text'
                       }`}
                     >
-                      <Ionicons name={c.icon as never} size={14} color={active ? '#fff' : c.color} />
-                      <Text
-                        className={`text-xs font-medium ${
-                          active ? 'text-white' : 'text-text'
-                        }`}
-                      >
-                        {c.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </ScrollView>
+                      {c.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
 
           <View className="flex-row gap-2.5">

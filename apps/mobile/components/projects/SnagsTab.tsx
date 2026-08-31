@@ -234,30 +234,28 @@ export function SnagsTab({ projectId }: SnagsTabProps) {
       </View>
 
       {/* Filter Chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View className="flex-row gap-1.5">
-          {STATUS_FILTERS.map((s) => {
-            const active = filterStatus === s.id;
-            return (
-              <Pressable
-                key={s.id}
-                onPress={() => setFilterStatus(s.id)}
-                className={`px-3 py-1.5 rounded-lg border ${
-                  active ? 'bg-primary border-primary' : 'bg-card border-border'
+      <View className="flex-row flex-wrap items-center gap-1.5">
+        {STATUS_FILTERS.map((s) => {
+          const active = filterStatus === s.id;
+          return (
+            <Pressable
+              key={s.id}
+              onPress={() => setFilterStatus(s.id)}
+              className={`px-3 py-1.5 rounded-lg border ${
+                active ? 'bg-primary border-primary' : 'bg-card border-border'
+              }`}
+            >
+              <Text
+                className={`text-xs font-semibold ${
+                  active ? 'text-white' : 'text-text'
                 }`}
               >
-                <Text
-                  className={`text-xs font-semibold ${
-                    active ? 'text-white' : 'text-text'
-                  }`}
-                >
-                  {s.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </ScrollView>
+                {s.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
       {/* Snags Feed */}
       {isLoading ? (
@@ -366,26 +364,24 @@ export function SnagsTab({ projectId }: SnagsTabProps) {
           />
           <View>
             <Text className="text-xs font-semibold text-text mb-1">Severity Priority</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View className="flex-row gap-1.5">
-                {PRIORITIES.map((p) => {
-                  const active = priority === p.id;
-                  return (
-                    <Pressable
-                      key={p.id}
-                      onPress={() => setPriority(p.id)}
-                      className={`px-3 py-1.5 rounded-lg border ${
-                        active ? 'bg-primary border-primary' : 'bg-surface border-border'
-                      }`}
-                    >
-                      <Text className={`text-xs font-medium ${active ? 'text-white' : 'text-text'}`}>
-                        {p.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </ScrollView>
+            <View className="flex-row flex-wrap items-center gap-1.5">
+              {PRIORITIES.map((p) => {
+                const active = priority === p.id;
+                return (
+                  <Pressable
+                    key={p.id}
+                    onPress={() => setPriority(p.id)}
+                    className={`px-3 py-1.5 rounded-lg border ${
+                      active ? 'bg-primary border-primary' : 'bg-surface border-border'
+                    }`}
+                  >
+                    <Text className={`text-xs font-medium ${active ? 'text-white' : 'text-text'}`}>
+                      {p.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
 
           <Input
