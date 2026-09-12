@@ -19,6 +19,7 @@ describe('ApiError', () => {
   it('carries code + details', () => {
     const err = ApiError.validation([{ field: 'email', message: 'required' }]);
     expect(err.code).toBe('VALIDATION_ERROR');
+    expect(err.message).toBe('email: required');
     expect(err.details).toEqual([{ field: 'email', message: 'required' }]);
   });
 

@@ -48,7 +48,11 @@ export class ApiError extends Error {
     return new ApiError('BAD_REQUEST', message);
   }
   static validation(details: Array<{ field?: string; message: string }>): ApiError {
-    return new ApiError('VALIDATION_ERROR', 'Validation failed', { details });
+    const summary = details
+      .slice(0, 4)
+      .map((d) => (d.field ? `${d.field}: ${d.message}` : d.message))
+      .join('; ');
+    return new ApiError('VALIDATION_ERROR', summary || 'Validation failed', { details });
   }
   static unauthorized(message = 'Authentication required'): ApiError {
     return new ApiError('UNAUTHORIZED', message);

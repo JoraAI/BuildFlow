@@ -32,14 +32,26 @@ const optionalPhone = z
 export const registerCompanySchema = z
   .object({
     // Company
-    companyName: z.string().trim().min(2).max(120),
+    companyName: z
+      .string()
+      .trim()
+      .min(2, 'Company name must be at least 2 characters')
+      .max(120, 'Company name is too long'),
     gstin: gstinSchema,
     pan: panSchema,
-    address: z.string().trim().max(500).optional().or(z.literal('')),
-    state: z.string().trim().min(2).max(60),
+    address: z.string().trim().max(500, 'Address is too long').optional().or(z.literal('')),
+    state: z
+      .string()
+      .trim()
+      .min(2, 'State is required')
+      .max(60, 'State is too long'),
 
     // Owner — email or mobile (at least one required)
-    ownerName: z.string().trim().min(2).max(120),
+    ownerName: z
+      .string()
+      .trim()
+      .min(2, 'Owner name must be at least 2 characters')
+      .max(120, 'Owner name is too long'),
     ownerEmail: optionalEmail,
     ownerPhone: optionalPhone,
     password: passwordSchema,
