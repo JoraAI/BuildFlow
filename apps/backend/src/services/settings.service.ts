@@ -6,6 +6,7 @@
  */
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
+import { recordAudit } from '../utils/audit';
 import { randomUUID } from 'crypto';
 import { INVITABLE_ROLES_BY_PRODUCT, type Role, type InventoryBusinessProfile } from '@buildflow/shared';
 import {
@@ -247,7 +248,10 @@ export interface UserRow {
 
 export async function listUsers(companyId: string): Promise<UserRow[]> {
   const users = await prisma.user.findMany({
-    where: { companyId },
+    where: {
+      companyId,
+      NOT: { email: { endsWith: '@deleted.buildflow.local' } },
+    },
     orderBy: { createdAt: 'asc' },
     select: {
       id: true,
@@ -334,11 +338,58 @@ export async function updateUser(
   if (data.isActive === false && existing.role === 'OWNER') {
     throw new ApiError('FORBIDDEN', 'Cannot deactivate an OWNER');
   }
+  if (data.isActive === false && callerUserId === targetUserId) {
+    throw new ApiError('FORBIDDEN', 'You cannot deactivate your own account');
+  }
   return prisma.user.update({
     where: { id: targetUserId },
     data: { ...data, role: data.role as never },
     select: { id: true, name: true, email: true, phone: true, role: true, isActive: true },
   });
+}
+
+/**
+ * Remove a teammate from this organisation. Frees email/mobile so they can
+ * accept an invite into another company as a fresh signup.
+ */
+export async function deleteTeamUser(
+  targetUserId: string,
+  companyId: string,
+  callerUserId: string,
+): Promise<{ deleted: true }> {
+  const existing = await prisma.user.findFirst({ where: { id: targetUserId, companyId } });
+  if (!existing) throw ApiError.notFound('User not found');
+  if (existing.role === 'OWNER') {
+    throw new ApiError('FORBIDDEN', 'Cannot delete the OWNER account');
+  }
+  if (callerUserId === targetUserId) {
+    throw new ApiError('FORBIDDEN', 'You cannot delete your own account');
+  }
+
+  await prisma.user.update({
+    where: { id: targetUserId },
+    data: {
+      isActive: false,
+      email: `deleted.${targetUserId.replace(/-/g, '')}@deleted.buildflow.local`,
+      phone: null,
+    },
+  });
+
+  await recordAudit({
+    companyId,
+    userId: callerUserId,
+    action: 'DELETE',
+    entityType: 'user',
+    entityId: targetUserId,
+    oldValue: {
+      email: existing.email,
+      phone: existing.phone,
+      role: existing.role,
+      name: existing.name,
+    },
+  });
+
+  return { deleted: true };
 }
 
 // ---------------------------------------------------------------------------

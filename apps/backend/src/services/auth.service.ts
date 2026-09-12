@@ -122,11 +122,80 @@ export async function registerCompany(input: RegisterCompanyInput, ipAddress?: s
     throw ApiError.forbidden('Public company registration is disabled. Contact sales to get started.');
   }
 
-  const existing = await prisma.user.findUnique({
-    where: { email: input.ownerEmail },
-    select: { id: true },
-  });
-  if (existing) throw ApiError.conflict('Email already registered');
+  const { normalizePhone } = await import('@buildflow/shared');
+  const ownerPhone = input.ownerPhone ? normalizePhone(input.ownerPhone) : null;
+  let ownerEmail = input.ownerEmail?.toLowerCase() || null;
+
+  if (!ownerEmail && !ownerPhone) {
+    throw ApiError.badRequest('Owner email or mobile number is required');
+  }
+
+  if (!ownerEmail && ownerPhone) {
+    const digits = ownerPhone.replace(/\D/g, '');
+    ownerEmail = `u.${digits}@phone.buildflow.local`;
+  }
+
+  if (ownerEmail) {
+    const existingEmail = await prisma.user.findFirst({
+      where: { email: ownerEmail, isActive: true },
+      select: { id: true },
+    });
+    if (existingEmail) throw ApiError.conflict('Email already registered');
+  }
+
+  if (ownerPhone) {
+    const digits = ownerPhone.replace(/\D/g, '');
+    const variants = Array.from(
+      new Set(
+        [
+          ownerPhone,
+          digits,
+          `+${digits}`,
+          digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : '',
+        ].filter(Boolean),
+      ),
+    );
+    const existingPhone = await prisma.user.findFirst({
+      where: { phone: { in: variants }, isActive: true },
+      select: { id: true },
+    });
+    if (existingPhone) throw ApiError.conflict('Mobile number already registered');
+
+    // Free inactive accounts that still hold this phone/email so signup can proceed.
+    const inactive = await prisma.user.findMany({
+      where: {
+        isActive: false,
+        OR: [
+          ...(ownerEmail ? [{ email: ownerEmail }] : []),
+          { phone: { in: variants } },
+        ],
+      },
+      select: { id: true },
+    });
+    for (const u of inactive) {
+      await prisma.user.update({
+        where: { id: u.id },
+        data: {
+          email: `deleted.${u.id.replace(/-/g, '')}@deleted.buildflow.local`,
+          phone: null,
+        },
+      });
+    }
+  } else if (ownerEmail) {
+    const inactiveEmail = await prisma.user.findFirst({
+      where: { email: ownerEmail, isActive: false },
+      select: { id: true },
+    });
+    if (inactiveEmail) {
+      await prisma.user.update({
+        where: { id: inactiveEmail.id },
+        data: {
+          email: `deleted.${inactiveEmail.id.replace(/-/g, '')}@deleted.buildflow.local`,
+          phone: null,
+        },
+      });
+    }
+  }
 
   // INVENTORY_PRODUCT: dedicated inventory signup path creates an INVENTORY
   // company (no construction modules) with a hidden default STORE project.
@@ -154,7 +223,8 @@ export async function registerCompany(input: RegisterCompanyInput, ipAddress?: s
     data: {
       companyId: company.id,
       name: input.ownerName,
-      email: input.ownerEmail,
+      email: ownerEmail!,
+      phone: ownerPhone,
       passwordHash,
       role: Role.OWNER,
     },
@@ -191,11 +261,15 @@ export async function registerCompany(input: RegisterCompanyInput, ipAddress?: s
     action: 'CREATE',
     entityType: 'company',
     entityId: company.id,
-    newValue: { name: company.name, product: input.product },
+    newValue: {
+      name: company.name,
+      product: input.product,
+      ownerContact: ownerPhone ?? ownerEmail,
+    },
     ipAddress,
   });
 
-  void notifyNewTrialSignup(company.id, company.name, owner.email);
+  void notifyNewTrialSignup(company.id, company.name, ownerPhone ?? owner.email);
 
   const publicUser = await toPublicUser({
     id: owner.id,
@@ -230,25 +304,69 @@ export async function login(
   input: LoginInput,
   ipAddress?: string,
 ): Promise<AuthResponse> {
-  const user = await prisma.user.findUnique({
-    where: { email: input.email },
-    include: {
-      company: {
-        select: {
-          name: true,
-          logoUrl: true,
-          subscriptionPlan: true,
-          defaultProjectId: true,
-          inventoryProfile: true,
-          inventoryVertical: true,
-        },
-      },
-    },
-  });
-  if (!user) throw ApiError.unauthorized('Invalid email or password');
+  const identifier = input.email.trim();
+  const companySelect = {
+    name: true,
+    logoUrl: true,
+    subscriptionPlan: true,
+    defaultProjectId: true,
+    inventoryProfile: true,
+    inventoryVertical: true,
+  } as const;
 
-  const valid = await verifyPassword(input.password, user.passwordHash);
-  if (!valid) throw ApiError.unauthorized('Invalid email or password');
+  const user = identifier.includes('@')
+    ? await prisma.user.findUnique({
+        where: { email: identifier.toLowerCase() },
+        include: { company: { select: companySelect } },
+      })
+    : await (async () => {
+        const { normalizePhone } = await import('@buildflow/shared');
+        const normalized = normalizePhone(identifier);
+        const digits = normalized.replace(/\D/g, '');
+        const variants = Array.from(
+          new Set(
+            [
+              normalized,
+              identifier,
+              digits,
+              `+${digits}`,
+              digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : '',
+            ].filter(Boolean),
+          ),
+        );
+        const active = await prisma.user.findFirst({
+          where: { phone: { in: variants }, isActive: true },
+          include: { company: { select: companySelect } },
+        });
+        if (active) return active;
+        // Surface a clear deactivated error instead of "invalid credentials".
+        return prisma.user.findFirst({
+          where: { phone: { in: variants } },
+          include: { company: { select: companySelect } },
+          orderBy: { createdAt: 'desc' },
+        });
+      })();
+
+  if (!user) throw ApiError.unauthorized('Invalid email/mobile or password');
+
+  if (input.otp) {
+    if (identifier.includes('@')) {
+      throw ApiError.badRequest('OTP login is only available with a mobile number');
+    }
+    const { normalizePhone } = await import('@buildflow/shared');
+    const phone = normalizePhone(identifier);
+    const { consumeOtp } = await import('./otp.service');
+    await consumeOtp({
+      purpose: 'login',
+      key: phone,
+      code: input.otp,
+      expectedPhone: phone,
+    });
+  } else {
+    if (!input.password) throw ApiError.unauthorized('Invalid email/mobile or password');
+    const valid = await verifyPassword(input.password, user.passwordHash);
+    if (!valid) throw ApiError.unauthorized('Invalid email/mobile or password');
+  }
 
   if (!user.isActive) throw ApiError.forbidden('Account is deactivated');
 
@@ -267,6 +385,55 @@ export async function login(
   return {
     user: await toPublicUser(user),
     ...tokens,
+  };
+}
+
+export async function sendLoginOtp(phoneRaw: string): Promise<{
+  sent: true;
+  expiresInSec: number;
+  phoneMasked: string;
+  devCode?: string;
+}> {
+  const { normalizePhone } = await import('@buildflow/shared');
+  const phone = normalizePhone(phoneRaw);
+  const digits = phone.replace(/\D/g, '');
+  const variants = Array.from(
+    new Set(
+      [
+        phone,
+        digits,
+        `+${digits}`,
+        digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : '',
+      ].filter(Boolean),
+    ),
+  );
+
+  const user = await prisma.user.findFirst({
+    where: { phone: { in: variants }, isActive: true },
+    select: { id: true, companyId: true, phone: true },
+  });
+  if (!user?.phone) {
+    // Avoid account enumeration — still pretend success, but do not issue OTP.
+    return {
+      sent: true,
+      expiresInSec: 600,
+      phoneMasked: digits.length >= 4 ? `******${digits.slice(-4)}` : '******',
+    };
+  }
+
+  const result = await (
+    await import('./otp.service')
+  ).issueOtp({
+    purpose: 'login',
+    key: phone,
+    phone,
+    companyId: user.companyId,
+    messagePrefix: 'Your BuildFlow login code is',
+  });
+
+  return {
+    ...result,
+    phoneMasked: digits.length >= 4 ? `******${digits.slice(-4)}` : phone,
   };
 }
 

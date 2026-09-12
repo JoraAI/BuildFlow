@@ -122,3 +122,21 @@ export async function acceptInvite(req: Request, res: Response, next: NextFuncti
     next(err);
   }
 }
+
+export async function sendInviteOtp(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const result = await inviteService.sendInviteOtp(req.body.token);
+    ok(res, result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function sendLoginOtp(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const result = await authService.sendLoginOtp(req.body.phone);
+    ok(res, result);
+  } catch (err) {
+    next(err);
+  }
+}

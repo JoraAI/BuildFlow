@@ -42,11 +42,11 @@ export async function sendWhatsApp(companyId: string, to: string, message: strin
   logger.info('Twilio WhatsApp sent', { companyId, to });
 }
 
-export async function sendSMS(companyId: string, to: string, message: string): Promise<void> {
+export async function sendSMS(companyId: string, to: string, message: string): Promise<boolean> {
   const config = await resolveTwilioConfig(companyId);
   if (!config?.smsFrom) {
     logger.debug('Twilio SMS skipped (no creds)', { companyId, to });
-    return;
+    return false;
   }
   const url = `https://api.twilio.com/2010-04-01/Accounts/${config.accountSid}/Messages.json`;
   const body = new URLSearchParams({
@@ -65,6 +65,7 @@ export async function sendSMS(companyId: string, to: string, message: string): P
     throw new Error(`Twilio SMS error ${res.status}`);
   }
   logger.info('Twilio SMS sent', { companyId, to });
+  return true;
 }
 
 export async function sendPush(_userId: string, _title: string, _body: string): Promise<void> {

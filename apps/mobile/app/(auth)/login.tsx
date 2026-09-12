@@ -1,5 +1,5 @@
 /**
- * Login screen - email + password, SecureStore JWT persistence.
+ * Login screen - email/mobile + password, or mobile + OTP.
  */
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
@@ -9,24 +9,72 @@ import { AuthScreenShell } from '@/components/auth/AuthScreenShell';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
 import { ApiError } from '@/lib/api-client';
+import { sendLoginOtpRequest } from '@/services/auth.queries';
+
+type LoginMethod = 'password' | 'otp';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [otp, setOtp] = useState('');
+  const [method, setMethod] = useState<LoginMethod>('password');
+  const [otpHint, setOtpHint] = useState<string | null>(null);
+  const [sendingOtp, setSendingOtp] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const login = useAuthStore((s) => s.login);
   const { isDesktop } = useViewport();
 
+  const looksLikePhone = !email.includes('@') && email.trim().length >= 8;
+
+  const handleSendOtp = async () => {
+    setError('');
+    if (!looksLikePhone) {
+      setError('Enter a mobile number to receive an OTP');
+      return;
+    }
+    setSendingOtp(true);
+    try {
+      const res = await sendLoginOtpRequest(email.trim());
+      setOtpHint(
+        res.devCode
+          ? `Code sent (dev): ${res.devCode}`
+          : `Code sent to ${res.phoneMasked}`,
+      );
+    } catch (err) {
+      setError((err as ApiError).message || 'Could not send OTP');
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
   const handleLogin = async () => {
     setError('');
-    if (!email || !password) {
-      setError('Please enter email and password');
+    if (!email) {
+      setError('Please enter email or mobile');
       return;
+    }
+    if (method === 'password' && !password) {
+      setError('Please enter password');
+      return;
+    }
+    if (method === 'otp') {
+      if (!looksLikePhone) {
+        setError('OTP login requires a mobile number');
+        return;
+      }
+      if (!otp.trim()) {
+        setError('Please enter the OTP');
+        return;
+      }
     }
     setLoading(true);
     try {
-      await login(email, password);
+      if (method === 'otp') {
+        await login(email, undefined, otp.trim());
+      } else {
+        await login(email, password);
+      }
       const productMode = useAuthStore.getState().user?.productMode;
       router.replace(productMode === 'inventory' ? '/inventory' : '/dashboard');
     } catch (err) {
@@ -60,23 +108,61 @@ export default function LoginScreen() {
       }
     >
       <Input
-        label="Email"
+        label="Email or mobile"
         value={email}
         onChangeText={setEmail}
-        placeholder="you@company.com"
-        keyboardType="email-address"
+        placeholder="you@company.com or 9876543210"
+        keyboardType="default"
         autoCapitalize="none"
       />
 
+      <View className="flex-row gap-2 mt-3 mb-1">
+        {(['password', 'otp'] as const).map((m) => (
+          <TouchableOpacity
+            key={m}
+            onPress={() => setMethod(m)}
+            className={`flex-1 py-2.5 rounded-lg items-center ${
+              method === m ? 'bg-primary' : 'bg-surface'
+            }`}
+          >
+            <Text className={`text-sm font-semibold ${method === m ? 'text-white' : 'text-text'}`}>
+              {m === 'password' ? 'Password' : 'OTP'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <View className="h-3" />
 
-      <Input
-        label="Password"
-        value={password}
-        onChangeText={setPassword}
-        placeholder="••••••••"
-        secureTextEntry
-      />
+      {method === 'password' ? (
+        <Input
+          label="Password"
+          value={password}
+          onChangeText={setPassword}
+          placeholder="••••••••"
+          secureTextEntry
+        />
+      ) : (
+        <>
+          <Button
+            label={sendingOtp ? 'Sending…' : 'Send OTP'}
+            variant="secondary"
+            onPress={handleSendOtp}
+            loading={sendingOtp}
+            fullWidth
+          />
+          {otpHint ? <Text className="text-xs text-muted mt-2">{otpHint}</Text> : null}
+          <View className="h-3" />
+          <Input
+            label="OTP"
+            value={otp}
+            onChangeText={setOtp}
+            placeholder="6-digit code"
+            keyboardType="number-pad"
+            maxLength={6}
+          />
+        </>
+      )}
 
       {error ? (
         <View className="bg-danger/10 rounded-lg px-3 py-2 mt-4 border border-danger/20">
@@ -119,13 +205,6 @@ export default function LoginScreen() {
           </Text>
         ) : null}
       </View>
-
-      {/* <TouchableOpacity onPress={() => router.push('/platform/login' as never)} className="mt-4 self-center">
-        <Text className="text-muted text-xs">
-          BuildFlow internal admin?{' '}
-          <Text className="text-primary font-semibold">Platform console</Text>
-        </Text>
-      </TouchableOpacity> */}
     </AuthScreenShell>
   );
 }

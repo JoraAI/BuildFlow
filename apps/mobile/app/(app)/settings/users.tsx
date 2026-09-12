@@ -1,7 +1,7 @@
 /**
  * BuildFlow - Users & Roles settings screen.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
 import {
   View,
@@ -11,45 +11,82 @@ import {
   Platform,
   Share,
   TextInput,
+  ScrollView,
 } from 'react-native';
 import { Card, Avatar, Badge, Button, LoadingSkeleton, EmptyState } from '@/components/ui';
 import { SettingsPageLayout } from '@/components/layout/SettingsPageLayout';
 import { ResponsiveGrid } from '@/components/layout/ResponsiveGrid';
 import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
 import { useViewport } from '@/hooks/useViewport';
+import { useAuthStore } from '@/stores/auth.store';
+import {
+  INVITABLE_ROLES_BY_PRODUCT,
+  ROLE_LABELS,
+  type Role,
+} from '@buildflow/shared';
 import {
   useUsers,
   useUpdateUser,
   usePendingInvites,
   useCreateInvite,
+  useCreateTeamUser,
   useRevokeInvite,
   useResendInvite,
+  useDeleteUser,
   type UserRow,
   type InviteCreated,
   type PendingInvite,
 } from '@/services/settings.queries';
 import { alertAsync, confirmAsync } from '@/utils/confirm';
 
-const ROLES = ['OWNER', 'PM', 'SUPERVISOR', 'ACCOUNTANT'] as const;
-const INVITE_ROLES = ['PM', 'SUPERVISOR', 'ACCOUNTANT'] as const;
-type Role = (typeof ROLES)[number];
-type InviteRole = (typeof INVITE_ROLES)[number];
+type InviteRole = Exclude<Role, 'OWNER' | 'SUPERVISOR'>;
 
 export default function UsersScreen() {
   const { isDesktop } = useViewport();
+  const productMode = useAuthStore((s) => s.user?.productMode) ?? 'construction';
+  const inviteRoles = useMemo(
+    () =>
+      INVITABLE_ROLES_BY_PRODUCT[productMode === 'inventory' ? 'inventory' : 'construction'].filter(
+        (r): r is InviteRole => r !== 'OWNER',
+      ),
+    [productMode],
+  );
+  const assignableRoles = inviteRoles;
+  const defaultRole = (inviteRoles[0] ?? 'PM') as InviteRole;
+
   const { data: users, isLoading, refetch, isFetching } = useUsers();
   const { data: invites, refetch: refetchInvites } = usePendingInvites();
   const updateUser = useUpdateUser();
   const createInvite = useCreateInvite();
+  const createTeamUser = useCreateTeamUser();
   const revokeInvite = useRevokeInvite();
   const resendInvite = useResendInvite();
+  const deleteUser = useDeleteUser();
 
   const [editing, setEditing] = useState<UserRow | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [inviteMode, setInviteMode] = useState<'email' | 'phone'>('email');
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<InviteRole>('PM');
+  const [invitePhone, setInvitePhone] = useState('');
+  const [inviteRole, setInviteRole] = useState<InviteRole>(defaultRole);
   const [lastInvite, setLastInvite] = useState<InviteCreated | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+
+  const [createName, setCreateName] = useState('');
+  const [createEmail, setCreateEmail] = useState('');
+  const [createPhone, setCreatePhone] = useState('');
+  const [createPassword, setCreatePassword] = useState('');
+  const [createRole, setCreateRole] = useState<InviteRole>(defaultRole);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createdCreds, setCreatedCreds] = useState<{ loginHint: string; password: string } | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!inviteRoles.includes(inviteRole)) setInviteRole(defaultRole);
+    if (!inviteRoles.includes(createRole)) setCreateRole(defaultRole);
+  }, [inviteRoles, defaultRole, inviteRole, createRole]);
 
   const onSaveRole = (role: Role) => {
     if (!editing) return;
@@ -71,23 +108,89 @@ export default function UsersScreen() {
     );
   };
 
+  const onDeleteUser = async (user: UserRow) => {
+    const ok = await confirmAsync(
+      'Remove team member?',
+      `${user.name} will be removed from this organisation. They can be invited elsewhere with a fresh signup.`,
+    );
+    if (!ok) return;
+    deleteUser.mutate(user.id, {
+      onError: async (e: Error) => {
+        await alertAsync('Error', e.message);
+      },
+    });
+  };
+
   const onInvite = () => {
-    if (!inviteEmail.trim()) {
+    const email = inviteEmail.trim().toLowerCase();
+    const phone = invitePhone.trim();
+    if (inviteMode === 'email' && !email) {
       setFormError('Enter the team member email address.');
       void alertAsync('Email required', 'Enter the team member email address.');
       return;
     }
+    if (inviteMode === 'phone' && !phone) {
+      setFormError('Enter the team member mobile number.');
+      void alertAsync('Mobile required', 'Enter the team member mobile number.');
+      return;
+    }
     setFormError(null);
     createInvite.mutate(
-      { email: inviteEmail.trim().toLowerCase(), role: inviteRole },
+      {
+        ...(inviteMode === 'email' ? { email } : { phone }),
+        role: inviteRole,
+      },
       {
         onSuccess: async (result) => {
           setLastInvite(result);
           setInviteEmail('');
+          setInvitePhone('');
           await alertAsync('Invite created', 'Share the invite link with your team member.');
         },
         onError: async (e: Error) => {
           setFormError(e.message);
+          await alertAsync('Error', e.message);
+        },
+      },
+    );
+  };
+
+  const onCreateUser = () => {
+    if (!createName.trim()) {
+      setCreateError('Name is required.');
+      return;
+    }
+    if (!createEmail.trim() && !createPhone.trim()) {
+      setCreateError('Enter email or mobile number.');
+      return;
+    }
+    if (!createPassword.trim()) {
+      setCreateError('Password is required.');
+      return;
+    }
+    setCreateError(null);
+    createTeamUser.mutate(
+      {
+        name: createName.trim(),
+        email: createEmail.trim() || undefined,
+        phone: createPhone.trim() || undefined,
+        password: createPassword,
+        role: createRole,
+      },
+      {
+        onSuccess: async (result) => {
+          setCreatedCreds({ loginHint: result.loginHint, password: createPassword });
+          setCreateName('');
+          setCreateEmail('');
+          setCreatePhone('');
+          setCreatePassword('');
+          await alertAsync(
+            'User created',
+            `Share login: ${result.loginHint} with the password you set.`,
+          );
+        },
+        onError: async (e: Error) => {
+          setCreateError(e.message);
           await alertAsync('Error', e.message);
         },
       },
@@ -103,22 +206,76 @@ export default function UsersScreen() {
     await Share.share({ message: `Join BuildFlow: ${url}`, url });
   };
 
+  const shareCredentials = async (loginHint: string, password: string) => {
+    const message = `BuildFlow login\nUsername: ${loginHint}\nPassword: ${password}`;
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+      await navigator.clipboard.writeText(message);
+      Alert.alert('Copied', 'Login details copied to clipboard.');
+      return;
+    }
+    await Share.share({ message });
+  };
+
   const refreshAll = () => {
     refetch();
     refetchInvites();
   };
 
+  const inviteContactLabel = (inv: PendingInvite) =>
+    inv.email || inv.phone || 'Unknown contact';
+
   const router = useRouter();
   const inviteAction = (
-    <View className="flex-row items-center gap-2">
+    <View className="flex-row items-center gap-2 flex-wrap">
       <Button
         label="Role Permissions"
         size="sm"
         variant="secondary"
         onPress={() => router.push('/(app)/settings/permissions' as never)}
       />
-      <Button label="Invite" size="sm" onPress={() => setInviteOpen(true)} />
+      <Button
+        label="Create login"
+        size="sm"
+        variant="secondary"
+        onPress={() => {
+          setCreateOpen(true);
+          setCreatedCreds(null);
+          setCreateError(null);
+        }}
+      />
+      <Button
+        label="Invite"
+        size="sm"
+        onPress={() => {
+          setInviteOpen(true);
+          setFormError(null);
+          setLastInvite(null);
+        }}
+      />
     </View>
+  );
+
+  const rolePicker = (
+    roles: InviteRole[],
+    selected: InviteRole,
+    onSelect: (r: InviteRole) => void,
+  ) => (
+    <ScrollView className="max-h-64" nestedScrollEnabled>
+      {roles.map((r) => (
+        <TouchableOpacity
+          key={r}
+          onPress={() => onSelect(r)}
+          className={`py-3 px-4 rounded-lg mb-2 ${selected === r ? 'bg-primary' : 'bg-surface'}`}
+        >
+          <Text className={`font-semibold ${selected === r ? 'text-white' : 'text-text'}`}>
+            {ROLE_LABELS[r] ?? r}
+          </Text>
+          <Text className={`text-xs mt-0.5 ${selected === r ? 'text-white/80' : 'text-muted'}`}>
+            {r}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </ScrollView>
   );
 
   const content = isLoading ? (
@@ -129,7 +286,6 @@ export default function UsersScreen() {
     </View>
   ) : (
     <View className={isDesktop ? 'flex-row gap-6 items-start' : ''}>
-      {/* FIX (UI-H3): Remove min-w so panes don't collapse at 768px */}
       {(invites?.length ?? 0) > 0 && (
         <View className={isDesktop ? 'flex-1 min-w-0' : 'mb-6'}>
           <Text className="text-sm font-bold text-text mb-3 uppercase tracking-wide">
@@ -139,9 +295,10 @@ export default function UsersScreen() {
             <Card key={inv.id} className="mb-3">
               <View className="flex-row justify-between items-start">
                 <View className="flex-1 mr-2">
-                  <Text className="text-base font-semibold text-text">{inv.email}</Text>
+                  <Text className="text-base font-semibold text-text">{inviteContactLabel(inv)}</Text>
                   <Text className="text-xs text-muted mt-1">
-                    Role: {inv.role} · Expires {new Date(inv.expiresAt).toLocaleDateString()}
+                    Role: {ROLE_LABELS[inv.role as Role] ?? inv.role} · Expires{' '}
+                    {new Date(inv.expiresAt).toLocaleDateString()}
                   </Text>
                 </View>
                 <Badge label="Pending" color="warning" />
@@ -162,7 +319,7 @@ export default function UsersScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={async () => {
-                    const ok = await confirmAsync('Revoke invite?', inv.email);
+                    const ok = await confirmAsync('Revoke invite?', inviteContactLabel(inv));
                     if (!ok) return;
                     revokeInvite.mutate(inv.id, {
                       onError: async (e: Error) => {
@@ -180,7 +337,6 @@ export default function UsersScreen() {
         </View>
       )}
 
-      {/* FIX (UI-H3): Remove min-w so panes don't collapse at 768px */}
       <View className={isDesktop ? 'flex-[2] min-w-0' : ''}>
         <Text className="text-sm font-bold text-text mb-3 uppercase tracking-wide">
           Team members
@@ -189,7 +345,7 @@ export default function UsersScreen() {
         {!users || users.length === 0 ? (
           <EmptyState
             title="No users yet"
-            description="Invite your team to get started."
+            description="Invite your team or create a login for them."
             action={<Button label="Invite user" onPress={() => setInviteOpen(true)} />}
           />
         ) : (
@@ -201,10 +357,18 @@ export default function UsersScreen() {
                     <Avatar name={u.name} size={44} />
                     <View className="ml-3 flex-1">
                       <Text className="text-base font-bold text-text">{u.name}</Text>
-                      <Text className="text-xs text-text-muted">{u.email}</Text>
+                      {u.email.endsWith('@phone.buildflow.local') ? null : (
+                        <Text className="text-xs text-text-muted">{u.email}</Text>
+                      )}
+                      {u.phone ? (
+                        <Text className="text-xs text-text-muted">{u.phone}</Text>
+                      ) : null}
                     </View>
                   </View>
-                  <Badge label={u.role} color={u.role === 'OWNER' ? 'primary' : 'neutral'} />
+                  <Badge
+                    label={ROLE_LABELS[u.role as Role] ?? u.role}
+                    color={u.role === 'OWNER' ? 'primary' : 'neutral'}
+                  />
                 </View>
 
                 <View className="flex-row items-center justify-between mt-3 pt-3 border-t border-border">
@@ -213,22 +377,30 @@ export default function UsersScreen() {
                   >
                     {u.isActive ? '● Active' : '○ Deactivated'}
                   </Text>
-                  <View className="flex-row">
+                  <View className="flex-row flex-wrap justify-end gap-1">
                     <TouchableOpacity
                       onPress={() => setEditing(u)}
-                      className="px-3 py-1.5 rounded-md bg-primary/10 mr-2"
+                      className="px-3 py-1.5 rounded-md bg-primary/10"
                     >
                       <Text className="text-primary text-xs font-semibold">Change Role</Text>
                     </TouchableOpacity>
                     {u.role !== 'OWNER' && (
-                      <TouchableOpacity
-                        onPress={() => onToggleActive(u)}
-                        className="px-3 py-1.5 rounded-md bg-border"
-                      >
-                        <Text className="text-text text-xs font-semibold">
-                          {u.isActive ? 'Deactivate' : 'Activate'}
-                        </Text>
-                      </TouchableOpacity>
+                      <>
+                        <TouchableOpacity
+                          onPress={() => onToggleActive(u)}
+                          className="px-3 py-1.5 rounded-md bg-border"
+                        >
+                          <Text className="text-text text-xs font-semibold">
+                            {u.isActive ? 'Deactivate' : 'Activate'}
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => void onDeleteUser(u)}
+                          className="px-3 py-1.5 rounded-md bg-danger/10"
+                        >
+                          <Text className="text-danger text-xs font-semibold">Delete</Text>
+                        </TouchableOpacity>
+                      </>
                     )}
                   </View>
                 </View>
@@ -256,7 +428,7 @@ export default function UsersScreen() {
         visible={inviteOpen}
         onClose={() => setInviteOpen(false)}
         title="Invite team member"
-        subtitle="Only company owners can invite users. They will join via a secure link."
+        subtitle="Send a secure link by email or mobile. They set their own password."
         size="md"
         footer={
           <View className="gap-2">
@@ -270,15 +442,51 @@ export default function UsersScreen() {
           </View>
         }
       >
-        <Text className="text-sm font-semibold text-text mb-1">Email</Text>
-        <TextInput
-          value={inviteEmail}
-          onChangeText={setInviteEmail}
-          placeholder="colleague@company.com"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          className="border border-border rounded-lg px-3 py-2.5 text-text mb-4 bg-surface"
-        />
+        <View className="flex-row gap-2 mb-4">
+          {(['email', 'phone'] as const).map((mode) => (
+            <TouchableOpacity
+              key={mode}
+              onPress={() => setInviteMode(mode)}
+              className={`flex-1 py-2.5 rounded-lg items-center ${
+                inviteMode === mode ? 'bg-primary' : 'bg-surface'
+              }`}
+            >
+              <Text
+                className={`text-sm font-semibold ${
+                  inviteMode === mode ? 'text-white' : 'text-text'
+                }`}
+              >
+                {mode === 'email' ? 'Email' : 'Mobile'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {inviteMode === 'email' ? (
+          <>
+            <Text className="text-sm font-semibold text-text mb-1">Email</Text>
+            <TextInput
+              value={inviteEmail}
+              onChangeText={setInviteEmail}
+              placeholder="colleague@company.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              className="border border-border rounded-lg px-3 py-2.5 text-text mb-4 bg-surface"
+            />
+          </>
+        ) : (
+          <>
+            <Text className="text-sm font-semibold text-text mb-1">Mobile number</Text>
+            <TextInput
+              value={invitePhone}
+              onChangeText={setInvitePhone}
+              placeholder="9876543210 or +919876543210"
+              keyboardType="phone-pad"
+              autoCapitalize="none"
+              className="border border-border rounded-lg px-3 py-2.5 text-text mb-4 bg-surface"
+            />
+          </>
+        )}
 
         {formError ? (
           <View className="mb-3 px-3 py-2 rounded-lg bg-danger/10 border border-danger/30">
@@ -287,17 +495,7 @@ export default function UsersScreen() {
         ) : null}
 
         <Text className="text-sm font-semibold text-text mb-2">Role</Text>
-        {INVITE_ROLES.map((r) => (
-          <TouchableOpacity
-            key={r}
-            onPress={() => setInviteRole(r)}
-            className={`py-3 px-4 rounded-lg mb-2 ${inviteRole === r ? 'bg-primary' : 'bg-surface'}`}
-          >
-            <Text className={`font-semibold ${inviteRole === r ? 'text-white' : 'text-text'}`}>
-              {r}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {rolePicker(inviteRoles, inviteRole, setInviteRole)}
 
         {lastInvite ? (
           <View className="mt-4 p-3 bg-primary/5 rounded-lg border border-primary/20">
@@ -316,6 +514,84 @@ export default function UsersScreen() {
       </AdaptiveSheet>
 
       <AdaptiveSheet
+        visible={createOpen}
+        onClose={() => setCreateOpen(false)}
+        title="Create login"
+        subtitle="Set name, contact, role and password. Share the credentials with your teammate."
+        size="md"
+        footer={
+          <View className="gap-2">
+            <Button
+              label={createTeamUser.isPending ? 'Creating…' : 'Create user'}
+              onPress={onCreateUser}
+              loading={createTeamUser.isPending}
+              fullWidth
+            />
+            <Button label="Close" variant="ghost" onPress={() => setCreateOpen(false)} fullWidth />
+          </View>
+        }
+      >
+        <Text className="text-sm font-semibold text-text mb-1">Full name</Text>
+        <TextInput
+          value={createName}
+          onChangeText={setCreateName}
+          placeholder="Team member name"
+          className="border border-border rounded-lg px-3 py-2.5 text-text mb-3 bg-surface"
+        />
+
+        <Text className="text-sm font-semibold text-text mb-1">Email (optional if mobile set)</Text>
+        <TextInput
+          value={createEmail}
+          onChangeText={setCreateEmail}
+          placeholder="colleague@company.com"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          className="border border-border rounded-lg px-3 py-2.5 text-text mb-3 bg-surface"
+        />
+
+        <Text className="text-sm font-semibold text-text mb-1">Mobile (optional if email set)</Text>
+        <TextInput
+          value={createPhone}
+          onChangeText={setCreatePhone}
+          placeholder="9876543210"
+          keyboardType="phone-pad"
+          className="border border-border rounded-lg px-3 py-2.5 text-text mb-3 bg-surface"
+        />
+
+        <Text className="text-sm font-semibold text-text mb-1">Temporary password</Text>
+        <TextInput
+          value={createPassword}
+          onChangeText={setCreatePassword}
+          placeholder="Min 8 chars, upper, lower, number"
+          secureTextEntry
+          className="border border-border rounded-lg px-3 py-2.5 text-text mb-3 bg-surface"
+        />
+
+        {createError ? (
+          <View className="mb-3 px-3 py-2 rounded-lg bg-danger/10 border border-danger/30">
+            <Text className="text-sm text-danger">{createError}</Text>
+          </View>
+        ) : null}
+
+        <Text className="text-sm font-semibold text-text mb-2">Role</Text>
+        {rolePicker(assignableRoles, createRole, setCreateRole)}
+
+        {createdCreds ? (
+          <View className="mt-4 p-3 bg-primary/5 rounded-lg border border-primary/20">
+            <Text className="text-xs text-muted mb-2">Share these login details</Text>
+            <Text className="text-sm text-text mb-1">Login: {createdCreds.loginHint}</Text>
+            <Text className="text-sm text-text mb-3">Password: {createdCreds.password}</Text>
+            <Button
+              label="Copy / Share credentials"
+              size="sm"
+              variant="secondary"
+              onPress={() => shareCredentials(createdCreds.loginHint, createdCreds.password)}
+            />
+          </View>
+        ) : null}
+      </AdaptiveSheet>
+
+      <AdaptiveSheet
         visible={!!editing}
         onClose={() => setEditing(null)}
         title="Change Role"
@@ -323,14 +599,16 @@ export default function UsersScreen() {
         size="sm"
         footer={<Button label="Cancel" variant="ghost" onPress={() => setEditing(null)} fullWidth />}
       >
-        {ROLES.map((r) => (
+        {assignableRoles.map((r) => (
           <TouchableOpacity
             key={r}
             onPress={() => onSaveRole(r)}
             className={`py-3.5 px-4 rounded-lg mb-2 ${editing?.role === r ? 'bg-primary' : 'bg-surface'}`}
           >
-            <Text className={`text-base font-semibold ${editing?.role === r ? 'text-white' : 'text-text'}`}>
-              {r}
+            <Text
+              className={`text-base font-semibold ${editing?.role === r ? 'text-white' : 'text-text'}`}
+            >
+              {ROLE_LABELS[r] ?? r}
             </Text>
           </TouchableOpacity>
         ))}

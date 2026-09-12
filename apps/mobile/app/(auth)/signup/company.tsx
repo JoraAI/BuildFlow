@@ -1,10 +1,10 @@
 /**
  * Company + owner registration (free trial).
- * Supports the INVENTORY product signup via ?product=inventory (dedicated
- * inventory path creates an INVENTORY company with a hidden default STORE project).
+ * Supports Construction ERP and Inventory (?product=inventory).
+ * Owner can register with email or mobile + password.
  */
 import React, { useEffect, useState } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Button, Input, Card } from '@/components/ui';
 import { AuthScreenShell } from '@/components/auth/AuthScreenShell';
@@ -14,6 +14,8 @@ import { FreeTrialBadge } from '@/components/marketing/FreeTrialBadge';
 import { TRIAL_HERO_BENEFITS } from '@/constants/auth';
 import { ApiError } from '@/lib/api-client';
 import { fetchAuthConfig } from '@/services/auth.queries';
+
+type ContactMethod = 'email' | 'phone';
 
 export default function SignupCompanyScreen() {
   const router = useRouter();
@@ -28,6 +30,7 @@ export default function SignupCompanyScreen() {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [contactMethod, setContactMethod] = useState<ContactMethod>('email');
 
   const [form, setForm] = useState({
     companyName: '',
@@ -37,6 +40,7 @@ export default function SignupCompanyScreen() {
     address: '',
     ownerName: '',
     ownerEmail: '',
+    ownerPhone: '',
     password: '',
     confirmPassword: '',
   });
@@ -56,6 +60,14 @@ export default function SignupCompanyScreen() {
       setError('Passwords do not match');
       return;
     }
+    if (contactMethod === 'email' && !form.ownerEmail.trim()) {
+      setError('Enter your email address');
+      return;
+    }
+    if (contactMethod === 'phone' && !form.ownerPhone.trim()) {
+      setError('Enter your mobile number');
+      return;
+    }
     setLoading(true);
     try {
       await registerCompany({
@@ -65,7 +77,9 @@ export default function SignupCompanyScreen() {
         state: form.state,
         address: form.address || undefined,
         ownerName: form.ownerName,
-        ownerEmail: form.ownerEmail,
+        ...(contactMethod === 'email'
+          ? { ownerEmail: form.ownerEmail.trim().toLowerCase() }
+          : { ownerPhone: form.ownerPhone.trim() }),
         password: form.password,
         product,
       });
@@ -170,17 +184,55 @@ export default function SignupCompanyScreen() {
         <Text className="text-sm font-bold text-text mb-3">Owner account</Text>
         <Input label="Your name" value={form.ownerName} onChangeText={(v) => set('ownerName', v)} />
         <View className="h-3" />
-        <Input
-          label="Email"
-          value={form.ownerEmail}
-          onChangeText={(v) => set('ownerEmail', v)}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
+
+        <View className="flex-row gap-2 mb-3">
+          {(['email', 'phone'] as const).map((m) => (
+            <TouchableOpacity
+              key={m}
+              onPress={() => setContactMethod(m)}
+              className={`flex-1 py-2.5 rounded-lg items-center ${
+                contactMethod === m ? 'bg-primary' : 'bg-surface'
+              }`}
+            >
+              <Text
+                className={`text-sm font-semibold ${
+                  contactMethod === m ? 'text-white' : 'text-text'
+                }`}
+              >
+                {m === 'email' ? 'Email' : 'Mobile'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {contactMethod === 'email' ? (
+          <Input
+            label="Email"
+            value={form.ownerEmail}
+            onChangeText={(v) => set('ownerEmail', v)}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            placeholder="you@company.com"
+          />
+        ) : (
+          <Input
+            label="Mobile number"
+            value={form.ownerPhone}
+            onChangeText={(v) => set('ownerPhone', v)}
+            keyboardType="phone-pad"
+            placeholder="9876543210 or +919876543210"
+          />
+        )}
+
         <View className="h-3" />
         <Input label="Password" value={form.password} onChangeText={(v) => set('password', v)} secureTextEntry />
         <View className="h-3" />
-        <Input label="Confirm password" value={form.confirmPassword} onChangeText={(v) => set('confirmPassword', v)} secureTextEntry />
+        <Input
+          label="Confirm password"
+          value={form.confirmPassword}
+          onChangeText={(v) => set('confirmPassword', v)}
+          secureTextEntry
+        />
       </Card>
 
       {error ? (

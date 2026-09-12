@@ -117,12 +117,32 @@ export async function updateUserRole(req: Request, res: Response) {
   return ok(res, user);
 }
 
+export async function deleteTeamUser(req: Request, res: Response) {
+  const result = await settingsService.deleteTeamUser(
+    req.params.userId,
+    req.user!.companyId,
+    req.user!.id,
+  );
+  res.locals.audit = { entityId: req.params.userId, oldValue: { deleted: true } };
+  return ok(res, result);
+}
+
 export async function createUserInvite(req: Request, res: Response) {
   const result = await inviteService.createInvite(
     req.user!.companyId,
     req.user!.id,
     req.body,
   );
+  return ok(res, result, 201);
+}
+
+export async function createTeamUser(req: Request, res: Response) {
+  const result = await inviteService.createTeamUser(
+    req.user!.companyId,
+    req.user!.id,
+    req.body,
+  );
+  res.locals.audit = { entityId: result.id, newValue: result };
   return ok(res, result, 201);
 }
 

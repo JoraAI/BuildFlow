@@ -17,12 +17,20 @@ import {
   loginSchema,
   refreshSchema,
   acceptInviteSchema,
+  sendInviteOtpSchema,
+  sendLoginOtpSchema,
 } from '@buildflow/shared';
 
 export const authRouter = Router();
 
 authRouter.get('/config', authController.config);
 authRouter.get('/invite/:token', authLimiter, authController.getInvitePreview);
+authRouter.post(
+  '/invite/send-otp',
+  authLimiter,
+  validate({ body: sendInviteOtpSchema }),
+  authController.sendInviteOtp,
+);
 authRouter.post(
   '/accept-invite',
   authLimiter,
@@ -31,6 +39,12 @@ authRouter.post(
 );
 authRouter.post('/register', authLimiter, validate({ body: registerCompanySchema }), authController.register);
 authRouter.post('/login', authLimiter, validate({ body: loginSchema }), authController.login);
+authRouter.post(
+  '/login/send-otp',
+  authLimiter,
+  validate({ body: sendLoginOtpSchema }),
+  authController.sendLoginOtp,
+);
 authRouter.post('/refresh', authLimiter, validate({ body: refreshSchema }), authController.refresh);
 authRouter.post('/logout', authenticateToken, authController.logout);
 authRouter.get('/me', authenticateToken, authController.me);

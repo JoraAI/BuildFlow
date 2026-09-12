@@ -6,10 +6,12 @@ export interface AuthConfig {
 }
 
 export interface InvitePreview {
-  email: string;
+  email: string | null;
+  phone: string | null;
   role: string;
   companyName: string;
   expiresAt: string;
+  inviteChannel: 'email' | 'phone';
 }
 
 export function fetchAuthConfig() {
@@ -25,7 +27,16 @@ export type { RegisterCompanyInput };
 export interface AcceptInvitePayload {
   token: string;
   name: string;
-  password: string;
+  method?: 'password' | 'otp';
+  password?: string;
+  otp?: string;
+}
+
+export interface OtpSendResult {
+  sent: true;
+  expiresInSec: number;
+  phoneMasked: string;
+  devCode?: string;
 }
 
 export interface AuthResponsePayload {
@@ -56,5 +67,19 @@ export function acceptInviteRequest(body: AcceptInvitePayload) {
   return apiFetch<AuthResponsePayload>('/auth/accept-invite', {
     method: 'POST',
     body: JSON.stringify(body),
+  });
+}
+
+export function sendInviteOtpRequest(token: string) {
+  return apiFetch<OtpSendResult>('/auth/invite/send-otp', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  });
+}
+
+export function sendLoginOtpRequest(phone: string) {
+  return apiFetch<OtpSendResult>('/auth/login/send-otp', {
+    method: 'POST',
+    body: JSON.stringify({ phone }),
   });
 }

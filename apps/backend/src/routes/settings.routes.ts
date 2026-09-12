@@ -10,7 +10,9 @@ import {
   updateCompany,
   listCompanyUsers,
   updateUserRole,
+  deleteTeamUser,
   createUserInvite,
+  createTeamUser,
   listUserInvites,
   revokeUserInvite,
   resendUserInvite,
@@ -50,6 +52,7 @@ import {
   userRoleUpdateSchema,
   auditQuerySchema,
   createUserInviteSchema,
+  createTeamUserSchema,
   myProfileUpdateSchema,
   logoUploadSchema,
   createTicketSchema,
@@ -138,6 +141,13 @@ router.put(
   auditLog('UPDATE', 'User'),
   updateUserRole,
 );
+router.delete(
+  '/users/:userId',
+  authenticateToken,
+  requirePermission('settings.users'),
+  auditLog('DELETE', 'User'),
+  asyncHandler(deleteTeamUser),
+);
 
 router.post(
   '/users/invite',
@@ -145,6 +155,14 @@ router.post(
   requirePermission('settings.users'),
   validate({ body: createUserInviteSchema }),
   asyncHandler(createUserInvite),
+);
+router.post(
+  '/users',
+  authenticateToken,
+  requirePermission('settings.users'),
+  validate({ body: createTeamUserSchema }),
+  auditLog('CREATE', 'User'),
+  asyncHandler(createTeamUser),
 );
 router.get('/users/invites', authenticateToken, requirePermission('settings.users'), listUserInvites);
 router.delete(

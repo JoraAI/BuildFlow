@@ -10,12 +10,14 @@
       "resizeMode": "contain",
       "backgroundColor": "#1E3A5F"
     },
+    "icon": "./assets/icon.png",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.jora.buildflow"
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#1E3A5F"
       },
       "package": "com.jora.buildflow"

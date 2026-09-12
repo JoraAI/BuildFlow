@@ -609,7 +609,10 @@ id           String   @id @default(uuid()) @db.Uuid
 model UserInvite {
   id          String    @id @default(uuid()) @db.Uuid
   companyId   String    @map("company_id") @db.Uuid
-  email       String
+  /// Optional when inviting by mobile only.
+  email       String?
+  /// Optional when inviting by email only. Normalized E.164-ish (+91…).
+  phone       String?
   role        Role      @default(PM)
   tokenHash   String    @unique @map("token_hash")
   invitedById String    @map("invited_by_id") @db.Uuid
@@ -621,6 +624,7 @@ model UserInvite {
   invitedBy User    @relation("InvitesSent", fields: [invitedById], references: [id], onDelete: Cascade)
 
   @@unique([companyId, email])
+  @@unique([companyId, phone])
   @@map("user_invites")
 }
 

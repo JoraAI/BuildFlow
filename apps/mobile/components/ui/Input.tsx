@@ -10,7 +10,7 @@ interface InputProps {
   error?: string;
   helper?: string;
   secureTextEntry?: boolean;
-  keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad' | 'decimal-pad';
+  keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad' | 'decimal-pad' | 'number-pad';
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
@@ -21,6 +21,8 @@ interface InputProps {
   accessibilityLabel?: string;
   /** Drop bottom margin (inline toolbars / sticky search rows). */
   compact?: boolean;
+  editable?: boolean;
+  maxLength?: number;
   onFocus?: () => void;
   onBlur?: () => void;
   onSubmitEditing?: () => void;
@@ -42,6 +44,8 @@ export function Input({
   fullWidth = false,
   accessibilityLabel,
   compact = false,
+  editable = true,
+  maxLength,
   onFocus,
   onBlur,
   onSubmitEditing,
@@ -60,7 +64,7 @@ export function Input({
       <View
         className={`flex-row items-center rounded-lg border bg-card ${
           error ? 'border-danger' : 'border-border'
-        } px-3 ${multiline ? 'items-start py-2' : ''}`}
+        } px-3 ${multiline ? 'items-start py-2' : ''} ${editable ? '' : 'opacity-70'}`}
       >
         {leftIcon}
         <TextInput
@@ -75,6 +79,8 @@ export function Input({
           autoCapitalize={autoCapitalize}
           autoCorrect={false}
           multiline={multiline}
+          editable={editable}
+          maxLength={maxLength}
           accessibilityLabel={accessibilityLabel ?? label}
           // LTR so RN-web does not reverse typed characters in RTL locales / autofill quirks.
           style={{ direction: 'ltr', writingDirection: 'ltr', textAlign: 'left' } as object}

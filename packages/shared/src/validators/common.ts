@@ -69,3 +69,26 @@ export const dateSchema = z
   .string()
   .trim()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD');
+
+/**
+ * Normalize mobile numbers for storage/lookup.
+ * 10-digit Indian mobiles become +91…; other inputs keep digits with a leading +.
+ */
+export function normalizePhone(raw: string): string {
+  const trimmed = raw.trim();
+  const digits = trimmed.replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.length === 10) return `+91${digits}`;
+  if (digits.length === 12 && digits.startsWith('91')) return `+${digits}`;
+  if (trimmed.startsWith('+')) return `+${digits}`;
+  return `+${digits}`;
+}
+
+/** E.164-ish phone (8–15 digits after country code). */
+export const phoneSchema = z
+  .string()
+  .trim()
+  .min(8, 'Invalid phone number')
+  .max(20)
+  .transform(normalizePhone)
+  .refine((p) => /^\+[1-9]\d{7,14}$/.test(p), 'Invalid phone number');

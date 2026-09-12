@@ -267,6 +267,17 @@ export function useUpdateUser() {
   });
 }
 
+export function useDeleteUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) =>
+      apiFetch(`/settings/users/${userId}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: settingsKeys.users });
+    },
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Audit Log
 // ---------------------------------------------------------------------------
@@ -327,7 +338,8 @@ export function useExportZip() {
 
 export interface PendingInvite {
   id: string;
-  email: string;
+  email: string | null;
+  phone: string | null;
   role: string;
   expiresAt: string;
   createdAt: string;
@@ -341,6 +353,15 @@ export interface InviteCreated {
   expiresAt: string;
 }
 
+export interface CreatedTeamUser {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  role: string;
+  loginHint: string;
+}
+
 export function usePendingInvites() {
   return useQuery<PendingInvite[]>({
     queryKey: settingsKeys.invites,
@@ -351,12 +372,33 @@ export function usePendingInvites() {
 export function useCreateInvite() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { email: string; role: string }) =>
+    mutationFn: (data: { email?: string; phone?: string; role: string }) =>
       apiFetch<InviteCreated>('/settings/users/invite', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: settingsKeys.invites });
+    },
+  });
+}
+
+export function useCreateTeamUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      name: string;
+      email?: string;
+      phone?: string;
+      password: string;
+      role: string;
+    }) =>
+      apiFetch<CreatedTeamUser>('/settings/users', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: settingsKeys.users });
       qc.invalidateQueries({ queryKey: settingsKeys.invites });
     },
   });
