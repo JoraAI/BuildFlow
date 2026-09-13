@@ -6,7 +6,7 @@
  */
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
-import { hashPassword, verifyPassword } from '../utils/password';
+import { hashPassword } from '../utils/password';
 import {
   signAccessToken,
   signRefreshToken,
@@ -347,25 +347,26 @@ export async function login(
         });
       })();
 
-  if (!user) throw ApiError.unauthorized('Invalid email/mobile or password');
+  if (!user) throw ApiError.unauthorized('Invalid email/mobile or OTP');
 
-  if (input.otp) {
-    if (identifier.includes('@')) {
-      throw ApiError.badRequest('OTP login is only available with a mobile number');
-    }
+  const { consumeOtp } = await import('./otp.service');
+  if (identifier.includes('@')) {
+    const email = identifier.toLowerCase();
+    await consumeOtp({
+      purpose: 'login',
+      key: email,
+      code: input.otp,
+      expectedDestination: email,
+    });
+  } else {
     const { normalizePhone } = await import('@buildflow/shared');
     const phone = normalizePhone(identifier);
-    const { consumeOtp } = await import('./otp.service');
     await consumeOtp({
       purpose: 'login',
       key: phone,
       code: input.otp,
-      expectedPhone: phone,
+      expectedDestination: phone,
     });
-  } else {
-    if (!input.password) throw ApiError.unauthorized('Invalid email/mobile or password');
-    const valid = await verifyPassword(input.password, user.passwordHash);
-    if (!valid) throw ApiError.unauthorized('Invalid email/mobile or password');
   }
 
   if (!user.isActive) throw ApiError.forbidden('Account is deactivated');
@@ -388,14 +389,57 @@ export async function login(
   };
 }
 
-export async function sendLoginOtp(phoneRaw: string): Promise<{
+export async function sendLoginOtp(identifierRaw: string): Promise<{
   sent: true;
   expiresInSec: number;
+  destinationMasked: string;
+  /** @deprecated use destinationMasked */
   phoneMasked: string;
+  channel: 'sms' | 'email';
   devCode?: string;
 }> {
+  const identifier = identifierRaw.trim();
+  const { issueOtp } = await import('./otp.service');
+
+  if (identifier.includes('@')) {
+    const email = identifier.toLowerCase();
+    const user = await prisma.user.findFirst({
+      where: { email, isActive: true },
+      select: { id: true, companyId: true, email: true },
+    });
+    const fakeMasked = (() => {
+      const [local, domain] = email.split('@');
+      if (!domain || !local) return '***';
+      return `${local.slice(0, Math.min(2, local.length))}***@${domain}`;
+    })();
+    if (!user?.email) {
+      return {
+        sent: true,
+        expiresInSec: 600,
+        channel: 'email',
+        destinationMasked: fakeMasked,
+        phoneMasked: fakeMasked,
+      };
+    }
+
+    const result = await issueOtp({
+      purpose: 'login',
+      key: email,
+      channel: 'email',
+      destination: email,
+      companyId: user.companyId,
+      messagePrefix: 'Your BuildFlow login code is',
+      emailSubject: 'Your BuildFlow login code',
+    });
+    return {
+      ...result,
+      channel: 'email',
+      phoneMasked: result.destinationMasked,
+    };
+  }
+
   const { normalizePhone } = await import('@buildflow/shared');
-  const phone = normalizePhone(phoneRaw);
+  const phone = normalizePhone(identifier);
   const digits = phone.replace(/\D/g, '');
   const variants = Array.from(
     new Set(
@@ -407,33 +451,35 @@ export async function sendLoginOtp(phoneRaw: string): Promise<{
       ].filter(Boolean),
     ),
   );
+  const fakeMasked = digits.length >= 4 ? `******${digits.slice(-4)}` : '******';
 
   const user = await prisma.user.findFirst({
     where: { phone: { in: variants }, isActive: true },
     select: { id: true, companyId: true, phone: true },
   });
   if (!user?.phone) {
-    // Avoid account enumeration — still pretend success, but do not issue OTP.
     return {
       sent: true,
       expiresInSec: 600,
-      phoneMasked: digits.length >= 4 ? `******${digits.slice(-4)}` : '******',
+      channel: 'sms',
+      destinationMasked: fakeMasked,
+      phoneMasked: fakeMasked,
     };
   }
 
-  const result = await (
-    await import('./otp.service')
-  ).issueOtp({
+  const result = await issueOtp({
     purpose: 'login',
     key: phone,
-    phone,
+    channel: 'sms',
+    destination: phone,
     companyId: user.companyId,
     messagePrefix: 'Your BuildFlow login code is',
   });
 
   return {
     ...result,
-    phoneMasked: digits.length >= 4 ? `******${digits.slice(-4)}` : phone,
+    channel: 'sms',
+    phoneMasked: result.destinationMasked,
   };
 }
 

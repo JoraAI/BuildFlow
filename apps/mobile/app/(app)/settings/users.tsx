@@ -186,7 +186,7 @@ export default function UsersScreen() {
           setCreatePassword('');
           await alertAsync(
             'User created',
-            `Share login: ${result.loginHint} with the password you set.`,
+            `Share login: ${result.loginHint}. They sign in with OTP (use 111111 until SMS/email delivery is configured).`,
           );
         },
         onError: async (e: Error) => {
@@ -206,8 +206,8 @@ export default function UsersScreen() {
     await Share.share({ message: `Join BuildFlow: ${url}`, url });
   };
 
-  const shareCredentials = async (loginHint: string, password: string) => {
-    const message = `BuildFlow login\nUsername: ${loginHint}\nPassword: ${password}`;
+  const shareCredentials = async (loginHint: string, _password: string) => {
+    const message = `BuildFlow login\nUsername: ${loginHint}\nSign in with OTP (dev/seed code: 111111 until SMS/email is configured)`;
     if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
       await navigator.clipboard.writeText(message);
       Alert.alert('Copied', 'Login details copied to clipboard.');
@@ -580,7 +580,9 @@ export default function UsersScreen() {
           <View className="mt-4 p-3 bg-primary/5 rounded-lg border border-primary/20">
             <Text className="text-xs text-muted mb-2">Share these login details</Text>
             <Text className="text-sm text-text mb-1">Login: {createdCreds.loginHint}</Text>
-            <Text className="text-sm text-text mb-3">Password: {createdCreds.password}</Text>
+            <Text className="text-sm text-text mb-3">
+              Sign-in uses OTP (dev/seed: 111111 until SMS/email is configured)
+            </Text>
             <Button
               label="Copy / Share credentials"
               size="sm"

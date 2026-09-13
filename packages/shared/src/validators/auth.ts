@@ -139,59 +139,35 @@ export const sendInviteOtpSchema = z.object({
 
 export type SendInviteOtpInput = z.infer<typeof sendInviteOtpSchema>;
 
+/** Send login OTP to email or mobile (same identifier field as login). */
 export const sendLoginOtpSchema = z.object({
-  phone: phoneSchema,
+  email: z.string().trim().min(3, 'Enter email or mobile number').max(254),
 });
 
 export type SendLoginOtpInput = z.infer<typeof sendLoginOtpSchema>;
 
 /**
- * Accept invite:
- * - Email invites: name + password (email locked on invite).
- * - Phone invites: name + password, OR name + OTP (phone locked on invite).
+ * Accept invite: name + OTP (email or phone locked on invite).
+ * Password is not collected — login is OTP-only.
  */
-export const acceptInviteSchema = z
-  .object({
-    token: z.string().min(16).max(256),
-    name: z.string().trim().min(2).max(120),
-    method: z.enum(['password', 'otp']).default('password'),
-    password: passwordSchema.optional(),
-    otp: z
-      .string()
-      .trim()
-      .regex(/^\d{6}$/, 'OTP must be 6 digits')
-      .optional(),
-  })
-  .superRefine((data, ctx) => {
-    if (data.method === 'password' && !data.password) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Password is required', path: ['password'] });
-    }
-    if (data.method === 'otp' && !data.otp) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'OTP is required', path: ['otp'] });
-    }
-  });
+export const acceptInviteSchema = z.object({
+  token: z.string().min(16).max(256),
+  name: z.string().trim().min(2).max(120),
+  otp: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, 'OTP must be 6 digits'),
+});
 
 export type AcceptInviteInput = z.infer<typeof acceptInviteSchema>;
 
-/** Login: email/mobile + password, or mobile + OTP. */
-export const loginSchema = z
-  .object({
-    email: z.string().trim().min(3, 'Enter email or mobile number').max(254),
-    password: z.string().min(1).max(128).optional(),
-    otp: z
-      .string()
-      .trim()
-      .regex(/^\d{6}$/, 'OTP must be 6 digits')
-      .optional(),
-  })
-  .superRefine((data, ctx) => {
-    if (!data.password && !data.otp) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Password or OTP is required',
-        path: ['password'],
-      });
-    }
-  });
+/** Login: email or mobile + OTP only. */
+export const loginSchema = z.object({
+  email: z.string().trim().min(3, 'Enter email or mobile number').max(254),
+  otp: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, 'OTP must be 6 digits'),
+});
 
 export type LoginInput = z.infer<typeof loginSchema>;

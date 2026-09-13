@@ -86,11 +86,37 @@ const envSchema = z.object({
   // Tally Prime export (optional ledger name mapping JSON)
   TALLY_LEDGER_MAP: z.string().optional(),
 
-  // Twilio (WhatsApp + SMS) - optional
+  // Twilio (WhatsApp + SMS) - optional (used for phone OTP)
   TWILIO_ACCOUNT_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_WHATSAPP_FROM: z.string().optional(),
   TWILIO_SMS_FROM: z.string().optional(),
+
+  // Email OTP delivery - optional (Resend preferred, SMTP fallback)
+  RESEND_API_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  OTP_EMAIL_FROM: z.preprocess((v) => (v === '' ? undefined : v), z.string().email().optional()),
+  SMTP_HOST: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  SMTP_PORT: z.coerce.number().int().default(587),
+  SMTP_SECURE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  SMTP_USER: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  SMTP_PASS: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+
+  // Dev / seed OTP bypass until real SMS/email credentials are wired.
+  // Defaults: enabled outside production with code 111111.
+  OTP_MASTER_CODE: z
+    .preprocess((v) => (v === '' ? undefined : v), z.string().regex(/^\d{6}$/).optional())
+    .default('111111'),
+  OTP_MASTER_ENABLED: z
+    .enum(['true', 'false', ''])
+    .optional()
+    .transform((v) => {
+      if (v === 'true') return true;
+      if (v === 'false') return false;
+      return undefined;
+    }),
 
   // Razorpay - optional
   RAZORPAY_KEY_ID: z.string().optional(),

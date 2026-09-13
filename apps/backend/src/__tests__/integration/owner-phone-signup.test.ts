@@ -47,7 +47,7 @@ describe('owner signup with phone or email', () => {
 
     const login = await request(app).post('/api/auth/login').send({
       email: phone,
-      password,
+      otp: '111111',
     });
     expect(login.status).toBe(200);
     expect(login.body.data.user.companyId).toBe(res.body.data.user.companyId);
@@ -72,7 +72,7 @@ describe('owner signup with phone or email', () => {
 
     const login = await request(app).post('/api/auth/login').send({
       email: phone,
-      password,
+      otp: '111111',
     });
     expect(login.status).toBe(200);
   });

@@ -134,7 +134,7 @@ export async function sendInviteOtp(req: Request, res: Response, next: NextFunct
 
 export async function sendLoginOtp(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const result = await authService.sendLoginOtp(req.body.phone);
+    const result = await authService.sendLoginOtp(req.body.email);
     ok(res, result);
   } catch (err) {
     next(err);

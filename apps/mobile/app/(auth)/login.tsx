@@ -1,5 +1,5 @@
 /**
- * Login screen - email/mobile + password, or mobile + OTP.
+ * Login screen - email/mobile + OTP only.
  */
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
@@ -11,13 +11,9 @@ import { useViewport } from '@/hooks/useViewport';
 import { ApiError } from '@/lib/api-client';
 import { sendLoginOtpRequest } from '@/services/auth.queries';
 
-type LoginMethod = 'password' | 'otp';
-
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
-  const [method, setMethod] = useState<LoginMethod>('password');
   const [otpHint, setOtpHint] = useState<string | null>(null);
   const [sendingOtp, setSendingOtp] = useState(false);
   const [error, setError] = useState('');
@@ -25,12 +21,10 @@ export default function LoginScreen() {
   const login = useAuthStore((s) => s.login);
   const { isDesktop } = useViewport();
 
-  const looksLikePhone = !email.includes('@') && email.trim().length >= 8;
-
   const handleSendOtp = async () => {
     setError('');
-    if (!looksLikePhone) {
-      setError('Enter a mobile number to receive an OTP');
+    if (!email.trim()) {
+      setError('Enter email or mobile to receive an OTP');
       return;
     }
     setSendingOtp(true);
@@ -39,7 +33,7 @@ export default function LoginScreen() {
       setOtpHint(
         res.devCode
           ? `Code sent (dev): ${res.devCode}`
-          : `Code sent to ${res.phoneMasked}`,
+          : `Code sent to ${res.destinationMasked ?? res.phoneMasked}`,
       );
     } catch (err) {
       setError((err as ApiError).message || 'Could not send OTP');
@@ -50,31 +44,17 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     setError('');
-    if (!email) {
+    if (!email.trim()) {
       setError('Please enter email or mobile');
       return;
     }
-    if (method === 'password' && !password) {
-      setError('Please enter password');
+    if (!otp.trim()) {
+      setError('Please enter the OTP');
       return;
-    }
-    if (method === 'otp') {
-      if (!looksLikePhone) {
-        setError('OTP login requires a mobile number');
-        return;
-      }
-      if (!otp.trim()) {
-        setError('Please enter the OTP');
-        return;
-      }
     }
     setLoading(true);
     try {
-      if (method === 'otp') {
-        await login(email, undefined, otp.trim());
-      } else {
-        await login(email, password);
-      }
+      await login(email.trim(), otp.trim());
       const productMode = useAuthStore.getState().user?.productMode;
       router.replace(productMode === 'inventory' ? '/inventory' : '/dashboard');
     } catch (err) {
@@ -95,7 +75,7 @@ export default function LoginScreen() {
       heroSubline="Sign in to Construction ERP or Inventory - stock profiles, warehouses, sales & GST."
       backHref="/"
       formTitle="Sign in"
-      formSubtitle="Company account for ERP or Inventory (retail, wholesale, trading, materials & more)"
+      formSubtitle="Enter your email or mobile and the OTP we send you"
       footer={
         isDesktop ? (
           <>
@@ -116,53 +96,27 @@ export default function LoginScreen() {
         autoCapitalize="none"
       />
 
-      <View className="flex-row gap-2 mt-3 mb-1">
-        {(['password', 'otp'] as const).map((m) => (
-          <TouchableOpacity
-            key={m}
-            onPress={() => setMethod(m)}
-            className={`flex-1 py-2.5 rounded-lg items-center ${
-              method === m ? 'bg-primary' : 'bg-surface'
-            }`}
-          >
-            <Text className={`text-sm font-semibold ${method === m ? 'text-white' : 'text-text'}`}>
-              {m === 'password' ? 'Password' : 'OTP'}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <View className="h-3" />
+
+      <Button
+        label={sendingOtp ? 'Sending…' : 'Send OTP'}
+        variant="secondary"
+        onPress={handleSendOtp}
+        loading={sendingOtp}
+        fullWidth
+      />
+      {otpHint ? <Text className="text-xs text-muted mt-2">{otpHint}</Text> : null}
 
       <View className="h-3" />
 
-      {method === 'password' ? (
-        <Input
-          label="Password"
-          value={password}
-          onChangeText={setPassword}
-          placeholder="••••••••"
-          secureTextEntry
-        />
-      ) : (
-        <>
-          <Button
-            label={sendingOtp ? 'Sending…' : 'Send OTP'}
-            variant="secondary"
-            onPress={handleSendOtp}
-            loading={sendingOtp}
-            fullWidth
-          />
-          {otpHint ? <Text className="text-xs text-muted mt-2">{otpHint}</Text> : null}
-          <View className="h-3" />
-          <Input
-            label="OTP"
-            value={otp}
-            onChangeText={setOtp}
-            placeholder="6-digit code"
-            keyboardType="number-pad"
-            maxLength={6}
-          />
-        </>
-      )}
+      <Input
+        label="OTP"
+        value={otp}
+        onChangeText={setOtp}
+        placeholder="6-digit code"
+        keyboardType="number-pad"
+        maxLength={6}
+      />
 
       {error ? (
         <View className="bg-danger/10 rounded-lg px-3 py-2 mt-4 border border-danger/20">
@@ -176,13 +130,6 @@ export default function LoginScreen() {
           {signInButton}
         </>
       )}
-
-      <TouchableOpacity
-        onPress={() => router.push('/(auth)/forgot-password')}
-        className="mt-4 self-center"
-      >
-        <Text className="text-primary text-sm font-semibold">Forgot password?</Text>
-      </TouchableOpacity>
 
       <TouchableOpacity onPress={() => router.push('/signup')} className="mt-6 self-center">
         <Text className="text-muted text-sm">
@@ -199,7 +146,7 @@ export default function LoginScreen() {
         </Text>
         {__DEV__ ? (
           <Text className="text-[11px] text-muted leading-relaxed mt-2">
-            Seed demos (password Test@1234): owner@reddyconst.com · owner@hydmaterials.com ·
+            Seed demos (OTP 111111): owner@reddyconst.com · owner@hydmaterials.com ·
             owner@cityhardware.com · owner@deccanwholesale.com · owner@southdistro.com ·
             owner@apextrading.com · owner@forgeequip.com · owner@generalstore.com
           </Text>

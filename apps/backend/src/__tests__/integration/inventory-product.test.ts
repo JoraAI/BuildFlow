@@ -194,7 +194,7 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     const acceptRes = await request(app).post('/api/auth/accept-invite').send({
       token: inviteToken,
       name: 'Store Manager',
-      password: PASSWORD,
+      otp: '111111',
     });
     expect(acceptRes.status).toBe(201);
     const imToken = acceptRes.body.data.accessToken as string;
@@ -1345,7 +1345,7 @@ describe('INVENTORY_PRODUCT (integration)', () => {
       const acceptRes = await request(app).post('/api/auth/accept-invite').send({
         token: inviteRes.body.data.token as string,
         name: 'Band Manager',
-        password: PASSWORD,
+        otp: '111111',
       });
       expect(acceptRes.status).toBe(201);
       const imToken = acceptRes.body.data.accessToken as string;

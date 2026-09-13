@@ -51,7 +51,7 @@ describe('POST /api/auth/register (validation)', () => {
 });
 
 describe('POST /api/auth/login (validation)', () => {
-  it('requires email + password', async () => {
+  it('requires email + otp', async () => {
     const res = await request(app).post('/api/auth/login').send({});
     expect(res.status).toBe(422);
     expect(res.body.error.details.length).toBeGreaterThan(0);
@@ -59,7 +59,7 @@ describe('POST /api/auth/login (validation)', () => {
 });
 
 describe('POST /api/auth/accept-invite (validation)', () => {
-  it('requires token, name, and strong password', async () => {
+  it('requires token, name, and otp', async () => {
     const res = await request(app).post('/api/auth/accept-invite').send({});
     expect(res.status).toBe(422);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
@@ -78,7 +78,7 @@ describe('POST /api/auth/refresh', () => {
   it('issues a new access token from a valid refresh token (no logout)', async () => {
     const login = await request(app)
       .post('/api/auth/login')
-      .send({ email: 'owner@reddyconst.com', password: 'Test@1234' });
+      .send({ email: 'owner@reddyconst.com', otp: '111111' });
     expect(login.status).toBe(200);
     expect(login.body.data.refreshToken).toBeTruthy();
     expect(login.body.data.accessToken).toBeTruthy();

@@ -363,7 +363,7 @@ export async function getInvitePreview(token: string) {
     role: invite.role,
     companyName: invite.company.name,
     expiresAt: invite.expiresAt,
-    /** Phone invites only need name + password; email invites lock the invite email. */
+    /** Contact locked on invite; join verifies via OTP. */
     inviteChannel: invite.email ? 'email' : 'phone',
   };
 }
@@ -371,7 +371,10 @@ export async function getInvitePreview(token: string) {
 export async function sendInviteOtp(token: string): Promise<{
   sent: true;
   expiresInSec: number;
+  destinationMasked: string;
+  /** @deprecated use destinationMasked */
   phoneMasked: string;
+  channel: 'sms' | 'email';
   devCode?: string;
 }> {
   if (!/^[A-Za-z0-9_-]{32,}$/.test(token)) {
@@ -391,26 +394,46 @@ export async function sendInviteOtp(token: string): Promise<{
   });
   if (!invite || invite.acceptedAt) throw ApiError.notFound('Invite not found or already used');
   if (invite.expiresAt < new Date()) throw ApiError.badRequest('Invite has expired');
+
+  const { issueOtp } = await import('./otp.service');
+
+  if (invite.email) {
+    const email = invite.email.toLowerCase();
+    const result = await issueOtp({
+      purpose: 'invite',
+      key: tokenHash,
+      channel: 'email',
+      destination: email,
+      companyId: invite.companyId,
+      messagePrefix: 'Your BuildFlow invite code is',
+      emailSubject: 'Your BuildFlow invite code',
+    });
+    return {
+      ...result,
+      channel: 'email',
+      phoneMasked: result.destinationMasked,
+    };
+  }
+
   if (!invite.phone) {
-    throw ApiError.badRequest('OTP is only available for mobile invites');
+    throw ApiError.badRequest('Invite is missing contact details');
   }
 
   const phone = normalizePhone(invite.phone);
-  const result = await (
-    await import('./otp.service')
-  ).issueOtp({
+  const result = await issueOtp({
     purpose: 'invite',
     key: tokenHash,
-    phone,
+    channel: 'sms',
+    destination: phone,
     companyId: invite.companyId,
     messagePrefix: 'Your BuildFlow invite code is',
   });
 
-  const digits = phone.replace(/\D/g, '');
-  const phoneMasked =
-    digits.length >= 4 ? `******${digits.slice(-4)}` : phone;
-
-  return { ...result, phoneMasked };
+  return {
+    ...result,
+    channel: 'sms',
+    phoneMasked: result.destinationMasked,
+  };
 }
 
 export async function acceptInvite(
@@ -441,23 +464,20 @@ export async function acceptInvite(
   if (invite.expiresAt < new Date()) throw ApiError.badRequest('Invite has expired');
 
   const phone = invite.phone ? normalizePhone(invite.phone) : null;
-  const isPhoneInvite = Boolean(phone) && !invite.email;
-  const method = input.method ?? 'password';
 
-  if (isPhoneInvite && method === 'otp') {
-    if (!input.otp) throw ApiError.badRequest('OTP is required');
-    const { consumeOtp } = await import('./otp.service');
-    await consumeOtp({
-      purpose: 'invite',
-      key: tokenHash,
-      code: input.otp,
-      expectedPhone: phone!,
-    });
-  } else if (method === 'otp') {
-    throw ApiError.badRequest('OTP signup is only available for mobile invites');
-  } else if (!input.password) {
-    throw ApiError.badRequest('Password is required');
+  if (!input.otp) throw ApiError.badRequest('OTP is required');
+  const expectedDestination = invite.email ? invite.email.toLowerCase() : phone;
+  if (!expectedDestination) {
+    throw ApiError.badRequest('Invite is missing contact details');
   }
+
+  const { consumeOtp, generateRandomPassword } = await import('./otp.service');
+  await consumeOtp({
+    purpose: 'invite',
+    key: tokenHash,
+    code: input.otp,
+    expectedDestination,
+  });
 
   // Email invites use the invite email (locked). Phone invites use a synthetic
   // internal email; the invite phone is locked and stored on the user.
@@ -472,10 +492,7 @@ export async function acceptInvite(
 
   await assertContactAvailableForActiveUser({ email, phone });
 
-  const { generateRandomPassword } = await import('./otp.service');
-  const passwordPlain =
-    method === 'otp' ? generateRandomPassword() : input.password!;
-  const passwordHash = await hashPassword(passwordPlain);
+  const passwordHash = await hashPassword(generateRandomPassword());
 
   const user = await prisma.$transaction(async (tx) => {
     const created = await tx.user.create({
@@ -520,7 +537,7 @@ export async function acceptInvite(
       email: user.email,
       phone: user.phone,
       role: user.role,
-      joinMethod: method,
+      joinMethod: 'otp',
     },
     ipAddress,
   });

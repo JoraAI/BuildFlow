@@ -27,15 +27,15 @@ export type { RegisterCompanyInput };
 export interface AcceptInvitePayload {
   token: string;
   name: string;
-  method?: 'password' | 'otp';
-  password?: string;
-  otp?: string;
+  otp: string;
 }
 
 export interface OtpSendResult {
   sent: true;
   expiresInSec: number;
+  destinationMasked?: string;
   phoneMasked: string;
+  channel?: 'sms' | 'email';
   devCode?: string;
 }
 
@@ -77,9 +77,9 @@ export function sendInviteOtpRequest(token: string) {
   });
 }
 
-export function sendLoginOtpRequest(phone: string) {
+export function sendLoginOtpRequest(emailOrPhone: string) {
   return apiFetch<OtpSendResult>('/auth/login/send-otp', {
     method: 'POST',
-    body: JSON.stringify({ phone }),
+    body: JSON.stringify({ email: emailOrPhone }),
   });
 }

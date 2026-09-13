@@ -44,7 +44,7 @@ interface AuthState {
   accessToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password?: string, otp?: string) => Promise<void>;
+  login: (email: string, otp: string) => Promise<void>;
   registerCompany: (input: RegisterCompanyInput) => Promise<void>;
   acceptInvite: (input: AcceptInvitePayload) => Promise<void>;
   logout: () => Promise<void>;
@@ -70,13 +70,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
   isLoading: true,
 
-  login: async (email: string, password?: string, otp?: string) => {
+  login: async (email: string, otp: string) => {
     const data = await apiFetch<AuthResponsePayload>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({
-        email,
-        ...(otp ? { otp } : { password }),
-      }),
+      body: JSON.stringify({ email, otp }),
     });
     await persistSession(data);
     queryClient.clear();

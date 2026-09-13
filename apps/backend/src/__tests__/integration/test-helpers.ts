@@ -4,8 +4,9 @@
 import request from 'supertest';
 import { app } from '../../app';
 
-export async function loginAs(email: string, password = 'Test@1234'): Promise<string> {
-  const res = await request(app).post('/api/auth/login').send({ email, password });
+/** Seed / test login uses master OTP 111111 when OTP_MASTER_ENABLED (default in test). */
+export async function loginAs(email: string, _passwordIgnored = 'Test@1234'): Promise<string> {
+  const res = await request(app).post('/api/auth/login').send({ email, otp: '111111' });
   if (res.status !== 200) {
     throw new Error(`Login failed for ${email}: ${res.status} ${JSON.stringify(res.body)}`);
   }
