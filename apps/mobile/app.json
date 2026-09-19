@@ -18,14 +18,14 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#1E3A5F"
+        "backgroundColor": "#F59E0B"
       },
       "package": "com.jora.buildflow"
     },
     "web": {
       "bundler": "metro",
       "output": "single",
-      "favicon": "./assets/icon.png"
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-router",

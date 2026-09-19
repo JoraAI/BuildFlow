@@ -1,7 +1,8 @@
 /**
- * Generates apps/mobile/assets/favicon.png from the BuildFlow app icon
- * (same BF mark used for Construction ERP / app icon).
+ * Generates apps/mobile/assets/favicon.png from the Construction ERP brand mark
+ * (amber tile + construct tools — same mark shown in sidebar / login / top bar).
  *
+ * Source of truth: assets/icon.png
  * Run: node apps/mobile/scripts/generate-favicon.js
  * Requires ImageMagick `convert` on PATH.
  */
@@ -19,4 +20,4 @@ if (!fs.existsSync(iconPath)) {
 }
 
 execFileSync('convert', [iconPath, '-resize', '48x48', outPath], { stdio: 'inherit' });
-console.log(`Wrote favicon from icon.png -> ${outPath}`);
+console.log(`Wrote favicon from Construction ERP brand mark (icon.png) -> ${outPath}`);
