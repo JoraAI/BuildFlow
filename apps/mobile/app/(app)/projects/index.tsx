@@ -12,6 +12,7 @@ import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 import { useViewport } from '@/hooks/useViewport';
 import { useProjects, type ProjectListItem } from '@/services/project.queries';
 import { formatINRCompact, formatDate, daysBetween } from '@/utils/format';
+import { BudgetGate } from '@/components/common/PermissionGate';
 
 type Filter = 'ALL' | 'PLANNING' | 'IN_PROGRESS' | 'COMPLETED' | 'DELAYED';
 
@@ -168,7 +169,9 @@ function ProjectCard({ item, onPress }: { item: ProjectListItem; onPress: () => 
       <View className="flex-row justify-between items-center mb-2">
         <View>
           <Text className="text-xs text-muted">Budget</Text>
-          <Text className="text-sm font-semibold text-text">{formatINRCompact(budget)}</Text>
+          <BudgetGate fallback={<Text className="text-sm font-semibold text-muted">—</Text>}>
+            <Text className="text-sm font-semibold text-text">{formatINRCompact(budget)}</Text>
+          </BudgetGate>
         </View>
         {daysLeft !== null && (
           <View className="items-end">

@@ -32,6 +32,7 @@ import { ProjectMaterialRatesSection } from '@/components/projects/ProjectMateri
 import { ProjectStatusSection } from '@/components/projects/ProjectStatusSection';
 import { ProjectSetupChecklist } from '@/components/projects/ProjectSetupChecklist';
 import { TermHint } from '@/components/ui/TermHint';
+import { AmountGate, BudgetGate } from '@/components/common/PermissionGate';
 import { PROJECT_TAB_HINTS } from '@/constants/project-workflow';
 import { useCreatePortalAccess } from '@/services/expansion.queries';
 import { useAuthStore } from '@/stores/auth.store';
@@ -367,25 +368,35 @@ function OverviewTab({
 
       {/* KPI Row */}
       <ResponsiveGrid gap={12} columns={2}>
-        <KpiCard
-          label="Budget"
-          value={formatINRCompact(budget)}
-          sub={summary ? `${summary.budgetUtilizationPct.toFixed(0)}% committed` : '-'}
-        />
-        {summary && summary.committedSpend > 0 ? (
-          <>
-            <KpiCard
-              label="Committed"
-              value={formatINRCompact(summary.committedSpend)}
-              sub="Approved bill obligations"
-            />
-            <KpiCard
-              label="Paid out"
-              value={formatINRCompact(summary.paidSpend)}
-              sub="Cash actually paid"
-            />
-          </>
-        ) : null}
+        <BudgetGate
+          fallback={
+            <KpiCard label="Budget" value="—" sub="Restricted" />
+          }
+        >
+          <KpiCard
+            label="Budget"
+            value={formatINRCompact(budget)}
+            sub={summary ? `${summary.budgetUtilizationPct.toFixed(0)}% committed` : '-'}
+          />
+        </BudgetGate>
+        <AmountGate
+          fallback={null}
+        >
+          {summary && summary.committedSpend > 0 ? (
+            <>
+              <KpiCard
+                label="Committed"
+                value={formatINRCompact(summary.committedSpend)}
+                sub="Approved bill obligations"
+              />
+              <KpiCard
+                label="Paid out"
+                value={formatINRCompact(summary.paidSpend)}
+                sub="Cash actually paid"
+              />
+            </>
+          ) : null}
+        </AmountGate>
         <KpiCard
           label="Progress"
           value={summary ? `${summary.actualProgressPct.toFixed(0)}%` : '-'}
@@ -429,43 +440,44 @@ function OverviewTab({
         </Card>
       )}
 
-      {/* Estimate vs Actual */}
-      {summary && summary.approvedEstimateTotal > 0 && (
-        <Card>
-          <View className="flex-row items-center gap-2 mb-3">
-            <Text className="text-sm font-bold text-text">Estimate vs Actual</Text>
-            <TermHint term="BOQ" />
-          </View>
-          <View className="flex-row justify-between mb-1">
-            <Text className="text-sm text-muted">Approved Estimate</Text>
-            <Text className="text-sm font-semibold text-text">{formatINR(summary.approvedEstimateTotal)}</Text>
-          </View>
-          <View className="flex-row justify-between mb-1">
-            <Text className="text-sm text-muted">Committed spend (bills)</Text>
-            <Text className="text-sm font-semibold text-text">{formatINR(summary.committedSpend)}</Text>
-          </View>
-          <View className="flex-row justify-between mb-3">
-            <Text className="text-sm text-muted">Paid out (cash)</Text>
-            <Text className="text-sm font-semibold text-success">{formatINR(summary.paidSpend)}</Text>
-          </View>
-          <View className="flex-row justify-between items-center pt-2 border-t border-border">
-            <Text className="text-sm font-bold">Variance</Text>
-            <Text
-              className={`text-sm font-bold ${
-                summary.estimateVsActualVariance > 0 ? 'text-danger' : 'text-success'
-              }`}
-            >
-              {summary.estimateVsActualVariance > 0 ? '+' : ''}
-              {formatINR(Math.abs(summary.estimateVsActualVariance))} (
-              {summary.approvedEstimateTotal > 0
-                ? ((summary.estimateVsActualVariance / summary.approvedEstimateTotal) * 100).toFixed(1)
-                : '0'}
-              %)
-            </Text>
-          </View>
-        </Card>
-      )}
-
+      {/* Estimate vs Actual — money-sensitive */}
+      <AmountGate fallback={null}>
+        {summary && summary.approvedEstimateTotal > 0 && (
+          <Card>
+            <View className="flex-row items-center gap-2 mb-3">
+              <Text className="text-sm font-bold text-text">Estimate vs Actual</Text>
+              <TermHint term="BOQ" />
+            </View>
+            <View className="flex-row justify-between mb-1">
+              <Text className="text-sm text-muted">Approved Estimate</Text>
+              <Text className="text-sm font-semibold text-text">{formatINR(summary.approvedEstimateTotal)}</Text>
+            </View>
+            <View className="flex-row justify-between mb-1">
+              <Text className="text-sm text-muted">Committed spend (bills)</Text>
+              <Text className="text-sm font-semibold text-text">{formatINR(summary.committedSpend)}</Text>
+            </View>
+            <View className="flex-row justify-between mb-3">
+              <Text className="text-sm text-muted">Paid out (cash)</Text>
+              <Text className="text-sm font-semibold text-success">{formatINR(summary.paidSpend)}</Text>
+            </View>
+            <View className="flex-row justify-between items-center pt-2 border-t border-border">
+              <Text className="text-sm font-bold">Variance</Text>
+              <Text
+                className={`text-sm font-bold ${
+                  summary.estimateVsActualVariance > 0 ? 'text-danger' : 'text-success'
+                }`}
+              >
+                {summary.estimateVsActualVariance > 0 ? '+' : ''}
+                {formatINR(Math.abs(summary.estimateVsActualVariance))} (
+                {summary.approvedEstimateTotal > 0
+                  ? ((summary.estimateVsActualVariance / summary.approvedEstimateTotal) * 100).toFixed(1)
+                  : '0'}
+                %)
+              </Text>
+            </View>
+          </Card>
+        )}
+      </AmountGate>
       {summaryLoading && <LoadingSkeleton className="h-32 rounded-xl" />}
 
       {/* Project Details */}

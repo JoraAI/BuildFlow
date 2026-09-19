@@ -29,7 +29,8 @@ import { z } from 'zod';
 import * as estimateController from '../controllers/estimate.controller';
 import * as boqController from '../controllers/boq.controller';
 import * as changeOrderService from '../services/change-order.service';
-import { authenticateToken, requireRole } from '../middleware/auth';
+import { authenticateToken } from '../middleware/auth';
+import { requirePermission } from '../middleware/permission';
 import { requireModuleForPaths } from '../middleware/module-gate';
 import { validate } from '../middleware/validate';
 import { asyncHandler } from '../utils/async-handler';
@@ -41,7 +42,6 @@ import {
   createEstimateItemSchema,
   updateEstimateItemSchema,
   rejectEstimateSchema,
-  Role,
 } from '@buildflow/shared';
 
 const projectIdParamsSchema = z.object({ projectId: z.string().uuid() });
@@ -69,19 +69,21 @@ estimateRouter.use(
   ]),
 );
 
-// FIX (R2-3): Gate estimate workflow mutations behind requireRole, matching
-// boq.routes.ts. Previously approve / convert-to-boq had no role guard, so any
-// team member (incl. STORE_INCHARGE) could approve estimates or convert them.
-const ESTIMATE_MUTATION_ROLES = requireRole(Role.OWNER, Role.PM, Role.DPM, Role.ACCOUNTANT);
+// Owner-aligned: mutations follow permission tags (Accountant has no estimate.*).
+const ESTIMATE_EDIT = requirePermission('estimate.create');
+const ESTIMATE_APPROVE = requirePermission('estimate.approve');
+const ESTIMATE_CONVERT = requirePermission('estimate.convert_boq');
 
 // Project-scoped routes
 estimateRouter.get(
   '/projects/:projectId/estimates',
+  requirePermission('estimate.view'),
   validate({ params: projectIdParamsSchema }),
   asyncHandler(estimateController.list),
 );
 estimateRouter.post(
   '/projects/:projectId/estimates',
+  ESTIMATE_EDIT,
   validate({ params: projectIdParamsSchema, body: createEstimateSchema }),
   asyncHandler(estimateController.create),
 );
@@ -89,16 +91,19 @@ estimateRouter.post(
 // Estimate-scoped routes
 estimateRouter.get(
   '/estimates/:id',
+  requirePermission('estimate.view'),
   validate({ params: estimateIdParamsSchema }),
   asyncHandler(estimateController.get),
 );
 estimateRouter.put(
   '/estimates/:id',
+  ESTIMATE_EDIT,
   validate({ params: estimateIdParamsSchema, body: updateEstimateMetaSchema }),
   asyncHandler(estimateController.update),
 );
 estimateRouter.delete(
   '/estimates/:id',
+  ESTIMATE_EDIT,
   validate({ params: estimateIdParamsSchema }),
   asyncHandler(estimateController.remove),
 );
@@ -106,16 +111,19 @@ estimateRouter.delete(
 // Sections
 estimateRouter.post(
   '/estimates/:id/sections',
+  ESTIMATE_EDIT,
   validate({ params: estimateIdParamsSchema, body: createEstimateSectionSchema }),
   asyncHandler(estimateController.createSection),
 );
 estimateRouter.put(
   '/estimates/:id/sections/:sid',
+  ESTIMATE_EDIT,
   validate({ params: estimateSectionParamsSchema, body: updateEstimateSectionSchema }),
   asyncHandler(estimateController.updateSection),
 );
 estimateRouter.delete(
   '/estimates/:id/sections/:sid',
+  ESTIMATE_EDIT,
   validate({ params: estimateSectionParamsSchema }),
   asyncHandler(estimateController.deleteSection),
 );
@@ -123,16 +131,19 @@ estimateRouter.delete(
 // Items
 estimateRouter.post(
   '/estimates/:id/sections/:sid/items',
+  ESTIMATE_EDIT,
   validate({ params: estimateSectionParamsSchema, body: createEstimateItemSchema }),
   asyncHandler(estimateController.createItem),
 );
 estimateRouter.put(
   '/estimate-items/:itemId',
+  ESTIMATE_EDIT,
   validate({ params: estimateItemParamsSchema, body: updateEstimateItemSchema }),
   asyncHandler(estimateController.updateItem),
 );
 estimateRouter.delete(
   '/estimate-items/:itemId',
+  ESTIMATE_EDIT,
   validate({ params: estimateItemParamsSchema }),
   asyncHandler(estimateController.deleteItem),
 );
@@ -140,16 +151,19 @@ estimateRouter.delete(
 // Sub-items (children of a parent estimate item)
 estimateRouter.get(
   '/estimate-items/:itemId/sub-items',
+  requirePermission('estimate.view'),
   validate({ params: estimateItemParamsSchema }),
   asyncHandler(estimateController.listSubItems),
 );
 estimateRouter.post(
   '/estimate-items/:itemId/sub-items',
+  ESTIMATE_EDIT,
   validate({ params: estimateItemParamsSchema, body: createEstimateItemSchema }),
   asyncHandler(estimateController.createSubItem),
 );
 estimateRouter.delete(
   '/estimate-items/:itemId/sub-items/:subItemId',
+  ESTIMATE_EDIT,
   validate({ params: z.object({ itemId: z.string().uuid(), subItemId: z.string().uuid() }) }),
   asyncHandler(estimateController.deleteSubItem),
 );
@@ -179,6 +193,7 @@ estimateRouter.get(
 );
 estimateRouter.post(
   '/estimates/:id/sub-estimates',
+  ESTIMATE_EDIT,
   validate({ params: estimateIdParamsSchema, body: z.object({ name: z.string().min(1).max(200), notes: z.string().max(2000).optional() }) }),
   asyncHandler(estimateController.createSubEstimate),
 );
@@ -186,35 +201,37 @@ estimateRouter.post(
 // Workflow
 estimateRouter.post(
   '/estimates/:id/submit',
+  requirePermission('estimate.submit'),
   validate({ params: estimateIdParamsSchema }),
   asyncHandler(estimateController.submit),
 );
 estimateRouter.post(
   '/estimates/:id/approve',
-  ESTIMATE_MUTATION_ROLES,
+  ESTIMATE_APPROVE,
   validate({ params: estimateIdParamsSchema }),
   asyncHandler(estimateController.approve),
 );
 estimateRouter.post(
   '/estimates/:id/reject',
-  ESTIMATE_MUTATION_ROLES,
+  ESTIMATE_APPROVE,
   validate({ params: estimateIdParamsSchema, body: rejectEstimateSchema }),
   asyncHandler(estimateController.reject),
 );
 estimateRouter.post(
   '/estimates/:id/duplicate',
-  ESTIMATE_MUTATION_ROLES,
+  ESTIMATE_EDIT,
   validate({ params: estimateIdParamsSchema }),
   asyncHandler(estimateController.duplicate),
 );
 estimateRouter.post(
   '/estimates/:id/convert-to-boq',
-  ESTIMATE_MUTATION_ROLES,
+  ESTIMATE_CONVERT,
   validate({ params: estimateIdParamsSchema }),
   asyncHandler(boqController.convertEstimateToBoq),
 );
 estimateRouter.get(
   '/estimates/:id/compare/:id2',
+  requirePermission('estimate.view'),
   validate({ params: estimateCompareParamsSchema }),
   asyncHandler(estimateController.compare),
 );
@@ -222,11 +239,13 @@ estimateRouter.get(
 // Exports
 estimateRouter.get(
   '/estimates/:id/export/excel',
+  requirePermission('estimate.export'),
   validate({ params: estimateIdParamsSchema }),
   asyncHandler(estimateController.exportExcel),
 );
 estimateRouter.get(
   '/estimates/:id/export/pdf',
+  requirePermission('estimate.export'),
   validate({ params: estimateIdParamsSchema }),
   asyncHandler(estimateController.exportPdf),
 );

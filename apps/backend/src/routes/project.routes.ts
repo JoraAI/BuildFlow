@@ -7,6 +7,7 @@ import { Router } from 'express';
 import * as projectController from '../controllers/project.controller';
 import * as projectMaterialRateController from '../controllers/project-material-rate.controller';
 import { authenticateToken, requireRole } from '../middleware/auth';
+import { requirePermission } from '../middleware/permission';
 import { requireModule } from '../middleware/module-gate';
 import { validate } from '../middleware/validate';
 import {
@@ -28,12 +29,18 @@ export const projectRouter = Router();
 
 projectRouter.use(authenticateToken);
 
-// Project CRUD
+// Project CRUD — create/edit require tagged permissions (blocks Accountant).
 projectRouter.get('/', validate({ query: projectQuerySchema }), projectController.listProjects);
-projectRouter.post('/', validate({ body: createProjectSchema }), projectController.createProject);
+projectRouter.post(
+  '/',
+  requirePermission('project.create'),
+  validate({ body: createProjectSchema }),
+  projectController.createProject,
+);
 projectRouter.get('/:id', validate({ params: projectIdParamsSchema }), projectController.getProject);
 projectRouter.put(
   '/:id',
+  requirePermission('project.edit'),
   validate({ params: projectIdParamsSchema, body: updateProjectSchema }),
   projectController.updateProject,
 );

@@ -223,7 +223,7 @@ function VariationCard({ co, canManage, canApprove, isDesktop, submitPending, ap
 export function VariationsTab({ projectId, highlightChangeOrderId }: { projectId: string; highlightChangeOrderId?: string }) {
   const { isDesktop } = useViewport();
   const user = useAuthStore((s) => s.user);
-  const canManage = user?.role === 'OWNER' || user?.role === 'PM';
+  const canManage = user?.role === 'OWNER' || user?.role === 'PM' || user?.role === 'DPM';
   const canApprove = user?.role === 'OWNER';
   const { data, isLoading } = useChangeOrders(projectId);
   const { data: boq } = useBoq(projectId);

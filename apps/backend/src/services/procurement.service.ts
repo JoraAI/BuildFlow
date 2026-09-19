@@ -186,7 +186,8 @@ export async function generateIndentsFromBoq(
   role: string,
   projectId: string,
 ) {
-  await assertProjectAccess(companyId, userId, role as never, projectId, ['OWNER', 'PM', 'SUPERVISOR']);
+  // Route requirePermission('procurement.indent_from_boq') — membership only here.
+  await assertProjectAccess(companyId, userId, role as never, projectId);
 
   const demands = await fetchBoqMaterialDemands(projectId, companyId);
   const lines = demands.map(({ itemCode: _c, description: _d, ...line }) => line);
@@ -207,7 +208,9 @@ export async function createRequisition(
   projectId: string,
   input: CreateRequisitionInput,
 ) {
-  await assertProjectAccess(companyId, userId, role as never, projectId, ['OWNER', 'PM', 'SUPERVISOR']);
+  // Route requirePermission('procurement.create_indent') — membership only here
+  // so Store / Weighbridge / DPM with the tag are not blocked by a hard role list.
+  await assertProjectAccess(companyId, userId, role as never, projectId);
 
   const lineCreates = await Promise.all(
     input.lines.map(async (line) => {
@@ -263,7 +266,7 @@ export async function deleteRequisition(
   projectId: string,
   requisitionId: string,
 ) {
-  await assertProjectAccess(companyId, userId, role as never, projectId, ['OWNER', 'PM', 'SUPERVISOR']);
+  await assertProjectAccess(companyId, userId, role as never, projectId);
   const req = await prisma.materialRequisition.findFirst({
     where: { id: requisitionId, projectId, companyId },
     include: { purchaseOrders: { select: { id: true } } },
@@ -291,7 +294,7 @@ export async function submitRequisition(
     where: { id: requisitionId, projectId, companyId },
   });
   if (!req) throw ApiError.notFound('Requisition not found');
-  await assertProjectAccess(companyId, userId, role as never, projectId, ['OWNER', 'PM', 'SUPERVISOR']);
+  await assertProjectAccess(companyId, userId, role as never, projectId);
   if (req.status !== 'DRAFT' && req.status !== 'REJECTED') {
     throw ApiError.badRequest('Only draft or rejected requisitions can be submitted');
   }
@@ -536,7 +539,9 @@ export async function createGRN(
   projectId: string,
   input: CreateGrnInput,
 ) {
-  await assertProjectAccess(companyId, userId, role as never, projectId, ['OWNER', 'PM', 'SUPERVISOR']);
+  // Route requirePermission('procurement.record_grn') — membership only so
+  // Store / Weighbridge with the tag can receive goods.
+  await assertProjectAccess(companyId, userId, role as never, projectId);
 
   const po = await prisma.purchaseOrder.findFirst({
     where: { id: input.purchaseOrderId, projectId, companyId },

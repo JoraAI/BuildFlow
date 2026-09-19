@@ -129,7 +129,7 @@ export async function createChangeOrder(
   projectId: string,
   input: CreateChangeOrderInput,
 ) {
-  await assertProjectAccess(companyId, userId, role as never, projectId, ['OWNER', 'PM']);
+  await assertProjectAccess(companyId, userId, role as never, projectId, ['OWNER', 'PM', 'DPM']);
 
   // EST-VO-11a: Resolve the project's latest APPROVED parent estimate (parentId null)
   // and link it to the new ChangeOrder. Nullable if no approved estimate exists.
@@ -174,7 +174,7 @@ export async function createChangeOrder(
 export async function submitChangeOrder(companyId: string, userId: string, role: string, id: string) {
   const co = await prisma.changeOrder.findFirst({ where: { id, companyId } });
   if (!co) throw ApiError.notFound('Change order not found');
-  await assertProjectAccess(companyId, userId, role as never, co.projectId, ['OWNER', 'PM']);
+  await assertProjectAccess(companyId, userId, role as never, co.projectId, ['OWNER', 'PM', 'DPM']);
   if (co.status !== 'DRAFT' && co.status !== 'REJECTED') {
     throw ApiError.badRequest('Only draft or rejected variations can be submitted');
   }
@@ -592,7 +592,7 @@ export async function addBoqLinesToChangeOrder(
     include: { lines: { select: { boqItemId: true } } },
   });
   if (!co) throw ApiError.notFound('Change order not found');
-  await assertProjectAccess(companyId, userId, role as never, co.projectId, ['OWNER', 'PM']);
+  await assertProjectAccess(companyId, userId, role as never, co.projectId, ['OWNER', 'PM', 'DPM']);
   if (co.status !== 'DRAFT' && co.status !== 'REJECTED') {
     throw ApiError.badRequest('BOQ items can only be added to draft variations');
   }
@@ -695,7 +695,7 @@ export async function updateChangeOrderLine(
     include: { lines: true },
   });
   if (!co) throw ApiError.notFound('Change order not found');
-  await assertProjectAccess(companyId, userId, role as never, co.projectId, ['OWNER', 'PM']);
+  await assertProjectAccess(companyId, userId, role as never, co.projectId, ['OWNER', 'PM', 'DPM']);
   if (co.status !== 'DRAFT') {
     throw ApiError.badRequest('Only DRAFT change orders can have their lines edited');
   }

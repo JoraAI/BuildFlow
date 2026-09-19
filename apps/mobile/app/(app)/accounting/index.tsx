@@ -35,8 +35,12 @@ export default function AccountingScreen() {
   const user = useAuthStore((s) => s.user);
   const { isDesktop } = useViewport();
   const isOwner = user?.role === 'OWNER';
+  const canViewProfit = usePermission('financials.view_profit');
+  // Company finance dashboard API allows Owner / Accountant / Inventory Manager (view_profit).
+  const canViewFinanceDashboard = isOwner || canViewProfit;
   // R10-B1: Gate bill creation with granular permission.
   const canCreateBill = usePermission('bill.create');
+  const canCreateInvoice = usePermission('invoice.create');
   const [tab, setTab] = useState<Tab>('INVOICES');
   const [mobileProjectId, setMobileProjectId] = useState<string | null>(null);
   const { data: projects } = useProjects();
@@ -51,18 +55,20 @@ export default function AccountingScreen() {
   const tabs = [
     { label: 'Invoices', value: 'INVOICES' as Tab },
     { label: 'Bills', value: 'BILLS' as Tab },
-    ...(isOwner ? [{ label: 'Dashboard', value: 'DASHBOARD' as Tab }] : []),
+    ...(canViewFinanceDashboard ? [{ label: 'Dashboard', value: 'DASHBOARD' as Tab }] : []),
   ];
 
   // R10-B1: Gate "New Bill" with bill.create; add "Import vendor bills" entry.
   const createAction =
     tab === 'INVOICES' ? (
+      canCreateInvoice ? (
       <Button
         label="New Invoice"
         size="sm"
         onPress={() => router.push('/accounting/create-invoice')}
         icon={<Ionicons name="add" size={18} color="#fff" />}
       />
+      ) : null
     ) : tab === 'BILLS' ? (
       <View className="flex-row gap-2">
         {canCreateBill && (
@@ -145,7 +151,7 @@ export default function AccountingScreen() {
         <View className="flex-row items-center justify-between pb-2">
           <MobileScreenHeader title="Accounting" subtitle="Invoices, bills, GST & TDS" />
           {/* R10-B1: Show actions only with permission; bills gate is bill.create. */}
-          {tab === 'INVOICES' && (
+          {tab === 'INVOICES' && canCreateInvoice && (
             <Pressable
               onPress={() =>
                 router.push(

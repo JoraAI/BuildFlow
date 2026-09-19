@@ -5,6 +5,11 @@ import type { Request, Response } from 'express';
 import * as procurementService from '../services/procurement.service';
 import { ok, created } from '../utils/response';
 import { recordAudit } from '../utils/audit';
+import {
+  canViewAmounts,
+  canViewProcurementRates,
+  maskStockMoneyFields,
+} from '../utils/financial-mask';
 
 export async function listRequisitions(req: Request, res: Response) {
   const { companyId, id: userId, role } = req.user!;
@@ -143,7 +148,12 @@ export async function getStockSummary(req: Request, res: Response) {
   const { companyId, id: userId, role } = req.user!;
   const locationId = typeof req.query.locationId === 'string' ? req.query.locationId : undefined;
   const data = await procurementService.getStockSummary(companyId, userId, role, req.params.id, { locationId });
-  return ok(res, data);
+  const canRates =
+    (await canViewProcurementRates(companyId, role)) || (await canViewAmounts(companyId, role));
+  const masked = canRates
+    ? data
+    : data.map((row) => maskStockMoneyFields(row as unknown as Record<string, unknown>, false));
+  return ok(res, masked);
 }
 
 export async function listStockMovements(req: Request, res: Response) {

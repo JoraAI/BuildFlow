@@ -251,7 +251,9 @@ export function BoqTab({ projectId }: BoqTabProps) {
                 <Text className="text-sm font-bold text-text">{grp.section}</Text>
                 <Badge color="neutral" label={`${grp.items.length} items`} />
               </View>
-              <Text className="text-sm font-bold text-primary">{formatINR(grp.amount)}</Text>
+              <Text className="text-sm font-bold text-primary">
+                {canViewRates ? formatINR(grp.amount) : '—'}
+              </Text>
             </Pressable>
 
             {!isCollapsed &&

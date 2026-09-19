@@ -341,7 +341,9 @@ export default function EstimateDetailScreen() {
 
   const s = estimate.summary;
   const isOwner = user?.role === 'OWNER';
-  const canEdit = (user?.role === 'OWNER' || user?.role === 'PM') && (estimate.status === 'DRAFT' || estimate.status === 'REJECTED');
+  const canEdit =
+    (user?.role === 'OWNER' || user?.role === 'PM' || user?.role === 'DPM') &&
+    (estimate.status === 'DRAFT' || estimate.status === 'REJECTED');
   const canApprove = isOwner && estimate.status === 'REVIEWED';
   const isTemporaryProject = projectQ.data?.isTemporary === true;
   const canConvert = isOwner && estimate.status === 'APPROVED' && !isTemporaryProject;

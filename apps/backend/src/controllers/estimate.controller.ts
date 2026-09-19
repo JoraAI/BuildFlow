@@ -5,6 +5,7 @@ import { Request, Response } from 'express';
 import * as svc from '../services/estimate.service';
 import * as exportSvc from '../services/estimate-export.service';
 import { ok, created } from '../utils/response';
+import { canViewAmounts, maskEstimateMoneyFields } from '../utils/financial-mask';
 
 /* ------------------------------------------------------------------ */
 /* Estimate-level                                                     */
@@ -12,12 +13,17 @@ import { ok, created } from '../utils/response';
 
 export async function list(req: Request, res: Response) {
   const data = await svc.listEstimates(req.user!.companyId, req.params.projectId);
-  ok(res, data);
+  const canMoney = await canViewAmounts(req.user!.companyId, req.user!.role);
+  ok(
+    res,
+    (data as Record<string, unknown>[]).map((e) => maskEstimateMoneyFields(e, canMoney)),
+  );
 }
 
 export async function get(req: Request, res: Response) {
   const data = await svc.getEstimateWithSummary(req.user!.companyId, req.params.id);
-  ok(res, data);
+  const canMoney = await canViewAmounts(req.user!.companyId, req.user!.role);
+  ok(res, maskEstimateMoneyFields(data as unknown as Record<string, unknown>, canMoney));
 }
 
 export async function create(req: Request, res: Response) {

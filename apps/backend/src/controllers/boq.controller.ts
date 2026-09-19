@@ -4,6 +4,7 @@
 import { NextFunction, Request, Response } from 'express';
 import * as boqService from '../services/boq.service';
 import { ok, created } from '../utils/response';
+import { canViewBoqRates, canViewAmounts } from '../utils/financial-mask';
 
 function ipOf(req: Request): string | undefined {
   const xfwd = req.headers['x-forwarded-for'];
@@ -14,6 +15,13 @@ function ipOf(req: Request): string | undefined {
 export async function listBoq(req: Request, res: Response, next: NextFunction) {
   try {
     const result = await boqService.listBoq(req.user!.companyId, req.params.id);
+    const canRates = await canViewBoqRates(req.user!.companyId, req.user!.role);
+    if (!canRates) {
+      for (const item of result.items) {
+        (item as { rate: unknown }).rate = null;
+        (item as { amount: unknown }).amount = null;
+      }
+    }
     ok(res, result);
   } catch (err) {
     next(err);
@@ -93,6 +101,11 @@ export async function recordMeasurement(req: Request, res: Response, next: NextF
 
 export async function getBoqVsActual(req: Request, res: Response, next: NextFunction) {
   try {
+    const canMoney = await canViewAmounts(req.user!.companyId, req.user!.role);
+    if (!canMoney) {
+      ok(res, { lines: [], categoryTotals: [], restricted: true });
+      return;
+    }
     const result = await boqService.getBoqVsActualLines(req.user!.companyId, req.params.id);
     ok(res, result);
   } catch (err) {

@@ -8,6 +8,12 @@ import { getResourceUtilization as fetchResourceUtilization } from '../services/
 import { resolveMaterialRate } from '../services/material-rate.service';
 import { listMaterialRateVariance } from '../services/material-rate-variance.service';
 import { ok, okList, created, buildMeta } from '../utils/response';
+import {
+  canViewAmounts,
+  canViewBudget,
+  maskProjectBudget,
+  maskProjectSummaryMoney,
+} from '../utils/financial-mask';
 
 function ipOf(req: Request): string | undefined {
   const xfwd = req.headers['x-forwarded-for'];
@@ -21,7 +27,11 @@ export async function listProjects(req: Request, res: Response, next: NextFuncti
   try {
     const { companyId, id: userId, role } = req.user!;
     const result = await projectService.listProjects(companyId, userId, role, req.query as never);
-    okList(res, result.rows, buildMeta(result.page, result.limit, result.total));
+    const canBudget = await canViewBudget(companyId, role);
+    const rows = result.rows.map((p) =>
+      maskProjectBudget(p as unknown as Record<string, unknown>, canBudget),
+    );
+    okList(res, rows, buildMeta(result.page, result.limit, result.total));
   } catch (err) {
     next(err);
   }
@@ -30,7 +40,8 @@ export async function listProjects(req: Request, res: Response, next: NextFuncti
 export async function getProject(req: Request, res: Response, next: NextFunction) {
   try {
     const project = await projectService.getProject(req.user!.companyId, req.params.id);
-    ok(res, project);
+    const canBudget = await canViewBudget(req.user!.companyId, req.user!.role);
+    ok(res, maskProjectBudget(project as unknown as Record<string, unknown>, canBudget));
   } catch (err) {
     next(err);
   }
@@ -69,7 +80,16 @@ export async function deleteProject(req: Request, res: Response, next: NextFunct
 export async function getProjectSummary(req: Request, res: Response, next: NextFunction) {
   try {
     const stats = await projectService.getProjectSummary(req.user!.companyId, req.params.id);
-    ok(res, stats);
+    const canAmounts = await canViewAmounts(req.user!.companyId, req.user!.role);
+    const canBudget = await canViewBudget(req.user!.companyId, req.user!.role);
+    ok(
+      res,
+      maskProjectSummaryMoney(
+        stats as unknown as Record<string, unknown>,
+        canAmounts,
+        canBudget,
+      ),
+    );
   } catch (err) {
     next(err);
   }

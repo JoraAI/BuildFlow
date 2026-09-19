@@ -5,7 +5,16 @@ import { validate } from '../middleware/validate';
 import { createPunchItemSchema, updatePunchItemSchema, punchItemIdParamsSchema, punchItemQuerySchema, Role } from '@buildflow/shared';
 export const punchListRouter = Router();
 punchListRouter.use(authenticateToken);
-const MUT = requireRole(Role.OWNER, Role.PM, Role.SITE_SUPERVISOR, Role.QC);
+// Align with snag.create / snag.rectify defaults (DPM + mechanical can log; site can rectify).
+const MUT = requireRole(
+  Role.OWNER,
+  Role.PM,
+  Role.DPM,
+  Role.SITE_SUPERVISOR,
+  Role.SUPERVISOR,
+  Role.QC,
+  Role.MECHANICAL_MANAGER,
+);
 punchListRouter.get('/', validate({ query: punchItemQuerySchema }), ctrl.list);
 punchListRouter.post('/', MUT, validate({ body: createPunchItemSchema.shape.body }), ctrl.create);
 punchListRouter.get('/:id', validate({ params: punchItemIdParamsSchema }), ctrl.get);

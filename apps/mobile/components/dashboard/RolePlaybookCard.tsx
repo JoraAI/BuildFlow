@@ -18,15 +18,56 @@ const ROLE_TASKS: Record<string, { title: string; tasks: string[] }> = {
       'Submit and track material indents',
       'Approve measurement sheets and indents',
       'Monitor schedule and daily reports',
-      'Create client invoices',
+      'Review invoices and bills in Accounting',
+    ],
+  },
+  DPM: {
+    title: 'Deputy PM - typical tasks',
+    tasks: [
+      'Create and submit estimates',
+      'Record BOQ measurements and site snags',
+      'Create variations for Owner approval',
+      'Log petty cash and review procurement',
+    ],
+  },
+  SITE_SUPERVISOR: {
+    title: 'Site Supervisor - typical tasks',
+    tasks: [
+      'Submit daily site reports with photos',
+      'Log snags and upload drawings',
+      'Record gang muster and petty cash',
     ],
   },
   SUPERVISOR: {
     title: 'Supervisor - typical tasks',
     tasks: [
       'Submit daily site reports with photos',
-      'Draft subcontract measurement sheets',
-      'Create material indents for site needs',
+      'Log snags and upload drawings',
+      'Record gang muster and petty cash',
+    ],
+  },
+  QC: {
+    title: 'QC - typical tasks',
+    tasks: [
+      'Record BOQ measurements',
+      'Upload and manage drawings',
+      'Create and rectify snags / NCRs',
+    ],
+  },
+  STORE_INCHARGE: {
+    title: 'Store Incharge - typical tasks',
+    tasks: [
+      'Create material indents',
+      'Record GRNs and manage stock',
+      'Log store petty cash when needed',
+    ],
+  },
+  WEIGHBRIDGE_INCHARGE: {
+    title: 'Weighbridge - typical tasks',
+    tasks: [
+      'Record goods receipts (GRN)',
+      'Submit daily weighbridge reports',
+      'View procurement and stock levels',
     ],
   },
   ACCOUNTANT: {

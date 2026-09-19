@@ -48,7 +48,7 @@ export async function listProjects(companyId: string, userId: string, role: Role
   if (excludeTemporary) {
     where.isTemporary = false;
   }
-  if (role !== Role.OWNER) {
+  if (role !== Role.OWNER && role !== Role.ACCOUNTANT) {
     const memberIds = await prisma.projectMember.findMany({
       where: { userId, project: { companyId, isDeleted: false } },
       select: { projectId: true },

@@ -5,6 +5,7 @@
 import { Router } from 'express';
 import * as ctrl from '../controllers/pdf-report.controller';
 import { authenticateToken, requireRole } from '../middleware/auth';
+import { requirePermission } from '../middleware/permission';
 
 const router = Router();
 
@@ -18,19 +19,39 @@ router.get('/projects/:id/progress', ctrl.getProjectProgressPdf);
 router.get('/reports/:id', ctrl.getDailyReportPdf);
 
 // 3. Invoice
-router.get('/invoices/:id', ctrl.getInvoicePdf);
+router.get(
+  '/invoices/:id',
+  requirePermission('invoice.view'),
+  ctrl.getInvoicePdf,
+);
 
 // 4. Estimate
-router.get('/estimates/:id', ctrl.getEstimatePdf);
+router.get(
+  '/estimates/:id',
+  requirePermission('estimate.view'),
+  ctrl.getEstimatePdf,
+);
 
 // 5. Estimate Comparison
-router.get('/estimates/:idA/compare/:idB', ctrl.getEstimateComparisonPdf);
+router.get(
+  '/estimates/:idA/compare/:idB',
+  requirePermission('estimate.view'),
+  ctrl.getEstimateComparisonPdf,
+);
 
-// 6. Estimate vs Actual
-router.get('/projects/:id/estimate-vs-actual', ctrl.getEstimateVsActualPdf);
+// 6. Estimate vs Actual — money
+router.get(
+  '/projects/:id/estimate-vs-actual',
+  requirePermission('financials.view_amounts'),
+  ctrl.getEstimateVsActualPdf,
+);
 
 // 7. P&L
-router.get('/projects/:id/profit-loss', ctrl.getProfitLossPdf);
+router.get(
+  '/projects/:id/profit-loss',
+  requirePermission('financials.view_profit'),
+  ctrl.getProfitLossPdf,
+);
 
 // 8. GST Summary (OWNER/ACCOUNTANT only - financial compliance)
 router.get('/gst-summary', requireRole('OWNER', 'ACCOUNTANT'), ctrl.getGstSummaryPdf);
@@ -41,11 +62,19 @@ router.get('/tds', requireRole('OWNER', 'ACCOUNTANT'), ctrl.getTdsPdf);
 // 10. Resource Utilization
 router.get('/projects/:id/resource-utilization', ctrl.getResourceUtilizationPdf);
 
-// 11. BOQ vs Actual
-router.get('/projects/:id/boq-vs-actual', ctrl.getBoqVsActualPdf);
+// 11. BOQ vs Actual — money
+router.get(
+  '/projects/:id/boq-vs-actual',
+  requirePermission('financials.view_amounts'),
+  ctrl.getBoqVsActualPdf,
+);
 
 // 12. Material Price History
-router.get('/material-price-history', ctrl.getMaterialPriceHistoryPdf);
+router.get(
+  '/material-price-history',
+  requirePermission('settings.material_prices'),
+  ctrl.getMaterialPriceHistoryPdf,
+);
 
 // 13. Measurement Book (RA certified qty)
 router.get('/projects/:id/measurement-book', ctrl.getMeasurementBookPdf);
@@ -54,7 +83,11 @@ router.get('/projects/:id/measurement-book', ctrl.getMeasurementBookPdf);
 router.get('/projects/:id/abstract-sheet', ctrl.getAbstractSheetPdf);
 
 // 15. Project Material Rate Sheet
-router.get('/projects/:id/material-rates', ctrl.getProjectMaterialRatesPdf);
+router.get(
+  '/projects/:id/material-rates',
+  requirePermission('procurement.view_rates'),
+  ctrl.getProjectMaterialRatesPdf,
+);
 
 // 16–17. Subcontract WO PDFs
 router.get(

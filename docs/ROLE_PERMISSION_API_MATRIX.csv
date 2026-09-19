@@ -1,0 +1,870 @@
+group,permission,description,role,roleLabel,tagged,api,align,enforcement,notes
+Estimates,estimate.view,View estimates,OWNER,Owner / MD,YES,UNGATED,N/A,AUTH_ONLY,GET estimates: authenticate only
+Estimates,estimate.view,View estimates,PM,Project Manager,YES,UNGATED,N/A,AUTH_ONLY,GET estimates: authenticate only
+Estimates,estimate.view,View estimates,DPM,Deputy Project Manager,YES,UNGATED,N/A,AUTH_ONLY,GET estimates: authenticate only
+Estimates,estimate.view,View estimates,QC,Senior QC Engineer,NO,UNGATED,N/A,AUTH_ONLY,GET estimates: authenticate only
+Estimates,estimate.view,View estimates,MECHANICAL_MANAGER,Mechanical Manager,NO,UNGATED,N/A,AUTH_ONLY,GET estimates: authenticate only
+Estimates,estimate.view,View estimates,STORE_INCHARGE,Store Incharge,NO,UNGATED,N/A,AUTH_ONLY,GET estimates: authenticate only
+Estimates,estimate.view,View estimates,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,UNGATED,N/A,AUTH_ONLY,GET estimates: authenticate only
+Estimates,estimate.view,View estimates,SITE_SUPERVISOR,Site Supervisor,NO,UNGATED,N/A,AUTH_ONLY,GET estimates: authenticate only
+Estimates,estimate.view,View estimates,SUPERVISOR,Site Supervisor (legacy),NO,UNGATED,N/A,AUTH_ONLY,GET estimates: authenticate only
+Estimates,estimate.view,View estimates,ACCOUNTANT,Accountant,NO,UNGATED,N/A,AUTH_ONLY,GET estimates: authenticate only
+Estimates,estimate.view,View estimates,INVENTORY_MANAGER,Inventory Manager,NO,UNGATED,N/A,AUTH_ONLY,GET estimates: authenticate only
+Estimates,estimate.create,Create & edit estimates,OWNER,Owner / MD,YES,UNGATED,N/A,AUTH_ONLY,POST create/update estimate: authenticate only (ESTIMATE_MUTATION_ROLES not applied)
+Estimates,estimate.create,Create & edit estimates,PM,Project Manager,YES,UNGATED,N/A,AUTH_ONLY,POST create/update estimate: authenticate only (ESTIMATE_MUTATION_ROLES not applied)
+Estimates,estimate.create,Create & edit estimates,DPM,Deputy Project Manager,YES,UNGATED,N/A,AUTH_ONLY,POST create/update estimate: authenticate only (ESTIMATE_MUTATION_ROLES not applied)
+Estimates,estimate.create,Create & edit estimates,QC,Senior QC Engineer,NO,UNGATED,N/A,AUTH_ONLY,POST create/update estimate: authenticate only (ESTIMATE_MUTATION_ROLES not applied)
+Estimates,estimate.create,Create & edit estimates,MECHANICAL_MANAGER,Mechanical Manager,NO,UNGATED,N/A,AUTH_ONLY,POST create/update estimate: authenticate only (ESTIMATE_MUTATION_ROLES not applied)
+Estimates,estimate.create,Create & edit estimates,STORE_INCHARGE,Store Incharge,NO,UNGATED,N/A,AUTH_ONLY,POST create/update estimate: authenticate only (ESTIMATE_MUTATION_ROLES not applied)
+Estimates,estimate.create,Create & edit estimates,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,UNGATED,N/A,AUTH_ONLY,POST create/update estimate: authenticate only (ESTIMATE_MUTATION_ROLES not applied)
+Estimates,estimate.create,Create & edit estimates,SITE_SUPERVISOR,Site Supervisor,NO,UNGATED,N/A,AUTH_ONLY,POST create/update estimate: authenticate only (ESTIMATE_MUTATION_ROLES not applied)
+Estimates,estimate.create,Create & edit estimates,SUPERVISOR,Site Supervisor (legacy),NO,UNGATED,N/A,AUTH_ONLY,POST create/update estimate: authenticate only (ESTIMATE_MUTATION_ROLES not applied)
+Estimates,estimate.create,Create & edit estimates,ACCOUNTANT,Accountant,NO,UNGATED,N/A,AUTH_ONLY,POST create/update estimate: authenticate only (ESTIMATE_MUTATION_ROLES not applied)
+Estimates,estimate.create,Create & edit estimates,INVENTORY_MANAGER,Inventory Manager,NO,UNGATED,N/A,AUTH_ONLY,POST create/update estimate: authenticate only (ESTIMATE_MUTATION_ROLES not applied)
+Estimates,estimate.submit,Submit estimate for approval,OWNER,Owner / MD,YES,UNGATED,N/A,AUTH_ONLY,POST submit: authenticate only
+Estimates,estimate.submit,Submit estimate for approval,PM,Project Manager,YES,UNGATED,N/A,AUTH_ONLY,POST submit: authenticate only
+Estimates,estimate.submit,Submit estimate for approval,DPM,Deputy Project Manager,YES,UNGATED,N/A,AUTH_ONLY,POST submit: authenticate only
+Estimates,estimate.submit,Submit estimate for approval,QC,Senior QC Engineer,NO,UNGATED,N/A,AUTH_ONLY,POST submit: authenticate only
+Estimates,estimate.submit,Submit estimate for approval,MECHANICAL_MANAGER,Mechanical Manager,NO,UNGATED,N/A,AUTH_ONLY,POST submit: authenticate only
+Estimates,estimate.submit,Submit estimate for approval,STORE_INCHARGE,Store Incharge,NO,UNGATED,N/A,AUTH_ONLY,POST submit: authenticate only
+Estimates,estimate.submit,Submit estimate for approval,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,UNGATED,N/A,AUTH_ONLY,POST submit: authenticate only
+Estimates,estimate.submit,Submit estimate for approval,SITE_SUPERVISOR,Site Supervisor,NO,UNGATED,N/A,AUTH_ONLY,POST submit: authenticate only
+Estimates,estimate.submit,Submit estimate for approval,SUPERVISOR,Site Supervisor (legacy),NO,UNGATED,N/A,AUTH_ONLY,POST submit: authenticate only
+Estimates,estimate.submit,Submit estimate for approval,ACCOUNTANT,Accountant,NO,UNGATED,N/A,AUTH_ONLY,POST submit: authenticate only
+Estimates,estimate.submit,Submit estimate for approval,INVENTORY_MANAGER,Inventory Manager,NO,UNGATED,N/A,AUTH_ONLY,POST submit: authenticate only
+Estimates,estimate.approve,Approve / reject estimates,OWNER,Owner / MD,YES,PASS,MATCH,ROLE,approve/reject use ESTIMATE_MUTATION_ROLES (broader than tagged estimate.approve=OWNER only)
+Estimates,estimate.approve,Approve / reject estimates,PM,Project Manager,NO,PASS,OVER,ROLE,approve/reject use ESTIMATE_MUTATION_ROLES (broader than tagged estimate.approve=OWNER only)
+Estimates,estimate.approve,Approve / reject estimates,DPM,Deputy Project Manager,NO,PASS,OVER,ROLE,approve/reject use ESTIMATE_MUTATION_ROLES (broader than tagged estimate.approve=OWNER only)
+Estimates,estimate.approve,Approve / reject estimates,QC,Senior QC Engineer,NO,FAIL,MATCH,ROLE,approve/reject use ESTIMATE_MUTATION_ROLES (broader than tagged estimate.approve=OWNER only)
+Estimates,estimate.approve,Approve / reject estimates,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,ROLE,approve/reject use ESTIMATE_MUTATION_ROLES (broader than tagged estimate.approve=OWNER only)
+Estimates,estimate.approve,Approve / reject estimates,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,ROLE,approve/reject use ESTIMATE_MUTATION_ROLES (broader than tagged estimate.approve=OWNER only)
+Estimates,estimate.approve,Approve / reject estimates,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,ROLE,approve/reject use ESTIMATE_MUTATION_ROLES (broader than tagged estimate.approve=OWNER only)
+Estimates,estimate.approve,Approve / reject estimates,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,ROLE,approve/reject use ESTIMATE_MUTATION_ROLES (broader than tagged estimate.approve=OWNER only)
+Estimates,estimate.approve,Approve / reject estimates,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,ROLE,approve/reject use ESTIMATE_MUTATION_ROLES (broader than tagged estimate.approve=OWNER only)
+Estimates,estimate.approve,Approve / reject estimates,ACCOUNTANT,Accountant,NO,PASS,OVER,ROLE,approve/reject use ESTIMATE_MUTATION_ROLES (broader than tagged estimate.approve=OWNER only)
+Estimates,estimate.approve,Approve / reject estimates,INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,ROLE,approve/reject use ESTIMATE_MUTATION_ROLES (broader than tagged estimate.approve=OWNER only)
+Estimates,estimate.convert_boq,Convert approved estimate to BOQ,OWNER,Owner / MD,YES,PASS,MATCH,ROLE,convert-to-boq uses BOQ_MUTATION_ROLES
+Estimates,estimate.convert_boq,Convert approved estimate to BOQ,PM,Project Manager,NO,PASS,OVER,ROLE,convert-to-boq uses BOQ_MUTATION_ROLES
+Estimates,estimate.convert_boq,Convert approved estimate to BOQ,DPM,Deputy Project Manager,NO,PASS,OVER,ROLE,convert-to-boq uses BOQ_MUTATION_ROLES
+Estimates,estimate.convert_boq,Convert approved estimate to BOQ,QC,Senior QC Engineer,NO,FAIL,MATCH,ROLE,convert-to-boq uses BOQ_MUTATION_ROLES
+Estimates,estimate.convert_boq,Convert approved estimate to BOQ,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,ROLE,convert-to-boq uses BOQ_MUTATION_ROLES
+Estimates,estimate.convert_boq,Convert approved estimate to BOQ,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,ROLE,convert-to-boq uses BOQ_MUTATION_ROLES
+Estimates,estimate.convert_boq,Convert approved estimate to BOQ,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,ROLE,convert-to-boq uses BOQ_MUTATION_ROLES
+Estimates,estimate.convert_boq,Convert approved estimate to BOQ,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,ROLE,convert-to-boq uses BOQ_MUTATION_ROLES
+Estimates,estimate.convert_boq,Convert approved estimate to BOQ,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,ROLE,convert-to-boq uses BOQ_MUTATION_ROLES
+Estimates,estimate.convert_boq,Convert approved estimate to BOQ,ACCOUNTANT,Accountant,NO,PASS,OVER,ROLE,convert-to-boq uses BOQ_MUTATION_ROLES
+Estimates,estimate.convert_boq,Convert approved estimate to BOQ,INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,ROLE,convert-to-boq uses BOQ_MUTATION_ROLES
+Estimates,estimate.export,Export estimates (Excel / PDF),OWNER,Owner / MD,YES,UNGATED,N/A,UNGATED,No dedicated permission guard found
+Estimates,estimate.export,Export estimates (Excel / PDF),PM,Project Manager,YES,UNGATED,N/A,UNGATED,No dedicated permission guard found
+Estimates,estimate.export,Export estimates (Excel / PDF),DPM,Deputy Project Manager,YES,UNGATED,N/A,UNGATED,No dedicated permission guard found
+Estimates,estimate.export,Export estimates (Excel / PDF),QC,Senior QC Engineer,NO,UNGATED,N/A,UNGATED,No dedicated permission guard found
+Estimates,estimate.export,Export estimates (Excel / PDF),MECHANICAL_MANAGER,Mechanical Manager,NO,UNGATED,N/A,UNGATED,No dedicated permission guard found
+Estimates,estimate.export,Export estimates (Excel / PDF),STORE_INCHARGE,Store Incharge,NO,UNGATED,N/A,UNGATED,No dedicated permission guard found
+Estimates,estimate.export,Export estimates (Excel / PDF),WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,UNGATED,N/A,UNGATED,No dedicated permission guard found
+Estimates,estimate.export,Export estimates (Excel / PDF),SITE_SUPERVISOR,Site Supervisor,NO,UNGATED,N/A,UNGATED,No dedicated permission guard found
+Estimates,estimate.export,Export estimates (Excel / PDF),SUPERVISOR,Site Supervisor (legacy),NO,UNGATED,N/A,UNGATED,No dedicated permission guard found
+Estimates,estimate.export,Export estimates (Excel / PDF),ACCOUNTANT,Accountant,NO,UNGATED,N/A,UNGATED,No dedicated permission guard found
+Estimates,estimate.export,Export estimates (Excel / PDF),INVENTORY_MANAGER,Inventory Manager,NO,UNGATED,N/A,UNGATED,No dedicated permission guard found
+BOQ,boq.view,View Bill of Quantities,OWNER,Owner / MD,YES,UNGATED,N/A,AUTH_ONLY,GET BOQ: authenticate only
+BOQ,boq.view,View Bill of Quantities,PM,Project Manager,YES,UNGATED,N/A,AUTH_ONLY,GET BOQ: authenticate only
+BOQ,boq.view,View Bill of Quantities,DPM,Deputy Project Manager,YES,UNGATED,N/A,AUTH_ONLY,GET BOQ: authenticate only
+BOQ,boq.view,View Bill of Quantities,QC,Senior QC Engineer,YES,UNGATED,N/A,AUTH_ONLY,GET BOQ: authenticate only
+BOQ,boq.view,View Bill of Quantities,MECHANICAL_MANAGER,Mechanical Manager,YES,UNGATED,N/A,AUTH_ONLY,GET BOQ: authenticate only
+BOQ,boq.view,View Bill of Quantities,STORE_INCHARGE,Store Incharge,YES,UNGATED,N/A,AUTH_ONLY,GET BOQ: authenticate only
+BOQ,boq.view,View Bill of Quantities,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,YES,UNGATED,N/A,AUTH_ONLY,GET BOQ: authenticate only
+BOQ,boq.view,View Bill of Quantities,SITE_SUPERVISOR,Site Supervisor,YES,UNGATED,N/A,AUTH_ONLY,GET BOQ: authenticate only
+BOQ,boq.view,View Bill of Quantities,SUPERVISOR,Site Supervisor (legacy),YES,UNGATED,N/A,AUTH_ONLY,GET BOQ: authenticate only
+BOQ,boq.view,View Bill of Quantities,ACCOUNTANT,Accountant,NO,UNGATED,N/A,AUTH_ONLY,GET BOQ: authenticate only
+BOQ,boq.view,View Bill of Quantities,INVENTORY_MANAGER,Inventory Manager,NO,UNGATED,N/A,AUTH_ONLY,GET BOQ: authenticate only
+BOQ,boq.view_rates,View financial rates & amounts in BOQ,OWNER,Owner / MD,YES,FIELD,N/A,FIELD,Field-level / UI masking; API returns rates without this check
+BOQ,boq.view_rates,View financial rates & amounts in BOQ,PM,Project Manager,YES,FIELD,N/A,FIELD,Field-level / UI masking; API returns rates without this check
+BOQ,boq.view_rates,View financial rates & amounts in BOQ,DPM,Deputy Project Manager,YES,FIELD,N/A,FIELD,Field-level / UI masking; API returns rates without this check
+BOQ,boq.view_rates,View financial rates & amounts in BOQ,QC,Senior QC Engineer,NO,FIELD,N/A,FIELD,Field-level / UI masking; API returns rates without this check
+BOQ,boq.view_rates,View financial rates & amounts in BOQ,MECHANICAL_MANAGER,Mechanical Manager,NO,FIELD,N/A,FIELD,Field-level / UI masking; API returns rates without this check
+BOQ,boq.view_rates,View financial rates & amounts in BOQ,STORE_INCHARGE,Store Incharge,NO,FIELD,N/A,FIELD,Field-level / UI masking; API returns rates without this check
+BOQ,boq.view_rates,View financial rates & amounts in BOQ,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FIELD,N/A,FIELD,Field-level / UI masking; API returns rates without this check
+BOQ,boq.view_rates,View financial rates & amounts in BOQ,SITE_SUPERVISOR,Site Supervisor,NO,FIELD,N/A,FIELD,Field-level / UI masking; API returns rates without this check
+BOQ,boq.view_rates,View financial rates & amounts in BOQ,SUPERVISOR,Site Supervisor (legacy),NO,FIELD,N/A,FIELD,Field-level / UI masking; API returns rates without this check
+BOQ,boq.view_rates,View financial rates & amounts in BOQ,ACCOUNTANT,Accountant,NO,FIELD,N/A,FIELD,Field-level / UI masking; API returns rates without this check
+BOQ,boq.view_rates,View financial rates & amounts in BOQ,INVENTORY_MANAGER,Inventory Manager,NO,FIELD,N/A,FIELD,Field-level / UI masking; API returns rates without this check
+BOQ,boq.edit,Create / edit / delete BOQ items,OWNER,Owner / MD,YES,PASS,MATCH,ROLE,BOQ_MUTATION_ROLES
+BOQ,boq.edit,Create / edit / delete BOQ items,PM,Project Manager,YES,PASS,MATCH,ROLE,BOQ_MUTATION_ROLES
+BOQ,boq.edit,Create / edit / delete BOQ items,DPM,Deputy Project Manager,YES,PASS,MATCH,ROLE,BOQ_MUTATION_ROLES
+BOQ,boq.edit,Create / edit / delete BOQ items,QC,Senior QC Engineer,NO,FAIL,MATCH,ROLE,BOQ_MUTATION_ROLES
+BOQ,boq.edit,Create / edit / delete BOQ items,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,ROLE,BOQ_MUTATION_ROLES
+BOQ,boq.edit,Create / edit / delete BOQ items,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,ROLE,BOQ_MUTATION_ROLES
+BOQ,boq.edit,Create / edit / delete BOQ items,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,ROLE,BOQ_MUTATION_ROLES
+BOQ,boq.edit,Create / edit / delete BOQ items,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,ROLE,BOQ_MUTATION_ROLES
+BOQ,boq.edit,Create / edit / delete BOQ items,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,ROLE,BOQ_MUTATION_ROLES
+BOQ,boq.edit,Create / edit / delete BOQ items,ACCOUNTANT,Accountant,NO,PASS,OVER,ROLE,BOQ_MUTATION_ROLES
+BOQ,boq.edit,Create / edit / delete BOQ items,INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,ROLE,BOQ_MUTATION_ROLES
+BOQ,boq.record_measurement,Record BOQ measurements (executed qty),OWNER,Owner / MD,YES,PASS,MATCH,ROLE,SITE_SUPERVISOR not included; QC/DPM tagged but blocked
+BOQ,boq.record_measurement,Record BOQ measurements (executed qty),PM,Project Manager,YES,PASS,MATCH,ROLE,SITE_SUPERVISOR not included; QC/DPM tagged but blocked
+BOQ,boq.record_measurement,Record BOQ measurements (executed qty),DPM,Deputy Project Manager,YES,FAIL,UNDER,ROLE,SITE_SUPERVISOR not included; QC/DPM tagged but blocked
+BOQ,boq.record_measurement,Record BOQ measurements (executed qty),QC,Senior QC Engineer,YES,FAIL,UNDER,ROLE,SITE_SUPERVISOR not included; QC/DPM tagged but blocked
+BOQ,boq.record_measurement,Record BOQ measurements (executed qty),MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,ROLE,SITE_SUPERVISOR not included; QC/DPM tagged but blocked
+BOQ,boq.record_measurement,Record BOQ measurements (executed qty),STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,ROLE,SITE_SUPERVISOR not included; QC/DPM tagged but blocked
+BOQ,boq.record_measurement,Record BOQ measurements (executed qty),WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,ROLE,SITE_SUPERVISOR not included; QC/DPM tagged but blocked
+BOQ,boq.record_measurement,Record BOQ measurements (executed qty),SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,ROLE,SITE_SUPERVISOR not included; QC/DPM tagged but blocked
+BOQ,boq.record_measurement,Record BOQ measurements (executed qty),SUPERVISOR,Site Supervisor (legacy),NO,PASS,OVER,ROLE,SITE_SUPERVISOR not included; QC/DPM tagged but blocked
+BOQ,boq.record_measurement,Record BOQ measurements (executed qty),ACCOUNTANT,Accountant,NO,FAIL,MATCH,ROLE,SITE_SUPERVISOR not included; QC/DPM tagged but blocked
+BOQ,boq.record_measurement,Record BOQ measurements (executed qty),INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,ROLE,SITE_SUPERVISOR not included; QC/DPM tagged but blocked
+BOQ,boq.import,Import BOQ via CSV,OWNER,Owner / MD,YES,PASS,MATCH,ROLE,BOQ_MUTATION_ROLES
+BOQ,boq.import,Import BOQ via CSV,PM,Project Manager,YES,PASS,MATCH,ROLE,BOQ_MUTATION_ROLES
+BOQ,boq.import,Import BOQ via CSV,DPM,Deputy Project Manager,NO,PASS,OVER,ROLE,BOQ_MUTATION_ROLES
+BOQ,boq.import,Import BOQ via CSV,QC,Senior QC Engineer,NO,FAIL,MATCH,ROLE,BOQ_MUTATION_ROLES
+BOQ,boq.import,Import BOQ via CSV,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,ROLE,BOQ_MUTATION_ROLES
+BOQ,boq.import,Import BOQ via CSV,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,ROLE,BOQ_MUTATION_ROLES
+BOQ,boq.import,Import BOQ via CSV,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,ROLE,BOQ_MUTATION_ROLES
+BOQ,boq.import,Import BOQ via CSV,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,ROLE,BOQ_MUTATION_ROLES
+BOQ,boq.import,Import BOQ via CSV,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,ROLE,BOQ_MUTATION_ROLES
+BOQ,boq.import,Import BOQ via CSV,ACCOUNTANT,Accountant,NO,PASS,OVER,ROLE,BOQ_MUTATION_ROLES
+BOQ,boq.import,Import BOQ via CSV,INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,ROLE,BOQ_MUTATION_ROLES
+Projects & Planning,project.view,View projects,OWNER,Owner / MD,YES,UNGATED,N/A,AUTH_ONLY,List/get project: authenticate only
+Projects & Planning,project.view,View projects,PM,Project Manager,YES,UNGATED,N/A,AUTH_ONLY,List/get project: authenticate only
+Projects & Planning,project.view,View projects,DPM,Deputy Project Manager,YES,UNGATED,N/A,AUTH_ONLY,List/get project: authenticate only
+Projects & Planning,project.view,View projects,QC,Senior QC Engineer,YES,UNGATED,N/A,AUTH_ONLY,List/get project: authenticate only
+Projects & Planning,project.view,View projects,MECHANICAL_MANAGER,Mechanical Manager,YES,UNGATED,N/A,AUTH_ONLY,List/get project: authenticate only
+Projects & Planning,project.view,View projects,STORE_INCHARGE,Store Incharge,YES,UNGATED,N/A,AUTH_ONLY,List/get project: authenticate only
+Projects & Planning,project.view,View projects,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,YES,UNGATED,N/A,AUTH_ONLY,List/get project: authenticate only
+Projects & Planning,project.view,View projects,SITE_SUPERVISOR,Site Supervisor,YES,UNGATED,N/A,AUTH_ONLY,List/get project: authenticate only
+Projects & Planning,project.view,View projects,SUPERVISOR,Site Supervisor (legacy),YES,UNGATED,N/A,AUTH_ONLY,List/get project: authenticate only
+Projects & Planning,project.view,View projects,ACCOUNTANT,Accountant,YES,UNGATED,N/A,AUTH_ONLY,List/get project: authenticate only
+Projects & Planning,project.view,View projects,INVENTORY_MANAGER,Inventory Manager,YES,UNGATED,N/A,AUTH_ONLY,List/get project: authenticate only
+Projects & Planning,project.create,Create new projects,OWNER,Owner / MD,YES,UNGATED,N/A,AUTH_ONLY,POST project: authenticate only
+Projects & Planning,project.create,Create new projects,PM,Project Manager,YES,UNGATED,N/A,AUTH_ONLY,POST project: authenticate only
+Projects & Planning,project.create,Create new projects,DPM,Deputy Project Manager,YES,UNGATED,N/A,AUTH_ONLY,POST project: authenticate only
+Projects & Planning,project.create,Create new projects,QC,Senior QC Engineer,NO,UNGATED,N/A,AUTH_ONLY,POST project: authenticate only
+Projects & Planning,project.create,Create new projects,MECHANICAL_MANAGER,Mechanical Manager,NO,UNGATED,N/A,AUTH_ONLY,POST project: authenticate only
+Projects & Planning,project.create,Create new projects,STORE_INCHARGE,Store Incharge,NO,UNGATED,N/A,AUTH_ONLY,POST project: authenticate only
+Projects & Planning,project.create,Create new projects,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,UNGATED,N/A,AUTH_ONLY,POST project: authenticate only
+Projects & Planning,project.create,Create new projects,SITE_SUPERVISOR,Site Supervisor,NO,UNGATED,N/A,AUTH_ONLY,POST project: authenticate only
+Projects & Planning,project.create,Create new projects,SUPERVISOR,Site Supervisor (legacy),NO,UNGATED,N/A,AUTH_ONLY,POST project: authenticate only
+Projects & Planning,project.create,Create new projects,ACCOUNTANT,Accountant,NO,UNGATED,N/A,AUTH_ONLY,POST project: authenticate only
+Projects & Planning,project.create,Create new projects,INVENTORY_MANAGER,Inventory Manager,NO,UNGATED,N/A,AUTH_ONLY,POST project: authenticate only
+Projects & Planning,project.edit,"Edit project details, budget, members",OWNER,Owner / MD,YES,PARTIAL,N/A,MIXED,PUT project: auth only; members set: OWNER (and get members OWNER/PM)
+Projects & Planning,project.edit,"Edit project details, budget, members",PM,Project Manager,YES,PARTIAL,N/A,MIXED,PUT project: auth only; members set: OWNER (and get members OWNER/PM)
+Projects & Planning,project.edit,"Edit project details, budget, members",DPM,Deputy Project Manager,YES,PARTIAL,N/A,MIXED,PUT project: auth only; members set: OWNER (and get members OWNER/PM)
+Projects & Planning,project.edit,"Edit project details, budget, members",QC,Senior QC Engineer,NO,PARTIAL,N/A,MIXED,PUT project: auth only; members set: OWNER (and get members OWNER/PM)
+Projects & Planning,project.edit,"Edit project details, budget, members",MECHANICAL_MANAGER,Mechanical Manager,NO,PARTIAL,N/A,MIXED,PUT project: auth only; members set: OWNER (and get members OWNER/PM)
+Projects & Planning,project.edit,"Edit project details, budget, members",STORE_INCHARGE,Store Incharge,NO,PARTIAL,N/A,MIXED,PUT project: auth only; members set: OWNER (and get members OWNER/PM)
+Projects & Planning,project.edit,"Edit project details, budget, members",WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,PARTIAL,N/A,MIXED,PUT project: auth only; members set: OWNER (and get members OWNER/PM)
+Projects & Planning,project.edit,"Edit project details, budget, members",SITE_SUPERVISOR,Site Supervisor,NO,PARTIAL,N/A,MIXED,PUT project: auth only; members set: OWNER (and get members OWNER/PM)
+Projects & Planning,project.edit,"Edit project details, budget, members",SUPERVISOR,Site Supervisor (legacy),NO,PARTIAL,N/A,MIXED,PUT project: auth only; members set: OWNER (and get members OWNER/PM)
+Projects & Planning,project.edit,"Edit project details, budget, members",ACCOUNTANT,Accountant,NO,PARTIAL,N/A,MIXED,PUT project: auth only; members set: OWNER (and get members OWNER/PM)
+Projects & Planning,project.edit,"Edit project details, budget, members",INVENTORY_MANAGER,Inventory Manager,NO,PARTIAL,N/A,MIXED,PUT project: auth only; members set: OWNER (and get members OWNER/PM)
+Projects & Planning,project.delete,Soft-delete / restore projects,OWNER,Owner / MD,YES,PASS,MATCH,ROLE,requireRole OWNER
+Projects & Planning,project.delete,Soft-delete / restore projects,PM,Project Manager,NO,FAIL,MATCH,ROLE,requireRole OWNER
+Projects & Planning,project.delete,Soft-delete / restore projects,DPM,Deputy Project Manager,NO,FAIL,MATCH,ROLE,requireRole OWNER
+Projects & Planning,project.delete,Soft-delete / restore projects,QC,Senior QC Engineer,NO,FAIL,MATCH,ROLE,requireRole OWNER
+Projects & Planning,project.delete,Soft-delete / restore projects,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,ROLE,requireRole OWNER
+Projects & Planning,project.delete,Soft-delete / restore projects,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,ROLE,requireRole OWNER
+Projects & Planning,project.delete,Soft-delete / restore projects,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,ROLE,requireRole OWNER
+Projects & Planning,project.delete,Soft-delete / restore projects,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,ROLE,requireRole OWNER
+Projects & Planning,project.delete,Soft-delete / restore projects,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,ROLE,requireRole OWNER
+Projects & Planning,project.delete,Soft-delete / restore projects,ACCOUNTANT,Accountant,NO,FAIL,MATCH,ROLE,requireRole OWNER
+Projects & Planning,project.delete,Soft-delete / restore projects,INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,ROLE,requireRole OWNER
+Projects & Planning,planning.view,"View WBS, tasks & Gantt chart",OWNER,Owner / MD,YES,UNGATED,N/A,AUTH_ONLY,GET WBS: module gate + auth
+Projects & Planning,planning.view,"View WBS, tasks & Gantt chart",PM,Project Manager,YES,UNGATED,N/A,AUTH_ONLY,GET WBS: module gate + auth
+Projects & Planning,planning.view,"View WBS, tasks & Gantt chart",DPM,Deputy Project Manager,YES,UNGATED,N/A,AUTH_ONLY,GET WBS: module gate + auth
+Projects & Planning,planning.view,"View WBS, tasks & Gantt chart",QC,Senior QC Engineer,YES,UNGATED,N/A,AUTH_ONLY,GET WBS: module gate + auth
+Projects & Planning,planning.view,"View WBS, tasks & Gantt chart",MECHANICAL_MANAGER,Mechanical Manager,YES,UNGATED,N/A,AUTH_ONLY,GET WBS: module gate + auth
+Projects & Planning,planning.view,"View WBS, tasks & Gantt chart",STORE_INCHARGE,Store Incharge,NO,UNGATED,N/A,AUTH_ONLY,GET WBS: module gate + auth
+Projects & Planning,planning.view,"View WBS, tasks & Gantt chart",WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,UNGATED,N/A,AUTH_ONLY,GET WBS: module gate + auth
+Projects & Planning,planning.view,"View WBS, tasks & Gantt chart",SITE_SUPERVISOR,Site Supervisor,YES,UNGATED,N/A,AUTH_ONLY,GET WBS: module gate + auth
+Projects & Planning,planning.view,"View WBS, tasks & Gantt chart",SUPERVISOR,Site Supervisor (legacy),YES,UNGATED,N/A,AUTH_ONLY,GET WBS: module gate + auth
+Projects & Planning,planning.view,"View WBS, tasks & Gantt chart",ACCOUNTANT,Accountant,NO,UNGATED,N/A,AUTH_ONLY,GET WBS: module gate + auth
+Projects & Planning,planning.view,"View WBS, tasks & Gantt chart",INVENTORY_MANAGER,Inventory Manager,NO,UNGATED,N/A,AUTH_ONLY,GET WBS: module gate + auth
+Projects & Planning,planning.edit,"Create / edit WBS items, tasks & dependencies",OWNER,Owner / MD,YES,UNGATED,N/A,AUTH_ONLY,POST/PUT/DELETE WBS: module gate + auth (no role/permission)
+Projects & Planning,planning.edit,"Create / edit WBS items, tasks & dependencies",PM,Project Manager,YES,UNGATED,N/A,AUTH_ONLY,POST/PUT/DELETE WBS: module gate + auth (no role/permission)
+Projects & Planning,planning.edit,"Create / edit WBS items, tasks & dependencies",DPM,Deputy Project Manager,YES,UNGATED,N/A,AUTH_ONLY,POST/PUT/DELETE WBS: module gate + auth (no role/permission)
+Projects & Planning,planning.edit,"Create / edit WBS items, tasks & dependencies",QC,Senior QC Engineer,NO,UNGATED,N/A,AUTH_ONLY,POST/PUT/DELETE WBS: module gate + auth (no role/permission)
+Projects & Planning,planning.edit,"Create / edit WBS items, tasks & dependencies",MECHANICAL_MANAGER,Mechanical Manager,NO,UNGATED,N/A,AUTH_ONLY,POST/PUT/DELETE WBS: module gate + auth (no role/permission)
+Projects & Planning,planning.edit,"Create / edit WBS items, tasks & dependencies",STORE_INCHARGE,Store Incharge,NO,UNGATED,N/A,AUTH_ONLY,POST/PUT/DELETE WBS: module gate + auth (no role/permission)
+Projects & Planning,planning.edit,"Create / edit WBS items, tasks & dependencies",WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,UNGATED,N/A,AUTH_ONLY,POST/PUT/DELETE WBS: module gate + auth (no role/permission)
+Projects & Planning,planning.edit,"Create / edit WBS items, tasks & dependencies",SITE_SUPERVISOR,Site Supervisor,NO,UNGATED,N/A,AUTH_ONLY,POST/PUT/DELETE WBS: module gate + auth (no role/permission)
+Projects & Planning,planning.edit,"Create / edit WBS items, tasks & dependencies",SUPERVISOR,Site Supervisor (legacy),NO,UNGATED,N/A,AUTH_ONLY,POST/PUT/DELETE WBS: module gate + auth (no role/permission)
+Projects & Planning,planning.edit,"Create / edit WBS items, tasks & dependencies",ACCOUNTANT,Accountant,NO,UNGATED,N/A,AUTH_ONLY,POST/PUT/DELETE WBS: module gate + auth (no role/permission)
+Projects & Planning,planning.edit,"Create / edit WBS items, tasks & dependencies",INVENTORY_MANAGER,Inventory Manager,NO,UNGATED,N/A,AUTH_ONLY,POST/PUT/DELETE WBS: module gate + auth (no role/permission)
+Daily Operations,report.view,View daily site reports,OWNER,Owner / MD,YES,UNGATED,N/A,AUTH_ONLY,daily-report routes: auth
+Daily Operations,report.view,View daily site reports,PM,Project Manager,YES,UNGATED,N/A,AUTH_ONLY,daily-report routes: auth
+Daily Operations,report.view,View daily site reports,DPM,Deputy Project Manager,YES,UNGATED,N/A,AUTH_ONLY,daily-report routes: auth
+Daily Operations,report.view,View daily site reports,QC,Senior QC Engineer,YES,UNGATED,N/A,AUTH_ONLY,daily-report routes: auth
+Daily Operations,report.view,View daily site reports,MECHANICAL_MANAGER,Mechanical Manager,YES,UNGATED,N/A,AUTH_ONLY,daily-report routes: auth
+Daily Operations,report.view,View daily site reports,STORE_INCHARGE,Store Incharge,YES,UNGATED,N/A,AUTH_ONLY,daily-report routes: auth
+Daily Operations,report.view,View daily site reports,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,YES,UNGATED,N/A,AUTH_ONLY,daily-report routes: auth
+Daily Operations,report.view,View daily site reports,SITE_SUPERVISOR,Site Supervisor,YES,UNGATED,N/A,AUTH_ONLY,daily-report routes: auth
+Daily Operations,report.view,View daily site reports,SUPERVISOR,Site Supervisor (legacy),YES,UNGATED,N/A,AUTH_ONLY,daily-report routes: auth
+Daily Operations,report.view,View daily site reports,ACCOUNTANT,Accountant,NO,UNGATED,N/A,AUTH_ONLY,daily-report routes: auth
+Daily Operations,report.view,View daily site reports,INVENTORY_MANAGER,Inventory Manager,NO,UNGATED,N/A,AUTH_ONLY,daily-report routes: auth
+Daily Operations,report.create,Submit daily site reports,OWNER,Owner / MD,YES,UNGATED,N/A,AUTH_ONLY,daily-report create: auth
+Daily Operations,report.create,Submit daily site reports,PM,Project Manager,NO,UNGATED,N/A,AUTH_ONLY,daily-report create: auth
+Daily Operations,report.create,Submit daily site reports,DPM,Deputy Project Manager,NO,UNGATED,N/A,AUTH_ONLY,daily-report create: auth
+Daily Operations,report.create,Submit daily site reports,QC,Senior QC Engineer,YES,UNGATED,N/A,AUTH_ONLY,daily-report create: auth
+Daily Operations,report.create,Submit daily site reports,MECHANICAL_MANAGER,Mechanical Manager,YES,UNGATED,N/A,AUTH_ONLY,daily-report create: auth
+Daily Operations,report.create,Submit daily site reports,STORE_INCHARGE,Store Incharge,NO,UNGATED,N/A,AUTH_ONLY,daily-report create: auth
+Daily Operations,report.create,Submit daily site reports,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,YES,UNGATED,N/A,AUTH_ONLY,daily-report create: auth
+Daily Operations,report.create,Submit daily site reports,SITE_SUPERVISOR,Site Supervisor,YES,UNGATED,N/A,AUTH_ONLY,daily-report create: auth
+Daily Operations,report.create,Submit daily site reports,SUPERVISOR,Site Supervisor (legacy),YES,UNGATED,N/A,AUTH_ONLY,daily-report create: auth
+Daily Operations,report.create,Submit daily site reports,ACCOUNTANT,Accountant,NO,UNGATED,N/A,AUTH_ONLY,daily-report create: auth
+Daily Operations,report.create,Submit daily site reports,INVENTORY_MANAGER,Inventory Manager,NO,UNGATED,N/A,AUTH_ONLY,daily-report create: auth
+Daily Operations,attendance.checkin,Geo-fenced check-in / check-out,OWNER,Owner / MD,YES,UNGATED,N/A,UNGATED,No clear permission guard
+Daily Operations,attendance.checkin,Geo-fenced check-in / check-out,PM,Project Manager,YES,UNGATED,N/A,UNGATED,No clear permission guard
+Daily Operations,attendance.checkin,Geo-fenced check-in / check-out,DPM,Deputy Project Manager,YES,UNGATED,N/A,UNGATED,No clear permission guard
+Daily Operations,attendance.checkin,Geo-fenced check-in / check-out,QC,Senior QC Engineer,YES,UNGATED,N/A,UNGATED,No clear permission guard
+Daily Operations,attendance.checkin,Geo-fenced check-in / check-out,MECHANICAL_MANAGER,Mechanical Manager,YES,UNGATED,N/A,UNGATED,No clear permission guard
+Daily Operations,attendance.checkin,Geo-fenced check-in / check-out,STORE_INCHARGE,Store Incharge,NO,UNGATED,N/A,UNGATED,No clear permission guard
+Daily Operations,attendance.checkin,Geo-fenced check-in / check-out,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,UNGATED,N/A,UNGATED,No clear permission guard
+Daily Operations,attendance.checkin,Geo-fenced check-in / check-out,SITE_SUPERVISOR,Site Supervisor,YES,UNGATED,N/A,UNGATED,No clear permission guard
+Daily Operations,attendance.checkin,Geo-fenced check-in / check-out,SUPERVISOR,Site Supervisor (legacy),YES,UNGATED,N/A,UNGATED,No clear permission guard
+Daily Operations,attendance.checkin,Geo-fenced check-in / check-out,ACCOUNTANT,Accountant,NO,UNGATED,N/A,UNGATED,No clear permission guard
+Daily Operations,attendance.checkin,Geo-fenced check-in / check-out,INVENTORY_MANAGER,Inventory Manager,NO,UNGATED,N/A,UNGATED,No clear permission guard
+Daily Operations,attendance.view,View attendance records,OWNER,Owner / MD,YES,UNGATED,N/A,UNGATED,No clear permission guard
+Daily Operations,attendance.view,View attendance records,PM,Project Manager,YES,UNGATED,N/A,UNGATED,No clear permission guard
+Daily Operations,attendance.view,View attendance records,DPM,Deputy Project Manager,YES,UNGATED,N/A,UNGATED,No clear permission guard
+Daily Operations,attendance.view,View attendance records,QC,Senior QC Engineer,YES,UNGATED,N/A,UNGATED,No clear permission guard
+Daily Operations,attendance.view,View attendance records,MECHANICAL_MANAGER,Mechanical Manager,YES,UNGATED,N/A,UNGATED,No clear permission guard
+Daily Operations,attendance.view,View attendance records,STORE_INCHARGE,Store Incharge,YES,UNGATED,N/A,UNGATED,No clear permission guard
+Daily Operations,attendance.view,View attendance records,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,UNGATED,N/A,UNGATED,No clear permission guard
+Daily Operations,attendance.view,View attendance records,SITE_SUPERVISOR,Site Supervisor,YES,UNGATED,N/A,UNGATED,No clear permission guard
+Daily Operations,attendance.view,View attendance records,SUPERVISOR,Site Supervisor (legacy),YES,UNGATED,N/A,UNGATED,No clear permission guard
+Daily Operations,attendance.view,View attendance records,ACCOUNTANT,Accountant,NO,UNGATED,N/A,UNGATED,No clear permission guard
+Daily Operations,attendance.view,View attendance records,INVENTORY_MANAGER,Inventory Manager,NO,UNGATED,N/A,UNGATED,No clear permission guard
+Procurement & Inventory,procurement.view,"View indents, POs & GRNs",OWNER,Owner / MD,YES,PASS,MATCH,PERMISSION,[route requirePermission ×5]
+Procurement & Inventory,procurement.view,"View indents, POs & GRNs",PM,Project Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×5]
+Procurement & Inventory,procurement.view,"View indents, POs & GRNs",DPM,Deputy Project Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×5]
+Procurement & Inventory,procurement.view,"View indents, POs & GRNs",QC,Senior QC Engineer,YES,PASS,MATCH,PERMISSION,[route requirePermission ×5]
+Procurement & Inventory,procurement.view,"View indents, POs & GRNs",MECHANICAL_MANAGER,Mechanical Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×5]
+Procurement & Inventory,procurement.view,"View indents, POs & GRNs",STORE_INCHARGE,Store Incharge,YES,PASS,MATCH,PERMISSION,[route requirePermission ×5]
+Procurement & Inventory,procurement.view,"View indents, POs & GRNs",WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,YES,PASS,MATCH,PERMISSION,[route requirePermission ×5]
+Procurement & Inventory,procurement.view,"View indents, POs & GRNs",SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×5]
+Procurement & Inventory,procurement.view,"View indents, POs & GRNs",SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,PERMISSION,[route requirePermission ×5]
+Procurement & Inventory,procurement.view,"View indents, POs & GRNs",ACCOUNTANT,Accountant,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×5]
+Procurement & Inventory,procurement.view,"View indents, POs & GRNs",INVENTORY_MANAGER,Inventory Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×5]
+Procurement & Inventory,procurement.create_indent,Create material indents / requisitions,OWNER,Owner / MD,YES,PASS,MATCH,PERMISSION,[route requirePermission ×5]
+Procurement & Inventory,procurement.create_indent,Create material indents / requisitions,PM,Project Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×5]
+Procurement & Inventory,procurement.create_indent,Create material indents / requisitions,DPM,Deputy Project Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×5]
+Procurement & Inventory,procurement.create_indent,Create material indents / requisitions,QC,Senior QC Engineer,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×5]
+Procurement & Inventory,procurement.create_indent,Create material indents / requisitions,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×5]
+Procurement & Inventory,procurement.create_indent,Create material indents / requisitions,STORE_INCHARGE,Store Incharge,YES,PASS,MATCH,PERMISSION,[route requirePermission ×5]
+Procurement & Inventory,procurement.create_indent,Create material indents / requisitions,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×5]
+Procurement & Inventory,procurement.create_indent,Create material indents / requisitions,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×5]
+Procurement & Inventory,procurement.create_indent,Create material indents / requisitions,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,PERMISSION,[route requirePermission ×5]
+Procurement & Inventory,procurement.create_indent,Create material indents / requisitions,ACCOUNTANT,Accountant,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×5]
+Procurement & Inventory,procurement.create_indent,Create material indents / requisitions,INVENTORY_MANAGER,Inventory Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×5]
+Procurement & Inventory,procurement.indent_from_boq,Indent / purchase from BOQ list & shortfalls,OWNER,Owner / MD,YES,PARTIAL,N/A,UI_OR_SERVICE,Not on requirePermission; gated in UI / service paths via create_indent
+Procurement & Inventory,procurement.indent_from_boq,Indent / purchase from BOQ list & shortfalls,PM,Project Manager,YES,PARTIAL,N/A,UI_OR_SERVICE,Not on requirePermission; gated in UI / service paths via create_indent
+Procurement & Inventory,procurement.indent_from_boq,Indent / purchase from BOQ list & shortfalls,DPM,Deputy Project Manager,YES,PARTIAL,N/A,UI_OR_SERVICE,Not on requirePermission; gated in UI / service paths via create_indent
+Procurement & Inventory,procurement.indent_from_boq,Indent / purchase from BOQ list & shortfalls,QC,Senior QC Engineer,NO,PARTIAL,N/A,UI_OR_SERVICE,Not on requirePermission; gated in UI / service paths via create_indent
+Procurement & Inventory,procurement.indent_from_boq,Indent / purchase from BOQ list & shortfalls,MECHANICAL_MANAGER,Mechanical Manager,NO,PARTIAL,N/A,UI_OR_SERVICE,Not on requirePermission; gated in UI / service paths via create_indent
+Procurement & Inventory,procurement.indent_from_boq,Indent / purchase from BOQ list & shortfalls,STORE_INCHARGE,Store Incharge,NO,PARTIAL,N/A,UI_OR_SERVICE,Not on requirePermission; gated in UI / service paths via create_indent
+Procurement & Inventory,procurement.indent_from_boq,Indent / purchase from BOQ list & shortfalls,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,PARTIAL,N/A,UI_OR_SERVICE,Not on requirePermission; gated in UI / service paths via create_indent
+Procurement & Inventory,procurement.indent_from_boq,Indent / purchase from BOQ list & shortfalls,SITE_SUPERVISOR,Site Supervisor,NO,PARTIAL,N/A,UI_OR_SERVICE,Not on requirePermission; gated in UI / service paths via create_indent
+Procurement & Inventory,procurement.indent_from_boq,Indent / purchase from BOQ list & shortfalls,SUPERVISOR,Site Supervisor (legacy),NO,PARTIAL,N/A,UI_OR_SERVICE,Not on requirePermission; gated in UI / service paths via create_indent
+Procurement & Inventory,procurement.indent_from_boq,Indent / purchase from BOQ list & shortfalls,ACCOUNTANT,Accountant,NO,PARTIAL,N/A,UI_OR_SERVICE,Not on requirePermission; gated in UI / service paths via create_indent
+Procurement & Inventory,procurement.indent_from_boq,Indent / purchase from BOQ list & shortfalls,INVENTORY_MANAGER,Inventory Manager,NO,PARTIAL,N/A,UI_OR_SERVICE,Not on requirePermission; gated in UI / service paths via create_indent
+Procurement & Inventory,procurement.view_rates,View expected rates & estimated amounts in indents,OWNER,Owner / MD,YES,FIELD,N/A,FIELD,Field-level; not route-guarded
+Procurement & Inventory,procurement.view_rates,View expected rates & estimated amounts in indents,PM,Project Manager,YES,FIELD,N/A,FIELD,Field-level; not route-guarded
+Procurement & Inventory,procurement.view_rates,View expected rates & estimated amounts in indents,DPM,Deputy Project Manager,YES,FIELD,N/A,FIELD,Field-level; not route-guarded
+Procurement & Inventory,procurement.view_rates,View expected rates & estimated amounts in indents,QC,Senior QC Engineer,NO,FIELD,N/A,FIELD,Field-level; not route-guarded
+Procurement & Inventory,procurement.view_rates,View expected rates & estimated amounts in indents,MECHANICAL_MANAGER,Mechanical Manager,NO,FIELD,N/A,FIELD,Field-level; not route-guarded
+Procurement & Inventory,procurement.view_rates,View expected rates & estimated amounts in indents,STORE_INCHARGE,Store Incharge,NO,FIELD,N/A,FIELD,Field-level; not route-guarded
+Procurement & Inventory,procurement.view_rates,View expected rates & estimated amounts in indents,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FIELD,N/A,FIELD,Field-level; not route-guarded
+Procurement & Inventory,procurement.view_rates,View expected rates & estimated amounts in indents,SITE_SUPERVISOR,Site Supervisor,NO,FIELD,N/A,FIELD,Field-level; not route-guarded
+Procurement & Inventory,procurement.view_rates,View expected rates & estimated amounts in indents,SUPERVISOR,Site Supervisor (legacy),NO,FIELD,N/A,FIELD,Field-level; not route-guarded
+Procurement & Inventory,procurement.view_rates,View expected rates & estimated amounts in indents,ACCOUNTANT,Accountant,NO,FIELD,N/A,FIELD,Field-level; not route-guarded
+Procurement & Inventory,procurement.view_rates,View expected rates & estimated amounts in indents,INVENTORY_MANAGER,Inventory Manager,YES,FIELD,N/A,FIELD,Field-level; not route-guarded
+Procurement & Inventory,procurement.approve_indent,Approve material indents / requisitions,OWNER,Owner / MD,YES,PASS,MATCH,PERMISSION,[route requirePermission ×1]
+Procurement & Inventory,procurement.approve_indent,Approve material indents / requisitions,PM,Project Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×1]
+Procurement & Inventory,procurement.approve_indent,Approve material indents / requisitions,DPM,Deputy Project Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×1]
+Procurement & Inventory,procurement.approve_indent,Approve material indents / requisitions,QC,Senior QC Engineer,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×1]
+Procurement & Inventory,procurement.approve_indent,Approve material indents / requisitions,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×1]
+Procurement & Inventory,procurement.approve_indent,Approve material indents / requisitions,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×1]
+Procurement & Inventory,procurement.approve_indent,Approve material indents / requisitions,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×1]
+Procurement & Inventory,procurement.approve_indent,Approve material indents / requisitions,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×1]
+Procurement & Inventory,procurement.approve_indent,Approve material indents / requisitions,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,PERMISSION,[route requirePermission ×1]
+Procurement & Inventory,procurement.approve_indent,Approve material indents / requisitions,ACCOUNTANT,Accountant,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×1]
+Procurement & Inventory,procurement.approve_indent,Approve material indents / requisitions,INVENTORY_MANAGER,Inventory Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×1]
+Procurement & Inventory,procurement.create_direct_po,Create direct Purchase Orders without requisition,OWNER,Owner / MD,YES,PARTIAL,N/A,UI_OR_SERVICE,Not directly on routes as requirePermission
+Procurement & Inventory,procurement.create_direct_po,Create direct Purchase Orders without requisition,PM,Project Manager,YES,PARTIAL,N/A,UI_OR_SERVICE,Not directly on routes as requirePermission
+Procurement & Inventory,procurement.create_direct_po,Create direct Purchase Orders without requisition,DPM,Deputy Project Manager,NO,PARTIAL,N/A,UI_OR_SERVICE,Not directly on routes as requirePermission
+Procurement & Inventory,procurement.create_direct_po,Create direct Purchase Orders without requisition,QC,Senior QC Engineer,NO,PARTIAL,N/A,UI_OR_SERVICE,Not directly on routes as requirePermission
+Procurement & Inventory,procurement.create_direct_po,Create direct Purchase Orders without requisition,MECHANICAL_MANAGER,Mechanical Manager,NO,PARTIAL,N/A,UI_OR_SERVICE,Not directly on routes as requirePermission
+Procurement & Inventory,procurement.create_direct_po,Create direct Purchase Orders without requisition,STORE_INCHARGE,Store Incharge,NO,PARTIAL,N/A,UI_OR_SERVICE,Not directly on routes as requirePermission
+Procurement & Inventory,procurement.create_direct_po,Create direct Purchase Orders without requisition,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,PARTIAL,N/A,UI_OR_SERVICE,Not directly on routes as requirePermission
+Procurement & Inventory,procurement.create_direct_po,Create direct Purchase Orders without requisition,SITE_SUPERVISOR,Site Supervisor,NO,PARTIAL,N/A,UI_OR_SERVICE,Not directly on routes as requirePermission
+Procurement & Inventory,procurement.create_direct_po,Create direct Purchase Orders without requisition,SUPERVISOR,Site Supervisor (legacy),NO,PARTIAL,N/A,UI_OR_SERVICE,Not directly on routes as requirePermission
+Procurement & Inventory,procurement.create_direct_po,Create direct Purchase Orders without requisition,ACCOUNTANT,Accountant,NO,PARTIAL,N/A,UI_OR_SERVICE,Not directly on routes as requirePermission
+Procurement & Inventory,procurement.create_direct_po,Create direct Purchase Orders without requisition,INVENTORY_MANAGER,Inventory Manager,YES,PARTIAL,N/A,UI_OR_SERVICE,Not directly on routes as requirePermission
+Procurement & Inventory,procurement.override_rates,Override material rates during PO creation,OWNER,Owner / MD,YES,PARTIAL,N/A,UI_OR_SERVICE,Service/UI level
+Procurement & Inventory,procurement.override_rates,Override material rates during PO creation,PM,Project Manager,YES,PARTIAL,N/A,UI_OR_SERVICE,Service/UI level
+Procurement & Inventory,procurement.override_rates,Override material rates during PO creation,DPM,Deputy Project Manager,NO,PARTIAL,N/A,UI_OR_SERVICE,Service/UI level
+Procurement & Inventory,procurement.override_rates,Override material rates during PO creation,QC,Senior QC Engineer,NO,PARTIAL,N/A,UI_OR_SERVICE,Service/UI level
+Procurement & Inventory,procurement.override_rates,Override material rates during PO creation,MECHANICAL_MANAGER,Mechanical Manager,NO,PARTIAL,N/A,UI_OR_SERVICE,Service/UI level
+Procurement & Inventory,procurement.override_rates,Override material rates during PO creation,STORE_INCHARGE,Store Incharge,NO,PARTIAL,N/A,UI_OR_SERVICE,Service/UI level
+Procurement & Inventory,procurement.override_rates,Override material rates during PO creation,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,PARTIAL,N/A,UI_OR_SERVICE,Service/UI level
+Procurement & Inventory,procurement.override_rates,Override material rates during PO creation,SITE_SUPERVISOR,Site Supervisor,NO,PARTIAL,N/A,UI_OR_SERVICE,Service/UI level
+Procurement & Inventory,procurement.override_rates,Override material rates during PO creation,SUPERVISOR,Site Supervisor (legacy),NO,PARTIAL,N/A,UI_OR_SERVICE,Service/UI level
+Procurement & Inventory,procurement.override_rates,Override material rates during PO creation,ACCOUNTANT,Accountant,NO,PARTIAL,N/A,UI_OR_SERVICE,Service/UI level
+Procurement & Inventory,procurement.override_rates,Override material rates during PO creation,INVENTORY_MANAGER,Inventory Manager,YES,PARTIAL,N/A,UI_OR_SERVICE,Service/UI level
+Procurement & Inventory,procurement.approve_po,Approve purchase orders,OWNER,Owner / MD,YES,PASS,MATCH,PERMISSION,[route requirePermission ×3]
+Procurement & Inventory,procurement.approve_po,Approve purchase orders,PM,Project Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×3]
+Procurement & Inventory,procurement.approve_po,Approve purchase orders,DPM,Deputy Project Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×3]
+Procurement & Inventory,procurement.approve_po,Approve purchase orders,QC,Senior QC Engineer,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×3]
+Procurement & Inventory,procurement.approve_po,Approve purchase orders,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×3]
+Procurement & Inventory,procurement.approve_po,Approve purchase orders,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×3]
+Procurement & Inventory,procurement.approve_po,Approve purchase orders,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×3]
+Procurement & Inventory,procurement.approve_po,Approve purchase orders,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×3]
+Procurement & Inventory,procurement.approve_po,Approve purchase orders,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,PERMISSION,[route requirePermission ×3]
+Procurement & Inventory,procurement.approve_po,Approve purchase orders,ACCOUNTANT,Accountant,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×3]
+Procurement & Inventory,procurement.approve_po,Approve purchase orders,INVENTORY_MANAGER,Inventory Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×3]
+Procurement & Inventory,procurement.record_grn,Record goods receipt notes (GRN),OWNER,Owner / MD,YES,PASS,MATCH,PERMISSION,[route requirePermission ×1]
+Procurement & Inventory,procurement.record_grn,Record goods receipt notes (GRN),PM,Project Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×1]
+Procurement & Inventory,procurement.record_grn,Record goods receipt notes (GRN),DPM,Deputy Project Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×1]
+Procurement & Inventory,procurement.record_grn,Record goods receipt notes (GRN),QC,Senior QC Engineer,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×1]
+Procurement & Inventory,procurement.record_grn,Record goods receipt notes (GRN),MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×1]
+Procurement & Inventory,procurement.record_grn,Record goods receipt notes (GRN),STORE_INCHARGE,Store Incharge,YES,PASS,MATCH,PERMISSION,[route requirePermission ×1]
+Procurement & Inventory,procurement.record_grn,Record goods receipt notes (GRN),WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×1]
+Procurement & Inventory,procurement.record_grn,Record goods receipt notes (GRN),SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×1]
+Procurement & Inventory,procurement.record_grn,Record goods receipt notes (GRN),SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,PERMISSION,[route requirePermission ×1]
+Procurement & Inventory,procurement.record_grn,Record goods receipt notes (GRN),ACCOUNTANT,Accountant,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×1]
+Procurement & Inventory,procurement.record_grn,Record goods receipt notes (GRN),INVENTORY_MANAGER,Inventory Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×1]
+Procurement & Inventory,procurement.excess_order,Order quantities exceeding BOQ estimated limits,OWNER,Owner / MD,YES,PARTIAL,N/A,UI_OR_SERVICE,Not route-guarded via requirePermission
+Procurement & Inventory,procurement.excess_order,Order quantities exceeding BOQ estimated limits,PM,Project Manager,YES,PARTIAL,N/A,UI_OR_SERVICE,Not route-guarded via requirePermission
+Procurement & Inventory,procurement.excess_order,Order quantities exceeding BOQ estimated limits,DPM,Deputy Project Manager,NO,PARTIAL,N/A,UI_OR_SERVICE,Not route-guarded via requirePermission
+Procurement & Inventory,procurement.excess_order,Order quantities exceeding BOQ estimated limits,QC,Senior QC Engineer,NO,PARTIAL,N/A,UI_OR_SERVICE,Not route-guarded via requirePermission
+Procurement & Inventory,procurement.excess_order,Order quantities exceeding BOQ estimated limits,MECHANICAL_MANAGER,Mechanical Manager,NO,PARTIAL,N/A,UI_OR_SERVICE,Not route-guarded via requirePermission
+Procurement & Inventory,procurement.excess_order,Order quantities exceeding BOQ estimated limits,STORE_INCHARGE,Store Incharge,NO,PARTIAL,N/A,UI_OR_SERVICE,Not route-guarded via requirePermission
+Procurement & Inventory,procurement.excess_order,Order quantities exceeding BOQ estimated limits,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,PARTIAL,N/A,UI_OR_SERVICE,Not route-guarded via requirePermission
+Procurement & Inventory,procurement.excess_order,Order quantities exceeding BOQ estimated limits,SITE_SUPERVISOR,Site Supervisor,NO,PARTIAL,N/A,UI_OR_SERVICE,Not route-guarded via requirePermission
+Procurement & Inventory,procurement.excess_order,Order quantities exceeding BOQ estimated limits,SUPERVISOR,Site Supervisor (legacy),NO,PARTIAL,N/A,UI_OR_SERVICE,Not route-guarded via requirePermission
+Procurement & Inventory,procurement.excess_order,Order quantities exceeding BOQ estimated limits,ACCOUNTANT,Accountant,NO,PARTIAL,N/A,UI_OR_SERVICE,Not route-guarded via requirePermission
+Procurement & Inventory,procurement.excess_order,Order quantities exceeding BOQ estimated limits,INVENTORY_MANAGER,Inventory Manager,NO,PARTIAL,N/A,UI_OR_SERVICE,Not route-guarded via requirePermission
+Procurement & Inventory,stock.view,View stock levels & movements,OWNER,Owner / MD,YES,PASS,MATCH,PERMISSION,[route requirePermission ×3]
+Procurement & Inventory,stock.view,View stock levels & movements,PM,Project Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×3]
+Procurement & Inventory,stock.view,View stock levels & movements,DPM,Deputy Project Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×3]
+Procurement & Inventory,stock.view,View stock levels & movements,QC,Senior QC Engineer,YES,PASS,MATCH,PERMISSION,[route requirePermission ×3]
+Procurement & Inventory,stock.view,View stock levels & movements,MECHANICAL_MANAGER,Mechanical Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×3]
+Procurement & Inventory,stock.view,View stock levels & movements,STORE_INCHARGE,Store Incharge,YES,PASS,MATCH,PERMISSION,[route requirePermission ×3]
+Procurement & Inventory,stock.view,View stock levels & movements,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,YES,PASS,MATCH,PERMISSION,[route requirePermission ×3]
+Procurement & Inventory,stock.view,View stock levels & movements,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×3]
+Procurement & Inventory,stock.view,View stock levels & movements,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,PERMISSION,[route requirePermission ×3]
+Procurement & Inventory,stock.view,View stock levels & movements,ACCOUNTANT,Accountant,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×3]
+Procurement & Inventory,stock.view,View stock levels & movements,INVENTORY_MANAGER,Inventory Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×3]
+Procurement & Inventory,stock.manage,Manage stock movements (in / out / transfer),OWNER,Owner / MD,YES,PASS,MATCH,PERMISSION,procurement stock.manage via permission; warehouse/transaction routes use requireRole OWNER/INVENTORY_MANAGER [route requirePermission ×10]
+Procurement & Inventory,stock.manage,Manage stock movements (in / out / transfer),PM,Project Manager,YES,PASS,MATCH,PERMISSION,procurement stock.manage via permission; warehouse/transaction routes use requireRole OWNER/INVENTORY_MANAGER [route requirePermission ×10]
+Procurement & Inventory,stock.manage,Manage stock movements (in / out / transfer),DPM,Deputy Project Manager,YES,PASS,MATCH,PERMISSION,procurement stock.manage via permission; warehouse/transaction routes use requireRole OWNER/INVENTORY_MANAGER [route requirePermission ×10]
+Procurement & Inventory,stock.manage,Manage stock movements (in / out / transfer),QC,Senior QC Engineer,NO,FAIL,MATCH,PERMISSION,procurement stock.manage via permission; warehouse/transaction routes use requireRole OWNER/INVENTORY_MANAGER [route requirePermission ×10]
+Procurement & Inventory,stock.manage,Manage stock movements (in / out / transfer),MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,PERMISSION,procurement stock.manage via permission; warehouse/transaction routes use requireRole OWNER/INVENTORY_MANAGER [route requirePermission ×10]
+Procurement & Inventory,stock.manage,Manage stock movements (in / out / transfer),STORE_INCHARGE,Store Incharge,YES,PASS,MATCH,PERMISSION,procurement stock.manage via permission; warehouse/transaction routes use requireRole OWNER/INVENTORY_MANAGER [route requirePermission ×10]
+Procurement & Inventory,stock.manage,Manage stock movements (in / out / transfer),WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,PERMISSION,procurement stock.manage via permission; warehouse/transaction routes use requireRole OWNER/INVENTORY_MANAGER [route requirePermission ×10]
+Procurement & Inventory,stock.manage,Manage stock movements (in / out / transfer),SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,PERMISSION,procurement stock.manage via permission; warehouse/transaction routes use requireRole OWNER/INVENTORY_MANAGER [route requirePermission ×10]
+Procurement & Inventory,stock.manage,Manage stock movements (in / out / transfer),SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,PERMISSION,procurement stock.manage via permission; warehouse/transaction routes use requireRole OWNER/INVENTORY_MANAGER [route requirePermission ×10]
+Procurement & Inventory,stock.manage,Manage stock movements (in / out / transfer),ACCOUNTANT,Accountant,NO,FAIL,MATCH,PERMISSION,procurement stock.manage via permission; warehouse/transaction routes use requireRole OWNER/INVENTORY_MANAGER [route requirePermission ×10]
+Procurement & Inventory,stock.manage,Manage stock movements (in / out / transfer),INVENTORY_MANAGER,Inventory Manager,YES,PASS,MATCH,PERMISSION,procurement stock.manage via permission; warehouse/transaction routes use requireRole OWNER/INVENTORY_MANAGER [route requirePermission ×10]
+Procurement & Inventory,stock.adjust,Perform manual stock adjustments,OWNER,Owner / MD,YES,PASS,MATCH,PERMISSION_OR_ROLE,inventory-stock uses stock.manage not stock.adjust
+Procurement & Inventory,stock.adjust,Perform manual stock adjustments,PM,Project Manager,YES,PASS,MATCH,PERMISSION_OR_ROLE,inventory-stock uses stock.manage not stock.adjust
+Procurement & Inventory,stock.adjust,Perform manual stock adjustments,DPM,Deputy Project Manager,YES,PASS,MATCH,PERMISSION_OR_ROLE,inventory-stock uses stock.manage not stock.adjust
+Procurement & Inventory,stock.adjust,Perform manual stock adjustments,QC,Senior QC Engineer,NO,FAIL,MATCH,PERMISSION_OR_ROLE,inventory-stock uses stock.manage not stock.adjust
+Procurement & Inventory,stock.adjust,Perform manual stock adjustments,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,PERMISSION_OR_ROLE,inventory-stock uses stock.manage not stock.adjust
+Procurement & Inventory,stock.adjust,Perform manual stock adjustments,STORE_INCHARGE,Store Incharge,NO,PASS,OVER,PERMISSION_OR_ROLE,inventory-stock uses stock.manage not stock.adjust
+Procurement & Inventory,stock.adjust,Perform manual stock adjustments,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,PERMISSION_OR_ROLE,inventory-stock uses stock.manage not stock.adjust
+Procurement & Inventory,stock.adjust,Perform manual stock adjustments,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,PERMISSION_OR_ROLE,inventory-stock uses stock.manage not stock.adjust
+Procurement & Inventory,stock.adjust,Perform manual stock adjustments,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,PERMISSION_OR_ROLE,inventory-stock uses stock.manage not stock.adjust
+Procurement & Inventory,stock.adjust,Perform manual stock adjustments,ACCOUNTANT,Accountant,NO,FAIL,MATCH,PERMISSION_OR_ROLE,inventory-stock uses stock.manage not stock.adjust
+Procurement & Inventory,stock.adjust,Perform manual stock adjustments,INVENTORY_MANAGER,Inventory Manager,YES,PASS,MATCH,PERMISSION_OR_ROLE,inventory-stock uses stock.manage not stock.adjust
+Subcontracting,subcontract.view,View subcontractor work orders,OWNER,Owner / MD,YES,UNGATED,N/A,AUTH_ONLY,List likely auth-only
+Subcontracting,subcontract.view,View subcontractor work orders,PM,Project Manager,YES,UNGATED,N/A,AUTH_ONLY,List likely auth-only
+Subcontracting,subcontract.view,View subcontractor work orders,DPM,Deputy Project Manager,YES,UNGATED,N/A,AUTH_ONLY,List likely auth-only
+Subcontracting,subcontract.view,View subcontractor work orders,QC,Senior QC Engineer,YES,UNGATED,N/A,AUTH_ONLY,List likely auth-only
+Subcontracting,subcontract.view,View subcontractor work orders,MECHANICAL_MANAGER,Mechanical Manager,YES,UNGATED,N/A,AUTH_ONLY,List likely auth-only
+Subcontracting,subcontract.view,View subcontractor work orders,STORE_INCHARGE,Store Incharge,NO,UNGATED,N/A,AUTH_ONLY,List likely auth-only
+Subcontracting,subcontract.view,View subcontractor work orders,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,UNGATED,N/A,AUTH_ONLY,List likely auth-only
+Subcontracting,subcontract.view,View subcontractor work orders,SITE_SUPERVISOR,Site Supervisor,NO,UNGATED,N/A,AUTH_ONLY,List likely auth-only
+Subcontracting,subcontract.view,View subcontractor work orders,SUPERVISOR,Site Supervisor (legacy),NO,UNGATED,N/A,AUTH_ONLY,List likely auth-only
+Subcontracting,subcontract.view,View subcontractor work orders,ACCOUNTANT,Accountant,NO,UNGATED,N/A,AUTH_ONLY,List likely auth-only
+Subcontracting,subcontract.view,View subcontractor work orders,INVENTORY_MANAGER,Inventory Manager,NO,UNGATED,N/A,AUTH_ONLY,List likely auth-only
+Subcontracting,subcontract.create_wo,Create subcontractor work orders,OWNER,Owner / MD,YES,PASS,MATCH,ROLE,Several WO mutations OWNER/PM
+Subcontracting,subcontract.create_wo,Create subcontractor work orders,PM,Project Manager,NO,PASS,OVER,ROLE,Several WO mutations OWNER/PM
+Subcontracting,subcontract.create_wo,Create subcontractor work orders,DPM,Deputy Project Manager,NO,FAIL,MATCH,ROLE,Several WO mutations OWNER/PM
+Subcontracting,subcontract.create_wo,Create subcontractor work orders,QC,Senior QC Engineer,NO,FAIL,MATCH,ROLE,Several WO mutations OWNER/PM
+Subcontracting,subcontract.create_wo,Create subcontractor work orders,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,ROLE,Several WO mutations OWNER/PM
+Subcontracting,subcontract.create_wo,Create subcontractor work orders,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,ROLE,Several WO mutations OWNER/PM
+Subcontracting,subcontract.create_wo,Create subcontractor work orders,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,ROLE,Several WO mutations OWNER/PM
+Subcontracting,subcontract.create_wo,Create subcontractor work orders,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,ROLE,Several WO mutations OWNER/PM
+Subcontracting,subcontract.create_wo,Create subcontractor work orders,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,ROLE,Several WO mutations OWNER/PM
+Subcontracting,subcontract.create_wo,Create subcontractor work orders,ACCOUNTANT,Accountant,NO,FAIL,MATCH,ROLE,Several WO mutations OWNER/PM
+Subcontracting,subcontract.create_wo,Create subcontractor work orders,INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,ROLE,Several WO mutations OWNER/PM
+Subcontracting,subcontract.approve_measurement,Approve subcontractor measurements,OWNER,Owner / MD,YES,PASS,MATCH,ROLE,Approve paths OWNER/PM
+Subcontracting,subcontract.approve_measurement,Approve subcontractor measurements,PM,Project Manager,NO,PASS,OVER,ROLE,Approve paths OWNER/PM
+Subcontracting,subcontract.approve_measurement,Approve subcontractor measurements,DPM,Deputy Project Manager,NO,FAIL,MATCH,ROLE,Approve paths OWNER/PM
+Subcontracting,subcontract.approve_measurement,Approve subcontractor measurements,QC,Senior QC Engineer,NO,FAIL,MATCH,ROLE,Approve paths OWNER/PM
+Subcontracting,subcontract.approve_measurement,Approve subcontractor measurements,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,ROLE,Approve paths OWNER/PM
+Subcontracting,subcontract.approve_measurement,Approve subcontractor measurements,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,ROLE,Approve paths OWNER/PM
+Subcontracting,subcontract.approve_measurement,Approve subcontractor measurements,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,ROLE,Approve paths OWNER/PM
+Subcontracting,subcontract.approve_measurement,Approve subcontractor measurements,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,ROLE,Approve paths OWNER/PM
+Subcontracting,subcontract.approve_measurement,Approve subcontractor measurements,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,ROLE,Approve paths OWNER/PM
+Subcontracting,subcontract.approve_measurement,Approve subcontractor measurements,ACCOUNTANT,Accountant,NO,FAIL,MATCH,ROLE,Approve paths OWNER/PM
+Subcontracting,subcontract.approve_measurement,Approve subcontractor measurements,INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,ROLE,Approve paths OWNER/PM
+Invoices (Money In),invoice.view,View client invoices,OWNER,Owner / MD,YES,UNGATED,N/A,AUTH_ONLY,GET invoices: authenticate only
+Invoices (Money In),invoice.view,View client invoices,PM,Project Manager,NO,UNGATED,N/A,AUTH_ONLY,GET invoices: authenticate only
+Invoices (Money In),invoice.view,View client invoices,DPM,Deputy Project Manager,NO,UNGATED,N/A,AUTH_ONLY,GET invoices: authenticate only
+Invoices (Money In),invoice.view,View client invoices,QC,Senior QC Engineer,NO,UNGATED,N/A,AUTH_ONLY,GET invoices: authenticate only
+Invoices (Money In),invoice.view,View client invoices,MECHANICAL_MANAGER,Mechanical Manager,NO,UNGATED,N/A,AUTH_ONLY,GET invoices: authenticate only
+Invoices (Money In),invoice.view,View client invoices,STORE_INCHARGE,Store Incharge,NO,UNGATED,N/A,AUTH_ONLY,GET invoices: authenticate only
+Invoices (Money In),invoice.view,View client invoices,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,UNGATED,N/A,AUTH_ONLY,GET invoices: authenticate only
+Invoices (Money In),invoice.view,View client invoices,SITE_SUPERVISOR,Site Supervisor,NO,UNGATED,N/A,AUTH_ONLY,GET invoices: authenticate only
+Invoices (Money In),invoice.view,View client invoices,SUPERVISOR,Site Supervisor (legacy),NO,UNGATED,N/A,AUTH_ONLY,GET invoices: authenticate only
+Invoices (Money In),invoice.view,View client invoices,ACCOUNTANT,Accountant,YES,UNGATED,N/A,AUTH_ONLY,GET invoices: authenticate only
+Invoices (Money In),invoice.view,View client invoices,INVENTORY_MANAGER,Inventory Manager,YES,UNGATED,N/A,AUTH_ONLY,GET invoices: authenticate only
+Invoices (Money In),invoice.create,Create client invoices (Standard / RA / Milestone),OWNER,Owner / MD,YES,PASS,MATCH,ROLE,requireRole(OWNER|PM|ACCOUNTANT|INVENTORY_MANAGER)
+Invoices (Money In),invoice.create,Create client invoices (Standard / RA / Milestone),PM,Project Manager,NO,PASS,OVER,ROLE,requireRole(OWNER|PM|ACCOUNTANT|INVENTORY_MANAGER)
+Invoices (Money In),invoice.create,Create client invoices (Standard / RA / Milestone),DPM,Deputy Project Manager,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM|ACCOUNTANT|INVENTORY_MANAGER)
+Invoices (Money In),invoice.create,Create client invoices (Standard / RA / Milestone),QC,Senior QC Engineer,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM|ACCOUNTANT|INVENTORY_MANAGER)
+Invoices (Money In),invoice.create,Create client invoices (Standard / RA / Milestone),MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM|ACCOUNTANT|INVENTORY_MANAGER)
+Invoices (Money In),invoice.create,Create client invoices (Standard / RA / Milestone),STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM|ACCOUNTANT|INVENTORY_MANAGER)
+Invoices (Money In),invoice.create,Create client invoices (Standard / RA / Milestone),WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM|ACCOUNTANT|INVENTORY_MANAGER)
+Invoices (Money In),invoice.create,Create client invoices (Standard / RA / Milestone),SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM|ACCOUNTANT|INVENTORY_MANAGER)
+Invoices (Money In),invoice.create,Create client invoices (Standard / RA / Milestone),SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM|ACCOUNTANT|INVENTORY_MANAGER)
+Invoices (Money In),invoice.create,Create client invoices (Standard / RA / Milestone),ACCOUNTANT,Accountant,YES,PASS,MATCH,ROLE,requireRole(OWNER|PM|ACCOUNTANT|INVENTORY_MANAGER)
+Invoices (Money In),invoice.create,Create client invoices (Standard / RA / Milestone),INVENTORY_MANAGER,Inventory Manager,YES,PASS,MATCH,ROLE,requireRole(OWNER|PM|ACCOUNTANT|INVENTORY_MANAGER)
+Invoices (Money In),invoice.record_payment,Record client payments,OWNER,Owner / MD,YES,PASS,MATCH,ROLE,requireRole(OWNER|ACCOUNTANT|INVENTORY_MANAGER)
+Invoices (Money In),invoice.record_payment,Record client payments,PM,Project Manager,NO,FAIL,MATCH,ROLE,requireRole(OWNER|ACCOUNTANT|INVENTORY_MANAGER)
+Invoices (Money In),invoice.record_payment,Record client payments,DPM,Deputy Project Manager,NO,FAIL,MATCH,ROLE,requireRole(OWNER|ACCOUNTANT|INVENTORY_MANAGER)
+Invoices (Money In),invoice.record_payment,Record client payments,QC,Senior QC Engineer,NO,FAIL,MATCH,ROLE,requireRole(OWNER|ACCOUNTANT|INVENTORY_MANAGER)
+Invoices (Money In),invoice.record_payment,Record client payments,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,ROLE,requireRole(OWNER|ACCOUNTANT|INVENTORY_MANAGER)
+Invoices (Money In),invoice.record_payment,Record client payments,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,ROLE,requireRole(OWNER|ACCOUNTANT|INVENTORY_MANAGER)
+Invoices (Money In),invoice.record_payment,Record client payments,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,ROLE,requireRole(OWNER|ACCOUNTANT|INVENTORY_MANAGER)
+Invoices (Money In),invoice.record_payment,Record client payments,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,ROLE,requireRole(OWNER|ACCOUNTANT|INVENTORY_MANAGER)
+Invoices (Money In),invoice.record_payment,Record client payments,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,ROLE,requireRole(OWNER|ACCOUNTANT|INVENTORY_MANAGER)
+Invoices (Money In),invoice.record_payment,Record client payments,ACCOUNTANT,Accountant,YES,PASS,MATCH,ROLE,requireRole(OWNER|ACCOUNTANT|INVENTORY_MANAGER)
+Invoices (Money In),invoice.record_payment,Record client payments,INVENTORY_MANAGER,Inventory Manager,YES,PASS,MATCH,ROLE,requireRole(OWNER|ACCOUNTANT|INVENTORY_MANAGER)
+Bills (Money Out),bill.view,View vendor bills,OWNER,Owner / MD,YES,PASS,MATCH,PERMISSION,[route requirePermission ×4]
+Bills (Money Out),bill.view,View vendor bills,PM,Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×4]
+Bills (Money Out),bill.view,View vendor bills,DPM,Deputy Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×4]
+Bills (Money Out),bill.view,View vendor bills,QC,Senior QC Engineer,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×4]
+Bills (Money Out),bill.view,View vendor bills,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×4]
+Bills (Money Out),bill.view,View vendor bills,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×4]
+Bills (Money Out),bill.view,View vendor bills,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×4]
+Bills (Money Out),bill.view,View vendor bills,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×4]
+Bills (Money Out),bill.view,View vendor bills,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,PERMISSION,[route requirePermission ×4]
+Bills (Money Out),bill.view,View vendor bills,ACCOUNTANT,Accountant,YES,PASS,MATCH,PERMISSION,[route requirePermission ×4]
+Bills (Money Out),bill.view,View vendor bills,INVENTORY_MANAGER,Inventory Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×4]
+Bills (Money Out),bill.create,Create vendor bills,OWNER,Owner / MD,YES,PASS,MATCH,PERMISSION,[route requirePermission ×6]
+Bills (Money Out),bill.create,Create vendor bills,PM,Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×6]
+Bills (Money Out),bill.create,Create vendor bills,DPM,Deputy Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×6]
+Bills (Money Out),bill.create,Create vendor bills,QC,Senior QC Engineer,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×6]
+Bills (Money Out),bill.create,Create vendor bills,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×6]
+Bills (Money Out),bill.create,Create vendor bills,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×6]
+Bills (Money Out),bill.create,Create vendor bills,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×6]
+Bills (Money Out),bill.create,Create vendor bills,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×6]
+Bills (Money Out),bill.create,Create vendor bills,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,PERMISSION,[route requirePermission ×6]
+Bills (Money Out),bill.create,Create vendor bills,ACCOUNTANT,Accountant,YES,PASS,MATCH,PERMISSION,[route requirePermission ×6]
+Bills (Money Out),bill.create,Create vendor bills,INVENTORY_MANAGER,Inventory Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×6]
+Bills (Money Out),bill.approve,Approve vendor bills,OWNER,Owner / MD,YES,PASS,MATCH,PERMISSION,[route requirePermission ×2]
+Bills (Money Out),bill.approve,Approve vendor bills,PM,Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Bills (Money Out),bill.approve,Approve vendor bills,DPM,Deputy Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Bills (Money Out),bill.approve,Approve vendor bills,QC,Senior QC Engineer,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Bills (Money Out),bill.approve,Approve vendor bills,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Bills (Money Out),bill.approve,Approve vendor bills,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Bills (Money Out),bill.approve,Approve vendor bills,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Bills (Money Out),bill.approve,Approve vendor bills,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Bills (Money Out),bill.approve,Approve vendor bills,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Bills (Money Out),bill.approve,Approve vendor bills,ACCOUNTANT,Accountant,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Bills (Money Out),bill.approve,Approve vendor bills,INVENTORY_MANAGER,Inventory Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×2]
+Bills (Money Out),bill.record_payment,Pay vendor bills,OWNER,Owner / MD,YES,PASS,MATCH,PERMISSION,[route requirePermission ×2]
+Bills (Money Out),bill.record_payment,Pay vendor bills,PM,Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Bills (Money Out),bill.record_payment,Pay vendor bills,DPM,Deputy Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Bills (Money Out),bill.record_payment,Pay vendor bills,QC,Senior QC Engineer,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Bills (Money Out),bill.record_payment,Pay vendor bills,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Bills (Money Out),bill.record_payment,Pay vendor bills,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Bills (Money Out),bill.record_payment,Pay vendor bills,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Bills (Money Out),bill.record_payment,Pay vendor bills,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Bills (Money Out),bill.record_payment,Pay vendor bills,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Bills (Money Out),bill.record_payment,Pay vendor bills,ACCOUNTANT,Accountant,YES,PASS,MATCH,PERMISSION,[route requirePermission ×2]
+Bills (Money Out),bill.record_payment,Pay vendor bills,INVENTORY_MANAGER,Inventory Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×2]
+Accounting Export,tally.export,Export invoices & bills to Tally XML,OWNER,Owner / MD,YES,PASS,MATCH,ROLE,accounting-export + financial-report role lists
+Accounting Export,tally.export,Export invoices & bills to Tally XML,PM,Project Manager,YES,PASS,MATCH,ROLE,accounting-export + financial-report role lists
+Accounting Export,tally.export,Export invoices & bills to Tally XML,DPM,Deputy Project Manager,NO,FAIL,MATCH,ROLE,accounting-export + financial-report role lists
+Accounting Export,tally.export,Export invoices & bills to Tally XML,QC,Senior QC Engineer,NO,FAIL,MATCH,ROLE,accounting-export + financial-report role lists
+Accounting Export,tally.export,Export invoices & bills to Tally XML,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,ROLE,accounting-export + financial-report role lists
+Accounting Export,tally.export,Export invoices & bills to Tally XML,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,ROLE,accounting-export + financial-report role lists
+Accounting Export,tally.export,Export invoices & bills to Tally XML,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,ROLE,accounting-export + financial-report role lists
+Accounting Export,tally.export,Export invoices & bills to Tally XML,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,ROLE,accounting-export + financial-report role lists
+Accounting Export,tally.export,Export invoices & bills to Tally XML,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,ROLE,accounting-export + financial-report role lists
+Accounting Export,tally.export,Export invoices & bills to Tally XML,ACCOUNTANT,Accountant,YES,PASS,MATCH,ROLE,accounting-export + financial-report role lists
+Accounting Export,tally.export,Export invoices & bills to Tally XML,INVENTORY_MANAGER,Inventory Manager,YES,PASS,MATCH,ROLE,accounting-export + financial-report role lists
+Financials,financials.view_amounts,"View monetary amounts (rates, totals, payments)",OWNER,Owner / MD,YES,FIELD,N/A,FIELD,UI masking; financial report routes use role lists
+Financials,financials.view_amounts,"View monetary amounts (rates, totals, payments)",PM,Project Manager,YES,FIELD,N/A,FIELD,UI masking; financial report routes use role lists
+Financials,financials.view_amounts,"View monetary amounts (rates, totals, payments)",DPM,Deputy Project Manager,YES,FIELD,N/A,FIELD,UI masking; financial report routes use role lists
+Financials,financials.view_amounts,"View monetary amounts (rates, totals, payments)",QC,Senior QC Engineer,NO,FIELD,N/A,FIELD,UI masking; financial report routes use role lists
+Financials,financials.view_amounts,"View monetary amounts (rates, totals, payments)",MECHANICAL_MANAGER,Mechanical Manager,NO,FIELD,N/A,FIELD,UI masking; financial report routes use role lists
+Financials,financials.view_amounts,"View monetary amounts (rates, totals, payments)",STORE_INCHARGE,Store Incharge,NO,FIELD,N/A,FIELD,UI masking; financial report routes use role lists
+Financials,financials.view_amounts,"View monetary amounts (rates, totals, payments)",WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FIELD,N/A,FIELD,UI masking; financial report routes use role lists
+Financials,financials.view_amounts,"View monetary amounts (rates, totals, payments)",SITE_SUPERVISOR,Site Supervisor,NO,FIELD,N/A,FIELD,UI masking; financial report routes use role lists
+Financials,financials.view_amounts,"View monetary amounts (rates, totals, payments)",SUPERVISOR,Site Supervisor (legacy),NO,FIELD,N/A,FIELD,UI masking; financial report routes use role lists
+Financials,financials.view_amounts,"View monetary amounts (rates, totals, payments)",ACCOUNTANT,Accountant,YES,FIELD,N/A,FIELD,UI masking; financial report routes use role lists
+Financials,financials.view_amounts,"View monetary amounts (rates, totals, payments)",INVENTORY_MANAGER,Inventory Manager,YES,FIELD,N/A,FIELD,UI masking; financial report routes use role lists
+Financials,financials.view_profit,View profit margins & P&L,OWNER,Owner / MD,YES,PASS,MATCH,ROLE,P&L/cashflow requireRole
+Financials,financials.view_profit,View profit margins & P&L,PM,Project Manager,NO,PASS,OVER,ROLE,P&L/cashflow requireRole
+Financials,financials.view_profit,View profit margins & P&L,DPM,Deputy Project Manager,NO,FAIL,MATCH,ROLE,P&L/cashflow requireRole
+Financials,financials.view_profit,View profit margins & P&L,QC,Senior QC Engineer,NO,FAIL,MATCH,ROLE,P&L/cashflow requireRole
+Financials,financials.view_profit,View profit margins & P&L,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,ROLE,P&L/cashflow requireRole
+Financials,financials.view_profit,View profit margins & P&L,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,ROLE,P&L/cashflow requireRole
+Financials,financials.view_profit,View profit margins & P&L,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,ROLE,P&L/cashflow requireRole
+Financials,financials.view_profit,View profit margins & P&L,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,ROLE,P&L/cashflow requireRole
+Financials,financials.view_profit,View profit margins & P&L,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,ROLE,P&L/cashflow requireRole
+Financials,financials.view_profit,View profit margins & P&L,ACCOUNTANT,Accountant,YES,PASS,MATCH,ROLE,P&L/cashflow requireRole
+Financials,financials.view_profit,View profit margins & P&L,INVENTORY_MANAGER,Inventory Manager,YES,PASS,MATCH,ROLE,P&L/cashflow requireRole
+Financials,financials.view_budget,View project budgets & budget utilization,OWNER,Owner / MD,YES,FIELD,N/A,FIELD,Mostly UI / summary fields
+Financials,financials.view_budget,View project budgets & budget utilization,PM,Project Manager,YES,FIELD,N/A,FIELD,Mostly UI / summary fields
+Financials,financials.view_budget,View project budgets & budget utilization,DPM,Deputy Project Manager,YES,FIELD,N/A,FIELD,Mostly UI / summary fields
+Financials,financials.view_budget,View project budgets & budget utilization,QC,Senior QC Engineer,NO,FIELD,N/A,FIELD,Mostly UI / summary fields
+Financials,financials.view_budget,View project budgets & budget utilization,MECHANICAL_MANAGER,Mechanical Manager,NO,FIELD,N/A,FIELD,Mostly UI / summary fields
+Financials,financials.view_budget,View project budgets & budget utilization,STORE_INCHARGE,Store Incharge,NO,FIELD,N/A,FIELD,Mostly UI / summary fields
+Financials,financials.view_budget,View project budgets & budget utilization,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FIELD,N/A,FIELD,Mostly UI / summary fields
+Financials,financials.view_budget,View project budgets & budget utilization,SITE_SUPERVISOR,Site Supervisor,NO,FIELD,N/A,FIELD,Mostly UI / summary fields
+Financials,financials.view_budget,View project budgets & budget utilization,SUPERVISOR,Site Supervisor (legacy),NO,FIELD,N/A,FIELD,Mostly UI / summary fields
+Financials,financials.view_budget,View project budgets & budget utilization,ACCOUNTANT,Accountant,YES,FIELD,N/A,FIELD,Mostly UI / summary fields
+Financials,financials.view_budget,View project budgets & budget utilization,INVENTORY_MANAGER,Inventory Manager,NO,FIELD,N/A,FIELD,Mostly UI / summary fields
+Change Orders,change_order.view,View change orders / variations,OWNER,Owner / MD,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Change Orders,change_order.view,View change orders / variations,PM,Project Manager,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Change Orders,change_order.view,View change orders / variations,DPM,Deputy Project Manager,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Change Orders,change_order.view,View change orders / variations,QC,Senior QC Engineer,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Change Orders,change_order.view,View change orders / variations,MECHANICAL_MANAGER,Mechanical Manager,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Change Orders,change_order.view,View change orders / variations,STORE_INCHARGE,Store Incharge,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Change Orders,change_order.view,View change orders / variations,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Change Orders,change_order.view,View change orders / variations,SITE_SUPERVISOR,Site Supervisor,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Change Orders,change_order.view,View change orders / variations,SUPERVISOR,Site Supervisor (legacy),NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Change Orders,change_order.view,View change orders / variations,ACCOUNTANT,Accountant,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Change Orders,change_order.view,View change orders / variations,INVENTORY_MANAGER,Inventory Manager,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Change Orders,change_order.create,Create change orders,OWNER,Owner / MD,YES,PASS,MATCH,ROLE,requireRole(OWNER|PM)
+Change Orders,change_order.create,Create change orders,PM,Project Manager,YES,PASS,MATCH,ROLE,requireRole(OWNER|PM)
+Change Orders,change_order.create,Create change orders,DPM,Deputy Project Manager,YES,FAIL,UNDER,ROLE,requireRole(OWNER|PM)
+Change Orders,change_order.create,Create change orders,QC,Senior QC Engineer,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM)
+Change Orders,change_order.create,Create change orders,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM)
+Change Orders,change_order.create,Create change orders,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM)
+Change Orders,change_order.create,Create change orders,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM)
+Change Orders,change_order.create,Create change orders,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM)
+Change Orders,change_order.create,Create change orders,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM)
+Change Orders,change_order.create,Create change orders,ACCOUNTANT,Accountant,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM)
+Change Orders,change_order.create,Create change orders,INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM)
+Change Orders,change_order.approve,Approve / reject change orders,OWNER,Owner / MD,YES,PASS,MATCH,ROLE,requireRole(OWNER)
+Change Orders,change_order.approve,Approve / reject change orders,PM,Project Manager,NO,FAIL,MATCH,ROLE,requireRole(OWNER)
+Change Orders,change_order.approve,Approve / reject change orders,DPM,Deputy Project Manager,NO,FAIL,MATCH,ROLE,requireRole(OWNER)
+Change Orders,change_order.approve,Approve / reject change orders,QC,Senior QC Engineer,NO,FAIL,MATCH,ROLE,requireRole(OWNER)
+Change Orders,change_order.approve,Approve / reject change orders,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,ROLE,requireRole(OWNER)
+Change Orders,change_order.approve,Approve / reject change orders,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,ROLE,requireRole(OWNER)
+Change Orders,change_order.approve,Approve / reject change orders,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,ROLE,requireRole(OWNER)
+Change Orders,change_order.approve,Approve / reject change orders,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,ROLE,requireRole(OWNER)
+Change Orders,change_order.approve,Approve / reject change orders,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,ROLE,requireRole(OWNER)
+Change Orders,change_order.approve,Approve / reject change orders,ACCOUNTANT,Accountant,NO,FAIL,MATCH,ROLE,requireRole(OWNER)
+Change Orders,change_order.approve,Approve / reject change orders,INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,ROLE,requireRole(OWNER)
+Site Petty Cash,petty_cash.view,View site petty cash & expense vouchers,OWNER,Owner / MD,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Site Petty Cash,petty_cash.view,View site petty cash & expense vouchers,PM,Project Manager,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Site Petty Cash,petty_cash.view,View site petty cash & expense vouchers,DPM,Deputy Project Manager,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Site Petty Cash,petty_cash.view,View site petty cash & expense vouchers,QC,Senior QC Engineer,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Site Petty Cash,petty_cash.view,View site petty cash & expense vouchers,MECHANICAL_MANAGER,Mechanical Manager,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Site Petty Cash,petty_cash.view,View site petty cash & expense vouchers,STORE_INCHARGE,Store Incharge,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Site Petty Cash,petty_cash.view,View site petty cash & expense vouchers,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Site Petty Cash,petty_cash.view,View site petty cash & expense vouchers,SITE_SUPERVISOR,Site Supervisor,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Site Petty Cash,petty_cash.view,View site petty cash & expense vouchers,SUPERVISOR,Site Supervisor (legacy),YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Site Petty Cash,petty_cash.view,View site petty cash & expense vouchers,ACCOUNTANT,Accountant,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Site Petty Cash,petty_cash.view,View site petty cash & expense vouchers,INVENTORY_MANAGER,Inventory Manager,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Site Petty Cash,petty_cash.create,Log site petty cash expenses & snap receipts,OWNER,Owner / MD,YES,PASS,MATCH,ROLE,requireRole(OWNER|PM|SITE_SUPERVISOR|ACCOUNTANT)
+Site Petty Cash,petty_cash.create,Log site petty cash expenses & snap receipts,PM,Project Manager,YES,PASS,MATCH,ROLE,requireRole(OWNER|PM|SITE_SUPERVISOR|ACCOUNTANT)
+Site Petty Cash,petty_cash.create,Log site petty cash expenses & snap receipts,DPM,Deputy Project Manager,YES,FAIL,UNDER,ROLE,requireRole(OWNER|PM|SITE_SUPERVISOR|ACCOUNTANT)
+Site Petty Cash,petty_cash.create,Log site petty cash expenses & snap receipts,QC,Senior QC Engineer,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM|SITE_SUPERVISOR|ACCOUNTANT)
+Site Petty Cash,petty_cash.create,Log site petty cash expenses & snap receipts,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM|SITE_SUPERVISOR|ACCOUNTANT)
+Site Petty Cash,petty_cash.create,Log site petty cash expenses & snap receipts,STORE_INCHARGE,Store Incharge,YES,FAIL,UNDER,ROLE,requireRole(OWNER|PM|SITE_SUPERVISOR|ACCOUNTANT)
+Site Petty Cash,petty_cash.create,Log site petty cash expenses & snap receipts,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM|SITE_SUPERVISOR|ACCOUNTANT)
+Site Petty Cash,petty_cash.create,Log site petty cash expenses & snap receipts,SITE_SUPERVISOR,Site Supervisor,YES,PASS,MATCH,ROLE,requireRole(OWNER|PM|SITE_SUPERVISOR|ACCOUNTANT)
+Site Petty Cash,petty_cash.create,Log site petty cash expenses & snap receipts,SUPERVISOR,Site Supervisor (legacy),YES,FAIL,UNDER,ROLE,requireRole(OWNER|PM|SITE_SUPERVISOR|ACCOUNTANT)
+Site Petty Cash,petty_cash.create,Log site petty cash expenses & snap receipts,ACCOUNTANT,Accountant,YES,PASS,MATCH,ROLE,requireRole(OWNER|PM|SITE_SUPERVISOR|ACCOUNTANT)
+Site Petty Cash,petty_cash.create,Log site petty cash expenses & snap receipts,INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM|SITE_SUPERVISOR|ACCOUNTANT)
+Site Petty Cash,petty_cash.approve,Approve / reject petty cash expense vouchers,OWNER,Owner / MD,YES,UNGATED,N/A,UNGATED,No distinct approve route guard found in petty-cash.routes (mutations = create roles)
+Site Petty Cash,petty_cash.approve,Approve / reject petty cash expense vouchers,PM,Project Manager,YES,UNGATED,N/A,UNGATED,No distinct approve route guard found in petty-cash.routes (mutations = create roles)
+Site Petty Cash,petty_cash.approve,Approve / reject petty cash expense vouchers,DPM,Deputy Project Manager,NO,UNGATED,N/A,UNGATED,No distinct approve route guard found in petty-cash.routes (mutations = create roles)
+Site Petty Cash,petty_cash.approve,Approve / reject petty cash expense vouchers,QC,Senior QC Engineer,NO,UNGATED,N/A,UNGATED,No distinct approve route guard found in petty-cash.routes (mutations = create roles)
+Site Petty Cash,petty_cash.approve,Approve / reject petty cash expense vouchers,MECHANICAL_MANAGER,Mechanical Manager,NO,UNGATED,N/A,UNGATED,No distinct approve route guard found in petty-cash.routes (mutations = create roles)
+Site Petty Cash,petty_cash.approve,Approve / reject petty cash expense vouchers,STORE_INCHARGE,Store Incharge,NO,UNGATED,N/A,UNGATED,No distinct approve route guard found in petty-cash.routes (mutations = create roles)
+Site Petty Cash,petty_cash.approve,Approve / reject petty cash expense vouchers,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,UNGATED,N/A,UNGATED,No distinct approve route guard found in petty-cash.routes (mutations = create roles)
+Site Petty Cash,petty_cash.approve,Approve / reject petty cash expense vouchers,SITE_SUPERVISOR,Site Supervisor,NO,UNGATED,N/A,UNGATED,No distinct approve route guard found in petty-cash.routes (mutations = create roles)
+Site Petty Cash,petty_cash.approve,Approve / reject petty cash expense vouchers,SUPERVISOR,Site Supervisor (legacy),NO,UNGATED,N/A,UNGATED,No distinct approve route guard found in petty-cash.routes (mutations = create roles)
+Site Petty Cash,petty_cash.approve,Approve / reject petty cash expense vouchers,ACCOUNTANT,Accountant,YES,UNGATED,N/A,UNGATED,No distinct approve route guard found in petty-cash.routes (mutations = create roles)
+Site Petty Cash,petty_cash.approve,Approve / reject petty cash expense vouchers,INVENTORY_MANAGER,Inventory Manager,NO,UNGATED,N/A,UNGATED,No distinct approve route guard found in petty-cash.routes (mutations = create roles)
+Drawings & Blueprints,drawing.view,View blueprints & architectural / structural drawings,OWNER,Owner / MD,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Drawings & Blueprints,drawing.view,View blueprints & architectural / structural drawings,PM,Project Manager,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Drawings & Blueprints,drawing.view,View blueprints & architectural / structural drawings,DPM,Deputy Project Manager,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Drawings & Blueprints,drawing.view,View blueprints & architectural / structural drawings,QC,Senior QC Engineer,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Drawings & Blueprints,drawing.view,View blueprints & architectural / structural drawings,MECHANICAL_MANAGER,Mechanical Manager,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Drawings & Blueprints,drawing.view,View blueprints & architectural / structural drawings,STORE_INCHARGE,Store Incharge,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Drawings & Blueprints,drawing.view,View blueprints & architectural / structural drawings,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Drawings & Blueprints,drawing.view,View blueprints & architectural / structural drawings,SITE_SUPERVISOR,Site Supervisor,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Drawings & Blueprints,drawing.view,View blueprints & architectural / structural drawings,SUPERVISOR,Site Supervisor (legacy),YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Drawings & Blueprints,drawing.view,View blueprints & architectural / structural drawings,ACCOUNTANT,Accountant,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Drawings & Blueprints,drawing.view,View blueprints & architectural / structural drawings,INVENTORY_MANAGER,Inventory Manager,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Drawings & Blueprints,drawing.upload,Upload project drawings & new revisions,OWNER,Owner / MD,YES,PASS,MATCH,ROLE,requireRole(OWNER|PM|SITE_SUPERVISOR|DPM)
+Drawings & Blueprints,drawing.upload,Upload project drawings & new revisions,PM,Project Manager,YES,PASS,MATCH,ROLE,requireRole(OWNER|PM|SITE_SUPERVISOR|DPM)
+Drawings & Blueprints,drawing.upload,Upload project drawings & new revisions,DPM,Deputy Project Manager,YES,PASS,MATCH,ROLE,requireRole(OWNER|PM|SITE_SUPERVISOR|DPM)
+Drawings & Blueprints,drawing.upload,Upload project drawings & new revisions,QC,Senior QC Engineer,YES,FAIL,UNDER,ROLE,requireRole(OWNER|PM|SITE_SUPERVISOR|DPM)
+Drawings & Blueprints,drawing.upload,Upload project drawings & new revisions,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM|SITE_SUPERVISOR|DPM)
+Drawings & Blueprints,drawing.upload,Upload project drawings & new revisions,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM|SITE_SUPERVISOR|DPM)
+Drawings & Blueprints,drawing.upload,Upload project drawings & new revisions,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM|SITE_SUPERVISOR|DPM)
+Drawings & Blueprints,drawing.upload,Upload project drawings & new revisions,SITE_SUPERVISOR,Site Supervisor,NO,PASS,OVER,ROLE,requireRole(OWNER|PM|SITE_SUPERVISOR|DPM)
+Drawings & Blueprints,drawing.upload,Upload project drawings & new revisions,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM|SITE_SUPERVISOR|DPM)
+Drawings & Blueprints,drawing.upload,Upload project drawings & new revisions,ACCOUNTANT,Accountant,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM|SITE_SUPERVISOR|DPM)
+Drawings & Blueprints,drawing.upload,Upload project drawings & new revisions,INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM|SITE_SUPERVISOR|DPM)
+Drawings & Blueprints,drawing.manage,Manage drawing status & approval revisions,OWNER,Owner / MD,YES,PASS,MATCH,ROLE,Same MUT as upload
+Drawings & Blueprints,drawing.manage,Manage drawing status & approval revisions,PM,Project Manager,YES,PASS,MATCH,ROLE,Same MUT as upload
+Drawings & Blueprints,drawing.manage,Manage drawing status & approval revisions,DPM,Deputy Project Manager,NO,PASS,OVER,ROLE,Same MUT as upload
+Drawings & Blueprints,drawing.manage,Manage drawing status & approval revisions,QC,Senior QC Engineer,YES,FAIL,UNDER,ROLE,Same MUT as upload
+Drawings & Blueprints,drawing.manage,Manage drawing status & approval revisions,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,ROLE,Same MUT as upload
+Drawings & Blueprints,drawing.manage,Manage drawing status & approval revisions,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,ROLE,Same MUT as upload
+Drawings & Blueprints,drawing.manage,Manage drawing status & approval revisions,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,ROLE,Same MUT as upload
+Drawings & Blueprints,drawing.manage,Manage drawing status & approval revisions,SITE_SUPERVISOR,Site Supervisor,NO,PASS,OVER,ROLE,Same MUT as upload
+Drawings & Blueprints,drawing.manage,Manage drawing status & approval revisions,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,ROLE,Same MUT as upload
+Drawings & Blueprints,drawing.manage,Manage drawing status & approval revisions,ACCOUNTANT,Accountant,NO,FAIL,MATCH,ROLE,Same MUT as upload
+Drawings & Blueprints,drawing.manage,Manage drawing status & approval revisions,INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,ROLE,Same MUT as upload
+Snag List & Quality NCRs,snag.view,View snag list & defect items,OWNER,Owner / MD,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Snag List & Quality NCRs,snag.view,View snag list & defect items,PM,Project Manager,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Snag List & Quality NCRs,snag.view,View snag list & defect items,DPM,Deputy Project Manager,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Snag List & Quality NCRs,snag.view,View snag list & defect items,QC,Senior QC Engineer,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Snag List & Quality NCRs,snag.view,View snag list & defect items,MECHANICAL_MANAGER,Mechanical Manager,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Snag List & Quality NCRs,snag.view,View snag list & defect items,STORE_INCHARGE,Store Incharge,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Snag List & Quality NCRs,snag.view,View snag list & defect items,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Snag List & Quality NCRs,snag.view,View snag list & defect items,SITE_SUPERVISOR,Site Supervisor,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Snag List & Quality NCRs,snag.view,View snag list & defect items,SUPERVISOR,Site Supervisor (legacy),YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Snag List & Quality NCRs,snag.view,View snag list & defect items,ACCOUNTANT,Accountant,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Snag List & Quality NCRs,snag.view,View snag list & defect items,INVENTORY_MANAGER,Inventory Manager,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Snag List & Quality NCRs,snag.create,Log new site snags & defect evidence photos,OWNER,Owner / MD,YES,PASS,MATCH,ROLE,punch-list MUT
+Snag List & Quality NCRs,snag.create,Log new site snags & defect evidence photos,PM,Project Manager,YES,PASS,MATCH,ROLE,punch-list MUT
+Snag List & Quality NCRs,snag.create,Log new site snags & defect evidence photos,DPM,Deputy Project Manager,YES,FAIL,UNDER,ROLE,punch-list MUT
+Snag List & Quality NCRs,snag.create,Log new site snags & defect evidence photos,QC,Senior QC Engineer,YES,PASS,MATCH,ROLE,punch-list MUT
+Snag List & Quality NCRs,snag.create,Log new site snags & defect evidence photos,MECHANICAL_MANAGER,Mechanical Manager,YES,FAIL,UNDER,ROLE,punch-list MUT
+Snag List & Quality NCRs,snag.create,Log new site snags & defect evidence photos,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,ROLE,punch-list MUT
+Snag List & Quality NCRs,snag.create,Log new site snags & defect evidence photos,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,ROLE,punch-list MUT
+Snag List & Quality NCRs,snag.create,Log new site snags & defect evidence photos,SITE_SUPERVISOR,Site Supervisor,YES,PASS,MATCH,ROLE,punch-list MUT
+Snag List & Quality NCRs,snag.create,Log new site snags & defect evidence photos,SUPERVISOR,Site Supervisor (legacy),YES,FAIL,UNDER,ROLE,punch-list MUT
+Snag List & Quality NCRs,snag.create,Log new site snags & defect evidence photos,ACCOUNTANT,Accountant,NO,FAIL,MATCH,ROLE,punch-list MUT
+Snag List & Quality NCRs,snag.create,Log new site snags & defect evidence photos,INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,ROLE,punch-list MUT
+Snag List & Quality NCRs,snag.rectify,"Rectify, update status & sign-off snags / NCRs",OWNER,Owner / MD,YES,PASS,MATCH,ROLE,Same MUT group
+Snag List & Quality NCRs,snag.rectify,"Rectify, update status & sign-off snags / NCRs",PM,Project Manager,YES,PASS,MATCH,ROLE,Same MUT group
+Snag List & Quality NCRs,snag.rectify,"Rectify, update status & sign-off snags / NCRs",DPM,Deputy Project Manager,YES,FAIL,UNDER,ROLE,Same MUT group
+Snag List & Quality NCRs,snag.rectify,"Rectify, update status & sign-off snags / NCRs",QC,Senior QC Engineer,YES,PASS,MATCH,ROLE,Same MUT group
+Snag List & Quality NCRs,snag.rectify,"Rectify, update status & sign-off snags / NCRs",MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,ROLE,Same MUT group
+Snag List & Quality NCRs,snag.rectify,"Rectify, update status & sign-off snags / NCRs",STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,ROLE,Same MUT group
+Snag List & Quality NCRs,snag.rectify,"Rectify, update status & sign-off snags / NCRs",WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,ROLE,Same MUT group
+Snag List & Quality NCRs,snag.rectify,"Rectify, update status & sign-off snags / NCRs",SITE_SUPERVISOR,Site Supervisor,NO,PASS,OVER,ROLE,Same MUT group
+Snag List & Quality NCRs,snag.rectify,"Rectify, update status & sign-off snags / NCRs",SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,ROLE,Same MUT group
+Snag List & Quality NCRs,snag.rectify,"Rectify, update status & sign-off snags / NCRs",ACCOUNTANT,Accountant,NO,FAIL,MATCH,ROLE,Same MUT group
+Snag List & Quality NCRs,snag.rectify,"Rectify, update status & sign-off snags / NCRs",INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,ROLE,Same MUT group
+Labor Muster & Wages,labor.view,View site gang muster & wage settlement sheets,OWNER,Owner / MD,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Labor Muster & Wages,labor.view,View site gang muster & wage settlement sheets,PM,Project Manager,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Labor Muster & Wages,labor.view,View site gang muster & wage settlement sheets,DPM,Deputy Project Manager,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Labor Muster & Wages,labor.view,View site gang muster & wage settlement sheets,QC,Senior QC Engineer,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Labor Muster & Wages,labor.view,View site gang muster & wage settlement sheets,MECHANICAL_MANAGER,Mechanical Manager,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Labor Muster & Wages,labor.view,View site gang muster & wage settlement sheets,STORE_INCHARGE,Store Incharge,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Labor Muster & Wages,labor.view,View site gang muster & wage settlement sheets,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Labor Muster & Wages,labor.view,View site gang muster & wage settlement sheets,SITE_SUPERVISOR,Site Supervisor,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Labor Muster & Wages,labor.view,View site gang muster & wage settlement sheets,SUPERVISOR,Site Supervisor (legacy),YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Labor Muster & Wages,labor.view,View site gang muster & wage settlement sheets,ACCOUNTANT,Accountant,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Labor Muster & Wages,labor.view,View site gang muster & wage settlement sheets,INVENTORY_MANAGER,Inventory Manager,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Labor Muster & Wages,labor.muster_edit,Record morning gang muster & overtime hours,OWNER,Owner / MD,YES,UNGATED,N/A,UNGATED,labour.routes mostly cost-tracking OWNER/PM/ACCOUNTANT
+Labor Muster & Wages,labor.muster_edit,Record morning gang muster & overtime hours,PM,Project Manager,YES,UNGATED,N/A,UNGATED,labour.routes mostly cost-tracking OWNER/PM/ACCOUNTANT
+Labor Muster & Wages,labor.muster_edit,Record morning gang muster & overtime hours,DPM,Deputy Project Manager,YES,UNGATED,N/A,UNGATED,labour.routes mostly cost-tracking OWNER/PM/ACCOUNTANT
+Labor Muster & Wages,labor.muster_edit,Record morning gang muster & overtime hours,QC,Senior QC Engineer,NO,UNGATED,N/A,UNGATED,labour.routes mostly cost-tracking OWNER/PM/ACCOUNTANT
+Labor Muster & Wages,labor.muster_edit,Record morning gang muster & overtime hours,MECHANICAL_MANAGER,Mechanical Manager,NO,UNGATED,N/A,UNGATED,labour.routes mostly cost-tracking OWNER/PM/ACCOUNTANT
+Labor Muster & Wages,labor.muster_edit,Record morning gang muster & overtime hours,STORE_INCHARGE,Store Incharge,NO,UNGATED,N/A,UNGATED,labour.routes mostly cost-tracking OWNER/PM/ACCOUNTANT
+Labor Muster & Wages,labor.muster_edit,Record morning gang muster & overtime hours,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,UNGATED,N/A,UNGATED,labour.routes mostly cost-tracking OWNER/PM/ACCOUNTANT
+Labor Muster & Wages,labor.muster_edit,Record morning gang muster & overtime hours,SITE_SUPERVISOR,Site Supervisor,YES,UNGATED,N/A,UNGATED,labour.routes mostly cost-tracking OWNER/PM/ACCOUNTANT
+Labor Muster & Wages,labor.muster_edit,Record morning gang muster & overtime hours,SUPERVISOR,Site Supervisor (legacy),YES,UNGATED,N/A,UNGATED,labour.routes mostly cost-tracking OWNER/PM/ACCOUNTANT
+Labor Muster & Wages,labor.muster_edit,Record morning gang muster & overtime hours,ACCOUNTANT,Accountant,NO,UNGATED,N/A,UNGATED,labour.routes mostly cost-tracking OWNER/PM/ACCOUNTANT
+Labor Muster & Wages,labor.muster_edit,Record morning gang muster & overtime hours,INVENTORY_MANAGER,Inventory Manager,NO,UNGATED,N/A,UNGATED,labour.routes mostly cost-tracking OWNER/PM/ACCOUNTANT
+Labor Muster & Wages,labor.wage_settle,Approve & settle weekly labor wage payouts,OWNER,Owner / MD,YES,PASS,MATCH,ROLE,labour cost-tracking roles (approx)
+Labor Muster & Wages,labor.wage_settle,Approve & settle weekly labor wage payouts,PM,Project Manager,YES,PASS,MATCH,ROLE,labour cost-tracking roles (approx)
+Labor Muster & Wages,labor.wage_settle,Approve & settle weekly labor wage payouts,DPM,Deputy Project Manager,NO,FAIL,MATCH,ROLE,labour cost-tracking roles (approx)
+Labor Muster & Wages,labor.wage_settle,Approve & settle weekly labor wage payouts,QC,Senior QC Engineer,NO,FAIL,MATCH,ROLE,labour cost-tracking roles (approx)
+Labor Muster & Wages,labor.wage_settle,Approve & settle weekly labor wage payouts,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,ROLE,labour cost-tracking roles (approx)
+Labor Muster & Wages,labor.wage_settle,Approve & settle weekly labor wage payouts,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,ROLE,labour cost-tracking roles (approx)
+Labor Muster & Wages,labor.wage_settle,Approve & settle weekly labor wage payouts,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,ROLE,labour cost-tracking roles (approx)
+Labor Muster & Wages,labor.wage_settle,Approve & settle weekly labor wage payouts,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,ROLE,labour cost-tracking roles (approx)
+Labor Muster & Wages,labor.wage_settle,Approve & settle weekly labor wage payouts,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,ROLE,labour cost-tracking roles (approx)
+Labor Muster & Wages,labor.wage_settle,Approve & settle weekly labor wage payouts,ACCOUNTANT,Accountant,YES,PASS,MATCH,ROLE,labour cost-tracking roles (approx)
+Labor Muster & Wages,labor.wage_settle,Approve & settle weekly labor wage payouts,INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,ROLE,labour cost-tracking roles (approx)
+Proposals & Portals,proposal.view,View proposals,OWNER,Owner / MD,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Proposals & Portals,proposal.view,View proposals,PM,Project Manager,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Proposals & Portals,proposal.view,View proposals,DPM,Deputy Project Manager,YES,UNGATED,N/A,AUTH_ONLY,authenticate only
+Proposals & Portals,proposal.view,View proposals,QC,Senior QC Engineer,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Proposals & Portals,proposal.view,View proposals,MECHANICAL_MANAGER,Mechanical Manager,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Proposals & Portals,proposal.view,View proposals,STORE_INCHARGE,Store Incharge,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Proposals & Portals,proposal.view,View proposals,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Proposals & Portals,proposal.view,View proposals,SITE_SUPERVISOR,Site Supervisor,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Proposals & Portals,proposal.view,View proposals,SUPERVISOR,Site Supervisor (legacy),NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Proposals & Portals,proposal.view,View proposals,ACCOUNTANT,Accountant,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Proposals & Portals,proposal.view,View proposals,INVENTORY_MANAGER,Inventory Manager,NO,UNGATED,N/A,AUTH_ONLY,authenticate only
+Proposals & Portals,proposal.create,Create & manage proposals,OWNER,Owner / MD,YES,PASS,MATCH,ROLE,proposal mutations OWNER
+Proposals & Portals,proposal.create,Create & manage proposals,PM,Project Manager,YES,FAIL,UNDER,ROLE,proposal mutations OWNER
+Proposals & Portals,proposal.create,Create & manage proposals,DPM,Deputy Project Manager,NO,FAIL,MATCH,ROLE,proposal mutations OWNER
+Proposals & Portals,proposal.create,Create & manage proposals,QC,Senior QC Engineer,NO,FAIL,MATCH,ROLE,proposal mutations OWNER
+Proposals & Portals,proposal.create,Create & manage proposals,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,ROLE,proposal mutations OWNER
+Proposals & Portals,proposal.create,Create & manage proposals,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,ROLE,proposal mutations OWNER
+Proposals & Portals,proposal.create,Create & manage proposals,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,ROLE,proposal mutations OWNER
+Proposals & Portals,proposal.create,Create & manage proposals,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,ROLE,proposal mutations OWNER
+Proposals & Portals,proposal.create,Create & manage proposals,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,ROLE,proposal mutations OWNER
+Proposals & Portals,proposal.create,Create & manage proposals,ACCOUNTANT,Accountant,NO,FAIL,MATCH,ROLE,proposal mutations OWNER
+Proposals & Portals,proposal.create,Create & manage proposals,INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,ROLE,proposal mutations OWNER
+Proposals & Portals,portal.manage,Manage client & subcontractor portal access,OWNER,Owner / MD,YES,PASS,MATCH,ROLE,requireRole(OWNER|PM)
+Proposals & Portals,portal.manage,Manage client & subcontractor portal access,PM,Project Manager,YES,PASS,MATCH,ROLE,requireRole(OWNER|PM)
+Proposals & Portals,portal.manage,Manage client & subcontractor portal access,DPM,Deputy Project Manager,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM)
+Proposals & Portals,portal.manage,Manage client & subcontractor portal access,QC,Senior QC Engineer,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM)
+Proposals & Portals,portal.manage,Manage client & subcontractor portal access,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM)
+Proposals & Portals,portal.manage,Manage client & subcontractor portal access,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM)
+Proposals & Portals,portal.manage,Manage client & subcontractor portal access,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM)
+Proposals & Portals,portal.manage,Manage client & subcontractor portal access,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM)
+Proposals & Portals,portal.manage,Manage client & subcontractor portal access,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM)
+Proposals & Portals,portal.manage,Manage client & subcontractor portal access,ACCOUNTANT,Accountant,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM)
+Proposals & Portals,portal.manage,Manage client & subcontractor portal access,INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,ROLE,requireRole(OWNER|PM)
+Settings,settings.company,Edit company profile & logo,OWNER,Owner / MD,YES,PASS,MATCH,PERMISSION,[route requirePermission ×3]
+Settings,settings.company,Edit company profile & logo,PM,Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×3]
+Settings,settings.company,Edit company profile & logo,DPM,Deputy Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×3]
+Settings,settings.company,Edit company profile & logo,QC,Senior QC Engineer,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×3]
+Settings,settings.company,Edit company profile & logo,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×3]
+Settings,settings.company,Edit company profile & logo,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×3]
+Settings,settings.company,Edit company profile & logo,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×3]
+Settings,settings.company,Edit company profile & logo,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×3]
+Settings,settings.company,Edit company profile & logo,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,PERMISSION,[route requirePermission ×3]
+Settings,settings.company,Edit company profile & logo,ACCOUNTANT,Accountant,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×3]
+Settings,settings.company,Edit company profile & logo,INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×3]
+Settings,settings.users,"Manage users, invites & roles",OWNER,Owner / MD,YES,PASS,MATCH,PERMISSION,[route requirePermission ×9]
+Settings,settings.users,"Manage users, invites & roles",PM,Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×9]
+Settings,settings.users,"Manage users, invites & roles",DPM,Deputy Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×9]
+Settings,settings.users,"Manage users, invites & roles",QC,Senior QC Engineer,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×9]
+Settings,settings.users,"Manage users, invites & roles",MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×9]
+Settings,settings.users,"Manage users, invites & roles",STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×9]
+Settings,settings.users,"Manage users, invites & roles",WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×9]
+Settings,settings.users,"Manage users, invites & roles",SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×9]
+Settings,settings.users,"Manage users, invites & roles",SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,PERMISSION,[route requirePermission ×9]
+Settings,settings.users,"Manage users, invites & roles",ACCOUNTANT,Accountant,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×9]
+Settings,settings.users,"Manage users, invites & roles",INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×9]
+Settings,settings.permissions,Customize role permissions,OWNER,Owner / MD,YES,PASS,MATCH,PERMISSION,[route requirePermission ×4]
+Settings,settings.permissions,Customize role permissions,PM,Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×4]
+Settings,settings.permissions,Customize role permissions,DPM,Deputy Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×4]
+Settings,settings.permissions,Customize role permissions,QC,Senior QC Engineer,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×4]
+Settings,settings.permissions,Customize role permissions,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×4]
+Settings,settings.permissions,Customize role permissions,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×4]
+Settings,settings.permissions,Customize role permissions,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×4]
+Settings,settings.permissions,Customize role permissions,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×4]
+Settings,settings.permissions,Customize role permissions,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,PERMISSION,[route requirePermission ×4]
+Settings,settings.permissions,Customize role permissions,ACCOUNTANT,Accountant,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×4]
+Settings,settings.permissions,Customize role permissions,INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×4]
+Settings,settings.integrations,"Manage integrations (WhatsApp, Razorpay, etc.)",OWNER,Owner / MD,YES,PASS,MATCH,PERMISSION,[route requirePermission ×8]
+Settings,settings.integrations,"Manage integrations (WhatsApp, Razorpay, etc.)",PM,Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×8]
+Settings,settings.integrations,"Manage integrations (WhatsApp, Razorpay, etc.)",DPM,Deputy Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×8]
+Settings,settings.integrations,"Manage integrations (WhatsApp, Razorpay, etc.)",QC,Senior QC Engineer,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×8]
+Settings,settings.integrations,"Manage integrations (WhatsApp, Razorpay, etc.)",MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×8]
+Settings,settings.integrations,"Manage integrations (WhatsApp, Razorpay, etc.)",STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×8]
+Settings,settings.integrations,"Manage integrations (WhatsApp, Razorpay, etc.)",WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×8]
+Settings,settings.integrations,"Manage integrations (WhatsApp, Razorpay, etc.)",SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×8]
+Settings,settings.integrations,"Manage integrations (WhatsApp, Razorpay, etc.)",SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,PERMISSION,[route requirePermission ×8]
+Settings,settings.integrations,"Manage integrations (WhatsApp, Razorpay, etc.)",ACCOUNTANT,Accountant,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×8]
+Settings,settings.integrations,"Manage integrations (WhatsApp, Razorpay, etc.)",INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×8]
+Settings,settings.billing,Manage subscription & billing,OWNER,Owner / MD,YES,PASS,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.billing,Manage subscription & billing,PM,Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.billing,Manage subscription & billing,DPM,Deputy Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.billing,Manage subscription & billing,QC,Senior QC Engineer,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.billing,Manage subscription & billing,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.billing,Manage subscription & billing,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.billing,Manage subscription & billing,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.billing,Manage subscription & billing,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.billing,Manage subscription & billing,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.billing,Manage subscription & billing,ACCOUNTANT,Accountant,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.billing,Manage subscription & billing,INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.audit,View audit log,OWNER,Owner / MD,YES,PASS,MATCH,PERMISSION,[route requirePermission ×1]
+Settings,settings.audit,View audit log,PM,Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×1]
+Settings,settings.audit,View audit log,DPM,Deputy Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×1]
+Settings,settings.audit,View audit log,QC,Senior QC Engineer,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×1]
+Settings,settings.audit,View audit log,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×1]
+Settings,settings.audit,View audit log,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×1]
+Settings,settings.audit,View audit log,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×1]
+Settings,settings.audit,View audit log,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×1]
+Settings,settings.audit,View audit log,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,PERMISSION,[route requirePermission ×1]
+Settings,settings.audit,View audit log,ACCOUNTANT,Accountant,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×1]
+Settings,settings.audit,View audit log,INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×1]
+Settings,settings.export,Export / backup company data,OWNER,Owner / MD,YES,PASS,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.export,Export / backup company data,PM,Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.export,Export / backup company data,DPM,Deputy Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.export,Export / backup company data,QC,Senior QC Engineer,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.export,Export / backup company data,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.export,Export / backup company data,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.export,Export / backup company data,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.export,Export / backup company data,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.export,Export / backup company data,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.export,Export / backup company data,ACCOUNTANT,Accountant,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.export,Export / backup company data,INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.material_prices,Manage material prices & resource library,OWNER,Owner / MD,YES,PASS,MATCH,PERMISSION,resources use requireRole; rate-regions anyOf material_prices [route requirePermission ×2]
+Settings,settings.material_prices,Manage material prices & resource library,PM,Project Manager,YES,PASS,MATCH,PERMISSION,resources use requireRole; rate-regions anyOf material_prices [route requirePermission ×2]
+Settings,settings.material_prices,Manage material prices & resource library,DPM,Deputy Project Manager,YES,PASS,MATCH,PERMISSION,resources use requireRole; rate-regions anyOf material_prices [route requirePermission ×2]
+Settings,settings.material_prices,Manage material prices & resource library,QC,Senior QC Engineer,NO,FAIL,MATCH,PERMISSION,resources use requireRole; rate-regions anyOf material_prices [route requirePermission ×2]
+Settings,settings.material_prices,Manage material prices & resource library,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,PERMISSION,resources use requireRole; rate-regions anyOf material_prices [route requirePermission ×2]
+Settings,settings.material_prices,Manage material prices & resource library,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,PERMISSION,resources use requireRole; rate-regions anyOf material_prices [route requirePermission ×2]
+Settings,settings.material_prices,Manage material prices & resource library,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,PERMISSION,resources use requireRole; rate-regions anyOf material_prices [route requirePermission ×2]
+Settings,settings.material_prices,Manage material prices & resource library,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,PERMISSION,resources use requireRole; rate-regions anyOf material_prices [route requirePermission ×2]
+Settings,settings.material_prices,Manage material prices & resource library,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,PERMISSION,resources use requireRole; rate-regions anyOf material_prices [route requirePermission ×2]
+Settings,settings.material_prices,Manage material prices & resource library,ACCOUNTANT,Accountant,NO,FAIL,MATCH,PERMISSION,resources use requireRole; rate-regions anyOf material_prices [route requirePermission ×2]
+Settings,settings.material_prices,Manage material prices & resource library,INVENTORY_MANAGER,Inventory Manager,YES,PASS,MATCH,PERMISSION,resources use requireRole; rate-regions anyOf material_prices [route requirePermission ×2]
+Settings,settings.rate_regions,Manage rate regions & regional pricing,OWNER,Owner / MD,YES,PASS,MATCH,PERMISSION,[route requirePermission ×6]
+Settings,settings.rate_regions,Manage rate regions & regional pricing,PM,Project Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×6]
+Settings,settings.rate_regions,Manage rate regions & regional pricing,DPM,Deputy Project Manager,NO,PASS,OVER,PERMISSION,[route requirePermission ×6]
+Settings,settings.rate_regions,Manage rate regions & regional pricing,QC,Senior QC Engineer,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×6]
+Settings,settings.rate_regions,Manage rate regions & regional pricing,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×6]
+Settings,settings.rate_regions,Manage rate regions & regional pricing,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×6]
+Settings,settings.rate_regions,Manage rate regions & regional pricing,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×6]
+Settings,settings.rate_regions,Manage rate regions & regional pricing,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×6]
+Settings,settings.rate_regions,Manage rate regions & regional pricing,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,PERMISSION,[route requirePermission ×6]
+Settings,settings.rate_regions,Manage rate regions & regional pricing,ACCOUNTANT,Accountant,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×6]
+Settings,settings.rate_regions,Manage rate regions & regional pricing,INVENTORY_MANAGER,Inventory Manager,NO,PASS,OVER,PERMISSION,[route requirePermission ×6]
+Settings,settings.rate_analysis,Manage rate analysis library,OWNER,Owner / MD,YES,PASS,MATCH,ROLE,RA_MUTATION_ROLES for writes; reads auth
+Settings,settings.rate_analysis,Manage rate analysis library,PM,Project Manager,YES,PASS,MATCH,ROLE,RA_MUTATION_ROLES for writes; reads auth
+Settings,settings.rate_analysis,Manage rate analysis library,DPM,Deputy Project Manager,YES,PASS,MATCH,ROLE,RA_MUTATION_ROLES for writes; reads auth
+Settings,settings.rate_analysis,Manage rate analysis library,QC,Senior QC Engineer,NO,FAIL,MATCH,ROLE,RA_MUTATION_ROLES for writes; reads auth
+Settings,settings.rate_analysis,Manage rate analysis library,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,ROLE,RA_MUTATION_ROLES for writes; reads auth
+Settings,settings.rate_analysis,Manage rate analysis library,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,ROLE,RA_MUTATION_ROLES for writes; reads auth
+Settings,settings.rate_analysis,Manage rate analysis library,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,ROLE,RA_MUTATION_ROLES for writes; reads auth
+Settings,settings.rate_analysis,Manage rate analysis library,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,ROLE,RA_MUTATION_ROLES for writes; reads auth
+Settings,settings.rate_analysis,Manage rate analysis library,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,ROLE,RA_MUTATION_ROLES for writes; reads auth
+Settings,settings.rate_analysis,Manage rate analysis library,ACCOUNTANT,Accountant,NO,PASS,OVER,ROLE,RA_MUTATION_ROLES for writes; reads auth
+Settings,settings.rate_analysis,Manage rate analysis library,INVENTORY_MANAGER,Inventory Manager,NO,FAIL,MATCH,ROLE,RA_MUTATION_ROLES for writes; reads auth
+Settings,settings.tickets,Manage support tickets,OWNER,Owner / MD,YES,PASS,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.tickets,Manage support tickets,PM,Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.tickets,Manage support tickets,DPM,Deputy Project Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.tickets,Manage support tickets,QC,Senior QC Engineer,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.tickets,Manage support tickets,MECHANICAL_MANAGER,Mechanical Manager,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.tickets,Manage support tickets,STORE_INCHARGE,Store Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.tickets,Manage support tickets,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.tickets,Manage support tickets,SITE_SUPERVISOR,Site Supervisor,NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.tickets,Manage support tickets,SUPERVISOR,Site Supervisor (legacy),NO,FAIL,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.tickets,Manage support tickets,ACCOUNTANT,Accountant,YES,PASS,MATCH,PERMISSION,[route requirePermission ×2]
+Settings,settings.tickets,Manage support tickets,INVENTORY_MANAGER,Inventory Manager,YES,PASS,MATCH,PERMISSION,[route requirePermission ×2]
+Reports,reports.view,View reports hub,OWNER,Owner / MD,YES,UNGATED,N/A,AUTH_ONLY,pdf-report mostly auth; some OWNER/ACCOUNTANT
+Reports,reports.view,View reports hub,PM,Project Manager,YES,UNGATED,N/A,AUTH_ONLY,pdf-report mostly auth; some OWNER/ACCOUNTANT
+Reports,reports.view,View reports hub,DPM,Deputy Project Manager,YES,UNGATED,N/A,AUTH_ONLY,pdf-report mostly auth; some OWNER/ACCOUNTANT
+Reports,reports.view,View reports hub,QC,Senior QC Engineer,YES,UNGATED,N/A,AUTH_ONLY,pdf-report mostly auth; some OWNER/ACCOUNTANT
+Reports,reports.view,View reports hub,MECHANICAL_MANAGER,Mechanical Manager,YES,UNGATED,N/A,AUTH_ONLY,pdf-report mostly auth; some OWNER/ACCOUNTANT
+Reports,reports.view,View reports hub,STORE_INCHARGE,Store Incharge,YES,UNGATED,N/A,AUTH_ONLY,pdf-report mostly auth; some OWNER/ACCOUNTANT
+Reports,reports.view,View reports hub,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,YES,UNGATED,N/A,AUTH_ONLY,pdf-report mostly auth; some OWNER/ACCOUNTANT
+Reports,reports.view,View reports hub,SITE_SUPERVISOR,Site Supervisor,YES,UNGATED,N/A,AUTH_ONLY,pdf-report mostly auth; some OWNER/ACCOUNTANT
+Reports,reports.view,View reports hub,SUPERVISOR,Site Supervisor (legacy),YES,UNGATED,N/A,AUTH_ONLY,pdf-report mostly auth; some OWNER/ACCOUNTANT
+Reports,reports.view,View reports hub,ACCOUNTANT,Accountant,YES,UNGATED,N/A,AUTH_ONLY,pdf-report mostly auth; some OWNER/ACCOUNTANT
+Reports,reports.view,View reports hub,INVENTORY_MANAGER,Inventory Manager,YES,UNGATED,N/A,AUTH_ONLY,pdf-report mostly auth; some OWNER/ACCOUNTANT
+Reports,reports.download,Download PDF / Excel reports,OWNER,Owner / MD,YES,PARTIAL,N/A,MIXED,GST/TDS OWNER/ACCOUNTANT; others auth
+Reports,reports.download,Download PDF / Excel reports,PM,Project Manager,YES,PARTIAL,N/A,MIXED,GST/TDS OWNER/ACCOUNTANT; others auth
+Reports,reports.download,Download PDF / Excel reports,DPM,Deputy Project Manager,YES,PARTIAL,N/A,MIXED,GST/TDS OWNER/ACCOUNTANT; others auth
+Reports,reports.download,Download PDF / Excel reports,QC,Senior QC Engineer,YES,PARTIAL,N/A,MIXED,GST/TDS OWNER/ACCOUNTANT; others auth
+Reports,reports.download,Download PDF / Excel reports,MECHANICAL_MANAGER,Mechanical Manager,YES,PARTIAL,N/A,MIXED,GST/TDS OWNER/ACCOUNTANT; others auth
+Reports,reports.download,Download PDF / Excel reports,STORE_INCHARGE,Store Incharge,NO,PARTIAL,N/A,MIXED,GST/TDS OWNER/ACCOUNTANT; others auth
+Reports,reports.download,Download PDF / Excel reports,WEIGHBRIDGE_INCHARGE,WeighBridge Incharge,NO,PARTIAL,N/A,MIXED,GST/TDS OWNER/ACCOUNTANT; others auth
+Reports,reports.download,Download PDF / Excel reports,SITE_SUPERVISOR,Site Supervisor,NO,PARTIAL,N/A,MIXED,GST/TDS OWNER/ACCOUNTANT; others auth
+Reports,reports.download,Download PDF / Excel reports,SUPERVISOR,Site Supervisor (legacy),NO,PARTIAL,N/A,MIXED,GST/TDS OWNER/ACCOUNTANT; others auth
+Reports,reports.download,Download PDF / Excel reports,ACCOUNTANT,Accountant,YES,PARTIAL,N/A,MIXED,GST/TDS OWNER/ACCOUNTANT; others auth
+Reports,reports.download,Download PDF / Excel reports,INVENTORY_MANAGER,Inventory Manager,YES,PARTIAL,N/A,MIXED,GST/TDS OWNER/ACCOUNTANT; others auth

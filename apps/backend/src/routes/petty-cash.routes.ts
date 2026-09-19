@@ -24,8 +24,16 @@ export const pettyCashRouter = Router();
 
 pettyCashRouter.use(authenticateToken);
 
-// All roles can view; mutations require OWNER/PM/SITE_SUPERVISOR/ACCOUNTANT
-const MUTATION_ROLES = requireRole(Role.OWNER, Role.PM, Role.SITE_SUPERVISOR, Role.ACCOUNTANT);
+// Align with petty_cash.create defaults (DPM, store, site supervisors, accountant).
+const MUTATION_ROLES = requireRole(
+  Role.OWNER,
+  Role.PM,
+  Role.DPM,
+  Role.SITE_SUPERVISOR,
+  Role.SUPERVISOR,
+  Role.STORE_INCHARGE,
+  Role.ACCOUNTANT,
+);
 
 pettyCashRouter.get('/', validate({ query: pettyCashQuerySchema }), pettyCashController.list);
 pettyCashRouter.get('/summary', pettyCashController.summary);

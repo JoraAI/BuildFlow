@@ -27,7 +27,7 @@ export const ROLE_TABS: Record<Role, readonly string[]> = {
   WEIGHBRIDGE_INCHARGE: ['dashboard', 'projects', 'reports'],
   SITE_SUPERVISOR: ['dashboard', 'projects', 'reports'],
   SUPERVISOR: ['dashboard', 'projects', 'reports'],
-  ACCOUNTANT: ['dashboard', 'accounting', 'reports'],
+  ACCOUNTANT: ['dashboard', 'projects', 'accounting', 'reports'],
   // INVENTORY_PRODUCT: inventory shell tabs are rendered by inventory/_layout.
   INVENTORY_MANAGER: ['dashboard', 'accounting', 'reports'],
 } as const;

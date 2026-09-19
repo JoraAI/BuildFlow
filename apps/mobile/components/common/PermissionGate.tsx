@@ -75,3 +75,31 @@ export function AmountGate({
   const { canViewAmounts } = usePermissions();
   return <>{canViewAmounts ? children : fallback}</>;
 }
+
+/**
+ * Project budget / utilization — requires financials.view_budget.
+ */
+export function BudgetGate({
+  children,
+  fallback = <>{'-'}</>,
+}: {
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
+}) {
+  const { canViewBudget } = usePermissions();
+  return <>{canViewBudget ? children : fallback}</>;
+}
+
+/**
+ * Margin / P&L — requires financials.view_profit.
+ */
+export function ProfitGate({
+  children,
+  fallback = <>{'-'}</>,
+}: {
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
+}) {
+  const { canViewProfit } = usePermissions();
+  return <>{canViewProfit ? children : fallback}</>;
+}

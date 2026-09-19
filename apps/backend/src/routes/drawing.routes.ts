@@ -5,7 +5,8 @@ import { validate } from '../middleware/validate';
 import { createDrawingSchema, updateDrawingSchema, addVersionSchema, drawingQuerySchema, Role } from '@buildflow/shared';
 export const drawingRouter = Router();
 drawingRouter.use(authenticateToken);
-const MUT = requireRole(Role.OWNER, Role.PM, Role.SITE_SUPERVISOR, Role.DPM);
+// Align with drawing.upload / drawing.manage defaults (QC + site supervisors included).
+const MUT = requireRole(Role.OWNER, Role.PM, Role.DPM, Role.QC, Role.SITE_SUPERVISOR, Role.SUPERVISOR);
 drawingRouter.get('/', validate({ query: drawingQuerySchema }), ctrl.list);
 drawingRouter.post('/', MUT, validate({ body: createDrawingSchema.shape.body }), ctrl.create);
 drawingRouter.get('/:id', ctrl.get);
