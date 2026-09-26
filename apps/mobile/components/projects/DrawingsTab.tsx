@@ -1,28 +1,30 @@
 /**
  * BuildFlow - Project Drawings & Blueprints Management Tab (Module 4).
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
-  ScrollView,
   Pressable,
-  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { Card, Button, Badge, LoadingSkeleton, EmptyState, Input } from '@/components/ui';
 import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
 import { useViewport } from '@/hooks/useViewport';
-import { useAuthStore } from '@/stores/auth.store';
 import { usePermission } from '@/hooks/usePermission';
 import { useTranslation } from '@/hooks/useTranslation';
 import {
   useDrawings,
+  useDrawing,
   useCreateDrawing,
   useAddDrawingVersion,
+  useUpdateDrawing,
+  useReplaceDrawingPins,
   type Drawing,
+  type DrawingPin,
 } from '@/services/drawing.queries';
-import { DrawingViewer, type DrawingPin } from '@/components/drawings/DrawingViewer';
+import { DrawingViewer } from '@/components/drawings/DrawingViewer';
 import { alertAsync, confirmAsync } from '@/utils/confirm';
 
 const DISCIPLINES = ['ARCHITECTURAL', 'STRUCTURAL', 'MEP', 'CIVIL', 'OTHER'] as const;
@@ -31,27 +33,41 @@ interface DrawingsTabProps {
   projectId: string;
 }
 
+function normalizePins(raw: unknown): DrawingPin[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (p): p is DrawingPin =>
+      !!p &&
+      typeof p === 'object' &&
+      typeof (p as DrawingPin).id === 'string' &&
+      typeof (p as DrawingPin).xPct === 'number' &&
+      typeof (p as DrawingPin).yPct === 'number',
+  );
+}
+
 export function DrawingsTab({ projectId }: DrawingsTabProps) {
   const { isDesktop, isTablet } = useViewport();
   const { t } = useTranslation();
   const canUpload = usePermission('drawing.upload');
+  const canManage = usePermission('drawing.manage');
 
   const [selectedDiscipline, setSelectedDiscipline] = useState<string | null>(null);
-  const [activeDrawing, setActiveDrawing] = useState<Drawing | null>(null);
+  const [activeDrawingId, setActiveDrawingId] = useState<string | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showVersionModal, setShowVersionModal] = useState(false);
 
-  // New Drawing Form
   const [drawingNo, setDrawingNo] = useState('');
   const [title, setTitle] = useState('');
   const [discipline, setDiscipline] = useState<string>('ARCHITECTURAL');
   const [category, setCategory] = useState('');
   const [fileUrl, setFileUrl] = useState('');
+  const [pickingImage, setPickingImage] = useState(false);
 
-  // Version Form
   const [versionLabel, setVersionLabel] = useState('');
   const [versionNotes, setVersionNotes] = useState('');
   const [versionFileUrl, setVersionFileUrl] = useState('');
+
+  const [localPins, setLocalPins] = useState<DrawingPin[]>([]);
 
   const openNewDrawingModal = () => {
     setDrawingNo('');
@@ -84,18 +100,59 @@ export function DrawingsTab({ projectId }: DrawingsTabProps) {
     setVersionFileUrl('');
   };
 
-  // Pins for active drawing (starts clean per drawing)
-  const [pinsByDrawing, setPinsByDrawing] = useState<Record<string, DrawingPin[]>>({});
-  const activePins = activeDrawing ? (pinsByDrawing[activeDrawing.id] ?? []) : [];
-
-  const { data: listData, isLoading, refetch } = useDrawings({
+  const { data: listData, isLoading } = useDrawings({
     projectId,
     discipline: selectedDiscipline ?? undefined,
   });
 
+  const detailQ = useDrawing(activeDrawingId);
+  const activeDrawing = detailQ.data ?? null;
+
   const createMut = useCreateDrawing();
   const versionMut = useAddDrawingVersion();
+  const updateMut = useUpdateDrawing();
+  const pinsMut = useReplaceDrawingPins();
   const drawings = listData?.data ?? [];
+
+  useEffect(() => {
+    if (activeDrawing) {
+      setLocalPins(normalizePins(activeDrawing.pins));
+    } else {
+      setLocalPins([]);
+    }
+  }, [activeDrawing?.id, activeDrawing?.pins]);
+
+  const persistPins = async (next: DrawingPin[]) => {
+    if (!activeDrawingId) return;
+    setLocalPins(next);
+    try {
+      await pinsMut.mutateAsync({ id: activeDrawingId, pins: next });
+    } catch (e: unknown) {
+      await alertAsync('Error', e instanceof Error ? e.message : 'Failed to save pins');
+      if (activeDrawing) setLocalPins(normalizePins(activeDrawing.pins));
+    }
+  };
+
+  const pickPlanImage = async (setter: (url: string) => void) => {
+    try {
+      setPickingImage(true);
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        await alertAsync('Permission required', 'Allow photo library access to attach a plan sheet.');
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        quality: 0.55,
+        base64: true,
+      });
+      if (res.canceled || !res.assets?.[0]?.base64) return;
+      setter(`data:image/jpeg;base64,${res.assets[0].base64}`);
+    } catch {
+      await alertAsync('Error', 'Could not load plan image.');
+    } finally {
+      setPickingImage(false);
+    }
+  };
 
   const handleCreateDrawing = async () => {
     if (!drawingNo.trim() || !title.trim()) {
@@ -112,7 +169,6 @@ export function DrawingsTab({ projectId }: DrawingsTabProps) {
         category: category.trim() || null,
       });
 
-      // If initial file URL provided, attach as Rev-01
       if (fileUrl.trim()) {
         await versionMut.mutateAsync({
           id: created.id,
@@ -129,17 +185,21 @@ export function DrawingsTab({ projectId }: DrawingsTabProps) {
   };
 
   const handleAddVersion = async () => {
-    if (!activeDrawing) return;
+    if (!activeDrawingId) return;
     if (!versionLabel.trim()) {
       await alertAsync('Required field', 'Please enter a revision tag (e.g. Rev-02).');
+      return;
+    }
+    if (!versionFileUrl.trim()) {
+      await alertAsync('Required field', 'Attach a plan image or paste an image URL.');
       return;
     }
 
     try {
       await versionMut.mutateAsync({
-        id: activeDrawing.id,
+        id: activeDrawingId,
         versionLabel: versionLabel.trim(),
-        fileUrl: versionFileUrl.trim() || 'https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=1200&q=80',
+        fileUrl: versionFileUrl.trim(),
         notes: versionNotes.trim() || null,
       });
 
@@ -151,7 +211,6 @@ export function DrawingsTab({ projectId }: DrawingsTabProps) {
   };
 
   const handleAddPin = (pin: { xPct: number; yPct: number }) => {
-    if (!activeDrawing) return;
     const newPin: DrawingPin = {
       id: `pin-${Date.now()}`,
       xPct: pin.xPct,
@@ -161,63 +220,80 @@ export function DrawingsTab({ projectId }: DrawingsTabProps) {
       status: 'OPEN',
       assignee: 'Unassigned',
     };
-    setPinsByDrawing((prev) => ({
-      ...prev,
-      [activeDrawing.id]: [...(prev[activeDrawing.id] ?? []), newPin],
-    }));
-    void alertAsync('Pin Placed', `Placed defect pin at ${Math.round(pin.xPct)}% X, ${Math.round(pin.yPct)}% Y.`);
+    void persistPins([...localPins, newPin]);
   };
 
   const handleUpdatePin = (updatedPin: DrawingPin) => {
-    if (!activeDrawing) return;
-    setPinsByDrawing((prev) => ({
-      ...prev,
-      [activeDrawing.id]: (prev[activeDrawing.id] ?? []).map((p) =>
-        p.id === updatedPin.id ? updatedPin : p,
-      ),
-    }));
+    void persistPins(localPins.map((p) => (p.id === updatedPin.id ? updatedPin : p)));
   };
 
   const handleDeletePin = async (pinId: string) => {
-    if (!activeDrawing) return;
-    const ok = await confirmAsync('Delete Pin', 'Are you sure you want to remove this pin from the sheet?');
+    const ok = await confirmAsync('Delete Pin', 'Remove this pin from the sheet?');
     if (!ok) return;
-    setPinsByDrawing((prev) => ({
-      ...prev,
-      [activeDrawing.id]: (prev[activeDrawing.id] ?? []).filter((p) => p.id !== pinId),
-    }));
+    await persistPins(localPins.filter((p) => p.id !== pinId));
   };
 
-  if (activeDrawing) {
+  const handleStatus = async (status: Drawing['status']) => {
+    if (!activeDrawingId) return;
+    try {
+      await updateMut.mutateAsync({ id: activeDrawingId, status });
+    } catch (e: unknown) {
+      await alertAsync('Error', e instanceof Error ? e.message : 'Failed to update status');
+    }
+  };
+
+  if (activeDrawingId) {
     return (
       <View className="gap-3">
-        <View className="flex-row items-center justify-between">
+        <View className="flex-row items-center justify-between flex-wrap gap-2">
           <Button
             label="Back to Drawings"
             size="sm"
             variant="ghost"
             icon={<Ionicons name="arrow-back" size={16} color="#1E3A5F" />}
-            onPress={() => setActiveDrawing(null)}
+            onPress={() => setActiveDrawingId(null)}
           />
-          {canUpload ? (
-            <Button
-              label="+ Upload New Revision"
-              size="sm"
-              variant="secondary"
-              onPress={openVersionModal}
-            />
-          ) : null}
+          <View className="flex-row flex-wrap gap-2">
+            {canManage && activeDrawing?.status === 'DRAFT' ? (
+              <Button
+                label="Send for review"
+                size="sm"
+                variant="secondary"
+                onPress={() => handleStatus('IN_REVIEW')}
+                loading={updateMut.isPending}
+              />
+            ) : null}
+            {canManage && (activeDrawing?.status === 'DRAFT' || activeDrawing?.status === 'IN_REVIEW') ? (
+              <Button
+                label="Approve"
+                size="sm"
+                onPress={() => handleStatus('APPROVED')}
+                loading={updateMut.isPending}
+              />
+            ) : null}
+            {canUpload ? (
+              <Button
+                label="+ Upload New Revision"
+                size="sm"
+                variant="secondary"
+                onPress={openVersionModal}
+              />
+            ) : null}
+          </View>
         </View>
 
-        <DrawingViewer
-          drawing={activeDrawing}
-          pins={activePins}
-          onAddPin={handleAddPin}
-          onUpdatePin={handleUpdatePin}
-          onDeletePin={handleDeletePin}
-        />
+        {detailQ.isLoading || !activeDrawing ? (
+          <LoadingSkeleton className="h-64 rounded-xl" />
+        ) : (
+          <DrawingViewer
+            drawing={activeDrawing}
+            pins={localPins}
+            onAddPin={handleAddPin}
+            onUpdatePin={handleUpdatePin}
+            onDeletePin={handleDeletePin}
+          />
+        )}
 
-        {/* New Version Modal */}
         <AdaptiveSheet
           visible={showVersionModal}
           onClose={closeVersionModal}
@@ -244,10 +320,17 @@ export function DrawingsTab({ projectId }: DrawingsTabProps) {
               onChangeText={setVersionLabel}
             />
             <Input
-              label="Blueprint Image / PDF URL"
-              placeholder="https://..."
+              label="Blueprint Image URL"
+              placeholder="https://… or pick from gallery"
               value={versionFileUrl}
               onChangeText={setVersionFileUrl}
+            />
+            <Button
+              label="Pick plan from gallery"
+              size="sm"
+              variant="secondary"
+              loading={pickingImage}
+              onPress={() => pickPlanImage(setVersionFileUrl)}
             />
             <Input
               label="Revision Notes"
@@ -264,9 +347,8 @@ export function DrawingsTab({ projectId }: DrawingsTabProps) {
 
   return (
     <View className="gap-3.5">
-      {/* Header */}
-      <View className="flex-row justify-between items-center">
-        <View className="flex-1 pr-2">
+      <View className="flex-row justify-between items-start gap-2 flex-wrap">
+        <View className="flex-1 min-w-[180px] pr-2">
           <Text className="text-lg md:text-xl font-bold text-text">{t('Drawing & Blueprint Suite')}</Text>
           <Text className="text-xs text-muted mt-0.5">
             Architectural, structural & MEP plans with revision controls and defect pins
@@ -282,7 +364,6 @@ export function DrawingsTab({ projectId }: DrawingsTabProps) {
         ) : null}
       </View>
 
-      {/* Discipline filter chips */}
       <View className="flex-row flex-wrap items-center gap-1.5">
         <Pressable
           onPress={() => setSelectedDiscipline(null)}
@@ -312,7 +393,6 @@ export function DrawingsTab({ projectId }: DrawingsTabProps) {
         })}
       </View>
 
-      {/* Drawings Grid / List */}
       {isLoading ? (
         <View className={isDesktop || isTablet ? 'grid grid-cols-2 lg:grid-cols-3 gap-3' : 'gap-2.5'}>
           <LoadingSkeleton className="h-20 rounded-xl" />
@@ -322,24 +402,30 @@ export function DrawingsTab({ projectId }: DrawingsTabProps) {
       ) : drawings.length === 0 ? (
         <EmptyState
           title="No drawings uploaded"
-          description="Archive GFC architectural, structural and MEP drawings with interactive revision controls using the button above."
+          description={
+            canUpload
+              ? 'Archive GFC architectural, structural and MEP drawings with interactive revision controls using the button above.'
+              : 'No drawings have been uploaded for this project yet.'
+          }
         />
       ) : (
         <View className={isDesktop || isTablet ? 'grid grid-cols-2 lg:grid-cols-3 gap-3' : 'gap-2.5'}>
           {drawings.map((d: Drawing) => {
-            const revCount = d._count?.versions ?? (d.versions?.length || 1);
+            const revCount = d._count?.versions ?? (d.versions?.length || (d.currentVersion ? 1 : 0));
+            const pinCount = normalizePins(d.pins).length;
             return (
-              <Card key={d.id} className="p-3" onPress={() => setActiveDrawing(d)}>
+              <Card key={d.id} className="p-3" onPress={() => setActiveDrawingId(d.id)}>
                 <View className="flex-row justify-between items-start">
                   <View className="flex-1 pr-2">
-                    <View className="flex-row items-center gap-1.5 mb-1">
+                    <View className="flex-row items-center gap-1.5 mb-1 flex-wrap">
                       <Text className="text-xs font-bold text-primary">{d.drawingNo}</Text>
                       <Badge label={d.discipline} color="primary" />
                       <Badge label={d.status} color={d.status === 'APPROVED' ? 'success' : 'neutral'} />
                     </View>
                     <Text className="text-sm md:text-base font-semibold text-text" numberOfLines={1}>{d.title}</Text>
                     <Text className="text-[11px] text-muted mt-0.5">
-                      Category: {d.category ?? 'General'} · {revCount} revision{revCount === 1 ? '' : 's'}
+                      {d.category ?? 'General'} · {revCount} revision{revCount === 1 ? '' : 's'}
+                      {pinCount > 0 ? ` · ${pinCount} pin${pinCount === 1 ? '' : 's'}` : ''}
                     </Text>
                   </View>
                   <View className="w-8 h-8 rounded-lg bg-primary/10 items-center justify-center">
@@ -352,7 +438,6 @@ export function DrawingsTab({ projectId }: DrawingsTabProps) {
         </View>
       )}
 
-      {/* Upload Drawing Modal */}
       <AdaptiveSheet
         visible={showUploadModal}
         onClose={closeUploadModal}
@@ -366,7 +451,7 @@ export function DrawingsTab({ projectId }: DrawingsTabProps) {
               label="Register Plan"
               className="flex-1"
               onPress={handleCreateDrawing}
-              loading={createMut.isPending}
+              loading={createMut.isPending || versionMut.isPending}
             />
           </View>
         }
@@ -414,9 +499,16 @@ export function DrawingsTab({ projectId }: DrawingsTabProps) {
           />
           <Input
             label="Initial Plan Image URL (Optional)"
-            placeholder="https://..."
+            placeholder="https://… or pick from gallery"
             value={fileUrl}
             onChangeText={setFileUrl}
+          />
+          <Button
+            label="Pick plan from gallery"
+            size="sm"
+            variant="secondary"
+            loading={pickingImage}
+            onPress={() => pickPlanImage(setFileUrl)}
           />
         </View>
       </AdaptiveSheet>

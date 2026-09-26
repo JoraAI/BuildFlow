@@ -16,6 +16,92 @@ import type {
   RecordPaymentInput,
 } from '@buildflow/shared';
 
+const QTY_EPS = 0.001;
+
+/**
+ * Prevent RA invoices from certifying more than (executed − already billed).
+ * Lines without boqItemId are skipped (free-text RA lines).
+ */
+async function getRaBilledQtyByBoq(
+  companyId: string,
+  projectId: string,
+  boqIds: string[],
+  excludeInvoiceId?: string,
+): Promise<Map<string, number>> {
+  const billedByBoq = new Map<string, number>();
+  if (boqIds.length === 0) return billedByBoq;
+
+  const invoiceLines = await prisma.invoiceLineItem.findMany({
+    where: {
+      boqItemId: { in: boqIds },
+      invoice: {
+        projectId,
+        companyId,
+        invoiceType: 'RUNNING_ACCOUNT',
+        status: { not: 'DRAFT' },
+        ...(excludeInvoiceId ? { id: { not: excludeInvoiceId } } : {}),
+      },
+    },
+    select: { boqItemId: true, cumulativeQty: true },
+  });
+  for (const line of invoiceLines) {
+    if (!line.boqItemId) continue;
+    billedByBoq.set(
+      line.boqItemId,
+      Math.max(billedByBoq.get(line.boqItemId) ?? 0, Number(line.cumulativeQty)),
+    );
+  }
+  return billedByBoq;
+}
+
+async function assertRaLinesWithinBillable(
+  companyId: string,
+  projectId: string,
+  lines: Array<{
+    boqItemId?: string;
+    currentQty?: number;
+    quantity: number;
+    cumulativeQty?: number;
+  }>,
+  excludeInvoiceId?: string,
+): Promise<void> {
+  const boqIds = [
+    ...new Set(lines.map((l) => l.boqItemId).filter((id): id is string => Boolean(id))),
+  ];
+  if (boqIds.length === 0) return;
+
+  const items = await prisma.bOQItem.findMany({
+    where: { id: { in: boqIds }, projectId },
+    select: { id: true, executedQty: true, itemCode: true },
+  });
+  if (items.length !== boqIds.length) {
+    throw ApiError.badRequest('One or more RA lines reference a BOQ item outside this project.');
+  }
+  const byId = new Map(items.map((i) => [i.id, i]));
+  const billedByBoq = await getRaBilledQtyByBoq(companyId, projectId, boqIds, excludeInvoiceId);
+
+  for (const li of lines) {
+    if (!li.boqItemId) continue;
+    const item = byId.get(li.boqItemId)!;
+    const currentQty = li.currentQty ?? li.quantity;
+    const executed = Number(item.executedQty);
+    const billed = billedByBoq.get(li.boqItemId) ?? 0;
+    const billable = Math.max(0, executed - billed);
+    if (currentQty > billable + QTY_EPS) {
+      throw ApiError.unprocessable(
+        `RA qty ${currentQty} exceeds billable ${round2(billable)} for BOQ ${item.itemCode} ` +
+          `(executed ${executed}, already billed ${billed}). Record more measurement first.`,
+      );
+    }
+    const cumulative = li.cumulativeQty ?? billed + currentQty;
+    if (cumulative > executed + QTY_EPS) {
+      throw ApiError.unprocessable(
+        `Cumulative qty ${cumulative} exceeds executed ${executed} for BOQ ${item.itemCode}.`,
+      );
+    }
+  }
+}
+
 export interface InvoiceListItem {
   id: string;
   invoiceNumber: string;
@@ -259,6 +345,23 @@ export async function createInvoice(companyId: string, _userId: string, input: C
   const companyState = await getCompanyState(companyId);
   const invoiceType = input.invoiceType ?? 'STANDARD';
 
+  if (invoiceType === 'RUNNING_ACCOUNT') {
+    await assertRaLinesWithinBillable(companyId, input.projectId, input.lineItems);
+  }
+
+  const raBoqIds =
+    invoiceType === 'RUNNING_ACCOUNT'
+      ? [
+          ...new Set(
+            input.lineItems.map((li) => li.boqItemId).filter((id): id is string => Boolean(id)),
+          ),
+        ]
+      : [];
+  const raBilledByBoq =
+    invoiceType === 'RUNNING_ACCOUNT'
+      ? await getRaBilledQtyByBoq(companyId, input.projectId, raBoqIds)
+      : new Map<string, number>();
+
   // FIX (NR-23): Catch P2002 (unique constraint violation on invoice number or
   // RA sequence partial index) and return a clean 409 instead of hanging.
   try {
@@ -274,14 +377,15 @@ export async function createInvoice(companyId: string, _userId: string, input: C
       const rate = li.rate > 0 ? li.rate : li.resourceId ? customerRateById.get(li.resourceId) ?? li.rate : li.rate;
       if (invoiceType === 'RUNNING_ACCOUNT') {
         const currentQty = li.currentQty ?? li.quantity;
-        const cumulativeQty = li.cumulativeQty ?? currentQty;
+        const priorBilled = li.boqItemId ? (raBilledByBoq.get(li.boqItemId) ?? 0) : 0;
+        const cumulativeQty = li.cumulativeQty ?? priorBilled + currentQty;
         const amount = lineAmount(currentQty, rate);
         return {
           ...li,
           rate,
           quantity: currentQty,
           currentQty,
-          previousQty: li.previousQty ?? 0,
+          previousQty: li.previousQty ?? priorBilled,
           cumulativeQty,
           certifiedAmount: amount,
           amount,
@@ -460,6 +564,9 @@ export async function updateInvoice(
   const clientState = input.clientState ?? inv.clientState ?? undefined;
 
   const invoiceType = inv.invoiceType ?? 'STANDARD';
+  if (invoiceType === 'RUNNING_ACCOUNT' && input.lineItems) {
+    await assertRaLinesWithinBillable(companyId, inv.projectId, input.lineItems, id);
+  }
   const retentionPct = Number(inv.retentionPct);
 
   let subtotal = Number(inv.subtotal);
@@ -468,15 +575,22 @@ export async function updateInvoice(
 
   if (input.lineItems) {
     if (invoiceType === 'RUNNING_ACCOUNT') {
+      const raBoqIds = [
+        ...new Set(
+          input.lineItems.map((li) => li.boqItemId).filter((bid): bid is string => Boolean(bid)),
+        ),
+      ];
+      const raBilledByBoq = await getRaBilledQtyByBoq(companyId, inv.projectId, raBoqIds, id);
       const lineAmounts = input.lineItems.map((li) => {
         const currentQty = li.currentQty ?? li.quantity;
-        const cumulativeQty = li.cumulativeQty ?? currentQty;
+        const priorBilled = li.boqItemId ? (raBilledByBoq.get(li.boqItemId) ?? 0) : 0;
+        const cumulativeQty = li.cumulativeQty ?? priorBilled + currentQty;
         const amount = lineAmount(currentQty, li.rate);
         return {
           ...li,
           quantity: currentQty,
           currentQty,
-          previousQty: li.previousQty ?? 0,
+          previousQty: li.previousQty ?? priorBilled,
           cumulativeQty,
           certifiedAmount: amount,
           amount,
@@ -583,9 +697,27 @@ export async function updateInvoice(
 }
 
 export async function sendInvoice(companyId: string, id: string) {
-  const inv = await prisma.invoice.findFirst({ where: { id, companyId } });
+  const inv = await prisma.invoice.findFirst({
+    where: { id, companyId },
+    include: { lineItems: true },
+  });
   if (!inv) throw ApiError.notFound('Invoice');
   if (inv.status === 'PAID') throw ApiError.conflict('Invoice already paid');
+
+  if (inv.invoiceType === 'RUNNING_ACCOUNT') {
+    await assertRaLinesWithinBillable(
+      companyId,
+      inv.projectId,
+      inv.lineItems.map((li) => ({
+        boqItemId: li.boqItemId ?? undefined,
+        currentQty: li.currentQty != null ? Number(li.currentQty) : undefined,
+        quantity: Number(li.quantity),
+        cumulativeQty: li.cumulativeQty != null ? Number(li.cumulativeQty) : undefined,
+      })),
+      id,
+    );
+  }
+
   const updated = await prisma.invoice.update({
     where: { id },
     data: { status: 'SENT' },

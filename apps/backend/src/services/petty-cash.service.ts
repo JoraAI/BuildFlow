@@ -187,6 +187,7 @@ export async function deletePettyCashEntry(
 
 /**
  * Summary for reconciliation: total by status and category.
+ * Exposes both `total` and `totalAmount` so mobile clients stay compatible.
  */
 export async function getPettyCashSummary(companyId: string, projectId?: string) {
   const where: Record<string, unknown> = { companyId };
@@ -208,5 +209,5 @@ export async function getPettyCashSummary(companyId: string, projectId?: string)
     byCategory[e.category] = (byCategory[e.category] ?? 0) + amt;
   }
 
-  return { total, byStatus, byCategory, count: entries.length };
+  return { total, totalAmount: total, byStatus, byCategory, count: entries.length };
 }

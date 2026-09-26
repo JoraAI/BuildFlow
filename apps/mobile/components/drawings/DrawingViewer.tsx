@@ -7,7 +7,7 @@
  *  - Interactive Pinning (tap plan to place/inspect defect pins)
  *  - Desktop split view (Canvas 70% <-> Linked Defects 30%)
  */
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -23,18 +23,9 @@ import { Card, Button, Badge, Input } from '@/components/ui';
 import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
 import { useViewport } from '@/hooks/useViewport';
 import { alertAsync } from '@/utils/confirm';
-import type { Drawing, DrawingVersion } from '@/services/drawing.queries';
+import type { Drawing, DrawingPin, DrawingVersion } from '@/services/drawing.queries';
 
-export interface DrawingPin {
-  id: string;
-  xPct: number; // 0 - 100
-  yPct: number; // 0 - 100
-  title: string;
-  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
-  status: 'OPEN' | 'RESOLVED' | 'CLOSED';
-  assignee?: string;
-  photoUrl?: string;
-}
+export type { DrawingPin };
 
 interface DrawingViewerProps {
   drawing: Drawing;
@@ -55,7 +46,8 @@ export function DrawingViewer({
   pins = [],
   onUploadRevision,
 }: DrawingViewerProps) {
-  const { isDesktop } = useViewport();
+  const { isDesktop, isTablet } = useViewport();
+  const wide = isDesktop || isTablet;
   const [zoomLevel, setZoomLevel] = useState(1);
   const [selectedVersion, setSelectedVersion] = useState<DrawingVersion | null>(
     drawing.currentVersion ?? null,
@@ -74,6 +66,14 @@ export function DrawingViewer({
 
   const currentFileUrl = selectedVersion?.fileUrl || drawing.currentVersion?.fileUrl || null;
   const versions = drawing.versions ?? [];
+
+  useEffect(() => {
+    if (drawing.currentVersion) {
+      setSelectedVersion(drawing.currentVersion);
+    } else if (drawing.versions?.length) {
+      setSelectedVersion(drawing.versions[0] ?? null);
+    }
+  }, [drawing.id, drawing.currentVersionId, drawing.currentVersion?.id]);
 
   const handleCanvasLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -357,7 +357,7 @@ export function DrawingViewer({
   return (
     <View className="gap-3">
       {topBar}
-      {isDesktop ? (
+      {wide ? (
         <View className="flex-row gap-4 items-start">
           <View className="flex-[2.5]">{canvasView}</View>
           <View className="flex-1">{pinsSidebar}</View>

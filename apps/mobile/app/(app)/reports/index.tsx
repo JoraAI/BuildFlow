@@ -38,7 +38,8 @@ function siteStatusColor(
 
 export default function ReportsScreen() {
   const router = useRouter();
-  const { isDesktop } = useViewport();
+  const { isDesktop, isTablet } = useViewport();
+  const wide = isDesktop || isTablet;
   const activeProjectId = useAppStore((s) => s.activeProjectId);
   const setActiveProject = useAppStore((s) => s.setActiveProject);
   const { data: projects } = useProjects();
@@ -74,7 +75,8 @@ export default function ReportsScreen() {
 
   const openCreate = (date?: string) => {
     if (!projectId) return;
-    router.push(createReportHref(projectId, date ? { date } : undefined) as never);
+    const safeDate = date && date <= todayStr ? date : todayStr;
+    router.push(createReportHref(projectId, { date: safeDate }) as never);
   };
 
   const openDay = (dateStr: string) => {
@@ -172,6 +174,7 @@ export default function ReportsScreen() {
           const dateStr = `${month}-${String(day).padStart(2, '0')}`;
           const hasReport = reportByDate.has(dateStr);
           const isToday = dateStr === todayStr;
+          const isFuture = dateStr > todayStr;
           const canTap = hasReport || dateStr <= todayStr;
           return (
             <Pressable
@@ -182,7 +185,9 @@ export default function ReportsScreen() {
               accessibilityLabel={
                 hasReport
                   ? `Open report for ${dateStr}`
-                  : `Create report for ${dateStr}`
+                  : isFuture
+                    ? `Future date ${dateStr} — reports not allowed`
+                    : `Create report for ${dateStr}`
               }
               className="w-[14.28%] h-9 items-center justify-center"
             >
@@ -193,7 +198,11 @@ export default function ReportsScreen() {
               >
                 <Text
                   className={`text-xs ${
-                    hasReport || isToday ? 'text-white font-bold' : 'text-text'
+                    hasReport || isToday
+                      ? 'text-white font-bold'
+                      : isFuture
+                        ? 'text-muted/50'
+                        : 'text-text'
                   }`}
                 >
                   {day}
@@ -230,13 +239,15 @@ export default function ReportsScreen() {
           <LoadingSkeleton className="h-20 rounded-xl" />
         </View>
       ) : hasReports ? (
-        reports.map((item: ReportListItem) => (
-          <ReportRow
-            key={item.id}
-            item={item}
-            onPress={() => router.push(reportDetailHref(item.id) as never)}
-          />
-        ))
+        <View className={wide ? 'grid grid-cols-1 xl:grid-cols-2 gap-2' : 'gap-0'}>
+          {reports.map((item: ReportListItem) => (
+            <ReportRow
+              key={item.id}
+              item={item}
+              onPress={() => router.push(reportDetailHref(item.id) as never)}
+            />
+          ))}
+        </View>
       ) : (
         <EmptyState
           title="No reports yet"
@@ -304,7 +315,7 @@ export default function ReportsScreen() {
 
         {todayBanner}
 
-        {isDesktop ? (
+        {wide ? (
           <View className="flex-row gap-6 items-start">
             <View className="w-[340px] shrink-0">{calendarCard}</View>
             <View className="flex-1 min-w-0">{reportsList}</View>

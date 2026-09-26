@@ -2,7 +2,7 @@
  * BuildFlow - Site Petty Cash & Live Float Management (Module 1).
  * Responsive 2-column on desktop, bottom-sheet / card feed on mobile.
  */
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { Card, Button, Badge, LoadingSkeleton, EmptyState, Input } from '@/components/ui';
 import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
 import { useViewport } from '@/hooks/useViewport';
-import { useAuthStore } from '@/stores/auth.store';
 import { usePermission } from '@/hooks/usePermission';
 import { useTranslation } from '@/hooks/useTranslation';
 import {
@@ -25,22 +24,40 @@ import {
   usePettyCashSummary,
   useCreatePettyCash,
   useUpdatePettyCash,
-  useDeletePettyCash,
   type PettyCashEntry,
 } from '@/services/petty-cash.queries';
 import { formatINR, formatDate } from '@/utils/format';
 import { alertAsync, confirmAsync } from '@/utils/confirm';
 import { generateWhatsAppPettyCashShare } from '@/utils/whatsapp-share';
+import {
+  PETTY_CASH_CATEGORY_LABELS,
+  PETTY_CASH_UI_CATEGORIES,
+  type PettyCashCategory,
+} from '@buildflow/shared';
 
-const CATEGORIES = [
-  { id: 'Fuel/DG', label: 'Fuel / DG', icon: 'speedometer-outline', color: '#EF4444' },
-  { id: 'Tea/Meals', label: 'Tea / Meals', icon: 'cafe-outline', color: '#F59E0B' },
-  { id: 'Hardware', label: 'Hardware', icon: 'build-outline', color: '#3B82F6' },
-  { id: 'Travel', label: 'Travel', icon: 'car-outline', color: '#8B5CF6' },
-  { id: 'Urgent Labor', label: 'Urgent Labor', icon: 'people-outline', color: '#10B981' },
-  { id: 'Materials', label: 'Materials', icon: 'cube-outline', color: '#06B6D4' },
-  { id: 'Misc', label: 'Misc', icon: 'ellipsis-horizontal-circle-outline', color: '#64748B' },
-] as const;
+const CATEGORY_META: Record<
+  (typeof PETTY_CASH_UI_CATEGORIES)[number],
+  { icon: React.ComponentProps<typeof Ionicons>['name']; color: string }
+> = {
+  FUEL_DG: { icon: 'speedometer-outline', color: '#EF4444' },
+  TEA_SNACKS: { icon: 'cafe-outline', color: '#F59E0B' },
+  HARDWARE: { icon: 'build-outline', color: '#3B82F6' },
+  TRAVEL: { icon: 'car-outline', color: '#8B5CF6' },
+  URGENT_LABOR: { icon: 'people-outline', color: '#10B981' },
+  MATERIALS: { icon: 'cube-outline', color: '#06B6D4' },
+  MISC_CASH: { icon: 'ellipsis-horizontal-circle-outline', color: '#64748B' },
+};
+
+const CATEGORIES = PETTY_CASH_UI_CATEGORIES.map((id) => ({
+  id,
+  label: PETTY_CASH_CATEGORY_LABELS[id],
+  icon: CATEGORY_META[id].icon,
+  color: CATEGORY_META[id].color,
+}));
+
+function categoryLabel(code: string): string {
+  return PETTY_CASH_CATEGORY_LABELS[code as PettyCashCategory] ?? code;
+}
 
 interface PettyCashTabProps {
   projectId: string;
@@ -59,7 +76,7 @@ export function PettyCashTab({ projectId }: PettyCashTabProps) {
 
   // Form state
   const [desc, setDesc] = useState('');
-  const [category, setCategory] = useState<string>('Fuel/DG');
+  const [category, setCategory] = useState<string>('FUEL_DG');
   const [amount, setAmount] = useState('');
   const [paidTo, setPaidTo] = useState('');
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
@@ -68,7 +85,7 @@ export function PettyCashTab({ projectId }: PettyCashTabProps) {
 
   const openNewExpenseModal = () => {
     setDesc('');
-    setCategory('Fuel/DG');
+    setCategory('FUEL_DG');
     setAmount('');
     setPaidTo('');
     setReceiptUrl(null);
@@ -96,15 +113,14 @@ export function PettyCashTab({ projectId }: PettyCashTabProps) {
   const { data: summaryData } = usePettyCashSummary(projectId);
   const createMut = useCreatePettyCash();
   const updateMut = useUpdatePettyCash();
-  const deleteMut = useDeletePettyCash();
 
   const entries = listData?.data ?? [];
-  const pendingAmount = summaryData?.byStatus?.['PENDING'] ?? 0;
-  const approvedAmount = summaryData?.byStatus?.['APPROVED'] ?? 0;
-  const totalSpend = summaryData?.totalAmount ?? 0;
-  // Assumed float balance base: ₹50,000 or calculated float minus approved
-  const floatAllocated = 50000;
-  const floatRemaining = Math.max(0, floatAllocated - approvedAmount);
+  const pendingAmount = summaryData?.byStatus?.PENDING ?? 0;
+  const reconciledAmount = summaryData?.byStatus?.RECONCILED ?? 0;
+  const totalSpend = summaryData?.total ?? summaryData?.totalAmount ?? 0;
+  // Float allocation is not modeled yet — show reconciled spend only (no fake balance).
+  const floatAllocated: number | null = null;
+  const floatRemaining = floatAllocated != null ? Math.max(0, floatAllocated - reconciledAmount) : null;
 
   const pickImage = async (useCamera: boolean) => {
     try {
@@ -158,8 +174,8 @@ export function PettyCashTab({ projectId }: PettyCashTabProps) {
         amount: numAmount,
         expenseDate: new Date().toISOString(),
         paidTo: paidTo.trim() || 'Cash',
-        receiptUrl,
-        notes: notes.trim() || null,
+        ...(receiptUrl ? { receiptUrl } : {}),
+        ...(notes.trim() ? { notes: notes.trim() } : {}),
       });
 
       closeLogModal();
@@ -173,7 +189,7 @@ export function PettyCashTab({ projectId }: PettyCashTabProps) {
     try {
       await updateMut.mutateAsync({
         id: entry.id,
-        status: 'APPROVED',
+        status: 'RECONCILED',
       });
     } catch (e: unknown) {
       await alertAsync('Error', e instanceof Error ? e.message : 'Could not approve');
@@ -196,14 +212,18 @@ export function PettyCashTab({ projectId }: PettyCashTabProps) {
   const heroCard = (
     <View className="rounded-2xl bg-primary p-5 shadow-sm mb-4">
       <View className="flex-row items-center justify-between mb-4">
-        <View>
+        <View className="flex-1 min-w-0 pr-3">
           <Text className="text-xs uppercase tracking-wider text-white/60 font-medium">
-            Live Site Float
+            Site expenses
           </Text>
           <Text className="text-2xl font-bold text-white mt-0.5">
-            {formatINR(floatRemaining)}
+            {formatINR(totalSpend)}
           </Text>
-          <Text className="text-xs text-white/70">Remaining in Hand (Float: {formatINR(floatAllocated)})</Text>
+          <Text className="text-xs text-white/70">
+            {floatRemaining != null && floatAllocated != null
+              ? `Remaining float ${formatINR(floatRemaining)} of ${formatINR(floatAllocated)}`
+              : 'Pending approval + reconciled spend (project float not configured)'}
+          </Text>
         </View>
         <View className="w-12 h-12 rounded-xl bg-white/10 items-center justify-center">
           <Ionicons name="wallet-outline" size={24} color="#F59E0B" />
@@ -212,19 +232,19 @@ export function PettyCashTab({ projectId }: PettyCashTabProps) {
 
       <View className="flex-row gap-3 pt-3 border-t border-white/10">
         <View className="flex-1 bg-white/5 rounded-xl p-3">
-          <Text className="text-[11px] text-white/60 font-medium">Pending Approval</Text>
+          <Text className="text-[11px] text-white/60 font-medium">Pending</Text>
           <Text className="text-base font-bold text-amber-400 mt-0.5">
             {formatINR(pendingAmount)}
           </Text>
         </View>
         <View className="flex-1 bg-white/5 rounded-xl p-3">
-          <Text className="text-[11px] text-white/60 font-medium">Approved Spend</Text>
+          <Text className="text-[11px] text-white/60 font-medium">Reconciled</Text>
           <Text className="text-base font-bold text-emerald-400 mt-0.5">
-            {formatINR(approvedAmount)}
+            {formatINR(reconciledAmount)}
           </Text>
         </View>
         <View className="flex-1 bg-white/5 rounded-xl p-3">
-          <Text className="text-[11px] text-white/60 font-medium">Total Entries</Text>
+          <Text className="text-[11px] text-white/60 font-medium">Entries</Text>
           <Text className="text-base font-bold text-white mt-0.5">
             {summaryData?.count ?? entries.length}
           </Text>
@@ -234,42 +254,69 @@ export function PettyCashTab({ projectId }: PettyCashTabProps) {
   );
 
   const categoryFilters = (
-    <View className="flex-row flex-wrap items-center gap-1.5 mb-3">
-      <Pressable
-        onPress={() => setSelectedCategory(null)}
-        className={`px-3 py-1.5 rounded-lg border ${
-          selectedCategory === null ? 'bg-primary border-primary' : 'bg-card border-border'
-        }`}
-      >
-        <Text
-          className={`text-xs font-semibold ${
-            selectedCategory === null ? 'text-white' : 'text-text'
+    <View className="gap-2 mb-3">
+      <View className="flex-row flex-wrap items-center gap-1.5">
+        <Pressable
+          onPress={() => setSelectedCategory(null)}
+          className={`px-3 py-1.5 rounded-lg border ${
+            selectedCategory === null ? 'bg-primary border-primary' : 'bg-card border-border'
           }`}
         >
-          {t('All Categories')}
-        </Text>
-      </Pressable>
-      {CATEGORIES.map((cat) => {
-        const active = selectedCategory === cat.id;
-        return (
-          <Pressable
-            key={cat.id}
-            onPress={() => setSelectedCategory(active ? null : cat.id)}
-            className={`flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg border ${
-              active ? 'bg-primary border-primary' : 'bg-card border-border'
+          <Text
+            className={`text-xs font-semibold ${
+              selectedCategory === null ? 'text-white' : 'text-text'
             }`}
           >
-            <Ionicons name={cat.icon as never} size={14} color={active ? '#fff' : cat.color} />
-            <Text
-              className={`text-xs font-semibold ${
-                active ? 'text-white' : 'text-text'
+            {t('All Categories')}
+          </Text>
+        </Pressable>
+        {CATEGORIES.map((cat) => {
+          const active = selectedCategory === cat.id;
+          return (
+            <Pressable
+              key={cat.id}
+              onPress={() => setSelectedCategory(active ? null : cat.id)}
+              className={`flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg border ${
+                active ? 'bg-primary border-primary' : 'bg-card border-border'
               }`}
             >
-              {cat.label}
-            </Text>
-          </Pressable>
-        );
-      })}
+              <Ionicons name={cat.icon as never} size={14} color={active ? '#fff' : cat.color} />
+              <Text
+                className={`text-xs font-semibold ${
+                  active ? 'text-white' : 'text-text'
+                }`}
+              >
+                {cat.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <View className="flex-row flex-wrap items-center gap-1.5">
+        {(
+          [
+            { id: null as string | null, label: 'All statuses' },
+            { id: 'PENDING', label: 'Pending' },
+            { id: 'RECONCILED', label: 'Reconciled' },
+            { id: 'REJECTED', label: 'Rejected' },
+          ] as const
+        ).map((s) => {
+          const active = selectedStatus === s.id;
+          return (
+            <Pressable
+              key={s.label}
+              onPress={() => setSelectedStatus(s.id)}
+              className={`px-3 py-1.5 rounded-lg border ${
+                active ? 'bg-primary border-primary' : 'bg-card border-border'
+              }`}
+            >
+              <Text className={`text-xs font-semibold ${active ? 'text-white' : 'text-text'}`}>
+                {s.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 
@@ -285,13 +332,17 @@ export function PettyCashTab({ projectId }: PettyCashTabProps) {
       ) : entries.length === 0 ? (
         <EmptyState
           title="No petty cash entries"
-          description="Log daily site expenses, fuel slips, hardware purchases, or urgent labor wages using the button above."
+          description={
+            canCreate
+              ? 'Log daily site expenses, fuel slips, hardware purchases, or urgent labor wages using the button above.'
+              : 'No petty cash entries for this project yet.'
+          }
         />
       ) : (
         <View className={isDesktop || isTablet ? 'grid grid-cols-2 gap-3' : 'gap-3'}>
           {entries.map((entry: PettyCashEntry) => {
             const isPending = entry.status === 'PENDING';
-            const isApproved = entry.status === 'APPROVED';
+            const isReconciled = entry.status === 'RECONCILED';
             return (
               <Card key={entry.id}>
                 <View className="flex-row justify-between items-start">
@@ -301,12 +352,12 @@ export function PettyCashTab({ projectId }: PettyCashTabProps) {
                         {entry.entryNumber}
                       </Text>
                       <Badge
-                        label={entry.category}
-                        color={entry.category === 'Fuel/DG' ? 'danger' : entry.category === 'Urgent Labor' ? 'success' : 'neutral'}
+                        label={categoryLabel(entry.category)}
+                        color={entry.category === 'FUEL_DG' ? 'danger' : entry.category === 'URGENT_LABOR' ? 'success' : 'neutral'}
                       />
                       <Badge
-                        label={entry.status}
-                        color={isApproved ? 'success' : isPending ? 'warning' : 'danger'}
+                        label={isReconciled ? 'RECONCILED' : entry.status}
+                        color={isReconciled ? 'success' : isPending ? 'warning' : 'danger'}
                       />
                     </View>
                     <Text className="text-base font-semibold text-text">{entry.description}</Text>
@@ -381,8 +432,8 @@ export function PettyCashTab({ projectId }: PettyCashTabProps) {
   return (
     <View className="gap-4">
       {/* Top action row */}
-      <View className="flex-row justify-between items-center">
-        <View>
+      <View className="flex-row justify-between items-start gap-2 flex-wrap">
+        <View className="flex-1 min-w-[180px]">
           <Text className="text-xl font-bold text-text">{t('Site Petty Cash & Expenses')}</Text>
           <Text className="text-xs text-muted mt-0.5">
             Log site cash float, snap receipts, and 1-tap reconcile with approvals

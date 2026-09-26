@@ -11,6 +11,7 @@ export type ProjectTabId =
   | 'pettyCash'
   | 'drawings'
   | 'snags'
+  | 'rfis'
   | 'laborWages'
   | 'resources'
   | 'reports'
@@ -28,6 +29,7 @@ export const PROJECT_TAB_HINTS: Record<ProjectTabId, string> = {
   pettyCash: 'Site float, snap receipts & 1-tap reconcile',
   drawings: 'GFC architectural, structural & MEP plans with pin drop',
   snags: 'Quality defect NCRs with before/after photos & sign-off',
+  rfis: 'Site RFIs and material / shop-drawing submittals',
   laborWages: 'Daily muster steppers & Saturday wage settlement',
   resources: 'People, plant and material usage vs plan',
   reports: 'Daily site diary and photos',

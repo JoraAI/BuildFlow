@@ -26,6 +26,7 @@ import { ResourcesTab } from '@/components/projects/ResourcesTab';
 import { PettyCashTab } from '@/components/projects/PettyCashTab';
 import { DrawingsTab } from '@/components/projects/DrawingsTab';
 import { SnagsTab } from '@/components/projects/SnagsTab';
+import { RfisTab } from '@/components/projects/RfisTab';
 import { LaborWagesTab } from '@/components/projects/LaborWagesTab';
 import { ProjectMembersSection } from '@/components/projects/ProjectMembersSection';
 import { ProjectMaterialRatesSection } from '@/components/projects/ProjectMaterialRatesSection';
@@ -51,6 +52,7 @@ type Tab =
   | 'pettyCash'
   | 'drawings'
   | 'snags'
+  | 'rfis'
   | 'laborWages'
   | 'resources'
   | 'reports'
@@ -68,6 +70,7 @@ const TABS: { label: string; value: Tab }[] = [
   { label: 'Petty Cash', value: 'pettyCash' },
   { label: 'Drawings', value: 'drawings' },
   { label: 'Snags / NCR', value: 'snags' },
+  { label: 'RFIs', value: 'rfis' },
   { label: 'Labor & Wages', value: 'laborWages' },
   { label: 'Resources', value: 'resources' },
   { label: 'Reports', value: 'reports' },
@@ -116,6 +119,8 @@ export default function ProjectDetailScreen() {
           return perms.includes('drawing.view');
         case 'snags':
           return perms.includes('snag.view');
+        case 'rfis':
+          return perms.includes('drawing.view') || perms.includes('snag.view') || perms.includes('project.view');
         case 'laborWages':
           return perms.includes('labor.view');
         case 'resources':
@@ -257,6 +262,7 @@ export default function ProjectDetailScreen() {
       {tab === 'pettyCash' && <PettyCashTab projectId={id} />}
       {tab === 'drawings' && <DrawingsTab projectId={id} />}
       {tab === 'snags' && <SnagsTab projectId={id} />}
+      {tab === 'rfis' && <RfisTab projectId={id} />}
       {tab === 'laborWages' && <LaborWagesTab projectId={id} />}
       {tab === 'resources' && <ResourcesTab projectId={id} />}
       {tab === 'reports' && <ProjectReportsTab projectId={id} />}

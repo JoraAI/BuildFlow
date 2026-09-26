@@ -231,8 +231,8 @@ export async function approveChangeOrder(
       throw ApiError.conflict('This variation has already been processed or is no longer in SUBMITTED status');
     }
 
-    // VAR-D2: BOQ writes moved to convertChangeOrderToBoq. Approve now only
-    // applies budget/schedule/linked-task/linked-WO side-effects.
+    // VAR-D2: BOQ writes + budget moved to convertChangeOrderToBoq. Approve
+    // only applies schedule / linked-task / linked-WO side-effects.
 
     if (co.linkedTaskId && co.scheduleImpactDays !== 0) {
       const task = await tx.task.findFirst({ where: { id: co.linkedTaskId, projectId: co.projectId } });
@@ -255,15 +255,11 @@ export async function approveChangeOrder(
       });
     }
 
-    await tx.project.update({
-      where: { id: co.projectId },
-      data: { budget: { increment: co.costImpact } },
-    });
+    // Project budget is incremented in convertChangeOrderToBoq so approve alone
+    // does not inflate budget before scope is on the BOQ.
 
     // Status was already set to APPROVED by the guarded updateMany above.
   });
-
-  // VO-B2: After convert-to-boq, review shortfalls in Procurement (not auto-indented).
 
   // FIX (EST-M14): After schedule impact is applied, recompute CPM (critical
   // path method) for the project so downstream tasks' dates shift correctly.
@@ -340,6 +336,14 @@ export async function convertChangeOrderToBoq(
     });
     if (guard.count === 0) {
       throw ApiError.conflict('BOQ has already been applied for this variation');
+    }
+
+    // Apply budget when scope lands on BOQ (not on approve).
+    if (Number(co.costImpact) !== 0) {
+      await tx.project.update({
+        where: { id: co.projectId },
+        data: { budget: { increment: co.costImpact } },
+      });
     }
 
     for (const line of co.lines) {

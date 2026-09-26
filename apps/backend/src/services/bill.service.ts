@@ -251,9 +251,9 @@ export async function createBill(companyId: string, _userId: string, input: Crea
 }
 
 /**
- * Inventory-only: auto-create a DRAFT vendor bill for a GRN
- * (received qty × PO line rate + optional 18% GST when company has GSTIN).
- * Idempotent on goodsReceiptId. No-op for construction tenants.
+ * Auto-create a DRAFT vendor bill for a GRN (received qty × PO line rate +
+ * optional 18% GST when company has GSTIN). Idempotent on goodsReceiptId.
+ * Used for both inventory and construction tenants so GRN → bill closes the loop.
  */
 export async function createDraftBillFromGrn(opts: {
   companyId: string;
@@ -266,9 +266,9 @@ export async function createDraftBillFromGrn(opts: {
 }): Promise<BillListItem | null> {
   const company = await prisma.company.findFirst({
     where: { id: opts.companyId },
-    select: { subscriptionPlan: true, gstin: true },
+    select: { gstin: true },
   });
-  if (!company || company.subscriptionPlan !== 'INVENTORY') return null;
+  if (!company) return null;
 
   const existing = await prisma.bill.findFirst({
     where: { goodsReceiptId: opts.goodsReceiptId },

@@ -90,14 +90,23 @@ export function useSnagItem(id?: string) {
 export function useCreateSnag() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: CreateSnagInput) =>
-      apiFetch<SnagItem>('/punch-list', {
+    mutationFn: (input: CreateSnagInput) => {
+      const body: Record<string, unknown> = {
+        projectId: input.projectId,
+        title: input.title,
+        priority: input.priority,
+        photos: input.photos ?? [],
+      };
+      if (input.taskId) body.taskId = input.taskId;
+      if (input.description) body.description = input.description;
+      if (input.location) body.location = input.location;
+      if (input.assignedTo) body.assignedTo = input.assignedTo;
+      if (input.dueDate) body.dueDate = input.dueDate;
+      return apiFetch<SnagItem>('/punch-list', {
         method: 'POST',
-        body: JSON.stringify({
-          ...input,
-          photos: input.photos ?? [],
-        }),
-      }),
+        body: JSON.stringify(body),
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: snagKeys.all });
     },

@@ -27,31 +27,42 @@ describe('Daily reports (integration)', () => {
   });
 
   afterAll(async () => {
-    // FIX (NR-55 / DAT-2.2): Delete reports created by this suite (identified
-    // by the 2040+ date range) so the next run starts from the same DB state.
-    // Without this, the @@unique([projectId, reportDate]) constraint collides
-    // on re-run. Uses Prisma directly because there's no DELETE route.
+    // Delete reports created by this suite (1990-range dates) so re-runs stay clean.
     try {
       await prisma.dailyReport.deleteMany({
-        where: { reportDate: { gte: new Date('2040-01-01') } },
+        where: {
+          reportDate: {
+            gte: new Date('1990-01-01'),
+            lt: new Date('1991-01-01'),
+          },
+        },
       });
     } catch {
       // Best-effort cleanup.
     }
   });
 
-  // FIX (NR-55): Generate dates far in the future (year 2040+) with a per-call
-  // incrementing day, and clean them up in afterAll. This avoids collisions
-  // with seed data and prior runs entirely.
+  // Past dates in 1990 so we never collide with seed data or violate the
+  // no-future-report rule.
   let _dateSeq = 0;
   function uniqueReportDate(_month = '01'): string {
     _dateSeq += 1;
     const day = ((_dateSeq - 1) % 28) + 1;
     const month = (Math.floor((_dateSeq - 1) / 28) % 12) + 1;
-    // Start in 2040 to avoid any overlap with seed data (2025–2026).
-    const year = 2040 + Math.floor((_dateSeq - 1) / 336);
-    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return `1990-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   }
+
+  it('rejects a future report date', async () => {
+    const tomorrow = new Date();
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 2);
+    const reportDate = tomorrow.toISOString().slice(0, 10);
+    const res = await authPost(token, `/api/projects/${nh45Id}/reports`, {
+      reportDate,
+      workDone: 'Should not save',
+      deductStock: false,
+    });
+    expect([400, 422]).toContain(res.status);
+  });
 
   it('rejects deductStock when project has no site stock (422, report not saved)', async () => {
     const reportDate = uniqueReportDate('07');

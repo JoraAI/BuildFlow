@@ -4,6 +4,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, apiFetchList } from '@/lib/api-client';
 
+export interface DrawingPin {
+  id: string;
+  xPct: number;
+  yPct: number;
+  title: string;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  status: 'OPEN' | 'RESOLVED' | 'CLOSED';
+  assignee?: string;
+  photoUrl?: string;
+}
+
 export interface DrawingVersion {
   id: string;
   drawingId: string;
@@ -22,7 +33,8 @@ export interface Drawing {
   title: string;
   discipline: 'ARCHITECTURAL' | 'STRUCTURAL' | 'MEP' | 'CIVIL' | 'OTHER';
   category?: string | null;
-  status: 'DRAFT' | 'FOR_REVIEW' | 'APPROVED' | 'SUPERSEDED' | 'REJECTED';
+  status: 'DRAFT' | 'IN_REVIEW' | 'APPROVED' | 'SUPERSEDED';
+  pins?: DrawingPin[] | null;
   currentVersionId?: string | null;
   currentVersion?: DrawingVersion | null;
   versions?: DrawingVersion[];
@@ -81,7 +93,7 @@ export function useDrawings(params?: {
   });
 }
 
-export function useDrawing(id?: string) {
+export function useDrawing(id?: string | null) {
   return useQuery({
     queryKey: drawingKeys.detail(id ?? ''),
     queryFn: () => apiFetch<Drawing>(`/drawings/${id}`),
@@ -111,8 +123,9 @@ export function useUpdateDrawing() {
         method: 'PUT',
         body: JSON.stringify(input),
       }),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: drawingKeys.all });
+      qc.invalidateQueries({ queryKey: drawingKeys.detail(vars.id) });
     },
   });
 }
@@ -125,8 +138,24 @@ export function useAddDrawingVersion() {
         method: 'POST',
         body: JSON.stringify(input),
       }),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: drawingKeys.all });
+      qc.invalidateQueries({ queryKey: drawingKeys.detail(vars.id) });
+    },
+  });
+}
+
+export function useReplaceDrawingPins() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, pins }: { id: string; pins: DrawingPin[] }) =>
+      apiFetch<Drawing>(`/drawings/${id}/pins`, {
+        method: 'PUT',
+        body: JSON.stringify({ pins }),
+      }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: drawingKeys.all });
+      qc.setQueryData(drawingKeys.detail(data.id), data);
     },
   });
 }

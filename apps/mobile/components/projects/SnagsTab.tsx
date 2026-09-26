@@ -15,20 +15,18 @@ import * as ImagePicker from 'expo-image-picker';
 import { Card, Button, Badge, LoadingSkeleton, EmptyState, Input } from '@/components/ui';
 import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
 import { useViewport } from '@/hooks/useViewport';
-import { useAuthStore } from '@/stores/auth.store';
 import { usePermission } from '@/hooks/usePermission';
 import { useTranslation } from '@/hooks/useTranslation';
 import {
   useSnagItems,
   useCreateSnag,
   useUpdateSnag,
-  useDeleteSnag,
   type SnagItem,
   type SnagPriority,
   type SnagStatus,
 } from '@/services/snag.queries';
 import { formatDate } from '@/utils/format';
-import { alertAsync, confirmAsync } from '@/utils/confirm';
+import { alertAsync } from '@/utils/confirm';
 
 const PRIORITIES: { id: SnagPriority; label: string; color: 'danger' | 'warning' | 'neutral' }[] = [
   { id: 'CRITICAL', label: 'Critical NCR', color: 'danger' },
@@ -65,7 +63,6 @@ export function SnagsTab({ projectId }: SnagsTabProps) {
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
   const [priority, setPriority] = useState<SnagPriority>('HIGH');
-  const [assignedTo, setAssignedTo] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
 
@@ -74,7 +71,6 @@ export function SnagsTab({ projectId }: SnagsTabProps) {
     setDescription('');
     setLocation('');
     setPriority('HIGH');
-    setAssignedTo('');
     setPhotos([]);
     setUploading(false);
     setShowCreateModal(true);
@@ -85,12 +81,11 @@ export function SnagsTab({ projectId }: SnagsTabProps) {
     setTitle('');
     setDescription('');
     setLocation('');
-    setAssignedTo('');
     setPhotos([]);
     setUploading(false);
   };
 
-  const { data: listData, isLoading, refetch } = useSnagItems({
+  const { data: listData, isLoading } = useSnagItems({
     projectId,
     status: filterStatus === 'ALL' ? undefined : filterStatus,
     priority: filterPriority === 'ALL' ? undefined : filterPriority,
@@ -98,7 +93,6 @@ export function SnagsTab({ projectId }: SnagsTabProps) {
 
   const createMut = useCreateSnag();
   const updateMut = useUpdateSnag();
-  const deleteMut = useDeleteSnag();
   const snags = listData?.data ?? [];
 
   const handlePickPhoto = async (useCamera: boolean) => {
@@ -115,8 +109,8 @@ export function SnagsTab({ projectId }: SnagsTabProps) {
       }
 
       const res = useCamera
-        ? await ImagePicker.launchCameraAsync({ quality: 0.7, base64: true })
-        : await ImagePicker.launchImageLibraryAsync({ quality: 0.7, base64: true });
+        ? await ImagePicker.launchCameraAsync({ quality: 0.45, base64: true })
+        : await ImagePicker.launchImageLibraryAsync({ quality: 0.45, base64: true });
 
       if (res.canceled) {
         setUploading(false);
@@ -124,6 +118,10 @@ export function SnagsTab({ projectId }: SnagsTabProps) {
       }
 
       if (res.assets && res.assets[0]?.base64) {
+        if (photos.length >= 5) {
+          await alertAsync('Limit', 'Maximum 5 evidence photos per snag.');
+          return;
+        }
         const dataUrl = `data:image/jpeg;base64,${res.assets[0].base64}`;
         setPhotos((prev) => [...prev, dataUrl]);
       }
@@ -132,10 +130,6 @@ export function SnagsTab({ projectId }: SnagsTabProps) {
     } finally {
       setUploading(false);
     }
-  };
-
-  const removePhoto = (index: number) => {
-    setPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleCreate = async () => {
@@ -148,10 +142,9 @@ export function SnagsTab({ projectId }: SnagsTabProps) {
       await createMut.mutateAsync({
         projectId,
         title: title.trim(),
-        description: description.trim() || null,
-        location: location.trim() || null,
+        ...(description.trim() ? { description: description.trim() } : {}),
+        ...(location.trim() ? { location: location.trim() } : {}),
         priority,
-        assignedTo: assignedTo.trim() || null,
         photos,
       });
 
@@ -216,8 +209,8 @@ export function SnagsTab({ projectId }: SnagsTabProps) {
   return (
     <View className="gap-4">
       {/* Header */}
-      <View className="flex-row justify-between items-center">
-        <View>
+      <View className="flex-row justify-between items-start gap-2 flex-wrap">
+        <View className="flex-1 min-w-[180px]">
           <Text className="text-xl font-bold text-text">{t('Snag List & Quality NCRs')}</Text>
           <Text className="text-xs text-muted mt-0.5">
             Defect tracking, before/after evidence photos, contractor rectification & sign-offs
@@ -256,6 +249,38 @@ export function SnagsTab({ projectId }: SnagsTabProps) {
           );
         })}
       </View>
+      <View className="flex-row flex-wrap items-center gap-1.5">
+        <Pressable
+          onPress={() => setFilterPriority('ALL')}
+          className={`px-3 py-1.5 rounded-lg border ${
+            filterPriority === 'ALL' ? 'bg-primary border-primary' : 'bg-card border-border'
+          }`}
+        >
+          <Text
+            className={`text-xs font-semibold ${
+              filterPriority === 'ALL' ? 'text-white' : 'text-text'
+            }`}
+          >
+            All priorities
+          </Text>
+        </Pressable>
+        {PRIORITIES.map((p) => {
+          const active = filterPriority === p.id;
+          return (
+            <Pressable
+              key={p.id}
+              onPress={() => setFilterPriority(active ? 'ALL' : p.id)}
+              className={`px-3 py-1.5 rounded-lg border ${
+                active ? 'bg-primary border-primary' : 'bg-card border-border'
+              }`}
+            >
+              <Text className={`text-xs font-semibold ${active ? 'text-white' : 'text-text'}`}>
+                {p.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
       {/* Snags Feed */}
       {isLoading ? (
@@ -267,7 +292,11 @@ export function SnagsTab({ projectId }: SnagsTabProps) {
       ) : snags.length === 0 ? (
         <EmptyState
           title="No snag items found"
-          description="Record defects, finishing issues, honeycombing, or plumbing snags for sub-contractor action using the button above."
+          description={
+            canCreate
+              ? 'Record defects, finishing issues, honeycombing, or plumbing snags for sub-contractor action using the button above.'
+              : 'No snags have been logged on this project yet.'
+          }
         />
       ) : (
         <View className={isDesktop || isTablet ? 'grid grid-cols-2 lg:grid-cols-3 gap-3' : 'gap-2.5'}>

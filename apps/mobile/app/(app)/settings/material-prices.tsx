@@ -108,7 +108,8 @@ function useMaterialTrend(material: Resource, loadHistory: boolean) {
 }
 
 export default function MaterialPriceTrackerScreen() {
-  const { isDesktop } = useViewport();
+  const { isDesktop, isTablet } = useViewport();
+  const wide = isDesktop || isTablet;
   const { from } = useLocalSearchParams<{ from?: string }>();
   const user = useAuthStore((s) => s.user);
   const canManage = user?.role === 'OWNER' || user?.role === 'PM';
@@ -144,9 +145,9 @@ export default function MaterialPriceTrackerScreen() {
   const showingCount = materials.length;
 
   useEffect(() => {
-    if (!isDesktop || materials.length === 0) return;
+    if (!wide || materials.length === 0) return;
     setSelected((prev) => (prev && materials.some((m: Resource) => m.id === prev) ? prev : materials[0]!.id));
-  }, [isDesktop, materials]);
+  }, [wide, materials]);
 
   async function uploadFormImage(form: MaterialFormState): Promise<string | undefined | null> {
     if (form.removeImage) return null;
@@ -248,11 +249,11 @@ export default function MaterialPriceTrackerScreen() {
     />
   ) : (
     <Card className="overflow-hidden p-0 border border-border">
-      {isDesktop && <MaterialListHeader />}
+      {wide && <MaterialListHeader />}
       <ScrollView
         ref={listScrollRef}
-        nestedScrollEnabled={isDesktop}
-        style={isDesktop ? { maxHeight: 600 } : undefined}
+        nestedScrollEnabled={wide}
+        style={wide ? { maxHeight: 600 } : undefined}
       >
         {materials.map((m: Resource, idx: number) => (
           <MaterialListRow
@@ -273,7 +274,7 @@ export default function MaterialPriceTrackerScreen() {
         <View className="flex-1">
           <SearchBar value={search} onChangeText={setSearch} placeholder="Search by name, category, or HSN..." />
         </View>
-        {canManage && !isDesktop ? (
+        {canManage && !wide ? (
           <Button label="Add" size="sm" onPress={() => setShowAddModal(true)} />
         ) : null}
       </View>
@@ -314,7 +315,7 @@ export default function MaterialPriceTrackerScreen() {
           }
         }}
         actions={
-          canManage && isDesktop ? (
+          canManage && wide ? (
             <Button
               label="Add Material"
               size="sm"
@@ -324,7 +325,7 @@ export default function MaterialPriceTrackerScreen() {
           ) : undefined
         }
       >
-        {isDesktop ? (
+        {wide ? (
           <View className="flex-row gap-6 items-start">
             <View className="flex-1 min-w-0 max-w-2xl">
               {searchBar}
@@ -361,7 +362,7 @@ export default function MaterialPriceTrackerScreen() {
         )}
       </SettingsPageLayout>
 
-      {!isDesktop && (
+      {!wide && (
         <Modal visible={!!selected} animationType="slide" onRequestClose={() => setSelected(null)}>
           {selected && (
             <PriceHistoryPanel
@@ -415,11 +416,11 @@ function MaterialListRow({
   isLast?: boolean;
   onPress: () => void;
 }) {
-  const { isDesktop } = useViewport();
-  const { sparkData, curRate, change, changePct } = useMaterialTrend(material, false);
+  const { isDesktop, isTablet } = useViewport();
+  const { sparkData, curRate, change, changePct } = useMaterialTrend(material, !!selected);
   const trendColor = change > 0 ? '#EF4444' : change < 0 ? '#10B981' : '#94A3B8';
 
-  if (isDesktop) {
+  if (isDesktop || isTablet) {
     return (
       <Pressable
         onPress={onPress}
@@ -532,6 +533,14 @@ function PriceHistoryPanel({
   const res = materialList?.data.find((r: Resource) => r.id === resourceId);
   const history = hist ?? [];
   const pendingScheduled = history.find((p: PriceHistoryPoint) => p.isScheduled);
+  const todayStr = todayDateOnly();
+  const entryForSelectedDate = history.find((p: PriceHistoryPoint) => {
+    const d =
+      typeof p.effectiveDate === 'string'
+        ? p.effectiveDate.slice(0, 10)
+        : todayStr;
+    return d === effectiveDate;
+  });
   const chartData = history
     .filter((p: PriceHistoryPoint) => !p.isScheduled)
     .map((p: PriceHistoryPoint) => ({
@@ -540,7 +549,19 @@ function PriceHistoryPanel({
     }));
 
   function openRateForm() {
-    setEffectiveDate(todayDateOnly());
+    const today = todayDateOnly();
+    setEffectiveDate(today);
+    const todayEntry = history.find((p: PriceHistoryPoint) => {
+      const d = typeof p.effectiveDate === 'string' ? p.effectiveDate.slice(0, 10) : '';
+      return d === today;
+    });
+    if (todayEntry) {
+      setNewRate(String(parseFloat(todayEntry.rate)));
+      setNotes(todayEntry.notes ?? '');
+    } else {
+      setNewRate('');
+      setNotes('');
+    }
     setFormError(null);
     setShowForm(true);
   }
@@ -608,7 +629,7 @@ function PriceHistoryPanel({
       setFormError('Effective date is required');
       return;
     }
-    if (pendingScheduled) {
+    if (pendingScheduled && !entryForSelectedDate) {
       const msg = `A rate is already scheduled for ${formatDate(pendingScheduled.effectiveDate)}. Wait until it takes effect.`;
       setFormError(msg);
       await alertAsync('Scheduled rate pending', msg);
@@ -655,7 +676,6 @@ function PriceHistoryPanel({
           size="sm"
           fullWidth
           onPress={openRateForm}
-          disabled={!!pendingScheduled}
         />
       </View>
     </View>
@@ -678,7 +698,6 @@ function PriceHistoryPanel({
               label="Update Rate"
               size="sm"
               onPress={openRateForm}
-              disabled={!!pendingScheduled}
             />
           </View>
         ) : null}
@@ -793,7 +812,9 @@ function PriceHistoryPanel({
     <Modal visible={showForm} transparent animationType="fade" onRequestClose={() => setShowForm(false)}>
       <View className="flex-1 justify-center bg-black/40 px-4">
         <Card className="max-w-md w-full self-center">
-          <Text className="text-lg font-bold text-text mb-1">Update Rate</Text>
+          <Text className="text-lg font-bold text-text mb-1">
+            {entryForSelectedDate ? 'Update Rate' : 'Add Rate'}
+          </Text>
           <Text className="text-sm text-muted mb-4">
             {res?.name} - current: {formatINR(parseFloat(res?.rate ?? '0'))}/{res?.unit}
           </Text>
@@ -801,9 +822,24 @@ function PriceHistoryPanel({
             <DateField
               label="Effective date"
               value={effectiveDate}
-              onChange={setEffectiveDate}
+              onChange={(d) => {
+                setEffectiveDate(d);
+                const existing = history.find((p: PriceHistoryPoint) => {
+                  const ed =
+                    typeof p.effectiveDate === 'string' ? p.effectiveDate.slice(0, 10) : '';
+                  return ed === d;
+                });
+                if (existing) {
+                  setNewRate(String(parseFloat(existing.rate)));
+                  setNotes(existing.notes ?? '');
+                }
+              }}
               minimumDate={todayDateOnly()}
-              helper="Today applies immediately. A future date schedules the rate."
+              helper={
+                entryForSelectedDate
+                  ? 'A rate already exists for this date — saving will update it.'
+                  : 'Today applies immediately. A future date schedules the rate.'
+              }
             />
             <Input
               label={`New rate (per ${res?.unit ?? 'unit'})`}
@@ -822,7 +858,12 @@ function PriceHistoryPanel({
             {formError ? <Text className="text-sm text-danger">{formError}</Text> : null}
             <View className="flex-row gap-2 mt-2">
               <Button label="Cancel" variant="secondary" className="flex-1" onPress={() => setShowForm(false)} />
-              <Button label="Save" className="flex-1" onPress={handleSave} loading={addMut.isPending} />
+              <Button
+                label={entryForSelectedDate ? 'Update' : 'Save'}
+                className="flex-1"
+                onPress={handleSave}
+                loading={addMut.isPending}
+              />
             </View>
           </View>
         </Card>

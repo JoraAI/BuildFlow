@@ -221,8 +221,10 @@ export default function CreateReportScreen() {
   const [issues, setIssues] = useState('');
 
   const resetForm = useCallback((projectIdForForm: string, dateOverride?: string) => {
-    const targetDate =
-      dateOverride && /^\d{4}-\d{2}-\d{2}$/.test(dateOverride) ? dateOverride : todayDateOnly();
+    const today = todayDateOnly();
+    let targetDate =
+      dateOverride && /^\d{4}-\d{2}-\d{2}$/.test(dateOverride) ? dateOverride : today;
+    if (targetDate > today) targetDate = today;
     const musterForDate = useLaborMusterStore.getState().getMuster(projectIdForForm, targetDate);
     setStep(1);
     setFormError(null);
@@ -466,7 +468,8 @@ export default function CreateReportScreen() {
   }, [taskDrafts, taskSearch]);
 
   // Responsive wrapper width on tablet/web
-  const stepWrapper = isDesktop ? 'w-full max-w-2xl mx-auto' : 'w-full';
+  const stepWrapper = isDesktop ? 'w-full max-w-3xl mx-auto' : 'w-full';
+  const todayStr = todayDateOnly();
 
   return (
     <SafeAreaView className="flex-1 bg-surface">
@@ -481,31 +484,51 @@ export default function CreateReportScreen() {
         />
 
         {/* Step indicator */}
-        <View className="px-4 py-3 flex-row items-center">
-          {[1, 2, 3, 4].map((s) => (
-            <React.Fragment key={s}>
-              <View
-                className={`w-7 h-7 rounded-full items-center justify-center ${
-                  s <= step ? 'bg-primary' : 'bg-border'
-                }`}
-              >
-                <Text className={`text-xs font-bold ${s <= step ? 'text-white' : 'text-muted'}`}>
-                  {s}
-                </Text>
-              </View>
-              {s < 4 && (
-                <View className={`flex-1 h-0.5 ${s < step ? 'bg-primary' : 'bg-border'}`} />
-              )}
-            </React.Fragment>
-          ))}
+        <View className={`px-4 py-3 ${isDesktop ? 'max-w-3xl w-full self-center' : ''}`}>
+          <View className="flex-row items-center">
+            {(
+              [
+                { n: 1, label: 'Basics' },
+                { n: 2, label: 'Work' },
+                { n: 3, label: 'Materials' },
+                { n: 4, label: 'Photos' },
+              ] as const
+            ).map((s, idx, arr) => (
+              <React.Fragment key={s.n}>
+                <View className="items-center">
+                  <View
+                    className={`w-7 h-7 rounded-full items-center justify-center ${
+                      s.n <= step ? 'bg-primary' : 'bg-border'
+                    }`}
+                  >
+                    <Text className={`text-xs font-bold ${s.n <= step ? 'text-white' : 'text-muted'}`}>
+                      {s.n}
+                    </Text>
+                  </View>
+                  {isDesktop ? (
+                    <Text
+                      className={`text-[10px] mt-1 ${
+                        s.n === step ? 'text-primary font-semibold' : 'text-muted'
+                      }`}
+                    >
+                      {s.label}
+                    </Text>
+                  ) : null}
+                </View>
+                {idx < arr.length - 1 && (
+                  <View className={`flex-1 h-0.5 mx-1 ${s.n < step ? 'bg-primary' : 'bg-border'}`} />
+                )}
+              </React.Fragment>
+            ))}
+          </View>
         </View>
 
-        <ScrollView className="flex-1 px-4 pb-4">
+        <ScrollView className="flex-1 px-4 pb-4" contentContainerClassName={isDesktop ? 'items-center' : undefined}>
           <View className={stepWrapper}>
             {/* STEP 1: Basic Info */}
             {step === 1 && (
-              <View className="space-y-4">
-                <Card className="p-4">
+              <View className={isDesktop ? 'gap-4 md:grid md:grid-cols-2' : 'gap-4'}>
+                <Card className={`p-4 ${isDesktop ? 'md:col-span-2' : ''}`}>
                   {isProjectLocked ? (
                     <View>
                       <Text className="text-sm font-semibold text-text mb-1.5">Project</Text>
@@ -533,10 +556,29 @@ export default function CreateReportScreen() {
                 </Card>
 
                 <Card className="p-4">
-                  <DateField label="Report Date" value={reportDate} onChange={setReportDate} />
+                  <DateField
+                    label="Report Date"
+                    value={reportDate}
+                    onChange={(d) => setReportDate(d > todayStr ? todayStr : d)}
+                    maximumDate={todayStr}
+                    fullWidth
+                    helper="Today or an earlier date — future dates are not allowed."
+                  />
                 </Card>
 
                 <Card className="p-4">
+                  <Input
+                    label="Workers Count"
+                    value={workersCount}
+                    onChangeText={(v) => setWorkersCount(v.replace(/[^0-9]/g, ''))}
+                    keyboardType="numeric"
+                    fullWidth
+                    placeholder="e.g. 45"
+                    helper="Total workers on site today."
+                  />
+                </Card>
+
+                <Card className={`p-4 ${isDesktop ? 'md:col-span-2' : ''}`}>
                   <Text className="text-sm font-semibold text-text mb-2">Weather</Text>
                   <View className="flex-row flex-wrap gap-2">
                     {WEATHERS.map((w) => (
@@ -556,14 +598,14 @@ export default function CreateReportScreen() {
                   </View>
                 </Card>
 
-                <Card className="p-4">
+                <Card className={`p-4 ${isDesktop ? 'md:col-span-2' : ''}`}>
                   <Text className="text-sm font-semibold text-text mb-2">Site Status</Text>
-                  <View className="flex-row gap-2">
+                  <View className="flex-row flex-wrap gap-2">
                     {SITE_STATUSES.map((s) => (
                       <Pressable
                         key={s.value}
                         onPress={() => setSiteStatus(s.value)}
-                        className={`flex-1 px-3 py-2.5 rounded-md items-center ${
+                        className={`min-w-[30%] flex-1 px-3 py-2.5 rounded-md items-center ${
                           siteStatus === s.value ? s.color : 'bg-surface border border-border'
                         }`}
                       >
@@ -579,20 +621,8 @@ export default function CreateReportScreen() {
                   </View>
                 </Card>
 
-                <Card className="p-4">
-                  <Input
-                    label="Workers Count"
-                    value={workersCount}
-                    onChangeText={(v) => setWorkersCount(v.replace(/[^0-9]/g, ''))}
-                    keyboardType="numeric"
-                    fullWidth
-                    placeholder="e.g. 45"
-                    helper="Total workers on site today."
-                  />
-                </Card>
-
                 {syncedMuster && (
-                  <Card className="p-4 border border-emerald-500/30 bg-emerald-500/5">
+                  <Card className={`p-4 border border-emerald-500/30 bg-emerald-500/5 ${isDesktop ? 'md:col-span-2' : ''}`}>
                     <View className="flex-row items-center justify-between mb-2">
                       <View className="flex-row items-center gap-2">
                         <Ionicons name="people" size={18} color="#10B981" />

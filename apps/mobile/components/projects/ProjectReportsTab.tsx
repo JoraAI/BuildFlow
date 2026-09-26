@@ -31,10 +31,11 @@ function siteStatusColor(
 
 export function ProjectReportsTab({ projectId }: ProjectReportsTabProps) {
   const router = useRouter();
-  const { isDesktop } = useViewport();
+  const { isDesktop, isTablet } = useViewport();
   const setActiveProject = useAppStore((s) => s.setActiveProject);
   const month = useMemo(() => new Date().toISOString().slice(0, 7), []);
   const todayStr = todayDateOnly();
+  const wide = isDesktop || isTablet;
 
   const reportsQ = useReports(projectId);
   const calendarQ = useReportCalendar(projectId, month);
@@ -60,7 +61,8 @@ export function ProjectReportsTab({ projectId }: ProjectReportsTabProps) {
 
   const openCreate = (date?: string) => {
     setActiveProject(projectId);
-    router.push(createReportHref(projectId, date ? { date } : undefined) as never);
+    const safeDate = date && date <= todayStr ? date : todayStr;
+    router.push(createReportHref(projectId, { date: safeDate }) as never);
   };
 
   const openDay = (dateStr: string) => {
@@ -74,6 +76,143 @@ export function ProjectReportsTab({ projectId }: ProjectReportsTabProps) {
     if (dateStr <= todayStr) openCreate(dateStr);
   };
 
+  const todayBanner = (
+    <Card
+      className={`p-3 ${
+        todayReportId ? 'border-success/30 bg-success/5' : 'border-accent/30 bg-accent/5'
+      }`}
+    >
+      <View className={`flex-row items-center gap-3 ${wide ? '' : 'flex-wrap'}`}>
+        <View className="flex-1 min-w-0">
+          <Text className="text-sm font-semibold text-text">
+            {todayReportId ? 'Today’s report is filed' : 'No report for today yet'}
+          </Text>
+          <Text className="text-xs text-muted mt-0.5">
+            {todayReportId
+              ? 'Open it to review work logged on site.'
+              : 'Log work, materials, and site status for today.'}
+          </Text>
+        </View>
+        {todayReportId ? (
+          <Button
+            label="View today"
+            variant="secondary"
+            size="sm"
+            onPress={() =>
+              router.push(
+                reportDetailHref(todayReportId, projectTabHref(projectId, 'reports')) as never,
+              )
+            }
+          />
+        ) : (
+          <Button label="Log today" size="sm" onPress={() => openCreate(todayStr)} />
+        )}
+      </View>
+    </Card>
+  );
+
+  const calendarCard = (
+    <Card className="p-3">
+      <Text className="text-xs font-semibold text-muted uppercase mb-2">
+        {today.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+      </Text>
+      <View className="flex-row justify-between mb-1">
+        {WEEKDAYS.map((d, i) => (
+          <Text key={i} className="flex-1 text-center text-xs text-muted">
+            {d}
+          </Text>
+        ))}
+      </View>
+      <View className="flex-row flex-wrap">
+        {grid.map((day, idx) => {
+          if (day === null) return <View key={idx} className="w-[14.28%] h-9" />;
+          const dateStr = `${month}-${String(day).padStart(2, '0')}`;
+          const hasReport = reportByDate.has(dateStr);
+          const isToday = dateStr === todayStr;
+          const isFuture = dateStr > todayStr;
+          const canTap = hasReport || dateStr <= todayStr;
+          return (
+            <Pressable
+              key={idx}
+              disabled={!canTap}
+              onPress={() => openDay(dateStr)}
+              className="w-[14.28%] h-9 items-center justify-center"
+            >
+              <View
+                className={`w-7 h-7 rounded-full items-center justify-center ${
+                  hasReport ? 'bg-success' : isToday ? 'bg-accent' : ''
+                }`}
+              >
+                <Text
+                  className={`text-xs ${
+                    hasReport || isToday
+                      ? 'text-white font-bold'
+                      : isFuture
+                        ? 'text-muted/50'
+                        : 'text-text'
+                  }`}
+                >
+                  {day}
+                </Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+      <View className="flex-row flex-wrap gap-3 mt-2">
+        <View className="flex-row items-center gap-1">
+          <View className="w-2.5 h-2.5 rounded-full bg-success" />
+          <Text className="text-[11px] text-muted">Filed · tap to open</Text>
+        </View>
+        <View className="flex-row items-center gap-1">
+          <View className="w-2.5 h-2.5 rounded-full bg-accent" />
+          <Text className="text-[11px] text-muted">Today</Text>
+        </View>
+      </View>
+      <Text className="text-[11px] text-muted mt-1.5">
+        Future dates are disabled. Tap a past/today open cell to create.
+      </Text>
+    </Card>
+  );
+
+  const reportsList = (
+    <View className="gap-2">
+      <View className="flex-row items-center justify-between gap-2">
+        <Text className="text-sm font-semibold text-text">Recent reports</Text>
+        {hasReports ? (
+          <Button label="New report" variant="secondary" size="sm" onPress={() => openCreate()} />
+        ) : null}
+      </View>
+
+      {loading ? (
+        <View className="gap-2">
+          <LoadingSkeleton className="h-20 rounded-xl" />
+          <LoadingSkeleton className="h-20 rounded-xl" />
+        </View>
+      ) : hasReports ? (
+        <View className={wide ? 'grid grid-cols-1 lg:grid-cols-2 gap-2' : 'gap-2'}>
+          {reports.map((item: ReportListItem) => (
+            <ReportRow
+              key={item.id}
+              item={item}
+              onPress={() =>
+                router.push(
+                  reportDetailHref(item.id, projectTabHref(projectId, 'reports')) as never,
+                )
+              }
+            />
+          ))}
+        </View>
+      ) : (
+        <EmptyState
+          title="No reports yet"
+          description="Log daily work, materials used, and site photos for this project."
+          action={<Button label="New daily report" onPress={() => openCreate()} />}
+        />
+      )}
+    </View>
+  );
+
   return (
     <ScrollView
       refreshControl={
@@ -86,116 +225,18 @@ export function ProjectReportsTab({ projectId }: ProjectReportsTabProps) {
         />
       }
     >
-      <View className={`gap-3 ${isDesktop ? 'max-w-5xl' : ''}`}>
-        {/* Today status - single primary action for today */}
-        <Card
-          className={`p-3 ${
-            todayReportId ? 'border-success/30 bg-success/5' : 'border-accent/30 bg-accent/5'
-          }`}
-        >
-          <View className={`flex-row items-center gap-3 ${isDesktop ? '' : 'flex-wrap'}`}>
-            <View className="flex-1 min-w-0">
-              <Text className="text-sm font-semibold text-text">
-                {todayReportId ? 'Today’s report is filed' : 'No report for today yet'}
-              </Text>
-              <Text className="text-xs text-muted mt-0.5">
-                {todayReportId
-                  ? 'Open it to review work logged on site.'
-                  : 'Log work, materials, and site status for today.'}
-              </Text>
-            </View>
-            {todayReportId ? (
-              <Button
-                label="View today"
-                variant="secondary"
-                size="sm"
-                onPress={() =>
-                  router.push(
-                    reportDetailHref(todayReportId, projectTabHref(projectId, 'reports')) as never,
-                  )
-                }
-              />
-            ) : (
-              <Button label="Log today" size="sm" onPress={() => openCreate(todayStr)} />
-            )}
+      <View className={`gap-3 ${isDesktop ? 'max-w-6xl' : ''}`}>
+        {todayBanner}
+        {wide ? (
+          <View className="flex-row gap-4 items-start">
+            <View className="w-full max-w-[360px] shrink-0">{calendarCard}</View>
+            <View className="flex-1 min-w-0">{reportsList}</View>
           </View>
-        </Card>
-
-        <Card className="p-3">
-          <Text className="text-xs font-semibold text-muted uppercase mb-2">
-            {today.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
-          </Text>
-          <View className="flex-row justify-between mb-1">
-            {WEEKDAYS.map((d, i) => (
-              <Text key={i} className="flex-1 text-center text-xs text-muted">
-                {d}
-              </Text>
-            ))}
-          </View>
-          <View className="flex-row flex-wrap">
-            {grid.map((day, idx) => {
-              if (day === null) return <View key={idx} className="w-[14.28%] h-9" />;
-              const dateStr = `${month}-${String(day).padStart(2, '0')}`;
-              const hasReport = reportByDate.has(dateStr);
-              const isToday = dateStr === todayStr;
-              const canTap = hasReport || dateStr <= todayStr;
-              return (
-                <Pressable
-                  key={idx}
-                  disabled={!canTap}
-                  onPress={() => openDay(dateStr)}
-                  className="w-[14.28%] h-9 items-center justify-center"
-                >
-                  <View
-                    className={`w-7 h-7 rounded-full items-center justify-center ${
-                      hasReport ? 'bg-success' : isToday ? 'bg-accent' : ''
-                    }`}
-                  >
-                    <Text
-                      className={`text-xs ${
-                        hasReport || isToday ? 'text-white font-bold' : 'text-text'
-                      }`}
-                    >
-                      {day}
-                    </Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-          <Text className="text-[11px] text-muted mt-2">
-            Tap a filed day to open · tap an open past/today cell to create
-          </Text>
-        </Card>
-
-        <View className="flex-row items-center justify-between gap-2">
-          <Text className="text-sm font-semibold text-text">Recent reports</Text>
-          {/* Only when list has items - empty state owns the create CTA */}
-          {hasReports ? (
-            <Button label="New report" variant="secondary" size="sm" onPress={() => openCreate()} />
-          ) : null}
-        </View>
-
-        {loading ? (
-          <LoadingSkeleton className="h-24 rounded-xl" />
-        ) : hasReports ? (
-          reports.map((item: ReportListItem) => (
-            <ReportRow
-              key={item.id}
-              item={item}
-              onPress={() =>
-                router.push(
-                  reportDetailHref(item.id, projectTabHref(projectId, 'reports')) as never,
-                )
-              }
-            />
-          ))
         ) : (
-          <EmptyState
-            title="No reports yet"
-            description="Log daily work, materials used, and site photos for this project."
-            action={<Button label="New daily report" onPress={() => openCreate()} />}
-          />
+          <>
+            {calendarCard}
+            {reportsList}
+          </>
         )}
       </View>
     </ScrollView>
@@ -219,7 +260,7 @@ function ReportRow({ item, onPress }: { item: ReportListItem; onPress: () => voi
 
   return (
     <Pressable onPress={onPress} accessibilityRole="button">
-      <Card className="p-3 mb-2">
+      <Card className="p-3 mb-0 h-full">
         <View className="flex-row items-center justify-between mb-1">
           <View className="flex-row items-center gap-2">
             <Text className="text-sm font-semibold text-text">{formatDate(item.reportDate)}</Text>

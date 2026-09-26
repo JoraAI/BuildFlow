@@ -3,8 +3,8 @@
  *
  * Verifies the full workflow:
  * 1. Create requisition → PO → GRN (stock increases)
- * 2. Assert NO bill is auto-created on GRN (§2.0b #5)
- * 3. Create a vendor bill linked to the PO via purchaseOrderId
+ * 2. Assert GRN auto-creates a DRAFT vendor bill (GRN → bill loop)
+ * 3. Create an additional manual vendor bill linked to the PO
  * 4. Assert purchaseOrderId is persisted
  * 5. Assert listRequisitions shows bill summary on the PO
  */
@@ -71,14 +71,19 @@ describe('Procurement vendor bill (PROC-B7 integration)', () => {
     });
     expect(grnRes.status).toBe(201);
 
-    // 5. Assert NO bill auto-created - list bills for project, none should reference this PO
+    // 5. GRN auto-creates a DRAFT vendor bill linked to this PO
     const billsRes = await authGet(token, `/api/projects/${projectId}/bills`);
     expect(billsRes.status).toBe(200);
-    const bills = billsRes.body.data as Array<{ purchaseOrderId?: string | null }>;
+    const bills = billsRes.body.data as Array<{
+      purchaseOrderId?: string | null;
+      status: string;
+      goodsReceiptId?: string | null;
+    }>;
     const autoBill = bills.find((b) => b.purchaseOrderId === poId);
-    expect(autoBill).toBeUndefined();
+    expect(autoBill).toBeTruthy();
+    expect(autoBill!.status).toBe('DRAFT');
 
-    // 6. Record a vendor bill linked to the PO
+    // 6. Record an additional vendor bill linked to the PO (manual entry)
     const billRes = await authPost(token, `/api/projects/${projectId}/bills`, {
       vendorName: 'Test Supplier Co',
       vendorGstin: '36ABCDE1234F1Z5',
@@ -108,8 +113,9 @@ describe('Procurement vendor bill (PROC-B7 integration)', () => {
     expect(reqWithPo).toBeTruthy();
     const po = reqWithPo!.purchaseOrders!.find((p) => p.id === poId)!;
     expect(po.bills).toBeDefined();
+    // Auto DRAFT from GRN + manual bill
     expect(po.bills!.length).toBeGreaterThanOrEqual(1);
-    expect(po.bills![0].status).toBe('PENDING');
+    expect(po.bills!.some((b) => b.status === 'DRAFT' || b.status === 'PENDING')).toBe(true);
   });
 
   it('rejects bill with non-existent purchaseOrderId (404)', async () => {

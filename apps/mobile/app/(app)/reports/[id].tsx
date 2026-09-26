@@ -52,7 +52,7 @@ export default function ReportDetailScreen() {
     report?.projectId ? { projectId: report.projectId } : undefined
   );
 
-  const dayExpenses = (pettyCashQ.data?.rows ?? []).filter((e: PettyCashEntry) => {
+  const dayExpenses = (pettyCashQ.data?.data ?? []).filter((e: PettyCashEntry) => {
     if (!reportDateStr) return false;
     const eDate = e.expenseDate ? e.expenseDate.slice(0, 10) : '';
     return eDate === reportDateStr;
@@ -274,7 +274,7 @@ export default function ReportDetailScreen() {
                         <Badge
                           label={exp.status}
                           color={
-                            exp.status === 'APPROVED' || exp.status === 'RECONCILED'
+                            exp.status === 'RECONCILED'
                               ? 'success'
                               : exp.status === 'REJECTED'
                               ? 'danger'

@@ -14,12 +14,15 @@ export interface PettyCashEntry {
   paidTo: string;
   receiptUrl: string | null;
   notes: string | null;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'RECONCILED';
+  /** Backend statuses: PENDING | RECONCILED | REJECTED */
+  status: 'PENDING' | 'RECONCILED' | 'REJECTED';
   project?: { id: string; name: string } | null;
 }
 
 export interface PettyCashSummary {
-  totalAmount: number;
+  /** Prefer `total`; `totalAmount` kept as alias from API for older clients. */
+  total: number;
+  totalAmount?: number;
   byStatus: Record<string, number>;
   byCategory: Record<string, number>;
   count: number;
@@ -44,7 +47,7 @@ export interface UpdatePettyCashInput {
   paidTo?: string;
   receiptUrl?: string | null;
   notes?: string | null;
-  status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'RECONCILED';
+  status?: 'PENDING' | 'RECONCILED' | 'REJECTED';
 }
 
 export const pettyCashKeys = {

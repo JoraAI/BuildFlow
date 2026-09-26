@@ -502,6 +502,56 @@ export async function addPriceHistory(
     orderBy: { effectiveDate: 'asc' },
   });
 
+  const effectiveDateObj = parseDateOnlyToDate(effectiveDateOnly);
+  const isImmediate = compareDateOnly(effectiveDateOnly, today) <= 0;
+
+  // One rate entry per material per effective date — update instead of inserting a duplicate.
+  const existingSameDay = await prisma.materialPriceHistory.findFirst({
+    where: {
+      resourceId,
+      companyId,
+      effectiveDate: effectiveDateObj,
+    },
+  });
+
+  if (existingSameDay) {
+    const oldRate = Number(resource.rate);
+    const entry = await prisma.materialPriceHistory.update({
+      where: { id: existingSameDay.id },
+      data: {
+        rate: input.rate,
+        notes: input.notes ?? existingSameDay.notes,
+        recordedBy: userId,
+      },
+    });
+
+    if (isImmediate) {
+      await prisma.resource.update({
+        where: { id: resourceId },
+        data: { rate: input.rate, lastRateUpdatedAt: effectiveDateObj },
+      });
+      await flagStaleRateAnalyses(resourceId);
+    }
+
+    await invalidatePattern(`cache:${companyId}:resources:*`);
+    if (isImmediate) {
+      await invalidatePattern(`cache:${companyId}:rate-analysis:*`);
+    }
+
+    await recordAudit({
+      companyId,
+      userId,
+      action: 'UPDATE',
+      entityType: 'resource_price',
+      entityId: resourceId,
+      oldValue: { rate: oldRate, effectiveDate: effectiveDateOnly },
+      newValue: { rate: input.rate, effectiveDate: effectiveDateOnly, updatedExisting: true },
+      ipAddress,
+    });
+
+    return entry;
+  }
+
   if (pendingFuture) {
     const pendingOn = dateOnlyFromDate(pendingFuture.effectiveDate);
     throw ApiError.validation([
@@ -511,9 +561,6 @@ export async function addPriceHistory(
       },
     ]);
   }
-
-  const effectiveDateObj = parseDateOnlyToDate(effectiveDateOnly);
-  const isImmediate = compareDateOnly(effectiveDateOnly, today) <= 0;
 
   const entry = await prisma.materialPriceHistory.create({
     data: {

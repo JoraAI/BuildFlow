@@ -335,7 +335,13 @@ export async function createPO(
   projectId: string,
   input: CreatePurchaseOrderInput,
 ) {
-  await assertProjectAccess(companyId, userId, role as never, projectId, ['OWNER', 'PM', 'ACCOUNTANT']);
+  await assertProjectAccess(companyId, userId, role as never, projectId, [
+    'OWNER',
+    'PM',
+    'DPM',
+    'ACCOUNTANT',
+    'STORE_INCHARGE',
+  ]);
 
   if (input.requisitionId) {
     const req = await prisma.materialRequisition.findFirst({
@@ -816,32 +822,33 @@ export async function createGRN(
       }
     }
 
-    // FIX (EST-M1): After GRN is created, check if the requisition is fully
-    // fulfilled (all lines received). NOTE: status is intentionally left as
-    // APPROVED - there is no CLOSED state in the requisition state machine yet
-    // (transition would require a schema migration). Tracking fulfillment via
-    // received-vs-ordered quantities only; no cosmetic no-op write here.
-    if (po.requisition?.lines.length) {
-      // Sum all GRN lines across all GRNs for this PO that match requisition resources
-      const allGrns = await prisma.goodsReceiptNote.findMany({
-        where: { purchaseOrderId: po.id },
+    // After GRN, mark the indent FULFILLED when every resource line is fully
+    // received across all POs linked to this requisition (not only this PO).
+    if (po.requisition?.lines.length && po.requisitionId) {
+      const allGrns = await tx.goodsReceiptNote.findMany({
+        where: { purchaseOrder: { requisitionId: po.requisitionId, companyId } },
         include: { lines: { select: { resourceId: true, quantity: true } } },
       });
       const receivedByResource = new Map<string, number>();
       for (const g of allGrns) {
         for (const l of g.lines) {
-          receivedByResource.set(l.resourceId, (receivedByResource.get(l.resourceId) ?? 0) + Number(l.quantity));
+          receivedByResource.set(
+            l.resourceId,
+            (receivedByResource.get(l.resourceId) ?? 0) + Number(l.quantity),
+          );
         }
       }
-      // Check if all requisition lines are fully received
       const allFulfilled = po.requisition.lines.every((rl) => {
         if (!rl.resourceId) return true; // BOQ-only lines skip this check
         const received = receivedByResource.get(rl.resourceId) ?? 0;
-        return received >= Number(rl.quantity) - 0.001; // tolerance
+        return received >= Number(rl.quantity) - 0.001;
       });
-      // No status transition - see note above. A CLOSED enum can be added in a
-      // future migration if business logic requires marking requisitions done.
-      void allFulfilled;
+      if (allFulfilled) {
+        await tx.materialRequisition.update({
+          where: { id: po.requisitionId },
+          data: { status: 'FULFILLED' },
+        });
+      }
     }
 
     return created;
@@ -855,7 +862,7 @@ export async function createGRN(
     throw err;
   }
 
-  // Inventory only: draft vendor bill from received qty × PO rates.
+  // Draft vendor bill from received qty × PO rates (construction + inventory).
   // After stock is committed - failures are non-fatal (do not roll back GRN).
   try {
     await createDraftBillFromGrn({

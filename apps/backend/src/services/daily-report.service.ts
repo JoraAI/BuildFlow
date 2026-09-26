@@ -22,6 +22,7 @@ import type {
   CreateDailyReportInput,
   UpdateDailyReportInput,
 } from '@buildflow/shared';
+import { todayDateOnly } from '@buildflow/shared';
 
 const reportInclude = {
   project: { select: { id: true, code: true, name: true } },
@@ -130,6 +131,11 @@ export async function createReport(
   // the unique constraint at the DB level with a confusing error.
   const rawDate = new Date(input.reportDate);
   const reportDate = new Date(Date.UTC(rawDate.getUTCFullYear(), rawDate.getUTCMonth(), rawDate.getUTCDate()));
+  const reportDateOnly = reportDate.toISOString().slice(0, 10);
+  const today = todayDateOnly();
+  if (reportDateOnly > today) {
+    throw ApiError.badRequest('Cannot create a daily report for a future date');
+  }
 
   // Enforce one report per project per day
   const existing = await prisma.dailyReport.findFirst({
@@ -202,6 +208,16 @@ export async function createReport(
       const input = materialUsages[i]!;
       const usageRow = report.materialUsages[i];
       if (input.postToBoqMeasurement && input.boqItemId && usageRow) {
+        const canPost = await assertMaterialUsageUnitsMatchBoq(
+          companyId,
+          input.resourceId,
+          input.boqItemId,
+        );
+        if (!canPost) {
+          throw ApiError.badRequest(
+            'Cannot post material quantity as BOQ measurement: material unit and BOQ unit differ. Record measurement on the BOQ tab instead, or clear "post to BOQ" for this line.',
+          );
+        }
         await recordBoqMeasurement(
           companyId,
           userId,
@@ -308,7 +324,11 @@ export async function updateReport(
     ipAddress,
   });
 
-  return serializeReport(updated);
+  const refreshed = await prisma.dailyReport.findFirst({
+    where: { id: reportId },
+    include: reportInclude,
+  });
+  return serializeReport(refreshed ?? updated);
 }
 
 /* ------------------------------------------------------------------ */
@@ -430,6 +450,17 @@ export async function postMaterialUsageToBoq(
     throw ApiError.badRequest('Already posted to measurement book');
   }
 
+  const canPost = await assertMaterialUsageUnitsMatchBoq(
+    companyId,
+    usage.resourceId,
+    usage.boqItemId,
+  );
+  if (!canPost) {
+    throw ApiError.badRequest(
+      'Cannot post material quantity as BOQ measurement: material unit and BOQ unit differ. Record measurement on the BOQ tab instead.',
+    );
+  }
+
   await recordBoqMeasurement(
     companyId,
     userId,
@@ -447,6 +478,30 @@ export async function postMaterialUsageToBoq(
   });
 
   return { usageId, boqItemId: usage.boqItemId, posted: true };
+}
+
+/**
+ * Only allow material qty → BOQ executedQty when units match (e.g. both cum).
+ * Prevents bags of cement from inflating cubic-metre BOQ progress.
+ */
+async function assertMaterialUsageUnitsMatchBoq(
+  companyId: string,
+  resourceId: string,
+  boqItemId: string,
+): Promise<boolean> {
+  const [resource, boq] = await Promise.all([
+    prisma.resource.findFirst({
+      where: { id: resourceId, companyId },
+      select: { unit: true },
+    }),
+    prisma.bOQItem.findFirst({
+      where: { id: boqItemId, project: { companyId } },
+      select: { unit: true },
+    }),
+  ]);
+  if (!resource || !boq) return false;
+  const norm = (u: string) => u.trim().toLowerCase().replace(/\s+/g, '');
+  return norm(resource.unit) === norm(boq.unit);
 }
 
 /* ------------------------------------------------------------------ */

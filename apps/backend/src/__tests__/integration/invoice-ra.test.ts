@@ -48,13 +48,47 @@ describe('RA invoices (integration)', () => {
 
   it('creates RA bill #2 with previous certified from bill #1', async () => {
     const boqRes = await authGet(token, `/api/projects/${projectId}/boq`);
-    const boqItem = boqRes.body.data?.items?.[0];
+    expect(boqRes.status).toBe(200);
+    let items = (boqRes.body.data?.items ?? []) as Array<{
+      id: string;
+      description: string;
+      unit: string;
+      rate: number;
+      executedQty: number;
+      billedCumulativeQty: number;
+      billableQty: number;
+    }>;
+    expect(items.length).toBeGreaterThan(0);
+
+    let boqItem = items.find((item) => Number(item.billableQty) >= 1);
+
+    // Seeded RA may have already billed more than executed — record enough
+    // measurement so billableQty becomes positive.
+    if (!boqItem) {
+      const target = items[0]!;
+      const need = Math.max(
+        50,
+        Math.ceil(Number(target.billedCumulativeQty) - Number(target.executedQty) + 50),
+      );
+      const measureRes = await authPost(token, `/api/boq/${target.id}/measurements`, {
+        quantity: need,
+        notes: 'RA integration test measurement',
+      });
+      expect(measureRes.status).toBe(201);
+      const refreshed = await authGet(token, `/api/projects/${projectId}/boq`);
+      items = (refreshed.body.data?.items ?? []) as typeof items;
+      boqItem =
+        items.find((item) => item.id === target.id && Number(item.billableQty) >= 1) ??
+        items.find((item) => Number(item.billableQty) >= 1);
+    }
     expect(boqItem).toBeTruthy();
 
-    const prevCumulative = 400;
-    const currentQty = 100;
-    const cumulativeQty = prevCumulative + currentQty;
-    const rate = Number(boqItem.rate);
+    const priorBilled = Number(boqItem!.billedCumulativeQty);
+    const billable = Number(boqItem!.billableQty);
+    const currentQty = Math.min(100, Math.floor(billable));
+    expect(currentQty).toBeGreaterThan(0);
+    const cumulativeQty = priorBilled + currentQty;
+    const rate = Number(boqItem!.rate);
     const currentCertified = currentQty * rate;
 
     const res = await authPost(token, `/api/projects/${projectId}/invoices`, {
@@ -69,12 +103,12 @@ describe('RA invoices (integration)', () => {
       gstRate: 18,
       lineItems: [
         {
-          boqItemId: boqItem.id,
-          description: boqItem.description,
-          unit: boqItem.unit,
+          boqItemId: boqItem!.id,
+          description: boqItem!.description,
+          unit: boqItem!.unit,
           quantity: currentQty,
           currentQty,
-          previousQty: prevCumulative,
+          previousQty: priorBilled,
           cumulativeQty,
           rate,
         },

@@ -1,30 +1,40 @@
 import { z } from 'zod';
 export const PUNCH_PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;
 export const PUNCH_STATUSES = ['OPEN', 'IN_PROGRESS', 'READY_FOR_REVIEW', 'CLOSED'] as const;
+
+/** Accept http(s) URL or camera data:image… (same pattern as petty-cash receipts). */
+const photoUrlSchema = z
+  .string()
+  .max(5_000_000)
+  .refine(
+    (v) => /^https?:\/\//i.test(v) || /^data:image\//i.test(v),
+    'Photo must be an image URL or captured image',
+  );
+
 export const createPunchItemSchema = z.object({
   body: z.object({
     projectId: z.string().uuid(),
-    taskId: z.string().uuid().optional(),
+    taskId: z.string().uuid().nullable().optional(),
     title: z.string().min(1).max(300),
-    description: z.string().max(2000).optional(),
-    location: z.string().max(300).optional(),
+    description: z.string().max(2000).nullable().optional(),
+    location: z.string().max(300).nullable().optional(),
     priority: z.enum(PUNCH_PRIORITIES).default('MEDIUM'),
-    assignedTo: z.string().uuid().optional(),
-    dueDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
-    photos: z.array(z.string().url()).max(10).default([]),
+    assignedTo: z.string().uuid().nullable().optional(),
+    dueDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).nullable().optional(),
+    photos: z.array(photoUrlSchema).max(10).default([]),
   }),
 });
 export const updatePunchItemSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
   body: z.object({
     title: z.string().min(1).max(300).optional(),
-    description: z.string().max(2000).optional(),
-    location: z.string().max(300).optional(),
+    description: z.string().max(2000).nullable().optional(),
+    location: z.string().max(300).nullable().optional(),
     priority: z.enum(PUNCH_PRIORITIES).optional(),
     status: z.enum(PUNCH_STATUSES).optional(),
     assignedTo: z.string().uuid().nullable().optional(),
-    dueDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
-    photos: z.array(z.string().url()).max(10).optional(),
+    dueDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).nullable().optional(),
+    photos: z.array(photoUrlSchema).max(10).optional(),
   }),
 });
 export const punchItemIdParamsSchema = z.object({ id: z.string().uuid() });

@@ -33,7 +33,7 @@ export async function createPunchItem(companyId: string, userId: string, input: 
   const project = await prisma.project.findFirst({ where: { id: input.projectId, companyId, isDeleted: false }, select: { id: true } });
   if (!project) throw ApiError.notFound('Project not found');
   const item = await prisma.punchItem.create({
-    data: { companyId, projectId: input.projectId, taskId: input.taskId ?? null, title: input.title, description: input.description ?? null, location: input.location ?? null, priority: input.priority, assignedTo: input.assignedTo ?? null, dueDate: input.dueDate ? new Date(input.dueDate) : null, photos: input.photos, createdBy: userId },
+    data: { companyId, projectId: input.projectId, taskId: input.taskId ?? null, title: input.title, description: input.description ?? null, location: input.location ?? null, priority: input.priority, assignedTo: input.assignedTo ?? null, dueDate: input.dueDate ? new Date(input.dueDate) : null, photos: input.photos ?? [], createdBy: userId },
     include: { project: { select: { id: true, name: true } } },
   });
   await recordAudit({ companyId, userId, action: 'CREATE', entityType: 'punch_item', entityId: item.id, newValue: { title: item.title, priority: item.priority }, ipAddress: ip });

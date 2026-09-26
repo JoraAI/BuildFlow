@@ -3,6 +3,7 @@
  */
 import { z } from 'zod';
 import { idSchema, paginationSchema } from './common';
+import { isDateAfterToday } from '../utils/date';
 
 /* ------------------------------------------------------------------ */
 /* Daily Report                                                        */
@@ -31,7 +32,10 @@ export const dailyReportTaskUpdateSchema = z.object({
 export type DailyReportTaskUpdateInput = z.infer<typeof dailyReportTaskUpdateSchema>;
 
 export const createDailyReportSchema = z.object({
-  reportDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date'),
+  reportDate: z
+    .string()
+    .refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date')
+    .refine((v) => !isDateAfterToday(v), 'Cannot create a daily report for a future date'),
   weather: weatherSchema.optional(),
   siteStatus: siteStatusSchema.optional(),
   workDone: z.string().max(5000).optional(),

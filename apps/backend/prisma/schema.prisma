@@ -129,6 +129,8 @@ enum ApprovalStatus {
   SUBMITTED
   APPROVED
   REJECTED
+  /// Indent fully received via GRN(s); not used on purchase orders.
+  FULFILLED
 }
 
 enum StockMovementType {
@@ -2744,6 +2746,8 @@ model Drawing {
   discipline  String   @default("CIVIL") // CIVIL | STRUCTURAL | MEP | ARCHITECTURAL | OTHER
   category    String?
   status      String   @default("DRAFT") // DRAFT | IN_REVIEW | APPROVED | SUPERSEDED
+  // Defect pins JSON: [{ id, xPct, yPct, title, severity, status, assignee? }]
+  pins        Json     @default("[]")
   currentVersionId String? @unique @map("current_version_id") @db.Uuid
   createdBy   String   @map("created_by") @db.Uuid
   createdAt   DateTime @default(now()) @map("created_at")
