@@ -12,6 +12,7 @@ import {
   RefreshControl,
   Pressable,
   ScrollView,
+  type ViewStyle,
 } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, Badge, Button, EmptyState, LoadingSkeleton, Input, Select, toast, BusyOverlay } from '@/components/ui';
@@ -36,6 +37,14 @@ import {
   expansionKeys,
   type StockSummaryRow,
 } from '@/services/expansion.queries';
+
+/** Shared desktop stock-table column widths (header + rows must match). */
+const STOCK_COL = {
+  name: { flexGrow: 2.4, flexShrink: 1, flexBasis: 0, minWidth: 148, marginRight: 8 } satisfies ViewStyle,
+  balance: { flexGrow: 0.85, flexShrink: 0, flexBasis: 0, minWidth: 72 } satisfies ViewStyle,
+  money: { flexGrow: 1, flexShrink: 0, flexBasis: 0, minWidth: 84 } satisfies ViewStyle,
+  actions: { flexGrow: 1.45, flexShrink: 0, flexBasis: 0, minWidth: 168 } satisfies ViewStyle,
+} as const;
 
 async function bufferUntil(
   run: () => Promise<unknown>,
@@ -315,7 +324,7 @@ export default function InventoryStockScreen() {
   );
 
   const listHeader = (
-    <View className="px-4 pb-2">
+    <View className="pb-2">
       {isPhone ? filtersBlock : null}
 
       <View className={isPhone ? 'mb-2' : undefined}>{totalsStrip}</View>
@@ -332,14 +341,14 @@ export default function InventoryStockScreen() {
       <AnomalyStrip />
 
       {isDesktop && filteredSummary.length > 0 ? (
-        <View className="flex-row items-center px-1 py-2 bg-surface border-b border-border mt-3">
-          <Text className="flex-[2] text-[11px] font-bold text-muted uppercase">Name</Text>
-          <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Balance</Text>
-          <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Cost</Text>
-          <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Sell</Text>
-          <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">WAC</Text>
-          <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Value</Text>
-          <Text className="flex-[1.8] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+        <View className="flex-row items-center py-2 bg-surface border-b border-border mt-3">
+          <Text style={STOCK_COL.name} className="text-[11px] font-bold text-muted uppercase">Name</Text>
+          <Text style={STOCK_COL.balance} className="text-[11px] font-bold text-muted uppercase text-right">Balance</Text>
+          <Text style={STOCK_COL.money} className="text-[11px] font-bold text-muted uppercase text-right">Cost</Text>
+          <Text style={STOCK_COL.money} className="text-[11px] font-bold text-muted uppercase text-right">Sell</Text>
+          <Text style={STOCK_COL.money} className="text-[11px] font-bold text-muted uppercase text-right">WAC</Text>
+          <Text style={STOCK_COL.money} className="text-[11px] font-bold text-muted uppercase text-right">Value</Text>
+          <Text style={STOCK_COL.actions} className="text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
         </View>
       ) : null}
 
@@ -501,13 +510,16 @@ export default function InventoryStockScreen() {
             const isLowStock =
               item.reorderPoint != null && Number(item.reorderPoint) > 0 && Number(item.balance) < Number(item.reorderPoint);
             if (isDesktop) {
+              const rowIssueLabel = posCheckoutEnabled
+                ? translate('inventory.stock.checkoutRow', 'Checkout')
+                : translate('inventory.stock.issue', 'Issue');
               return (
                 <Pressable
                   disabled={buffering}
                   onPress={() => router.push(inventoryStockItemHref(item.resourceId, selectedLocationId) as never)}
-                  className="flex-row items-center px-1 py-3 bg-card border-b border-border/60"
+                  className="flex-row items-center py-3 bg-card border-b border-border/60"
                 >
-                  <View className="flex-[2] min-w-0 mr-2">
+                  <View style={STOCK_COL.name} className="min-w-0">
                     <Text className="text-sm font-semibold text-text" numberOfLines={1}>{item.name}</Text>
                     <View className="flex-row items-center gap-1.5 mt-0.5">
                       <Text className="text-[11px] text-muted">{item.unit}</Text>
@@ -516,22 +528,22 @@ export default function InventoryStockScreen() {
                       ) : null}
                     </View>
                   </View>
-                  <Text className="flex-1 text-sm font-bold text-primary text-right">{item.balance}</Text>
-                  <Text className="flex-1 text-xs text-muted text-right">
+                  <Text style={STOCK_COL.balance} className="text-sm font-bold text-primary text-right">{item.balance}</Text>
+                  <Text style={STOCK_COL.money} className="text-xs text-muted text-right">
                     {item.costPrice != null && Number(item.costPrice) > 0 ? `₹${Number(item.costPrice).toFixed(2)}` : '-'}
                   </Text>
-                  <Text className="flex-1 text-xs text-muted text-right">
+                  <Text style={STOCK_COL.money} className="text-xs text-muted text-right">
                     {Number(item.catalogRate) > 0 ? `₹${Number(item.catalogRate).toFixed(2)}` : '-'}
                   </Text>
-                  <Text className="flex-1 text-xs text-muted text-right">
+                  <Text style={STOCK_COL.money} className="text-xs text-muted text-right">
                     {Number(item.unitCost) > 0 ? `₹${Number(item.unitCost).toFixed(2)}` : '-'}
                   </Text>
-                  <Text className="flex-1 text-sm text-text text-right">
+                  <Text style={STOCK_COL.money} className="text-sm text-text text-right">
                     {Number(item.inventoryValue) > 0 ? `₹${Number(item.inventoryValue).toFixed(2)}` : '-'}
                   </Text>
-                  <View className="flex-[1.8] flex-row flex-wrap justify-end gap-1">
+                  <View style={STOCK_COL.actions} className="flex-row flex-wrap justify-end gap-1">
                     <Button
-                      label={translate('inventory.stock.issue', 'Issue')}
+                      label={rowIssueLabel}
                       size="sm"
                       variant="secondary"
                       disabled={buffering || Number(item.balance) <= 0}
@@ -557,7 +569,7 @@ export default function InventoryStockScreen() {
               <Pressable
                 disabled={buffering}
                 onPress={() => router.push(inventoryStockItemHref(item.resourceId, selectedLocationId) as never)}
-                className="px-4 py-3 border-b border-border/50"
+                className="py-3 border-b border-border/50"
               >
                 <View className="flex-row items-center justify-between">
                   <View className="flex-1 min-w-0 mr-2">
@@ -625,11 +637,12 @@ export default function InventoryStockScreen() {
             ) : (
               <EmptyState
                 title="No stock yet"
-                description="Add materials, create a purchase order, and record a GRN to bring stock in. Then issue stock when you sell or use materials."
+                description={`Add ${localizedItemsLabel.toLowerCase()}, create a purchase order, and record a GRN to bring stock in. Then ${posCheckoutEnabled ? 'checkout' : 'issue'} when you sell.`}
               />
             )
           }
           contentContainerStyle={{
+            paddingHorizontal: 16,
             paddingBottom: isPhone ? mobileListBottomPadding(false) : 24,
             flexGrow: 1,
           }}

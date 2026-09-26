@@ -587,6 +587,7 @@ export function NewQuoteModal({
 }) {
   const { data: customers } = useCustomers();
   const { data: warehouses } = useWarehouses();
+  const equipmentWording = useAuthStore((s) => s.user?.inventoryProfile) === 'EQUIPMENT';
   const [customerId, setCustomerId] = useState('');
   const [locationId, setLocationId] = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -654,7 +655,18 @@ export function NewQuoteModal({
   if (!open) return null;
 
   return (
-    <Sheet visible={open} title="New Event / Client Quote" subtitle="Draft → Send → Accept → Convert to Sales Order. Item rates and event requirements are itemized below." saving={saving} onClose={onClose} fullScreen>
+    <Sheet
+      visible={open}
+      title={equipmentWording ? 'New Event / Client Quote' : 'New Quote'}
+      subtitle={
+        equipmentWording
+          ? 'Draft → Send → Accept → Convert to Sales Order. Item rates and event requirements are itemized below.'
+          : 'Draft → Send → Accept → Convert to Sales Order. Add line items and rates below.'
+      }
+      saving={saving}
+      onClose={onClose}
+      fullScreen
+    >
       <Select
         label="Check Stock Availability from Warehouse / Store"
         value={locationId || undefined}
@@ -685,7 +697,16 @@ export function NewQuoteModal({
           <Input label="Valid until" value={validUntil} onChangeText={setValidUntil} placeholder="YYYY-MM-DD" />
         </View>
       </View>
-      <Input label="Event / Occasion / Reference (e.g. Wedding Stage Lighting Setup)" value={notes} onChangeText={setNotes} multiline />
+      <Input
+        label={
+          equipmentWording
+            ? 'Event / Occasion / Reference (e.g. Wedding Stage Lighting Setup)'
+            : 'Reference / notes (optional)'
+        }
+        value={notes}
+        onChangeText={setNotes}
+        multiline
+      />
       <LineEditor
         lines={lines}
         setLines={setLines}
@@ -696,7 +717,13 @@ export function NewQuoteModal({
       {error ? <Text className="text-sm text-danger mt-2">{error}</Text> : null}
       <View className="flex-row gap-2 mt-4 mb-4">
         <Button label="Cancel" variant="secondary" className="flex-1" disabled={saving} onPress={onClose} />
-        <Button label={saving ? 'Saving…' : 'Create event quote'} variant="accent" className="flex-1" loading={saving} onPress={submit} />
+        <Button
+          label={saving ? 'Saving…' : equipmentWording ? 'Create event quote' : 'Create quote'}
+          variant="accent"
+          className="flex-1"
+          loading={saving}
+          onPress={submit}
+        />
       </View>
     </Sheet>
   );

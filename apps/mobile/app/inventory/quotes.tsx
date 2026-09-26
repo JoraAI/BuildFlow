@@ -3,6 +3,7 @@ import { View, Text, FlatList, Pressable, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, Badge, Button, EmptyState, LoadingSkeleton, toast, BusyOverlay, useBusy } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
+import { useAuthStore } from '@/stores/auth.store';
 import {
   useQuotes, useCreateQuote, useQuoteAction, useQuoteToSalesOrder, type Quote,
 } from '@/services/inventory-gtm.queries';
@@ -28,6 +29,8 @@ export default function InventoryQuotesScreen() {
   const { busy, run } = useBusy();
   const { isTablet, isDesktop } = useViewport();
   const tableMode = isTablet || isDesktop;
+  const inventoryProfile = useAuthStore((s) => s.user?.inventoryProfile);
+  const equipmentWording = inventoryProfile === 'EQUIPMENT';
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -310,18 +313,22 @@ export default function InventoryQuotesScreen() {
 
   return (
     <View className="flex-1 bg-surface">
-      <BusyOverlay visible={busy} title="Quotes & Event Estimates" />
+      <BusyOverlay visible={busy} title={equipmentWording ? 'Quotes & Event Estimates' : 'Quotes'} />
 
       {/* Header */}
       <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between gap-2">
         <View className="flex-1 min-w-[200px] mr-2">
-          <Text className="text-2xl font-bold text-text">Quotes & Event Estimates</Text>
+          <Text className="text-2xl font-bold text-text">
+            {equipmentWording ? 'Quotes & Event Estimates' : 'Quotes'}
+          </Text>
           <Text className="text-sm text-muted mt-0.5">
-            Prepare itemized quotations for events, lighting setups, and client proposals. Convert accepted quotes directly to Sales Orders.
+            {equipmentWording
+              ? 'Prepare itemized quotations for events, lighting setups, and client proposals. Convert accepted quotes directly to Sales Orders.'
+              : 'Prepare itemized quotations for customers and convert accepted quotes directly to Sales Orders.'}
           </Text>
         </View>
         <Button
-          label="+ New Event Quote"
+          label={equipmentWording ? '+ New Event Quote' : '+ New Quote'}
           variant="accent"
           size="sm"
           disabled={busy}
@@ -354,7 +361,11 @@ export default function InventoryQuotesScreen() {
           <TextInput
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="Search by client, event, quote #, or item..."
+            placeholder={
+              equipmentWording
+                ? 'Search by client, event, quote #, or item...'
+                : 'Search by customer, quote #, notes, or item...'
+            }
             placeholderTextColor="#94A3B8"
             className="h-10 rounded-lg border border-border bg-card px-3 text-sm text-text"
           />
@@ -397,7 +408,9 @@ export default function InventoryQuotesScreen() {
               description={
                 searchQuery
                   ? 'Try searching with different keywords or clear the filter.'
-                  : 'Create an event estimate or lighting quotation for your client, share it on WhatsApp, and convert it to a Sales Order when approved.'
+                  : equipmentWording
+                    ? 'Create an event estimate or lighting quotation for your client, share it on WhatsApp, and convert it to a Sales Order when approved.'
+                    : 'Create a quote for your customer, share it on WhatsApp, and convert it to a Sales Order when accepted.'
               }
             />
           }
@@ -406,7 +419,9 @@ export default function InventoryQuotesScreen() {
             tableMode && filteredQuotes.length > 0 ? (
               <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
                 <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Quote #</Text>
-                <Text className="flex-[1.8] text-[11px] font-bold text-muted uppercase">Client / Event</Text>
+                <Text className="flex-[1.8] text-[11px] font-bold text-muted uppercase">
+                  {equipmentWording ? 'Client / Event' : 'Customer'}
+                </Text>
                 <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Status</Text>
                 <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Total</Text>
                 <Text className="flex-[2] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
