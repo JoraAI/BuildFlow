@@ -4,6 +4,7 @@
  * Creates:
  *  - Construction: "Reddy Constructions Pvt Ltd" + 9 users (all roles) + NH-45 lifecycle
  *  - Inventory demos (all business profiles) - password Test@1234:
+ *      LIGHTING vertical   owner@luminalighting.com (WHOLESALE + event quotes)
  *      MATERIAL_SUPPLIER  owner@hydmaterials.com   (rich demo: parties, 2 warehouses, SKUs)
  *      RETAIL             owner@cityhardware.com
  *      WHOLESALE          owner@deccanwholesale.com
@@ -1151,6 +1152,8 @@ async function main(): Promise<void> {
   async function seedInventoryTenant(opts: {
     companyName: string;
     profile: InventoryBusinessProfile;
+    /** Optional shop vertical (e.g. LIGHTING for event accessories demos). */
+    vertical?: InventoryVertical;
     gstin: string;
     pan: string;
     state: string;
@@ -1188,6 +1191,7 @@ async function main(): Promise<void> {
         subscriptionPlan: 'INVENTORY',
         subscriptionStatus: 'ACTIVE',
         inventoryProfile: opts.profile,
+        ...(opts.vertical ? { inventoryVertical: opts.vertical } : {}),
         trialStartsAt: new Date(Date.now() - 7 * 86_400_000),
         trialEndsAt: new Date(Date.now() + 358 * 86_400_000),
         lastPaymentAt: new Date(),
@@ -1350,76 +1354,131 @@ async function main(): Promise<void> {
 
     const seededCustomers: Array<{ id: string; name: string }> = [];
     if (opts.rich) {
-      const customer1 = await prisma.customer.create({
-        data: {
-          companyId: company.id,
-          name: 'Grand Royale Events & Decors',
-          businessName: 'Grand Royale Events Private Limited',
-          gstin: '36AABCG9999G1Z1',
-          phone: '+919876500001',
-          email: 'events@grandroyale.com',
-          billingAddress: 'Road No. 12, Banjara Hills, Hyderabad',
-          paymentTerms: 'Net 30',
-          creditLimit: 350000,
-        },
-      });
-      seededCustomers.push(customer1);
+      const lightingDemo = opts.vertical === InventoryVertical.LIGHTING;
 
-      const customer2 = await prisma.customer.create({
-        data: {
-          companyId: company.id,
-          name: 'Skyline Convention & Banquet Centre',
-          businessName: 'Skyline Hospitality Hubs LLP',
-          gstin: '36AABCS8888S1Z2',
-          phone: '+919876500002',
-          email: 'banquets@skylinehub.com',
-          billingAddress: 'Financial District, Hitec City, Hyderabad',
-          paymentTerms: 'Net 15',
-          creditLimit: 500000,
-        },
-      });
-      seededCustomers.push(customer2);
+      const customerSpecs = lightingDemo
+        ? [
+            {
+              name: 'Grand Royale Events & Decors',
+              businessName: 'Grand Royale Events Private Limited',
+              gstin: '36AABCG9999G1Z1',
+              phone: '+919876500001',
+              email: 'events@grandroyale.com',
+              billingAddress: 'Road No. 12, Banjara Hills, Hyderabad',
+              paymentTerms: 'Net 30',
+              creditLimit: 350000,
+            },
+            {
+              name: 'Skyline Convention & Banquet Centre',
+              businessName: 'Skyline Hospitality Hubs LLP',
+              gstin: '36AABCS8888S1Z2',
+              phone: '+919876500002',
+              email: 'banquets@skylinehub.com',
+              billingAddress: 'Financial District, Hitec City, Hyderabad',
+              paymentTerms: 'Net 15',
+              creditLimit: 500000,
+            },
+            {
+              name: 'Sri Sai Electrical & Lighting Contractors',
+              businessName: 'Sri Sai Electrical Projects',
+              gstin: '36AABCS1234C1Z5',
+              phone: '+919876543210',
+              email: 'srisaielectrical@gmail.com',
+              billingAddress: 'Gachibowli, Hyderabad',
+              paymentTerms: 'Net 30',
+              creditLimit: 250000,
+            },
+          ]
+        : [
+            {
+              name: 'City Builders & Contractors',
+              businessName: 'City Builders Private Limited',
+              gstin: '36AABCC9999C1Z1',
+              phone: '+919876500101',
+              email: 'purchase@citybuilders.in',
+              billingAddress: 'Kukatpally, Hyderabad',
+              paymentTerms: 'Net 30',
+              creditLimit: 350000,
+            },
+            {
+              name: 'Deccan Infra Projects',
+              businessName: 'Deccan Infra LLP',
+              gstin: '36AABCD8888D1Z2',
+              phone: '+919876500102',
+              email: 'stores@deccaninfra.in',
+              billingAddress: 'Financial District, Hyderabad',
+              paymentTerms: 'Net 15',
+              creditLimit: 500000,
+            },
+            {
+              name: 'Sri Sai Site Supplies',
+              businessName: 'Sri Sai Site Supplies',
+              gstin: '36AABCS1234S1Z5',
+              phone: '+919876543211',
+              email: 'orders@saisitesupplies.in',
+              billingAddress: 'Gachibowli, Hyderabad',
+              paymentTerms: 'Net 30',
+              creditLimit: 250000,
+            },
+          ];
 
-      const customer3 = await prisma.customer.create({
-        data: {
-          companyId: company.id,
-          name: 'Sri Sai Electrical & Lighting Contractors',
-          businessName: 'Sri Sai Electrical Projects',
-          gstin: '36AABCS1234C1Z5',
-          phone: '+919876543210',
-          email: 'srisaielectrical@gmail.com',
-          billingAddress: 'Gachibowli, Hyderabad',
-          paymentTerms: 'Net 30',
-          creditLimit: 250000,
-        },
-      });
-      seededCustomers.push(customer3);
+      for (const spec of customerSpecs) {
+        const customer = await prisma.customer.create({
+          data: { companyId: company.id, ...spec },
+        });
+        seededCustomers.push(customer);
+      }
 
-      await prisma.vendor.create({
-        data: {
-          companyId: company.id,
-          name: 'Philips Lighting India Ltd',
-          businessName: 'Philips Lighting India Commercial Division',
-          gstin: '36AABCP1111P1Z3',
-          phone: '+919812345678',
-          email: 'distribution@philips-lighting.in',
-          billingAddress: 'Patancheru Industrial Area, Hyderabad',
-          paymentTerms: 'Net 15',
-        },
-      });
+      const vendorSpecs = lightingDemo
+        ? [
+            {
+              name: 'Philips Lighting India Ltd',
+              businessName: 'Philips Lighting India Commercial Division',
+              gstin: '36AABCP1111P1Z3',
+              phone: '+919812345678',
+              email: 'distribution@philips-lighting.in',
+              billingAddress: 'Patancheru Industrial Area, Hyderabad',
+              paymentTerms: 'Net 15',
+            },
+            {
+              name: 'Havells Electrical Depot',
+              businessName: 'Havells India Supply Hub',
+              gstin: '36AABCH2222H1Z4',
+              phone: '+919812345679',
+              email: 'orders@havellsdepot.in',
+              billingAddress: 'Jeedimetla, Hyderabad',
+              paymentTerms: 'Net 30',
+            },
+          ]
+        : [
+            {
+              name: 'UltraTech Cement Depot',
+              businessName: 'UltraTech Cement Limited',
+              gstin: '36AABCU1111U1Z3',
+              phone: '+919812345680',
+              email: 'orders@ultratechdepot.in',
+              billingAddress: 'Patancheru Industrial Area, Hyderabad',
+              paymentTerms: 'Net 15',
+            },
+            {
+              name: 'Tata Steel Stockyard',
+              businessName: 'Tata Steel Limited',
+              gstin: '36AABCT2222T1Z4',
+              phone: '+919812345681',
+              email: 'orders@tatasteelstock.in',
+              billingAddress: 'Jeedimetla, Hyderabad',
+              paymentTerms: 'Net 30',
+            },
+          ];
 
-      await prisma.vendor.create({
-        data: {
-          companyId: company.id,
-          name: 'Havells Electrical Depot',
-          businessName: 'Havells India Supply Hub',
-          gstin: '36AABCH2222H1Z4',
-          phone: '+919812345679',
-          email: 'orders@havellsdepot.in',
-          billingAddress: 'Jeedimetla, Hyderabad',
-          paymentTerms: 'Net 30',
-        },
-      });
+      for (const spec of vendorSpecs) {
+        await prisma.vendor.create({
+          data: { companyId: company.id, ...spec },
+        });
+      }
+
+      const customer1 = seededCustomers[0]!;
+      const customer2 = seededCustomers[1]!;
 
       if (resources[0]) {
         await prisma.customerPrice.create({
@@ -1434,7 +1493,17 @@ async function main(): Promise<void> {
 
       // Seed Quotes & Sales Orders for rich demo
       if (resources.length >= 4) {
-        // Quote 1: Accepted Event Lighting Quote
+        const q1Notes = lightingDemo
+          ? 'Grand Gala Wedding Sangeet Stage & Ambient Lighting Setup'
+          : 'Site supply quote for foundation pour materials';
+        const so1Notes = lightingDemo
+          ? 'Converted from Quote QT-001 for Sangeet Stage Lighting'
+          : 'Converted from Quote QT-001 — site delivery';
+        const dc1NotesSuffix = lightingDemo ? 'for venue setup' : 'to site';
+        const q2Notes = lightingDemo
+          ? 'Annual Corporate Tech Summit Main Hall Ambient Lighting'
+          : 'Bulk supply quote for ongoing project stores';
+
         const q1Lines = [
           { resourceId: resources[0]!.id, itemName: resources[0]!.name, unit: resources[0]!.unit, quantity: 40, rate: resources[0]!.rate, amount: 40 * resources[0]!.rate, gstRate: resources[0]!.gstRate },
           { resourceId: resources[1]!.id, itemName: resources[1]!.name, unit: resources[1]!.unit, quantity: 30, rate: resources[1]!.rate, amount: 30 * resources[1]!.rate, gstRate: resources[1]!.gstRate },
@@ -1458,12 +1527,11 @@ async function main(): Promise<void> {
             subtotal: q1Subtotal,
             gstAmount: q1Gst,
             total: q1Total,
-            notes: 'Grand Gala Wedding Sangeet Stage & Ambient Lighting Setup',
+            notes: q1Notes,
             lines: { create: q1Lines },
           },
         });
 
-        // Sales order 1 linked to Quote 1
         const so1 = await prisma.salesOrder.create({
           data: {
             companyId: company.id,
@@ -1473,7 +1541,7 @@ async function main(): Promise<void> {
             customerName: customer1.name,
             status: 'CONFIRMED',
             orderDate: new Date(Date.now() - 2 * 86_400_000),
-            notes: 'Converted from Quote QT-001 for Sangeet Stage Lighting',
+            notes: so1Notes,
             subtotal: q1Subtotal,
             gstAmount: q1Gst,
             total: q1Total,
@@ -1498,7 +1566,6 @@ async function main(): Promise<void> {
           data: { salesOrderId: so1.id },
         });
 
-        // Delivery Challan 1 dispatched from staging warehouse
         const stagingWh = createdWarehouses[1] || mainLoc;
         await prisma.deliveryChallan.create({
           data: {
@@ -1510,7 +1577,7 @@ async function main(): Promise<void> {
             customerName: customer1.name,
             status: 'DISPATCHED',
             dispatchedAt: new Date(Date.now() - 1 * 86_400_000),
-            notes: `Dispatched from ${stagingWh.name} for venue setup`,
+            notes: `Dispatched from ${stagingWh.name} ${dc1NotesSuffix}`,
             createdBy: owner.id,
             lines: {
               create: q1Lines.map((l) => ({
@@ -1524,7 +1591,6 @@ async function main(): Promise<void> {
           },
         });
 
-        // Quote 2: Sent Corporate Summit Lighting Quote
         const q2Lines = [
           { resourceId: resources[1]!.id, itemName: resources[1]!.name, unit: resources[1]!.unit, quantity: 60, rate: resources[1]!.rate, amount: 60 * resources[1]!.rate, gstRate: resources[1]!.gstRate },
           { resourceId: resources[2]!.id, itemName: resources[2]!.name, unit: resources[2]!.unit, quantity: 20, rate: resources[2]!.rate, amount: 20 * resources[2]!.rate, gstRate: resources[2]!.gstRate },
@@ -1544,7 +1610,7 @@ async function main(): Promise<void> {
             subtotal: q2Subtotal,
             gstAmount: q2Gst,
             total: q2Subtotal + q2Gst,
-            notes: 'Annual Corporate Tech Summit Main Hall Ambient Lighting',
+            notes: q2Notes,
             lines: { create: q2Lines },
           },
         });
@@ -1552,7 +1618,9 @@ async function main(): Promise<void> {
     }
 
     // eslint-disable-next-line no-console
-    console.log(`   Seeded inventory (${opts.profile}): ${opts.companyName} - ${opts.ownerEmail}`);
+    console.log(
+      `   Seeded inventory (${opts.profile}${opts.vertical ? `/${opts.vertical}` : ''}): ${opts.companyName} - ${opts.ownerEmail}`,
+    );
   }
 
 
@@ -1858,6 +1926,7 @@ async function main(): Promise<void> {
   await seedInventoryTenant({
     companyName: 'Lumina Lighting & Event Electricals',
     profile: InventoryBusinessProfile.WHOLESALE,
+    vertical: InventoryVertical.LIGHTING,
     gstin: '36AABCL9999L1Z8',
     pan: 'AABCL9999L',
     state: 'Telangana',
@@ -2126,7 +2195,7 @@ async function main(): Promise<void> {
   // eslint-disable-next-line no-console
   console.log('── Inventory demos - password', PASSWORD);
   // eslint-disable-next-line no-console
-  console.log('   owner@luminalighting.com (LIGHTING & EVENT ACCESSORIES, multi-warehouse + quotes) → /inventory');
+  console.log('   owner@luminalighting.com (LIGHTING vertical · WHOLESALE, multi-warehouse + event quotes) → /inventory');
   // eslint-disable-next-line no-console
   console.log('   manager@luminalighting.com (INVENTORY_MANAGER)');
   // eslint-disable-next-line no-console

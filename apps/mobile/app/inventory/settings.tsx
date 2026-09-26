@@ -275,8 +275,9 @@ export default function InventorySettingsScreen() {
           <Card className="p-5 mb-4">
             <Text className="text-base font-bold text-text mb-1">Shop vertical</Text>
             <Text className="text-xs text-muted mb-3">
-              What kind of shop do you run? Kirana includes a suggested product library. Other
-              verticals use your own item list and do not add any catalog products.
+              What kind of shop do you run? Kirana includes a suggested product library. Lighting
+              & event accessories unlocks event-quote wording. Other verticals use your own item
+              list and do not add catalog products.
             </Text>
             <Select
               label="Vertical"

@@ -95,26 +95,38 @@ export function generateWhatsAppQuoteShare(params: {
   validUntil?: string | null;
   items: Array<{ name: string; qty: number; unit: string; rate: number; amount: number }>;
   total: number;
+  /** Event / lighting wording (default false for general inventory quotes). */
+  eventLighting?: boolean;
 }) {
   const lineSummary = params.items
     .map((it) => `• ${it.name} - ${it.qty} ${it.unit} @ ${formatINR(it.rate)} = ${formatINR(it.amount)}`)
     .join('\n');
 
+  const eventLighting = params.eventLighting === true;
+  const title = eventLighting ? '*EVENT ESTIMATE & QUOTATION* 💡✨\n' : '*QUOTATION*\n';
+  const partyLabel = eventLighting ? '*Client / Organization:*' : '*Customer:*';
+  const notesLabel = eventLighting ? '*Event / Occasion:*' : '*Reference / Notes:*';
+  const breakdownLabel = eventLighting ? '*Requirement Breakdown:*' : '*Line items:*';
+  const totalLabel = eventLighting ? '*Estimated Total:*' : '*Total:*';
+  const footer = eventLighting
+    ? '_Prepared via BuildFlow Lighting & Inventory Platform_'
+    : '_Prepared via BuildFlow Inventory_';
+
   const msg =
-    `*EVENT ESTIMATE & QUOTATION* 💡✨\n` +
+    title +
     `--------------------------------\n` +
     `*Quote No:* ${params.quoteNumber}\n` +
-    `*Client / Organization:* ${params.customerName}\n` +
-    (params.eventName ? `*Event / Occasion:* ${params.eventName}\n` : '') +
+    `${partyLabel} ${params.customerName}\n` +
+    (params.eventName ? `${notesLabel} ${params.eventName}\n` : '') +
     `*Quote Date:* ${params.quoteDate}\n` +
     (params.validUntil ? `*Valid Until:* ${params.validUntil}\n` : '') +
     `--------------------------------\n` +
-    `*Requirement Breakdown:*\n` +
+    `${breakdownLabel}\n` +
     lineSummary + '\n' +
     `--------------------------------\n` +
-    `*Estimated Total:* ${formatINR(params.total)}\n` +
+    `${totalLabel} ${formatINR(params.total)}\n` +
     `--------------------------------\n` +
-    `_Prepared via BuildFlow Lighting & Inventory Platform_`;
+    footer;
 
   openWhatsAppUrl(msg);
 }

@@ -14,6 +14,7 @@ export const inventoryVerticalSchema = z.enum([
   InventoryVertical.ELECTRONICS,
   InventoryVertical.STATIONERY,
   InventoryVertical.HARDWARE,
+  InventoryVertical.LIGHTING,
 ] as const);
 
 /** Kirana is currently the only vertical with a maintained starter catalog. */

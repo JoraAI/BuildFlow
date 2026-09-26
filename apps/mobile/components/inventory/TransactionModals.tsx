@@ -12,6 +12,7 @@ import { useWarehouses, type Warehouse } from '@/services/warehouse.queries';
 import { useEffectiveRates } from '@/services/inventory-gtm.queries';
 import { BarcodeScannerOverlay } from '@/components/inventory/BarcodeScannerOverlay';
 import { Ionicons } from '@expo/vector-icons';
+import { usesEventLightingCopy } from '@buildflow/shared';
 
 function Sheet({
   title,
@@ -587,7 +588,8 @@ export function NewQuoteModal({
 }) {
   const { data: customers } = useCustomers();
   const { data: warehouses } = useWarehouses();
-  const equipmentWording = useAuthStore((s) => s.user?.inventoryProfile) === 'EQUIPMENT';
+  const user = useAuthStore((s) => s.user);
+  const eventLightingCopy = usesEventLightingCopy(user?.inventoryProfile, user?.inventoryVertical);
   const [customerId, setCustomerId] = useState('');
   const [locationId, setLocationId] = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -657,9 +659,9 @@ export function NewQuoteModal({
   return (
     <Sheet
       visible={open}
-      title={equipmentWording ? 'New Event / Client Quote' : 'New Quote'}
+      title={eventLightingCopy ? 'New Event / Client Quote' : 'New Quote'}
       subtitle={
-        equipmentWording
+        eventLightingCopy
           ? 'Draft → Send → Accept → Convert to Sales Order. Item rates and event requirements are itemized below.'
           : 'Draft → Send → Accept → Convert to Sales Order. Add line items and rates below.'
       }
@@ -699,7 +701,7 @@ export function NewQuoteModal({
       </View>
       <Input
         label={
-          equipmentWording
+          eventLightingCopy
             ? 'Event / Occasion / Reference (e.g. Wedding Stage Lighting Setup)'
             : 'Reference / notes (optional)'
         }
@@ -718,7 +720,7 @@ export function NewQuoteModal({
       <View className="flex-row gap-2 mt-4 mb-4">
         <Button label="Cancel" variant="secondary" className="flex-1" disabled={saving} onPress={onClose} />
         <Button
-          label={saving ? 'Saving…' : equipmentWording ? 'Create event quote' : 'Create quote'}
+          label={saving ? 'Saving…' : eventLightingCopy ? 'Create event quote' : 'Create quote'}
           variant="accent"
           className="flex-1"
           loading={saving}

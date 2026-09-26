@@ -63,6 +63,17 @@ export function getInventoryLabelMode(profile?: string | null): InventoryLabelMo
   return profile === 'MATERIAL_SUPPLIER' ? 'materials' : 'generic';
 }
 
+/**
+ * Event / lighting quotation UX (Quotes tab, WhatsApp share, return scan).
+ * Used by EQUIPMENT dealers and the LIGHTING shop vertical (e.g. Lumina demo).
+ */
+export function usesEventLightingCopy(
+  profile?: string | null,
+  vertical?: string | null,
+): boolean {
+  return profile === 'EQUIPMENT' || vertical === 'LIGHTING';
+}
+
 /** Plural of the indent label for section titles ("Indents" / "Purchase requests"). */
 export function getIndentPlural(mode: InventoryLabelMode): string {
   const label = getInventoryLabel('indent', mode);

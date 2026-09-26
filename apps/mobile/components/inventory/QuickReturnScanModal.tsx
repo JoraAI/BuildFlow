@@ -19,6 +19,8 @@ import {
   type ValidatedScanResult,
 } from '@/services/sales.queries';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuthStore } from '@/stores/auth.store';
+import { usesEventLightingCopy } from '@buildflow/shared';
 
 interface ReturnCartLine {
   key: string;
@@ -48,6 +50,8 @@ export function QuickReturnScanModal({
   onSuccess?: (returnNumber: string) => void;
 }) {
   const { isDesktop, isPhone } = useViewport();
+  const user = useAuthStore((s) => s.user);
+  const eventLightingCopy = usesEventLightingCopy(user?.inventoryProfile, user?.inventoryVertical);
   const { data: invoices } = useInvoices(projectId);
   const { data: warehouses } = useWarehouses();
 
@@ -412,7 +416,9 @@ export function QuickReturnScanModal({
                 <Ionicons name="scan-outline" size={40} color="#94A3B8" />
                 <Text className="text-sm font-semibold text-text mt-2">Ready to Scan Returned Items</Text>
                 <Text className="text-xs text-muted text-center max-w-xs mt-1">
-                  Point mobile camera or hardware barcode reader at lighting/fixture boxes to verify past outward shipments.
+                  {eventLightingCopy
+                    ? 'Point mobile camera or hardware barcode reader at lighting/fixture boxes to verify past outward shipments.'
+                    : 'Point mobile camera or hardware barcode reader at item barcodes to verify past outward shipments.'}
                 </Text>
               </View>
             ) : (

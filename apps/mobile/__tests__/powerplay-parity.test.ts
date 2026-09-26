@@ -117,6 +117,7 @@ describe('Powerplay Parity - WhatsApp Studio Utility (Module 7)', () => {
         { name: 'Vintage Edison Filament Bulb', qty: 20, unit: 'nos', rate: 280, amount: 5600 },
       ],
       total: 13098,
+      eventLighting: true,
     });
 
     expect(Linking.openURL).toHaveBeenCalledTimes(1);

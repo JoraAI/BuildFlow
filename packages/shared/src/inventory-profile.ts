@@ -45,6 +45,8 @@ export const InventoryVertical = {
   ELECTRONICS: 'ELECTRONICS',
   STATIONERY: 'STATIONERY',
   HARDWARE: 'HARDWARE',
+  /** Lighting / event accessories (quotes, staging warehouses, returns). */
+  LIGHTING: 'LIGHTING',
 } as const;
 export type InventoryVertical = (typeof InventoryVertical)[keyof typeof InventoryVertical];
 
@@ -54,6 +56,7 @@ export const INVENTORY_VERTICAL_VALUES: readonly InventoryVertical[] = [
   InventoryVertical.ELECTRONICS,
   InventoryVertical.STATIONERY,
   InventoryVertical.HARDWARE,
+  InventoryVertical.LIGHTING,
 ];
 
 export const INVENTORY_VERTICAL_LABELS: Record<InventoryVertical, string> = {
@@ -62,6 +65,7 @@ export const INVENTORY_VERTICAL_LABELS: Record<InventoryVertical, string> = {
   ELECTRONICS: 'Electronics store',
   STATIONERY: 'Stationery / office supplies',
   HARDWARE: 'Hardware store',
+  LIGHTING: 'Lighting & event accessories',
 };
 
 /** Human-readable labels for the Settings profile picker. */

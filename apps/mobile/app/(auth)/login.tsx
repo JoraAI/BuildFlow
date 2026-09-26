@@ -146,9 +146,9 @@ export default function LoginScreen() {
         </Text>
         {__DEV__ ? (
           <Text className="text-[11px] text-muted leading-relaxed mt-2">
-            Seed demos (OTP 111111): owner@reddyconst.com · owner@hydmaterials.com ·
+            Seed demos (OTP 111111): owner@reddyconst.com · owner@luminalighting.com · owner@hydmaterials.com ·
             owner@cityhardware.com · owner@deccanwholesale.com · owner@southdistro.com ·
-            owner@apextrading.com · owner@forgeequip.com · owner@generalstore.com
+            owner@apextrading.com · owner@forgeequip.com · owner@generalstore.com · owner@kirana-demo.com
           </Text>
         ) : null}
       </View>

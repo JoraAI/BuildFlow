@@ -2769,7 +2769,7 @@ describe('INVENTORY_PRODUCT (integration)', () => {
 
       // These verticals classify the shop only. They do not expose a catalog
       // template until a maintained pack is added for that vertical.
-      for (const vertical of ['PHARMACY', 'ELECTRONICS', 'STATIONERY', 'HARDWARE']) {
+      for (const vertical of ['PHARMACY', 'ELECTRONICS', 'STATIONERY', 'HARDWARE', 'LIGHTING']) {
         const set = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical });
         expect(set.status).toBe(200);
         expect(set.body.data.inventoryVertical).toBe(vertical);

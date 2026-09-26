@@ -250,6 +250,7 @@ enum InventoryVertical {
   ELECTRONICS
   STATIONERY
   HARDWARE
+  LIGHTING
 }
 
 // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): batch/expiry tracking level.

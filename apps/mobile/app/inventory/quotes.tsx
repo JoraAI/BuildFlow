@@ -13,6 +13,7 @@ import { downloadReportPdf } from '@/services/report-download';
 import { generateWhatsAppQuoteShare } from '@/utils/whatsapp-share';
 import { formatINR } from '@/utils/format';
 import { Ionicons } from '@expo/vector-icons';
+import { usesEventLightingCopy } from '@buildflow/shared';
 
 type StatusFilter = 'ALL' | 'DRAFT' | 'SENT' | 'ACCEPTED' | 'REJECTED';
 
@@ -29,8 +30,8 @@ export default function InventoryQuotesScreen() {
   const { busy, run } = useBusy();
   const { isTablet, isDesktop } = useViewport();
   const tableMode = isTablet || isDesktop;
-  const inventoryProfile = useAuthStore((s) => s.user?.inventoryProfile);
-  const equipmentWording = inventoryProfile === 'EQUIPMENT';
+  const user = useAuthStore((s) => s.user);
+  const eventLightingCopy = usesEventLightingCopy(user?.inventoryProfile, user?.inventoryVertical);
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -89,6 +90,7 @@ export default function InventoryQuotesScreen() {
         amount: Number(l.amount),
       })),
       total: Number(item.total),
+      eventLighting: eventLightingCopy,
     });
   };
 
@@ -313,22 +315,22 @@ export default function InventoryQuotesScreen() {
 
   return (
     <View className="flex-1 bg-surface">
-      <BusyOverlay visible={busy} title={equipmentWording ? 'Quotes & Event Estimates' : 'Quotes'} />
+      <BusyOverlay visible={busy} title={eventLightingCopy ? 'Quotes & Event Estimates' : 'Quotes'} />
 
       {/* Header */}
       <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between gap-2">
         <View className="flex-1 min-w-[200px] mr-2">
           <Text className="text-2xl font-bold text-text">
-            {equipmentWording ? 'Quotes & Event Estimates' : 'Quotes'}
+            {eventLightingCopy ? 'Quotes & Event Estimates' : 'Quotes'}
           </Text>
           <Text className="text-sm text-muted mt-0.5">
-            {equipmentWording
+            {eventLightingCopy
               ? 'Prepare itemized quotations for events, lighting setups, and client proposals. Convert accepted quotes directly to Sales Orders.'
               : 'Prepare itemized quotations for customers and convert accepted quotes directly to Sales Orders.'}
           </Text>
         </View>
         <Button
-          label={equipmentWording ? '+ New Event Quote' : '+ New Quote'}
+          label={eventLightingCopy ? '+ New Event Quote' : '+ New Quote'}
           variant="accent"
           size="sm"
           disabled={busy}
@@ -362,7 +364,7 @@ export default function InventoryQuotesScreen() {
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholder={
-              equipmentWording
+              eventLightingCopy
                 ? 'Search by client, event, quote #, or item...'
                 : 'Search by customer, quote #, notes, or item...'
             }
@@ -408,7 +410,7 @@ export default function InventoryQuotesScreen() {
               description={
                 searchQuery
                   ? 'Try searching with different keywords or clear the filter.'
-                  : equipmentWording
+                  : eventLightingCopy
                     ? 'Create an event estimate or lighting quotation for your client, share it on WhatsApp, and convert it to a Sales Order when approved.'
                     : 'Create a quote for your customer, share it on WhatsApp, and convert it to a Sales Order when accepted.'
               }
@@ -420,7 +422,7 @@ export default function InventoryQuotesScreen() {
               <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
                 <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Quote #</Text>
                 <Text className="flex-[1.8] text-[11px] font-bold text-muted uppercase">
-                  {equipmentWording ? 'Client / Event' : 'Customer'}
+                  {eventLightingCopy ? 'Client / Event' : 'Customer'}
                 </Text>
                 <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Status</Text>
                 <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Total</Text>
@@ -439,7 +441,7 @@ export default function InventoryQuotesScreen() {
           onSubmit={async (input) => {
             await run(async () => {
               await createQuote.mutateAsync(input);
-              toast.success('Event quote created successfully');
+              toast.success(eventLightingCopy ? 'Event quote created successfully' : 'Quote created successfully');
               setQuoteModalOpen(false);
             });
           }}
