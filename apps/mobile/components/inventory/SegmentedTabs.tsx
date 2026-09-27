@@ -1,5 +1,9 @@
 /**
- * Segmented pill tabs for inventory list screens.
+ * Shared filter/mode pills for inventory list screens.
+ *
+ * Use SegmentedTabs (horizontal scroll) for 4+ / long labels.
+ * Use SegmentedTabsInline for 3–4 short labels that wrap on one row.
+ * Use SegmentedTrack for equal-width mode switches (e.g. CheckoutCart Browse | Cart).
  */
 import React from 'react';
 import { ScrollView, Pressable, Text, View } from 'react-native';
@@ -9,65 +13,109 @@ export type SegmentedTab<T extends string = string> = {
   label: string;
 };
 
+function TabPill<T extends string>({
+  tab,
+  active,
+  onChange,
+}: {
+  tab: SegmentedTab<T>;
+  active: boolean;
+  onChange: (next: T) => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityState={{ selected: active }}
+      onPress={() => onChange(tab.value)}
+      className={`px-3 py-1.5 rounded-lg border ${
+        active ? 'bg-primary border-primary' : 'bg-card border-border'
+      }`}
+    >
+      <Text className={`text-xs font-semibold ${active ? 'text-white' : 'text-muted'}`}>
+        {tab.label}
+      </Text>
+    </Pressable>
+  );
+}
+
 export function SegmentedTabs<T extends string>({
   tabs,
   value,
   onChange,
+  className,
+  contentContainerClassName,
 }: {
   tabs: readonly SegmentedTab<T>[];
   value: T;
   onChange: (next: T) => void;
+  className?: string;
+  contentContainerClassName?: string;
 }) {
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      className="shrink-0"
-      contentContainerClassName="px-4 gap-2 pb-2"
+      className={`shrink-0 ${className ?? ''}`}
+      contentContainerClassName={contentContainerClassName ?? 'px-4 gap-2 pb-2'}
     >
-      {tabs.map((t) => {
-        const active = t.value === value;
-        return (
-          <Pressable
-            key={t.value}
-            onPress={() => onChange(t.value)}
-            className={`px-3 py-1.5 rounded-lg border ${
-              active ? 'bg-primary border-primary' : 'bg-card border-border'
-            }`}
-          >
-            <Text className={`text-xs font-semibold ${active ? 'text-white' : 'text-muted'}`}>
-              {t.label}
-            </Text>
-          </Pressable>
-        );
-      })}
+      {tabs.map((t) => (
+        <TabPill key={t.value} tab={t} active={t.value === value} onChange={onChange} />
+      ))}
     </ScrollView>
   );
 }
 
-/** Optional non-scrolling row when tabs fit on one line. */
+/** Non-scrolling wrap row when tabs fit on one line. */
 export function SegmentedTabsInline<T extends string>({
   tabs,
   value,
   onChange,
+  className,
 }: {
   tabs: readonly SegmentedTab<T>[];
   value: T;
   onChange: (next: T) => void;
+  className?: string;
 }) {
   return (
-    <View className="flex-row flex-wrap gap-2">
+    <View className={`flex-row flex-wrap ${className ?? 'gap-2'}`}>
+      {tabs.map((t) => (
+        <TabPill key={t.value} tab={t} active={t.value === value} onChange={onChange} />
+      ))}
+    </View>
+  );
+}
+
+/**
+ * Equal-width segmented control in a track (POS Browse | Cart).
+ * Not filter chips — active segment is card + primary text inside a muted track.
+ */
+export function SegmentedTrack<T extends string>({
+  tabs,
+  value,
+  onChange,
+  className,
+}: {
+  tabs: readonly SegmentedTab<T>[];
+  value: T;
+  onChange: (next: T) => void;
+  className?: string;
+}) {
+  return (
+    <View className={`flex-row bg-surface rounded-lg p-0.5 border border-border ${className ?? ''}`}>
       {tabs.map((t) => {
         const active = t.value === value;
         return (
           <Pressable
             key={t.value}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
             onPress={() => onChange(t.value)}
-            className={`px-3 py-1.5 rounded-lg border ${
-              active ? 'bg-primary border-primary' : 'bg-card border-border'
+            className={`flex-1 py-2 rounded-md items-center ${
+              active ? 'bg-card border border-border' : ''
             }`}
           >
-            <Text className={`text-xs font-semibold ${active ? 'text-white' : 'text-muted'}`}>
+            <Text className={`text-sm font-semibold ${active ? 'text-primary' : 'text-muted'}`}>
               {t.label}
             </Text>
           </Pressable>

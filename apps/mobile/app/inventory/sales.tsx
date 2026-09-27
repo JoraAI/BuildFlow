@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, FlatList, Pressable } from 'react-native';
+import { View, Text, FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, Badge, Button, EmptyState, LoadingSkeleton, toast, BusyOverlay, useBusy } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
@@ -16,6 +16,7 @@ import {
   NewSalesOrderModal, NewChallanModal, SalesReturnModal, PurchaseReturnModal, DispatchChallanSheet, ChallanReturnModal,
 } from '@/components/inventory/TransactionModals';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
+import { SegmentedTabsInline } from '@/components/inventory/SegmentedTabs';
 import { downloadReportPdf } from '@/services/report-download';
 
 type Tab = 'orders' | 'deliveries' | 'returns' | 'notes';
@@ -403,11 +404,11 @@ export default function InventorySalesScreen() {
     (tab === 'returns' && (salesReturns.isLoading || purchaseReturns.isLoading)) ||
     (tab === 'notes' && (creditNotes.isLoading || debitNotes.isLoading));
 
-  const tabs: Array<{ key: Tab; label: string }> = [
-    { key: 'orders', label: 'Sales orders' },
-    { key: 'deliveries', label: 'Deliveries' },
-    { key: 'returns', label: 'Returns' },
-    { key: 'notes', label: 'Credit/Debit notes' },
+  const tabs = [
+    { value: 'orders' as const, label: 'Sales orders' },
+    { value: 'deliveries' as const, label: 'Deliveries' },
+    { value: 'returns' as const, label: 'Returns' },
+    { value: 'notes' as const, label: 'Credit/Debit notes' },
   ];
 
   const dataForTab: any[] =
@@ -439,17 +440,12 @@ export default function InventorySalesScreen() {
         {headerLabel ? <Button label={headerLabel} variant="accent" size="sm" disabled={busy} onPress={headerAction} /> : null}
       </View>
 
-      <View className="flex-row flex-wrap px-4 pb-2 gap-2">
-        {tabs.map((t) => (
-          <Pressable
-            key={t.key}
-            onPress={() => setTab(t.key)}
-            className={`px-3 py-1.5 rounded-lg border ${tab === t.key ? 'bg-primary border-primary' : 'bg-card border-border'}`}
-          >
-            <Text className={`text-xs font-medium ${tab === t.key ? 'text-white' : 'text-muted'}`}>{t.label}</Text>
-          </Pressable>
-        ))}
-      </View>
+      <SegmentedTabsInline
+        tabs={tabs}
+        value={tab}
+        onChange={setTab}
+        className="px-4 pb-2 gap-2"
+      />
 
       {loading ? (
         <View className="px-4 gap-3">

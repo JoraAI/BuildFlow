@@ -12,7 +12,7 @@
  * Responsive: cards flex-wrap / min-w, phone-stacked (no desktop-only tables).
  */
 import React, { useMemo, useState } from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import { View, Text, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card, Badge, Button, Select, EmptyState, LoadingSkeleton } from '@/components/ui';
@@ -30,14 +30,15 @@ import {
 } from '@/services/inventory-analytics.queries';
 import { formatINR, formatINRCompact, formatDate } from '@/utils/format';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
+import { SegmentedTabs } from '@/components/inventory/SegmentedTabs';
 
 type Tab = 'health' | 'warehouse' | 'margin' | 'purchase';
 
-const TABS: Array<{ key: Tab; label: string }> = [
-  { key: 'health', label: 'Stock health' },
-  { key: 'warehouse', label: 'Warehouse value' },
-  { key: 'margin', label: 'Margins' },
-  { key: 'purchase', label: 'Purchase history' },
+const TABS = [
+  { value: 'health' as const, label: 'Stock health' },
+  { value: 'warehouse' as const, label: 'Warehouse value' },
+  { value: 'margin' as const, label: 'Margins' },
+  { value: 'purchase' as const, label: 'Purchase history' },
 ];
 
 const CLASSIFICATION_BADGE: Record<
@@ -81,21 +82,13 @@ export default function InventoryReportsScreen() {
       </View>
 
       {/* Sub-tabs (horizontal scroll keeps the shell's 9-tab bar untouched). */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="shrink-0 border-b border-border">
-        <View className="flex-row items-center gap-1 px-4 py-2">
-          {TABS.map((t) => (
-            <Pressable
-              key={t.key}
-              onPress={() => setTab(t.key)}
-              className={`rounded-full px-4 py-2 ${tab === t.key ? 'bg-primary' : 'bg-surface'}`}
-            >
-              <Text className={`text-sm font-semibold ${tab === t.key ? 'text-accent' : 'text-muted'}`}>
-                {t.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      </ScrollView>
+      <SegmentedTabs
+        tabs={TABS}
+        value={tab}
+        onChange={setTab}
+        className="border-b border-border"
+        contentContainerClassName="px-4 gap-2 py-2"
+      />
       <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, gap: 12 }}>
         {tab === 'health' ? (
           <>

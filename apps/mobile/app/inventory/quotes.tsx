@@ -9,6 +9,7 @@ import {
 } from '@/services/inventory-gtm.queries';
 import { NewQuoteModal } from '@/components/inventory/TransactionModals';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
+import { SegmentedTabsInline } from '@/components/inventory/SegmentedTabs';
 import { downloadReportPdf } from '@/services/report-download';
 import { generateWhatsAppQuoteShare } from '@/utils/whatsapp-share';
 import { formatINR } from '@/utils/format';
@@ -378,19 +379,18 @@ export default function InventoryQuotesScreen() {
           ) : null}
         </View>
 
-        <View className="flex-row gap-1.5 flex-wrap">
-          {(['ALL', 'DRAFT', 'SENT', 'ACCEPTED', 'REJECTED'] as const).map((st) => (
-            <Pressable
-              key={st}
-              onPress={() => setStatusFilter(st)}
-              className={`px-3 py-1.5 rounded-lg border ${statusFilter === st ? 'bg-primary border-primary' : 'bg-card border-border'}`}
-            >
-              <Text className={`text-xs font-semibold ${statusFilter === st ? 'text-white' : 'text-muted'}`}>
-                {st === 'ALL' ? 'All' : st}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        <SegmentedTabsInline
+          tabs={[
+            { value: 'ALL' as const, label: 'All' },
+            { value: 'DRAFT' as const, label: 'DRAFT' },
+            { value: 'SENT' as const, label: 'SENT' },
+            { value: 'ACCEPTED' as const, label: 'ACCEPTED' },
+            { value: 'REJECTED' as const, label: 'REJECTED' },
+          ]}
+          value={statusFilter}
+          onChange={setStatusFilter}
+          className="gap-1.5"
+        />
       </View>
 
       {/* Main List */}

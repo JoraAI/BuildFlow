@@ -8,7 +8,7 @@
  * Responsive: useViewport modals (phone bottom sheet, desktop max-w-lg).
  */
 import React, { useState } from 'react';
-import { View, Text, FlatList, Pressable } from 'react-native';
+import { View, Text, FlatList } from 'react-native';
 import { Card, Badge, Button, EmptyState, LoadingSkeleton, toast, BusyOverlay, useBusy } from '@/components/ui';
 import { confirmAsync } from '@/utils/confirm';
 import { useViewport } from '@/hooks/useViewport';
@@ -28,6 +28,7 @@ import {
 } from '@/services/warehouse.queries';
 import { WarehouseModal, TransferModal, CountModal } from '@/components/inventory/WarehouseModals';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
+import { SegmentedTabsInline } from '@/components/inventory/SegmentedTabs';
 
 type Tab = 'locations' | 'transfers' | 'counts';
 
@@ -399,10 +400,10 @@ export default function InventoryWarehouseScreen() {
     );
   };
 
-  const tabs: Array<{ key: Tab; label: string }> = [
-    { key: 'locations', label: 'Locations' },
-    { key: 'transfers', label: 'Transfers' },
-    { key: 'counts', label: 'Stock counts' },
+  const tabs = [
+    { value: 'locations' as const, label: 'Locations' },
+    { value: 'transfers' as const, label: 'Transfers' },
+    { value: 'counts' as const, label: 'Stock counts' },
   ];
 
   const dataForTab: any[] =
@@ -436,17 +437,12 @@ export default function InventoryWarehouseScreen() {
         <Button label={headerLabel} variant="accent" size="sm" onPress={headerAction} />
       </View>
 
-      <View className="flex-row flex-wrap px-4 pb-2 gap-2">
-        {tabs.map((t) => (
-          <Pressable
-            key={t.key}
-            onPress={() => setTab(t.key)}
-            className={`px-3 py-1.5 rounded-lg border ${tab === t.key ? 'bg-primary border-primary' : 'bg-card border-border'}`}
-          >
-            <Text className={`text-xs font-medium ${tab === t.key ? 'text-white' : 'text-muted'}`}>{t.label}</Text>
-          </Pressable>
-        ))}
-      </View>
+      <SegmentedTabsInline
+        tabs={tabs}
+        value={tab}
+        onChange={setTab}
+        className="px-4 pb-2 gap-2"
+      />
 
       {loading ? (
         <View className="px-4 gap-3">

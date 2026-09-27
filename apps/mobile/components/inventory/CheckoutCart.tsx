@@ -21,6 +21,7 @@ import { Button, Input, Select, Badge, toast } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
 import { useKeyboardOpen } from '@/hooks/useKeyboardOpen';
 import { BarcodeScannerOverlay } from '@/components/inventory/BarcodeScannerOverlay';
+import { SegmentedTrack } from '@/components/inventory/SegmentedTabs';
 import { useCustomers } from '@/services/party.queries';
 import { apiFetch } from '@/lib/api-client';
 import type { BarcodeItem } from '@/services/warehouse.queries';
@@ -496,24 +497,15 @@ export function CheckoutCart({
                full-height lines + customer + sticky Charge. No more permanent
                max-h-[38%] catalog/cart split on one screen. */
             <View className="flex-1 min-h-0">
-              <View className="flex-row mx-4 mt-3 bg-surface rounded-lg p-0.5 border border-border">
-                <Pressable
-                  onPress={() => setMode('browse')}
-                  accessibilityRole="button"
-                  className={`flex-1 py-2 rounded-md items-center ${mode === 'browse' ? 'bg-card border border-border' : ''}`}
-                >
-                  <Text className={`text-sm font-semibold ${mode === 'browse' ? 'text-primary' : 'text-muted'}`}>Browse</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => setMode('cart')}
-                  accessibilityRole="button"
-                  className={`flex-1 py-2 rounded-md items-center ${mode === 'cart' ? 'bg-card border border-border' : ''}`}
-                >
-                  <Text className={`text-sm font-semibold ${mode === 'cart' ? 'text-primary' : 'text-muted'}`}>
-                    Cart ({lines.length})
-                  </Text>
-                </Pressable>
-              </View>
+              <SegmentedTrack
+                className="mx-4 mt-3"
+                tabs={[
+                  { value: 'browse' as const, label: 'Browse' },
+                  { value: 'cart' as const, label: `Cart (${lines.length})` },
+                ]}
+                value={mode}
+                onChange={setMode}
+              />
 
               {mode === 'browse' ? (
                 <View className="flex-1 min-h-0">
