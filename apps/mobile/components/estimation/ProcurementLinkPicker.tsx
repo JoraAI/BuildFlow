@@ -97,17 +97,25 @@ export function ProcurementLinkPicker({
   }, [allRateAnalyses, debouncedSearch]);
 
   const effectiveAllowedKinds = useMemo((): ProcurementLinkKind[] => {
+    // Catalog / RA procurement links only apply to MATERIAL lines
+    // (indent explosion + BOQ material demand). Other line types are
+    // cost-only and should not show this picker.
     if (lineType === 'MATERIAL') return allowedKinds;
-    if (lineType === 'MISC') return [];
-    return ['rate_analysis'];
+    return [];
   }, [lineType, allowedKinds]);
 
   useEffect(() => {
-    if (lineType !== 'MATERIAL') setSegment('rate_analysis');
-  }, [lineType]);
+    if (lineType === 'MATERIAL' && !effectiveAllowedKinds.includes(segment)) {
+      setSegment(effectiveAllowedKinds[0] ?? 'material');
+    }
+  }, [lineType, effectiveAllowedKinds, segment]);
 
   const hasLink = Boolean(value.resourceId || value.rateAnalysisId);
   const showSegmented = effectiveAllowedKinds.length > 1;
+
+  if (effectiveAllowedKinds.length === 0) {
+    return null;
+  }
 
   // Selection handlers (mutual exclusion)
   // RATE-EST1: When projectId is provided, resolve rate via

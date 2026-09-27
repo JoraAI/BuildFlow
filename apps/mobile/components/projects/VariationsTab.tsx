@@ -421,15 +421,33 @@ export function VariationsTab({ projectId, highlightChangeOrderId }: { projectId
                   <Text className="text-xs text-muted">Line type</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-1">
                     {LINE_TYPES.map((t) => (
-                      <Pressable key={t} onPress={() => setLines((prev) => prev.map((l) => (l.id === line.id ? { ...l, type: t } : l)))} className={`px-2 py-1 rounded border ${line.type === t ? 'bg-primary border-primary' : 'border-border'}`}>
+                      <Pressable
+                        key={t}
+                        onPress={() =>
+                          setLines((prev) =>
+                            prev.map((l) =>
+                              l.id === line.id
+                                ? {
+                                    ...l,
+                                    type: t,
+                                    ...(t !== 'MATERIAL'
+                                      ? { resourceId: undefined, rateAnalysisId: undefined }
+                                      : {}),
+                                  }
+                                : l,
+                            ),
+                          )
+                        }
+                        className={`px-2 py-1 rounded border ${line.type === t ? 'bg-primary border-primary' : 'border-border'}`}
+                      >
                         <Text className={`text-[10px] font-semibold ${line.type === t ? 'text-white' : 'text-muted'}`}>{t}</Text>
                       </Pressable>
                     ))}
                   </ScrollView>
                 </View>
               )}
-              {/* MOB-LINK1: Unified ProcurementLinkPicker for new scope */}
-              {isNewScope && line.type !== 'MISC' && (
+              {/* Procurement links only apply to MATERIAL (BOQ / indent explosion). */}
+              {isNewScope && line.type === 'MATERIAL' && (
                 <ProcurementLinkPicker
                   value={{
                     resourceId: line.resourceId,
@@ -444,7 +462,7 @@ export function VariationsTab({ projectId, highlightChangeOrderId }: { projectId
                       ),
                     )
                   }
-                  lineType={line.type}
+                  lineType="MATERIAL"
                   hasExistingDescription={Boolean(line.description.trim())}
                   projectId={projectId}
                   onApplyDefaults={({ description, unit, rate }) =>

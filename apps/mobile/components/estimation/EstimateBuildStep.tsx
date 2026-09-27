@@ -422,7 +422,7 @@ function EditableLineItem({
                 <Badge label={item.type} color="neutral" />
               </View>
             </Pressable>
-            {item.type !== 'MISC' && (linkedResource || linkedRa) ? (
+            {item.type === 'MATERIAL' && (linkedResource || linkedRa) ? (
               <View className="flex-row items-center gap-2 mt-0.5 flex-wrap">
                 <Text className="text-[10px] text-primary">
                   {linkedResource
@@ -487,14 +487,14 @@ function EditableLineItem({
           />
         </View>
       </View>
-      {item.type !== 'MISC' ? (
+      {item.type === 'MATERIAL' ? (
         <ProcurementLinkPicker
           value={{ resourceId: resourceId || undefined, rateAnalysisId: rateAnalysisId || undefined }}
           onChange={(v) => {
             setResourceId(v.resourceId ?? '');
             setRateAnalysisId(v.rateAnalysisId ?? '');
           }}
-          lineType={item.type}
+          lineType="MATERIAL"
           hasExistingDescription={Boolean(desc.trim())}
           projectId={projectId}
           onApplyDefaults={({ description, unit, rate, rateSource: source }) => {
@@ -621,7 +621,15 @@ function AddItemRow({
           {(['MATERIAL', 'LABOUR', 'EQUIPMENT', 'SUBCONTRACTOR', 'MISC'] as const).map((t) => (
             <Pressable
               key={t}
-              onPress={() => setType(t)}
+              onPress={() => {
+                setType(t);
+                // Procurement links only apply to MATERIAL lines.
+                if (t !== 'MATERIAL') {
+                  setResourceId('');
+                  setRateAnalysisId('');
+                  setRateSource(undefined);
+                }
+              }}
               className={`px-2 py-1 rounded ${type === t ? 'bg-primary' : 'bg-border'}`}
             >
               <Text className={`text-[10px] ${type === t ? 'text-white' : 'text-text'}`}>{t}</Text>
@@ -632,14 +640,14 @@ function AddItemRow({
           = {formatINR((parseFloat(qty) || 0) * (parseFloat(rate) || 0))}
         </Text>
       </View>
-      {type !== 'MISC' ? (
+      {type === 'MATERIAL' ? (
         <ProcurementLinkPicker
           value={{ resourceId: resourceId || undefined, rateAnalysisId: rateAnalysisId || undefined }}
           onChange={(v) => {
             setResourceId(v.resourceId ?? '');
             setRateAnalysisId(v.rateAnalysisId ?? '');
           }}
-          lineType={type}
+          lineType="MATERIAL"
           hasExistingDescription={Boolean(desc.trim())}
           projectId={projectId}
           onApplyDefaults={({ description, unit, rate, rateSource: source }) => {
