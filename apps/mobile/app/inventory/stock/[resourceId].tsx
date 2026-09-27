@@ -12,7 +12,7 @@ import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
-import { navigateAppBack, parseReturnTo } from '@/utils/navigation';
+import { navigateAppBack, parseReturnTo, inventoryInvoiceDetailHref, inventoryStockItemHref } from '@/utils/navigation';
 import { getInventoryLabel, getInventoryLabelMode, hasInventoryFeature, type SubscriptionPlanKey } from '@buildflow/shared';
 import { AdjustStockModal, MultiIssueStockModal } from '@/components/inventory/StockModals';
 import {
@@ -303,7 +303,14 @@ export default function InventoryStockItemScreen() {
                 : `Issued ${names}`,
             );
             setIssueOpen(false);
-            if (result.draftInvoiceId) router.push('/inventory/invoices' as never);
+            if (result.draftInvoiceId) {
+              router.push(
+                inventoryInvoiceDetailHref(
+                  result.draftInvoiceId,
+                  inventoryStockItemHref(resourceId, locationId),
+                ) as never,
+              );
+            }
           } catch (e) {
             toast.error(e instanceof Error ? e.message : 'Issue failed');
             throw e;

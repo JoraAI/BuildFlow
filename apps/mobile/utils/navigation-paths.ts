@@ -42,6 +42,60 @@ export function inventoryStockItemHref(resourceId: string, locationId?: string):
   return locationId ? `${base}?locationId=${encodeURIComponent(locationId)}` : base;
 }
 
+export type InventoryListParams = {
+  q?: string | null;
+  status?: string | null;
+  tab?: string | null;
+  focus?: string | null;
+};
+
+/** Build an inventory list URL; omits empty values and status=ALL. */
+export function inventoryListHref(base: string, params?: InventoryListParams): string {
+  const qs = new URLSearchParams();
+  const q = params?.q?.trim();
+  if (q) qs.set('q', q);
+  const status = params?.status?.trim();
+  if (status && status.toUpperCase() !== 'ALL') qs.set('status', status);
+  const tab = params?.tab?.trim();
+  if (tab) qs.set('tab', tab);
+  const focus = params?.focus?.trim();
+  if (focus) qs.set('focus', focus);
+  const encoded = qs.toString();
+  return encoded ? `${base}?${encoded}` : base;
+}
+
+export function inventorySalesHref(params?: InventoryListParams): string {
+  return inventoryListHref('/inventory/sales', params);
+}
+
+export function inventoryInvoicesHref(params?: InventoryListParams): string {
+  return inventoryListHref('/inventory/invoices', params);
+}
+
+export function inventoryBillsHref(params?: InventoryListParams): string {
+  return inventoryListHref('/inventory/bills', params);
+}
+
+export function inventoryProcurementHref(params?: InventoryListParams): string {
+  return inventoryListHref('/inventory/procurement', params);
+}
+
+export function inventoryMaterialsHref(params?: InventoryListParams): string {
+  return inventoryListHref('/inventory/materials', params);
+}
+
+export function inventoryPartiesHref(params?: InventoryListParams): string {
+  return inventoryListHref('/inventory/parties', params);
+}
+
+export function inventoryQuotesHref(params?: InventoryListParams): string {
+  return inventoryListHref('/inventory/quotes', params);
+}
+
+export function inventoryWarehouseHref(params?: InventoryListParams): string {
+  return inventoryListHref('/inventory/warehouse', params);
+}
+
 export function reportDetailHref(reportId: string, returnTo?: string): string {
   return withReturnTo(`/reports/${reportId}`, returnTo);
 }

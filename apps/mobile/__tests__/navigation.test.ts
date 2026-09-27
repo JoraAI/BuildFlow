@@ -10,6 +10,10 @@ import {
   inventoryBillDetailHref,
   inventoryInvoiceDetailHref,
   inventoryStockItemHref,
+  inventoryListHref,
+  inventorySalesHref,
+  inventoryInvoicesHref,
+  inventoryMaterialsHref,
   createEstimateHref,
 } from '@/utils/navigation-paths';
 import { getActiveTabFromPath, getBreadcrumbs } from '@/constants/navigation';
@@ -67,6 +71,17 @@ describe('href helpers', () => {
   it('builds inventory stock item href', () => {
     expect(inventoryStockItemHref('rid')).toBe('/inventory/stock/rid');
     expect(inventoryStockItemHref('rid', 'loc1')).toBe('/inventory/stock/rid?locationId=loc1');
+  });
+
+  it('builds inventory list hrefs and omits empty/ALL params', () => {
+    expect(inventoryListHref('/inventory/sales')).toBe('/inventory/sales');
+    expect(inventorySalesHref({ q: 'Acme', tab: 'orders', status: 'ALL' })).toBe(
+      '/inventory/sales?q=Acme&tab=orders',
+    );
+    expect(inventoryInvoicesHref({ status: 'OVERDUE', focus: 'inv1' })).toBe(
+      '/inventory/invoices?status=OVERDUE&focus=inv1',
+    );
+    expect(inventoryMaterialsHref({ q: 'cement bag' })).toBe('/inventory/materials?q=cement+bag');
   });
 
   it('builds a unique estimate create href so the wizard remounts', () => {

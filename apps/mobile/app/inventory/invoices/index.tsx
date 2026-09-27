@@ -16,6 +16,16 @@ import { useCustomers, type PartyRow } from '@/services/party.queries';
 import { toast, BusyOverlay, useBusy } from '@/components/ui';
 import { inventoryInvoiceDetailHref } from '@/utils/navigation';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
+import { InventoryFilterBar } from '@/components/inventory/InventoryFilterBar';
+import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
+
+const INVOICE_STATUS_TABS = [
+  { value: 'ALL' as const, label: 'All' },
+  { value: 'DRAFT' as const, label: 'Draft' },
+  { value: 'SENT' as const, label: 'Sent' },
+  { value: 'PAID' as const, label: 'Paid' },
+  { value: 'OVERDUE' as const, label: 'Overdue' },
+];
 
 export default function InventoryInvoicesScreen() {
   const { translate } = useInventoryLanguage();
@@ -25,6 +35,7 @@ export default function InventoryInvoicesScreen() {
   const projectId = user?.defaultProjectId ?? '';
   const [createOpen, setCreateOpen] = useState(false);
   const createInvoice = useCreateInvoice();
+  const filters = useInventoryListFilters({ defaultStatus: 'ALL' });
 
   return (
     <View className="flex-1 bg-surface">
@@ -52,11 +63,27 @@ export default function InventoryInvoicesScreen() {
         </View>
       </View>
 
+      <InventoryFilterBar
+        query={filters.query}
+        onQueryChange={filters.setQuery}
+        placeholder="Search invoice #, client, phone…"
+        statusTabs={INVOICE_STATUS_TABS}
+        status={filters.status as (typeof INVOICE_STATUS_TABS)[number]['value']}
+        onStatusChange={filters.setStatus}
+        isFiltered={filters.isFiltered}
+        onClear={filters.clearAll}
+      />
+
       <ProjectInvoicesList
         projectId={projectId}
         embedded
         returnTo="/inventory/invoices"
         buildDetailHref={inventoryInvoiceDetailHref}
+        status={filters.status}
+        onStatusChange={filters.setStatus}
+        query={filters.debouncedQuery}
+        focusId={filters.focusId}
+        stickyFilters
       />
 
       <NewInvoiceModal

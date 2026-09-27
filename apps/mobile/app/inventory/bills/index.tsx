@@ -17,6 +17,8 @@ import { toast, BusyOverlay, useBusy } from '@/components/ui';
 import { inventoryBillDetailHref } from '@/utils/navigation';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 import { ScanInvoiceModal } from '@/components/inventory/ScanInvoiceModal';
+import { InventoryFilterBar } from '@/components/inventory/InventoryFilterBar';
+import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
 
 const BILL_CATEGORIES = [
   { title: 'Material', value: 'MATERIAL' },
@@ -24,6 +26,15 @@ const BILL_CATEGORIES = [
   { title: 'Equipment', value: 'EQUIPMENT' },
   { title: 'Subcontractor', value: 'SUBCONTRACTOR' },
   { title: 'Other', value: 'OTHER' },
+];
+
+const BILL_STATUS_TABS = [
+  { value: 'ALL' as const, label: 'All' },
+  { value: 'DRAFT' as const, label: 'Draft' },
+  { value: 'PENDING' as const, label: 'Pending' },
+  { value: 'APPROVED' as const, label: 'Approved' },
+  { value: 'PAID' as const, label: 'Paid' },
+  { value: 'REJECTED' as const, label: 'Rejected' },
 ];
 
 export default function InventoryBillsScreen() {
@@ -35,6 +46,7 @@ export default function InventoryBillsScreen() {
   const [createOpen, setCreateOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const createBill = useCreateBill();
+  const filters = useInventoryListFilters({ defaultStatus: 'ALL' });
 
   return (
     <View className="flex-1 bg-surface">
@@ -68,11 +80,27 @@ export default function InventoryBillsScreen() {
         </View>
       </View>
 
+      <InventoryFilterBar
+        query={filters.query}
+        onQueryChange={filters.setQuery}
+        placeholder="Search bill #, vendor, category…"
+        statusTabs={BILL_STATUS_TABS}
+        status={filters.status as (typeof BILL_STATUS_TABS)[number]['value']}
+        onStatusChange={filters.setStatus}
+        isFiltered={filters.isFiltered}
+        onClear={filters.clearAll}
+      />
+
       <ProjectBillsList
         projectId={projectId}
         embedded
         returnTo="/inventory/bills"
         buildDetailHref={inventoryBillDetailHref}
+        status={filters.status}
+        onStatusChange={filters.setStatus}
+        query={filters.debouncedQuery}
+        focusId={filters.focusId}
+        stickyFilters
       />
 
       <NewBillModal

@@ -21,7 +21,12 @@ import { useRouter } from 'expo-router';
 import { getInventoryLabel, getInventoryLabelMode, hasInventoryFeature, type SubscriptionPlanKey } from '@buildflow/shared';
 import { AdjustStockModal, OpeningStockModal, MultiIssueStockModal } from '@/components/inventory/StockModals';
 import { CheckoutCart } from '@/components/inventory/CheckoutCart';
-import { inventoryInvoiceDetailHref, inventoryStockItemHref } from '@/utils/navigation-paths';
+import {
+  inventoryInvoiceDetailHref,
+  inventoryMaterialsHref,
+  inventoryStockItemHref,
+} from '@/utils/navigation-paths';
+import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
 import { useWarehouses, useBarcodeLookup, type Warehouse } from '@/services/warehouse.queries';
 import DashboardCards, { KiranaKpiCards } from '@/components/inventory/DashboardCards';
 import AnomalyStrip from '@/components/inventory/AnomalyStrip';
@@ -113,6 +118,11 @@ export default function InventoryStockScreen() {
     const t = setTimeout(() => setDebouncedSearch(stockSearch), 150);
     return () => clearTimeout(t);
   }, [stockSearch]);
+  // Cross-nav (?q=…) seeds the search box; typing here stays local to the screen.
+  const { query: paramQuery } = useInventoryListFilters();
+  useEffect(() => {
+    if (paramQuery) setStockSearch(paramQuery);
+  }, [paramQuery]);
   // Live filter as you type (150ms debounce). No Find button - search is automatic.
   const filteredSummary = useMemo(() => {
     const rows = summary ?? [];
@@ -404,7 +414,11 @@ export default function InventoryStockScreen() {
           setIssueOpen(true);
         }}
         secondaryLabel={isPhone ? undefined : localizedItemsLabel}
-        onSecondary={isPhone ? undefined : () => router.push('/inventory/materials' as never)}
+        onSecondary={
+          isPhone
+            ? undefined
+            : () => router.push(inventoryMaterialsHref({ q: stockSearch.trim() || undefined }) as never)
+        }
       />
       {!isPhone && stockAdjustEnabled ? (
         <View className="px-4 pb-1 shrink-0 flex-row justify-end">
@@ -457,7 +471,9 @@ export default function InventoryStockScreen() {
               variant="ghost"
               size="sm"
               disabled={buffering}
-              onPress={() => router.push('/inventory/materials' as never)}
+              onPress={() =>
+                router.push(inventoryMaterialsHref({ q: stockSearch.trim() || undefined }) as never)
+              }
             />
             {stockAdjustEnabled ? (
               <Button

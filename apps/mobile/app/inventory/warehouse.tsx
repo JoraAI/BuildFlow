@@ -7,7 +7,7 @@
  *   Counts    - stock counts / stocktake (approve writes STOCKTAKE adjustments).
  * Responsive: useViewport modals (phone bottom sheet, desktop max-w-lg).
  */
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, FlatList } from 'react-native';
 import { Card, Badge, Button, EmptyState, LoadingSkeleton, toast, BusyOverlay, useBusy } from '@/components/ui';
 import { confirmAsync } from '@/utils/confirm';
@@ -28,9 +28,47 @@ import {
 } from '@/services/warehouse.queries';
 import { WarehouseModal, TransferModal, CountModal } from '@/components/inventory/WarehouseModals';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
-import { SegmentedTabsInline } from '@/components/inventory/SegmentedTabs';
+import { SegmentedTabsInline, type SegmentedTab } from '@/components/inventory/SegmentedTabs';
+import { InventoryFilterBar } from '@/components/inventory/InventoryFilterBar';
+import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
+import { useFocusedRow } from '@/hooks/useFocusedRow';
+import { matchesStatus, matchesText } from '@/utils/inventory-filters';
 
 type Tab = 'locations' | 'transfers' | 'counts';
+
+const TABS: readonly SegmentedTab<Tab>[] = [
+  { value: 'locations', label: 'Locations' },
+  { value: 'transfers', label: 'Transfers' },
+  { value: 'counts', label: 'Stock counts' },
+];
+
+/** Locations have no status column - ACTIVE/INACTIVE is derived from isActive. */
+const STATUS_TABS: Record<Tab, readonly SegmentedTab<string>[]> = {
+  locations: [
+    { value: 'ALL', label: 'All' },
+    { value: 'ACTIVE', label: 'Active' },
+    { value: 'INACTIVE', label: 'Inactive' },
+  ],
+  transfers: [
+    { value: 'ALL', label: 'All' },
+    { value: 'DRAFT', label: 'Draft' },
+    { value: 'IN_TRANSIT', label: 'In transit' },
+    { value: 'RECEIVED', label: 'Received' },
+    { value: 'CANCELLED', label: 'Cancelled' },
+  ],
+  counts: [
+    { value: 'ALL', label: 'All' },
+    { value: 'DRAFT', label: 'Draft' },
+    { value: 'APPROVED', label: 'Approved' },
+    { value: 'CANCELLED', label: 'Cancelled' },
+  ],
+};
+
+const SEARCH_PLACEHOLDER: Record<Tab, string> = {
+  locations: 'Search warehouse, code, address…',
+  transfers: 'Search transfer #, route, item…',
+  counts: 'Search count #, location, date…',
+};
 
 const STATUS_COLOR: Record<string, 'success' | 'warning' | 'neutral' | 'danger'> = {
   DRAFT: 'neutral',
@@ -46,7 +84,8 @@ export default function InventoryWarehouseScreen() {
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop/tablet tables.
   const { isTablet, isDesktop } = useViewport();
   const tableMode = isTablet || isDesktop;
-  const [tab, setTab] = useState<Tab>('locations');
+  const filters = useInventoryListFilters({ defaultTab: 'locations' });
+  const tab = (TABS.some((t) => t.value === filters.tab) ? filters.tab : 'locations') as Tab;
   const [whOpen, setWhOpen] = useState(false);
   const [editingWh, setEditingWh] = useState<Warehouse | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
@@ -79,7 +118,7 @@ export default function InventoryWarehouseScreen() {
     // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop row.
     if (tableMode) {
       return (
-        <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
+        <View className={`flex-row items-center px-4 py-3 bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
           <View className="flex-[1.6] min-w-0 mr-2">
             <View className="flex-row items-center gap-2">
               <Text className="text-sm font-bold text-text" numberOfLines={1}>{item.name}</Text>
@@ -133,7 +172,7 @@ export default function InventoryWarehouseScreen() {
       );
     }
     return (
-      <Card className="mb-2 p-4">
+      <Card className={`mb-2 p-4 ${focusedClassName(item.id)}`}>
         <View className="flex-row items-start justify-between gap-2">
           <View className="flex-1 min-w-0">
             <View className="flex-row items-center gap-2 flex-wrap">
@@ -192,7 +231,7 @@ export default function InventoryWarehouseScreen() {
     // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop row.
     if (tableMode) {
       return (
-        <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
+        <View className={`flex-row items-center px-4 py-3 bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
           <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.transferNumber}</Text>
           <Text className="flex-[1.6] text-sm text-text" numberOfLines={1}>
             {item.fromLocation.name} → {item.toLocation.name}
@@ -249,7 +288,7 @@ export default function InventoryWarehouseScreen() {
       );
     }
     return (
-      <Card className="mb-2 p-4">
+      <Card className={`mb-2 p-4 ${focusedClassName(item.id)}`}>
       <View className="flex-row items-start justify-between gap-2">
         <View className="flex-1 min-w-0">
           <Text className="text-sm font-bold text-text">{item.transferNumber}</Text>
@@ -315,7 +354,7 @@ export default function InventoryWarehouseScreen() {
     // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop row.
     if (tableMode) {
       return (
-        <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
+        <View className={`flex-row items-center px-4 py-3 bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
           <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.countNumber}</Text>
           <Text className="flex-[1.4] text-sm text-text" numberOfLines={1}>{item.location.name}</Text>
           <Text className="flex-1 text-xs text-muted">{item.countDate}</Text>
@@ -358,7 +397,7 @@ export default function InventoryWarehouseScreen() {
       );
     }
     return (
-      <Card className="mb-2 p-4">
+      <Card className={`mb-2 p-4 ${focusedClassName(item.id)}`}>
         <View className="flex-row items-start justify-between gap-2">
           <View className="flex-1 min-w-0">
             <Text className="text-sm font-bold text-text">{item.countNumber}</Text>
@@ -400,16 +439,40 @@ export default function InventoryWarehouseScreen() {
     );
   };
 
-  const tabs = [
-    { value: 'locations' as const, label: 'Locations' },
-    { value: 'transfers' as const, label: 'Transfers' },
-    { value: 'counts' as const, label: 'Stock counts' },
-  ];
-
-  const dataForTab: any[] =
+  const allDataForTab: any[] =
     tab === 'locations' ? (warehouses.data ?? [])
     : tab === 'transfers' ? (transfers.data ?? [])
     : (counts.data ?? []);
+
+  const haystack = (row: any): Array<string | null | undefined> => {
+    if (tab === 'locations') return [row.name, row.code, row.address];
+    if (tab === 'transfers') {
+      return [
+        row.transferNumber,
+        row.fromLocation?.name,
+        row.toLocation?.name,
+        ...(row.lines ?? []).map((l: { itemName: string }) => l.itemName),
+      ];
+    }
+    return [row.countNumber, row.location?.name, row.countDate];
+  };
+
+  const rowStatus = (row: any): string =>
+    tab === 'locations' ? (row.isActive ? 'ACTIVE' : 'INACTIVE') : row.status;
+
+  const query = filters.debouncedQuery;
+  const status = filters.status;
+  const dataForTab = useMemo(
+    () => allDataForTab.filter((row) => matchesText(haystack(row), query) && matchesStatus(rowStatus(row), status)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allDataForTab, query, status, tab],
+  );
+
+  const { listRef, focusedClassName } = useFocusedRow<{ id: string }>({
+    focusId: filters.focusId,
+    data: dataForTab,
+    clearFocus: filters.clearFocus,
+  });
 
   const loading =
     (tab === 'locations' && warehouses.isLoading) ||
@@ -438,10 +501,22 @@ export default function InventoryWarehouseScreen() {
       </View>
 
       <SegmentedTabsInline
-        tabs={tabs}
+        tabs={TABS}
         value={tab}
-        onChange={setTab}
+        onChange={filters.setTab}
         className="px-4 pb-2 gap-2"
+      />
+
+      <InventoryFilterBar
+        query={filters.query}
+        onQueryChange={filters.setQuery}
+        placeholder={SEARCH_PLACEHOLDER[tab]}
+        statusTabs={STATUS_TABS[tab]}
+        status={filters.status}
+        onStatusChange={filters.setStatus}
+        resultCount={{ shown: dataForTab.length, total: allDataForTab.length }}
+        isFiltered={filters.isFiltered}
+        onClear={filters.clearAll}
       />
 
       {loading ? (
@@ -450,10 +525,12 @@ export default function InventoryWarehouseScreen() {
         </View>
       ) : (
         <FlatList
+          ref={listRef}
           className="flex-1 px-4"
           data={dataForTab}
           keyExtractor={(item) => item.id}
           renderItem={renderRow}
+          onScrollToIndexFailed={() => undefined}
           ListHeaderComponent={
             tableMode && dataForTab.length > 0 ? (
               tab === 'locations' ? (
@@ -484,18 +561,25 @@ export default function InventoryWarehouseScreen() {
             ) : null
           }
           ListEmptyComponent={
-            <EmptyState
-              title={
-                tab === 'locations' ? 'No warehouses yet'
-                : tab === 'transfers' ? 'No stock transfers yet'
-                : 'No stock counts yet'
-              }
-              description={
-                tab === 'locations' ? 'Create a second warehouse to split stock across locations.'
-                : tab === 'transfers' ? 'Move stock between warehouses - dispatch then receive.'
-                : 'Count a warehouse and approve to write stock adjustments.'
-              }
-            />
+            filters.isFiltered ? (
+              <EmptyState
+                title="No matching records"
+                description="Try a different search term or clear the filters."
+              />
+            ) : (
+              <EmptyState
+                title={
+                  tab === 'locations' ? 'No warehouses yet'
+                  : tab === 'transfers' ? 'No stock transfers yet'
+                  : 'No stock counts yet'
+                }
+                description={
+                  tab === 'locations' ? 'Create a second warehouse to split stock across locations.'
+                  : tab === 'transfers' ? 'Move stock between warehouses - dispatch then receive.'
+                  : 'Count a warehouse and approve to write stock adjustments.'
+                }
+              />
+            )
           }
           contentContainerStyle={{ paddingBottom: 24 }}
         />

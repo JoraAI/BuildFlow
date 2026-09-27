@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, FlatList, Pressable, TextInput } from 'react-native';
+import { View, Text, FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, Badge, Button, EmptyState, LoadingSkeleton, toast, BusyOverlay, useBusy } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
@@ -9,14 +9,24 @@ import {
 } from '@/services/inventory-gtm.queries';
 import { NewQuoteModal } from '@/components/inventory/TransactionModals';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
-import { SegmentedTabsInline } from '@/components/inventory/SegmentedTabs';
+import { InventoryFilterBar } from '@/components/inventory/InventoryFilterBar';
+import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
+import { useFocusedRow } from '@/hooks/useFocusedRow';
+import { matchesStatus, matchesText } from '@/utils/inventory-filters';
+import { inventorySalesHref } from '@/utils/navigation-paths';
 import { downloadReportPdf } from '@/services/report-download';
 import { generateWhatsAppQuoteShare } from '@/utils/whatsapp-share';
 import { formatINR } from '@/utils/format';
-import { Ionicons } from '@expo/vector-icons';
 import { usesEventLightingCopy } from '@buildflow/shared';
 
-type StatusFilter = 'ALL' | 'DRAFT' | 'SENT' | 'ACCEPTED' | 'REJECTED';
+const QUOTE_STATUS_TABS = [
+  { value: 'ALL' as const, label: 'All' },
+  { value: 'DRAFT' as const, label: 'Draft' },
+  { value: 'SENT' as const, label: 'Sent' },
+  { value: 'ACCEPTED' as const, label: 'Accepted' },
+  { value: 'REJECTED' as const, label: 'Rejected' },
+];
+type StatusFilter = (typeof QUOTE_STATUS_TABS)[number]['value'];
 
 const STATUS_COLOR: Record<string, 'success' | 'warning' | 'neutral' | 'danger'> = {
   DRAFT: 'neutral',
@@ -34,8 +44,7 @@ export default function InventoryQuotesScreen() {
   const user = useAuthStore((s) => s.user);
   const eventLightingCopy = usesEventLightingCopy(user?.inventoryProfile, user?.inventoryVertical);
 
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
-  const [searchQuery, setSearchQuery] = useState('');
+  const filters = useInventoryListFilters();
   const [quoteModalOpen, setQuoteModalOpen] = useState(false);
   const [selectedQuoteDetail, setSelectedQuoteDetail] = useState<Quote | null>(null);
 
@@ -46,22 +55,24 @@ export default function InventoryQuotesScreen() {
 
   const allQuotes = useMemo(() => quotes.data ?? [], [quotes.data]);
 
-  const filteredQuotes = useMemo(() => {
-    let list: Quote[] = allQuotes;
-    if (statusFilter !== 'ALL') {
-      list = list.filter((q: Quote) => q.status === statusFilter);
-    }
-    const q = searchQuery.trim().toLowerCase();
-    if (q) {
-      list = list.filter((item: Quote) =>
-        item.quoteNumber.toLowerCase().includes(q) ||
-        item.customerName.toLowerCase().includes(q) ||
-        (item.notes ?? '').toLowerCase().includes(q) ||
-        item.lines.some((l: { itemName: string }) => l.itemName.toLowerCase().includes(q)),
-      );
-    }
-    return list;
-  }, [allQuotes, statusFilter, searchQuery]);
+  const filteredQuotes = useMemo(
+    () =>
+      allQuotes.filter(
+        (item: Quote) =>
+          matchesStatus(item.status, filters.status) &&
+          matchesText(
+            [item.quoteNumber, item.customerName, item.notes, ...item.lines.map((l) => l.itemName)],
+            filters.debouncedQuery,
+          ),
+      ),
+    [allQuotes, filters.status, filters.debouncedQuery],
+  );
+
+  const { listRef, focusedClassName } = useFocusedRow<Quote>({
+    focusId: filters.focusId,
+    data: filteredQuotes,
+    clearFocus: filters.clearFocus,
+  });
 
   const metrics = useMemo(() => {
     const totalCount = allQuotes.length;
@@ -101,7 +112,7 @@ export default function InventoryQuotesScreen() {
 
     if (tableMode) {
       return (
-        <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
+        <View className={`flex-row items-center px-4 py-3 bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
           <View className="flex-[1.2] min-w-0 mr-2">
             <Text className="text-sm font-mono font-semibold text-text">{item.quoteNumber}</Text>
             <Text className="text-[11px] text-muted">{item.quoteDate}</Text>
@@ -177,9 +188,14 @@ export default function InventoryQuotesScreen() {
                 variant="accent"
                 disabled={busy}
                 onPress={() => void run(async () => {
-                  await quoteToSO.mutateAsync(item.id);
+                  const r = await quoteToSO.mutateAsync(item.id);
                   toast.success('Sales order created from quote!');
-                  router.push('/inventory/sales' as never);
+                  const soId =
+                    r.quote?.salesOrderId ??
+                    (r.salesOrder && typeof r.salesOrder === 'object' && 'id' in r.salesOrder
+                      ? String((r.salesOrder as { id: string }).id)
+                      : undefined);
+                  router.push(inventorySalesHref({ tab: 'orders', focus: soId }) as never);
                 })}
               />
             ) : null}
@@ -188,7 +204,9 @@ export default function InventoryQuotesScreen() {
                 label="View in Sales"
                 size="sm"
                 variant="secondary"
-                onPress={() => router.push('/inventory/sales' as never)}
+                onPress={() =>
+                  router.push(inventorySalesHref({ tab: 'orders', focus: item.salesOrderId }) as never)
+                }
               />
             ) : null}
           </View>
@@ -198,7 +216,7 @@ export default function InventoryQuotesScreen() {
 
     // Mobile Card Mode
     return (
-      <Card className="mb-3 p-4">
+      <Card className={`mb-3 p-4 ${focusedClassName(item.id)}`}>
         <View className="flex-row items-start justify-between gap-2">
           <View className="flex-1 min-w-0">
             <View className="flex-row items-center gap-2">
@@ -295,9 +313,14 @@ export default function InventoryQuotesScreen() {
               variant="accent"
               disabled={busy}
               onPress={() => void run(async () => {
-                await quoteToSO.mutateAsync(item.id);
+                const r = await quoteToSO.mutateAsync(item.id);
                 toast.success('Sales order created from quote!');
-                router.push('/inventory/sales' as never);
+                const soId =
+                  r.quote?.salesOrderId ??
+                  (r.salesOrder && typeof r.salesOrder === 'object' && 'id' in r.salesOrder
+                    ? String((r.salesOrder as { id: string }).id)
+                    : undefined);
+                router.push(inventorySalesHref({ tab: 'orders', focus: soId }) as never);
               })}
             />
           ) : null}
@@ -306,7 +329,9 @@ export default function InventoryQuotesScreen() {
               label="Go to Sales"
               size="sm"
               variant="secondary"
-              onPress={() => router.push('/inventory/sales' as never)}
+              onPress={() =>
+                router.push(inventorySalesHref({ tab: 'orders', focus: item.salesOrderId }) as never)
+              }
             />
           ) : null}
         </View>
@@ -358,40 +383,21 @@ export default function InventoryQuotesScreen() {
         </Card>
       </View>
 
-      {/* Search & Filter Bar */}
-      <View className="px-4 py-2 flex-row flex-wrap items-center gap-2">
-        <View className="flex-1 min-w-[220px] relative">
-          <TextInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder={
-              eventLightingCopy
-                ? 'Search by client, event, quote #, or item...'
-                : 'Search by customer, quote #, notes, or item...'
-            }
-            placeholderTextColor="#94A3B8"
-            className="h-10 rounded-lg border border-border bg-card px-3 text-sm text-text"
-          />
-          {searchQuery ? (
-            <Pressable onPress={() => setSearchQuery('')} className="absolute right-3 top-2.5">
-              <Ionicons name="close-circle" size={18} color="#94A3B8" />
-            </Pressable>
-          ) : null}
-        </View>
-
-        <SegmentedTabsInline
-          tabs={[
-            { value: 'ALL' as const, label: 'All' },
-            { value: 'DRAFT' as const, label: 'DRAFT' },
-            { value: 'SENT' as const, label: 'SENT' },
-            { value: 'ACCEPTED' as const, label: 'ACCEPTED' },
-            { value: 'REJECTED' as const, label: 'REJECTED' },
-          ]}
-          value={statusFilter}
-          onChange={setStatusFilter}
-          className="gap-1.5"
-        />
-      </View>
+      <InventoryFilterBar
+        query={filters.query}
+        onQueryChange={filters.setQuery}
+        placeholder={
+          eventLightingCopy
+            ? 'Search by client, event, quote #, or item…'
+            : 'Search by customer, quote #, notes, or item…'
+        }
+        statusTabs={QUOTE_STATUS_TABS}
+        status={filters.status as StatusFilter}
+        onStatusChange={filters.setStatus}
+        resultCount={{ shown: filteredQuotes.length, total: allQuotes.length }}
+        isFiltered={filters.isFiltered}
+        onClear={filters.clearAll}
+      />
 
       {/* Main List */}
       {quotes.isLoading ? (
@@ -400,15 +406,17 @@ export default function InventoryQuotesScreen() {
         </View>
       ) : (
         <FlatList
+          ref={listRef}
           className="flex-1 px-4 mt-2"
           data={filteredQuotes}
           keyExtractor={(item) => item.id}
           renderItem={renderQuoteItem}
+          onScrollToIndexFailed={() => undefined}
           ListEmptyComponent={
             <EmptyState
-              title={searchQuery ? 'No matching quotes found' : 'No quotes yet'}
+              title={filters.isFiltered ? 'No matching quotes found' : 'No quotes yet'}
               description={
-                searchQuery
+                filters.isFiltered
                   ? 'Try searching with different keywords or clear the filter.'
                   : eventLightingCopy
                     ? 'Create an event estimate or lighting quotation for your client, share it on WhatsApp, and convert it to a Sales Order when approved.'

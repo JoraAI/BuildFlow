@@ -28,6 +28,17 @@ import { ImportMappingModal } from '@/components/inventory/ImportMappingModal';
 import { KiranaSkuPicker } from '@/components/inventory/KiranaSkuPicker';
 import { useRouter } from 'expo-router';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
+import { InventoryFilterBar } from '@/components/inventory/InventoryFilterBar';
+import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
+import { matchesStatus, matchesText } from '@/utils/inventory-filters';
+import { inventoryProcurementHref } from '@/utils/navigation-paths';
+
+const MATERIAL_STATUS_TABS = [
+  { value: 'ALL' as const, label: 'All' },
+  { value: 'LOW' as const, label: 'Low stock' },
+  { value: 'OUT' as const, label: 'Out of stock' },
+];
+type MaterialStatus = (typeof MATERIAL_STATUS_TABS)[number]['value'];
 
 /**
  * One saved item-master row with its current aggregate stock summary.
@@ -39,6 +50,8 @@ type MaterialRow = {
   category: string | null;
   resource: Resource;
   stock: StockSummaryRow | null;
+  /** Derived from balance vs reorder point - drives the stock status chips. */
+  stockState: 'OK' | 'LOW' | 'OUT';
 };
 
 function translatedItemsTitle(
@@ -65,7 +78,7 @@ export default function InventoryMaterialsScreen() {
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [skuLibraryOpen, setSkuLibraryOpen] = useState(false);
-  const [search, setSearch] = useState('');
+  const filters = useInventoryListFilters();
   const [editing, setEditing] = useState<Resource | null>(null);
   const [receiving, setReceiving] = useState<Resource | null>(null);
   const createResource = useCreateResource();
@@ -78,23 +91,48 @@ export default function InventoryMaterialsScreen() {
 
   const materials = (data?.data ?? []).filter((r: Resource) => r.type === 'MATERIAL' || !r.type);
 
-  const rows = useMemo<MaterialRow[]>(() => {
-    const stockByResource = new Map(
+  const allRows = useMemo<MaterialRow[]>(() => {
+    const stockByResource = new Map<string, StockSummaryRow>(
       (stock ?? []).map((s: StockSummaryRow) => [s.resourceId, s]),
     );
-    const owned: MaterialRow[] = materials.map((item: Resource) => ({
-      key: item.id,
-      name: item.name,
-      unit: item.unit,
-      category: item.category ?? null,
-      resource: item,
-      stock: stockByResource.get(item.id) ?? null,
-    }));
-    const q = search.trim().toLowerCase();
-    const matches = (row: MaterialRow) =>
-      !q || [row.name, row.category ?? '', row.key].some((v) => v.toLowerCase().includes(q));
-    return owned.filter(matches);
-  }, [materials, stock, search]);
+    return materials.map((item: Resource) => {
+      const rowStock = stockByResource.get(item.id) ?? null;
+      const balance = Number(rowStock?.balance ?? 0);
+      const reorderPoint = Number(rowStock?.reorderPoint ?? item.reorderPoint ?? 0);
+      const stockState: MaterialRow['stockState'] =
+        balance <= 0 ? 'OUT' : reorderPoint > 0 && balance <= reorderPoint ? 'LOW' : 'OK';
+      return {
+        key: item.id,
+        name: item.name,
+        unit: item.unit,
+        category: item.category ?? null,
+        resource: item,
+        stock: rowStock,
+        stockState,
+      };
+    });
+  }, [materials, stock]);
+
+  const rows = useMemo<MaterialRow[]>(
+    () =>
+      allRows.filter(
+        (row) =>
+          matchesText(
+            [
+              row.name,
+              row.category,
+              row.resource.sku,
+              row.resource.itemCode,
+              row.resource.barcode,
+              row.resource.brandOrSpec,
+              row.resource.hsnSacCode,
+              row.key,
+            ],
+            filters.debouncedQuery,
+          ) && matchesStatus(row.stockState, filters.status),
+      ),
+    [allRows, filters.debouncedQuery, filters.status],
+  );
 
   const onDelete = async (item: Resource) => {
     const ok = await confirmAsync(
@@ -140,14 +178,20 @@ export default function InventoryMaterialsScreen() {
         </View>
       </View>
 
-      <View className="px-4">
-        <Input
-          label={translate('inventory.materials.searchLabel', `Search ${itemPluralLabel.toLowerCase()}`)}
-          value={search}
-          onChangeText={setSearch}
-          placeholder="e.g. atta, biscuit, KIR-058"
-        />
-      </View>
+      <InventoryFilterBar
+        query={filters.query}
+        onQueryChange={filters.setQuery}
+        placeholder={translate(
+          'inventory.materials.searchLabel',
+          `Search ${itemPluralLabel.toLowerCase()} - name, SKU, barcode, HSN`,
+        )}
+        statusTabs={MATERIAL_STATUS_TABS}
+        status={filters.status as MaterialStatus}
+        onStatusChange={filters.setStatus}
+        resultCount={{ shown: rows.length, total: allRows.length }}
+        isFiltered={filters.isFiltered}
+        onClear={filters.clearAll}
+      />
 
       {isLoading ? (
         <View className="px-4 gap-3">
@@ -179,10 +223,17 @@ export default function InventoryMaterialsScreen() {
             ) : null
           }
           ListEmptyComponent={
-            <EmptyState
-              title={`No ${itemPluralLabel.toLowerCase()} yet`}
-              description={`Add ${itemPluralLabel.toLowerCase()} to your catalog, then create a ${indentLabel.toLowerCase()} and receive stock via GRN.`}
-            />
+            filters.isFiltered ? (
+              <EmptyState
+                title={`No matching ${itemPluralLabel.toLowerCase()}`}
+                description="Try a different search term or clear the filters."
+              />
+            ) : (
+              <EmptyState
+                title={`No ${itemPluralLabel.toLowerCase()} yet`}
+                description={`Add ${itemPluralLabel.toLowerCase()} to your catalog, then create a ${indentLabel.toLowerCase()} and receive stock via GRN.`}
+              />
+            )
           }
           renderItem={({ item: row }: { item: MaterialRow }) => {
             // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop materials
@@ -343,8 +394,9 @@ export default function InventoryMaterialsScreen() {
         item={receiving}
         onClose={() => setReceiving(null)}
         onUseFormalProcurement={() => {
+          const itemName = receiving?.name;
           setReceiving(null);
-          router.push('/inventory/procurement' as never);
+          router.push(inventoryProcurementHref({ tab: 'indents', q: itemName }) as never);
         }}
         onReceived={() => {
           setReceiving(null);

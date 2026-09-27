@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, Badge, Button, EmptyState, LoadingSkeleton, toast, BusyOverlay, useBusy } from '@/components/ui';
@@ -16,10 +16,92 @@ import {
   NewSalesOrderModal, NewChallanModal, SalesReturnModal, PurchaseReturnModal, DispatchChallanSheet, ChallanReturnModal,
 } from '@/components/inventory/TransactionModals';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
-import { SegmentedTabsInline } from '@/components/inventory/SegmentedTabs';
+import { SegmentedTabsInline, type SegmentedTab } from '@/components/inventory/SegmentedTabs';
+import { InventoryFilterBar } from '@/components/inventory/InventoryFilterBar';
+import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
+import { useFocusedRow } from '@/hooks/useFocusedRow';
+import { matchesStatus, matchesText } from '@/utils/inventory-filters';
+import {
+  inventoryBillsHref,
+  inventoryInvoiceDetailHref,
+  inventoryInvoicesHref,
+  inventorySalesHref,
+} from '@/utils/navigation-paths';
 import { downloadReportPdf } from '@/services/report-download';
 
 type Tab = 'orders' | 'deliveries' | 'returns' | 'notes';
+
+const TABS: readonly SegmentedTab<Tab>[] = [
+  { value: 'orders', label: 'Sales orders' },
+  { value: 'deliveries', label: 'Deliveries' },
+  { value: 'returns', label: 'Returns' },
+  { value: 'notes', label: 'Credit/Debit notes' },
+];
+
+/** Status chips per tab - values match the row `status` field for each list. */
+const STATUS_TABS: Record<Tab, readonly SegmentedTab<string>[]> = {
+  orders: [
+    { value: 'ALL', label: 'All' },
+    { value: 'DRAFT', label: 'Draft' },
+    { value: 'CONFIRMED', label: 'Confirmed' },
+    { value: 'DELIVERED', label: 'Delivered' },
+    { value: 'INVOICED', label: 'Invoiced' },
+    { value: 'CANCELLED', label: 'Cancelled' },
+  ],
+  deliveries: [
+    { value: 'ALL', label: 'All' },
+    { value: 'DRAFT', label: 'Draft' },
+    { value: 'DISPATCHED', label: 'Dispatched' },
+    { value: 'DELIVERED', label: 'Delivered' },
+    { value: 'CANCELLED', label: 'Cancelled' },
+  ],
+  returns: [
+    { value: 'ALL', label: 'All' },
+    { value: 'DRAFT', label: 'Draft' },
+    { value: 'ISSUED', label: 'Issued' },
+    { value: 'VOID', label: 'Void' },
+  ],
+  notes: [
+    { value: 'ALL', label: 'All' },
+    { value: 'DRAFT', label: 'Draft' },
+    { value: 'ISSUED', label: 'Issued' },
+    { value: 'VOID', label: 'Void' },
+  ],
+};
+
+/**
+ * After invoicing a sales order, open the new invoice directly (Back returns to
+ * this order). Falls back to the invoice list filtered by customer when the API
+ * response has no invoice id.
+ */
+function invoiceHrefFromSalesOrder(
+  invoiceId: string | undefined,
+  order: { id: string; customerName: string },
+): string {
+  if (!invoiceId) return inventoryInvoicesHref({ q: order.customerName });
+  return inventoryInvoiceDetailHref(invoiceId, inventorySalesHref({ tab: 'orders', focus: order.id }));
+}
+
+/** A return points back at the invoice (sales) or bill (purchase) it came from. */
+function returnSourceHref(item: SalesReturn | PurchaseReturn): string {
+  if ('customerName' in item) {
+    const sales = item as SalesReturn;
+    return sales.invoiceId
+      ? inventoryInvoicesHref({ focus: sales.invoiceId })
+      : inventoryInvoicesHref({ q: sales.customerName });
+  }
+  const purchase = item as PurchaseReturn;
+  return purchase.billId
+    ? inventoryBillsHref({ focus: purchase.billId })
+    : inventoryBillsHref({ q: purchase.vendorName });
+}
+
+const SEARCH_PLACEHOLDER: Record<Tab, string> = {
+  orders: 'Search SO #, customer, notes…',
+  deliveries: 'Search challan #, customer, SO #…',
+  returns: 'Search return #, party, reason…',
+  notes: 'Search note #, party…',
+};
 
 const STATUS_COLOR: Record<string, 'success' | 'warning' | 'neutral' | 'danger'> = {
   DRAFT: 'neutral',
@@ -40,7 +122,9 @@ export default function InventorySalesScreen() {
   const { isTablet, isDesktop } = useViewport();
   const tableMode = isTablet || isDesktop;
   const projectId = useAuthStore((s) => s.user?.defaultProjectId ?? '');
-  const [tab, setTab] = useState<Tab>('orders');
+  const filters = useInventoryListFilters({ defaultTab: 'orders' });
+  const tab = (TABS.some((t) => t.value === filters.tab) ? filters.tab : 'orders') as Tab;
+  const setTab = filters.setTab;
   const [soOpen, setSoOpen] = useState(false);
   const [challanOpen, setChallanOpen] = useState(false);
   const [dispatchChallan, setDispatchChallan] = useState<DeliveryChallan | null>(null);
@@ -80,7 +164,7 @@ export default function InventorySalesScreen() {
 
     if (tableMode) {
       return (
-        <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
+        <View className={`flex-row items-center px-4 py-3 bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
           <Text className="flex-[1.1] text-sm font-mono font-semibold text-text">{item.soNumber}</Text>
           <Text className="flex-[1.4] text-sm text-text" numberOfLines={1}>{item.customerName}</Text>
           <View className="flex-1">
@@ -109,11 +193,16 @@ export default function InventorySalesScreen() {
                 const r = await invoiceFromSO.mutateAsync({ id: item.id });
                 toast.success(`Invoice ${r.invoiceNumber} created`);
                 if (r.creditLimitWarning) toast.warning(r.creditLimitWarning);
-                router.push('/inventory/invoices' as never);
+                router.push(invoiceHrefFromSalesOrder(r.id, item) as never);
               })} />
             ) : null}
             {item.status === 'INVOICED' ? (
-              <Button label="Invoices" size="sm" variant="secondary" onPress={() => router.push('/inventory/invoices' as never)} />
+              <Button
+                label="Invoices"
+                size="sm"
+                variant="secondary"
+                onPress={() => router.push(inventoryInvoicesHref({ q: item.customerName }) as never)}
+              />
             ) : null}
             {(item.status === 'CONFIRMED' || item.status === 'DELIVERED') ? (
               <Button label="Cancel" size="sm" variant="secondary" disabled={busy} onPress={() => void run(async () => {
@@ -127,7 +216,7 @@ export default function InventorySalesScreen() {
       );
     }
     return (
-      <Card className="mb-2 p-4">
+      <Card className={`mb-2 p-4 ${focusedClassName(item.id)}`}>
         <View className="flex-row items-start justify-between gap-2">
           <View className="flex-1 min-w-0">
             <Text className="text-sm font-bold text-text">{item.soNumber}</Text>
@@ -161,11 +250,16 @@ export default function InventorySalesScreen() {
               const r = await invoiceFromSO.mutateAsync({ id: item.id });
               toast.success(`Invoice ${r.invoiceNumber} created`);
               if (r.creditLimitWarning) toast.warning(r.creditLimitWarning);
-              router.push('/inventory/invoices' as never);
+              router.push(invoiceHrefFromSalesOrder(r.id, item) as never);
             })} />
           ) : null}
           {item.status === 'INVOICED' ? (
-            <Button label="Go to invoices" size="sm" variant="secondary" onPress={() => router.push('/inventory/invoices' as never)} />
+            <Button
+              label="Go to invoices"
+              size="sm"
+              variant="secondary"
+              onPress={() => router.push(inventoryInvoicesHref({ q: item.customerName }) as never)}
+            />
           ) : null}
           {item.status === 'CONFIRMED' || item.status === 'DELIVERED' ? (
             <Button label="Cancel" size="sm" variant="secondary" disabled={busy} onPress={() => void run(async () => {
@@ -182,7 +276,7 @@ export default function InventorySalesScreen() {
   const renderChallan = ({ item }: { item: DeliveryChallan }) => {
     if (tableMode) {
       return (
-        <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
+        <View className={`flex-row items-center px-4 py-3 bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
           <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.dcNumber}</Text>
           <Text className="flex-[1.4] text-sm text-text" numberOfLines={1}>{item.customerName}</Text>
           <View className="flex-1">
@@ -205,7 +299,11 @@ export default function InventorySalesScreen() {
                     await challanTransition.mutateAsync({ id: item.id, action: 'deliver' });
                     const r = await invoiceFromSO.mutateAsync({ id: item.salesOrder!.id });
                     toast.success(`Delivered · Invoice ${r.invoiceNumber} created`);
-                    router.push('/inventory/invoices' as never);
+                    router.push(
+                      (r.id
+                        ? inventoryInvoiceDetailHref(r.id, inventorySalesHref({ tab: 'deliveries', focus: item.id }))
+                        : inventoryInvoicesHref({ q: item.customerName })) as never,
+                    );
                   })} />
                 ) : null}
               </>
@@ -216,7 +314,7 @@ export default function InventorySalesScreen() {
       );
     }
     return (
-      <Card className="mb-2 p-4">
+      <Card className={`mb-2 p-4 ${focusedClassName(item.id)}`}>
         <View className="flex-row items-start justify-between gap-2">
           <View className="flex-1 min-w-0">
             <Text className="text-sm font-bold text-text">{item.dcNumber}</Text>
@@ -243,7 +341,11 @@ export default function InventorySalesScreen() {
                   await challanTransition.mutateAsync({ id: item.id, action: 'deliver' });
                   const r = await invoiceFromSO.mutateAsync({ id: item.salesOrder!.id });
                   toast.success(`Delivered · Invoice ${r.invoiceNumber} created`);
-                  router.push('/inventory/invoices' as never);
+                  router.push(
+                    (r.id
+                      ? inventoryInvoiceDetailHref(r.id, inventorySalesHref({ tab: 'deliveries', focus: item.id }))
+                      : inventoryInvoicesHref({ q: item.customerName })) as never,
+                  );
                 })} />
               ) : null}
             </>
@@ -263,7 +365,7 @@ export default function InventorySalesScreen() {
 
     if (tableMode) {
       return (
-        <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
+        <View className={`flex-row items-center px-4 py-3 bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
           <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.returnNumber}</Text>
           <Text className="flex-[1.4] text-sm text-text" numberOfLines={1}>{party}</Text>
           <Text className="flex-1 text-xs text-muted">{isSales ? 'Sales return' : 'Purchase return'}</Text>
@@ -290,14 +392,14 @@ export default function InventorySalesScreen() {
               label={isSales ? 'Invoices' : 'Vendor bills'}
               size="sm"
               variant="secondary"
-              onPress={() => router.push((isSales ? '/inventory/invoices' : '/inventory/bills') as never)}
+              onPress={() => router.push(returnSourceHref(item) as never)}
             />
           </View>
         </View>
       );
     }
     return (
-      <Card className="mb-2 p-4">
+      <Card className={`mb-2 p-4 ${focusedClassName(item.id)}`}>
         <View className="flex-row items-start justify-between gap-2">
           <View className="flex-1 min-w-0">
             <Text className="text-sm font-bold text-text">{item.returnNumber}</Text>
@@ -328,7 +430,7 @@ export default function InventorySalesScreen() {
             label={isSales ? 'Go to invoices' : 'Go to vendor bills'}
             size="sm"
             variant="secondary"
-            onPress={() => router.push((isSales ? '/inventory/invoices' : '/inventory/bills') as never)}
+            onPress={() => router.push(returnSourceHref(item) as never)}
           />
         </View>
       </Card>
@@ -338,7 +440,7 @@ export default function InventorySalesScreen() {
   const renderNote = ({ item }: { item: { id: string; number: string; party: string; status: string; total: string; kind: 'credit' | 'debit' } }) => {
     if (tableMode) {
       return (
-        <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
+        <View className={`flex-row items-center px-4 py-3 bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
           <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.number}</Text>
           <Text className="flex-[1.4] text-sm text-text" numberOfLines={1}>{item.party}</Text>
           <Text className="flex-1 text-xs text-muted">{item.kind === 'credit' ? 'Credit note' : 'Debit note'}</Text>
@@ -364,7 +466,7 @@ export default function InventorySalesScreen() {
       );
     }
     return (
-      <Card className="mb-2 p-4">
+      <Card className={`mb-2 p-4 ${focusedClassName(item.id)}`}>
         <View className="flex-row items-start justify-between gap-2">
           <View className="flex-1 min-w-0">
             <Text className="text-sm font-bold text-text">{item.number}</Text>
@@ -404,14 +506,7 @@ export default function InventorySalesScreen() {
     (tab === 'returns' && (salesReturns.isLoading || purchaseReturns.isLoading)) ||
     (tab === 'notes' && (creditNotes.isLoading || debitNotes.isLoading));
 
-  const tabs = [
-    { value: 'orders' as const, label: 'Sales orders' },
-    { value: 'deliveries' as const, label: 'Deliveries' },
-    { value: 'returns' as const, label: 'Returns' },
-    { value: 'notes' as const, label: 'Credit/Debit notes' },
-  ];
-
-  const dataForTab: any[] =
+  const allDataForTab: any[] =
     tab === 'orders'
       ? (orders.data ?? [])
       : tab === 'deliveries'
@@ -419,6 +514,28 @@ export default function InventorySalesScreen() {
         : tab === 'returns'
           ? [...(salesReturns.data ?? []), ...(purchaseReturns.data ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
           : [...creditRows, ...debitRows].sort((a, b) => b.id.localeCompare(a.id));
+
+  /** Searchable fields per tab - document number, party and free text. */
+  const haystack = (row: any): Array<string | null | undefined> => {
+    if (tab === 'orders') return [row.soNumber, row.customerName, row.notes];
+    if (tab === 'deliveries') return [row.dcNumber, row.customerName, row.salesOrder?.soNumber, row.notes];
+    if (tab === 'returns') return [row.returnNumber, row.customerName, row.vendorName, row.reason];
+    return [row.number, row.party];
+  };
+
+  const query = filters.debouncedQuery;
+  const status = filters.status;
+  const dataForTab = useMemo(
+    () => allDataForTab.filter((row) => matchesText(haystack(row), query) && matchesStatus(row.status, status)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allDataForTab, query, status, tab],
+  );
+
+  const { listRef, focusedClassName } = useFocusedRow<{ id: string }>({
+    focusId: filters.focusId,
+    data: dataForTab,
+    clearFocus: filters.clearFocus,
+  });
 
   const renderRow = ({ item }: { item: any }) => {
     if (tab === 'orders') return renderOrder({ item: item as SalesOrder });
@@ -441,10 +558,22 @@ export default function InventorySalesScreen() {
       </View>
 
       <SegmentedTabsInline
-        tabs={tabs}
+        tabs={TABS}
         value={tab}
         onChange={setTab}
         className="px-4 pb-2 gap-2"
+      />
+
+      <InventoryFilterBar
+        query={filters.query}
+        onQueryChange={filters.setQuery}
+        placeholder={SEARCH_PLACEHOLDER[tab]}
+        statusTabs={STATUS_TABS[tab]}
+        status={filters.status}
+        onStatusChange={filters.setStatus}
+        resultCount={{ shown: dataForTab.length, total: allDataForTab.length }}
+        isFiltered={filters.isFiltered}
+        onClear={filters.clearAll}
       />
 
       {loading ? (
@@ -453,11 +582,19 @@ export default function InventorySalesScreen() {
         </View>
       ) : (
         <FlatList
+          ref={listRef}
           className="flex-1 px-4"
           data={dataForTab}
           keyExtractor={(item) => item.id}
           renderItem={renderRow}
+          onScrollToIndexFailed={() => undefined}
           ListEmptyComponent={
+            filters.isFiltered ? (
+              <EmptyState
+                title="No matching records"
+                description="Try a different search term or clear the filters."
+              />
+            ) : (
             <EmptyState
               title={
                 tab === 'orders' ? 'No sales orders yet'
@@ -472,6 +609,7 @@ export default function InventorySalesScreen() {
                 : 'Notes are created automatically from returns.'
               }
             />
+            )
           }
           contentContainerStyle={{ paddingBottom: 24 }}
           ListHeaderComponent={
@@ -550,7 +688,9 @@ export default function InventorySalesScreen() {
                   : 'Dispatched - stock moved OUT',
               );
               setDispatchChallan(null);
-              if (r.draftInvoiceId) router.push('/inventory/invoices' as never);
+              if (r.draftInvoiceId) {
+                router.push(inventoryInvoicesHref({ focus: r.draftInvoiceId }) as never);
+              }
             });
           }}
         />
@@ -583,7 +723,7 @@ export default function InventorySalesScreen() {
               const r = await createSalesReturn.mutateAsync(input);
               toast.success(`Return ${r.salesReturn.returnNumber} recorded - draft credit note created`);
               setSalesReturnOpen(false);
-              router.push('/inventory/invoices' as never);
+              router.push(inventoryInvoicesHref({ focus: input.invoiceId }) as never);
             });
           }}
         />
@@ -598,7 +738,7 @@ export default function InventorySalesScreen() {
               const r = await createPurchaseReturn.mutateAsync(input);
               toast.success(`Return ${r.purchaseReturn.returnNumber} recorded - draft debit note created`);
               setPurchaseReturnOpen(false);
-              router.push('/inventory/bills' as never);
+              router.push(inventoryBillsHref({ focus: input.billId }) as never);
             });
           }}
         />

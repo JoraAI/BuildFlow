@@ -85,6 +85,11 @@ export function ProjectInvoicesList({
   embedded = false,
   returnTo,
   buildDetailHref = invoiceDetailHref,
+  status: controlledStatus,
+  onStatusChange,
+  query = '',
+  focusId = null,
+  stickyFilters = false,
 }: {
   projectId: string;
   embedded?: boolean;
@@ -92,6 +97,14 @@ export function ProjectInvoicesList({
   returnTo?: string;
   /** Override detail URL builder (inventory shell uses /inventory/invoices/:id). */
   buildDetailHref?: (invoiceId: string, returnTo?: string) => string;
+  /** Controlled status filter (inventory shell). When set with onStatusChange, skips projectId reset. */
+  status?: string;
+  onStatusChange?: (next: string) => void;
+  /** Free-text search over invoice # / client. */
+  query?: string;
+  focusId?: string | null;
+  /** When true, filter pills are not rendered inside the list (parent owns sticky bar). */
+  stickyFilters?: boolean;
 }) {
   const router = useRouter();
   const { isDesktop } = useViewport();
@@ -99,18 +112,27 @@ export function ProjectInvoicesList({
   const { busy, run } = useBusy();
   const { data: invoices, isLoading, isFetching, refetch } = useInvoices(projectId);
   const sendInvoice = useSendInvoice();
-  const [filter, setFilter] = useState<string>('ALL');
+  const [internalFilter, setInternalFilter] = useState<string>('ALL');
+  const controlled = controlledStatus != null && onStatusChange != null;
+  const filter = controlled ? controlledStatus : internalFilter;
+  const setFilter = controlled ? onStatusChange! : setInternalFilter;
 
   useEffect(() => {
-    setFilter('ALL');
-  }, [projectId]);
+    if (controlled) return;
+    setInternalFilter('ALL');
+  }, [projectId, controlled]);
 
   const detailReturnTo =
     returnTo ?? (embedded ? `/accounting/project/${projectId}?tab=invoices` : DISMISS.accounting);
 
-  const filtered = (invoices ?? []).filter(
-    (inv: Invoice) => filter === 'ALL' || inv.status === filter,
-  );
+  const q = query.trim().toLowerCase();
+  const filtered = (invoices ?? []).filter((inv: Invoice) => {
+    if (filter !== 'ALL' && inv.status !== filter) return false;
+    if (!q) return true;
+    return [inv.invoiceNumber, inv.clientName, inv.clientPhone]
+      .filter(Boolean)
+      .some((v) => String(v).toLowerCase().includes(q));
+  });
 
   if (isLoading) {
     return (
@@ -162,13 +184,19 @@ export function ProjectInvoicesList({
         <View className={embedded || isDesktop ? 'p-8' : undefined}>
           <EmptyState
             title="No invoices"
-            description="Create a GST-compliant invoice for this project, or issue stock to auto-create a draft."
+            description={
+              q || filter !== 'ALL'
+                ? 'No invoices match the current search or filter.'
+                : 'Create a GST-compliant invoice for this project, or issue stock to auto-create a draft.'
+            }
           />
         </View>
       }
       ListHeaderComponent={
         <>
-          <FilterPills options={INVOICE_FILTERS} value={filter} onChange={setFilter} />
+          {!stickyFilters ? (
+            <FilterPills options={INVOICE_FILTERS} value={filter} onChange={setFilter} />
+          ) : null}
           {isDesktop && filtered.length > 0 && (
             <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
               <Text className="flex-[1.2] text-xs font-semibold text-muted uppercase">Invoice #</Text>
@@ -182,12 +210,14 @@ export function ProjectInvoicesList({
         </>
       }
       renderItem={({ item }) => (
-        <InvoiceRow
-          item={item}
-          canSend={canSend}
-          onPress={() => router.push(buildDetailHref(item.id, detailReturnTo) as never)}
-          onSend={() => onSend(item.id)}
-        />
+        <View className={focusId === item.id ? 'border border-primary bg-primary/5 rounded-xl' : undefined}>
+          <InvoiceRow
+            item={item}
+            canSend={canSend}
+            onPress={() => router.push(buildDetailHref(item.id, detailReturnTo) as never)}
+            onSend={() => onSend(item.id)}
+          />
+        </View>
       )}
     />
     </View>
@@ -199,12 +229,22 @@ export function ProjectBillsList({
   embedded = false,
   returnTo,
   buildDetailHref = billDetailHref,
+  status: controlledStatus,
+  onStatusChange,
+  query = '',
+  focusId = null,
+  stickyFilters = false,
 }: {
   projectId: string;
   embedded?: boolean;
   returnTo?: string;
   /** Override detail URL builder (inventory shell uses /inventory/bills/:id). */
   buildDetailHref?: (billId: string, returnTo?: string) => string;
+  status?: string;
+  onStatusChange?: (next: string) => void;
+  query?: string;
+  focusId?: string | null;
+  stickyFilters?: boolean;
 }) {
   const router = useRouter();
   // R10-B2: Replace role check with granular permission.
@@ -214,16 +254,27 @@ export function ProjectBillsList({
   const { data: bills, isLoading, isFetching, refetch } = useBills(projectId);
   const approve = useApproveBill();
   const reject = useRejectBill();
-  const [filter, setFilter] = useState<string>('ALL');
+  const [internalFilter, setInternalFilter] = useState<string>('ALL');
+  const controlled = controlledStatus != null && onStatusChange != null;
+  const filter = controlled ? controlledStatus : internalFilter;
+  const setFilter = controlled ? onStatusChange! : setInternalFilter;
 
   useEffect(() => {
-    setFilter('ALL');
-  }, [projectId]);
+    if (controlled) return;
+    setInternalFilter('ALL');
+  }, [projectId, controlled]);
 
   const detailReturnTo =
     returnTo ?? (embedded ? `/accounting/project/${projectId}?tab=bills` : DISMISS.accounting);
 
-  const filtered = (bills ?? []).filter((b: Bill) => filter === 'ALL' || b.status === filter);
+  const q = query.trim().toLowerCase();
+  const filtered = (bills ?? []).filter((b: Bill) => {
+    if (filter !== 'ALL' && b.status !== filter) return false;
+    if (!q) return true;
+    return [b.billNumber, b.vendorName, b.category]
+      .filter(Boolean)
+      .some((v) => String(v).toLowerCase().includes(q));
+  });
 
   if (isLoading) {
     return (
@@ -287,12 +338,21 @@ export function ProjectBillsList({
       }
       ListEmptyComponent={
         <View className={embedded || isDesktop ? 'p-8' : undefined}>
-          <EmptyState title="No bills" description="Add a vendor bill to track project costs." />
+          <EmptyState
+            title="No bills"
+            description={
+              q || filter !== 'ALL'
+                ? 'No bills match the current search or filter.'
+                : 'Add a vendor bill to track project costs.'
+            }
+          />
         </View>
       }
       ListHeaderComponent={
         <>
-          <FilterPills options={BILL_FILTERS} value={filter} onChange={setFilter} />
+          {!stickyFilters ? (
+            <FilterPills options={BILL_FILTERS} value={filter} onChange={setFilter} />
+          ) : null}
           {isDesktop && filtered.length > 0 && (
             <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
               <Text className="flex-[1.2] text-xs font-semibold text-muted uppercase">Bill #</Text>
@@ -306,13 +366,15 @@ export function ProjectBillsList({
         </>
       }
       renderItem={({ item }) => (
-        <BillRow
-          item={item}
-          canApprove={canApprove}
-          onPress={() => router.push(buildDetailHref(item.id, detailReturnTo) as never)}
-          onApprove={() => onApprove(item.id, item.status)}
-          onReject={() => onReject(item.id)}
-        />
+        <View className={focusId === item.id ? 'border border-primary bg-primary/5 rounded-xl' : undefined}>
+          <BillRow
+            item={item}
+            canApprove={canApprove}
+            onPress={() => router.push(buildDetailHref(item.id, detailReturnTo) as never)}
+            onApprove={() => onApprove(item.id, item.status)}
+            onReject={() => onReject(item.id)}
+          />
+        </View>
       )}
     />
     </View>

@@ -5,7 +5,7 @@
  * default STORE project. Reuses the same backend endpoints as the construction
  * ProcurementTab, without the project picker.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, Pressable, Modal, ScrollView, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, Badge, Button, Input, EmptyState, LoadingSkeleton, Select, toast, BusyOverlay } from '@/components/ui';
@@ -34,6 +34,11 @@ import { downloadReportPdf } from '@/services/report-download';
 import { useReorderSuggestions, useOrderReorderItems, type ReorderSuggestion } from '@/services/reorder.queries';
 import { confirmAsync } from '@/utils/confirm';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
+import { SegmentedTabsInline, type SegmentedTab } from '@/components/inventory/SegmentedTabs';
+import { InventoryFilterBar } from '@/components/inventory/InventoryFilterBar';
+import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
+import { matchesText } from '@/utils/inventory-filters';
+import { inventoryBillsHref } from '@/utils/navigation-paths';
 
 const APPROVAL_COLOR: Record<string, 'warning' | 'success' | 'danger' | 'neutral'> = {
   DRAFT: 'neutral',
@@ -43,6 +48,15 @@ const APPROVAL_COLOR: Record<string, 'warning' | 'success' | 'danger' | 'neutral
 };
 
 type Section = 'indents' | 'orders' | 'grns' | 'reorder';
+
+const SECTIONS: readonly Section[] = ['indents', 'orders', 'grns', 'reorder'];
+
+const SEARCH_PLACEHOLDER: Record<Section, string> = {
+  indents: 'Search request #, notes, item…',
+  orders: 'Search PO #, vendor, item…',
+  grns: 'Search GRN #, PO #…',
+  reorder: 'Search item, vendor…',
+};
 
 /** Poll refetch until the list shows the expected change (or timeout). */
 async function bufferUntilVisible(
@@ -67,7 +81,9 @@ export default function InventoryProcurementScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const projectId = user?.defaultProjectId ?? '';
-  const [section, setSection] = useState<Section>('indents');
+  const filters = useInventoryListFilters({ defaultTab: 'indents' });
+  const section = (SECTIONS.includes(filters.tab as Section) ? filters.tab : 'indents') as Section;
+  const setSection = filters.setTab;
   const [createIndentOpen, setCreateIndentOpen] = useState(false);
   const [createPoOpen, setCreatePoOpen] = useState(false);
   const [recordGrnOpen, setRecordGrnOpen] = useState(false);
@@ -126,6 +142,16 @@ export default function InventoryProcurementScreen() {
     setPrefillPurchaseOrderId(null);
   };
 
+  const sectionTabs = useMemo<readonly SegmentedTab<Section>[]>(
+    () => [
+      { value: 'indents', label: indentLabelPlural },
+      { value: 'orders', label: 'Purchase orders' },
+      { value: 'grns', label: 'Goods receipts' },
+      { value: 'reorder', label: 'Reorder' },
+    ],
+    [indentLabelPlural],
+  );
+
   return (
     <View className="flex-1 bg-surface">
       <View className="px-4 pt-4 pb-2">
@@ -136,26 +162,12 @@ export default function InventoryProcurementScreen() {
       </View>
 
       <View className="flex-row flex-wrap px-4 pb-2 gap-2 items-center">
-        {(['indents', 'orders', 'grns', 'reorder'] as Section[]).map((s) => (
-          <Pressable
-            key={s}
-            disabled={buffering}
-            onPress={() => setSection(s)}
-            className={`px-3 py-1.5 rounded-lg border ${
-              section === s ? 'bg-primary border-primary' : 'bg-card border-border'
-            } ${buffering ? 'opacity-50' : ''}`}
-          >
-            <Text className={`text-xs font-medium ${section === s ? 'text-white' : 'text-muted'}`}>
-              {s === 'indents'
-                ? indentLabelPlural
-                : s === 'orders'
-                  ? 'Purchase orders'
-                  : s === 'grns'
-                    ? 'Goods receipts'
-                    : 'Reorder'}
-            </Text>
-          </Pressable>
-        ))}
+        <View
+          pointerEvents={buffering ? 'none' : 'auto'}
+          className={buffering ? 'opacity-50' : ''}
+        >
+          <SegmentedTabsInline tabs={sectionTabs} value={section} onChange={setSection} />
+        </View>
         <View className="flex-1" />
         {section === 'indents' && (
           <Button
@@ -198,10 +210,19 @@ export default function InventoryProcurementScreen() {
         subtitle="Please wait until the list refreshes. Do not tap again."
       />
 
+      <InventoryFilterBar
+        query={filters.query}
+        onQueryChange={filters.setQuery}
+        placeholder={SEARCH_PLACEHOLDER[section]}
+        isFiltered={filters.isFiltered}
+        onClear={filters.clearAll}
+      />
+
       {section === 'indents' && (
         <IndentsSection
           isLoading={reqLoading}
           requisitions={requisitions ?? []}
+          query={filters.debouncedQuery}
           indentLabel={indentLabel}
           indentLabelPlural={indentLabelPlural}
           onCreatePo={openCreatePoForIndent}
@@ -211,6 +232,7 @@ export default function InventoryProcurementScreen() {
       {section === 'orders' && (
         <OrdersSection
           requisitions={requisitions ?? []}
+          query={filters.debouncedQuery}
           isLoading={reqLoading}
           onRecordGrn={openRecordGrnForPo}
           onApprovePo={async (poId) => {
@@ -237,6 +259,7 @@ export default function InventoryProcurementScreen() {
       {section === 'grns' && (
         <GrnsSection
           requisitions={requisitions ?? []}
+          query={filters.debouncedQuery}
           isLoading={reqLoading}
           onGoToOrders={() => setSection('orders')}
         />
@@ -245,6 +268,7 @@ export default function InventoryProcurementScreen() {
       {section === 'reorder' && (
         <ReorderSection
           suggestions={suggestions ?? []}
+          query={filters.debouncedQuery}
           isLoading={reorderLoading}
           ordering={orderReorder.isPending}
           itemLabel={getInventoryLabel('item', labelMode)}
@@ -347,7 +371,7 @@ export default function InventoryProcurementScreen() {
             toast.success('GRN recorded · draft vendor bill created');
             setRecordGrnOpen(false);
             setPrefillPurchaseOrderId(null);
-            router.push('/inventory/bills' as never);
+            router.push(inventoryBillsHref({ status: 'DRAFT' }) as never);
           } finally {
             setBuffering(false);
           }
@@ -360,12 +384,14 @@ export default function InventoryProcurementScreen() {
 function IndentsSection({
   isLoading,
   requisitions,
+  query,
   indentLabel,
   indentLabelPlural,
   onCreatePo,
 }: {
   isLoading: boolean;
   requisitions: Requisition[];
+  query: string;
   indentLabel: string;
   indentLabelPlural: string;
   onCreatePo: (requisitionId: string) => void;
@@ -373,13 +399,20 @@ function IndentsSection({
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop/tablet tables.
   const { isTablet, isDesktop } = useViewport();
   const tableMode = isTablet || isDesktop;
+  const rows = useMemo(
+    () =>
+      requisitions.filter((r) =>
+        matchesText([r.reqNumber, r.notes, ...r.lines.map((l) => l.resource?.name)], query),
+      ),
+    [requisitions, query],
+  );
   return (
     <FlatList
       className="flex-1 px-4"
-      data={requisitions}
+      data={rows}
       keyExtractor={(r) => r.id}
       ListHeaderComponent={
-        tableMode && requisitions.length > 0 ? (
+        tableMode && rows.length > 0 ? (
           <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
             <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Requisition</Text>
             <Text className="flex-[2] text-[11px] font-bold text-muted uppercase">Notes</Text>
@@ -445,6 +478,11 @@ function IndentsSection({
           <View className="gap-3">
             {[1, 2].map((i) => <LoadingSkeleton key={i} className="rounded-xl h-20" />)}
           </View>
+        ) : query.trim() ? (
+          <EmptyState
+            title={`No matching ${indentLabelPlural.toLowerCase()}`}
+            description="Try a different search term or clear the filters."
+          />
         ) : (
           <EmptyState
             title={`No ${indentLabelPlural.toLowerCase()} yet`}
@@ -687,6 +725,7 @@ function allPurchaseOrders(requisitions: Requisition[]) {
 
 function OrdersSection({
   requisitions,
+  query,
   isLoading,
   onRecordGrn,
   onApprovePo,
@@ -696,6 +735,7 @@ function OrdersSection({
   itemLabel,
 }: {
   requisitions: Requisition[];
+  query: string;
   isLoading?: boolean;
   onRecordGrn: (purchaseOrderId: string) => void;
   onApprovePo: (purchaseOrderId: string) => Promise<void>;
@@ -705,7 +745,13 @@ function OrdersSection({
   itemLabel: string;
 }) {
   const router = useRouter();
-  const pos = allPurchaseOrders(requisitions);
+  const pos = useMemo(
+    () =>
+      allPurchaseOrders(requisitions).filter((po) =>
+        matchesText([po.poNumber, po.vendorName, ...po.lines.map((l) => l.resource?.name)], query),
+      ),
+    [requisitions, query],
+  );
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop/tablet tables.
   const { isTablet, isDesktop } = useViewport();
   const tableMode = isTablet || isDesktop;
@@ -751,7 +797,11 @@ function OrdersSection({
                     label="Open bills"
                     size="sm"
                     variant="secondary"
-                    onPress={() => router.push('/inventory/bills' as never)}
+                    onPress={() =>
+                      router.push(
+                        inventoryBillsHref({ status: 'DRAFT', focus: draftBills[0]?.id }) as never,
+                      )
+                    }
                   />
                 ) : null}
                 {item.status === 'SUBMITTED' ? (
@@ -785,7 +835,11 @@ function OrdersSection({
                   label="Open bills"
                   size="sm"
                   variant="secondary"
-                  onPress={() => router.push('/inventory/bills' as never)}
+                  onPress={() =>
+                    router.push(
+                      inventoryBillsHref({ status: 'DRAFT', focus: draftBills[0]?.id }) as never,
+                    )
+                  }
                 />
               </View>
             ) : null}
@@ -818,6 +872,11 @@ function OrdersSection({
               <LoadingSkeleton key={i} className="rounded-xl h-20" />
             ))}
           </View>
+        ) : query.trim() ? (
+          <EmptyState
+            title="No matching purchase orders"
+            description="Try a different search term or clear the filters."
+          />
         ) : (
           <EmptyState
             title="No purchase orders"
@@ -840,16 +899,24 @@ function OrdersSection({
 
 function GrnsSection({
   requisitions,
+  query,
   isLoading,
   onGoToOrders,
 }: {
   requisitions: Requisition[];
+  query: string;
   isLoading?: boolean;
   onGoToOrders: () => void;
 }) {
   const router = useRouter();
-  const grns = allPurchaseOrders(requisitions).flatMap((po) =>
-    (po.goodsReceipts ?? []).map((g) => ({ ...g, poNumber: po.poNumber })),
+  const grns = useMemo(
+    () =>
+      allPurchaseOrders(requisitions)
+        .flatMap((po) =>
+          (po.goodsReceipts ?? []).map((g) => ({ ...g, poNumber: po.poNumber, vendorName: po.vendorName })),
+        )
+        .filter((g) => matchesText([g.grnNumber, g.poNumber, g.vendorName], query)),
+    [requisitions, query],
   );
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop/tablet tables.
   const { isTablet, isDesktop } = useViewport();
@@ -884,7 +951,7 @@ function GrnsSection({
                   label="Vendor bills"
                   size="sm"
                   variant="secondary"
-                  onPress={() => router.push('/inventory/bills' as never)}
+                  onPress={() => router.push(inventoryBillsHref({ q: item.vendorName }) as never)}
                 />
                 <Button
                   label="PDF"
@@ -914,7 +981,7 @@ function GrnsSection({
               label="Go to vendor bills"
               size="sm"
               variant="secondary"
-              onPress={() => router.push('/inventory/bills' as never)}
+              onPress={() => router.push(inventoryBillsHref({ q: item.vendorName }) as never)}
             />
             <Button
               label="PDF"
@@ -933,6 +1000,11 @@ function GrnsSection({
               <LoadingSkeleton key={i} className="rounded-xl h-20" />
             ))}
           </View>
+        ) : query.trim() ? (
+          <EmptyState
+            title="No matching goods receipts"
+            description="Try a different search term or clear the filters."
+          />
         ) : (
           <EmptyState
             title="No goods receipts"
@@ -950,19 +1022,25 @@ function GrnsSection({
 
 /** INVENTORY_HORIZONTAL_PLATFORM (Phase 4.2/4.3): low-stock reorder queue. */
 function ReorderSection({
-  suggestions,
+  suggestions: allSuggestions,
+  query,
   isLoading,
   ordering,
   itemLabel,
   onOrder,
 }: {
   suggestions: ReorderSuggestion[];
+  query: string;
   isLoading?: boolean;
   ordering: boolean;
   itemLabel: string;
   onOrder: (resourceIds: string[]) => Promise<void>;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const suggestions = useMemo(
+    () => allSuggestions.filter((s) => matchesText([s.name, s.preferredVendor?.name], query)),
+    [allSuggestions, query],
+  );
   return (
     <FlatList
       className="flex-1 px-4"

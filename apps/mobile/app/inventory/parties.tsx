@@ -2,7 +2,7 @@
  * Inventory shell - Parties (INVENTORY_HORIZONTAL_PLATFORM Phase 1.1).
  * Customer (AR) + Vendor (AP) master. Responsive: phone bottom sheets, desktop centered.
  */
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, FlatList, Pressable } from 'react-native';
 import { Card, Badge, Button, EmptyState, LoadingSkeleton, toast, BusyOverlay, useBusy } from '@/components/ui';
 import {
@@ -17,8 +17,20 @@ import { PriceListModal } from '@/components/inventory/PriceListModal';
 import { useViewport } from '@/hooks/useViewport';
 import { Modal, ScrollView } from 'react-native';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
+import { InventoryFilterBar } from '@/components/inventory/InventoryFilterBar';
+import { SegmentedTabsInline } from '@/components/inventory/SegmentedTabs';
+import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
+import { useFocusedRow } from '@/hooks/useFocusedRow';
+import { matchesStatus, matchesText } from '@/utils/inventory-filters';
 
 type Kind = 'customer' | 'vendor';
+
+const PARTY_STATUS_TABS = [
+  { value: 'ALL' as const, label: 'All' },
+  { value: 'ACTIVE' as const, label: 'Active' },
+  { value: 'INACTIVE' as const, label: 'Inactive' },
+];
+type PartyStatus = (typeof PARTY_STATUS_TABS)[number]['value'];
 
 export default function InventoryPartiesScreen() {
   const { translate } = useInventoryLanguage();
@@ -26,7 +38,8 @@ export default function InventoryPartiesScreen() {
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop/tablet table rows.
   const { isTablet, isDesktop } = useViewport();
   const tableMode = isTablet || isDesktop;
-  const [kind, setKind] = useState<Kind>('customer');
+  const filters = useInventoryListFilters({ defaultTab: 'customer' });
+  const kind: Kind = filters.tab === 'vendor' ? 'vendor' : 'customer';
   const [modal, setModal] = useState<{ kind: Kind; editing: PartyRow | null } | null>(null);
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.3): party ledger modal.
   const [ledgerParty, setLedgerParty] = useState<PartyRow | null>(null);
@@ -42,8 +55,26 @@ export default function InventoryPartiesScreen() {
   const updateVendor = useUpdateVendor(modal?.editing?.id ?? '');
   const deleteVendor = useDeleteVendor();
 
-  const rows = kind === 'customer' ? (customers.data ?? []) : (vendors.data ?? []);
+  const allRows: PartyRow[] = kind === 'customer' ? (customers.data ?? []) : (vendors.data ?? []);
   const loading = kind === 'customer' ? customers.isLoading : vendors.isLoading;
+
+  const rows = useMemo(
+    () =>
+      allRows.filter(
+        (p) =>
+          matchesText(
+            [p.name, p.businessName, p.phone, p.email, p.gstin],
+            filters.debouncedQuery,
+          ) && matchesStatus(p.isActive ? 'ACTIVE' : 'INACTIVE', filters.status),
+      ),
+    [allRows, filters.debouncedQuery, filters.status],
+  );
+
+  const { listRef, focusedClassName } = useFocusedRow<PartyRow>({
+    focusId: filters.focusId,
+    data: rows,
+    clearFocus: filters.clearFocus,
+  });
 
   const onDelete = async (party: PartyRow) => {
     const ok = await confirmAsync(
@@ -101,21 +132,31 @@ export default function InventoryPartiesScreen() {
         />
       </View>
 
-      <View className="flex-row px-4 pb-2 gap-2">
-        {(['customer', 'vendor'] as Kind[]).map((k) => (
-          <Pressable
-            key={k}
-            onPress={() => setKind(k)}
-            className={`px-3 py-1.5 rounded-lg border ${kind === k ? 'bg-primary border-primary' : 'bg-card border-border'}`}
-          >
-            <Text className={`text-xs font-medium ${kind === k ? 'text-white' : 'text-muted'}`}>
-              {k === 'customer'
-                ? translate('inventory.parties.customers', 'Customers')
-                : translate('inventory.parties.vendors', 'Vendors')}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+      <SegmentedTabsInline
+        tabs={[
+          { value: 'customer' as const, label: translate('inventory.parties.customers', 'Customers') },
+          { value: 'vendor' as const, label: translate('inventory.parties.vendors', 'Vendors') },
+        ]}
+        value={kind}
+        onChange={filters.setTab}
+        className="px-4 pb-2 gap-2"
+      />
+
+      <InventoryFilterBar
+        query={filters.query}
+        onQueryChange={filters.setQuery}
+        placeholder={
+          kind === 'customer'
+            ? 'Search customer, business, phone, email, GSTIN…'
+            : 'Search vendor, business, phone, email, GSTIN…'
+        }
+        statusTabs={PARTY_STATUS_TABS}
+        status={filters.status as PartyStatus}
+        onStatusChange={filters.setStatus}
+        resultCount={{ shown: rows.length, total: allRows.length }}
+        isFiltered={filters.isFiltered}
+        onClear={filters.clearAll}
+      />
 
       {loading ? (
         <View className="px-4 gap-3">
@@ -123,9 +164,11 @@ export default function InventoryPartiesScreen() {
         </View>
       ) : (
         <FlatList
+          ref={listRef}
           className="flex-1 px-4"
           data={rows}
           keyExtractor={(p) => p.id}
+          onScrollToIndexFailed={() => undefined}
           ListHeaderComponent={
             tableMode && rows.length > 0 ? (
               <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
@@ -141,7 +184,7 @@ export default function InventoryPartiesScreen() {
             // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop row.
             if (tableMode) {
               return (
-                <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
+                <View className={`flex-row items-center px-4 py-3 bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
                   <View className="flex-[1.6] min-w-0 mr-2">
                     <Text className="text-sm font-semibold text-text" numberOfLines={1}>{item.name}</Text>
                     {item.businessName ? <Text className="text-[11px] text-muted">{item.businessName}</Text> : null}
@@ -164,7 +207,7 @@ export default function InventoryPartiesScreen() {
               );
             }
             return (
-              <Card className="mb-2 p-4">
+              <Card className={`mb-2 p-4 ${focusedClassName(item.id)}`}>
               <View className="flex-row items-start justify-between">
                 <View className="flex-1 min-w-0 mr-2">
                   <Text className="text-sm font-semibold text-text">{item.name}</Text>
@@ -191,10 +234,17 @@ export default function InventoryPartiesScreen() {
           );
           }}
           ListEmptyComponent={
-            <EmptyState
-              title={`No ${kind}s yet`}
-              description={`Add ${kind}s so invoices and bills can pick them instead of retyping names.`}
-            />
+            filters.isFiltered ? (
+              <EmptyState
+                title={`No matching ${kind}s`}
+                description="Try a different search term or clear the filters."
+              />
+            ) : (
+              <EmptyState
+                title={`No ${kind}s yet`}
+                description={`Add ${kind}s so invoices and bills can pick them instead of retyping names.`}
+              />
+            )
           }
           contentContainerStyle={{ paddingBottom: 24 }}
         />

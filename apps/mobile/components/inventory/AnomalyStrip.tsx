@@ -6,6 +6,7 @@ import { View, Text, Pressable } from 'react-native';
 import { Card, LoadingSkeleton } from '@/components/ui';
 import { useInventoryAnomalies, type AnomalyHint } from '@/services/inventory-ai.queries';
 import { useRouter } from 'expo-router';
+import { inventoryInvoicesHref } from '@/utils/navigation-paths';
 
 const SEVERITY_TONE: Record<string, string> = {
   high: 'text-danger',
@@ -51,7 +52,9 @@ export default function AnomalyStrip() {
             <Pressable
               key={`${h.type}-${h.referenceId ?? h.title}-${i}`}
               onPress={() => {
-                if (h.type === 'OVERDUE_INVOICE') router.push('/inventory/invoices');
+                if (h.type === 'OVERDUE_INVOICE') {
+                  router.push(inventoryInvoicesHref({ status: 'OVERDUE' }) as never);
+                }
               }}
               disabled={h.type !== 'OVERDUE_INVOICE'}
             >
