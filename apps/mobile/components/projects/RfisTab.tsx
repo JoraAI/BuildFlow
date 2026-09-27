@@ -68,8 +68,11 @@ interface RfisTabProps {
 export function RfisTab({ projectId }: RfisTabProps) {
   const { isDesktop, isTablet } = useViewport();
   const role = useAuthStore((s) => s.user?.role);
-  const canMutate = !!role && MUTATE_ROLES.has(role);
-  const canReview = !!role && REVIEW_ROLES.has(role);
+  const perms = useAuthStore((s) => s.user?.permissions);
+  const canMutate =
+    role === 'OWNER' || !!perms?.includes('rfi.create') || (!!role && MUTATE_ROLES.has(role));
+  const canReview =
+    role === 'OWNER' || !!perms?.includes('rfi.answer') || (!!role && REVIEW_ROLES.has(role));
 
   const [section, setSection] = useState<'rfis' | 'submittals'>('rfis');
   const [rfiFilter, setRfiFilter] = useState<RfiStatus | 'ALL'>('ALL');

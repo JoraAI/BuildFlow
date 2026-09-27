@@ -8,6 +8,10 @@ import { useWorkOrders, useRequisitions } from '@/services/expansion.queries';
 import { useInvoices } from '@/services/accounting.queries';
 import { useTasks } from '@/services/project.queries';
 import { useReports } from '@/services/report.queries';
+import { useDrawings } from '@/services/drawing.queries';
+import { useSnagItems } from '@/services/snag.queries';
+import { useRfis } from '@/services/rfi.queries';
+import { usePettyCashEntries } from '@/services/petty-cash.queries';
 import { useOnboardingStore } from '@/stores/onboarding.store';
 import { PROJECT_SETUP_STEPS, type ProjectTabId } from '@/constants/project-workflow';
 
@@ -29,6 +33,10 @@ export function ProjectSetupChecklist({ projectId, onGoToTab }: ProjectSetupChec
   const invQ = useInvoices(projectId);
   const tasksQ = useTasks(projectId);
   const reportsQ = useReports(projectId);
+  const drawingsQ = useDrawings({ projectId, limit: 5 });
+  const snagsQ = useSnagItems({ projectId, limit: 5 });
+  const rfisQ = useRfis({ projectId });
+  const pettyQ = usePettyCashEntries({ projectId, limit: 5 });
 
   const completed = useMemo(() => {
     const estimates = estimatesQ.data ?? [];
@@ -39,17 +47,37 @@ export function ProjectSetupChecklist({ projectId, onGoToTab }: ProjectSetupChec
     const hasProcurement = (reqQ.data?.length ?? 0) > 0;
     const hasSubcontracts = (woQ.data?.length ?? 0) > 0;
     const hasInvoices = (invQ.data?.length ?? 0) > 0;
+    const hasDrawings = (drawingsQ.data?.data?.length ?? 0) > 0;
+    const hasSnags = (snagsQ.data?.data?.length ?? 0) > 0;
+    const hasRfis = (rfisQ.data?.data?.length ?? 0) > 0;
+    const hasPetty = (pettyQ.data?.data?.length ?? 0) > 0;
 
     return {
       estimate: hasApprovedEstimate,
       boq: hasBoq,
       schedule: hasSchedule,
+      drawings: hasDrawings,
       reports: hasReports,
       procurement: hasProcurement,
       subcontracts: hasSubcontracts,
+      snags: hasSnags,
+      rfis: hasRfis,
+      pettyCash: hasPetty,
       invoices: hasInvoices,
     };
-  }, [estimatesQ.data, boqQ.data, tasksQ.data, reportsQ.data, reqQ.data, woQ.data, invQ.data]);
+  }, [
+    estimatesQ.data,
+    boqQ.data,
+    tasksQ.data,
+    reportsQ.data,
+    reqQ.data,
+    woQ.data,
+    invQ.data,
+    drawingsQ.data,
+    snagsQ.data,
+    rfisQ.data,
+    pettyQ.data,
+  ]);
 
   const steps = PROJECT_SETUP_STEPS.map((s) => ({
     ...s,

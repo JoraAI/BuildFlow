@@ -56,8 +56,8 @@ export const UTILITY_TEMPLATES: EstimateTemplate[] = [
           { itemCode: 'WT-PP-003', description: 'Overflow pipe GI 100mm', unit: 'metre', quantity: 12, rate: 620, type: 'MATERIAL', resourceName: 'GI Pipe 100mm (Class B)' },
           { itemCode: 'WT-PP-004', description: 'Sluice valve 80mm', unit: 'nos', quantity: 3, rate: 3200, type: 'MATERIAL', resourceName: 'Sluice Valve 80mm (CI)' },
           { itemCode: 'WT-PP-005', description: 'Float valve 80mm', unit: 'nos', quantity: 1, rate: 4500, type: 'MATERIAL', resourceName: 'Float Valve 80mm (Brass)' },
-          { itemCode: 'WT-PP-006', description: 'Water level indicator', unit: 'nos', quantity: 1, rate: 12000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'WT-PP-007', description: 'MS access ladder (galvanized)', unit: 'nos', quantity: 1, rate: 18000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'WT-PP-006', description: 'Water level indicator', unit: 'nos', quantity: 1, rate: 12000, type: 'SUBCONTRACTOR', resourceName: 'Water level indicator' },
+          { itemCode: 'WT-PP-007', description: 'MS access ladder (galvanized)', unit: 'nos', quantity: 1, rate: 18000, type: 'SUBCONTRACTOR', resourceName: 'MS access ladder (galvanized)' },
         ],
       },
       {
@@ -66,7 +66,7 @@ export const UTILITY_TEMPLATES: EstimateTemplate[] = [
           { itemCode: 'WT-LP-001', description: 'Lightning arrester', unit: 'nos', quantity: 1, rate: 12000, type: 'MATERIAL', resourceName: 'Solar Lightning Arrester' },
           { itemCode: 'WT-LP-002', description: 'Copper earthing', unit: 'nos', quantity: 2, rate: 8500, type: 'SUBCONTRACTOR', rateAnalysisName: 'Earth Pit Installation' },
           { itemCode: 'WT-LP-003', description: 'GI earthing strip', unit: 'metre', quantity: 30, rate: 65, type: 'MATERIAL', resourceName: 'GI Earthing Strip 25x4mm' },
-          { itemCode: 'WT-LP-004', description: 'Hydrostatic test & commissioning', unit: 'ls', quantity: 1, rate: 25000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'WT-LP-004', description: 'Hydrostatic test & commissioning', unit: 'ls', quantity: 1, rate: 25000, type: 'SUBCONTRACTOR', resourceName: 'Hydrostatic test & commissioning' },
         ],
       },
     ],
@@ -129,7 +129,7 @@ export const UTILITY_TEMPLATES: EstimateTemplate[] = [
         items: [
           { itemCode: 'SP-LT-001', description: 'Underwater LED light RGB 12V (8 nos)', unit: 'nos', quantity: 8, rate: 6500, type: 'MATERIAL', resourceName: 'Pool Underwater Light (LED) 12V RGB' },
           { itemCode: 'SP-LT-002', description: 'SS pool ladder 316 (2 nos)', unit: 'nos', quantity: 2, rate: 12000, type: 'MATERIAL', resourceName: 'Pool Ladder (SS 316) 4 Step' },
-          { itemCode: 'SP-LT-003', description: 'Starting blocks (competitive)', unit: 'nos', quantity: 8, rate: 18000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'SP-LT-003', description: 'Starting blocks (competitive)', unit: 'nos', quantity: 8, rate: 18000, type: 'SUBCONTRACTOR', resourceName: 'Starting blocks (competitive)' },
         ],
       },
       {
@@ -176,10 +176,10 @@ export const UTILITY_TEMPLATES: EstimateTemplate[] = [
       {
         name: '4. Mechanical Equipment',
         items: [
-          { itemCode: 'ST-EQ-001', description: 'Raw sewage pump 3HP (2 nos)', unit: 'nos', quantity: 2, rate: 45000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'ST-EQ-002', description: 'Recirculation pump 2HP', unit: 'nos', quantity: 2, rate: 32000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'ST-EQ-003', description: 'Air blower 5HP (2 nos)', unit: 'nos', quantity: 2, rate: 85000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'ST-EQ-004', description: 'Sludge recirculation pump', unit: 'nos', quantity: 1, rate: 45000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'ST-EQ-001', description: 'Raw sewage pump 3HP (2 nos)', unit: 'nos', quantity: 2, rate: 45000, type: 'SUBCONTRACTOR', resourceName: 'Raw sewage pump 3HP (2 nos)' },
+          { itemCode: 'ST-EQ-002', description: 'Recirculation pump 2HP', unit: 'nos', quantity: 2, rate: 32000, type: 'SUBCONTRACTOR', resourceName: 'Recirculation pump 2HP' },
+          { itemCode: 'ST-EQ-003', description: 'Air blower 5HP (2 nos)', unit: 'nos', quantity: 2, rate: 85000, type: 'SUBCONTRACTOR', resourceName: 'Air blower 5HP (2 nos)' },
+          { itemCode: 'ST-EQ-004', description: 'Sludge recirculation pump', unit: 'nos', quantity: 1, rate: 45000, type: 'SUBCONTRACTOR', resourceName: 'Sludge recirculation pump' },
           { itemCode: 'ST-EQ-005', description: 'Dosing pump (diaphragm)', unit: 'nos', quantity: 2, rate: 12000, type: 'MATERIAL', resourceName: 'Dosing Pump (Diaphragm)' },
         ],
       },
@@ -195,9 +195,9 @@ export const UTILITY_TEMPLATES: EstimateTemplate[] = [
       {
         name: '6. Electrical & Control',
         items: [
-          { itemCode: 'ST-EL-001', description: 'MCC panel (PLC based)', unit: 'nos', quantity: 1, rate: 280000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'ST-EL-001', description: 'MCC panel (PLC based)', unit: 'nos', quantity: 1, rate: 280000, type: 'SUBCONTRACTOR', resourceName: 'MCC panel (PLC based)' },
           { itemCode: 'ST-EL-002', description: 'Flow meter (digital)', unit: 'nos', quantity: 2, rate: 8500, type: 'MATERIAL', resourceName: 'Flow Meter (Digital)' },
-          { itemCode: 'ST-EL-003', description: 'DO/pH analyzers', unit: 'set', quantity: 1, rate: 180000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'ST-EL-003', description: 'DO/pH analyzers', unit: 'set', quantity: 1, rate: 180000, type: 'SUBCONTRACTOR', resourceName: 'DO/pH analyzers' },
         ],
       },
     ],
@@ -212,7 +212,7 @@ export const UTILITY_TEMPLATES: EstimateTemplate[] = [
         name: '1. Solar Panels',
         items: [
           { itemCode: 'SO-PV-001', description: 'Solar panel 540W mono PERC', unit: 'nos', quantity: 185, rate: 14000, type: 'MATERIAL', resourceName: 'Solar Panel 540W Mono PERC' },
-          { itemCode: 'SO-PV-002', description: 'Panel transport & handling', unit: 'ls', quantity: 1, rate: 85000, type: 'MISC' },
+          { itemCode: 'SO-PV-002', description: 'Panel transport & handling', unit: 'ls', quantity: 1, rate: 85000, type: 'MISC', resourceName: 'Panel transport & handling' },
         ],
       },
       {
@@ -252,8 +252,8 @@ export const UTILITY_TEMPLATES: EstimateTemplate[] = [
         name: '6. Metering & Commissioning',
         items: [
           { itemCode: 'SO-CM-001', description: 'Net metering device', unit: 'nos', quantity: 1, rate: 6500, type: 'MATERIAL', resourceName: 'Net Metering Device' },
-          { itemCode: 'SO-CM-002', description: 'SCADA monitoring system', unit: 'ls', quantity: 1, rate: 180000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'SO-CM-003', description: 'Testing & commissioning', unit: 'ls', quantity: 1, rate: 120000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'SO-CM-002', description: 'SCADA monitoring system', unit: 'ls', quantity: 1, rate: 180000, type: 'SUBCONTRACTOR', resourceName: 'SCADA monitoring system' },
+          { itemCode: 'SO-CM-003', description: 'Testing & commissioning', unit: 'ls', quantity: 1, rate: 120000, type: 'SUBCONTRACTOR', resourceName: 'Testing & commissioning' },
         ],
       },
     ],

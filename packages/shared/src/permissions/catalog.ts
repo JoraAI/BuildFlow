@@ -100,6 +100,11 @@ export const PERMISSIONS = {
   'snag.create': 'Log new site snags & defect evidence photos',
   'snag.rectify': 'Rectify, update status & sign-off snags / NCRs',
 
+  // ── RFIs & Submittals ───────────────────────────────────────────────
+  'rfi.view': 'View RFIs and material / shop-drawing submittals',
+  'rfi.create': 'Raise RFIs and create submittals',
+  'rfi.answer': 'Answer RFIs and review / approve submittals',
+
   // ── Labor Muster & Wages ────────────────────────────────────────────
   'labor.view': 'View site gang muster & wage settlement sheets',
   'labor.muster_edit': 'Record morning gang muster & overtime hours',
@@ -221,6 +226,10 @@ export const PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] =
   {
     label: 'Snag List & Quality NCRs',
     permissions: ['snag.view', 'snag.create', 'snag.rectify'],
+  },
+  {
+    label: 'RFIs & Submittals',
+    permissions: ['rfi.view', 'rfi.create', 'rfi.answer'],
   },
   {
     label: 'Labor Muster & Wages',

@@ -79,7 +79,11 @@ function boqToLine(item: BoqItem): DraftLineItem {
 export default function CreateInvoiceScreen() {
   const router = useRouter();
   const { isDesktop } = useViewport();
-  const { projectId: preselected } = useLocalSearchParams<{ projectId?: string }>();
+  const { projectId: preselected, returnTo: returnToParam } = useLocalSearchParams<{
+    projectId?: string;
+    returnTo?: string;
+  }>();
+  const backTarget = returnToParam ? decodeURIComponent(returnToParam) : DISMISS.accounting;
   const { data: projects } = useProjects();
   const createInvoice = useCreateInvoice();
 
@@ -227,7 +231,11 @@ export default function CreateInvoiceScreen() {
             'Success',
             `Invoice ${invoice.invoiceNumber} created as ${invoice.status}.`,
           );
-          dismissTo(DISMISS.accounting);
+          if (returnToParam) {
+            router.push(backTarget as never);
+          } else {
+            dismissTo(DISMISS.accounting);
+          }
         },
         onError: async (e: unknown) => {
           const message = e instanceof Error ? e.message : 'Failed to create invoice';
@@ -566,7 +574,7 @@ export default function CreateInvoiceScreen() {
       >
         {isDesktop ? (
           <ScreenContainer scrollable constrained>
-            <FormScreenHeader title="New Invoice" onCancel={() => dismissTo(DISMISS.accounting)} />
+            <FormScreenHeader title="New Invoice" onCancel={() => dismissTo(backTarget)} />
             <View className="flex-1 flex-row gap-6 items-start">
               <ScrollView className="flex-[2]" contentContainerClassName="gap-4 pb-6" showsVerticalScrollIndicator={false}>
                 {formFields}
@@ -580,7 +588,7 @@ export default function CreateInvoiceScreen() {
           </ScreenContainer>
         ) : (
           <>
-            <FormScreenHeader title="New Invoice" onCancel={() => dismissTo(DISMISS.accounting)} />
+            <FormScreenHeader title="New Invoice" onCancel={() => dismissTo(backTarget)} />
             <ScrollView contentContainerClassName="px-4 pb-32 pt-2 gap-4">{formFields}</ScrollView>
             <View className="absolute bottom-0 left-0 right-0 bg-card border-t border-border p-4">
               {formErrorBanner}

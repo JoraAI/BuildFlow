@@ -17,11 +17,11 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
       {
         name: '1. Preliminary Works & Survey',
         items: [
-          { itemCode: 'HW-P-001', description: 'Detailed topographic survey with Total Station', unit: 'km', quantity: 1, rate: 45000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'HW-P-002', description: 'Geotechnical investigation (soil testing every 200m)', unit: 'km', quantity: 1, rate: 85000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'HW-P-003', description: 'Establishing bench marks & survey pillars', unit: 'nos', quantity: 10, rate: 2500, type: 'MISC' },
-          { itemCode: 'HW-P-004', description: 'Project signage & site mobilization', unit: 'ls', quantity: 1, rate: 250000, type: 'MISC' },
-          { itemCode: 'HW-P-005', description: 'Traffic management plan & detours', unit: 'ls', quantity: 1, rate: 180000, type: 'MISC' },
+          { itemCode: 'HW-P-001', description: 'Detailed topographic survey with Total Station', unit: 'km', quantity: 1, rate: 45000, type: 'SUBCONTRACTOR', resourceName: 'Detailed topographic survey with Total Station' },
+          { itemCode: 'HW-P-002', description: 'Geotechnical investigation (soil testing every 200m)', unit: 'km', quantity: 1, rate: 85000, type: 'SUBCONTRACTOR', resourceName: 'Geotechnical investigation (soil testing every 200m)' },
+          { itemCode: 'HW-P-003', description: 'Establishing bench marks & survey pillars', unit: 'nos', quantity: 10, rate: 2500, type: 'MISC', resourceName: 'Establishing bench marks & survey pillars' },
+          { itemCode: 'HW-P-004', description: 'Project signage & site mobilization', unit: 'ls', quantity: 1, rate: 250000, type: 'MISC', resourceName: 'Project signage & site mobilization' },
+          { itemCode: 'HW-P-005', description: 'Traffic management plan & detours', unit: 'ls', quantity: 1, rate: 180000, type: 'MISC', resourceName: 'Traffic management plan & detours' },
         ],
       },
       {
@@ -41,7 +41,7 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
           { itemCode: 'HW-E-001', description: 'Excavation in ordinary soil for road formation', unit: 'cum', quantity: 8000, rate: 280, type: 'MATERIAL', rateAnalysisName: 'Excavation in Ordinary Soil' },
           { itemCode: 'HW-E-002', description: 'Excavation in hard rock (if required)', unit: 'cum', quantity: 1500, rate: 850, type: 'MATERIAL', rateAnalysisName: 'Excavation in Hard Rock (Chiselling)' },
           { itemCode: 'HW-E-003', description: 'Embankment fill with selected soil (compacted)', unit: 'cum', quantity: 6500, rate: 380, type: 'MATERIAL', rateAnalysisName: 'Backfilling with Sand' },
-          { itemCode: 'HW-E-008', description: 'Field density test (sand replacement)', unit: 'nos', quantity: 80, rate: 2500, type: 'SUBCONTRACTOR' },
+          { itemCode: 'HW-E-008', description: 'Field density test (sand replacement)', unit: 'nos', quantity: 80, rate: 2500, type: 'SUBCONTRACTOR', resourceName: 'Field density test (sand replacement)' },
         ],
       },
       {
@@ -98,7 +98,7 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
           { itemCode: 'HW-DN-001', description: 'Excavation for side drains', unit: 'cum', quantity: 1200, rate: 280, type: 'MATERIAL', rateAnalysisName: 'Excavation in Ordinary Soil' },
           { itemCode: 'HW-DN-002', description: 'RCC NP3 hume pipe 600mm dia', unit: 'rmt', quantity: 150, rate: 2800, type: 'MATERIAL', rateAnalysisName: 'RCC Hume Pipe 600mm Installation' },
           { itemCode: 'HW-DN-003', description: 'PCC bedding for pipes (150mm)', unit: 'cum', quantity: 18, rate: 5200, type: 'MATERIAL', rateAnalysisName: 'PCC M15 (1:2:4)' },
-          { itemCode: 'HW-DN-004', description: 'Manhole construction (complete)', unit: 'nos', quantity: 12, rate: 28500, type: 'SUBCONTRACTOR' },
+          { itemCode: 'HW-DN-004', description: 'Manhole construction (complete)', unit: 'nos', quantity: 12, rate: 28500, type: 'SUBCONTRACTOR', rateAnalysisName: 'RCC M25 (Foundation & Slab)' },
           { itemCode: 'HW-DN-005', description: 'Precast manhole cover 600x600', unit: 'nos', quantity: 12, rate: 3500, type: 'MATERIAL', resourceName: 'Precast Manhole Cover (Heavy Duty) 600x600' },
           { itemCode: 'HW-DN-006', description: 'Culvert RCC slab (3m span)', unit: 'cum', quantity: 25, rate: 8200, type: 'MATERIAL', rateAnalysisName: 'RCC M25 (Foundation & Slab)' },
           { itemCode: 'HW-DN-007', description: 'Culvert wing walls & abutments', unit: 'cum', quantity: 45, rate: 7800, type: 'MATERIAL', rateAnalysisName: 'Culvert RCC (Wing Walls & Abutments)' },
@@ -134,12 +134,12 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
       {
         name: '13. Quality Control & Testing',
         items: [
-          { itemCode: 'HW-QC-001', description: 'Bitumen extraction tests', unit: 'nos', quantity: 25, rate: 3500, type: 'SUBCONTRACTOR' },
-          { itemCode: 'HW-QC-002', description: 'Marshall stability tests', unit: 'nos', quantity: 25, rate: 4500, type: 'SUBCONTRACTOR' },
-          { itemCode: 'HW-QC-003', description: 'Core cutting & density test', unit: 'nos', quantity: 20, rate: 2800, type: 'SUBCONTRACTOR' },
-          { itemCode: 'HW-QC-004', description: 'CBR test on subgrade', unit: 'nos', quantity: 15, rate: 5500, type: 'SUBCONTRACTOR' },
-          { itemCode: 'HW-QC-005', description: 'Sand replacement density test', unit: 'nos', quantity: 80, rate: 2500, type: 'SUBCONTRACTOR' },
-          { itemCode: 'HW-QC-006', description: 'Rebound hammer test', unit: 'nos', quantity: 30, rate: 1200, type: 'SUBCONTRACTOR' },
+          { itemCode: 'HW-QC-001', description: 'Bitumen extraction tests', unit: 'nos', quantity: 25, rate: 3500, type: 'SUBCONTRACTOR', resourceName: 'Bitumen extraction tests' },
+          { itemCode: 'HW-QC-002', description: 'Marshall stability tests', unit: 'nos', quantity: 25, rate: 4500, type: 'SUBCONTRACTOR', resourceName: 'Marshall stability tests' },
+          { itemCode: 'HW-QC-003', description: 'Core cutting & density test', unit: 'nos', quantity: 20, rate: 2800, type: 'SUBCONTRACTOR', resourceName: 'Core cutting & density test' },
+          { itemCode: 'HW-QC-004', description: 'CBR test on subgrade', unit: 'nos', quantity: 15, rate: 5500, type: 'SUBCONTRACTOR', resourceName: 'CBR test on subgrade' },
+          { itemCode: 'HW-QC-005', description: 'Sand replacement density test', unit: 'nos', quantity: 80, rate: 2500, type: 'SUBCONTRACTOR', resourceName: 'Sand replacement density test' },
+          { itemCode: 'HW-QC-006', description: 'Rebound hammer test', unit: 'nos', quantity: 30, rate: 1200, type: 'SUBCONTRACTOR', resourceName: 'Rebound hammer test' },
         ],
       },
       {
@@ -147,10 +147,10 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
         items: [
           { itemCode: 'HW-M-001', description: 'Diesel for equipment', unit: 'litre', quantity: 8500, rate: 88, type: 'MATERIAL', resourceName: 'Diesel (HSD)' },
           { itemCode: 'HW-M-002', description: 'Water for construction', unit: 'kL', quantity: 1200, rate: 120, type: 'MATERIAL', resourceName: 'Water (Tanker Supply)' },
-          { itemCode: 'HW-M-003', description: 'Safety equipment & PPE', unit: 'ls', quantity: 1, rate: 185000, type: 'MISC' },
+          { itemCode: 'HW-M-003', description: 'Safety equipment & PPE', unit: 'ls', quantity: 1, rate: 185000, type: 'MISC', resourceName: 'Safety Officer' },
           { itemCode: 'HW-M-004', description: 'Site office & stores setup', unit: 'ls', quantity: 1, rate: 250000, type: 'MISC', resourceName: 'Modular Site Office (Container) 20ft' },
-          { itemCode: 'HW-M-005', description: 'Environmental monitoring', unit: 'ls', quantity: 1, rate: 120000, type: 'MISC' },
-          { itemCode: 'HW-M-006', description: 'Insurance & bonds', unit: 'ls', quantity: 1, rate: 350000, type: 'MISC' },
+          { itemCode: 'HW-M-005', description: 'Environmental monitoring', unit: 'ls', quantity: 1, rate: 120000, type: 'MISC', resourceName: 'Environmental monitoring' },
+          { itemCode: 'HW-M-006', description: 'Insurance & bonds', unit: 'ls', quantity: 1, rate: 350000, type: 'MISC', resourceName: 'Insurance & bonds' },
         ],
       },
     ],
@@ -168,9 +168,9 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
       {
         name: '1. Preliminary Works',
         items: [
-          { itemCode: 'RP-P-001', description: 'Topographic survey & alignment', unit: 'km', quantity: 1, rate: 45000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'RP-P-002', description: 'Soil investigation & CBR testing', unit: 'km', quantity: 1, rate: 85000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'RP-P-003', description: 'Site mobilization', unit: 'ls', quantity: 1, rate: 250000, type: 'MISC' },
+          { itemCode: 'RP-P-001', description: 'Topographic survey & alignment', unit: 'km', quantity: 1, rate: 45000, type: 'SUBCONTRACTOR', resourceName: 'Topographic survey & alignment' },
+          { itemCode: 'RP-P-002', description: 'Soil investigation & CBR testing', unit: 'km', quantity: 1, rate: 85000, type: 'SUBCONTRACTOR', resourceName: 'Soil investigation & CBR testing' },
+          { itemCode: 'RP-P-003', description: 'Site mobilization', unit: 'ls', quantity: 1, rate: 250000, type: 'MISC', resourceName: 'Site mobilization' },
         ],
       },
       {
@@ -202,7 +202,7 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
           { itemCode: 'RP-PQC-005', description: '10mm aggregate for PQC', unit: 'cum', quantity: 1071, rate: 1350, type: 'MATERIAL', resourceName: '10mm Aggregate' },
           { itemCode: 'RP-PQC-006', description: 'Superplasticizer (PCE) for PQC', unit: 'litre', quantity: 6375, rate: 135, type: 'MATERIAL', resourceName: 'Superplasticizer (PCE Based)' },
           { itemCode: 'RP-PQC-007', description: 'Air entraining agent', unit: 'litre', quantity: 510, rate: 110, type: 'MATERIAL', resourceName: 'Air Entraining Agent' },
-          { itemCode: 'RP-PQC-008', description: 'Slip form paver for PQC', unit: 'day', quantity: 12, rate: 85000, type: 'EQUIPMENT' },
+          { itemCode: 'RP-PQC-008', description: 'Slip form paver for PQC', unit: 'day', quantity: 12, rate: 85000, type: 'EQUIPMENT', resourceName: 'Paver Finisher' },
           { itemCode: 'RP-PQC-009', description: 'Batching plant 60 cum/hr', unit: 'day', quantity: 12, rate: 25000, type: 'EQUIPMENT', resourceName: 'Batching Plant 60 cum/hr' },
           { itemCode: 'RP-PQC-010', description: 'Transit mixer for concrete', unit: 'trip', quantity: 450, rate: 3500, type: 'EQUIPMENT', resourceName: 'Transit Mixer 6 cum' },
         ],
@@ -214,7 +214,7 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
           { itemCode: 'RP-JT-002', description: 'Tie bars 12mm x 600mm', unit: 'nos', quantity: 8500, rate: 45, type: 'MATERIAL', resourceName: 'TMT Steel Fe500 12mm' },
           { itemCode: 'RP-JT-003', description: 'Expansion joint filler board', unit: 'sqm', quantity: 85, rate: 280, type: 'MATERIAL', resourceName: 'Expansion Joint Filler Board (Bituminous) 12mm' },
           { itemCode: 'RP-JT-004', description: 'Joint sealant (silicone)', unit: 'rmt', quantity: 3500, rate: 180, type: 'MATERIAL', resourceName: 'Silicone Sealant' },
-          { itemCode: 'RP-JT-005', description: 'Concrete saw for joint cutting', unit: 'day', quantity: 15, rate: 3500, type: 'EQUIPMENT' },
+          { itemCode: 'RP-JT-005', description: 'Concrete saw for joint cutting', unit: 'day', quantity: 15, rate: 3500, type: 'EQUIPMENT', resourceName: 'Circular Saw 14 inch' },
           { itemCode: 'RP-JT-006', description: 'Diamond blade for saw', unit: 'nos', quantity: 8, rate: 4500, type: 'MATERIAL', resourceName: 'Marble Cutting Blade 10 inch' },
         ],
       },
@@ -254,9 +254,9 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
       {
         name: '1. Survey & Alignment',
         items: [
-          { itemCode: 'CN-S-001', description: 'Canal alignment survey with DGPS', unit: 'km', quantity: 1, rate: 65000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'CN-S-002', description: 'Soil investigation along alignment', unit: 'nos', quantity: 20, rate: 8500, type: 'SUBCONTRACTOR' },
-          { itemCode: 'CN-S-003', description: 'Profile leveling & marking', unit: 'km', quantity: 1, rate: 35000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'CN-S-001', description: 'Canal alignment survey with DGPS', unit: 'km', quantity: 1, rate: 65000, type: 'SUBCONTRACTOR', resourceName: 'Canal alignment survey with DGPS' },
+          { itemCode: 'CN-S-002', description: 'Soil investigation along alignment', unit: 'nos', quantity: 20, rate: 8500, type: 'SUBCONTRACTOR', resourceName: 'Soil investigation along alignment' },
+          { itemCode: 'CN-S-003', description: 'Profile leveling & marking', unit: 'km', quantity: 1, rate: 35000, type: 'SUBCONTRACTOR', resourceName: 'Profile leveling & marking' },
         ],
       },
       {
@@ -308,9 +308,9 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
         items: [
           { itemCode: 'CN-OT-001', description: 'RCC outlet structure (turnout)', unit: 'nos', quantity: 8, rate: 45000, type: 'MATERIAL', rateAnalysisName: 'RCC M25 (Foundation & Slab)' },
           { itemCode: 'CN-OT-002', description: 'Sluice valve 300mm', unit: 'nos', quantity: 8, rate: 12000, type: 'MATERIAL', resourceName: 'Sluice Valve 80mm (CI)' },
-          { itemCode: 'CN-OT-003', description: 'Cross regulator structure', unit: 'nos', quantity: 2, rate: 185000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'CN-OT-004', description: 'Fall structure (1.5m drop)', unit: 'nos', quantity: 3, rate: 145000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'CN-OT-005', description: 'Bridge crossing (farm road)', unit: 'nos', quantity: 4, rate: 85000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'CN-OT-003', description: 'Cross regulator structure', unit: 'nos', quantity: 2, rate: 185000, type: 'SUBCONTRACTOR', resourceName: 'Cross regulator structure' },
+          { itemCode: 'CN-OT-004', description: 'Fall structure (1.5m drop)', unit: 'nos', quantity: 3, rate: 145000, type: 'SUBCONTRACTOR', resourceName: 'Fall structure (1.5m drop)' },
+          { itemCode: 'CN-OT-005', description: 'Bridge crossing (farm road)', unit: 'nos', quantity: 4, rate: 85000, type: 'SUBCONTRACTOR', resourceName: 'Bridge crossing (farm road)' },
         ],
       },
       {
@@ -326,8 +326,8 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
         items: [
           { itemCode: 'CN-M-001', description: 'Diesel for equipment', unit: 'litre', quantity: 12000, rate: 88, type: 'MATERIAL', resourceName: 'Diesel (HSD)' },
           { itemCode: 'CN-M-002', description: 'Water for construction', unit: 'kL', quantity: 1800, rate: 120, type: 'MATERIAL', resourceName: 'Water (Tanker Supply)' },
-          { itemCode: 'CN-M-003', description: 'Safety equipment & PPE', unit: 'ls', quantity: 1, rate: 120000, type: 'MISC' },
-          { itemCode: 'CN-M-004', description: 'Field lab for testing', unit: 'ls', quantity: 1, rate: 180000, type: 'MISC' },
+          { itemCode: 'CN-M-003', description: 'Safety equipment & PPE', unit: 'ls', quantity: 1, rate: 120000, type: 'MISC', resourceName: 'Safety Officer' },
+          { itemCode: 'CN-M-004', description: 'Field lab for testing', unit: 'ls', quantity: 1, rate: 180000, type: 'MISC', resourceName: 'Field lab for testing' },
         ],
       },
     ],
@@ -345,9 +345,9 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
       {
         name: '1. Investigation & Design',
         items: [
-          { itemCode: 'BR-P-001', description: 'Geotechnical investigation (boreholes)', unit: 'nos', quantity: 6, rate: 45000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'BR-P-002', description: 'Hydrological study', unit: 'ls', quantity: 1, rate: 180000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'BR-P-003', description: 'Detailed design & drawings', unit: 'ls', quantity: 1, rate: 450000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'BR-P-001', description: 'Geotechnical investigation (boreholes)', unit: 'nos', quantity: 6, rate: 45000, type: 'SUBCONTRACTOR', resourceName: 'Geotechnical investigation (boreholes)' },
+          { itemCode: 'BR-P-002', description: 'Hydrological study', unit: 'ls', quantity: 1, rate: 180000, type: 'SUBCONTRACTOR', resourceName: 'Hydrological study' },
+          { itemCode: 'BR-P-003', description: 'Detailed design & drawings', unit: 'ls', quantity: 1, rate: 450000, type: 'SUBCONTRACTOR', resourceName: 'Detailed design & drawings' },
         ],
       },
       {
@@ -390,13 +390,13 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
         name: '5. Bearings',
         items: [
           { itemCode: 'BR-BR-001', description: 'Elastomeric bearing pads 300x400x60mm', unit: 'nos', quantity: 48, rate: 4200, type: 'MATERIAL', resourceName: 'Elastomeric Bearing Pad 300x400x60mm' },
-          { itemCode: 'BR-BR-002', description: 'Bearing installation', unit: 'nos', quantity: 48, rate: 850, type: 'LABOUR' },
+          { itemCode: 'BR-BR-002', description: 'Bearing installation', unit: 'nos', quantity: 48, rate: 850, type: 'LABOUR', resourceName: 'Steel Fabricator' },
         ],
       },
       {
         name: '6. Superstructure - Girders & Deck',
         items: [
-          { itemCode: 'BR-SS-001', description: 'Pre-stressed concrete girders (cast & erect)', unit: 'cum', quantity: 180, rate: 22000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'BR-SS-001', description: 'Pre-stressed concrete girders (cast & erect)', unit: 'cum', quantity: 180, rate: 22000, type: 'SUBCONTRACTOR', rateAnalysisName: 'Post-Tensioned Slab RCC M40' },
           { itemCode: 'BR-SS-002', description: 'Prestressing strands 15.2mm', unit: 'kg', quantity: 8500, rate: 155, type: 'MATERIAL', resourceName: 'Prestressing Strand 15.2mm (7-Wire) 1860 MPa' },
           { itemCode: 'BR-SS-003', description: 'HDPE ducts for post-tensioning', unit: 'rmt', quantity: 1200, rate: 180, type: 'MATERIAL', resourceName: 'HDPE Duct for Post-Tensioning 75mm' },
           { itemCode: 'BR-SS-004', description: 'Hydraulic prestressing jack', unit: 'day', quantity: 15, rate: 12000, type: 'EQUIPMENT', resourceName: 'Hydraulic Prestressing Jack 200T' },
@@ -446,8 +446,8 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
       {
         name: '1. Survey & Setting Out',
         items: [
-          { itemCode: 'DR-S-001', description: 'Line & level survey', unit: 'km', quantity: 1, rate: 35000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'DR-S-002', description: 'Setting out & marking', unit: 'km', quantity: 1, rate: 18000, type: 'LABOUR' },
+          { itemCode: 'DR-S-001', description: 'Line & level survey', unit: 'km', quantity: 1, rate: 35000, type: 'SUBCONTRACTOR', resourceName: 'Line & level survey' },
+          { itemCode: 'DR-S-002', description: 'Setting out & marking', unit: 'km', quantity: 1, rate: 18000, type: 'LABOUR', resourceName: 'Surveyor' },
         ],
       },
       {
@@ -475,9 +475,9 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
       {
         name: '4. Manholes & Chambers',
         items: [
-          { itemCode: 'DR-MH-001', description: 'RCC manhole (1.5x1.0m) complete', unit: 'nos', quantity: 25, rate: 38500, type: 'SUBCONTRACTOR' },
+          { itemCode: 'DR-MH-001', description: 'RCC manhole (1.5x1.0m) complete', unit: 'nos', quantity: 25, rate: 38500, type: 'SUBCONTRACTOR', rateAnalysisName: 'RCC M25 (Foundation & Slab)' },
           { itemCode: 'DR-MH-002', description: 'Precast manhole cover heavy duty', unit: 'nos', quantity: 25, rate: 3500, type: 'MATERIAL', resourceName: 'Precast Manhole Cover (Heavy Duty) 600x600' },
-          { itemCode: 'DR-MH-003', description: 'Catch pit (0.6x0.6x0.9m)', unit: 'nos', quantity: 40, rate: 8500, type: 'SUBCONTRACTOR' },
+          { itemCode: 'DR-MH-003', description: 'Catch pit (0.6x0.6x0.9m)', unit: 'nos', quantity: 40, rate: 8500, type: 'SUBCONTRACTOR', rateAnalysisName: 'RCC M25 (Foundation & Slab)' },
           { itemCode: 'DR-MH-004', description: 'Gully grating 300x300 CI', unit: 'nos', quantity: 40, rate: 1800, type: 'MATERIAL', resourceName: 'Precast Gully Grating 300x300 (CI)' },
           { itemCode: 'DR-MH-005', description: 'Steps (M.S.) for manholes', unit: 'nos', quantity: 150, rate: 280, type: 'MATERIAL', resourceName: 'MS Flat 25x3mm' },
         ],
@@ -493,7 +493,7 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
       {
         name: '6. Outfall Structure',
         items: [
-          { itemCode: 'DR-OF-001', description: 'RCC outfall structure', unit: 'nos', quantity: 2, rate: 85000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'DR-OF-001', description: 'RCC outfall structure', unit: 'nos', quantity: 2, rate: 85000, type: 'SUBCONTRACTOR', rateAnalysisName: 'RCC M25 (Foundation & Slab)' },
           { itemCode: 'DR-OF-002', description: 'Energy dissipater blocks', unit: 'cum', quantity: 15, rate: 8200, type: 'MATERIAL', resourceName: 'Energy Dissipater Block (Concrete)' },
           { itemCode: 'DR-OF-003', description: 'Stone pitching for outfall', unit: 'sqm', quantity: 280, rate: 850, type: 'MATERIAL', resourceName: 'Stone Pitching (Rubble)' },
         ],

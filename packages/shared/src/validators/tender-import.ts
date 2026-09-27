@@ -3,7 +3,7 @@
  *
  * Used by the proposal-stage tender import flow (POST /api/proposals/:id/import-tender).
  * The flow: upload PDF/Excel → extract text → LLM produces structured items →
- * review → create estimate items.
+ * soft/AI match to catalog → **client review** → create estimate items.
  *
  * Extracted items can be either raw resources (matched by name) or rate-analysis
  * items, because client tenders often quote at a composite level (e.g. "RCC M25
@@ -17,6 +17,16 @@ export const tenderItemTypeSchema = z.enum([
   'EQUIPMENT',
   'SUBCONTRACTOR',
   'MISC',
+]);
+
+export const tenderMatchKindSchema = z.enum(['RESOURCE', 'RATE_ANALYSIS', 'NONE']);
+export const tenderSuggestedActionSchema = z.enum([
+  /** Linked to an existing catalog/RA entry. */
+  'LINKED',
+  /** Possible match — user should confirm wording / link. */
+  'REVIEW',
+  /** No catalog match — consider creating a resource or linking manually. */
+  'CREATE',
 ]);
 
 export const tenderExtractedItemSchema = z.object({
@@ -33,6 +43,16 @@ export const tenderExtractedItemSchema = z.object({
   rateAnalysisId: z.string().uuid().nullable().optional(),
   /** Confidence score 0–1 from the LLM for this extraction. */
   confidence: z.number().min(0).max(1).optional(),
+  /** How the line was matched to company catalog / RA library. */
+  matchKind: tenderMatchKindSchema.optional().default('NONE'),
+  /** Display name of the matched catalog / RA entry. */
+  matchLabel: z.string().max(300).nullable().optional(),
+  /** 0–1 similarity of the match (substring / fuzzy / AI). */
+  matchScore: z.number().min(0).max(1).nullable().optional(),
+  /** What the client should do before finalizing. */
+  suggestedAction: tenderSuggestedActionSchema.optional().default('CREATE'),
+  /** Catalog rate when matched (helps user compare tender rate vs library). */
+  libraryRate: z.number().min(0).nullable().optional(),
 });
 export type TenderExtractedItem = z.infer<typeof tenderExtractedItemSchema>;
 

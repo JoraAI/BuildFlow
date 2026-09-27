@@ -1,22 +1,20 @@
 /**
  * BuildFlow - Drawing & Blueprint Plan Viewer with Interactive Pins (Module 4).
  *
- * Features:
- *  - Pan & Zoom canvas with double-tap and zoom controls
- *  - Revision switcher (Rev-C, Rev-B, Rev-A) with status badges
- *  - Interactive Pinning (tap plan to place/inspect defect pins)
- *  - Desktop split view (Canvas 70% <-> Linked Defects 30%)
+ * Pin % coords are relative to the *displayed image* (letterboxed contain),
+ * not the full canvas chrome — so placement survives aspect-ratio letterboxing.
+ * Zoom is applied around the image box; presses are mapped in image space.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
   ScrollView,
   Pressable,
   Image,
-  Dimensions,
-  Platform,
   LayoutChangeEvent,
+  ImageLoadEventData,
+  NativeSyntheticEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, Button, Badge, Input } from '@/components/ui';
@@ -35,6 +33,22 @@ interface DrawingViewerProps {
   onDeletePin?: (pinId: string) => void;
   pins?: DrawingPin[];
   onUploadRevision?: () => void;
+}
+
+/** Contained (letterboxed) image rect inside a canvas box. */
+function containRect(
+  boxW: number,
+  boxH: number,
+  naturalW: number,
+  naturalH: number,
+): { x: number; y: number; w: number; h: number } {
+  if (boxW <= 0 || boxH <= 0 || naturalW <= 0 || naturalH <= 0) {
+    return { x: 0, y: 0, w: boxW, h: boxH };
+  }
+  const scale = Math.min(boxW / naturalW, boxH / naturalH);
+  const w = naturalW * scale;
+  const h = naturalH * scale;
+  return { x: (boxW - w) / 2, y: (boxH - h) / 2, w, h };
 }
 
 export function DrawingViewer({
@@ -63,6 +77,7 @@ export function DrawingViewer({
     width: 600,
     height: 320,
   });
+  const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
 
   const currentFileUrl = selectedVersion?.fileUrl || drawing.currentVersion?.fileUrl || null;
   const versions = drawing.versions ?? [];
@@ -75,6 +90,31 @@ export function DrawingViewer({
     }
   }, [drawing.id, drawing.currentVersionId, drawing.currentVersion?.id]);
 
+  useEffect(() => {
+    setNaturalSize(null);
+    if (!currentFileUrl) return;
+    Image.getSize(
+      currentFileUrl,
+      (width, height) => {
+        if (width > 0 && height > 0) setNaturalSize({ width, height });
+      },
+      () => {
+        /* onLoad may still set size */
+      },
+    );
+  }, [currentFileUrl]);
+
+  const imageRect = useMemo(
+    () =>
+      containRect(
+        canvasLayout.width,
+        canvasLayout.height,
+        naturalSize?.width ?? canvasLayout.width,
+        naturalSize?.height ?? canvasLayout.height,
+      ),
+    [canvasLayout, naturalSize],
+  );
+
   const handleCanvasLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
     if (width > 0 && height > 0) {
@@ -82,13 +122,27 @@ export function DrawingViewer({
     }
   };
 
+  const handleImageLoad = (e: NativeSyntheticEvent<ImageLoadEventData>) => {
+    const src = e.nativeEvent.source;
+    if (src?.width && src?.height) {
+      setNaturalSize({ width: src.width, height: src.height });
+    }
+  };
+
   const handleCanvasPress = (e: { nativeEvent: { locationX: number; locationY: number } }) => {
     if (!pinMode || !currentFileUrl) return;
     const { locationX, locationY } = e.nativeEvent;
-    const w = canvasLayout.width || 600;
-    const h = canvasLayout.height || 320;
-    const xPct = Math.min(96, Math.max(4, (locationX / w) * 100));
-    const yPct = Math.min(96, Math.max(4, (locationY / h) * 100));
+    // Presses are on the unscaled Pressable; visual content is zoomed — un-zoom first.
+    const x = locationX / zoomLevel;
+    const y = locationY / zoomLevel;
+    const { x: ox, y: oy, w, h } = imageRect;
+    if (w <= 0 || h <= 0) return;
+    if (x < ox || x > ox + w || y < oy || y > oy + h) {
+      void alertAsync('Outside plan', 'Tap on the drawing sheet area to drop a pin.');
+      return;
+    }
+    const xPct = Math.min(99, Math.max(1, ((x - ox) / w) * 100));
+    const yPct = Math.min(99, Math.max(1, ((y - oy) / h) * 100));
     setPinMode(false);
     if (onAddPin) {
       onAddPin({ xPct, yPct });
@@ -120,83 +174,43 @@ export function DrawingViewer({
   };
 
   const canvasControls = (
-    <View className="flex-row items-center gap-1.5 bg-black/60 rounded-xl px-2 py-1 absolute bottom-4 right-4 z-20">
-      <Pressable
-        onPress={() => setZoomLevel((z) => Math.min(2.5, z + 0.25))}
-        className="w-8 h-8 rounded-lg items-center justify-center bg-white/10 active:bg-white/20"
-      >
-        <Ionicons name="add" size={18} color="#FFFFFF" />
-      </Pressable>
-      <Pressable
-        onPress={() => setZoomLevel(1)}
-        className="px-2 h-8 rounded-lg items-center justify-center bg-white/10 active:bg-white/20"
-      >
-        <Text className="text-white text-xs font-semibold">{Math.round(zoomLevel * 100)}%</Text>
-      </Pressable>
-      <Pressable
-        onPress={() => setZoomLevel((z) => Math.max(0.75, z - 0.25))}
-        className="w-8 h-8 rounded-lg items-center justify-center bg-white/10 active:bg-white/20"
-      >
-        <Ionicons name="remove" size={18} color="#FFFFFF" />
-      </Pressable>
-    </View>
-  );
-
-  const topBar = (
-    <View className="flex-row flex-wrap items-center justify-between gap-3 bg-surface p-3 rounded-xl border border-border mb-3">
-      <View className="flex-row items-center gap-2 flex-1 min-w-0">
-        <View className="w-8 h-8 rounded-lg bg-primary/10 items-center justify-center">
-          <Ionicons name="map-outline" size={18} color="#1E3A5F" />
-        </View>
-        <View className="flex-1 min-w-0">
-          <Text className="text-sm font-bold text-text truncate" numberOfLines={1}>
-            {drawing.drawingNo} · {drawing.title}
-          </Text>
-          <Text className="text-[11px] text-muted">{drawing.discipline} · {drawing.category ?? 'General'}</Text>
-        </View>
+    <View className="absolute bottom-3 left-3 right-3 flex-row justify-between items-center z-20">
+      <View className="flex-row gap-1.5 bg-black/50 rounded-lg p-1">
+        <Pressable
+          onPress={() => setZoomLevel((z) => Math.max(0.5, Math.round((z - 0.25) * 100) / 100))}
+          className="w-8 h-8 items-center justify-center rounded bg-white/10"
+        >
+          <Ionicons name="remove" size={16} color="#fff" />
+        </Pressable>
+        <Text className="text-xs text-white self-center px-1">{Math.round(zoomLevel * 100)}%</Text>
+        <Pressable
+          onPress={() => setZoomLevel((z) => Math.min(3, Math.round((z + 0.25) * 100) / 100))}
+          className="w-8 h-8 items-center justify-center rounded bg-white/10"
+        >
+          <Ionicons name="add" size={16} color="#fff" />
+        </Pressable>
       </View>
-
-      {/* Revision pill selector */}
-      <View className="flex-row flex-wrap items-center gap-2">
-        <View className="flex-row flex-wrap items-center gap-1.5">
-          {versions.length > 0 ? (
-            versions.map((v) => {
-              const isCurrent = (selectedVersion?.id ?? drawing.currentVersionId) === v.id;
-              return (
-                <Pressable
-                  key={v.id}
-                  onPress={() => setSelectedVersion(v)}
-                  className={`px-2.5 py-1 rounded-md border flex-row items-center gap-1 ${
-                    isCurrent ? 'bg-primary border-primary' : 'bg-card border-border'
-                  }`}
-                >
-                  <Text
-                    className={`text-[11px] font-bold ${
-                      isCurrent ? 'text-white' : 'text-text'
-                    }`}
-                  >
-                    {v.versionLabel}
-                  </Text>
-                  {isCurrent ? (
-                    <Ionicons name="checkmark-circle" size={12} color="#10B981" />
-                  ) : null}
-                </Pressable>
-              );
-            })
-          ) : (
-            <Badge label="Rev-01 (Current)" color="success" />
-          )}
-        </View>
-
+      <View className="flex-row gap-2">
+        {onUploadRevision ? (
+          <Button label="Upload Rev" size="sm" variant="secondary" onPress={onUploadRevision} />
+        ) : null}
         <Button
           label={!currentFileUrl ? 'Upload Plan to Pin' : pinMode ? 'Tap plan to drop' : '+ Drop Pin'}
           size="sm"
           variant={pinMode ? 'primary' : 'secondary'}
-          disabled={!currentFileUrl}
-          icon={<Ionicons name="pin" size={14} color={!currentFileUrl ? '#94A3B8' : pinMode ? '#fff' : '#1E3A5F'} />}
+          icon={
+            <Ionicons
+              name="pin"
+              size={14}
+              color={!currentFileUrl ? '#94A3B8' : pinMode ? '#fff' : '#1E3A5F'}
+            />
+          }
           onPress={() => {
             if (!currentFileUrl) {
-              void alertAsync('No Drawing Sheet', 'Please upload a blueprint or drawing sheet first before placing defect pins.');
+              void alertAsync(
+                'No Drawing Sheet',
+                'Please upload a blueprint or drawing sheet first before placing defect pins.',
+              );
               return;
             }
             setPinMode(!pinMode);
@@ -209,21 +223,37 @@ export function DrawingViewer({
   const canvasView = (
     <View
       onLayout={handleCanvasLayout}
-      className="relative rounded-2xl overflow-hidden bg-slate-900 border border-border min-h-[260px] md:min-h-[360px] items-center justify-center"
+      className="relative rounded-2xl overflow-hidden bg-slate-900 border border-border min-h-[260px] md:min-h-[360px] h-64 md:h-80"
     >
       <Pressable
         onPress={handleCanvasPress}
-        className="w-full h-full min-h-[260px] md:min-h-[360px] items-center justify-center relative overflow-hidden"
+        className="w-full h-full min-h-[260px] md:min-h-[360px] relative overflow-hidden"
+        style={{ width: '100%', height: '100%' }}
       >
-        <View style={{ transform: [{ scale: zoomLevel }] }} className="w-full h-full min-h-[260px] md:min-h-[360px] items-center justify-center">
+        <View
+          style={{
+            transform: [{ scale: zoomLevel }],
+            transformOrigin: 'top left' as never,
+            width: canvasLayout.width || '100%',
+            height: canvasLayout.height || 320,
+          }}
+          className="relative"
+        >
           {currentFileUrl ? (
             <Image
               source={{ uri: currentFileUrl }}
-              className="w-full h-64 md:h-80 rounded-xl"
-              resizeMode="contain"
+              onLoad={handleImageLoad}
+              style={{
+                position: 'absolute',
+                left: imageRect.x,
+                top: imageRect.y,
+                width: imageRect.w,
+                height: imageRect.h,
+              }}
+              resizeMode="stretch"
             />
           ) : (
-            <View className="w-full h-64 md:h-80 items-center justify-center px-4">
+            <View className="w-full h-full items-center justify-center px-4">
               <Ionicons name="document-text-outline" size={48} color="#94A3B8" />
               <Text className="text-sm font-semibold text-slate-300 mt-2 text-center">
                 No plan drawing uploaded yet
@@ -234,11 +264,12 @@ export function DrawingViewer({
             </View>
           )}
 
-          {/* Interactive Pins Overlay */}
           {pins.map((pin) => {
             const isSelected = activePin?.id === pin.id;
             const pinColor =
               pin.severity === 'CRITICAL' ? '#EF4444' : pin.severity === 'HIGH' ? '#F59E0B' : '#3B82F6';
+            const left = imageRect.x + (pin.xPct / 100) * imageRect.w;
+            const top = imageRect.y + (pin.yPct / 100) * imageRect.h;
 
             return (
               <Pressable
@@ -249,8 +280,8 @@ export function DrawingViewer({
                 }}
                 style={{
                   position: 'absolute',
-                  left: `${pin.xPct}%`,
-                  top: `${pin.yPct}%`,
+                  left,
+                  top,
                   transform: [{ translateX: -12 }, { translateY: -24 }],
                 }}
                 className="z-10 items-center"
@@ -270,6 +301,32 @@ export function DrawingViewer({
       </Pressable>
 
       {canvasControls}
+
+      {versions.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          className="absolute top-3 left-3 right-3 z-20"
+          contentContainerClassName="flex-row gap-1.5"
+        >
+          {versions.map((v) => {
+            const isCurrent = (selectedVersion?.id ?? drawing.currentVersionId) === v.id;
+            return (
+              <Pressable
+                key={v.id}
+                onPress={() => setSelectedVersion(v)}
+                className={`px-2.5 py-1 rounded-full border ${
+                  isCurrent ? 'bg-primary border-primary' : 'bg-black/50 border-white/20'
+                }`}
+              >
+                <Text className={`text-[11px] font-semibold ${isCurrent ? 'text-white' : 'text-slate-200'}`}>
+                  {v.versionLabel}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      ) : null}
     </View>
   );
 
@@ -305,11 +362,14 @@ export function DrawingViewer({
                     </Text>
                     <Badge
                       label={p.severity}
-                      color={p.severity === 'CRITICAL' ? 'danger' : p.severity === 'HIGH' ? 'warning' : 'neutral'}
+                      color={
+                        p.severity === 'CRITICAL' ? 'danger' : p.severity === 'HIGH' ? 'warning' : 'neutral'
+                      }
                     />
                   </View>
                   <Text className="text-[11px] text-muted mt-1">
-                    Status: <Text className="font-semibold text-text">{p.status}</Text> · {p.assignee ?? 'Unassigned'}
+                    Status: <Text className="font-semibold text-text">{p.status}</Text> ·{' '}
+                    {p.assignee ?? 'Unassigned'}
                   </Text>
                   <View className="flex-row items-center justify-end gap-2 mt-2 pt-1.5 border-t border-border/50">
                     <Pressable
@@ -347,7 +407,8 @@ export function DrawingViewer({
             </Pressable>
           </View>
           <Text className="text-[11px] text-text mt-1">
-            Position: {Math.round(activePin.xPct)}% X, {Math.round(activePin.yPct)}% Y · Severity: {activePin.severity}
+            Position: {Math.round(activePin.xPct)}% X, {Math.round(activePin.yPct)}% Y · Severity:{' '}
+            {activePin.severity}
           </Text>
         </View>
       ) : null}
@@ -356,11 +417,10 @@ export function DrawingViewer({
 
   return (
     <View className="gap-3">
-      {topBar}
       {wide ? (
-        <View className="flex-row gap-4 items-start">
-          <View className="flex-[2.5]">{canvasView}</View>
-          <View className="flex-1">{pinsSidebar}</View>
+        <View className="flex-row gap-3 items-stretch">
+          <View className="flex-[7]">{canvasView}</View>
+          <View className="flex-[3]">{pinsSidebar}</View>
         </View>
       ) : (
         <View className="gap-3">
@@ -369,80 +429,55 @@ export function DrawingViewer({
         </View>
       )}
 
-      {/* Edit Pin Modal */}
       <AdaptiveSheet
         visible={!!editingPin}
         onClose={() => setEditingPin(null)}
-        title="Edit Defect Pin"
-        subtitle={editingPin ? `Position (${Math.round(editingPin.xPct)}%, ${Math.round(editingPin.yPct)}%)` : ''}
+        title="Edit Pin"
+        subtitle={
+          editingPin
+            ? `Position (${Math.round(editingPin.xPct)}%, ${Math.round(editingPin.yPct)}%)`
+            : ''
+        }
         footer={
-          <View className="flex-row gap-3">
-            <Button
-              label="Cancel"
-              variant="secondary"
-              className="flex-1"
-              onPress={() => setEditingPin(null)}
-            />
-            <Button
-              label="Save Pin"
-              className="flex-1"
-              onPress={savePinEdit}
-            />
+          <View className="flex-row gap-2">
+            <Button label="Cancel" variant="secondary" className="flex-1" onPress={() => setEditingPin(null)} />
+            <Button label="Save" className="flex-1" onPress={savePinEdit} />
           </View>
         }
       >
-        <View className="gap-3.5">
-          <Input
-            label="Pin Title / Observation"
-            value={editTitle}
-            onChangeText={setEditTitle}
-            placeholder="e.g. Honeycombing on column C2"
-          />
-
-          <View className="gap-1.5">
-            <Text className="text-xs font-semibold text-text">Severity</Text>
-            <View className="flex-row gap-2">
-              {(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const).map((sev) => (
-                <Pressable
-                  key={sev}
-                  onPress={() => setEditSeverity(sev)}
-                  className={`flex-1 py-2 rounded-lg border items-center ${
-                    editSeverity === sev ? 'bg-primary border-primary' : 'bg-surface border-border'
-                  }`}
-                >
-                  <Text className={`text-xs font-semibold ${editSeverity === sev ? 'text-white' : 'text-text'}`}>
-                    {sev}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+        <View className="gap-3">
+          <Input label="Title" value={editTitle} onChangeText={setEditTitle} />
+          <Input label="Assignee" value={editAssignee} onChangeText={setEditAssignee} />
+          <View className="flex-row flex-wrap gap-2">
+            {(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] as const).map((s) => (
+              <Pressable
+                key={s}
+                onPress={() => setEditSeverity(s)}
+                className={`px-3 py-1.5 rounded-lg border ${
+                  editSeverity === s ? 'bg-primary border-primary' : 'bg-card border-border'
+                }`}
+              >
+                <Text className={`text-xs font-medium ${editSeverity === s ? 'text-white' : 'text-muted'}`}>
+                  {s}
+                </Text>
+              </Pressable>
+            ))}
           </View>
-
-          <View className="gap-1.5">
-            <Text className="text-xs font-semibold text-text">Status</Text>
-            <View className="flex-row gap-2">
-              {(['OPEN', 'RESOLVED', 'CLOSED'] as const).map((st) => (
-                <Pressable
-                  key={st}
-                  onPress={() => setEditStatus(st)}
-                  className={`flex-1 py-2 rounded-lg border items-center ${
-                    editStatus === st ? 'bg-primary border-primary' : 'bg-surface border-border'
-                  }`}
-                >
-                  <Text className={`text-xs font-semibold ${editStatus === st ? 'text-white' : 'text-text'}`}>
-                    {st}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+          <View className="flex-row flex-wrap gap-2">
+            {(['OPEN', 'RESOLVED', 'CLOSED'] as const).map((s) => (
+              <Pressable
+                key={s}
+                onPress={() => setEditStatus(s)}
+                className={`px-3 py-1.5 rounded-lg border ${
+                  editStatus === s ? 'bg-primary border-primary' : 'bg-card border-border'
+                }`}
+              >
+                <Text className={`text-xs font-medium ${editStatus === s ? 'text-white' : 'text-muted'}`}>
+                  {s}
+                </Text>
+              </Pressable>
+            ))}
           </View>
-
-          <Input
-            label="Assignee (Contractor / Engineer)"
-            value={editAssignee}
-            onChangeText={setEditAssignee}
-            placeholder="e.g. Rajesh (Civil Contractor)"
-          />
         </View>
       </AdaptiveSheet>
     </View>

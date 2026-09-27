@@ -30,19 +30,38 @@ import {
 import { confirmAsync, alertAsync } from '@/utils/confirm';
 import { formatINR } from '@/utils/format';
 import { ProcurementLinkPicker } from '@/components/estimation/ProcurementLinkPicker';
+import { apiFetchList } from '@/lib/api-client';
 
 function resolveTemplateItemLinks(
   item: import('@/constants/estimate-templates').EstimateTemplateItem,
-  materials: Resource[],
+  resources: Resource[],
   rateAnalyses: RateAnalysis[],
 ): { resourceId?: string; rateAnalysisId?: string } {
   const resourceId = item.resourceName
-    ? materials.find((m) => m.name === item.resourceName)?.id
+    ? resources.find((m) => m.name === item.resourceName)?.id
     : undefined;
   const rateAnalysisId = item.rateAnalysisName
     ? rateAnalyses.find((r) => r.name === item.rateAnalysisName)?.id
     : undefined;
   return { resourceId, rateAnalysisId };
+}
+
+/** Load catalog resources (all types) needed to resolve template resourceName links. */
+async function loadResourcesByNames(names: string[]): Promise<Resource[]> {
+  const needed = new Set(names.filter(Boolean));
+  if (needed.size === 0) return [];
+  const found: Resource[] = [];
+  for (let page = 1; page <= 20 && needed.size > 0; page++) {
+    const { data } = await apiFetchList<Resource>(`/resources?limit=500&page=${page}`);
+    for (const r of data) {
+      if (needed.has(r.name)) {
+        found.push(r);
+        needed.delete(r.name);
+      }
+    }
+    if (data.length < 500) break;
+  }
+  return found;
 }
 
 export function EstimateBuildStep({
@@ -119,10 +138,18 @@ export function EstimateBuildStep({
     }
     setLoadingTemplate(true);
     try {
+      const resourceNames = [
+        ...new Set(
+          template.sections.flatMap((s) =>
+            s.items.map((i) => i.resourceName).filter((n): n is string => !!n),
+          ),
+        ),
+      ];
+      const resources = await loadResourcesByNames(resourceNames);
       for (const section of template.sections) {
         const created = await mut.addSection.mutateAsync({ name: section.name });
         for (const item of section.items) {
-          const links = resolveTemplateItemLinks(item, materials, rateAnalyses);
+          const links = resolveTemplateItemLinks(item, resources, rateAnalyses);
           await mut.addItem.mutateAsync({
             sectionId: created.id,
             description: item.description,

@@ -148,6 +148,11 @@ export interface TenderExtractedItem {
   resourceId?: string | null;
   rateAnalysisId?: string | null;
   confidence?: number;
+  matchKind?: 'RESOURCE' | 'RATE_ANALYSIS' | 'NONE';
+  matchLabel?: string | null;
+  matchScore?: number | null;
+  suggestedAction?: 'LINKED' | 'REVIEW' | 'CREATE';
+  libraryRate?: number | null;
 }
 
 export interface TenderImportResult {

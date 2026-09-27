@@ -23,6 +23,8 @@ export interface InvoiceLineItem {
   hsnSacCode?: string | null;
 }
 
+export type InvoiceType = 'STANDARD' | 'RUNNING_ACCOUNT' | 'MILESTONE';
+
 export interface Invoice {
   id: string;
   projectId: string;
@@ -35,6 +37,8 @@ export interface Invoice {
   invoiceDate: string;
   dueDate: string;
   status: 'DRAFT' | 'SENT' | 'PAID' | 'OVERDUE';
+  invoiceType?: InvoiceType;
+  raSequence?: number | null;
   subtotal: number;
   gstRate: number;
   gstAmount: number;
@@ -74,8 +78,6 @@ export interface Bill {
   attachmentUrl?: string | null;
   approvedBy?: string | null;
 }
-
-export type InvoiceType = 'STANDARD' | 'RUNNING_ACCOUNT' | 'MILESTONE';
 
 export interface InvoiceInput {
   invoiceNumber?: string;

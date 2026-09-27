@@ -16,11 +16,11 @@ export const SPECIALTY_TEMPLATES: EstimateTemplate[] = [
       {
         name: '1. Condition Survey & Demolition',
         items: [
-          { itemCode: 'RN-P-001', description: 'Structural condition survey (NDT)', unit: 'ls', quantity: 1, rate: 180000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'RN-P-002', description: 'Rebound hammer testing', unit: 'nos', quantity: 50, rate: 1200, type: 'SUBCONTRACTOR' },
-          { itemCode: 'RN-P-003', description: 'Core cutting & testing', unit: 'nos', quantity: 12, rate: 8500, type: 'SUBCONTRACTOR' },
-          { itemCode: 'RN-P-004', description: 'Dismantling damaged plaster', unit: 'sqm', quantity: 850, rate: 120, type: 'LABOUR' },
-          { itemCode: 'RN-P-005', description: 'Dismantling damaged RCC', unit: 'cum', quantity: 8, rate: 2800, type: 'LABOUR' },
+          { itemCode: 'RN-P-001', description: 'Structural condition survey (NDT)', unit: 'ls', quantity: 1, rate: 180000, type: 'SUBCONTRACTOR', resourceName: 'Structural condition survey (NDT)' },
+          { itemCode: 'RN-P-002', description: 'Rebound hammer testing', unit: 'nos', quantity: 50, rate: 1200, type: 'SUBCONTRACTOR', resourceName: 'Rebound hammer testing' },
+          { itemCode: 'RN-P-003', description: 'Core cutting & testing', unit: 'nos', quantity: 12, rate: 8500, type: 'SUBCONTRACTOR', resourceName: 'Core cutting & testing' },
+          { itemCode: 'RN-P-004', description: 'Dismantling damaged plaster', unit: 'sqm', quantity: 850, rate: 120, type: 'LABOUR', resourceName: 'Unskilled Labour (Male)' },
+          { itemCode: 'RN-P-005', description: 'Dismantling damaged RCC', unit: 'cum', quantity: 8, rate: 2800, type: 'LABOUR', resourceName: 'Breaker / Demolition Hammer' },
           { itemCode: 'RN-P-006', description: 'Demolition hammer hire', unit: 'day', quantity: 15, rate: 800, type: 'EQUIPMENT', resourceName: 'Breaker / Demolition Hammer' },
           { itemCode: 'RN-P-007', description: 'Debris hauling', unit: 'trip', quantity: 35, rate: 1800, type: 'EQUIPMENT', resourceName: 'Tipper / Dumper 10 cum (Local)' },
         ],
@@ -32,7 +32,7 @@ export const SPECIALTY_TEMPLATES: EstimateTemplate[] = [
           { itemCode: 'RN-SR-002', description: 'Column jacketing reinforcement', unit: 'kg', quantity: 480, rate: 73, type: 'MATERIAL', resourceName: 'TMT Steel Fe500 16mm' },
           { itemCode: 'RN-SR-003', description: 'Epoxy injection (crack repair)', unit: 'rmt', quantity: 250, rate: 850, type: 'MATERIAL', resourceName: 'Epoxy Adhesive (Structural)' },
           { itemCode: 'RN-SR-004', description: 'Non-shrink grout (column base)', unit: 'bag', quantity: 45, rate: 950, type: 'MATERIAL', resourceName: 'Non-Shrink Grout (Cementitious)' },
-          { itemCode: 'RN-SR-005', description: 'Carbon fiber wrapping', unit: 'sqm', quantity: 45, rate: 4500, type: 'SUBCONTRACTOR' },
+          { itemCode: 'RN-SR-005', description: 'Carbon fiber wrapping', unit: 'sqm', quantity: 45, rate: 4500, type: 'SUBCONTRACTOR', rateAnalysisName: 'Column Jacketing RCC M30' },
           { itemCode: 'RN-SR-006', description: 'Micro-concrete for repair', unit: 'cum', quantity: 4, rate: 12000, type: 'MATERIAL', resourceName: 'Micro-concrete (Non-Shrink)' },
         ],
       },
@@ -74,10 +74,10 @@ export const SPECIALTY_TEMPLATES: EstimateTemplate[] = [
       {
         name: '7. MEP Upgrade',
         items: [
-          { itemCode: 'RN-MEP-001', description: 'Electrical rewiring (partial)', unit: 'ls', quantity: 1, rate: 185000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'RN-MEP-002', description: 'LED lighting upgrade', unit: 'ls', quantity: 1, rate: 120000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'RN-MEP-003', description: 'Plumbing replacement (galvanized pipes)', unit: 'ls', quantity: 1, rate: 145000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'RN-MEP-004', description: 'New sanitary fixtures', unit: 'ls', quantity: 1, rate: 85000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'RN-MEP-001', description: 'Electrical rewiring (partial)', unit: 'ls', quantity: 1, rate: 185000, type: 'SUBCONTRACTOR', resourceName: 'Electrical rewiring (partial)' },
+          { itemCode: 'RN-MEP-002', description: 'LED lighting upgrade', unit: 'ls', quantity: 1, rate: 120000, type: 'SUBCONTRACTOR', resourceName: 'LED lighting upgrade' },
+          { itemCode: 'RN-MEP-003', description: 'Plumbing replacement (galvanized pipes)', unit: 'ls', quantity: 1, rate: 145000, type: 'SUBCONTRACTOR', resourceName: 'Plumbing replacement (galvanized pipes)' },
+          { itemCode: 'RN-MEP-004', description: 'New sanitary fixtures', unit: 'ls', quantity: 1, rate: 85000, type: 'SUBCONTRACTOR', resourceName: 'New sanitary fixtures' },
         ],
       },
     ],
@@ -95,10 +95,10 @@ export const SPECIALTY_TEMPLATES: EstimateTemplate[] = [
       {
         name: '1. Site Grading & Preparation',
         items: [
-          { itemCode: 'LS-P-001', description: 'Site grading & leveling', unit: 'sqm', quantity: 2000, rate: 85, type: 'LABOUR' },
+          { itemCode: 'LS-P-001', description: 'Site grading & leveling', unit: 'sqm', quantity: 2000, rate: 85, type: 'LABOUR', resourceName: 'Unskilled Labour (Male)' },
           { itemCode: 'LS-P-002', description: 'JCB for grading', unit: 'day', quantity: 5, rate: 12000, type: 'EQUIPMENT', resourceName: 'JCB Excavator 3DX' },
           { itemCode: 'LS-P-003', description: 'Topsoil spreading (300mm)', unit: 'cum', quantity: 600, rate: 450, type: 'MATERIAL', resourceName: 'Topsoil (Screened)' },
-          { itemCode: 'LS-P-004', description: 'Soil testing & amendment', unit: 'ls', quantity: 1, rate: 45000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'LS-P-004', description: 'Soil testing & amendment', unit: 'ls', quantity: 1, rate: 45000, type: 'SUBCONTRACTOR', resourceName: 'Soil testing & amendment' },
         ],
       },
       {
@@ -106,15 +106,15 @@ export const SPECIALTY_TEMPLATES: EstimateTemplate[] = [
         items: [
           { itemCode: 'LS-LW-001', description: 'Natural lawn grass (roll)', unit: 'sqm', quantity: 800, rate: 85, type: 'MATERIAL', resourceName: 'Natural Lawn Grass (Roll)' },
           { itemCode: 'LS-LW-002', description: 'Garden soil mix (compost)', unit: 'cum', quantity: 80, rate: 1200, type: 'MATERIAL', resourceName: 'Garden Soil Mix (Compost)' },
-          { itemCode: 'LS-LW-003', description: 'Lawn seeding (maintenance)', unit: 'sqm', quantity: 800, rate: 45, type: 'SUBCONTRACTOR' },
+          { itemCode: 'LS-LW-003', description: 'Lawn seeding (maintenance)', unit: 'sqm', quantity: 800, rate: 45, type: 'SUBCONTRACTOR', resourceName: 'Lawn seeding (maintenance)' },
         ],
       },
       {
         name: '3. Trees & Plants',
         items: [
-          { itemCode: 'LS-TP-001', description: 'Ornamental trees (8-10ft)', unit: 'nos', quantity: 25, rate: 3500, type: 'SUBCONTRACTOR' },
-          { itemCode: 'LS-TP-002', description: 'Shrubs & hedges', unit: 'nos', quantity: 150, rate: 850, type: 'SUBCONTRACTOR' },
-          { itemCode: 'LS-TP-003', description: 'Flowering plants', unit: 'nos', quantity: 200, rate: 450, type: 'SUBCONTRACTOR' },
+          { itemCode: 'LS-TP-001', description: 'Ornamental trees (8-10ft)', unit: 'nos', quantity: 25, rate: 3500, type: 'SUBCONTRACTOR', resourceName: 'Ornamental trees (8-10ft)' },
+          { itemCode: 'LS-TP-002', description: 'Shrubs & hedges', unit: 'nos', quantity: 150, rate: 850, type: 'SUBCONTRACTOR', resourceName: 'Shrubs & hedges' },
+          { itemCode: 'LS-TP-003', description: 'Flowering plants', unit: 'nos', quantity: 200, rate: 450, type: 'SUBCONTRACTOR', resourceName: 'Flowering plants' },
           { itemCode: 'LS-TP-004', description: 'Mulch (organic bark)', unit: 'cum', quantity: 15, rate: 950, type: 'MATERIAL', resourceName: 'Mulch (Organic Bark)' },
         ],
       },
@@ -124,7 +124,7 @@ export const SPECIALTY_TEMPLATES: EstimateTemplate[] = [
           { itemCode: 'LS-IR-001', description: 'Drip irrigation pipe 16mm', unit: 'rmt', quantity: 850, rate: 18, type: 'MATERIAL', resourceName: 'Drip Irrigation Pipe 16mm' },
           { itemCode: 'LS-IR-002', description: 'Drip emitters 4 LPH', unit: 'nos', quantity: 350, rate: 8, type: 'MATERIAL', resourceName: 'Drip Emitter 4 LPH' },
           { itemCode: 'LS-IR-003', description: 'Pop-up sprinklers', unit: 'nos', quantity: 45, rate: 280, type: 'MATERIAL', resourceName: 'Sprinkler Head (Pop-up)' },
-          { itemCode: 'LS-IR-004', description: 'Irrigation controller (auto)', unit: 'nos', quantity: 1, rate: 18000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'LS-IR-004', description: 'Irrigation controller (auto)', unit: 'nos', quantity: 1, rate: 18000, type: 'SUBCONTRACTOR', resourceName: 'Irrigation controller (auto)' },
         ],
       },
       {
@@ -132,26 +132,26 @@ export const SPECIALTY_TEMPLATES: EstimateTemplate[] = [
         items: [
           { itemCode: 'LS-HS-001', description: 'Interlocking paver blocks 60mm', unit: 'sqm', quantity: 350, rate: 650, type: 'MATERIAL', resourceName: 'Interlocking Paver Block 60mm' },
           { itemCode: 'LS-HS-002', description: 'Natural flagstone pathway', unit: 'sqft', quantity: 280, rate: 65, type: 'MATERIAL', resourceName: 'Natural Flagstone 300x300x25mm (Sandstone)' },
-          { itemCode: 'LS-HS-003', description: 'Wooden deck (exterior)', unit: 'sqm', quantity: 45, rate: 2800, type: 'SUBCONTRACTOR' },
+          { itemCode: 'LS-HS-003', description: 'Wooden deck (exterior)', unit: 'sqm', quantity: 45, rate: 2800, type: 'SUBCONTRACTOR', resourceName: 'Wooden deck (exterior)' },
           { itemCode: 'LS-HS-004', description: 'Garden edging (stone)', unit: 'rmt', quantity: 180, rate: 180, type: 'MATERIAL', resourceName: 'Garden Edging (Stone)' },
         ],
       },
       {
         name: '6. Lighting & Features',
         items: [
-          { itemCode: 'LS-LT-001', description: 'Garden bollard lights LED', unit: 'nos', quantity: 18, rate: 3500, type: 'SUBCONTRACTOR' },
+          { itemCode: 'LS-LT-001', description: 'Garden bollard lights LED', unit: 'nos', quantity: 18, rate: 3500, type: 'SUBCONTRACTOR', resourceName: 'Garden bollard lights LED' },
           { itemCode: 'LS-LT-002', description: 'Underground electrical cable', unit: 'rmt', quantity: 280, rate: 280, type: 'MATERIAL', resourceName: 'Aluminium Cable 4 Core 25 sqmm Armoured' },
-          { itemCode: 'LS-LT-003', description: 'Water feature (fountain)', unit: 'nos', quantity: 1, rate: 185000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'LS-LT-004', description: 'Seating benches (outdoor)', unit: 'nos', quantity: 8, rate: 8500, type: 'SUBCONTRACTOR' },
-          { itemCode: 'LS-LT-005', description: 'Children play area equipment', unit: 'ls', quantity: 1, rate: 250000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'LS-LT-003', description: 'Water feature (fountain)', unit: 'nos', quantity: 1, rate: 185000, type: 'SUBCONTRACTOR', resourceName: 'Water feature (fountain)' },
+          { itemCode: 'LS-LT-004', description: 'Seating benches (outdoor)', unit: 'nos', quantity: 8, rate: 8500, type: 'SUBCONTRACTOR', resourceName: 'Seating benches (outdoor)' },
+          { itemCode: 'LS-LT-005', description: 'Children play area equipment', unit: 'ls', quantity: 1, rate: 250000, type: 'SUBCONTRACTOR', resourceName: 'Children play area equipment' },
         ],
       },
       {
         name: '7. Drainage',
         items: [
-          { itemCode: 'LS-DR-001', description: 'French drain', unit: 'rmt', quantity: 120, rate: 850, type: 'SUBCONTRACTOR' },
-          { itemCode: 'LS-DR-002', description: 'Channel drain with grating', unit: 'rmt', quantity: 85, rate: 1200, type: 'SUBCONTRACTOR' },
-          { itemCode: 'LS-DR-003', description: 'Soak pit', unit: 'nos', quantity: 2, rate: 15000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'LS-DR-001', description: 'French drain', unit: 'rmt', quantity: 120, rate: 850, type: 'SUBCONTRACTOR', resourceName: 'French drain' },
+          { itemCode: 'LS-DR-002', description: 'Channel drain with grating', unit: 'rmt', quantity: 85, rate: 1200, type: 'SUBCONTRACTOR', resourceName: 'Channel drain with grating' },
+          { itemCode: 'LS-DR-003', description: 'Soak pit', unit: 'nos', quantity: 2, rate: 15000, type: 'SUBCONTRACTOR', resourceName: 'Soak pit' },
         ],
       },
     ],

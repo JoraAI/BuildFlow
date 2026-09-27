@@ -17,8 +17,8 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
       {
         name: '1. Site Preparation & Foundation',
         items: [
-          { itemCode: 'HS-P-001', description: 'Site clearing & leveling', unit: 'sqm', quantity: 120, rate: 35, type: 'LABOUR' },
-          { itemCode: 'HS-P-002', description: 'Excavation for foundation (ordinary soil)', unit: 'cum', quantity: 45, rate: 320, type: 'LABOUR' },
+          { itemCode: 'HS-P-001', description: 'Site clearing & leveling', unit: 'sqm', quantity: 120, rate: 35, type: 'LABOUR', resourceName: 'Unskilled Labour (Male)' },
+          { itemCode: 'HS-P-002', description: 'Excavation for foundation (ordinary soil)', unit: 'cum', quantity: 45, rate: 320, type: 'LABOUR', rateAnalysisName: 'Excavation in Ordinary Soil' },
           { itemCode: 'HS-P-003', description: 'PCC M10 (1:3:6) 100mm base', unit: 'cum', quantity: 5, rate: 4500, type: 'MATERIAL', rateAnalysisName: 'PCC M10 (1:3:6)' },
           { itemCode: 'HS-P-004', description: 'RCC M20 footing', unit: 'cum', quantity: 12, rate: 7500, type: 'MATERIAL', rateAnalysisName: 'RCC M20 Slabs & Beams' },
           { itemCode: 'HS-P-005', description: 'TMT steel Fe500 for footing', unit: 'kg', quantity: 720, rate: 72, type: 'MATERIAL', resourceName: 'TMT Steel Fe500 12mm' },
@@ -152,11 +152,11 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
         items: [
           { itemCode: 'HS-EX-001', description: 'Compound wall (brick 230mm)', unit: 'sqm', quantity: 45, rate: 1800, type: 'MATERIAL', rateAnalysisName: 'Brick Masonry 230mm CM 1:6' },
           { itemCode: 'HS-EX-002', description: 'Compound wall foundation', unit: 'cum', quantity: 8, rate: 4500, type: 'MATERIAL', rateAnalysisName: 'RCC Footings & Tie Beams M30' },
-          { itemCode: 'HS-EX-003', description: 'MS gate 3.5x1.5m', unit: 'nos', quantity: 1, rate: 25000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'HS-EX-003', description: 'MS gate 3.5x1.5m', unit: 'nos', quantity: 1, rate: 25000, type: 'SUBCONTRACTOR', resourceName: 'MS gate 3.5x1.5m' },
           { itemCode: 'HS-EX-004', description: 'Precast septic tank 2000L', unit: 'nos', quantity: 1, rate: 28000, type: 'MATERIAL', resourceName: 'Precast Septic Tank 2000L' },
-          { itemCode: 'HS-EX-005', description: 'RCC sump pit 5000L', unit: 'nos', quantity: 1, rate: 18000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'HS-EX-005', description: 'RCC sump pit 5000L', unit: 'nos', quantity: 1, rate: 18000, type: 'SUBCONTRACTOR', resourceName: 'RCC sump pit 5000L' },
           { itemCode: 'HS-EX-006', description: 'Paver block pathway', unit: 'sqm', quantity: 25, rate: 650, type: 'MATERIAL', resourceName: 'Interlocking Paver Block 60mm' },
-          { itemCode: 'HS-EX-007', description: 'Rainwater harvesting pit', unit: 'nos', quantity: 1, rate: 15000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'HS-EX-007', description: 'Rainwater harvesting pit', unit: 'nos', quantity: 1, rate: 15000, type: 'SUBCONTRACTOR', resourceName: 'Rainwater harvesting pit' },
         ],
       },
       {
@@ -164,9 +164,9 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
         items: [
           { itemCode: 'HS-M-001', description: 'Water for construction', unit: 'kL', quantity: 35, rate: 120, type: 'MATERIAL', resourceName: 'Water (Tanker Supply)' },
           { itemCode: 'HS-M-002', description: 'Diesel for mixer/pump', unit: 'litre', quantity: 85, rate: 88, type: 'MATERIAL', resourceName: 'Diesel (HSD)' },
-          { itemCode: 'HS-M-003', description: 'Scaffolding hire', unit: 'month', quantity: 2, rate: 12000, type: 'EQUIPMENT' },
-          { itemCode: 'HS-M-004', description: 'Safety equipment', unit: 'ls', quantity: 1, rate: 15000, type: 'MISC' },
-          { itemCode: 'HS-M-005', description: 'Site cleanup', unit: 'ls', quantity: 1, rate: 12000, type: 'MISC' },
+          { itemCode: 'HS-M-003', description: 'Scaffolding hire', unit: 'month', quantity: 2, rate: 12000, type: 'EQUIPMENT', resourceName: 'Scaffolding Pipe 40mm NB' },
+          { itemCode: 'HS-M-004', description: 'Safety equipment', unit: 'ls', quantity: 1, rate: 15000, type: 'MISC', resourceName: 'Safety Officer' },
+          { itemCode: 'HS-M-005', description: 'Site cleanup', unit: 'ls', quantity: 1, rate: 12000, type: 'MISC', resourceName: 'Sweeper / Cleaner' },
         ],
       },
     ],
@@ -202,7 +202,7 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
           { itemCode: 'HR-BM-003', description: 'Diaphragm wall RCC M40 (600mm)', unit: 'cum', quantity: 1200, rate: 15000, type: 'MATERIAL', rateAnalysisName: 'RCC M40 (High-Rise & Pile Caps)' },
           { itemCode: 'HR-BM-004', description: 'Diaphragm wall reinforcement', unit: 'kg', quantity: 180000, rate: 73, type: 'MATERIAL', resourceName: 'TMT Steel Fe500 20mm' },
           { itemCode: 'HR-BM-005', description: 'Basement waterproofing (membrane)', unit: 'sqm', quantity: 4500, rate: 650, type: 'MATERIAL', rateAnalysisName: 'Self-Adhesive Membrane Waterproofing' },
-          { itemCode: 'HR-BM-006', description: 'Dewatering (24/7 pumps)', unit: 'month', quantity: 8, rate: 180000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'HR-BM-006', description: 'Dewatering (24/7 pumps)', unit: 'month', quantity: 8, rate: 180000, type: 'SUBCONTRACTOR', resourceName: 'Dewatering (24/7 pumps)' },
         ],
       },
       {
@@ -239,22 +239,22 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
       {
         name: '6. MEP - Mechanical',
         items: [
-          { itemCode: 'HR-MEP-001', description: 'HVAC VRV system (per floor)', unit: 'floor', quantity: 15, rate: 850000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'HR-MEP-002', description: 'Fire sprinkler system', unit: 'sqm', quantity: 12000, rate: 850, type: 'SUBCONTRACTOR' },
-          { itemCode: 'HR-MEP-003', description: 'Fire hydrant system', unit: 'floor', quantity: 15, rate: 180000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'HR-MEP-001', description: 'HVAC VRV system (per floor)', unit: 'floor', quantity: 15, rate: 850000, type: 'SUBCONTRACTOR', resourceName: 'HVAC VRV system (per floor)' },
+          { itemCode: 'HR-MEP-002', description: 'Fire sprinkler system', unit: 'sqm', quantity: 12000, rate: 850, type: 'SUBCONTRACTOR', resourceName: 'Fire sprinkler system' },
+          { itemCode: 'HR-MEP-003', description: 'Fire hydrant system', unit: 'floor', quantity: 15, rate: 180000, type: 'SUBCONTRACTOR', resourceName: 'Fire hydrant system' },
           { itemCode: 'HR-MEP-004', description: 'Smoke detection system', unit: 'nos', quantity: 450, rate: 6500, type: 'MATERIAL', resourceName: 'Smoke Detector (Conventional)' },
-          { itemCode: 'HR-MEP-005', description: 'STP (500 KLD)', unit: 'ls', quantity: 1, rate: 4500000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'HR-MEP-006', description: 'WTP (200 KLD)', unit: 'ls', quantity: 1, rate: 2500000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'HR-MEP-005', description: 'STP (500 KLD)', unit: 'ls', quantity: 1, rate: 4500000, type: 'SUBCONTRACTOR', resourceName: 'STP (500 KLD)' },
+          { itemCode: 'HR-MEP-006', description: 'WTP (200 KLD)', unit: 'ls', quantity: 1, rate: 2500000, type: 'SUBCONTRACTOR', resourceName: 'WTP (200 KLD)' },
         ],
       },
       {
         name: '7. Electrical & ELV',
         items: [
-          { itemCode: 'HR-EL-001', description: 'HT power supply & transformer', unit: 'ls', quantity: 1, rate: 3500000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'HR-EL-002', description: 'LT distribution (risers, panels)', unit: 'floor', quantity: 15, rate: 250000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'HR-EL-001', description: 'HT power supply & transformer', unit: 'ls', quantity: 1, rate: 3500000, type: 'SUBCONTRACTOR', resourceName: 'HT power supply & transformer' },
+          { itemCode: 'HR-EL-002', description: 'LT distribution (risers, panels)', unit: 'floor', quantity: 15, rate: 250000, type: 'SUBCONTRACTOR', resourceName: 'LT distribution (risers, panels)' },
           { itemCode: 'HR-EL-003', description: 'DG set 250 KVA (standby)', unit: 'nos', quantity: 2, rate: 3200000, type: 'EQUIPMENT', resourceName: 'DG Set 250 KVA' },
           { itemCode: 'HR-EL-004', description: 'Solar panels (rooftop 100kW)', unit: 'nos', quantity: 185, rate: 14000, type: 'MATERIAL', resourceName: 'Solar Panel 540W Mono PERC' },
-          { itemCode: 'HR-EL-005', description: 'BMS & home automation', unit: 'ls', quantity: 1, rate: 2800000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'HR-EL-005', description: 'BMS & home automation', unit: 'ls', quantity: 1, rate: 2800000, type: 'SUBCONTRACTOR', resourceName: 'BMS & home automation' },
           { itemCode: 'HR-EL-006', description: 'CCTV (120 cameras)', unit: 'nos', quantity: 120, rate: 3500, type: 'MATERIAL', resourceName: 'CCTV Camera (Dome) 4MP' },
           { itemCode: 'HR-EL-007', description: 'Access control system', unit: 'nos', quantity: 30, rate: 4500, type: 'MATERIAL', resourceName: 'Access Control Card Reader (RFID)' },
         ],
@@ -266,17 +266,17 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
           { itemCode: 'HR-FN-002', description: 'Gypsum plaster 12mm', unit: 'sqm', quantity: 22000, rate: 280, type: 'MATERIAL', rateAnalysisName: 'Gypsum Plaster 12mm' },
           { itemCode: 'HR-FN-003', description: 'Interior emulsion paint', unit: 'sqm', quantity: 25000, rate: 320, type: 'MATERIAL', rateAnalysisName: 'Emulsion paint per sqm' },
           { itemCode: 'HR-FN-004', description: 'Exterior texture & emulsion', unit: 'sqm', quantity: 6500, rate: 450, type: 'MATERIAL', rateAnalysisName: 'Exterior Emulsion Painting (Premium)' },
-          { itemCode: 'HR-FN-005', description: 'UPVC windows with DGU glass', unit: 'sqm', quantity: 3800, rate: 3500, type: 'SUBCONTRACTOR' },
-          { itemCode: 'HR-FN-006', description: 'Flush doors with frames', unit: 'nos', quantity: 450, rate: 12000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'HR-FN-005', description: 'UPVC windows with DGU glass', unit: 'sqm', quantity: 3800, rate: 3500, type: 'SUBCONTRACTOR', resourceName: 'UPVC windows with DGU glass' },
+          { itemCode: 'HR-FN-006', description: 'Flush doors with frames', unit: 'nos', quantity: 450, rate: 12000, type: 'SUBCONTRACTOR', resourceName: 'Flush doors with frames' },
         ],
       },
       {
         name: '9. Amenities & External',
         items: [
-          { itemCode: 'HR-AM-001', description: 'Swimming pool (clubhouse)', unit: 'ls', quantity: 1, rate: 2500000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'HR-AM-002', description: 'Gym equipment', unit: 'ls', quantity: 1, rate: 1500000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'HR-AM-003', description: 'Landscaping (podium garden)', unit: 'sqm', quantity: 2500, rate: 1200, type: 'SUBCONTRACTOR' },
-          { itemCode: 'HR-AM-004', description: 'Children play area', unit: 'ls', quantity: 1, rate: 850000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'HR-AM-001', description: 'Swimming pool (clubhouse)', unit: 'ls', quantity: 1, rate: 2500000, type: 'SUBCONTRACTOR', resourceName: 'Swimming pool (clubhouse)' },
+          { itemCode: 'HR-AM-002', description: 'Gym equipment', unit: 'ls', quantity: 1, rate: 1500000, type: 'SUBCONTRACTOR', resourceName: 'Gym equipment' },
+          { itemCode: 'HR-AM-003', description: 'Landscaping (podium garden)', unit: 'sqm', quantity: 2500, rate: 1200, type: 'SUBCONTRACTOR', resourceName: 'Landscaping (podium garden)' },
+          { itemCode: 'HR-AM-004', description: 'Children play area', unit: 'ls', quantity: 1, rate: 850000, type: 'SUBCONTRACTOR', resourceName: 'Children play area' },
           { itemCode: 'HR-AM-005', description: 'Basement epoxy flooring', unit: 'sqm', quantity: 4500, rate: 850, type: 'MATERIAL', rateAnalysisName: 'Epoxy Flooring 3mm' },
         ],
       },
@@ -316,16 +316,16 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
       {
         name: '3. Envelope - Glazing & Cladding',
         items: [
-          { itemCode: 'CO-EN-001', description: 'Curtain wall glazing (unitized)', unit: 'sqm', quantity: 2800, rate: 6500, type: 'SUBCONTRACTOR' },
+          { itemCode: 'CO-EN-001', description: 'Curtain wall glazing (unitized)', unit: 'sqm', quantity: 2800, rate: 6500, type: 'SUBCONTRACTOR', resourceName: 'Curtain wall glazing (unitized)' },
           { itemCode: 'CO-EN-002', description: 'DGU glass 6-12-6 Low-E', unit: 'sqft', quantity: 22000, rate: 350, type: 'MATERIAL', resourceName: 'Insulated Glass Unit (DGU) 6-12-6 Low-E' },
           { itemCode: 'CO-EN-003', description: 'Aluminium sections for glazing', unit: 'kg', quantity: 18500, rate: 285, type: 'MATERIAL', resourceName: 'Aluminium Window Section' },
-          { itemCode: 'CO-EN-004', description: 'ACP cladding (facade)', unit: 'sqm', quantity: 850, rate: 2200, type: 'SUBCONTRACTOR' },
+          { itemCode: 'CO-EN-004', description: 'ACP cladding (facade)', unit: 'sqm', quantity: 850, rate: 2200, type: 'SUBCONTRACTOR', resourceName: 'ACP cladding (facade)' },
         ],
       },
       {
         name: '4. Interiors & Finishes',
         items: [
-          { itemCode: 'CO-IN-001', description: 'Gypsum board ceiling', unit: 'sqm', quantity: 3200, rate: 650, type: 'SUBCONTRACTOR' },
+          { itemCode: 'CO-IN-001', description: 'Gypsum board ceiling', unit: 'sqm', quantity: 3200, rate: 650, type: 'SUBCONTRACTOR', rateAnalysisName: 'Gypsum Board Partition 75mm' },
           { itemCode: 'CO-IN-002', description: 'Gypsum board partition 75mm', unit: 'sqm', quantity: 1800, rate: 850, type: 'MATERIAL', rateAnalysisName: 'Gypsum Board Partition 75mm' },
           { itemCode: 'CO-IN-003', description: 'Vitrified tile flooring', unit: 'sqft', quantity: 28000, rate: 55, type: 'MATERIAL', resourceName: 'Vitrified Tile 600x600 Polished' },
           { itemCode: 'CO-IN-004', description: 'Interior emulsion paint', unit: 'sqm', quantity: 12000, rate: 320, type: 'MATERIAL', rateAnalysisName: 'Emulsion paint per sqm' },
@@ -335,7 +335,7 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
       {
         name: '5. HVAC',
         items: [
-          { itemCode: 'CO-HV-001', description: 'VRV system (10 floors)', unit: 'floor', quantity: 5, rate: 1200000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'CO-HV-001', description: 'VRV system (10 floors)', unit: 'floor', quantity: 5, rate: 1200000, type: 'SUBCONTRACTOR', resourceName: 'VRV system (10 floors)' },
           { itemCode: 'CO-HV-002', description: 'VRV outdoor unit 8HP', unit: 'nos', quantity: 20, rate: 185000, type: 'MATERIAL', resourceName: 'VRV System 8HP Outdoor Unit' },
           { itemCode: 'CO-HV-003', description: 'GI ducting 0.8mm', unit: 'sqm', quantity: 4200, rate: 850, type: 'MATERIAL', resourceName: 'GI Duct Sheet 0.8mm' },
           { itemCode: 'CO-HV-004', description: 'Fire dampers', unit: 'nos', quantity: 85, rate: 4500, type: 'MATERIAL', resourceName: 'Fire Damper 600x300' },
@@ -346,7 +346,7 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
         items: [
           { itemCode: 'CO-LF-001', description: 'Passenger elevator 13 person (3 nos)', unit: 'nos', quantity: 3, rate: 1200000, type: 'MATERIAL', resourceName: 'Passenger Elevator 13 Person (Supply+Install)' },
           { itemCode: 'CO-LF-002', description: 'Service elevator 2T', unit: 'nos', quantity: 1, rate: 1850000, type: 'MATERIAL', resourceName: 'Goods Elevator 2T (Supply+Install)' },
-          { itemCode: 'CO-LF-003', description: 'Fire sprinkler system', unit: 'sqm', quantity: 3200, rate: 850, type: 'SUBCONTRACTOR' },
+          { itemCode: 'CO-LF-003', description: 'Fire sprinkler system', unit: 'sqm', quantity: 3200, rate: 850, type: 'SUBCONTRACTOR', resourceName: 'Fire sprinkler system' },
           { itemCode: 'CO-LF-004', description: 'Fire alarm panel (addressable)', unit: 'nos', quantity: 5, rate: 65000, type: 'MATERIAL', resourceName: 'Fire Alarm Panel (Addressable) 4 Zone' },
           { itemCode: 'CO-LF-005', description: 'Fire pump 15HP (diesel)', unit: 'nos', quantity: 2, rate: 85000, type: 'MATERIAL', resourceName: 'Fire Pump 15HP (Diesel)' },
         ],
@@ -385,8 +385,8 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
       {
         name: '2. PEB Steel Structure',
         items: [
-          { itemCode: 'WH-ST-001', description: 'Built-up columns (welded section)', unit: 'ton', quantity: 85, rate: 95000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'WH-ST-002', description: 'Built-up rafters (tapered)', unit: 'ton', quantity: 120, rate: 95000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'WH-ST-001', description: 'Built-up columns (welded section)', unit: 'ton', quantity: 85, rate: 95000, type: 'SUBCONTRACTOR', rateAnalysisName: 'Fabricated Steel Truss (per ton)' },
+          { itemCode: 'WH-ST-002', description: 'Built-up rafters (tapered)', unit: 'ton', quantity: 120, rate: 95000, type: 'SUBCONTRACTOR', rateAnalysisName: 'Fabricated Steel Truss (per ton)' },
           { itemCode: 'WH-ST-003', description: 'MS plate 12mm for fabrication', unit: 'kg', quantity: 155000, rate: 79, type: 'MATERIAL', resourceName: 'MS Plate 12mm' },
           { itemCode: 'WH-ST-004', description: 'Z-purlins & eave struts', unit: 'ton', quantity: 28, rate: 85000, type: 'MATERIAL', resourceName: 'Z-Purlin (Galvanized) 200x50x20x2mm' },
           { itemCode: 'WH-ST-005', description: 'Bracing rods (MS round)', unit: 'kg', quantity: 8500, rate: 68, type: 'MATERIAL', resourceName: 'Mild Steel Round Bar 16mm' },
@@ -436,8 +436,8 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
         name: '7. Electrical & Fire Safety',
         items: [
           { itemCode: 'WH-EL-001', description: 'LED highbay lighting 200W', unit: 'nos', quantity: 80, rate: 8500, type: 'MATERIAL', resourceName: 'LED Flood Light 100W' },
-          { itemCode: 'WH-EL-002', description: 'Fire sprinkler system', unit: 'sqm', quantity: 5000, rate: 850, type: 'SUBCONTRACTOR' },
-          { itemCode: 'WH-EL-003', description: 'Fire hydrant system', unit: 'ls', quantity: 1, rate: 1500000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'WH-EL-002', description: 'Fire sprinkler system', unit: 'sqm', quantity: 5000, rate: 850, type: 'SUBCONTRACTOR', resourceName: 'Fire sprinkler system' },
+          { itemCode: 'WH-EL-003', description: 'Fire hydrant system', unit: 'ls', quantity: 1, rate: 1500000, type: 'SUBCONTRACTOR', resourceName: 'Fire hydrant system' },
           { itemCode: 'WH-EL-004', description: 'DG set 125 KVA', unit: 'nos', quantity: 1, rate: 1800000, type: 'EQUIPMENT', resourceName: 'DG Set 125 KVA' },
         ],
       },
@@ -467,11 +467,11 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
       {
         name: '2. Operation Theatre (OT)',
         items: [
-          { itemCode: 'HP-OT-001', description: 'Modular OT panels (SS 304)', unit: 'sqm', quantity: 850, rate: 8500, type: 'SUBCONTRACTOR' },
+          { itemCode: 'HP-OT-001', description: 'Modular OT panels (SS 304)', unit: 'sqm', quantity: 850, rate: 8500, type: 'SUBCONTRACTOR', resourceName: 'Modular OT panels (SS 304)' },
           { itemCode: 'HP-OT-002', description: 'OT seamless flooring (PU)', unit: 'sqm', quantity: 280, rate: 3500, type: 'MATERIAL', resourceName: 'PU Flooring 3mm' },
-          { itemCode: 'HP-OT-003', description: 'OT HVAC (laminar flow)', unit: 'ls', quantity: 4, rate: 2500000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'HP-OT-004', description: 'HEPA filters', unit: 'nos', quantity: 24, rate: 45000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'HP-OT-005', description: 'OT lighting (shadowless)', unit: 'nos', quantity: 4, rate: 850000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'HP-OT-003', description: 'OT HVAC (laminar flow)', unit: 'ls', quantity: 4, rate: 2500000, type: 'SUBCONTRACTOR', resourceName: 'OT HVAC (laminar flow)' },
+          { itemCode: 'HP-OT-004', description: 'HEPA filters', unit: 'nos', quantity: 24, rate: 45000, type: 'SUBCONTRACTOR', resourceName: 'HEPA filters' },
+          { itemCode: 'HP-OT-005', description: 'OT lighting (shadowless)', unit: 'nos', quantity: 4, rate: 850000, type: 'SUBCONTRACTOR', resourceName: 'OT lighting (shadowless)' },
           { itemCode: 'HP-OT-006', description: 'Stainless steel sheet 304', unit: 'sqm', quantity: 1200, rate: 850, type: 'MATERIAL', resourceName: 'Stainless Steel Sheet 304 1mm' },
         ],
       },
@@ -479,17 +479,17 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
         name: '3. Medical Gas Pipeline',
         items: [
           { itemCode: 'HP-MG-001', description: 'Oxygen pipeline (copper)', unit: 'rmt', quantity: 2800, rate: 450, type: 'MATERIAL', resourceName: 'Oxygen Pipeline (Copper) 15mm Type L' },
-          { itemCode: 'HP-MG-002', description: 'Medical gas outlets (bedhead)', unit: 'nos', quantity: 300, rate: 8500, type: 'SUBCONTRACTOR' },
+          { itemCode: 'HP-MG-002', description: 'Medical gas outlets (bedhead)', unit: 'nos', quantity: 300, rate: 8500, type: 'SUBCONTRACTOR', resourceName: 'Medical gas outlets (bedhead)' },
           { itemCode: 'HP-MG-003', description: 'Vacuum pipeline', unit: 'rmt', quantity: 1800, rate: 380, type: 'MATERIAL', resourceName: 'Vacuum Pipeline (Copper) 22mm Type L' },
           { itemCode: 'HP-MG-004', description: 'Nitrous oxide pipeline', unit: 'rmt', quantity: 850, rate: 450, type: 'MATERIAL', resourceName: 'Nitrous Oxide Pipeline (Copper) 18mm Type L' },
-          { itemCode: 'HP-MG-005', description: 'Manifold room setup', unit: 'ls', quantity: 1, rate: 1200000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'HP-MG-005', description: 'Manifold room setup', unit: 'ls', quantity: 1, rate: 1200000, type: 'SUBCONTRACTOR', resourceName: 'Manifold room setup' },
         ],
       },
       {
         name: '4. HVAC & Ventilation',
         items: [
-          { itemCode: 'HP-HV-001', description: 'Chiller plant (200 TR)', unit: 'nos', quantity: 2, rate: 4500000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'HP-HV-002', description: 'AHUs (per floor)', unit: 'nos', quantity: 12, rate: 450000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'HP-HV-001', description: 'Chiller plant (200 TR)', unit: 'nos', quantity: 2, rate: 4500000, type: 'SUBCONTRACTOR', resourceName: 'Chiller plant (200 TR)' },
+          { itemCode: 'HP-HV-002', description: 'AHUs (per floor)', unit: 'nos', quantity: 12, rate: 450000, type: 'SUBCONTRACTOR', resourceName: 'AHUs (per floor)' },
           { itemCode: 'HP-HV-003', description: 'GI ducting', unit: 'sqm', quantity: 8500, rate: 850, type: 'MATERIAL', resourceName: 'GI Duct Sheet 0.8mm' },
           { itemCode: 'HP-HV-004', description: 'Cooling tower 50 TR', unit: 'nos', quantity: 4, rate: 180000, type: 'MATERIAL', resourceName: 'Cooling Tower 50 TR' },
         ],
@@ -497,16 +497,16 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
       {
         name: '5. Electrical & BMS',
         items: [
-          { itemCode: 'HP-EL-001', description: 'UPS system 200 KVA', unit: 'nos', quantity: 2, rate: 2500000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'HP-EL-001', description: 'UPS system 200 KVA', unit: 'nos', quantity: 2, rate: 2500000, type: 'SUBCONTRACTOR', resourceName: 'UPS system 200 KVA' },
           { itemCode: 'HP-EL-002', description: 'DG set 250 KVA (standby)', unit: 'nos', quantity: 2, rate: 3200000, type: 'EQUIPMENT', resourceName: 'DG Set 250 KVA' },
-          { itemCode: 'HP-EL-003', description: 'Nurse call system', unit: 'ls', quantity: 1, rate: 1800000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'HP-EL-004', description: 'BMS & access control', unit: 'ls', quantity: 1, rate: 2200000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'HP-EL-003', description: 'Nurse call system', unit: 'ls', quantity: 1, rate: 1800000, type: 'SUBCONTRACTOR', resourceName: 'Nurse call system' },
+          { itemCode: 'HP-EL-004', description: 'BMS & access control', unit: 'ls', quantity: 1, rate: 2200000, type: 'SUBCONTRACTOR', resourceName: 'BMS & access control' },
         ],
       },
       {
         name: '6. Lifts',
         items: [
-          { itemCode: 'HP-LV-001', description: 'Patient bed elevator (4 nos)', unit: 'nos', quantity: 4, rate: 1800000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'HP-LV-001', description: 'Patient bed elevator (4 nos)', unit: 'nos', quantity: 4, rate: 1800000, type: 'SUBCONTRACTOR', resourceName: 'Patient bed elevator (4 nos)' },
           { itemCode: 'HP-LV-002', description: 'Service elevator 2T (2 nos)', unit: 'nos', quantity: 2, rate: 1850000, type: 'MATERIAL', resourceName: 'Goods Elevator 2T (Supply+Install)' },
           { itemCode: 'HP-LV-003', description: 'Passenger elevator (2 nos)', unit: 'nos', quantity: 2, rate: 1200000, type: 'MATERIAL', resourceName: 'Passenger Elevator 13 Person (Supply+Install)' },
         ],
@@ -514,17 +514,17 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
       {
         name: '7. STP, WTP & Incinerator',
         items: [
-          { itemCode: 'HP-ST-001', description: 'STP 200 KLD (biomedical)', unit: 'ls', quantity: 1, rate: 3500000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'HP-ST-002', description: 'RO water treatment 5000 LPH', unit: 'ls', quantity: 1, rate: 2200000, type: 'SUBCONTRACTOR' },
-          { itemCode: 'HP-ST-003', description: 'Biomedical waste incinerator', unit: 'nos', quantity: 1, rate: 3500000, type: 'SUBCONTRACTOR' },
+          { itemCode: 'HP-ST-001', description: 'STP 200 KLD (biomedical)', unit: 'ls', quantity: 1, rate: 3500000, type: 'SUBCONTRACTOR', resourceName: 'STP 200 KLD (biomedical)' },
+          { itemCode: 'HP-ST-002', description: 'RO water treatment 5000 LPH', unit: 'ls', quantity: 1, rate: 2200000, type: 'SUBCONTRACTOR', resourceName: 'RO water treatment 5000 LPH' },
+          { itemCode: 'HP-ST-003', description: 'Biomedical waste incinerator', unit: 'nos', quantity: 1, rate: 3500000, type: 'SUBCONTRACTOR', resourceName: 'Biomedical waste incinerator' },
         ],
       },
       {
         name: '8. Finishes',
         items: [
           { itemCode: 'HP-FN-001', description: 'Anti-bacterial vinyl flooring', unit: 'sqm', quantity: 4200, rate: 1200, type: 'MATERIAL', resourceName: 'Vinyl Flooring 2mm' },
-          { itemCode: 'HP-FN-002', description: 'Hygienic wall cladding (PVC)', unit: 'sqm', quantity: 6500, rate: 1500, type: 'SUBCONTRACTOR' },
-          { itemCode: 'HP-FN-003', description: 'Hygienic ceiling (clean room)', unit: 'sqm', quantity: 4200, rate: 850, type: 'SUBCONTRACTOR' },
+          { itemCode: 'HP-FN-002', description: 'Hygienic wall cladding (PVC)', unit: 'sqm', quantity: 6500, rate: 1500, type: 'SUBCONTRACTOR', resourceName: 'Hygienic wall cladding (PVC)' },
+          { itemCode: 'HP-FN-003', description: 'Hygienic ceiling (clean room)', unit: 'sqm', quantity: 4200, rate: 850, type: 'SUBCONTRACTOR', resourceName: 'Hygienic ceiling (clean room)' },
         ],
       },
     ],

@@ -21,6 +21,7 @@ import { SubcontractsTab } from '@/components/projects/SubcontractsTab';
 import { ScheduleTab } from '@/components/projects/ScheduleTab';
 import { ProjectReportsTab } from '@/components/projects/ProjectReportsTab';
 import { BoqTab } from '@/components/projects/BoqTab';
+import { InvoicesTab } from '@/components/projects/InvoicesTab';
 import { BillsTab } from '@/components/projects/BillsTab';
 import { ResourcesTab } from '@/components/projects/ResourcesTab';
 import { PettyCashTab } from '@/components/projects/PettyCashTab';
@@ -45,6 +46,7 @@ type Tab =
   | 'estimate'
   | 'schedule'
   | 'boq'
+  | 'invoices'
   | 'bills'
   | 'variations'
   | 'procurement'
@@ -63,6 +65,7 @@ const TABS: { label: string; value: Tab }[] = [
   { label: 'Estimate', value: 'estimate' },
   { label: 'Schedule', value: 'schedule' },
   { label: 'BOQ', value: 'boq' },
+  { label: 'Invoices / RA', value: 'invoices' },
   { label: 'Bills', value: 'bills' },
   { label: 'Variations', value: 'variations' },
   { label: 'Procurement', value: 'procurement' },
@@ -105,6 +108,8 @@ export default function ProjectDetailScreen() {
           return perms.includes('planning.view');
         case 'boq':
           return perms.includes('boq.view');
+        case 'invoices':
+          return perms.includes('invoice.view');
         case 'bills':
           return perms.includes('bill.view');
         case 'variations':
@@ -120,7 +125,7 @@ export default function ProjectDetailScreen() {
         case 'snags':
           return perms.includes('snag.view');
         case 'rfis':
-          return perms.includes('drawing.view') || perms.includes('snag.view') || perms.includes('project.view');
+          return perms.includes('rfi.view');
         case 'laborWages':
           return perms.includes('labor.view');
         case 'resources':
@@ -136,25 +141,30 @@ export default function ProjectDetailScreen() {
   }, [perms, isOwner]);
 
   // Persist the active tab in the URL so it survives a page refresh.
-  // On first load, read the ?tab= param. On tab change, update the URL.
-  // This ensures F5/refresh keeps the user on the same tab.
-  const initialTab: Tab =
-    tabFromUrl && TABS.some((t) => t.value === tabFromUrl) ? (tabFromUrl as Tab) : 'overview';
+  // Clamp deep-links to tabs the user is allowed to see (permission-gated).
+  const isVisibleTab = (value: string | undefined): value is Tab =>
+    !!value && visibleTabs.some((t) => t.value === value);
+
+  const initialTab: Tab = isVisibleTab(tabFromUrl) ? tabFromUrl : 'overview';
   const [tab, setTabState] = useState<Tab>(initialTab);
   const router = useRouter();
   const { data: project, isLoading, refetch, isFetching } = useProject(id);
   const summaryQ = useProjectSummary(id);
 
   // When the URL ?tab= changes externally (deep link / back button), sync state.
+  // Unknown or unauthorized tabs fall back to overview.
   useEffect(() => {
-    if (tabFromUrl && TABS.some((t) => t.value === tabFromUrl)) {
-      setTabState(tabFromUrl as Tab);
-    } else if (!tabFromUrl && tab !== 'overview') {
+    if (isVisibleTab(tabFromUrl)) {
+      setTabState(tabFromUrl);
+    } else if (tabFromUrl) {
+      setTabState('overview');
+      router.setParams({ tab: 'overview' });
+    } else if (tab !== 'overview') {
       // URL has no tab param but state does - keep state, but update URL
       router.setParams({ tab });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabFromUrl]);
+  }, [tabFromUrl, visibleTabs]);
 
   // Wrapper that updates both state AND the URL
   const setTab = (next: Tab) => {
@@ -253,6 +263,7 @@ export default function ProjectDetailScreen() {
       {tab === 'estimate' && <EstimateTab projectId={id} />}
       {tab === 'schedule' && <ScheduleTab projectId={id} />}
       {tab === 'boq' && <BoqTab projectId={id} />}
+      {tab === 'invoices' && <InvoicesTab projectId={id} />}
       {tab === 'bills' && <BillsTab projectId={id} />}
       {tab === 'variations' && (
         <VariationsTab projectId={id} highlightChangeOrderId={highlightChangeOrderId} />

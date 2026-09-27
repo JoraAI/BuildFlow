@@ -6,7 +6,7 @@ import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, Badge, Button, EmptyState, LoadingSkeleton } from '@/components/ui';
-import { useAuthStore } from '@/stores/auth.store';
+import { usePermission } from '@/hooks/usePermission';
 import { useBills, type Bill } from '@/services/accounting.queries';
 import { formatINR, formatDate } from '@/utils/format';
 import { billDetailHref, projectTabHref } from '@/utils/navigation';
@@ -29,8 +29,7 @@ const BILL_CATEGORY_COLOR: Record<string, 'primary' | 'warning' | 'success' | 'd
 
 export function BillsTab({ projectId }: { projectId: string }) {
   const router = useRouter();
-  const user = useAuthStore((s) => s.user);
-  const canCreate = user?.role === 'OWNER' || user?.role === 'PM' || user?.role === 'ACCOUNTANT';
+  const canCreate = usePermission('bill.create');
   const { data: bills, isLoading } = useBills(projectId);
 
   const returnTo = projectTabHref(projectId, 'bills');

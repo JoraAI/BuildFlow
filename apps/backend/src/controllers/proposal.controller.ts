@@ -94,6 +94,9 @@ export async function importTender(req: Request, res: Response, next: NextFuncti
     const { companyId } = req.user!;
     const proposalId = req.params.id;
 
+    // Ensure the proposal belongs to this company before storing/extracting.
+    await proposalService.getProposal(companyId, proposalId);
+
     // Store the uploaded file (encrypted) for audit/​re-extraction.
     const plaintext = Buffer.from(req.body.fileContent, 'base64');
     const { url } = await storeEncryptedFile(companyId, {

@@ -31,7 +31,7 @@ export async function extractBillFromFile(
   companyId: string,
   input: BillUploadInput,
 ): Promise<{ draft: BillExtractedDraft | null; notes: string }> {
-  const text = await extractText(input.fileContent, input.contentType);
+  const text = await extractText(input.fileContent, input.contentType, input.filename);
   const prompt = buildBillExtractPrompt(text);
   const llmRaw = await callLlmForExtraction(companyId, prompt);
 

@@ -537,17 +537,26 @@ async function main(): Promise<void> {
   // ----------------------------------------------------------------
 
   // Look up RAs for estimate linking (from rate-analysis-data.ts via seed above)
+  const raExcavation = await prisma.rateAnalysis.findFirstOrThrow({
+    where: { companyId: company.id, name: 'Excavation in Ordinary Soil' },
+  });
   const raPccM15 = await prisma.rateAnalysis.findFirstOrThrow({
     where: { companyId: company.id, name: 'PCC M15 (1:2:4)' },
   });
   const raRccM30 = await prisma.rateAnalysis.findFirstOrThrow({
     where: { companyId: company.id, name: 'RCC M30' },
   });
+  const raWmm = await prisma.rateAnalysis.findFirstOrThrow({
+    where: { companyId: company.id, name: 'WMM Layer 250mm' },
+  });
+  const raDbm = await prisma.rateAnalysis.findFirstOrThrow({
+    where: { companyId: company.id, name: 'DBM 75mm (Dense Bituminous Macadam)' },
+  });
   const raDistemper = await prisma.rateAnalysis.findFirstOrThrow({
     where: { companyId: company.id, name: 'Distemper Painting (2 Coats)' },
   });
 
-  // ── Estimate: 3 sections, 8+ items, 3 RA-linked ──────────────
+  // ── Estimate: 3 sections, 9 items, 6 RA-linked ──────────────
   // Section totals: 2,216,000 (earthwork) + 3,750,000 (pavement) + 380,000 (finishing)
   // Grand total: 6,346,000
   const estimate1 = await prisma.estimate.create({
@@ -574,14 +583,14 @@ async function main(): Promise<void> {
     data: { estimateId: estimate1.id, name: 'Finishing & Signage', orderIndex: 3 },
   });
 
-  // Section 1: Earthwork & Substructure (4 items, 2 RA-linked)
+  // Section 1: Earthwork & Substructure (4 items, 3 RA-linked)
   const estItemEarthwork = await prisma.estimateItem.create({
     data: {
       estimateId: estimate1.id, sectionId: estSec1.id, itemCode: 'O-001',
       description: 'Earthwork excavation in ordinary soil',
       unit: 'cum', quantity: 5000, rate: 145, amount: 725_000,
       type: CostType.MATERIAL,
-      // Earthwork has no direct catalog resource - leave resourceId null (was wrongly cement before)
+      rateAnalysisId: raExcavation.id, // RA-linked (was missing)
     },
   });
 
@@ -615,7 +624,7 @@ async function main(): Promise<void> {
     },
   });
 
-  // Section 2: Pavement & Drainage (3 items, 1 RA-linked, 1 SUBCONTRACTOR)
+  // Section 2: Pavement & Drainage (3 items, 2 RA-linked, 1 SUBCONTRACTOR)
   const estItemWmm = await prisma.estimateItem.create({
     data: {
       estimateId: estimate1.id, sectionId: estSec2.id, itemCode: 'O-010',
@@ -623,6 +632,7 @@ async function main(): Promise<void> {
       unit: 'cum', quantity: 2000, rate: 1200, amount: 2_400_000,
       type: CostType.MATERIAL,
       resourceId: resources['WMM (Wet Mix Macadam)'].id,
+      rateAnalysisId: raWmm.id, // RA-linked (was missing)
     },
   });
 
@@ -633,6 +643,7 @@ async function main(): Promise<void> {
       unit: 'sqm', quantity: 15000, rate: 650, amount: 975_000,
       type: CostType.MATERIAL,
       resourceId: resources['DBM Mix Material (per ton)'].id,
+      rateAnalysisId: raDbm.id, // RA-linked (was missing; closest template RA)
     },
   });
 

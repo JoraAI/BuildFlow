@@ -117,7 +117,7 @@ export async function extractInvoiceDraft(
       };
     }
   } else {
-    text = await extractText(input.fileContent, input.contentType);
+    text = await extractText(input.fileContent, input.contentType, input.filename);
     if (!text.trim()) {
       return {
         draft: null,

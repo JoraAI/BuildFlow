@@ -44,11 +44,70 @@ const mockLlmResponse = JSON.stringify({
   }),
 });
 
-import { extractTenderItems } from '../../services/tender-extract.service';
+import { extractTenderItems, tokenSimilarity } from '../../services/tender-extract.service';
+import { prisma } from '../../lib/prisma';
 
 const COMPANY = '00000000-0000-0000-0000-000000000001';
 
 describe('tender-extract service', () => {
+  it('tokenSimilarity scores different wording for the same work', () => {
+    expect(
+      tokenSimilarity(
+        'Earthwork excavation in ordinary soil',
+        'Excavation in Ordinary Soil',
+      ),
+    ).toBeGreaterThan(0.5);
+    expect(tokenSimilarity('RCC M30 slab', 'RCC M30')).toBeGreaterThan(0.4);
+    expect(tokenSimilarity('Cement bags', 'Granite flooring')).toBeLessThan(0.2);
+  });
+
+  it('fuzzy-matches catalog when LLM leaves match fields null', async () => {
+    (prisma.resource.findMany as jest.Mock).mockResolvedValueOnce([
+      { id: '11111111-1111-1111-1111-111111111111', name: 'OPC 53 Grade Cement', rate: 380 },
+    ]);
+    (prisma.rateAnalysis.findMany as jest.Mock).mockResolvedValueOnce([
+      { id: '22222222-2222-2222-2222-222222222222', name: 'RCC M25', totalRate: 7500 },
+    ]);
+
+    (globalThis.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                items: [
+                  {
+                    description: 'Providing and laying RCC M25 for footing',
+                    unit: 'cum',
+                    quantity: 10,
+                    rate: 0,
+                    type: 'MISC',
+                    matchedRateAnalysisName: null,
+                    matchedResourceName: null,
+                  },
+                ],
+              }),
+            },
+          },
+        ],
+      }),
+    });
+
+    const result = await extractTenderItems(COMPANY, {
+      fileContent: Buffer.from('RCC M25 footing 10 cum', 'utf8').toString('base64'),
+      filename: 't.txt',
+      contentType: 'text/plain',
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]!.rateAnalysisId).toBe('22222222-2222-2222-2222-222222222222');
+    expect(result.items[0]!.matchKind).toBe('RATE_ANALYSIS');
+    expect(result.items[0]!.matchLabel).toBe('RCC M25');
+    expect(result.items[0]!.suggestedAction).toMatch(/LINKED|REVIEW/);
+    // Zero tender rate adopts library rate
+    expect(result.items[0]!.rate).toBe(7500);
+  });
   it('extracts and normalizes items from a plain-text "tender"', async () => {
     const fileContent = Buffer.from(
       'BOQ:\nOPC 53 Cement 500 bags @350\nRCC M25 footing 120 cum @7800',
@@ -73,8 +132,10 @@ describe('tender-extract service', () => {
     expect(result.items[1]!.description).toBe('RCC M25 footing');
     expect(result.items[1]!.amount).toBe(120 * 7800);
 
-    // Notes pass through from the LLM
+    // Notes from LLM plus auto match summary
     expect(result.notes).toContain('Two valid items');
+    expect(result.notes).toContain('Confirm before finalizing');
+    expect(result.items[0]!.suggestedAction).toBe('CREATE');
     expect(result.sourceTextLength).toBeGreaterThan(0);
   });
 

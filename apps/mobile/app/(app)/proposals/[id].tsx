@@ -1,7 +1,7 @@
 /**
  * BuildFlow - Proposal detail with estimate workspace + post-approve actions.
  */
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, ScrollView, RefreshControl, Pressable } from 'react-native';
 import { useMutation } from '@tanstack/react-query';
 import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
@@ -30,14 +30,20 @@ import {
   useUpdateProposal,
   useImportTender,
   type TenderImportResult,
+  type TenderExtractedItem,
 } from '@/services/proposal.queries';
-import { useProjectEstimates, useCreateEstimate, type EstimateListRow } from '@/services/estimate.queries';
+import { useProjectEstimates, type EstimateListRow } from '@/services/estimate.queries';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import * as DocumentPicker from 'expo-document-picker';
 import { Buffer as MobileBuffer } from 'buffer';
 import { useAuthStore } from '@/stores/auth.store';
 import { PROPOSAL_STATUS_META, ProposalStatus } from '@buildflow/shared';
 import { formatINR, formatDate } from '@/utils/format';
+import { TenderReviewPanel } from '@/components/proposals/TenderReviewPanel';
+import {
+  getPendingTenderReview,
+  clearPendingTenderReview,
+} from '@/services/tender-review.store';
 
 type Tab = 'estimate' | 'summary';
 
@@ -396,34 +402,51 @@ function EstimateSection({
   const router = useRouter();
   const fromProposal = `&fromProposal=${proposalId}`;
   const importMut = useImportTender(proposalId);
-  const createEst = useCreateEstimate(projectId);
-  const [tenderResult, setTenderResult] = useState<TenderImportResult | null>(null);
+  const [tenderResult, setTenderResult] = useState<TenderImportResult | null>(() => {
+    const pending = getPendingTenderReview(proposalId);
+    if (!pending) return null;
+    return {
+      items: pending.items,
+      notes: pending.notes,
+      sourceTextLength: pending.sourceTextLength,
+      fileUrl: pending.fileUrl ?? '',
+    };
+  });
 
-  // Create an estimate from the extracted tender items, then add all items.
+  useEffect(() => {
+    const pending = getPendingTenderReview(proposalId);
+    if (pending && !tenderResult) {
+      setTenderResult({
+        items: pending.items,
+        notes: pending.notes,
+        sourceTextLength: pending.sourceTextLength,
+        fileUrl: pending.fileUrl ?? '',
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proposalId]);
+
   const createEstimateFromTender = useMutation({
-    mutationFn: async () => {
-      if (!tenderResult || tenderResult.items.length === 0) throw new Error('No tender items');
-      // 1. Create the estimate
-      const estName = `Tender Import (${tenderResult.items.length} items)`;
+    mutationFn: async (items: TenderExtractedItem[]) => {
+      if (items.length === 0) throw new Error('No tender items selected');
+      const estName = `Tender Import (${items.length} items)`;
       const est = await apiFetch<{ id: string }>(`/projects/${projectId}/estimates`, {
         method: 'POST',
         body: JSON.stringify({ name: estName }),
       });
-      // 2. Group items by section
-      const sectionMap = new Map<string, typeof tenderResult.items>();
-      for (const item of tenderResult.items) {
+      const sectionMap = new Map<string, TenderExtractedItem[]>();
+      for (const item of items) {
         const sec = item.section || 'General';
         if (!sectionMap.has(sec)) sectionMap.set(sec, []);
         sectionMap.get(sec)!.push(item);
       }
-      // 3. Create sections + items
       let secIdx = 0;
-      for (const [secName, items] of sectionMap) {
+      for (const [secName, secItems] of sectionMap) {
         const section = await apiFetch<{ id: string }>(`/estimates/${est.id}/sections`, {
           method: 'POST',
           body: JSON.stringify({ name: secName, orderIndex: secIdx++ }),
         });
-        for (const item of items) {
+        for (const item of secItems) {
           await apiFetch<{ id: string }>(`/estimates/${est.id}/sections/${section.id}/items`, {
             method: 'POST',
             body: JSON.stringify({
@@ -442,21 +465,23 @@ function EstimateSection({
     },
     onSuccess: (est: { id: string }) => {
       setTenderResult(null);
-      router.push(`/(app)/estimation/${est.id}`);
+      clearPendingTenderReview(proposalId);
+      onRetry();
+      router.push(`/(app)/estimation/${est.id}?fromProposal=${proposalId}`);
     },
     onError: (e: Error) => {
       void alertAsync('Failed', e.message);
     },
   });
 
-  function handleCreateEstimateFromTender() {
-    createEstimateFromTender.mutate();
-  }
-
   async function handleImportTender() {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'],
+        type: [
+          'application/pdf',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-excel',
+        ],
         copyToCacheDirectory: true,
       });
       if (result.canceled || !result.assets?.[0]) return;
@@ -472,16 +497,34 @@ function EstimateSection({
       });
       setTenderResult(res);
       if (res.items.length === 0) {
-        await alertAsync('No items extracted', res.notes ?? 'Try a different file or add items manually.');
+        await alertAsync(
+          'No items extracted',
+          res.notes ?? 'Try a different file or add items manually.',
+        );
       }
     } catch (e) {
       await alertAsync('Import failed', e instanceof Error ? e.message : 'Unknown error');
     }
   }
 
-  if (isLoading) return <LoadingSkeleton className="h-48 rounded-xl" />;
+  function discardTenderReview() {
+    setTenderResult(null);
+    clearPendingTenderReview(proposalId);
+  }
 
-  if (isError) {
+  const reviewPanel =
+    tenderResult && tenderResult.items.length > 0 ? (
+      <TenderReviewPanel
+        result={tenderResult}
+        loading={createEstimateFromTender.isPending}
+        onConfirm={(items) => createEstimateFromTender.mutate(items)}
+        onDiscard={discardTenderReview}
+      />
+    ) : null;
+
+  if (isLoading && !reviewPanel) return <LoadingSkeleton className="h-48 rounded-xl" />;
+
+  if (isError && !reviewPanel) {
     return (
       <EmptyState
         title="Couldn't load estimates"
@@ -490,82 +533,65 @@ function EstimateSection({
     );
   }
 
+  const actions =
+    canManage ? (
+      <View className="flex-row gap-2 flex-wrap">
+        <Button
+          label="New Estimate"
+          size="sm"
+          onPress={() =>
+            router.push(createEstimateHref({ projectId, fromProposal: proposalId }))
+          }
+        />
+        <Button
+          label="Import Tender"
+          size="sm"
+          variant="secondary"
+          loading={importMut.isPending}
+          onPress={() => void handleImportTender()}
+        />
+        {estimates.length >= 2 && (
+          <Button
+            label="Compare Versions"
+            variant="secondary"
+            size="sm"
+            onPress={() =>
+              router.push(`/(app)/estimation/compare?projectId=${projectId}${fromProposal}`)
+            }
+          />
+        )}
+      </View>
+    ) : null;
+
   if (estimates.length === 0) {
     return (
-      <EmptyState
-        title="No estimates yet"
-        description="Build your cost estimate for this proposal."
-        action={
-          canManage ? (
-            <Button
-              label="New Estimate"
-              onPress={() =>
-                router.push(
-                  createEstimateHref({ projectId, fromProposal: proposalId }),
-                )
-              }
-            />
-          ) : undefined
-        }
-      />
+      <View className="gap-3">
+        {actions}
+        {reviewPanel}
+        {!reviewPanel && (
+          <EmptyState
+            title="No estimates yet"
+            description="Import a client tender for AI extraction (review before finalize), or build an estimate manually."
+            action={
+              canManage ? (
+                <Button
+                  label="New Estimate"
+                  onPress={() =>
+                    router.push(createEstimateHref({ projectId, fromProposal: proposalId }))
+                  }
+                />
+              ) : undefined
+            }
+          />
+        )}
+      </View>
     );
   }
 
   return (
     <View className="gap-3">
-      {canManage && (
-        <View className="flex-row gap-2 flex-wrap">
-          <Button
-            label="New Estimate"
-            size="sm"
-            onPress={() =>
-              router.push(createEstimateHref({ projectId, fromProposal: proposalId }))
-            }
-          />
-          {estimates.length >= 2 && (
-            <Button
-              label="Compare Versions"
-              variant="secondary"
-              size="sm"
-              onPress={() =>
-                router.push(`/(app)/estimation/compare?projectId=${projectId}${fromProposal}`)
-              }
-            />
-          )}
-        </View>
-      )}
-
-      {tenderResult && tenderResult.items.length > 0 && (
-        <Card>
-          <View className="flex-row justify-between items-center mb-1">
-            <Text className="text-sm font-bold text-text">Extracted Items ({tenderResult.items.length})</Text>
-            <Button
-              label="Create Estimate →"
-              size="sm"
-              loading={createEstimateFromTender.isPending}
-              onPress={handleCreateEstimateFromTender}
-            />
-          </View>
-          {tenderResult.notes && (
-            <Text className="text-xs text-text-muted mb-2">{tenderResult.notes}</Text>
-          )}
-          <Text className="text-xs text-text-muted mb-1">
-            Tap "Create Estimate" to auto-create an estimate with all items grouped by section.
-          </Text>
-          {tenderResult.items.map((item, idx) => (
-            <View key={idx} className="flex-row justify-between border-t border-border py-1.5">
-              <View className="flex-1 pr-2">
-                <Text className="text-sm text-text" numberOfLines={2}>{item.description}</Text>
-                <Text className="text-xs text-text-muted">
-                  {item.quantity} {item.unit} @ {formatINR(item.rate)}
-                  {item.section ? ` · ${item.section}` : ''}
-                </Text>
-              </View>
-              <Text className="text-sm font-semibold text-text">{formatINR(item.amount ?? item.quantity * item.rate)}</Text>
-            </View>
-          ))}
-        </Card>
-      )}
+      {actions}
+      {reviewPanel}
       {estimates.map((e: EstimateListRow) => (
         <Card
           key={e.id}
@@ -581,11 +607,16 @@ function EstimateSection({
               </Text>
               <Text className="text-xs text-text-muted">{formatDate(e.createdAt)}</Text>
             </View>
-            <Badge color={(ESTIMATE_STATUS_COLOR[e.status] ?? 'neutral') as 'neutral'} label={e.status} />
+            <Badge
+              color={(ESTIMATE_STATUS_COLOR[e.status] ?? 'neutral') as 'neutral'}
+              label={e.status}
+            />
           </View>
           <View className="flex-row justify-between items-center pt-2 mt-1 border-t border-border">
             <Text className="text-xs text-text-muted">Grand Total</Text>
-            <Text className="text-base font-bold text-primary">{formatINR(Number(e.grandTotal))}</Text>
+            <Text className="text-base font-bold text-primary">
+              {formatINR(Number(e.grandTotal))}
+            </Text>
           </View>
         </Card>
       ))}
