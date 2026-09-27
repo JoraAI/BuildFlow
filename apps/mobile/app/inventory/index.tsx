@@ -11,11 +11,10 @@ import {
   FlatList,
   RefreshControl,
   Pressable,
-  ScrollView,
   type ViewStyle,
 } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { Card, Badge, Button, EmptyState, LoadingSkeleton, Input, Select, toast, BusyOverlay } from '@/components/ui';
+import { Badge, Button, EmptyState, LoadingSkeleton, Input, Select, toast, BusyOverlay } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
 import { useRouter } from 'expo-router';
@@ -28,7 +27,12 @@ import DashboardCards, { KiranaKpiCards } from '@/components/inventory/Dashboard
 import AnomalyStrip from '@/components/inventory/AnomalyStrip';
 import { BarcodeScannerOverlay } from '@/components/inventory/BarcodeScannerOverlay';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
+import { InventoryPageHeader } from '@/components/inventory/InventoryPageHeader';
+import { StockHero, formatHeroMoney } from '@/components/inventory/StockHero';
+import { StockRow } from '@/components/inventory/StockRow';
 import { mobileListBottomPadding } from '@/components/layout/fab-layout';
+import { useInventoryDashboard } from '@/services/inventory-analytics.queries';
+import { useExpirySummary } from '@/services/expansion.queries';
 import {
   useStockSummary,
   useIssueStock,
@@ -265,6 +269,32 @@ export default function InventoryStockScreen() {
         ? translate('inventory.items', 'Items')
         : itemPluralLabel;
 
+  const { data: dashboard } = useInventoryDashboard();
+  const { data: expiry } = useExpirySummary();
+  const [overviewOpen, setOverviewOpen] = useState(false);
+
+  const warehouseName =
+    warehouses?.find((w) => w.id === selectedLocationId)?.name ??
+    (multiWarehouseEnabled
+      ? translate('inventory.stock.allStores', 'All stores')
+      : translate('inventory.stock.oneStore', '1 store'));
+
+  const heroPrimaryLabel = kiranaVertical
+    ? translate('inventory.stock.counterSalesToday', 'Counter sales today')
+    : translate('inventory.stock.inventoryValue', 'Inventory value');
+  const heroPrimaryValue = kiranaVertical
+    ? formatHeroMoney(dashboard?.salesToday)
+    : formatHeroMoney(dashboard?.inventoryValue);
+
+  const attentionParts: string[] = [];
+  if ((dashboard?.lowStockCount ?? 0) > 0) {
+    attentionParts.push(`${dashboard!.lowStockCount} low stock`);
+  }
+  if (kiranaVertical && expiry && expiry['0_30'] > 0) {
+    attentionParts.push(`${Math.round(expiry['0_30'])} expiring soon`);
+  }
+  const attentionLabel = attentionParts.length ? attentionParts.join(' · ') : null;
+
   const onRefresh = () => {
     void refetch();
   };
@@ -286,62 +316,48 @@ export default function InventoryStockScreen() {
     </View>
   ) : null;
 
-  const totalsStrip = isPhone ? (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
-      {(
-        [
-          { label: localizedItemsLabel, value: String(totals.items), tone: 'text-primary' },
-          { label: translate('inventory.stock.onHand', 'On hand'), value: String(totals.onHand), tone: 'text-primary' },
-          { label: translate('inventory.stock.received', 'Received'), value: String(totals.received), tone: 'text-success' },
-          { label: translate('inventory.stock.issued', 'Issued'), value: String(totals.issued), tone: 'text-danger' },
-        ] as const
-      ).map((c) => (
-        <Card key={c.label} className="p-3 w-[112px]">
-          <Text className="text-[10px] text-muted" numberOfLines={1}>{c.label}</Text>
-          <Text className={`text-lg font-bold mt-0.5 ${c.tone}`}>{c.value}</Text>
-        </Card>
-      ))}
-    </ScrollView>
-  ) : (
-    <View className={`flex-row gap-3 ${isDesktop ? '' : 'flex-wrap'}`}>
-      <Card className="flex-1 min-w-[140px] p-4">
-        <Text className="text-xs text-muted">{localizedItemsLabel}</Text>
-        <Text className="text-2xl font-bold text-primary">{totals.items}</Text>
-      </Card>
-      <Card className="flex-1 min-w-[140px] p-4">
-        <Text className="text-xs text-muted">{translate('inventory.stock.onHand', 'On hand')}</Text>
-        <Text className="text-2xl font-bold text-primary">{totals.onHand}</Text>
-      </Card>
-      <Card className="flex-1 min-w-[140px] p-4">
-        <Text className="text-xs text-muted">{translate('inventory.stock.received', 'Received')}</Text>
-        <Text className="text-2xl font-bold text-success">{totals.received}</Text>
-      </Card>
-      <Card className="flex-1 min-w-[140px] p-4">
-        <Text className="text-xs text-muted">{translate('inventory.stock.issued', 'Issued')}</Text>
-        <Text className="text-2xl font-bold text-danger">{totals.issued}</Text>
-      </Card>
-    </View>
-  );
-
   const listHeader = (
     <View className="pb-2">
       {isPhone ? filtersBlock : null}
 
-      <View className={isPhone ? 'mb-2' : undefined}>{totalsStrip}</View>
-
-      <View className="mt-2">
-        <Text className="text-xs font-semibold text-muted mb-2 uppercase tracking-wide">
-          {kiranaVertical
-            ? translate('inventory.stock.storeOverview', 'Store overview')
-            : translate('inventory.stock.executiveOverview', 'Executive overview')}
-        </Text>
-        {kiranaVertical ? <KiranaKpiCards /> : <DashboardCards />}
-      </View>
+      <StockHero
+        companyName={user?.companyName}
+        warehouseLabel={warehouseName}
+        primaryLabel={heroPrimaryLabel}
+        primaryValue={heroPrimaryValue}
+        supportLeft={{
+          label: localizedItemsLabel,
+          value: String(totals.items),
+        }}
+        supportRight={{
+          label: translate('inventory.stock.onHand', 'On hand'),
+          value: String(totals.onHand),
+        }}
+        attentionLabel={attentionLabel}
+        onAttentionPress={attentionLabel ? () => setOverviewOpen(true) : undefined}
+      />
 
       <AnomalyStrip />
 
+      <Pressable
+        onPress={() => setOverviewOpen((v) => !v)}
+        className="mb-2 flex-row items-center justify-between py-1"
+      >
+        <Text className="text-xs font-semibold text-muted uppercase tracking-wide">
+          {overviewOpen
+            ? translate('inventory.stock.hideOverview', 'Hide overview')
+            : translate('inventory.stock.showOverview', 'Show overview')}
+        </Text>
+        <Text className="text-xs font-bold text-primary">{overviewOpen ? '−' : '+'}</Text>
+      </Pressable>
+      {overviewOpen ? (
+        <View className="mb-3">
+          {kiranaVertical ? <KiranaKpiCards /> : <DashboardCards />}
+        </View>
+      ) : null}
+
       {isDesktop && filteredSummary.length > 0 ? (
-        <View className="flex-row items-center py-2 bg-surface border-b border-border mt-3">
+        <View className="flex-row items-center py-2 bg-surface border-b border-border mt-1">
           <Text style={STOCK_COL.name} className="text-[11px] font-bold text-muted uppercase">Name</Text>
           <Text style={STOCK_COL.balance} className="text-[11px] font-bold text-muted uppercase text-right">Balance</Text>
           <Text style={STOCK_COL.money} className="text-[11px] font-bold text-muted uppercase text-right">Cost</Text>
@@ -352,7 +368,7 @@ export default function InventoryStockScreen() {
         </View>
       ) : null}
 
-      <Text className="text-sm font-bold text-text mt-3 mb-2">
+      <Text className="text-sm font-bold text-text mt-2 mb-1">
         {translate('inventory.stock.summary', 'Stock summary')}
       </Text>
     </View>
@@ -366,71 +382,41 @@ export default function InventoryStockScreen() {
         subtitle="Please wait until stock and the sale refresh. Do not tap again."
       />
 
-      <View
-        className={`px-4 pt-3 pb-2 shrink-0 ${
-          isDesktop ? 'flex-row items-center justify-between gap-4' : 'gap-2'
-        }`}
-      >
-        <View className={isDesktop ? 'flex-1 min-w-0' : 'flex-row items-center justify-between gap-2'}>
-          <View className="min-w-0 flex-1">
-            <Text className={`font-bold text-text ${isPhone ? 'text-xl' : 'text-2xl'}`}>
-              {translate('inventory.stock.title', 'Stock')}
-            </Text>
-            {!isPhone ? (
-              <Text className="text-sm text-muted mt-0.5" numberOfLines={1}>
-                {user?.companyName}
-                {multiWarehouseEnabled
-                  ? ` · ${warehouses?.find((w) => w.id === selectedLocationId)?.name ?? translate('inventory.stock.allStores', 'All stores')}`
-                  : ` · ${translate('inventory.stock.oneStore', '1 store')}`}
-              </Text>
-            ) : null}
-          </View>
-          {isPhone ? (
-            <Button
-              label={checkoutLabel}
-              accessibilityLabel={posCheckoutEnabled ? 'Open counter checkout' : 'Open bulk issue'}
-              variant="accent"
-              size="sm"
-              disabled={buffering || !hasIssuableStock}
-              onPress={() => {
-                setIssueInitialResourceId(null);
-                setIssueOpen(true);
-              }}
-            />
-          ) : null}
+      <InventoryPageHeader
+        title={translate('inventory.stock.title', 'Stock')}
+        subtitle={
+          isPhone
+            ? undefined
+            : [
+                user?.companyName,
+                multiWarehouseEnabled
+                  ? warehouses?.find((w) => w.id === selectedLocationId)?.name ??
+                    translate('inventory.stock.allStores', 'All stores')
+                  : translate('inventory.stock.oneStore', '1 store'),
+              ]
+                .filter(Boolean)
+                .join(' · ')
+        }
+        primaryLabel={checkoutLabel}
+        primaryDisabled={buffering || !hasIssuableStock}
+        onPrimary={() => {
+          setIssueInitialResourceId(null);
+          setIssueOpen(true);
+        }}
+        secondaryLabel={isPhone ? undefined : localizedItemsLabel}
+        onSecondary={isPhone ? undefined : () => router.push('/inventory/materials' as never)}
+      />
+      {!isPhone && stockAdjustEnabled ? (
+        <View className="px-4 pb-1 shrink-0 flex-row justify-end">
+          <Button
+            label={translate('inventory.stock.importOpening', 'Import opening stock')}
+            variant="secondary"
+            size="sm"
+            disabled={buffering}
+            onPress={() => setOpeningOpen(true)}
+          />
         </View>
-        {!isPhone ? (
-          <View className={`flex-row items-center gap-2 ${isDesktop ? '' : 'flex-wrap'}`}>
-            <Button
-              label={localizedItemsLabel}
-              variant="secondary"
-              size="sm"
-              disabled={buffering}
-              onPress={() => router.push('/inventory/materials' as never)}
-            />
-            <Button
-              label={checkoutLabel}
-              accessibilityLabel={posCheckoutEnabled ? 'Open counter checkout' : 'Open bulk issue'}
-              variant="accent"
-              size="sm"
-              disabled={buffering || !hasIssuableStock}
-              onPress={() => {
-                setIssueInitialResourceId(null);
-                setIssueOpen(true);
-              }}
-            />
-            {stockAdjustEnabled ? (
-              <Button
-                label={translate('inventory.stock.importOpening', 'Import opening stock')}
-                variant="secondary"
-                size="sm"
-                disabled={buffering}
-                onPress={() => setOpeningOpen(true)}
-              />
-            ) : null}
-          </View>
-        ) : null}
-      </View>
+      ) : null}
 
       {!isPhone && multiWarehouseEnabled ? (
         <View className="px-4 pb-3 shrink-0">{filtersBlock}</View>
@@ -566,61 +552,33 @@ export default function InventoryStockScreen() {
               );
             }
             return (
-              <Pressable
+              <StockRow
+                name={item.name}
+                unit={item.unit}
+                balance={item.balance}
+                sellRate={Number(item.catalogRate) || 0}
+                sku={item.sku}
+                isLowStock={isLowStock}
+                reorderPoint={item.reorderPoint}
+                primaryLabel={
+                  posCheckoutEnabled
+                    ? translate('inventory.stock.checkoutRow', 'Checkout')
+                    : translate('inventory.stock.issue', 'Issue')
+                }
                 disabled={buffering}
-                onPress={() => router.push(inventoryStockItemHref(item.resourceId, selectedLocationId) as never)}
-                className="py-3 border-b border-border/50"
-              >
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-1 min-w-0 mr-2">
-                    <Text className="text-sm font-semibold text-text" numberOfLines={1}>
-                      {item.name}
-                    </Text>
-                    <View className="flex-row items-center gap-1.5 mt-0.5 flex-wrap">
-                      <Text className="text-[11px] text-muted">
-                        On hand {item.balance} {item.unit} · Sell ₹{Number(item.catalogRate).toFixed(2)}
-                      </Text>
-                      {item.sku ? (
-                        <Text className="text-[11px] text-muted">{item.sku}</Text>
-                      ) : null}
-                      {item.costPrice != null && Number(item.costPrice) > 0 ? (
-                        <Text className="text-[11px] text-muted">· Cost ₹{Number(item.costPrice).toFixed(2)}</Text>
-                      ) : null}
-                      {Number(item.unitCost) > 0 ? (
-                        <Text className="text-[11px] text-muted">· WAC ₹{Number(item.unitCost).toFixed(2)}</Text>
-                      ) : null}
-                      {isLowStock ? (
-                        <Badge color="danger" label={`Low (reorder ${Number(item.reorderPoint)})`} />
-                      ) : null}
-                    </View>
-                  </View>
-                  <View className="flex-row items-center gap-2">
-                    <View className="items-end min-w-[44px]">
-                      <Text className="text-[10px] text-muted">On hand</Text>
-                      <Text className="text-sm font-bold text-primary">{item.balance}</Text>
-                    </View>
-                    <Button
-                      label={posCheckoutEnabled ? translate('inventory.stock.checkoutRow', 'Checkout') : translate('inventory.stock.issue', 'Issue')}
-                      size="sm"
-                      variant="accent"
-                      disabled={buffering || Number(item.balance) <= 0}
-                      onPress={() => {
-                        setIssueInitialResourceId(item.resourceId);
-                        setIssueOpen(true);
-                      }}
-                    />
-                    {stockAdjustEnabled ? (
-                      <Button
-                        label={translate('inventory.stock.adjust', 'Adjust')}
-                        size="sm"
-                        variant="secondary"
-                        disabled={buffering}
-                        onPress={() => setAdjustRow(item)}
-                      />
-                    ) : null}
-                  </View>
-                </View>
-              </Pressable>
+                onPress={() =>
+                  router.push(inventoryStockItemHref(item.resourceId, selectedLocationId) as never)
+                }
+                onPrimary={() => {
+                  setIssueInitialResourceId(item.resourceId);
+                  setIssueOpen(true);
+                }}
+                onAdjust={
+                  stockAdjustEnabled
+                    ? () => setAdjustRow(item)
+                    : undefined
+                }
+              />
             );
           }}
           ListEmptyComponent={

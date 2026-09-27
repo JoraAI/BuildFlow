@@ -1,13 +1,9 @@
 /**
- * BuildFlow - Anomaly hints strip (INVENTORY_HORIZONTAL_PLATFORM Phase 7.3).
- *
- * Rules-first checks surfaced on the Stock home (not a chatbot): unusual PO rate
- * vs WAC/last-buy, large stock-count variance, overdue invoice aging.
+ * BuildFlow - Anomaly hints (compact inline banner).
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { Card, LoadingSkeleton } from '@/components/ui';
-import { useViewport } from '@/hooks/useViewport';
 import { useInventoryAnomalies, type AnomalyHint } from '@/services/inventory-ai.queries';
 import { useRouter } from 'expo-router';
 
@@ -18,47 +14,63 @@ const SEVERITY_TONE: Record<string, string> = {
 };
 
 export default function AnomalyStrip() {
-  const { isDesktop } = useViewport();
   const router = useRouter();
   const { data, isLoading } = useInventoryAnomalies();
+  const [expanded, setExpanded] = useState(false);
 
   if (isLoading) {
     return (
-      <View className="mt-3">
-        <LoadingSkeleton className="rounded-xl h-14" />
+      <View className="mb-2">
+        <LoadingSkeleton className="rounded-xl h-11" />
       </View>
     );
   }
-  const hints: AnomalyHint[] = (data ?? []).slice(0, 4);
+  const hints: AnomalyHint[] = data ?? [];
   if (hints.length === 0) return null;
 
+  const top = hints[0];
+
   return (
-    <View className="mt-3">
-      <Text className="text-xs font-semibold text-muted mb-2 uppercase tracking-wide">Anomaly hints</Text>
-      <View className={`gap-2 ${isDesktop ? 'flex-row flex-wrap' : 'flex-col'}`}>
-        {hints.map((h, i) => (
-          <Pressable
-            key={`${h.type}-${h.referenceId ?? h.title}-${i}`}
-            className={isDesktop ? 'flex-1 min-w-[220px]' : undefined}
-            onPress={() => {
-              // OVERDUE_INVOICE hints can jump straight to the invoices list.
-              if (h.type === 'OVERDUE_INVOICE') router.push('/inventory/invoices');
-            }}
-            disabled={h.type !== 'OVERDUE_INVOICE'}
-          >
-            <Card className="p-3">
-              <View className="flex-row items-center gap-2 flex-wrap">
-                <Text className="text-xs font-bold uppercase tracking-wide text-muted">{h.type.replace('_', ' ')}</Text>
-                <Text className={`text-xs font-semibold ${SEVERITY_TONE[h.severity] ?? 'text-muted'}`}>
-                  {h.severity.toUpperCase()}
-                </Text>
-              </View>
-              <Text className="text-sm font-semibold text-text mt-1">{h.title}</Text>
-              <Text className="text-xs text-muted mt-0.5">{h.detail}</Text>
-            </Card>
-          </Pressable>
-        ))}
-      </View>
+    <View className="mb-2">
+      <Pressable onPress={() => setExpanded((v) => !v)}>
+        <Card className="px-3 py-2.5 flex-row items-center gap-2 border-warning/30 bg-warning/5">
+          <View className="flex-1 min-w-0">
+            <Text className="text-xs font-bold text-warning">
+              {hints.length} need{hints.length === 1 ? 's' : ''} attention
+            </Text>
+            <Text className="text-[11px] text-muted mt-0.5" numberOfLines={1}>
+              {top.title}
+            </Text>
+          </View>
+          <Text className="text-xs font-bold text-primary">{expanded ? 'Hide' : 'Review'}</Text>
+        </Card>
+      </Pressable>
+      {expanded ? (
+        <View className="mt-2 gap-2">
+          {hints.slice(0, 4).map((h, i) => (
+            <Pressable
+              key={`${h.type}-${h.referenceId ?? h.title}-${i}`}
+              onPress={() => {
+                if (h.type === 'OVERDUE_INVOICE') router.push('/inventory/invoices');
+              }}
+              disabled={h.type !== 'OVERDUE_INVOICE'}
+            >
+              <Card className="p-3">
+                <View className="flex-row items-center gap-2 flex-wrap">
+                  <Text className="text-[10px] font-bold uppercase tracking-wide text-muted">
+                    {h.type.replace('_', ' ')}
+                  </Text>
+                  <Text className={`text-[10px] font-semibold ${SEVERITY_TONE[h.severity] ?? 'text-muted'}`}>
+                    {h.severity.toUpperCase()}
+                  </Text>
+                </View>
+                <Text className="text-sm font-semibold text-text mt-1">{h.title}</Text>
+                <Text className="text-xs text-muted mt-0.5">{h.detail}</Text>
+              </Card>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
