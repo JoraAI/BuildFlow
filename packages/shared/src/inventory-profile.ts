@@ -35,37 +35,26 @@ export const INVENTORY_PROFILE_VALUES: readonly InventoryBusinessProfile[] = [
 ];
 
 /**
- * INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.1): vertical / catalog template.
- * K1 - KIRANA is a VERTICAL (starter catalog), NOT another business profile.
- * Set once on Company by applyCatalogTemplate; null elsewhere.
+ * Shop vertical - capability lane shared across store types (grocery, medical,
+ * pharmacy, hardware, etc.), NOT a single brand of shop.
+ *
+ * GENERAL  → product library + batch/expiry (FEFO) for everyday retail goods
+ * EVENTS   → event / lighting quotation wording
  */
 export const InventoryVertical = {
-  KIRANA: 'KIRANA',
-  PHARMACY: 'PHARMACY',
-  ELECTRONICS: 'ELECTRONICS',
-  STATIONERY: 'STATIONERY',
-  HARDWARE: 'HARDWARE',
-  /** Lighting / event accessories (quotes, staging warehouses, returns). */
-  LIGHTING: 'LIGHTING',
+  GENERAL: 'GENERAL',
+  EVENTS: 'EVENTS',
 } as const;
 export type InventoryVertical = (typeof InventoryVertical)[keyof typeof InventoryVertical];
 
 export const INVENTORY_VERTICAL_VALUES: readonly InventoryVertical[] = [
-  InventoryVertical.KIRANA,
-  InventoryVertical.PHARMACY,
-  InventoryVertical.ELECTRONICS,
-  InventoryVertical.STATIONERY,
-  InventoryVertical.HARDWARE,
-  InventoryVertical.LIGHTING,
+  InventoryVertical.GENERAL,
+  InventoryVertical.EVENTS,
 ];
 
 export const INVENTORY_VERTICAL_LABELS: Record<InventoryVertical, string> = {
-  KIRANA: 'Kirana (retail / wholesale grocery)',
-  PHARMACY: 'Pharmacy / medical store',
-  ELECTRONICS: 'Electronics store',
-  STATIONERY: 'Stationery / office supplies',
-  HARDWARE: 'Hardware store',
-  LIGHTING: 'Lighting & event accessories',
+  GENERAL: 'General retail (grocery, medical, pharmacy, hardware, …)',
+  EVENTS: 'Events & lighting',
 };
 
 /** Human-readable labels for the Settings profile picker. */

@@ -2,7 +2,7 @@
 
 > **Audience:** Deepseek-V4-Flash (coding agent)  
 > **Repo:** `/home/prasanna/work/BuildFlow`  
-> **Product:** **BuildFlow Inventory** only - RETAIL / WHOLESALE shops with a **Kirana** vertical starter catalog.  
+> **Product:** **BuildFlow Inventory** only - RETAIL / WHOLESALE shops with a **shop vertical** starter catalog.  
 > **Sibling product:** **BuildFlow Construction ERP** - do **not** change Draft → Submit → Approve, daily-report issue, or construction catalogs.  
 > **Pricing (locked):** Inventory **₹499/mo**, **₹4,990/yr** ex-GST - do not regress.  
 > **Prior work:** [`INVENTORY_HORIZONTAL_PLATFORM.md`](./INVENTORY_HORIZONTAL_PLATFORM.md) Phases 0–10 complete; [`INVENTORY_UX_POLISH.md`](./INVENTORY_UX_POLISH.md) D1–D10 complete.  
@@ -10,12 +10,25 @@
 
 ---
 
+## Current vertical names (post-standardization)
+
+Historical text below still says `KIRANA` / early placeholders. **Live enum is:**
+
+| Enum | Label | Behaviour |
+|------|--------|-----------|
+| `GENERAL` | General retail (grocery, medical, pharmacy, hardware, …) | Product library + batch/expiry (FEFO). Replaces legacy `KIRANA` (+ former classification-only verticals). |
+| `EVENTS` | Events & lighting | Event-quote wording. Replaces legacy `LIGHTING`. |
+
+Migration: `apps/backend/prisma/migrations/20260927113000_standardize_inventory_verticals/`. Catalog apply / `batch_expiry` / POS gates require `inventoryVertical === GENERAL`. See also [`INVENTORY_TYPES_GUIDE.md`](./INVENTORY_TYPES_GUIDE.md) (returns + verticals).
+
+---
+
 ## 0. Locked product decisions (do not reopen)
 
 | # | Decision |
 |---|----------|
-| K1 | Keep `InventoryBusinessProfile` as `RETAIL` or `WHOLESALE` (etc.). Add a separate **vertical** (`KIRANA` first). Do **not** add `KIRANA` as another `InventoryBusinessProfile`. |
-| K2 | **Kirana pack is Kirana-only.** Eligible only when `subscriptionPlan === INVENTORY` **and** `inventoryVertical === KIRANA`. RETAIL/WHOLESALE may *become* Kirana via an OWNER vertical picker; MATERIAL_SUPPLIER / DISTRIBUTION / TRADING / EQUIPMENT / GENERAL (and construction) never see Apply/Add-missing. Do **not** offer the pack to every RETAIL/WHOLESALE shop (hardware, stationery, etc.). |
+| K1 | Keep `InventoryBusinessProfile` as `RETAIL` or `WHOLESALE` (etc.). Add a separate **vertical** (`GENERAL` first; historically `KIRANA`). Do **not** add the vertical as another `InventoryBusinessProfile`. |
+| K2 | **Product library / FEFO pack is GENERAL-only.** Eligible only when `subscriptionPlan === INVENTORY` **and** `inventoryVertical === GENERAL`. RETAIL/WHOLESALE may opt in via OWNER vertical picker; other profiles and construction never see Apply/Add-missing. |
 | K3 | Starter catalog is **copied once** into the company `Resource` table (tenant-owned). OWNER/INVENTORY_MANAGER can edit, deactivate, search, import, and add items after that. |
 | K4 | Re-apply / “add missing Kirana items” is **insert-missing-only**. Never overwrite tenant-edited name, rate, costPrice, GST, HSN, barcode, or reorder fields. |
 | K5 | Template seeds **generic pack-size variants** (staples, snacks, biscuits, confectionery, beverages, dairy/daily-use, personal care, cleaning, household). Do **not** seed opening qty, volatile MRP/sale price as truth, or guessed barcodes. Mark GST/HSN as suggested; allow review before/after apply. |

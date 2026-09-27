@@ -65,13 +65,13 @@ export function getInventoryLabelMode(profile?: string | null): InventoryLabelMo
 
 /**
  * Event / lighting quotation UX (Quotes tab, WhatsApp share, return scan).
- * Used by EQUIPMENT dealers and the LIGHTING shop vertical (e.g. Lumina demo).
+ * Used by EQUIPMENT dealers and the EVENTS shop vertical (e.g. Lumina demo).
  */
 export function usesEventLightingCopy(
   profile?: string | null,
   vertical?: string | null,
 ): boolean {
-  return profile === 'EQUIPMENT' || vertical === 'LIGHTING';
+  return profile === 'EQUIPMENT' || vertical === 'EVENTS';
 }
 
 /** Plural of the indent label for section titles ("Indents" / "Purchase requests"). */

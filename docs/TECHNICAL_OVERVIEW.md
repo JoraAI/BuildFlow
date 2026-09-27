@@ -785,7 +785,7 @@ Login: main app `/login` → construction dashboard / projects.
 
 Password **`Test@1234`**. Login → **`/inventory`**.
 
-| Profile | Company | Owner email |
+| Profile / vertical | Company | Owner email |
 |---------|---------|-------------|
 | MATERIAL_SUPPLIER (rich: 2 warehouses, parties, price override) | Hyderabad Building Materials | `owner@hydmaterials.com` |
 | (manager) | same | `manager@hydmaterials.com` |
@@ -794,9 +794,12 @@ Password **`Test@1234`**. Login → **`/inventory`**.
 | DISTRIBUTION | South Distro Spares | `owner@southdistro.com` |
 | TRADING | Apex Trading Co | `owner@apextrading.com` |
 | EQUIPMENT | Forge Equipment Dealers | `owner@forgeequip.com` |
-| GENERAL | General Goods Store | `owner@generalstore.com` |
+| GENERAL (profile) | General Goods Store | `owner@generalstore.com` |
+| RETAIL + vertical **GENERAL** (library + FEFO) | Shri Ganesh Kirana & General Store | `owner@kirana-demo.com` |
+| WHOLESALE + vertical **EVENTS** | Lumina Lighting & Event Electricals | `owner@luminalighting.com` |
+| (manager) | same | `manager@luminalighting.com` |
 
-Rich materials demo also seeds SKUs, reorder points, customer/vendor, and opening stock across Main Store + Branch - Uppal.
+Rich materials demo also seeds SKUs, reorder points, customer/vendor, and opening stock across Main Store + Branch - Uppal. Full list: [`DEMO_CREDENTIALS.txt`](./DEMO_CREDENTIALS.txt).
 
 #### Platform admin
 

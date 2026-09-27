@@ -2,6 +2,8 @@
 
 All seven inventory types run on the **same** stock, purchase, and sales engines. The profile you pick in **Settings** describes the kind of business you are. It changes labels and demo data. It does **not** change status names or lock you out of Issue, Sales, or Procurement.
 
+**Shop vertical** (separate from profile) is an optional capability lane for RETAIL / WHOLESALE shops — see below.
+
 **Demo password** (all seeded users): `Test@1234`
 
 ---
@@ -166,8 +168,20 @@ Create count, enter counted qty, **Approve** to write ADJUST movements. **Cancel
 ### Returns and notes
 `Return recorded → Draft credit / debit note → ISSUED`
 
-- Sales return (from a customer invoice) restores good stock and opens a draft credit note
-- Purchase return (to a vendor) reduces stock and opens a draft debit note
+#### How sales returns are checked (items out → brought back)
+
+Returns are **not** free restocks. The system verifies against what was actually sold:
+
+1. **Identify** the item (barcode, SKU, item code, or name) via `POST /inventory/transactions/returns/validate-scan` (Sales → Returns or quick return scan).
+2. **Match dispatches** on **SENT / PAID / OVERDUE** invoices that include that item (optionally scoped to one invoice or customer).
+3. **Cap quantity:** `maxReturnable = qty invoiced − qty already on DRAFT/ISSUED returns` for that item. You cannot return more than was sold.
+4. **Condition per line:**
+   - **GOOD** → restock into the chosen warehouse (batch-tracked items try to restore the original lot when the invoice has a linked stock movement).
+   - **DAMAGED** → no stock put-back; still included on the credit note.
+5. **Approve** (Owner) moves the return to **ISSUED**, restocks GOOD lines, and issues the credit note.
+
+Purchase returns (to a vendor) reduce stock and open a draft debit note.
+
 - Note statuses: **DRAFT → ISSUED**, or **VOID**
 
 ### Stock movements (item history screen)
@@ -192,6 +206,12 @@ Create count, enter counted qty, **Approve** to write ADJUST movements. **Cancel
 | General | Items | Either | Mixed / starting point |
 
 ### Company settings that are not “types” but change behaviour
+- **Shop vertical** (RETAIL / WHOLESALE OWNER only) — capability lane, not a shop brand:
+  | Vertical | Who it fits | What it unlocks |
+  |---|---|---|
+  | **GENERAL** | Grocery, medical, pharmacy, hardware, and similar | Suggested product library + batch/expiry (FEFO) |
+  | **EVENTS** | Events & lighting | Event-quote wording |
+  | **None** | Any | Own item list only |
 - **Credit limit policy:** ALLOW (no check), WARN (toast, still creates invoice), BLOCK (reject if over limit)
 - **PO auto-approve** below ₹X; owner must approve above ₹Y
 - **Customer price lists** override catalog rate on Issue and on sales orders

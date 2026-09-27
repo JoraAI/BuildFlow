@@ -62,7 +62,7 @@ export async function assertInventoryFeature(
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2, K10): batch/expiry surfaces
   // are Kirana-VERTICAL-only - a RETAIL/WHOLESALE profile without the KIRANA
   // vertical (hardware retail, stationery wholesale) must not see them.
-  if (flag === 'batch_expiry' && company.inventoryVertical !== 'KIRANA') {
+  if (flag === 'batch_expiry' && company.inventoryVertical !== 'GENERAL') {
     throw new ApiError(
       'FORBIDDEN',
       'Batch/expiry tracking is available only to Kirana-vertical tenants (Settings → Shop vertical).',

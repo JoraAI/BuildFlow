@@ -63,8 +63,8 @@ The external “horizontal inventory platform” prompt is **directionally corre
 | ~~**Scan ops / commercial polish**~~ | ✅ Phase 8 - image OCR, barcode camera, batch lite, billed margins, notifications |
 | ~~**Dealer GTM polish**~~ | ✅ Phase 9 - price lists, Quote→SO, printable PDFs, payment reminders |
 | ~~**Production hardening (optional)**~~ | ✅ Phase 10 - API smoke + 2 mobile bug fixes + expo-camera iOS permission config; live-device smoke still in §31.4 |
-| **Kirana retail/wholesale vertical** | ✅ 11.1–11.7 in [`INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md`](./INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md); operator device smoke remaining |
-| **Batch expiry + FEFO** | ✅ Phase 11.2 |
+| **Shop verticals (`GENERAL` / `EVENTS`)** | ✅ Catalog + FEFO on `GENERAL`; event-quote copy on `EVENTS` — [`INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md`](./INVENTORY_KIRANA_RETAIL_WHOLESALE_PLAN.md) (see current vertical names) + [`INVENTORY_TYPES_GUIDE.md`](./INVENTORY_TYPES_GUIDE.md); operator device smoke remaining |
+| **Batch expiry + FEFO** | ✅ Phase 11.2 (`GENERAL` vertical) |
 | **POS-style counter cart + sales tables** | ✅ Phase 11.3–11.4; 11.6 full-screen checkout tables |
 
 ### 1.3 Construction isolation (non-negotiable)

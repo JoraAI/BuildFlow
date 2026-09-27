@@ -218,9 +218,9 @@ Company: **Reddy Constructions Pvt Ltd** - password **`Test@1234`** for all:
 
 ### Inventory tenants (`/` → Login → `/inventory`)
 
-Password **`Test@1234`** for all. One demo company per business profile:
+Password **`Test@1234`** for all. One demo company per business profile (+ vertical demos):
 
-| Profile | Owner email |
+| Profile / vertical | Owner email |
 |---------|-------------|
 | MATERIAL_SUPPLIER (rich) | `owner@hydmaterials.com` (+ `manager@hydmaterials.com`) |
 | RETAIL | `owner@cityhardware.com` |
@@ -228,7 +228,11 @@ Password **`Test@1234`** for all. One demo company per business profile:
 | DISTRIBUTION | `owner@southdistro.com` |
 | TRADING | `owner@apextrading.com` |
 | EQUIPMENT | `owner@forgeequip.com` |
-| GENERAL | `owner@generalstore.com` |
+| GENERAL (profile) | `owner@generalstore.com` |
+| RETAIL + vertical GENERAL (library + FEFO) | `owner@kirana-demo.com` |
+| WHOLESALE + vertical EVENTS | `owner@luminalighting.com` (+ `manager@luminalighting.com`) |
+
+Full copy-paste list: [`DEMO_CREDENTIALS.txt`](./DEMO_CREDENTIALS.txt).
 
 ### Platform admin (`/platform/login`)
 

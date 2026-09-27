@@ -35,6 +35,8 @@ Each line item has: description, unit, quantity, rate, **amount** (= quantity ×
 - **SUBCONTRACTOR**
 - **MISC**
 
+**Procurement link (catalog material or rate analysis)** is shown only for **MATERIAL** lines. That link drives BOQ / indent explosion. Labour, equipment, subcontractor, and misc lines are cost-only and do not offer the link picker.
+
 Items can optionally link to a **Resource** from **Settings → Material Prices** so GST rates apply correctly on the summary.
 
 ---

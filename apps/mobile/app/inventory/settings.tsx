@@ -127,7 +127,7 @@ export default function InventorySettingsScreen() {
     });
   };
 
-  /** OWNER vertical picker; only Kirana currently unlocks a catalog. */
+  /** OWNER vertical picker; GENERAL unlocks product library + batch/expiry. */
   const saveVertical = async () => {
     await run(async () => {
       try {
@@ -135,8 +135,8 @@ export default function InventorySettingsScreen() {
         await setInventoryVertical.mutateAsync(next);
         await refreshUser();
         toast.success(
-          next === 'KIRANA'
-            ? 'Kirana vertical enabled - SKU library unlocked'
+          next === 'GENERAL'
+            ? 'General retail enabled — product library unlocked'
             : next
               ? `${INVENTORY_VERTICAL_LABELS[next as keyof typeof INVENTORY_VERTICAL_LABELS]} saved`
               : 'Shop vertical cleared',
@@ -267,17 +267,16 @@ export default function InventorySettingsScreen() {
             </View>
           ) : null}
         </Card>
-        {/* Shop vertical - OWNER-only and RETAIL/WHOLESALE-only. Kirana currently
-            unlocks a starter catalog; other verticals are classification-only. */}
+        {/* Shop vertical — OWNER + RETAIL/WHOLESALE. GENERAL = library+FEFO; EVENTS = quote copy. */}
         {user?.role === 'OWNER' &&
         kiranaEnabled &&
         (company?.inventoryProfile === 'RETAIL' || company?.inventoryProfile === 'WHOLESALE') ? (
           <Card className="p-5 mb-4">
             <Text className="text-base font-bold text-text mb-1">Shop vertical</Text>
             <Text className="text-xs text-muted mb-3">
-              What kind of shop do you run? Kirana includes a suggested product library. Lighting
-              & event accessories unlocks event-quote wording. Other verticals use your own item
-              list and do not add catalog products.
+              General retail fits grocery, medical, pharmacy, hardware and similar shops — product
+              library plus batch/expiry tracking. Events & lighting unlocks event-quote wording.
+              Leave as None to manage your own item list.
             </Text>
             <Select
               label="Vertical"
@@ -303,11 +302,11 @@ export default function InventorySettingsScreen() {
           </Card>
         ) : null}
         {/* Phase 11.5: selective SKU library replaces copying the full pack. */}
-        {kiranaEnabled && company?.inventoryVertical === 'KIRANA' ? (
+        {kiranaEnabled && company?.inventoryVertical === 'GENERAL' ? (
           <Card className="p-5 mb-4">
-            <Text className="text-base font-bold text-text mb-1">Kirana products</Text>
+            <Text className="text-base font-bold text-text mb-1">Product library</Text>
             <Text className="text-xs text-muted mb-3">
-              Items is your shop’s master list. Add from suggested Indian products or create your
+              Items is your shop’s master list. Add from suggested products or create your
               own item, then receive quantities separately from vendors.
             </Text>
             <Button label="Open items" variant="accent" size="sm" onPress={() => router.push('/inventory/materials' as never)} />

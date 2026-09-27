@@ -2645,24 +2645,24 @@ describe('INVENTORY_PRODUCT (integration)', () => {
       const clear = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical: null });
       expect(clear.status).toBe(200);
 
-      const prev = await authGet(invToken, '/api/inventory/catalog/preview?template=KIRANA');
+      const prev = await authGet(invToken, '/api/inventory/catalog/preview?template=GENERAL');
       expect(prev.status).toBe(200);
       expect(prev.body.data.eligible).toBe(false);
       expect(prev.body.data.ineligibilityReason).toMatch(/vertical/i);
       expect(prev.body.data.totalItems).toBeGreaterThanOrEqual(100);
       expect(prev.body.data.categories.length).toBeGreaterThanOrEqual(6);
 
-      const apply = await authPost(invToken, '/api/inventory/catalog/apply', { template: 'KIRANA' });
+      const apply = await authPost(invToken, '/api/inventory/catalog/apply', { template: 'GENERAL' });
       expect(apply.status).toBe(422);
       expect(apply.body.error?.message ?? apply.body.message).toMatch(/vertical/i);
     });
 
     it('OWNER opts into the KIRANA vertical (RETAIL), previews, applies, stamps vertical', async () => {
-      const setV = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical: 'KIRANA' });
+      const setV = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical: 'GENERAL' });
       expect(setV.status).toBe(200);
-      expect(setV.body.data.inventoryVertical).toBe('KIRANA');
+      expect(setV.body.data.inventoryVertical).toBe('GENERAL');
 
-      const prev = await authGet(invToken, '/api/inventory/catalog/preview?template=KIRANA');
+      const prev = await authGet(invToken, '/api/inventory/catalog/preview?template=GENERAL');
       expect(prev.status).toBe(200);
       expect(prev.body.data.eligible).toBe(true);
       expect(prev.body.data.alreadyApplied).toBe(0);
@@ -2670,15 +2670,15 @@ describe('INVENTORY_PRODUCT (integration)', () => {
       kiranaTotalItems = totalItems;
       expect(totalItems).toBeGreaterThanOrEqual(100);
 
-      const apply = await authPost(invToken, '/api/inventory/catalog/apply', { template: 'KIRANA' });
+      const apply = await authPost(invToken, '/api/inventory/catalog/apply', { template: 'GENERAL' });
       expect(apply.status).toBe(200);
       expect(apply.body.data.created).toBe(totalItems);
       expect(apply.body.data.skipped).toBe(0);
-      expect(apply.body.data.inventoryVertical).toBe('KIRANA');
+      expect(apply.body.data.inventoryVertical).toBe('GENERAL');
       expect(apply.body.data.catalogSeededAt).toBeTruthy();
 
       const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId } });
-      expect(company.inventoryVertical).toBe('KIRANA');
+      expect(company.inventoryVertical).toBe('GENERAL');
       expect(company.catalogSeededAt).toBeTruthy();
 
       // K4: templated rows carry itemCode but NO price / barcode.
@@ -2692,7 +2692,7 @@ describe('INVENTORY_PRODUCT (integration)', () => {
 
       // Settings payload surfaces the vertical (inventory-only).
       const settings = await authGet(invToken, '/api/settings/company');
-      expect(settings.body.data.inventoryVertical).toBe('KIRANA');
+      expect(settings.body.data.inventoryVertical).toBe('GENERAL');
       expect(settings.body.data.catalogSeededAt).toBeTruthy();
     });
 
@@ -2705,7 +2705,7 @@ describe('INVENTORY_PRODUCT (integration)', () => {
         data: { rate: 45.5, gstRate: 12, category: 'Racks - Staples' },
       });
 
-      const apply = await authPost(invToken, '/api/inventory/catalog/apply', { template: 'KIRANA' });
+      const apply = await authPost(invToken, '/api/inventory/catalog/apply', { template: 'GENERAL' });
       expect(apply.status).toBe(200);
       expect(apply.body.data.created).toBe(0);
       expect(apply.body.data.restored).toBe(0);
@@ -2723,7 +2723,7 @@ describe('INVENTORY_PRODUCT (integration)', () => {
       });
       await prisma.resource.update({ where: { id: target.id }, data: { isDeleted: true } });
 
-      const apply = await authPost(invToken, '/api/inventory/catalog/apply', { template: 'KIRANA' });
+      const apply = await authPost(invToken, '/api/inventory/catalog/apply', { template: 'GENERAL' });
       expect(apply.status).toBe(200);
       // Soft-deleted template rows are RESTORED (Resource unique companyId/name/type
       // prevents re-inserting a duplicate), so created stays 0 and restored is 1.
@@ -2760,46 +2760,45 @@ describe('INVENTORY_PRODUCT (integration)', () => {
       // WHOLESALE is just as eligible as RETAIL to opt into the vertical.
       const toWs = await authPut(invToken, '/api/settings/company', { inventoryProfile: 'WHOLESALE' });
       expect(toWs.status).toBe(200);
-      const wsSet = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical: 'KIRANA' });
+      const wsSet = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical: 'GENERAL' });
       expect(wsSet.status).toBe(200);
-      expect(wsSet.body.data.inventoryVertical).toBe('KIRANA');
+      expect(wsSet.body.data.inventoryVertical).toBe('GENERAL');
       // Back to RETAIL so the later apply assertions keep exercising RETAIL.
       const back = await authPut(invToken, '/api/settings/company', { inventoryProfile: 'RETAIL' });
       expect(back.status).toBe(200);
 
-      // These verticals classify the shop only. They do not expose a catalog
-      // template until a maintained pack is added for that vertical.
-      for (const vertical of ['PHARMACY', 'ELECTRONICS', 'STATIONERY', 'HARDWARE', 'LIGHTING']) {
+      // LIGHTING is quote-copy only (no starter catalog template).
+      for (const vertical of ['EVENTS']) {
         const set = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical });
         expect(set.status).toBe(200);
         expect(set.body.data.inventoryVertical).toBe(vertical);
       }
-      const noHardwarePack = await authPost(invToken, '/api/inventory/catalog/apply', {
-        template: 'HARDWARE',
+      const noLightingPack = await authPost(invToken, '/api/inventory/catalog/apply', {
+        template: 'EVENTS',
       });
-      expect(noHardwarePack.status).toBe(422);
+      expect(noLightingPack.status).toBe(422);
 
       // Restore Kirana for the batch/expiry tests that follow this section.
-      const restore = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical: 'KIRANA' });
+      const restore = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical: 'GENERAL' });
       expect(restore.status).toBe(200);
 
       // Manager (non-OWNER) is denied the vertical picker.
       const managerToken = await loginAs('manager@hydmaterials.com');
       expect(
-        (await authPut(managerToken, '/api/inventory/catalog/vertical', { vertical: 'KIRANA' })).status,
+        (await authPut(managerToken, '/api/inventory/catalog/vertical', { vertical: 'GENERAL' })).status,
       ).toBe(403);
 
       // Real MATERIAL_SUPPLIER tenant cannot opt into KIRANA (profile gate, K2).
       const supplierToken = await loginAs('owner@hydmaterials.com');
       const supplierSet = await authPut(supplierToken, '/api/inventory/catalog/vertical', {
-        vertical: 'KIRANA',
+        vertical: 'GENERAL',
       });
       expect(supplierSet.status).toBe(422);
       expect(supplierSet.body.error?.message ?? supplierSet.body.message).toMatch(/RETAIL \/ WHOLESALE/i);
 
       // And the supplier can never apply the pack (vertical gate).
       const supplierApply = await authPost(supplierToken, '/api/inventory/catalog/apply', {
-        template: 'KIRANA',
+        template: 'GENERAL',
       });
       expect(supplierApply.status).toBe(422);
       expect(supplierApply.body.error?.message ?? supplierApply.body.message).toMatch(/vertical/i);
@@ -2808,23 +2807,23 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     it('non-OWNER roles cannot preview/apply (403)', async () => {
       const managerToken = await loginAs('manager@hydmaterials.com');
       expect(
-        (await authGet(managerToken, '/api/inventory/catalog/preview?template=KIRANA')).status,
+        (await authGet(managerToken, '/api/inventory/catalog/preview?template=GENERAL')).status,
       ).toBe(403);
       expect(
-        (await authPost(managerToken, '/api/inventory/catalog/apply', { template: 'KIRANA' })).status,
+        (await authPost(managerToken, '/api/inventory/catalog/apply', { template: 'GENERAL' })).status,
       ).toBe(403);
     });
 
     it('construction tenants are feature-gated out of the catalog routes (403)', async () => {
       const constToken = await loginAs(CONSTRUCTION_OWNER);
       expect(
-        (await authGet(constToken, '/api/inventory/catalog/preview?template=KIRANA')).status,
+        (await authGet(constToken, '/api/inventory/catalog/preview?template=GENERAL')).status,
       ).toBe(403);
       expect(
-        (await authPost(constToken, '/api/inventory/catalog/apply', { template: 'KIRANA' })).status,
+        (await authPost(constToken, '/api/inventory/catalog/apply', { template: 'GENERAL' })).status,
       ).toBe(403);
       expect(
-        (await authPut(constToken, '/api/inventory/catalog/vertical', { vertical: 'KIRANA' })).status,
+        (await authPut(constToken, '/api/inventory/catalog/vertical', { vertical: 'GENERAL' })).status,
       ).toBe(403);
     });
   });

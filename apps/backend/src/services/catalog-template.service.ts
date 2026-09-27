@@ -31,9 +31,9 @@ interface TemplateDef {
   version: string;
 }
 
-/** Only Kirana currently has a catalog; other verticals classify the shop only. */
+/** GENERAL has the starter product library; EVENTS is quote-copy only. */
 const TEMPLATES: Partial<Record<InventoryVertical, TemplateDef>> = {
-  [InventoryVertical.KIRANA]: {
+  [InventoryVertical.GENERAL]: {
     items: KIRANA_TEMPLATE,
     version: KIRANA_TEMPLATE_VERSION,
   },
@@ -41,9 +41,8 @@ const TEMPLATES: Partial<Record<InventoryVertical, TemplateDef>> = {
 
 /**
  * K2 (11.1.5b): which business profiles may OPT INTO a vertical via the OWNER
- * picker. This is the only place the profile matters - once `inventoryVertical`
- * is set, preview/apply are gated on the vertical alone (hardware retail /
- * stationery wholesale without the KIRANA vertical never see the pack).
+ * picker. Once `inventoryVertical` is set, preview/apply are gated on the
+ * vertical alone (RETAIL/WHOLESALE without GENERAL never see the pack).
  */
 const VERTICAL_OPT_IN_PROFILES: readonly InventoryBusinessProfile[] = [
   InventoryBusinessProfile.RETAIL,
@@ -90,7 +89,7 @@ export async function listCatalogLibrary(
   input: { search?: string; category?: string; page: number; limit: number },
 ) {
   const company = await loadCompanyMeta(companyId);
-  const reason = eligibilityReason(company, InventoryVertical.KIRANA);
+  const reason = eligibilityReason(company, InventoryVertical.GENERAL);
   if (reason) throw ApiError.forbidden(reason);
 
   const q = input.search?.trim().toLowerCase();
@@ -154,7 +153,7 @@ export async function importCatalogItems(
   input: { items: SelectedCatalogMasterItem[] },
 ) {
   const company = await loadCompanyMeta(companyId);
-  const reason = eligibilityReason(company, InventoryVertical.KIRANA);
+  const reason = eligibilityReason(company, InventoryVertical.GENERAL);
   if (reason) throw ApiError.forbidden(reason);
   const templateByKey = new Map(KIRANA_TEMPLATE.map((item) => [item.templateKey, item]));
 
@@ -266,7 +265,7 @@ export async function importSelectedCatalogStock(
   input: { items: SelectedCatalogStockItem[]; locationId?: string },
 ) {
   const company = await loadCompanyMeta(companyId);
-  const reason = eligibilityReason(company, InventoryVertical.KIRANA);
+  const reason = eligibilityReason(company, InventoryVertical.GENERAL);
   if (reason) throw ApiError.forbidden(reason);
   const projectId = await getDefaultProjectId(companyId);
   if (!projectId) throw ApiError.forbidden('No inventory store is configured.');
@@ -608,8 +607,8 @@ export async function applyCatalogTemplate(
 /**
  * OWNER-only selection of a shop vertical.
  *
- * Only RETAIL / WHOLESALE profiles may enable a vertical. Kirana additionally
- * unlocks its starter catalog; other verticals are classification-only for now.
+ * Only RETAIL / WHOLESALE profiles may enable a vertical. GENERAL unlocks the
+ * starter product library; EVENTS unlocks event-quote wording.
  *
  * Clearing the vertical (null) hides the pack but keeps the copied rows - they
  * are tenant-owned once applied (K3); re-opt-in shows them as already applied.

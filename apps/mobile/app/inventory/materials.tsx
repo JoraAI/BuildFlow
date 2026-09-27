@@ -73,7 +73,7 @@ export default function InventoryMaterialsScreen() {
   const updateResource = useUpdateResource(editing?.id ?? '');
   const deleteResource = useDeleteResource();
 
-  const isKirana = user?.inventoryVertical === 'KIRANA';
+  const isKirana = user?.inventoryVertical === 'GENERAL';
   const { data: stock } = useStockSummary(user?.defaultProjectId ?? '');
 
   const materials = (data?.data ?? []).filter((r: Resource) => r.type === 'MATERIAL' || !r.type);

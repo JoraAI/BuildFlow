@@ -59,9 +59,9 @@ describe('KIRANA_BATCH_EXPIRY (Phase 11.2) - batch / expiry / FEFO', () => {
     // Opt into the KIRANA vertical (RETAIL profile first) and apply the pack.
     const profile = await authPut(invToken, '/api/settings/company', { inventoryProfile: 'RETAIL' });
     expect(profile.status).toBe(200);
-    const vert = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical: 'KIRANA' });
+    const vert = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical: 'GENERAL' });
     expect(vert.status).toBe(200);
-    const apply = await authPost(invToken, '/api/inventory/catalog/apply', { template: 'KIRANA' });
+    const apply = await authPost(invToken, '/api/inventory/catalog/apply', { template: 'GENERAL' });
     expect(apply.status).toBe(200);
     expect(apply.body.data.created).toBeGreaterThanOrEqual(100);
 

@@ -4,7 +4,7 @@
  * Creates:
  *  - Construction: "Reddy Constructions Pvt Ltd" + 9 users (all roles) + NH-45 lifecycle
  *  - Inventory demos (all business profiles) - password Test@1234:
- *      LIGHTING vertical   owner@luminalighting.com (WHOLESALE + event quotes)
+ *      EVENTS vertical    owner@luminalighting.com (WHOLESALE + event quotes)
  *      MATERIAL_SUPPLIER  owner@hydmaterials.com   (rich demo: parties, 2 warehouses, SKUs)
  *      RETAIL             owner@cityhardware.com
  *      WHOLESALE          owner@deccanwholesale.com
@@ -12,7 +12,7 @@
  *      TRADING            owner@apextrading.com
  *      EQUIPMENT          owner@forgeequip.com
  *      GENERAL            owner@generalstore.com
- *      KIRANA vertical    owner@kirana-demo.com   (RETAIL + selected stocked SKUs)
+ *      GENERAL vertical   owner@kirana-demo.com   (RETAIL + product library / FEFO)
  *  - Platform admin: admin@buildflow.com
  *
  * Catalog data (catalog-data.ts) and rate analyses (rate-analysis-data.ts) are
@@ -1365,7 +1365,7 @@ async function main(): Promise<void> {
 
     const seededCustomers: Array<{ id: string; name: string }> = [];
     if (opts.rich) {
-      const lightingDemo = opts.vertical === InventoryVertical.LIGHTING;
+      const lightingDemo = opts.vertical === InventoryVertical.EVENTS;
 
       const customerSpecs = lightingDemo
         ? [
@@ -1661,7 +1661,7 @@ async function main(): Promise<void> {
         inventoryProfile: InventoryBusinessProfile.RETAIL,
         // K2 (11.1.5b): the pack is Kirana-VERTICAL-only - opt the demo tenant in
         // explicitly (same state the OWNER Settings picker would set).
-        inventoryVertical: InventoryVertical.KIRANA,
+        inventoryVertical: InventoryVertical.GENERAL,
         trialStartsAt: new Date(Date.now() - 7 * 86_400_000),
         trialEndsAt: new Date(Date.now() + 358 * 86_400_000),
         lastPaymentAt: new Date(),
@@ -1937,7 +1937,7 @@ async function main(): Promise<void> {
   await seedInventoryTenant({
     companyName: 'Lumina Lighting & Event Electricals',
     profile: InventoryBusinessProfile.WHOLESALE,
-    vertical: InventoryVertical.LIGHTING,
+    vertical: InventoryVertical.EVENTS,
     gstin: '36AABCL9999L1Z8',
     pan: 'AABCL9999L',
     state: 'Telangana',
@@ -2206,7 +2206,7 @@ async function main(): Promise<void> {
   // eslint-disable-next-line no-console
   console.log('── Inventory demos - password', PASSWORD);
   // eslint-disable-next-line no-console
-  console.log('   owner@luminalighting.com (LIGHTING vertical · WHOLESALE, multi-warehouse + event quotes) → /inventory');
+  console.log('   owner@luminalighting.com (EVENTS vertical · WHOLESALE, multi-warehouse + event quotes) → /inventory');
   // eslint-disable-next-line no-console
   console.log('   manager@luminalighting.com (INVENTORY_MANAGER)');
   // eslint-disable-next-line no-console
@@ -2224,9 +2224,9 @@ async function main(): Promise<void> {
   // eslint-disable-next-line no-console
   console.log('   owner@forgeequip.com (EQUIPMENT)');
   // eslint-disable-next-line no-console
-  console.log('   owner@generalstore.com (GENERAL)');
+  console.log('   owner@generalstore.com (GENERAL profile)');
   // eslint-disable-next-line no-console
-  console.log('   owner@kirana-demo.com (KIRANA vertical - RETAIL + Phase 11.1 starter pack)');
+  console.log('   owner@kirana-demo.com (GENERAL vertical - RETAIL + product library / FEFO)');
   // eslint-disable-next-line no-console
   console.log('── Platform console (/platform/login)');
   // eslint-disable-next-line no-console

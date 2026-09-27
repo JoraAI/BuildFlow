@@ -86,7 +86,7 @@ export default function InventoryStockScreen() {
     'pos_checkout',
   );
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4): Kirana-vertical KPI row.
-  const kiranaVertical = user?.inventoryVertical === 'KIRANA';
+  const kiranaVertical = user?.inventoryVertical === 'GENERAL';
   const { data: warehouses }: { data?: Warehouse[] } = useWarehouses();
   const [selectedLocationId, setSelectedLocationId] = useState<string | undefined>(undefined);
   useEffect(() => {

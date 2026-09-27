@@ -54,10 +54,10 @@ describe('POS Barcode Scan-and-Return & Approval Workflow', () => {
     companyId = res.body.data.user.companyId as string;
     projectId = res.body.data.user.defaultProjectId as string;
 
-    // Set WHOLESALE inventory profile & ELECTRONICS/HARDWARE vertical
+    // Set WHOLESALE inventory profile & EVENTS vertical
     await authPut(token, '/api/settings/company', {
       inventoryProfile: 'WHOLESALE',
-      inventoryVertical: 'ELECTRONICS',
+      inventoryVertical: 'EVENTS',
     });
 
     // Create a Lighting Fixture material with barcode & SKU

@@ -44,7 +44,7 @@ async function assertTrackingModeAllowed(companyId: string, trackingMode?: strin
     where: { id: companyId },
     select: { subscriptionPlan: true, inventoryVertical: true },
   });
-  if (company?.subscriptionPlan !== 'INVENTORY' || company?.inventoryVertical !== 'KIRANA') {
+  if (company?.subscriptionPlan !== 'INVENTORY' || company?.inventoryVertical !== 'GENERAL') {
     throw ApiError.unprocessable(
       'Batch/expiry tracking (BATCH_EXPIRY) is available only to Kirana-vertical inventory tenants (Settings → Shop vertical).',
     );

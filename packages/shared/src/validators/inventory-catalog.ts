@@ -2,23 +2,19 @@
  * BuildFlow - Kirana vertical catalog validators
  * (INVENTORY_KIRANA_RETAIL_WHOLESALE Phase 11.1).
  *
- * K1 - `InventoryVertical` (KIRANA) is a catalog template, NOT a business
+ * K1 - `InventoryVertical` (`GENERAL`) is a catalog capability lane, NOT a business
  * profile. Apply is insert-missing-only (K3) and OWNER-gated.
  */
 import { z } from 'zod';
 import { InventoryVertical } from '../inventory-profile';
 
 export const inventoryVerticalSchema = z.enum([
-  InventoryVertical.KIRANA,
-  InventoryVertical.PHARMACY,
-  InventoryVertical.ELECTRONICS,
-  InventoryVertical.STATIONERY,
-  InventoryVertical.HARDWARE,
-  InventoryVertical.LIGHTING,
+  InventoryVertical.GENERAL,
+  InventoryVertical.EVENTS,
 ] as const);
 
-/** Kirana is currently the only vertical with a maintained starter catalog. */
-export const catalogTemplateSchema = z.enum([InventoryVertical.KIRANA] as const);
+/** GENERAL is the only vertical with a maintained starter product library. */
+export const catalogTemplateSchema = z.enum([InventoryVertical.GENERAL] as const);
 
 export const catalogApplySchema = z.object({
   template: catalogTemplateSchema,

@@ -194,7 +194,7 @@ Operator: typing in stock search was covered by the bottom tab bar; Scan/Find we
 | Counter / walk-in **Issue** and Kirana **Checkout** | Phone checkout must feel like a **POS**: browse/add fast, then edit cart - not a cramped half-sheet. |
 | Multi-warehouse, SO→challan, parties, Tally | Do **not** redesign those modules this pass; only polish phone patterns that already exist (cards, sticky CTAs). |
 | Inventory from ₹499/mo | **Do not change pricing** (locked ₹499/mo in plans). |
-| Profiles change **labels**, not engines | Keep `getInventoryLabel` / vertical gates; Kirana-only checkout improvements stay behind `pos_checkout` + `KIRANA`. |
+| Profiles change **labels**, not engines | Keep `getInventoryLabel` / vertical gates; GENERAL-vertical checkout improvements stay behind `pos_checkout` + `GENERAL`. |
 
 **Root cause (repo):** `apps/mobile/components/inventory/CheckoutCart.tsx` phone branch (~L440–472):
 
