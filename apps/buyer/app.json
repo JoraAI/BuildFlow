@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "BuildFlow Buyer",
+    "slug": "buildflow-buyer",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "buildflow-buyer",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "com.buildflow.buyer",
+      "versionCode": 1
+    },
+    "ios": {
+      "bundleIdentifier": "com.buildflow.buyer"
+    },
+    "plugins": ["expo-router", "expo-secure-store"],
+    "extra": {
+      "eas": {
+        "projectId": "replace-with-eas-project-id"
+      },
+      "apiUrl": "http://localhost:4000/api"
+    }
+  }
+}

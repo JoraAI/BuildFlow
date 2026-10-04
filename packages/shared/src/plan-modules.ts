@@ -120,7 +120,11 @@ export type InventoryFeatureFlag =
   | 'kirana_catalog'
   // Phase 11.2 / 11.3 placeholders - false until those phases ship.
   | 'batch_expiry'
-  | 'pos_checkout';
+  | 'pos_checkout'
+  // ICE_CREAM manufacturer vertical: recipes → production batches → B2B buyer app.
+  | 'recipes'
+  | 'production_batches'
+  | 'b2b_buyer_app';
 
 /** True only for the INVENTORY plan, and only for flags whose phase shipped. */
 const INVENTORY_FEATURE_FLAGS: Record<InventoryFeatureFlag, boolean> = {
@@ -144,6 +148,10 @@ const INVENTORY_FEATURE_FLAGS: Record<InventoryFeatureFlag, boolean> = {
   // UX is Kirana-vertical-gated in the mobile UI; non-Kirana inventory keeps the
   // same MultiIssueStockModal counter issue (no regression).
   pos_checkout: true,
+  // Ice cream manufacturer vertical (recipes / production / B2B buyer app).
+  recipes: true,
+  production_batches: true,
+  b2b_buyer_app: true,
 };
 
 /**

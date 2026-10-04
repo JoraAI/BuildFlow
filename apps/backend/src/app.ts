@@ -57,6 +57,7 @@ import { portalEnhancedPublicRouter } from './routes/portal-enhanced-public.rout
 import { accountingExportRouter } from './routes/accounting-export.routes';
 import { labourRouter } from './routes/labour.routes';
 import { i18nRouter } from './routes/i18n.routes';
+import { buyerPublicRouter, iceCreamStaffRouter } from './routes/ice-cream.routes';
 
 const app = express();
 
@@ -114,6 +115,7 @@ app.use('/api', apiLimiter);
 app.use('/api/portal', portalPublicRouter);
 app.use('/api/portal', portalEnhancedPublicRouter);
 app.use('/api/portal/sub', subPortalPublicRouter);
+app.use('/api/buyer', buyerPublicRouter);
 
 // --- Routes ---
 app.use('/api/auth', authRouter);
@@ -131,6 +133,7 @@ app.use('/api/inventory/transactions', transactionRouter); // Phase 2 SO/DC/retu
 app.use('/api/inventory', warehouseRouter); // Phase 3 warehouses/transfers/stock-counts/barcode (INVENTORY only)
 app.use('/api/inventory', inventoryGtmRouter); // Phase 9 price lists, quotes, PDFs, reminders (INVENTORY only)
 app.use('/api/inventory', inventoryCatalogRouter); // Phase 11.1 vertical starter catalog (INVENTORY only)
+app.use('/api/inventory/ice-cream', iceCreamStaffRouter); // ICE_CREAM recipes/production/B2B
 app.use('/api/inventory/reorder', reorderRouter); // Phase 4 reorder suggestions + one-click purchase (INVENTORY only)
 app.use('/api/inventory/analytics', inventoryAnalyticsRouter); // Phase 6 dashboard + stock/margin reports (INVENTORY only)
 app.use('/api/inventory/ai', inventoryAiRouter); // Phase 7 OCR draft bill, import mapping, anomalies (INVENTORY only)

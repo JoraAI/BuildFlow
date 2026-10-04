@@ -2181,6 +2181,112 @@ async function main(): Promise<void> {
     ownerEmail: 'owner@kirana-demo.com',
   });
 
+  // Ice cream manufacturer (WHOLESALE + ICE_CREAM vertical)
+  await seedInventoryTenant({
+    companyName: 'Frosty Cups Ice Creams',
+    profile: InventoryBusinessProfile.WHOLESALE,
+    vertical: InventoryVertical.ICE_CREAM,
+    gstin: '36AABCF8888F1Z8',
+    pan: 'AABCF8888F',
+    state: 'Telangana',
+    address: 'IDA Jeedimetla, Hyderabad',
+    ownerName: 'Suresh Frosty',
+    ownerEmail: 'owner@frostycups.com',
+    managerName: 'Priya Plant',
+    managerEmail: 'manager@frostycups.com',
+    storeCode: 'FROSTY',
+    rich: true,
+    catalog: [
+      { name: 'Fresh Milk', unit: 'L', rate: 55, costPrice: 48, gstRate: 5, category: 'Raw materials', sku: 'RAW-MILK', reorderPoint: 200 },
+      { name: 'Sugar', unit: 'kg', rate: 45, costPrice: 38, gstRate: 5, category: 'Raw materials', sku: 'RAW-SUGAR', reorderPoint: 100 },
+      { name: 'Dairy Cream', unit: 'kg', rate: 280, costPrice: 220, gstRate: 5, category: 'Raw materials', sku: 'RAW-CREAM', reorderPoint: 50 },
+      { name: 'Vanilla Essence', unit: 'ml', rate: 2.5, costPrice: 1.8, gstRate: 18, category: 'Raw materials', sku: 'RAW-VAN', reorderPoint: 500 },
+      { name: 'Wafer Cone', unit: 'nos', rate: 3, costPrice: 1.5, gstRate: 12, category: 'Packaging', sku: 'PKG-CONE', reorderPoint: 1000 },
+      { name: 'Vanilla Cup 100ml', unit: 'nos', rate: 25, costPrice: 12, mrp: 30, gstRate: 18, category: 'Finished goods', sku: 'FG-VAN-100', reorderPoint: 200 },
+      { name: 'Chocolate Tub 1L', unit: 'nos', rate: 180, costPrice: 95, mrp: 220, gstRate: 18, category: 'Finished goods', sku: 'FG-CHOC-1L', reorderPoint: 80 },
+    ],
+    openingQtys: [500, 300, 120, 2000, 3000, 0, 0],
+  });
+
+  // Recipe + B2B catalog + buyer invite for Frosty Cups
+  {
+    const frosty = await prisma.company.findFirst({
+      where: { gstin: '36AABCF8888F1Z8' },
+      include: { customers: { take: 1 }, resources: true },
+    });
+    if (frosty) {
+      const bySku = new Map(frosty.resources.map((r) => [r.sku, r]));
+      const milk = bySku.get('RAW-MILK');
+      const sugar = bySku.get('RAW-SUGAR');
+      const cream = bySku.get('RAW-CREAM');
+      const vanilla = bySku.get('RAW-VAN');
+      const cup = bySku.get('FG-VAN-100');
+      const tub = bySku.get('FG-CHOC-1L');
+      if (milk && sugar && cream && vanilla && cup) {
+        const existingRecipe = await prisma.recipe.findFirst({
+          where: { companyId: frosty.id, name: 'Vanilla Cup Mix' },
+        });
+        if (!existingRecipe) {
+          await prisma.recipe.create({
+            data: {
+              companyId: frosty.id,
+              name: 'Vanilla Cup Mix',
+              outputResourceId: cup.id,
+              outputQty: 100,
+              notes: 'Produces 100 × 100ml vanilla cups',
+              lines: {
+                create: [
+                  { inputResourceId: milk.id, quantity: 40 },
+                  { inputResourceId: sugar.id, quantity: 8 },
+                  { inputResourceId: cream.id, quantity: 6 },
+                  { inputResourceId: vanilla.id, quantity: 200 },
+                ],
+              },
+            },
+          });
+        }
+      }
+      if (cup) {
+        await prisma.resource.update({ where: { id: cup.id }, data: { b2bPublished: true } });
+      }
+      if (tub) {
+        await prisma.resource.update({ where: { id: tub.id }, data: { b2bPublished: true } });
+      }
+      const customer =
+        frosty.customers[0] ??
+        (await prisma.customer.create({
+          data: {
+            companyId: frosty.id,
+            name: 'City Scoop Retail Pvt Ltd',
+            businessName: 'City Scoop',
+            phone: '+919876509999',
+            email: 'orders@cityscoop.com',
+            paymentTerms: 'Net 15',
+            creditLimit: 50000,
+            isActive: true,
+          },
+        }));
+      const buyerEmail = 'buyer@cityscoop.com';
+      const existingBuyer = await prisma.buyerUser.findUnique({
+        where: { companyId_email: { companyId: frosty.id, email: buyerEmail } },
+      });
+      if (!existingBuyer) {
+        await prisma.buyerUser.create({
+          data: {
+            companyId: frosty.id,
+            customerId: customer.id,
+            email: buyerEmail,
+            name: 'City Scoop Buyer',
+            phone: '+919876509999',
+            isActive: true,
+          },
+        });
+      }
+      // eslint-disable-next-line no-console
+      console.log('   Seeded Ice cream vertical: Frosty Cups + recipe + buyer@cityscoop.com');
+    }
+  }
+
   // eslint-disable-next-line no-console
   console.log('✅ Seed complete.');
   // eslint-disable-next-line no-console
@@ -2227,6 +2333,10 @@ async function main(): Promise<void> {
   console.log('   owner@generalstore.com (GENERAL profile)');
   // eslint-disable-next-line no-console
   console.log('   owner@kirana-demo.com (GENERAL vertical - RETAIL + product library / FEFO)');
+  // eslint-disable-next-line no-console
+  console.log('   owner@frostycups.com (ICE_CREAM vertical · WHOLESALE, recipes + B2B) → /inventory');
+  // eslint-disable-next-line no-console
+  console.log('   buyer@cityscoop.com (B2B buyer app OTP 111111) → /api/buyer');
   // eslint-disable-next-line no-console
   console.log('── Platform console (/platform/login)');
   // eslint-disable-next-line no-console

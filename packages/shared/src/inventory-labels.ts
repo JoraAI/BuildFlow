@@ -74,6 +74,11 @@ export function usesEventLightingCopy(
   return profile === 'EQUIPMENT' || vertical === 'EVENTS';
 }
 
+/** Ice cream manufacturer vertical: recipes, production, B2B buyer catalog. */
+export function usesIceCreamManufacturerCopy(vertical?: string | null): boolean {
+  return vertical === 'ICE_CREAM';
+}
+
 /** Plural of the indent label for section titles ("Indents" / "Purchase requests"). */
 export function getIndentPlural(mode: InventoryLabelMode): string {
   const label = getInventoryLabel('indent', mode);

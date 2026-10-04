@@ -608,7 +608,8 @@ export async function applyCatalogTemplate(
  * OWNER-only selection of a shop vertical.
  *
  * Only RETAIL / WHOLESALE profiles may enable a vertical. GENERAL unlocks the
- * starter product library; EVENTS unlocks event-quote wording.
+ * starter product library; EVENTS unlocks event-quote wording; ICE_CREAM unlocks
+ * recipes / production / B2B buyer app.
  *
  * Clearing the vertical (null) hides the pack but keeps the copied rows - they
  * are tenant-owned once applied (K3); re-opt-in shows them as already applied.

@@ -11,6 +11,7 @@ import { InventoryVertical } from '../inventory-profile';
 export const inventoryVerticalSchema = z.enum([
   InventoryVertical.GENERAL,
   InventoryVertical.EVENTS,
+  InventoryVertical.ICE_CREAM,
 ] as const);
 
 /** GENERAL is the only vertical with a maintained starter product library. */

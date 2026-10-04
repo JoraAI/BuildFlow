@@ -68,6 +68,15 @@ export async function assertInventoryFeature(
       'Batch/expiry tracking is available only to Kirana-vertical tenants (Settings → Shop vertical).',
     );
   }
+  if (
+    (flag === 'recipes' || flag === 'production_batches' || flag === 'b2b_buyer_app') &&
+    company.inventoryVertical !== 'ICE_CREAM'
+  ) {
+    throw new ApiError(
+      'FORBIDDEN',
+      'This feature is available only to Ice cream manufacturer vertical tenants (Settings → Shop vertical).',
+    );
+  }
 }
 
 /**

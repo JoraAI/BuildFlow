@@ -246,9 +246,22 @@ enum InventoryBusinessProfile {
 
 /// INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.1): vertical / catalog template.
 /// K1: KIRANA is a VERTICAL (starter catalog), NOT another business profile.
+/// ICE_CREAM: light manufacturing + B2B buyer app.
 enum InventoryVertical {
   GENERAL
   EVENTS
+  ICE_CREAM
+}
+
+enum ProductionBatchStatus {
+  DRAFT
+  COMPLETED
+  CANCELLED
+}
+
+enum SalesOrderSource {
+  MANUAL
+  B2B_APP
 }
 
 // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): batch/expiry tracking level.
@@ -391,6 +404,10 @@ model Company {
   /// INVENTORY_HORIZONTAL_PLATFORM (Phase 3.2/3.3): warehouse ops.
   transferOrders      TransferOrder[]
   stockCounts         StockCount[]
+  /// ICE_CREAM manufacturer vertical.
+  recipes             Recipe[]
+  productionBatches   ProductionBatch[]
+  buyerUsers          BuyerUser[]
 
   @@map("companies")
 }
@@ -430,6 +447,7 @@ model Customer {
   priceList CustomerPrice[] @relation("CustomerPrice")
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 9.2): quotes for a customer.
   quotes Quote[] @relation("QuoteCustomer")
+  buyerUsers BuyerUser[]
 
   @@index([companyId])
   @@map("customers")
@@ -859,6 +877,8 @@ model Resource {
   // NONE = aggregate StockBalance only (construction + untracked inventory);
   // BATCH_EXPIRY = StockBatchBalance lots + FEFO allocation (Kirana vertical).
   trackingMode     ResourceTrackingMode @default(NONE) @map("tracking_mode")
+  /// ICE_CREAM: when true, finished SKU is visible in the B2B buyer app catalog.
+  b2bPublished     Boolean  @default(false) @map("b2b_published")
   imageUrl         String?  @map("image_url")
   lastRateUpdatedAt DateTime? @map("last_rate_updated_at")
   isActive         Boolean  @default(true) @map("is_active")
@@ -886,6 +906,8 @@ model Resource {
   changeOrderLines   ChangeOrderLine[]
   regionalMaterialRates RegionalMaterialRate[]
   projectMaterialRates ProjectMaterialRate[]
+  recipesAsOutput    Recipe[]             @relation("RecipeOutput")
+  recipeLinesAsInput RecipeLine[]         @relation("RecipeLineInput")
 
   @@unique([companyId, name, type])
   @@index([companyId])
@@ -1478,18 +1500,27 @@ model SalesOrder {
   customerId     String?           @map("customer_id") @db.Uuid
   customerName   String            @map("customer_name")
   status         SalesOrderStatus  @default(DRAFT)
+  /// MANUAL = staff-created; B2B_APP = placed from buyer app.
+  source         SalesOrderSource  @default(MANUAL)
   orderDate      DateTime          @map("order_date") @db.Date
   expectedDelivery DateTime?       @map("expected_delivery") @db.Date
   notes          String?
+  /// Shipping fields (B2B buyer tracking).
+  carrier        String?
+  trackingRef    String?           @map("tracking_ref")
+  shippedAt      DateTime?         @map("shipped_at")
   subtotal       Decimal           @default(0) @db.Decimal(14, 2)
   gstAmount      Decimal           @default(0) @map("gst_amount") @db.Decimal(14, 2)
   total          Decimal           @default(0) @db.Decimal(14, 2)
   createdBy      String?           @map("created_by") @db.Uuid
+  /// BuyerUser who placed the order (when source = B2B_APP).
+  buyerUserId    String?           @map("buyer_user_id") @db.Uuid
   createdAt      DateTime          @default(now()) @map("created_at")
   updatedAt      DateTime          @updatedAt @map("updated_at")
 
   company          Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   customer         Customer?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  buyerUser        BuyerUser?         @relation(fields: [buyerUserId], references: [id], onDelete: SetNull)
   lines            SalesOrderLine[]
   deliveryChallans DeliveryChallan[]
   invoices         Invoice[]
@@ -1497,6 +1528,7 @@ model SalesOrder {
   quote            Quote?             @relation("QuoteSalesOrder")
 
   @@index([companyId])
+  @@index([companyId, source])
   @@unique([companyId, soNumber])
   @@map("sales_orders")
 }
@@ -2243,6 +2275,7 @@ model StockLocation {
   transferOrdersFrom TransferOrder[] @relation("TransferFromLocation")
   transferOrdersTo   TransferOrder[] @relation("TransferToLocation")
   stockCounts        StockCount[]
+  productionBatches  ProductionBatch[]
 
   @@index([companyId])
   @@index([companyId, isDefault])
@@ -2779,4 +2812,93 @@ model DrawingVersion {
   @@unique([drawingId, versionLabel])
   @@index([drawingId])
   @@map("drawing_versions")
+}
+
+// ------------------------------------------------------------------
+// ICE_CREAM manufacturer - recipes, production, B2B buyers
+// ------------------------------------------------------------------
+
+model Recipe {
+  id               String   @id @default(uuid()) @db.Uuid
+  companyId        String   @map("company_id") @db.Uuid
+  name             String
+  outputResourceId String   @map("output_resource_id") @db.Uuid
+  /// Output quantity produced when the recipe is run once (scaled by production qty).
+  outputQty        Decimal  @default(1) @map("output_qty") @db.Decimal(12, 3)
+  notes            String?
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  company        Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  outputResource Resource          @relation("RecipeOutput", fields: [outputResourceId], references: [id])
+  lines          RecipeLine[]
+  productionBatches ProductionBatch[]
+
+  @@index([companyId])
+  @@map("recipes")
+}
+
+model RecipeLine {
+  id               String  @id @default(uuid()) @db.Uuid
+  recipeId         String  @map("recipe_id") @db.Uuid
+  inputResourceId  String  @map("input_resource_id") @db.Uuid
+  /// Qty of input consumed per `Recipe.outputQty` of finished goods.
+  quantity         Decimal @db.Decimal(12, 3)
+
+  recipe        Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  inputResource Resource @relation("RecipeLineInput", fields: [inputResourceId], references: [id])
+
+  @@index([recipeId])
+  @@map("recipe_lines")
+}
+
+model ProductionBatch {
+  id             String                @id @default(uuid()) @db.Uuid
+  companyId      String                @map("company_id") @db.Uuid
+  recipeId       String                @map("recipe_id") @db.Uuid
+  locationId     String                @map("location_id") @db.Uuid
+  /// Multiplier of recipe output (e.g. 10 → 10 × recipe.outputQty finished units).
+  outputQty      Decimal               @db.Decimal(12, 3)
+  batchCode      String                @map("batch_code")
+  manufacturedAt DateTime?             @map("manufactured_at")
+  expiresAt      DateTime?             @map("expires_at")
+  status         ProductionBatchStatus @default(DRAFT)
+  notes          String?
+  createdBy      String?               @map("created_by") @db.Uuid
+  completedAt    DateTime?             @map("completed_at")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+
+  company  Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  recipe   Recipe        @relation(fields: [recipeId], references: [id])
+  location StockLocation @relation(fields: [locationId], references: [id])
+
+  @@index([companyId])
+  @@index([companyId, status])
+  @@map("production_batches")
+}
+
+/// External B2B buyer login (bound to a manufacturer Customer / Party).
+model BuyerUser {
+  id           String    @id @default(uuid()) @db.Uuid
+  companyId    String    @map("company_id") @db.Uuid
+  customerId   String    @map("customer_id") @db.Uuid
+  email        String
+  name         String?
+  phone        String?
+  passwordHash String?   @map("password_hash")
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer    Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  salesOrders SalesOrder[]
+
+  @@unique([companyId, email])
+  @@index([companyId])
+  @@index([customerId])
+  @@map("buyer_users")
 }

@@ -22,6 +22,8 @@ export const INVENTORY_TABS = [
   { key: 'parties', label: 'Parties', icon: 'people-outline', href: '/inventory/parties' },
   // Event & client estimates / quotations.
   { key: 'quotes', label: 'Quotes', icon: 'document-text-outline', href: '/inventory/quotes' },
+  // ICE_CREAM: recipes / production batches / B2B sales overview.
+  { key: 'production', label: 'Production', icon: 'nutrition-outline', href: '/inventory/production' },
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.1): formal sales flow (SO/DC/returns/notes).
   { key: 'sales', label: 'Sales', icon: 'receipt-outline', href: '/inventory/sales' },
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 3): multi-warehouse / transfers / counts.
@@ -33,6 +35,13 @@ export const INVENTORY_TABS = [
 ] as const;
 
 type InventoryTab = (typeof INVENTORY_TABS)[number];
+
+function visibleInventoryTabs(vertical?: string | null): InventoryTab[] {
+  return INVENTORY_TABS.filter((tab) => {
+    if (tab.key === 'production') return vertical === 'ICE_CREAM';
+    return true;
+  });
+}
 
 function isActiveTab(tab: InventoryTab, pathname: string): boolean {
   if (tab.key === 'index') {
@@ -82,6 +91,8 @@ export function InventoryMobileTabBar() {
   const { chromeBottom } = useVisualViewportFrame();
   const itemsLabel = useItemsLabel();
   const { translate } = useInventoryLanguage();
+  const vertical = useAuthStore((s) => s.user?.inventoryVertical);
+  const tabs = visibleInventoryTabs(vertical);
 
   const renderTab = (tab: InventoryTab, widthClass: string) => {
     const isActive = isActiveTab(tab, pathname);
@@ -128,11 +139,11 @@ export function InventoryMobileTabBar() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 4, paddingTop: 6 }}
         >
-          {INVENTORY_TABS.map((tab) => renderTab(tab, 'w-[76px] shrink-0'))}
+          {tabs.map((tab) => renderTab(tab, 'w-[76px] shrink-0'))}
         </ScrollView>
       ) : (
         <View className="flex-row items-stretch px-1 pt-1.5">
-          {INVENTORY_TABS.map((tab) => renderTab(tab, 'flex-1'))}
+          {tabs.map((tab) => renderTab(tab, 'flex-1'))}
         </View>
       )}
     </View>
@@ -145,13 +156,15 @@ export function InventorySidebar() {
   const pathname = usePathname();
   const itemsLabel = useItemsLabel();
   const { translate } = useInventoryLanguage();
+  const vertical = useAuthStore((s) => s.user?.inventoryVertical);
+  const tabs = visibleInventoryTabs(vertical);
 
   return (
     <View className="w-56 bg-card border-r border-border py-4 px-3 gap-1">
       <Text className="text-xs font-bold text-muted uppercase px-3 pb-2">
         {translate('inventory.shell.store', 'Store')}
       </Text>
-      {INVENTORY_TABS.map((tab) => {
+      {tabs.map((tab) => {
         const isActive = isActiveTab(tab, pathname);
         const label = translatedTabLabel(tab, itemsLabel, translate);
         return (

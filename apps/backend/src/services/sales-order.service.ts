@@ -70,8 +70,18 @@ export async function createSalesOrder(
   userId: string,
   role: string,
   input: CreateSalesOrderInput,
+  opts?: {
+    source?: 'MANUAL' | 'B2B_APP';
+    buyerUserId?: string;
+    /** Skip project-access check for buyer-app orders (buyer is not a company User). */
+    skipProjectAccess?: boolean;
+    initialStatus?: 'DRAFT' | 'CONFIRMED';
+  },
 ) {
-  const projectId = await resolveDefaultProject(companyId, userId, role);
+  const projectId = opts?.skipProjectAccess
+    ? await getDefaultProjectId(companyId)
+    : await resolveDefaultProject(companyId, userId, role);
+  if (!projectId) throw ApiError.forbidden('Sales orders are not available on this plan.');
 
   let customerName = input.customerName.trim();
   if (input.customerId) {
@@ -127,18 +137,95 @@ export async function createSalesOrder(
       soNumber: await nextSequentialNumber(companyId, 'so'),
       customerId: input.customerId ?? null,
       customerName,
-      status: 'DRAFT',
+      status: opts?.initialStatus ?? 'DRAFT',
+      source: opts?.source ?? 'MANUAL',
+      buyerUserId: opts?.buyerUserId ?? null,
       orderDate: input.orderDate,
       expectedDelivery: input.expectedDelivery ?? null,
       notes: input.notes?.trim() || null,
       subtotal,
       gstAmount,
       total,
-      createdBy: userId,
+      createdBy: opts?.skipProjectAccess ? null : userId,
       lines: { create: lines },
     },
     include: withLinesInclude(),
   });
+}
+
+export async function updateSalesOrderShipping(
+  companyId: string,
+  userId: string,
+  role: string,
+  id: string,
+  input: {
+    carrier?: string | null;
+    trackingRef?: string | null;
+    shippedAt?: Date | null;
+    statusAction?: 'confirm' | 'dispatch' | 'deliver' | 'cancel';
+  },
+) {
+  const so = await getSalesOrder(companyId, userId, role, id);
+  const data: Record<string, unknown> = {};
+  if (input.carrier !== undefined) data.carrier = input.carrier?.trim() || null;
+  if (input.trackingRef !== undefined) data.trackingRef = input.trackingRef?.trim() || null;
+  if (input.shippedAt !== undefined) data.shippedAt = input.shippedAt;
+  if (input.statusAction === 'confirm') {
+    if (so.status !== 'DRAFT') throw ApiError.badRequest('Only draft orders can be confirmed');
+    data.status = 'CONFIRMED';
+  } else if (input.statusAction === 'dispatch') {
+    if (so.status !== 'CONFIRMED' && so.status !== 'DRAFT') {
+      throw ApiError.badRequest('Order must be confirmed before dispatch');
+    }
+    data.status = 'CONFIRMED';
+    data.shippedAt = input.shippedAt ?? new Date();
+  } else if (input.statusAction === 'deliver') {
+    data.status = 'DELIVERED';
+  } else if (input.statusAction === 'cancel') {
+    return updateSalesOrderStatus(companyId, userId, role, id, 'cancel');
+  }
+  return prisma.salesOrder.update({
+    where: { id },
+    data,
+    include: withLinesInclude(),
+  });
+}
+
+/** Sales dashboard aggregates for manufacturer (all sources + B2B split). */
+export async function getSalesDashboard(companyId: string, userId: string, role: string) {
+  const projectId = await resolveDefaultProject(companyId, userId, role);
+  const orders = await prisma.salesOrder.findMany({
+    where: { companyId, projectId, status: { not: 'CANCELLED' } },
+    select: {
+      id: true,
+      soNumber: true,
+      customerName: true,
+      status: true,
+      source: true,
+      total: true,
+      createdAt: true,
+      shippedAt: true,
+      trackingRef: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  const sum = (rows: typeof orders) =>
+    round2(rows.reduce((acc, o) => acc + Number(o.total), 0));
+  const b2b = orders.filter((o) => o.source === 'B2B_APP');
+  const byStatus = (status: string) => orders.filter((o) => o.status === status);
+  return {
+    totals: {
+      orderCount: orders.length,
+      orderValue: sum(orders),
+      b2bOrderCount: b2b.length,
+      b2bOrderValue: sum(b2b),
+      draftCount: byStatus('DRAFT').length,
+      confirmedCount: byStatus('CONFIRMED').length,
+      deliveredCount: byStatus('DELIVERED').length,
+      invoicedCount: byStatus('INVOICED').length,
+    },
+    recent: orders.slice(0, 20),
+  };
 }
 
 export async function updateSalesOrderStatus(

@@ -276,6 +276,7 @@ export default function InventorySettingsScreen() {
             <Text className="text-xs text-muted mb-3">
               General retail fits grocery, medical, pharmacy, hardware and similar shops — product
               library plus batch/expiry tracking. Events & lighting unlocks event-quote wording.
+              Ice cream manufacturer adds recipes, production batches, and B2B buyer app orders.
               Leave as None to manage your own item list.
             </Text>
             <Select
