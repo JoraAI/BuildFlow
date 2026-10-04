@@ -42,7 +42,7 @@ export function InventoryFilterBar<S extends string>({
           label=""
           compact
           fullWidth
-          value={query}
+          value={!query || query === 'undefined' || query === 'null' ? '' : query}
           onChangeText={onQueryChange}
           placeholder={placeholder}
           autoCapitalize="none"

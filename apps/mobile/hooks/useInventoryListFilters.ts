@@ -1,10 +1,16 @@
 /**
  * Sync inventory list filters with expo-router query params (q/status/tab/focus).
- * Params seed local state; typing updates URL via setParams (debounced for q).
+ * Params seed local state; typing updates URL via replace (debounced for q).
+ *
+ * Important: do NOT use router.setParams with empty/undefined values. Expo Router
+ * runs decodeURIComponent on param values, and decodeURIComponent(undefined)
+ * becomes the literal string "undefined", which then fills controlled search inputs.
+ * Build a canonical href (omitting empty keys) and replace instead.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, usePathname, useRouter } from 'expo-router';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { inventoryListHref } from '@/utils/navigation-paths';
 
 function firstParam(v: string | string[] | undefined): string {
   const raw = Array.isArray(v) ? (v[0] ?? '') : (v ?? '');
@@ -13,11 +19,17 @@ function firstParam(v: string | string[] | undefined): string {
   return raw;
 }
 
+function sanitizeSearchText(value: string): string {
+  if (!value || value === 'undefined' || value === 'null') return '';
+  return value;
+}
+
 export function useInventoryListFilters(opts?: {
   defaultTab?: string;
   defaultStatus?: string;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const params = useLocalSearchParams<{
     q?: string | string[];
     status?: string | string[];
@@ -52,35 +64,34 @@ export function useInventoryListFilters(opts?: {
 
   const writeParams = useCallback(
     (patch: { q?: string; status?: string; tab?: string; focus?: string | null }) => {
-      const nextQ = patch.q !== undefined ? patch.q : debouncedQuery;
+      const nextQ = sanitizeSearchText(patch.q !== undefined ? patch.q : debouncedQuery).trim();
       const nextStatus = patch.status !== undefined ? patch.status : status;
       const nextTab = patch.tab !== undefined ? patch.tab : tab;
       const nextFocus = patch.focus !== undefined ? patch.focus : focusId;
 
-      // Use '' (not undefined): setParams stringifies undefined as "undefined" in the URL,
-      // which then seeds the search bar with that literal text.
-      const payload: Record<string, string> = {
-        q: nextQ.trim() ? nextQ.trim() : '',
-        status: nextStatus && nextStatus.toUpperCase() !== 'ALL' ? nextStatus : '',
-        tab: nextTab ? nextTab : '',
-        focus: nextFocus ? nextFocus : '',
-      };
-      router.setParams(payload as never);
+      const href = inventoryListHref(pathname, {
+        q: nextQ || null,
+        status: nextStatus && nextStatus.toUpperCase() !== 'ALL' ? nextStatus : null,
+        tab: nextTab || null,
+        focus: nextFocus || null,
+      });
+      router.replace(href as never);
     },
-    [debouncedQuery, status, tab, focusId, router],
+    [debouncedQuery, status, tab, focusId, router, pathname],
   );
 
   useEffect(() => {
     // Wait for the debounce to catch up with the live value, otherwise an
     // inbound param seed (cross-nav) is overwritten by the previous query.
     if (debouncedQuery !== query) return;
-    if (debouncedQuery === lastApplied.current.q) return;
-    writeParams({ q: debouncedQuery });
-    lastApplied.current = { ...lastApplied.current, q: debouncedQuery };
+    const clean = sanitizeSearchText(debouncedQuery);
+    if (clean === lastApplied.current.q) return;
+    writeParams({ q: clean });
+    lastApplied.current = { ...lastApplied.current, q: clean };
   }, [debouncedQuery, query, writeParams]);
 
   const setQuery = useCallback((next: string) => {
-    setQueryState(next);
+    setQueryState(sanitizeSearchText(next));
   }, []);
 
   const setStatus = useCallback(
@@ -121,15 +132,21 @@ export function useInventoryListFilters(opts?: {
     };
   }, [writeParams]);
 
+  const safeQuery = sanitizeSearchText(query);
+  const safeDebouncedQuery = sanitizeSearchText(debouncedQuery);
+
   const isFiltered = useMemo(
-    () => Boolean(query.trim()) || (status && status.toUpperCase() !== 'ALL') || Boolean(focusId),
-    [query, status, focusId],
+    () =>
+      Boolean(safeQuery.trim()) ||
+      (status && status.toUpperCase() !== 'ALL') ||
+      Boolean(focusId),
+    [safeQuery, status, focusId],
   );
 
   return {
-    query,
+    query: safeQuery,
     setQuery,
-    debouncedQuery,
+    debouncedQuery: safeDebouncedQuery,
     status,
     setStatus,
     tab,
