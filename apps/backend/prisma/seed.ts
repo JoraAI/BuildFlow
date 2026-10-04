@@ -13,6 +13,7 @@
  *      EQUIPMENT          owner@forgeequip.com
  *      GENERAL            owner@generalstore.com
  *      GENERAL vertical   owner@kirana-demo.com   (RETAIL + product library / FEFO)
+ *      ICE_CREAM vertical owner@frostycups.com    (recipes / production / Icecream-inventory-buyer)
  *  - Platform admin: admin@buildflow.com
  *
  * Catalog data (catalog-data.ts) and rate analyses (rate-analysis-data.ts) are
@@ -20,7 +21,20 @@
  *
  * Idempotent-ish: uses upsert on unique fields. Re-running updates in place.
  */
-import { PrismaClient, Role, ProjectType, ProjectStatus, ResourceType, InvoiceStatus, CostType, EstimateStatus, StockMovementType, InventoryBusinessProfile, InventoryVertical } from '@prisma/client';
+import {
+  PrismaClient,
+  Role,
+  ProjectType,
+  ProjectStatus,
+  ResourceType,
+  InvoiceStatus,
+  CostType,
+  EstimateStatus,
+  StockMovementType,
+  InventoryBusinessProfile,
+  InventoryVertical,
+  ResourceTrackingMode,
+} from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { CATALOG_DATA, type CatalogItem } from './catalog-data';
 import { RATE_ANALYSES } from './rate-analysis-data';
@@ -1158,6 +1172,7 @@ async function main(): Promise<void> {
     sku?: string;
     reorderPoint?: number;
     type?: ResourceType;
+    trackingMode?: ResourceTrackingMode;
   };
 
   async function seedInventoryTenant(opts: {
@@ -1299,6 +1314,7 @@ async function main(): Promise<void> {
           category: m.category,
           sku: m.sku ?? null,
           reorderPoint: m.reorderPoint ?? null,
+          trackingMode: m.trackingMode ?? ResourceTrackingMode.NONE,
           lastRateUpdatedAt: new Date(),
         },
       });
@@ -1366,6 +1382,7 @@ async function main(): Promise<void> {
     const seededCustomers: Array<{ id: string; name: string }> = [];
     if (opts.rich) {
       const lightingDemo = opts.vertical === InventoryVertical.EVENTS;
+      const iceCreamDemo = opts.vertical === InventoryVertical.ICE_CREAM;
 
       const customerSpecs = lightingDemo
         ? [
@@ -1400,6 +1417,39 @@ async function main(): Promise<void> {
               creditLimit: 250000,
             },
           ]
+        : iceCreamDemo
+          ? [
+              {
+                name: 'City Scoop Retail Pvt Ltd',
+                businessName: 'City Scoop',
+                gstin: '36AABCC7777C1Z7',
+                phone: '+919876509999',
+                email: 'orders@cityscoop.com',
+                billingAddress: 'Jubilee Hills Road No. 36, Hyderabad',
+                paymentTerms: 'Net 15',
+                creditLimit: 50000,
+              },
+              {
+                name: 'Sweet Treats Parlour',
+                businessName: 'Sweet Treats Hospitality',
+                gstin: '36AABCS6666S1Z6',
+                phone: '+919876509998',
+                email: 'buy@sweettreats.in',
+                billingAddress: 'Madhapur, Hyderabad',
+                paymentTerms: 'Net 7',
+                creditLimit: 25000,
+              },
+              {
+                name: 'Frozen Delight Distributors',
+                businessName: 'Frozen Delight Cold Chain LLP',
+                gstin: '36AABCF5555F1Z5',
+                phone: '+919876509997',
+                email: 'purchase@frozendelight.in',
+                billingAddress: 'Uppal Industrial Area, Hyderabad',
+                paymentTerms: 'Net 30',
+                creditLimit: 120000,
+              },
+            ]
         : [
             {
               name: 'City Builders & Contractors',
@@ -1461,6 +1511,36 @@ async function main(): Promise<void> {
               paymentTerms: 'Net 30',
             },
           ]
+        : iceCreamDemo
+          ? [
+              {
+                name: 'Amul Dairy Ingredients Depot',
+                businessName: 'Gujarat Cooperative Milk Marketing Federation',
+                gstin: '24AABCA1111A1Z1',
+                phone: '+919812340001',
+                email: 'b2b@amuldairy.in',
+                billingAddress: 'IDA Jeedimetla Dairy Lane, Hyderabad',
+                paymentTerms: 'Net 7',
+              },
+              {
+                name: 'Deccan Sugar & Sweetners',
+                businessName: 'Deccan Agro Commodities Pvt Ltd',
+                gstin: '36AABCD2222D1Z2',
+                phone: '+919812340002',
+                email: 'sales@deccansugar.in',
+                billingAddress: 'Kukatpally Industrial Estate, Hyderabad',
+                paymentTerms: 'Net 15',
+              },
+              {
+                name: 'PackRight Food Packaging',
+                businessName: 'PackRight Polymers LLP',
+                gstin: '36AABCP3333P1Z3',
+                phone: '+919812340003',
+                email: 'orders@packright.in',
+                billingAddress: 'Balanagar, Hyderabad',
+                paymentTerms: 'Net 30',
+              },
+            ]
         : [
             {
               name: 'UltraTech Cement Depot',
@@ -1502,8 +1582,8 @@ async function main(): Promise<void> {
         });
       }
 
-      // Seed Quotes & Sales Orders for rich demo
-      if (resources.length >= 4) {
+      // Seed Quotes & Sales Orders for rich demo (skip ice cream — uses recipes/production + B2B)
+      if (!iceCreamDemo && resources.length >= 4) {
         const q1Notes = lightingDemo
           ? 'Grand Gala Wedding Sangeet Stage & Ambient Lighting Setup'
           : 'Site supply quote for foundation pour materials';
@@ -2196,23 +2276,210 @@ async function main(): Promise<void> {
     managerEmail: 'manager@frostycups.com',
     storeCode: 'FROSTY',
     rich: true,
-    catalog: [
-      { name: 'Fresh Milk', unit: 'L', rate: 55, costPrice: 48, gstRate: 5, category: 'Raw materials', sku: 'RAW-MILK', reorderPoint: 200 },
-      { name: 'Sugar', unit: 'kg', rate: 45, costPrice: 38, gstRate: 5, category: 'Raw materials', sku: 'RAW-SUGAR', reorderPoint: 100 },
-      { name: 'Dairy Cream', unit: 'kg', rate: 280, costPrice: 220, gstRate: 5, category: 'Raw materials', sku: 'RAW-CREAM', reorderPoint: 50 },
-      { name: 'Vanilla Essence', unit: 'ml', rate: 2.5, costPrice: 1.8, gstRate: 18, category: 'Raw materials', sku: 'RAW-VAN', reorderPoint: 500 },
-      { name: 'Wafer Cone', unit: 'nos', rate: 3, costPrice: 1.5, gstRate: 12, category: 'Packaging', sku: 'PKG-CONE', reorderPoint: 1000 },
-      { name: 'Vanilla Cup 100ml', unit: 'nos', rate: 25, costPrice: 12, mrp: 30, gstRate: 18, category: 'Finished goods', sku: 'FG-VAN-100', reorderPoint: 200 },
-      { name: 'Chocolate Tub 1L', unit: 'nos', rate: 180, costPrice: 95, mrp: 220, gstRate: 18, category: 'Finished goods', sku: 'FG-CHOC-1L', reorderPoint: 80 },
+    // Cold store instead of event-staging default from rich tenants.
+    extraWarehouses: [
+      {
+        name: 'Cold Store - Blast Freezer',
+        code: 'COLD',
+        address: 'IDA Jeedimetla Cold Chain Block B, Hyderabad',
+        stock: [
+          { itemIndex: 0, quantity: 80 }, // milk
+          { itemIndex: 2, quantity: 40 }, // cream
+        ],
+      },
     ],
-    openingQtys: [500, 300, 120, 2000, 3000, 0, 0],
+    catalog: [
+      // Raw materials (GST dairy/sugar/flavour HSNs)
+      {
+        name: 'Fresh Milk',
+        unit: 'L',
+        rate: 55,
+        costPrice: 48,
+        mrp: 60,
+        gstRate: 5,
+        hsn: '0401',
+        brandOrSpec: 'Full cream toned milk',
+        category: 'Raw materials',
+        sku: 'RAW-MILK',
+        reorderPoint: 200,
+      },
+      {
+        name: 'Sugar',
+        unit: 'kg',
+        rate: 45,
+        costPrice: 38,
+        mrp: 52,
+        gstRate: 5,
+        hsn: '1701',
+        brandOrSpec: 'S-30 refined sugar',
+        category: 'Raw materials',
+        sku: 'RAW-SUGAR',
+        reorderPoint: 100,
+      },
+      {
+        name: 'Dairy Cream',
+        unit: 'kg',
+        rate: 280,
+        costPrice: 220,
+        mrp: 320,
+        gstRate: 5,
+        hsn: '0401',
+        brandOrSpec: '40% fat dairy cream',
+        category: 'Raw materials',
+        sku: 'RAW-CREAM',
+        reorderPoint: 50,
+      },
+      {
+        name: 'Vanilla Essence',
+        unit: 'ml',
+        rate: 2.5,
+        costPrice: 1.8,
+        mrp: 3,
+        gstRate: 18,
+        hsn: '3302',
+        brandOrSpec: 'Food-grade vanilla flavour',
+        category: 'Raw materials',
+        sku: 'RAW-VAN',
+        reorderPoint: 500,
+      },
+      {
+        name: 'Cocoa Powder',
+        unit: 'kg',
+        rate: 420,
+        costPrice: 340,
+        mrp: 480,
+        gstRate: 5,
+        hsn: '1805',
+        brandOrSpec: 'Alkalised cocoa 10/12',
+        category: 'Raw materials',
+        sku: 'RAW-COCOA',
+        reorderPoint: 25,
+      },
+      {
+        name: 'Stabilizer Mix',
+        unit: 'kg',
+        rate: 650,
+        costPrice: 520,
+        mrp: 720,
+        gstRate: 18,
+        hsn: '38249900',
+        brandOrSpec: 'Ice cream stabilizer / emulsifier blend',
+        category: 'Raw materials',
+        sku: 'RAW-STAB',
+        reorderPoint: 10,
+      },
+      // Packaging
+      {
+        name: 'Wafer Cone',
+        unit: 'nos',
+        rate: 3,
+        costPrice: 1.5,
+        mrp: 4,
+        gstRate: 12,
+        hsn: '1905',
+        brandOrSpec: 'Sugar wafer cone',
+        category: 'Packaging',
+        sku: 'PKG-CONE',
+        reorderPoint: 1000,
+      },
+      {
+        name: 'PP Cup 100ml + Lid',
+        unit: 'nos',
+        rate: 2.2,
+        costPrice: 1.1,
+        mrp: 3,
+        gstRate: 18,
+        hsn: '3923',
+        brandOrSpec: 'Food-grade PP cup with lid',
+        category: 'Packaging',
+        sku: 'PKG-CUP-100',
+        reorderPoint: 2000,
+      },
+      {
+        name: 'Tub 1L Container',
+        unit: 'nos',
+        rate: 12,
+        costPrice: 7,
+        mrp: 15,
+        gstRate: 18,
+        hsn: '3923',
+        brandOrSpec: 'Lock-lid HDPE tub',
+        category: 'Packaging',
+        sku: 'PKG-TUB-1L',
+        reorderPoint: 400,
+      },
+      // Finished goods (HSN 2105 ice cream)
+      {
+        name: 'Vanilla Cup 100ml',
+        unit: 'nos',
+        rate: 25,
+        costPrice: 12,
+        mrp: 30,
+        gstRate: 18,
+        hsn: '2105',
+        brandOrSpec: 'Frosty Cups Vanilla',
+        category: 'Finished goods',
+        sku: 'FG-VAN-100',
+        reorderPoint: 200,
+        trackingMode: ResourceTrackingMode.BATCH_EXPIRY,
+      },
+      {
+        name: 'Chocolate Cup 100ml',
+        unit: 'nos',
+        rate: 28,
+        costPrice: 14,
+        mrp: 35,
+        gstRate: 18,
+        hsn: '2105',
+        brandOrSpec: 'Frosty Cups Chocolate',
+        category: 'Finished goods',
+        sku: 'FG-CHOC-100',
+        reorderPoint: 200,
+        trackingMode: ResourceTrackingMode.BATCH_EXPIRY,
+      },
+      {
+        name: 'Chocolate Tub 1L',
+        unit: 'nos',
+        rate: 180,
+        costPrice: 95,
+        mrp: 220,
+        gstRate: 18,
+        hsn: '2105',
+        brandOrSpec: 'Frosty Cups Family Tub',
+        category: 'Finished goods',
+        sku: 'FG-CHOC-1L',
+        reorderPoint: 80,
+        trackingMode: ResourceTrackingMode.BATCH_EXPIRY,
+      },
+      {
+        name: 'Strawberry Cup 100ml',
+        unit: 'nos',
+        rate: 27,
+        costPrice: 13,
+        mrp: 32,
+        gstRate: 18,
+        hsn: '2105',
+        brandOrSpec: 'Frosty Cups Strawberry',
+        category: 'Finished goods',
+        sku: 'FG-STRW-100',
+        reorderPoint: 150,
+        trackingMode: ResourceTrackingMode.BATCH_EXPIRY,
+      },
+    ],
+    // Raw + packaging + some FG for B2B; more FG via Production → Complete on draft batches
+    openingQtys: [800, 400, 180, 5000, 60, 20, 4000, 5000, 600, 150, 0, 40, 0],
   });
 
-  // Recipe + B2B catalog + buyer invite for Frosty Cups
+  // Recipes + production batches + B2B catalog + buyer invite for Frosty Cups
   {
     const frosty = await prisma.company.findFirst({
       where: { gstin: '36AABCF8888F1Z8' },
-      include: { customers: { take: 1 }, resources: true },
+      include: {
+        customers: { orderBy: { createdAt: 'asc' } },
+        resources: true,
+        users: { where: { role: Role.OWNER }, take: 1 },
+        stockLocations: { where: { isDefault: true }, take: 1 },
+      },
     });
     if (frosty) {
       const bySku = new Map(frosty.resources.map((r) => [r.sku, r]));
@@ -2220,39 +2487,159 @@ async function main(): Promise<void> {
       const sugar = bySku.get('RAW-SUGAR');
       const cream = bySku.get('RAW-CREAM');
       const vanilla = bySku.get('RAW-VAN');
-      const cup = bySku.get('FG-VAN-100');
-      const tub = bySku.get('FG-CHOC-1L');
-      if (milk && sugar && cream && vanilla && cup) {
-        const existingRecipe = await prisma.recipe.findFirst({
+      const cocoa = bySku.get('RAW-COCOA');
+      const stab = bySku.get('RAW-STAB');
+      const cupPkg = bySku.get('PKG-CUP-100');
+      const tubPkg = bySku.get('PKG-TUB-1L');
+      const vanCup = bySku.get('FG-VAN-100');
+      const chocCup = bySku.get('FG-CHOC-100');
+      const chocTub = bySku.get('FG-CHOC-1L');
+      const strawCup = bySku.get('FG-STRW-100');
+      const ownerId = frosty.users[0]?.id;
+      const mainLocId = frosty.stockLocations[0]?.id;
+
+      let vanillaRecipeId: string | undefined;
+      let chocTubRecipeId: string | undefined;
+
+      if (milk && sugar && cream && vanilla && cupPkg && vanCup) {
+        let recipe = await prisma.recipe.findFirst({
           where: { companyId: frosty.id, name: 'Vanilla Cup Mix' },
         });
-        if (!existingRecipe) {
-          await prisma.recipe.create({
+        if (!recipe) {
+          recipe = await prisma.recipe.create({
             data: {
               companyId: frosty.id,
               name: 'Vanilla Cup Mix',
-              outputResourceId: cup.id,
+              outputResourceId: vanCup.id,
               outputQty: 100,
-              notes: 'Produces 100 × 100ml vanilla cups',
+              notes: 'BOM for 100 × Vanilla Cup 100ml (includes cup+lid)',
               lines: {
                 create: [
                   { inputResourceId: milk.id, quantity: 40 },
                   { inputResourceId: sugar.id, quantity: 8 },
                   { inputResourceId: cream.id, quantity: 6 },
                   { inputResourceId: vanilla.id, quantity: 200 },
+                  ...(stab ? [{ inputResourceId: stab.id, quantity: 0.4 }] : []),
+                  { inputResourceId: cupPkg.id, quantity: 100 },
+                ],
+              },
+            },
+          });
+        }
+        vanillaRecipeId = recipe.id;
+      }
+
+      if (milk && sugar && cream && cocoa && tubPkg && chocTub) {
+        let recipe = await prisma.recipe.findFirst({
+          where: { companyId: frosty.id, name: 'Chocolate Tub Mix' },
+        });
+        if (!recipe) {
+          recipe = await prisma.recipe.create({
+            data: {
+              companyId: frosty.id,
+              name: 'Chocolate Tub Mix',
+              outputResourceId: chocTub.id,
+              outputQty: 20,
+              notes: 'BOM for 20 × Chocolate Tub 1L',
+              lines: {
+                create: [
+                  { inputResourceId: milk.id, quantity: 35 },
+                  { inputResourceId: sugar.id, quantity: 10 },
+                  { inputResourceId: cream.id, quantity: 12 },
+                  { inputResourceId: cocoa.id, quantity: 4 },
+                  ...(stab ? [{ inputResourceId: stab.id, quantity: 0.5 }] : []),
+                  { inputResourceId: tubPkg.id, quantity: 20 },
+                ],
+              },
+            },
+          });
+        }
+        chocTubRecipeId = recipe.id;
+      }
+
+      if (milk && sugar && cream && cocoa && cupPkg && chocCup) {
+        const existing = await prisma.recipe.findFirst({
+          where: { companyId: frosty.id, name: 'Chocolate Cup Mix' },
+        });
+        if (!existing) {
+          await prisma.recipe.create({
+            data: {
+              companyId: frosty.id,
+              name: 'Chocolate Cup Mix',
+              outputResourceId: chocCup.id,
+              outputQty: 100,
+              notes: 'BOM for 100 × Chocolate Cup 100ml',
+              lines: {
+                create: [
+                  { inputResourceId: milk.id, quantity: 38 },
+                  { inputResourceId: sugar.id, quantity: 9 },
+                  { inputResourceId: cream.id, quantity: 7 },
+                  { inputResourceId: cocoa.id, quantity: 2.5 },
+                  { inputResourceId: cupPkg.id, quantity: 100 },
                 ],
               },
             },
           });
         }
       }
-      if (cup) {
-        await prisma.resource.update({ where: { id: cup.id }, data: { b2bPublished: true } });
+
+      // Publish finished goods to Icecream-inventory-buyer catalog
+      for (const fg of [vanCup, chocCup, chocTub, strawCup]) {
+        if (fg) {
+          await prisma.resource.update({
+            where: { id: fg.id },
+            data: { b2bPublished: true },
+          });
+        }
       }
-      if (tub) {
-        await prisma.resource.update({ where: { id: tub.id }, data: { b2bPublished: true } });
+
+      // Draft production batches for UI (Complete consumes raw → produces FG + lot)
+      if (vanillaRecipeId && ownerId && mainLocId) {
+        const existingDraft = await prisma.productionBatch.findFirst({
+          where: { companyId: frosty.id, batchCode: 'B-SEED-VAN-001' },
+        });
+        if (!existingDraft) {
+          await prisma.productionBatch.create({
+            data: {
+              companyId: frosty.id,
+              recipeId: vanillaRecipeId,
+              locationId: mainLocId,
+              outputQty: 100,
+              batchCode: 'B-SEED-VAN-001',
+              status: 'DRAFT',
+              createdBy: ownerId,
+              manufacturedAt: new Date(),
+              expiresAt: new Date(Date.now() + 90 * 86_400_000),
+              notes: 'Draft — open Production → Batches and tap Complete',
+            },
+          });
+        }
       }
+
+      if (chocTubRecipeId && ownerId && mainLocId) {
+        const existingChocDraft = await prisma.productionBatch.findFirst({
+          where: { companyId: frosty.id, batchCode: 'B-SEED-CHOC-001' },
+        });
+        if (!existingChocDraft) {
+          await prisma.productionBatch.create({
+            data: {
+              companyId: frosty.id,
+              recipeId: chocTubRecipeId,
+              locationId: mainLocId,
+              outputQty: 20,
+              batchCode: 'B-SEED-CHOC-001',
+              status: 'DRAFT',
+              createdBy: ownerId,
+              manufacturedAt: new Date(),
+              expiresAt: new Date(Date.now() + 120 * 86_400_000),
+              notes: 'Draft chocolate tub batch for plant trial',
+            },
+          });
+        }
+      }
+
       const customer =
+        frosty.customers.find((c) => c.email === 'orders@cityscoop.com') ??
         frosty.customers[0] ??
         (await prisma.customer.create({
           data: {
@@ -2283,7 +2670,9 @@ async function main(): Promise<void> {
         });
       }
       // eslint-disable-next-line no-console
-      console.log('   Seeded Ice cream vertical: Frosty Cups + recipe + buyer@cityscoop.com');
+      console.log(
+        '   Seeded Ice cream: Frosty Cups — HSN catalog, 3 recipes, production batches, buyer@cityscoop.com',
+      );
     }
   }
 

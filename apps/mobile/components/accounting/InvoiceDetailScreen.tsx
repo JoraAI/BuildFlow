@@ -293,38 +293,17 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
       </Card>
 
       {invoice.lineItems && invoice.lineItems.length > 0 && (
-        <Card>
-          <Text className="text-sm font-bold text-text mb-2">Line Items</Text>
-          {isDesktop && (
-            <View className="flex-row py-2 border-b border-border mb-1">
-              <Text className="flex-1 text-xs font-semibold text-muted uppercase">Description</Text>
-              <Text className="w-28 text-xs font-semibold text-muted uppercase text-right">Qty</Text>
-              <Text className="w-32 text-xs font-semibold text-muted uppercase text-right">Amount</Text>
-            </View>
-          )}
-          {invoice.lineItems.map((li: InvoiceLineItem) => (
-            <View
-              key={li.id}
-              className={`py-2 border-b border-border ${isDesktop ? 'flex-row items-center' : 'flex-row justify-between'}`}
-            >
-              <View className="flex-1 mr-2">
-                <Text className="text-sm text-text">{li.description}</Text>
-                {!isDesktop && (
-                  <Text className="text-xs text-muted">
-                    {li.quantity} {li.unit} × {formatINR(li.rate)}
-                  </Text>
-                )}
-              </View>
-              {isDesktop && (
-                <Text className="w-28 text-xs text-muted text-right">
-                  {li.quantity} {li.unit} × {formatINR(li.rate)}
-                </Text>
-              )}
-              <Text className={`text-sm font-semibold text-text ${isDesktop ? 'w-32 text-right' : ''}`}>
-                {formatINR(li.amount)}
-              </Text>
-            </View>
-          ))}
+        <Card className="overflow-hidden !p-0">
+          <View className="px-4 pt-3 pb-2">
+            <Text className="text-sm font-bold text-text">Billing items</Text>
+            <Text className="text-[11px] text-muted mt-0.5">
+              Tax invoice format — HSN, qty, rate, CGST / SGST (or IGST)
+            </Text>
+          </View>
+          <TaxInvoiceLineTable
+            lines={invoice.lineItems}
+            useIgst={Number(invoice.igstAmount) > 0 && Number(invoice.cgstAmount) <= 0}
+          />
         </Card>
       )}
 
@@ -411,5 +390,159 @@ function Row({
         {value}
       </Text>
   </View>
+  );
+}
+
+/** Indian tax-invoice line table (matches printed Tax Invoice billing columns). */
+function TaxInvoiceLineTable({
+  lines,
+  useIgst,
+}: {
+  lines: InvoiceLineItem[];
+  useIgst: boolean;
+}) {
+  const fmt = (n: number) =>
+    n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const col = (width: number, label: string, align: 'left' | 'right' = 'left') => (
+    <Text
+      className={`text-[10px] font-bold text-white uppercase ${align === 'right' ? 'text-right' : ''}`}
+      style={{ width }}
+    >
+      {label}
+    </Text>
+  );
+
+  const IGST_W = {
+    sr: 36,
+    item: 200,
+    hsn: 72,
+    qty: 56,
+    unit: 52,
+    rate: 72,
+    tPct: 52,
+    tAmt: 80,
+    amt: 88,
+  } as const;
+  const CGST_W = {
+    sr: 36,
+    item: 180,
+    hsn: 72,
+    qty: 52,
+    unit: 48,
+    rate: 68,
+    cPct: 44,
+    cAmt: 72,
+    sPct: 44,
+    sAmt: 72,
+    amt: 88,
+  } as const;
+
+  const minWidth = useIgst
+    ? IGST_W.sr + IGST_W.item + IGST_W.hsn + IGST_W.qty + IGST_W.unit + IGST_W.rate + IGST_W.tPct + IGST_W.tAmt + IGST_W.amt
+    : CGST_W.sr + CGST_W.item + CGST_W.hsn + CGST_W.qty + CGST_W.unit + CGST_W.rate + CGST_W.cPct + CGST_W.cAmt + CGST_W.sPct + CGST_W.sAmt + CGST_W.amt;
+
+  const cell = (
+    width: number,
+    text: string,
+    opts?: { right?: boolean; bold?: boolean; muted?: boolean },
+  ) => (
+    <Text
+      className={`text-[11px] ${opts?.bold ? 'font-semibold text-text' : opts?.muted ? 'text-muted' : 'text-text'} ${
+        opts?.right ? 'text-right' : ''
+      }`}
+      style={{ width }}
+      numberOfLines={2}
+    >
+      {text}
+    </Text>
+  );
+
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ minWidth }}>
+      <View>
+        {useIgst ? (
+          <>
+            <View className="flex-row items-center bg-primary px-2 py-2 gap-1">
+              {col(IGST_W.sr, 'Sr')}
+              {col(IGST_W.item, 'Item & Description')}
+              {col(IGST_W.hsn, 'HSN/SAC')}
+              {col(IGST_W.qty, 'Qty', 'right')}
+              {col(IGST_W.unit, 'Units')}
+              {col(IGST_W.rate, 'Rate', 'right')}
+              {col(IGST_W.tPct, 'IGST %', 'right')}
+              {col(IGST_W.tAmt, 'IGST Amt', 'right')}
+              {col(IGST_W.amt, 'Amount', 'right')}
+            </View>
+            {lines.map((li, idx) => {
+              const taxable = Number(li.amount) || Number(li.quantity) * Number(li.rate);
+              const gstRate = Number(li.gstRate) || 0;
+              const igstAmt = (taxable * gstRate) / 100;
+              return (
+                <View
+                  key={li.id}
+                  className={`flex-row items-start px-2 py-2.5 gap-1 border-b border-border ${
+                    idx % 2 === 1 ? 'bg-surface' : 'bg-card'
+                  }`}
+                >
+                  {cell(IGST_W.sr, String(idx + 1), { muted: true })}
+                  {cell(IGST_W.item, li.description)}
+                  {cell(IGST_W.hsn, li.hsnSacCode?.trim() || '—', { muted: true })}
+                  {cell(IGST_W.qty, fmt(Number(li.quantity)), { right: true })}
+                  {cell(IGST_W.unit, li.unit || '—')}
+                  {cell(IGST_W.rate, fmt(Number(li.rate)), { right: true })}
+                  {cell(IGST_W.tPct, gstRate ? String(gstRate) : '—', { right: true, muted: true })}
+                  {cell(IGST_W.tAmt, fmt(igstAmt), { right: true })}
+                  {cell(IGST_W.amt, fmt(taxable), { right: true, bold: true })}
+                </View>
+              );
+            })}
+          </>
+        ) : (
+          <>
+            <View className="flex-row items-center bg-primary px-2 py-2 gap-1">
+              {col(CGST_W.sr, 'Sr')}
+              {col(CGST_W.item, 'Item & Description')}
+              {col(CGST_W.hsn, 'HSN/SAC')}
+              {col(CGST_W.qty, 'Qty', 'right')}
+              {col(CGST_W.unit, 'Units')}
+              {col(CGST_W.rate, 'Rate', 'right')}
+              {col(CGST_W.cPct, 'CGST %', 'right')}
+              {col(CGST_W.cAmt, 'CGST Amt', 'right')}
+              {col(CGST_W.sPct, 'SGST %', 'right')}
+              {col(CGST_W.sAmt, 'SGST Amt', 'right')}
+              {col(CGST_W.amt, 'Amount', 'right')}
+            </View>
+            {lines.map((li, idx) => {
+              const taxable = Number(li.amount) || Number(li.quantity) * Number(li.rate);
+              const gstRate = Number(li.gstRate) || 0;
+              const half = gstRate / 2;
+              const cgstAmt = (taxable * half) / 100;
+              const sgstAmt = (taxable * half) / 100;
+              return (
+                <View
+                  key={li.id}
+                  className={`flex-row items-start px-2 py-2.5 gap-1 border-b border-border ${
+                    idx % 2 === 1 ? 'bg-surface' : 'bg-card'
+                  }`}
+                >
+                  {cell(CGST_W.sr, String(idx + 1), { muted: true })}
+                  {cell(CGST_W.item, li.description)}
+                  {cell(CGST_W.hsn, li.hsnSacCode?.trim() || '—', { muted: true })}
+                  {cell(CGST_W.qty, fmt(Number(li.quantity)), { right: true })}
+                  {cell(CGST_W.unit, li.unit || '—')}
+                  {cell(CGST_W.rate, fmt(Number(li.rate)), { right: true })}
+                  {cell(CGST_W.cPct, gstRate ? String(half) : '—', { right: true, muted: true })}
+                  {cell(CGST_W.cAmt, fmt(cgstAmt), { right: true })}
+                  {cell(CGST_W.sPct, gstRate ? String(half) : '—', { right: true, muted: true })}
+                  {cell(CGST_W.sAmt, fmt(sgstAmt), { right: true })}
+                  {cell(CGST_W.amt, fmt(taxable), { right: true, bold: true })}
+                </View>
+              );
+            })}
+          </>
+        )}
+      </View>
+    </ScrollView>
   );
 }

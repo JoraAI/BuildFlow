@@ -2858,8 +2858,8 @@ model ProductionBatch {
   companyId      String                @map("company_id") @db.Uuid
   recipeId       String                @map("recipe_id") @db.Uuid
   locationId     String                @map("location_id") @db.Uuid
-  /// Multiplier of recipe output (e.g. 10 → 10 × recipe.outputQty finished units).
-  outputQty      Decimal               @db.Decimal(12, 3)
+  /// Absolute finished-goods qty to produce (inputs scaled vs recipe.outputQty).
+  outputQty      Decimal               @map("output_qty") @db.Decimal(12, 3)
   batchCode      String                @map("batch_code")
   manufacturedAt DateTime?             @map("manufactured_at")
   expiresAt      DateTime?             @map("expires_at")

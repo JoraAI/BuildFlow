@@ -118,7 +118,14 @@ function NewInvoiceModal({
     clientAddress?: string;
     invoiceDate: string;
     dueDate: string;
-    lineItems: Array<{ description: string; quantity: number; unit: string; rate: number; gstRate: number }>;
+    lineItems: Array<{
+      description: string;
+      quantity: number;
+      unit: string;
+      rate: number;
+      gstRate: number;
+      hsnSacCode?: string;
+    }>;
   }) => Promise<void>;
 }) {
   const { isPhone } = useViewport();
@@ -130,6 +137,7 @@ function NewInvoiceModal({
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
   const [description, setDescription] = useState('');
+  const [hsnSacCode, setHsnSacCode] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [unit, setUnit] = useState('no');
   const [rate, setRate] = useState('');
@@ -154,7 +162,14 @@ function NewInvoiceModal({
         invoiceDate,
         dueDate,
         lineItems: [
-          { description, quantity: Number(quantity), unit, rate: Number(rate), gstRate: Number(gstRate) || 0 },
+          {
+            description,
+            quantity: Number(quantity),
+            unit,
+            rate: Number(rate),
+            gstRate: Number(gstRate) || 0,
+            ...(hsnSacCode.trim() ? { hsnSacCode: hsnSacCode.trim() } : {}),
+          },
         ],
       });
       setCustomerId('');
@@ -162,6 +177,7 @@ function NewInvoiceModal({
       setClientPhone('');
       setClientAddress('');
       setDescription('');
+      setHsnSacCode('');
       setQuantity('1');
       setRate('');
     } catch (e) {
@@ -229,19 +245,28 @@ function NewInvoiceModal({
             />
             <Input label="Invoice date" value={invoiceDate} onChangeText={setInvoiceDate} />
             <Input label="Due date" value={dueDate} onChangeText={setDueDate} />
-            <Text className="text-sm font-bold text-text mb-1.5 mt-2">Line item</Text>
-            <Input label="Description" value={description} onChangeText={setDescription} />
+            <Text className="text-sm font-bold text-text mb-1.5 mt-2">Billing item</Text>
+            <Text className="text-[11px] text-muted mb-2">
+              Tax invoice fields — item, HSN/SAC, qty, units, rate, GST (split as CGST/SGST on invoice)
+            </Text>
+            <Input label="Item & description" value={description} onChangeText={setDescription} />
+            <Input
+              label="HSN/SAC"
+              value={hsnSacCode}
+              onChangeText={setHsnSacCode}
+              placeholder="e.g. 2105 or 38249900"
+            />
             <View className="flex-row gap-3">
               <View className="flex-1">
                 <Input label="Qty" value={quantity} onChangeText={setQuantity} keyboardType="numeric" />
               </View>
               <View className="flex-1">
-                <Input label="Unit" value={unit} onChangeText={setUnit} />
+                <Input label="Units" value={unit} onChangeText={setUnit} placeholder="KGS / nos" />
               </View>
             </View>
             <View className="flex-row gap-3">
               <View className="flex-1">
-                <Input label="Selling ₹/unit" value={rate} onChangeText={setRate} keyboardType="numeric" />
+                <Input label="Rate ₹/unit" value={rate} onChangeText={setRate} keyboardType="numeric" />
               </View>
               <View className="flex-1">
                 <Input label="GST %" value={gstRate} onChangeText={setGstRate} keyboardType="numeric" />

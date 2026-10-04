@@ -640,23 +640,51 @@ export async function reportInvoice(companyId: string, invoiceId: string): Promi
       summaryLine(doc, `Retention (${num(invoice.retentionPct)}%)`, `- ${inr(num(invoice.retentionAmount))}`);
     }
   } else {
-  const widths = [40, 200, 70, 70, 90, 90];
-  let y = tableHeaders(doc, ['Sr', 'Description', 'HSN', 'Qty', 'Rate (Rs)', 'Amount (Rs)'], widths, doc.y);
+  // Tax Invoice billing columns (matches printed GST tax invoice layout).
+  const useIgst = num(invoice.igstAmount) > 0 && num(invoice.cgstAmount) <= 0;
+  const money = (n: number) =>
+    n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const widths = useIgst
+    ? [22, 120, 52, 36, 32, 48, 32, 52, 58]
+    : [20, 100, 48, 32, 30, 42, 28, 42, 28, 42, 52];
+  const headers = useIgst
+    ? ['Sr', 'Item & Description', 'HSN/SAC', 'Qty', 'Units', 'Rate', 'IGST%', 'IGST Amt', 'Amount']
+    : ['Sr', 'Item & Description', 'HSN/SAC', 'Qty', 'Units', 'Rate', 'CGST%', 'CGST Amt', 'SGST%', 'SGST Amt', 'Amount'];
+  let y = tableHeaders(doc, headers, widths, doc.y);
+  // Slightly smaller body text for the wide GST column set.
   invoice.lineItems.forEach((li, i) => {
-    y = tableRow(
-      doc,
-      [
-        `${i + 1}`,
-        li.description,
-        li.hsnSacCode ?? '',
-        `${num(li.quantity)} ${li.unit ?? ''}`,
-        num(li.rate).toLocaleString('en-IN'),
-        num(li.amount).toLocaleString('en-IN'),
-      ],
-      widths,
-      y,
-      i % 2 === 1,
-    );
+    const taxable = num(li.amount);
+    const gstRate = num(li.gstRate);
+    const half = gstRate / 2;
+    const cgstAmt = useIgst ? 0 : (taxable * half) / 100;
+    const sgstAmt = useIgst ? 0 : (taxable * half) / 100;
+    const igstAmt = useIgst ? (taxable * gstRate) / 100 : 0;
+    const values = useIgst
+      ? [
+          `${i + 1}`,
+          li.description,
+          li.hsnSacCode ?? '',
+          money(num(li.quantity)),
+          li.unit ?? '',
+          money(num(li.rate)),
+          gstRate ? String(gstRate) : '',
+          money(igstAmt),
+          money(taxable),
+        ]
+      : [
+          `${i + 1}`,
+          li.description,
+          li.hsnSacCode ?? '',
+          money(num(li.quantity)),
+          li.unit ?? '',
+          money(num(li.rate)),
+          gstRate ? String(half) : '',
+          money(cgstAmt),
+          gstRate ? String(half) : '',
+          money(sgstAmt),
+          money(taxable),
+        ];
+    y = tableRow(doc, values, widths, y, i % 2 === 1);
   });
 
   doc.moveDown(1);
