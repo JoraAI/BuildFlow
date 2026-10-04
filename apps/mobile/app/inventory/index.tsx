@@ -367,7 +367,7 @@ export default function InventoryStockScreen() {
       ) : null}
 
       {isDesktop && filteredSummary.length > 0 ? (
-        <View className="flex-row items-center py-2 bg-surface border-b border-border mt-1">
+        <View className="flex-row items-center py-3 px-2 bg-surface border-b border-border mt-1 rounded-t-lg">
           <Text style={STOCK_COL.name} className="text-[11px] font-bold text-muted uppercase">Name</Text>
           <Text style={STOCK_COL.balance} className="text-[11px] font-bold text-muted uppercase text-right">Balance</Text>
           <Text style={STOCK_COL.money} className="text-[11px] font-bold text-muted uppercase text-right">Cost</Text>
@@ -519,7 +519,7 @@ export default function InventoryStockScreen() {
                 <Pressable
                   disabled={buffering}
                   onPress={() => router.push(inventoryStockItemHref(item.resourceId, selectedLocationId) as never)}
-                  className="flex-row items-center py-3 bg-card border-b border-border/60"
+                  className="flex-row items-center py-4 px-2 bg-card border-b border-border/60"
                 >
                   <View style={STOCK_COL.name} className="min-w-0">
                     <Text className="text-sm font-semibold text-text" numberOfLines={1}>{item.name}</Text>
@@ -616,8 +616,10 @@ export default function InventoryStockScreen() {
             )
           }
           contentContainerStyle={{
-            paddingHorizontal: 16,
-            paddingBottom: isPhone ? mobileListBottomPadding(false) : 24,
+            // Desktop gets more side padding so stock rows breathe in the wide shell.
+            paddingHorizontal: isDesktop ? 28 : isPhone ? 16 : 20,
+            paddingBottom: isPhone ? mobileListBottomPadding(false) : isDesktop ? 40 : 28,
+            paddingTop: isDesktop ? 4 : 0,
             flexGrow: 1,
           }}
         />

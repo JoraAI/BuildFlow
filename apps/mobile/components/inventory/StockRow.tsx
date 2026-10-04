@@ -43,7 +43,7 @@ export function StockRow({
     <Pressable
       disabled={disabled}
       onPress={onPress}
-      className="py-3 border-b border-border/50 active:bg-primary/5"
+      className="py-3.5 px-0.5 border-b border-border/50 active:bg-primary/5"
     >
       <View className="flex-row items-start gap-3">
         <View className="flex-1 min-w-0">
@@ -54,19 +54,19 @@ export function StockRow({
             {meta || unit}
           </Text>
           {isLowStock ? (
-            <View className="mt-1 self-start">
+            <View className="mt-1.5 self-start">
               <Badge color="danger" label={`Low · reorder ${Number(reorderPoint)}`} />
             </View>
           ) : null}
         </View>
-        <View className="items-end shrink-0">
+        <View className="items-end shrink-0 pl-2">
           <Text className="text-[10px] text-muted uppercase">On hand</Text>
           <Text className="text-base font-bold text-primary">
             {balance} <Text className="text-xs font-medium text-muted">{unit}</Text>
           </Text>
         </View>
       </View>
-      <View className="flex-row justify-end gap-2 mt-2">
+      <View className="flex-row justify-end gap-2 mt-2.5">
         {onAdjust ? (
           <Button label="Adjust" size="sm" variant="ghost" disabled={disabled} onPress={onAdjust} />
         ) : null}
