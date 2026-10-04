@@ -205,6 +205,49 @@ importers:
         specifier: ^5.4.5
         version: 5.9.3
 
+  apps/icecream-inventory-buyer:
+    dependencies:
+      '@buildflow/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      expo:
+        specifier: ~51.0.0
+        version: 51.0.39(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(react-native@0.74.2(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@types/react@18.2.79)(react@18.2.0))(react@18.2.0)
+      expo-router:
+        specifier: ~3.5.0
+        version: 3.5.24(cd628fe4847ab7616aa0a968da069387)
+      expo-secure-store:
+        specifier: ~13.0.0
+        version: 13.0.2(expo@51.0.39(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(react-native@0.74.2(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@types/react@18.2.79)(react@18.2.0))(react@18.2.0))
+      expo-status-bar:
+        specifier: ~1.12.1
+        version: 1.12.1
+      react:
+        specifier: 18.2.0
+        version: 18.2.0
+      react-dom:
+        specifier: 18.2.0
+        version: 18.2.0(react@18.2.0)
+      react-native:
+        specifier: 0.74.2
+        version: 0.74.2(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@types/react@18.2.79)(react@18.2.0)
+      react-native-safe-area-context:
+        specifier: 4.10.1
+        version: 4.10.1(react-native@0.74.2(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@types/react@18.2.79)(react@18.2.0))(react@18.2.0)
+      react-native-screens:
+        specifier: ~3.31.1
+        version: 3.31.1(react-native@0.74.2(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@types/react@18.2.79)(react@18.2.0))(react@18.2.0)
+      react-native-web:
+        specifier: ~0.19.10
+        version: 0.19.13(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+    devDependencies:
+      '@types/react':
+        specifier: ~18.2.79
+        version: 18.2.79
+      typescript:
+        specifier: ~5.3.3
+        version: 5.3.3
+
   apps/mcp-server:
     dependencies:
       '@buildflow/shared':

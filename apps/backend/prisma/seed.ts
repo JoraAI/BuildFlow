@@ -2336,7 +2336,7 @@ async function main(): Promise<void> {
   // eslint-disable-next-line no-console
   console.log('   owner@frostycups.com (ICE_CREAM vertical · WHOLESALE, recipes + B2B) → /inventory');
   // eslint-disable-next-line no-console
-  console.log('   buyer@cityscoop.com (B2B buyer app OTP 111111) → /api/buyer');
+  console.log('   buyer@cityscoop.com (Icecream-inventory-buyer OTP 111111) → /api/buyer');
   // eslint-disable-next-line no-console
   console.log('── Platform console (/platform/login)');
   // eslint-disable-next-line no-console

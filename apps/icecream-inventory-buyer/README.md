@@ -1,6 +1,6 @@
-# BuildFlow Buyer (`@buildflow/buyer`)
+# Icecream-inventory-buyer (`@buildflow/icecream-inventory-buyer`)
 
-Thin B2B ordering app for the **Ice cream manufacturer** vertical.
+Thin B2B ordering app for the **Ice cream manufacturer** inventory vertical.
 
 Buyers log in with manufacturer-issued credentials, browse the published catalog, place orders (creates `SalesOrder` with `source=B2B_APP` in the manufacturer Inventory tenant), and track shipping.
 
@@ -9,7 +9,7 @@ Buyers log in with manufacturer-issued credentials, browse the published catalog
 ```bash
 # from repo root (API must be on :4000)
 pnpm install
-pnpm --filter @buildflow/buyer start
+pnpm --filter @buildflow/icecream-inventory-buyer start
 ```
 
 Demo buyer (after seed): `buyer@cityscoop.com` / OTP `111111`
@@ -20,7 +20,7 @@ Demo buyer (after seed): `buyer@cityscoop.com` / OTP `111111`
 2. `npx eas build -p android --profile preview` (add `eas.json` as needed).
 3. Upload the AAB to Play Console internal testing.
 
-Package id: `com.buildflow.buyer`
+Package id: `com.buildflow.icecreaminventorybuyer`
 
 ## API
 

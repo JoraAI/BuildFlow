@@ -1,5 +1,5 @@
 /**
- * Thin B2B buyer app - login, catalog/cart, orders.
+ * Icecream-inventory-buyer - login, catalog/cart, orders.
  * Reuses simple RN primitives; cart UX mirrors Inventory checkout patterns.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -155,7 +155,7 @@ export default function BuyerHome() {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.pad}>
-          <Text style={styles.brand}>BuildFlow Buyer</Text>
+          <Text style={styles.brand}>Icecream-inventory-buyer</Text>
           <Text style={styles.muted}>Order from your manufacturer catalog</Text>
           <Text style={styles.label}>Email</Text>
           <TextInput style={styles.input} value={email} onChangeText={setEmail} autoCapitalize="none" />
@@ -177,7 +177,7 @@ export default function BuyerHome() {
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.brandSmall}>BuildFlow Buyer</Text>
+          <Text style={styles.brandSmall}>Icecream-inventory-buyer</Text>
           <Text style={styles.muted}>{buyer?.companyName ?? 'Catalog'}</Text>
         </View>
         <Pressable onPress={logout}>

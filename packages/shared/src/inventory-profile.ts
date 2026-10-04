@@ -58,7 +58,7 @@ export const INVENTORY_VERTICAL_VALUES: readonly InventoryVertical[] = [
 export const INVENTORY_VERTICAL_LABELS: Record<InventoryVertical, string> = {
   GENERAL: 'General retail (grocery, medical, pharmacy, hardware, …)',
   EVENTS: 'Events & lighting',
-  ICE_CREAM: 'Ice cream manufacturer (recipes, production, B2B buyers)',
+  ICE_CREAM: 'Ice cream manufacturer (recipes, production, Icecream-inventory-buyer)',
 };
 
 /** Human-readable labels for the Settings profile picker. */

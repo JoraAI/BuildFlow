@@ -8,7 +8,7 @@ import { InventoryPageHeader } from '@/components/inventory/InventoryPageHeader'
 import { SegmentedTabs } from '@/components/inventory/SegmentedTabs';
 import { useAuthStore } from '@/stores/auth.store';
 import { usesIceCreamManufacturerCopy } from '@buildflow/shared';
-import { useResources } from '@/services/estimate.queries';
+import { useResources, type Resource } from '@/services/estimate.queries';
 import {
   useRecipes,
   useCreateRecipe,
@@ -50,13 +50,19 @@ export default function IceCreamProductionScreen() {
   const [batchQty, setBatchQty] = useState('100');
   const [batchCode, setBatchCode] = useState(`B-${Date.now().toString().slice(-6)}`);
 
+  // useResources() returns { data: Resource[] } (list envelope), not a bare array.
+  const resources = useMemo<Resource[]>(
+    () => (Array.isArray(resourcesQ.data) ? resourcesQ.data : (resourcesQ.data?.data ?? [])),
+    [resourcesQ.data],
+  );
+
   const resourceOptions = useMemo(
     () =>
-      (resourcesQ.data ?? []).map((r) => ({
+      resources.map((r) => ({
         title: `${r.name}${r.sku ? ` (${r.sku})` : ''}`,
         value: r.id,
       })),
-    [resourcesQ.data],
+    [resources],
   );
 
   if (!enabled) {
@@ -127,7 +133,7 @@ export default function IceCreamProductionScreen() {
                 size="sm"
                 onPress={() => {
                   if (!inputId) return;
-                  const r = (resourcesQ.data ?? []).find((x) => x.id === inputId);
+                  const r = resources.find((x) => x.id === inputId);
                   setLines((prev) => [
                     ...prev,
                     {
@@ -206,7 +212,7 @@ export default function IceCreamProductionScreen() {
               label="Recipe"
               value={batchRecipeId}
               onChange={(v) => v && setBatchRecipeId(v)}
-              options={(recipesQ.data ?? []).map((r) => ({ title: r.name, value: r.id }))}
+              options={(recipesQ.data ?? []).map((r: RecipeRow) => ({ title: r.name, value: r.id }))}
             />
             <View className="h-2" />
             <Input label="Output qty" value={batchQty} onChangeText={setBatchQty} keyboardType="decimal-pad" />
@@ -300,7 +306,14 @@ export default function IceCreamProductionScreen() {
               <Pressable onPress={() => router.push('/inventory/sales' as never)}>
                 <Text className="text-sm font-semibold text-primary mb-2">Open Sales list →</Text>
               </Pressable>
-              {(salesQ.data?.recent ?? []).map((o) => (
+              {(salesQ.data?.recent ?? []).map((o: {
+                id: string;
+                soNumber: string;
+                customerName: string;
+                status: string;
+                source: string;
+                total: string | number;
+              }) => (
                 <Card key={o.id} className="p-3 mb-2">
                   <View className="flex-row justify-between">
                     <Text className="text-sm font-bold text-text">{o.soNumber}</Text>

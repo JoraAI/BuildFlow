@@ -1,17 +1,17 @@
 {
   "expo": {
-    "name": "BuildFlow Buyer",
-    "slug": "buildflow-buyer",
+    "name": "Icecream-inventory-buyer",
+    "slug": "icecream-inventory-buyer",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "buildflow-buyer",
+    "scheme": "icecream-inventory-buyer",
     "userInterfaceStyle": "light",
     "android": {
-      "package": "com.buildflow.buyer",
+      "package": "com.buildflow.icecreaminventorybuyer",
       "versionCode": 1
     },
     "ios": {
-      "bundleIdentifier": "com.buildflow.buyer"
+      "bundleIdentifier": "com.buildflow.icecreaminventorybuyer"
     },
     "plugins": ["expo-router", "expo-secure-store"],
     "extra": {
