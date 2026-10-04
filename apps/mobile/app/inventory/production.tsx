@@ -44,7 +44,10 @@ export default function IceCreamProductionScreen() {
   const [outputQty, setOutputQty] = useState('100');
   const [inputId, setInputId] = useState('');
   const [inputQty, setInputQty] = useState('1');
-  const [lines, setLines] = useState<Array<{ inputResourceId: string; quantity: number; label: string }>>([]);
+  const [lines, setLines] = useState<
+    Array<{ key: string; inputResourceId: string; quantity: number; label: string; unit: string }>
+  >([]);
+  const [lineSeq, setLineSeq] = useState(0);
 
   const [batchRecipeId, setBatchRecipeId] = useState('');
   const [batchQty, setBatchQty] = useState('100');
@@ -64,6 +67,19 @@ export default function IceCreamProductionScreen() {
       })),
     [resources],
   );
+
+  // Ingredient picker: exclude finished-goods output and lines already added.
+  // Reusing the same option after Add without clearing selection / duplicate keys
+  // was breaking the form after a few adds.
+  const ingredientOptions = useMemo(() => {
+    const used = new Set(lines.map((l) => l.inputResourceId));
+    return resources
+      .filter((r) => r.id !== outputId && !used.has(r.id))
+      .map((r) => ({
+        title: `${r.name}${r.sku ? ` (${r.sku})` : ''}`,
+        value: r.id,
+      }));
+  }, [resources, lines, outputId]);
 
   if (!enabled) {
     return (
@@ -111,37 +127,90 @@ export default function IceCreamProductionScreen() {
             <View className="h-2" />
             <Select
               label="Finished goods output"
-              value={outputId}
-              onChange={(v) => v && setOutputId(v)}
+              value={outputId || undefined}
+              onChange={(v) => {
+                if (!v) return;
+                setOutputId(v);
+                if (inputId === v) setInputId('');
+                setLines((prev) => prev.filter((l) => l.inputResourceId !== v));
+              }}
               options={resourceOptions}
+              title="Finished goods"
             />
             <View className="h-2" />
             <Input label="Output qty" value={outputQty} onChangeText={setOutputQty} keyboardType="decimal-pad" />
             <View className="h-2" />
             <Select
               label="Add ingredient"
-              value={inputId}
-              onChange={(v) => v && setInputId(v)}
-              options={resourceOptions}
+              value={inputId || undefined}
+              onChange={(v) => setInputId(v ?? '')}
+              options={ingredientOptions}
+              clearable
+              placeholder="Pick next ingredient…"
+              title="Ingredient"
             />
             <View className="h-2" />
             <Input label="Ingredient qty" value={inputQty} onChangeText={setInputQty} keyboardType="decimal-pad" />
+            {lines.length > 0 ? (
+              <View className="mt-3 gap-1.5">
+                <Text className="text-xs font-semibold text-muted uppercase">
+                  Ingredients ({lines.length})
+                </Text>
+                {lines.map((l) => (
+                  <View
+                    key={l.key}
+                    className="flex-row items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2"
+                  >
+                    <Text className="text-sm text-text flex-1 min-w-0" numberOfLines={2}>
+                      {l.label}: {l.quantity}
+                      {l.unit ? ` ${l.unit}` : ''}
+                    </Text>
+                    <Pressable
+                      onPress={() => setLines((prev) => prev.filter((row) => row.key !== l.key))}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${l.label}`}
+                    >
+                      <Text className="text-xs font-semibold text-danger">Remove</Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            ) : null}
             <View className="flex-row gap-2 mt-3">
               <Button
                 label="Add line"
                 variant="secondary"
                 size="sm"
                 onPress={() => {
-                  if (!inputId) return;
+                  if (!inputId) {
+                    toast.error('Pick an ingredient first');
+                    return;
+                  }
+                  if (inputId === outputId) {
+                    toast.error('Ingredient cannot be the same as finished goods output');
+                    return;
+                  }
+                  if (lines.some((l) => l.inputResourceId === inputId)) {
+                    toast.error('That ingredient is already on the recipe');
+                    return;
+                  }
                   const r = resources.find((x) => x.id === inputId);
+                  const nextSeq = lineSeq + 1;
+                  setLineSeq(nextSeq);
                   setLines((prev) => [
                     ...prev,
                     {
+                      key: `line-${nextSeq}-${inputId}`,
                       inputResourceId: inputId,
                       quantity: Number(inputQty) || 1,
                       label: r?.name ?? inputId,
+                      unit: r?.unit ?? '',
                     },
                   ]);
+                  // Reset picker so the next Add starts clean (avoids stale Select value / key clashes).
+                  setInputId('');
+                  setInputQty('1');
                 }}
               />
               <Button
@@ -164,6 +233,9 @@ export default function IceCreamProductionScreen() {
                       })),
                     });
                     setLines([]);
+                    setLineSeq(0);
+                    setInputId('');
+                    setInputQty('1');
                     toast.success('Recipe saved');
                   } catch (e) {
                     toast.error((e as Error).message || 'Failed');
@@ -171,11 +243,6 @@ export default function IceCreamProductionScreen() {
                 }}
               />
             </View>
-            {lines.map((l) => (
-              <Text key={l.inputResourceId + l.label} className="text-xs text-muted mt-1">
-                • {l.label}: {l.quantity}
-              </Text>
-            ))}
           </Card>
 
           {recipesQ.isLoading ? (
