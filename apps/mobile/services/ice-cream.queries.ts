@@ -66,6 +66,44 @@ export function useCreateRecipe() {
   });
 }
 
+export function useUpdateRecipe() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...body
+    }: {
+      id: string;
+      name?: string;
+      outputResourceId?: string;
+      outputQty?: number;
+      notes?: string | null;
+      isActive?: boolean;
+      lines?: Array<{ inputResourceId: string; quantity: number }>;
+    }) =>
+      apiFetch<RecipeRow>(`/inventory/ice-cream/recipes/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.recipes }),
+  });
+}
+
+export function useDeleteRecipe() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<{ mode: 'deleted' | 'deactivated'; id?: string; batchCount?: number }>(
+        `/inventory/ice-cream/recipes/${id}`,
+        { method: 'DELETE' },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.recipes });
+      qc.invalidateQueries({ queryKey: keys.production });
+    },
+  });
+}
+
 export function useProductionBatches(enabled = true) {
   return useQuery({
     queryKey: keys.production,

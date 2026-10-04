@@ -97,13 +97,21 @@ export async function updateRecipe(
 ) {
   await assertInventoryFeature(companyId, 'recipes');
   const existing = await getRecipe(companyId, id);
+  const nextOutputId = input.outputResourceId ?? existing.outputResourceId;
+  const nextLines =
+    input.lines ??
+    existing.lines.map((l) => ({
+      inputResourceId: l.inputResourceId,
+      quantity: Number(l.quantity),
+    }));
   if (input.outputResourceId || input.lines) {
     await assertResources(companyId, [
-      input.outputResourceId ?? existing.outputResourceId,
-      ...(input.lines ?? existing.lines).map((l) =>
-        'inputResourceId' in l ? l.inputResourceId : (l as { inputResourceId: string }).inputResourceId,
-      ),
+      nextOutputId,
+      ...nextLines.map((l) => l.inputResourceId),
     ]);
+    if (nextLines.some((l) => l.inputResourceId === nextOutputId)) {
+      throw ApiError.badRequest('Output item cannot also be an input ingredient');
+    }
   }
 
   return prisma.$transaction(async (tx) => {
@@ -136,6 +144,33 @@ export async function updateRecipe(
       },
     });
   });
+}
+
+/**
+ * Delete a recipe. Hard-deletes when unused; otherwise soft-deactivates so
+ * historical production batches keep their recipe reference.
+ */
+export async function deleteRecipe(companyId: string, id: string) {
+  await assertInventoryFeature(companyId, 'recipes');
+  await getRecipe(companyId, id);
+  const batchCount = await prisma.productionBatch.count({ where: { companyId, recipeId: id } });
+  if (batchCount > 0) {
+    const deactivated = await prisma.recipe.update({
+      where: { id },
+      data: { isActive: false },
+      include: {
+        outputResource: { select: { id: true, name: true, unit: true, sku: true } },
+        lines: {
+          include: {
+            inputResource: { select: { id: true, name: true, unit: true, sku: true } },
+          },
+        },
+      },
+    });
+    return { mode: 'deactivated' as const, recipe: deactivated, batchCount };
+  }
+  await prisma.recipe.delete({ where: { id } });
+  return { mode: 'deleted' as const, id, batchCount: 0 };
 }
 
 async function assertResources(companyId: string, ids: string[]) {

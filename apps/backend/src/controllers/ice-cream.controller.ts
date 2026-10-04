@@ -41,6 +41,17 @@ export async function updateRecipe(req: Request, res: Response, next: NextFuncti
   }
 }
 
+export async function deleteRecipe(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json({
+      success: true,
+      data: await recipeSvc.deleteRecipe(companyId(req), req.params.id),
+    });
+  } catch (e) {
+    next(e);
+  }
+}
+
 export async function listProduction(req: Request, res: Response, next: NextFunction) {
   try {
     res.json({ success: true, data: await productionSvc.listProductionBatches(companyId(req)) });

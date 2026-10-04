@@ -44,6 +44,12 @@ iceCreamStaffRouter.patch(
   validate({ body: updateRecipeSchema }),
   ctrl.updateRecipe,
 );
+iceCreamStaffRouter.delete(
+  '/recipes/:id',
+  requireInventoryFeature('recipes'),
+  requireRole(Role.OWNER, Role.INVENTORY_MANAGER),
+  ctrl.deleteRecipe,
+);
 
 iceCreamStaffRouter.get(
   '/production',
