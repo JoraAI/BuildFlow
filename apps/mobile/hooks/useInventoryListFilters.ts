@@ -7,8 +7,10 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 function firstParam(v: string | string[] | undefined): string {
-  if (Array.isArray(v)) return v[0] ?? '';
-  return v ?? '';
+  const raw = Array.isArray(v) ? (v[0] ?? '') : (v ?? '');
+  // Expo Router can stringify missing values as the literal "undefined"/"null".
+  if (!raw || raw === 'undefined' || raw === 'null') return '';
+  return raw;
 }
 
 export function useInventoryListFilters(opts?: {
@@ -55,11 +57,13 @@ export function useInventoryListFilters(opts?: {
       const nextTab = patch.tab !== undefined ? patch.tab : tab;
       const nextFocus = patch.focus !== undefined ? patch.focus : focusId;
 
-      const payload: Record<string, string | undefined> = {
-        q: nextQ.trim() ? nextQ.trim() : undefined,
-        status: nextStatus && nextStatus.toUpperCase() !== 'ALL' ? nextStatus : undefined,
-        tab: nextTab ? nextTab : undefined,
-        focus: nextFocus ? nextFocus : undefined,
+      // Use '' (not undefined): setParams stringifies undefined as "undefined" in the URL,
+      // which then seeds the search bar with that literal text.
+      const payload: Record<string, string> = {
+        q: nextQ.trim() ? nextQ.trim() : '',
+        status: nextStatus && nextStatus.toUpperCase() !== 'ALL' ? nextStatus : '',
+        tab: nextTab ? nextTab : '',
+        focus: nextFocus ? nextFocus : '',
       };
       router.setParams(payload as never);
     },

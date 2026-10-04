@@ -49,16 +49,22 @@ export type InventoryListParams = {
   focus?: string | null;
 };
 
+function usableListParam(value?: string | null): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed === 'undefined' || trimmed === 'null') return null;
+  return trimmed;
+}
+
 /** Build an inventory list URL; omits empty values and status=ALL. */
 export function inventoryListHref(base: string, params?: InventoryListParams): string {
   const qs = new URLSearchParams();
-  const q = params?.q?.trim();
+  const q = usableListParam(params?.q);
   if (q) qs.set('q', q);
-  const status = params?.status?.trim();
+  const status = usableListParam(params?.status);
   if (status && status.toUpperCase() !== 'ALL') qs.set('status', status);
-  const tab = params?.tab?.trim();
+  const tab = usableListParam(params?.tab);
   if (tab) qs.set('tab', tab);
-  const focus = params?.focus?.trim();
+  const focus = usableListParam(params?.focus);
   if (focus) qs.set('focus', focus);
   const encoded = qs.toString();
   return encoded ? `${base}?${encoded}` : base;

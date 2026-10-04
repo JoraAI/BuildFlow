@@ -82,6 +82,12 @@ describe('href helpers', () => {
       '/inventory/invoices?status=OVERDUE&focus=inv1',
     );
     expect(inventoryMaterialsHref({ q: 'cement bag' })).toBe('/inventory/materials?q=cement+bag');
+    expect(inventoryMaterialsHref({ q: undefined, status: 'LOW' })).toBe(
+      '/inventory/materials?status=LOW',
+    );
+    expect(inventoryMaterialsHref({ q: 'undefined', status: 'OUT' })).toBe(
+      '/inventory/materials?status=OUT',
+    );
   });
 
   it('builds a unique estimate create href so the wizard remounts', () => {
