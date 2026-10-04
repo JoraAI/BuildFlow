@@ -207,10 +207,14 @@ export default function InventoryMaterialsScreen() {
           refreshControl={
             <RefreshControl refreshing={isFetching} onRefresh={() => void refetch()} tintColor="#1E3A5F" />
           }
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+          contentContainerStyle={{
+            paddingHorizontal: tableMode ? 24 : 16,
+            paddingBottom: tableMode ? 48 : 24,
+            paddingTop: tableMode ? 8 : 0,
+          }}
           ListHeaderComponent={
             tableMode && rows.length > 0 ? (
-              <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+              <View className="flex-row items-center px-4 py-3 mb-2 rounded-xl bg-surface border border-border">
                 <Text className="flex-[2.2] text-[11px] font-bold text-muted uppercase">Item</Text>
                 <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Category</Text>
                 <Text className="flex-1 text-[11px] font-bold text-muted uppercase">HSN</Text>
@@ -240,10 +244,10 @@ export default function InventoryMaterialsScreen() {
             // table row (phones keep the card below).
             if (tableMode) {
               return (
-                <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
-                  <View className="flex-[2.2] min-w-0 mr-2">
+                <View className="mb-2 flex-row items-center rounded-xl border border-border bg-card px-4 py-4">
+                  <View className="flex-[2.2] min-w-0 mr-2 pr-1">
                     <Text className="text-sm font-semibold text-text" numberOfLines={1}>{row.name}</Text>
-                    <Text className="text-[11px] text-muted">
+                    <Text className="text-[11px] text-muted mt-1">
                       {row.unit}
                       {row.resource.brandOrSpec ? ` · ${row.resource.brandOrSpec}` : ''}
                       {row.resource.trackingMode === 'BATCH_EXPIRY' ? ' · batch tracked' : ''}
@@ -261,7 +265,7 @@ export default function InventoryMaterialsScreen() {
                     {row.resource.costPrice != null ? `₹${Number(row.resource.costPrice).toFixed(2)}` : '-'}
                   </Text>
                   <Text className="flex-1 text-sm font-bold text-primary text-right">{formatINR(Number(row.resource.rate))}</Text>
-                  <View className="flex-[1.6] flex-row flex-wrap justify-end gap-1">
+                  <View className="flex-[1.6] flex-row flex-wrap justify-end gap-2 pl-2">
                     {isKirana ? (
                       <Button
                         label="Receive stock"

@@ -366,8 +366,12 @@ export default function InventoryStockScreen() {
         </View>
       ) : null}
 
+      <Text className="text-sm font-bold text-text mt-3 mb-2">
+        {translate('inventory.stock.summary', 'Stock summary')}
+      </Text>
+
       {isDesktop && filteredSummary.length > 0 ? (
-        <View className="flex-row items-center py-3 px-2 bg-surface border-b border-border mt-1 rounded-t-lg">
+        <View className="flex-row items-center py-3 px-4 mb-2 rounded-xl bg-surface border border-border">
           <Text style={STOCK_COL.name} className="text-[11px] font-bold text-muted uppercase">Name</Text>
           <Text style={STOCK_COL.balance} className="text-[11px] font-bold text-muted uppercase text-right">Balance</Text>
           <Text style={STOCK_COL.money} className="text-[11px] font-bold text-muted uppercase text-right">Cost</Text>
@@ -377,10 +381,6 @@ export default function InventoryStockScreen() {
           <Text style={STOCK_COL.actions} className="text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
         </View>
       ) : null}
-
-      <Text className="text-sm font-bold text-text mt-2 mb-1">
-        {translate('inventory.stock.summary', 'Stock summary')}
-      </Text>
     </View>
   );
 
@@ -515,16 +515,20 @@ export default function InventoryStockScreen() {
               const rowIssueLabel = posCheckoutEnabled
                 ? translate('inventory.stock.checkoutRow', 'Checkout')
                 : translate('inventory.stock.issue', 'Issue');
+              // Card-style rows (same spacing language as Items list) for every inventory vertical.
               return (
                 <Pressable
                   disabled={buffering}
                   onPress={() => router.push(inventoryStockItemHref(item.resourceId, selectedLocationId) as never)}
-                  className="flex-row items-center py-4 px-2 bg-card border-b border-border/60"
+                  className="mb-2 flex-row items-center rounded-xl border border-border bg-card px-4 py-4 active:bg-primary/5"
                 >
-                  <View style={STOCK_COL.name} className="min-w-0">
+                  <View style={STOCK_COL.name} className="min-w-0 pr-2">
                     <Text className="text-sm font-semibold text-text" numberOfLines={1}>{item.name}</Text>
-                    <View className="flex-row items-center gap-1.5 mt-0.5">
+                    <View className="flex-row items-center gap-1.5 mt-1 flex-wrap">
                       <Text className="text-[11px] text-muted">{item.unit}</Text>
+                      {item.sku ? (
+                        <Text className="text-[11px] text-muted">· SKU {item.sku}</Text>
+                      ) : null}
                       {isLowStock ? (
                         <Badge color="danger" label={`Low (reorder ${Number(item.reorderPoint)})`} />
                       ) : null}
@@ -543,7 +547,7 @@ export default function InventoryStockScreen() {
                   <Text style={STOCK_COL.money} className="text-sm text-text text-right">
                     {Number(item.inventoryValue) > 0 ? `₹${Number(item.inventoryValue).toFixed(2)}` : '-'}
                   </Text>
-                  <View style={STOCK_COL.actions} className="flex-row flex-wrap justify-end gap-1">
+                  <View style={STOCK_COL.actions} className="flex-row flex-wrap justify-end gap-2 pl-2">
                     <Button
                       label={rowIssueLabel}
                       size="sm"
@@ -616,10 +620,10 @@ export default function InventoryStockScreen() {
             )
           }
           contentContainerStyle={{
-            // Desktop gets more side padding so stock rows breathe in the wide shell.
-            paddingHorizontal: isDesktop ? 28 : isPhone ? 16 : 20,
-            paddingBottom: isPhone ? mobileListBottomPadding(false) : isDesktop ? 40 : 28,
-            paddingTop: isDesktop ? 4 : 0,
+            // Match Items list horizontal rhythm across all inventory verticals.
+            paddingHorizontal: isDesktop ? 24 : 16,
+            paddingBottom: isPhone ? mobileListBottomPadding(false) : isDesktop ? 48 : 32,
+            paddingTop: isDesktop ? 8 : 0,
             flexGrow: 1,
           }}
         />

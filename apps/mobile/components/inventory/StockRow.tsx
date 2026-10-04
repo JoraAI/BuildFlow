@@ -1,5 +1,5 @@
 /**
- * Phone stock list row — clear hierarchy, one primary action.
+ * Phone stock list row — card style aligned with Items list (all inventory verticals).
  */
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
@@ -43,30 +43,30 @@ export function StockRow({
     <Pressable
       disabled={disabled}
       onPress={onPress}
-      className="py-3.5 px-0.5 border-b border-border/50 active:bg-primary/5"
+      className="mb-2 rounded-xl border border-border bg-card px-4 py-4 active:bg-primary/5"
     >
       <View className="flex-row items-start gap-3">
         <View className="flex-1 min-w-0">
-          <Text className="text-sm font-semibold text-text" numberOfLines={1}>
+          <Text className="text-sm font-semibold text-text" numberOfLines={2}>
             {name}
           </Text>
-          <Text className="text-xs text-muted mt-0.5" numberOfLines={1}>
+          <Text className="text-xs text-muted mt-1" numberOfLines={2}>
             {meta || unit}
           </Text>
           {isLowStock ? (
-            <View className="mt-1.5 self-start">
+            <View className="mt-2 self-start">
               <Badge color="danger" label={`Low · reorder ${Number(reorderPoint)}`} />
             </View>
           ) : null}
         </View>
-        <View className="items-end shrink-0 pl-2">
-          <Text className="text-[10px] text-muted uppercase">On hand</Text>
-          <Text className="text-base font-bold text-primary">
+        <View className="items-end shrink-0 pl-3">
+          <Text className="text-[10px] text-muted uppercase tracking-wide">On hand</Text>
+          <Text className="text-base font-bold text-primary mt-0.5">
             {balance} <Text className="text-xs font-medium text-muted">{unit}</Text>
           </Text>
         </View>
       </View>
-      <View className="flex-row justify-end gap-2 mt-2.5">
+      <View className="flex-row justify-end gap-2 mt-3 pt-3 border-t border-border/60">
         {onAdjust ? (
           <Button label="Adjust" size="sm" variant="ghost" disabled={disabled} onPress={onAdjust} />
         ) : null}
