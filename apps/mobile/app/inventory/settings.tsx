@@ -70,6 +70,14 @@ export default function InventorySettingsScreen() {
   /** INVENTORY_HORIZONTAL_PLATFORM (Phase 4.4): PO approval thresholds (OWNER). */
   const [poAutoApproveBelow, setPoAutoApproveBelow] = useState('');
   const [poOwnerApproveAbove, setPoOwnerApproveAbove] = useState('');
+  const [bankAccountNo, setBankAccountNo] = useState('');
+  const [bankBeneficiaryName, setBankBeneficiaryName] = useState('');
+  const [bankName, setBankName] = useState('');
+  const [bankBranch, setBankBranch] = useState('');
+  const [bankIfsc, setBankIfsc] = useState('');
+  const [companyPhone, setCompanyPhone] = useState('');
+  const [companyEmail, setCompanyEmail] = useState('');
+  const [fssaiLicenceNo, setFssaiLicenceNo] = useState('');
 
   useEffect(() => {
     if (company?.inventoryProfile) setProfile(company.inventoryProfile);
@@ -97,6 +105,18 @@ export default function InventorySettingsScreen() {
     if (company?.poAutoApproveBelow != null) setPoAutoApproveBelow(String(company.poAutoApproveBelow));
     if (company?.poOwnerApproveAbove != null) setPoOwnerApproveAbove(String(company.poOwnerApproveAbove));
   }, [company?.poAutoApproveBelow, company?.poOwnerApproveAbove]);
+
+  useEffect(() => {
+    if (!reportSettings) return;
+    setBankAccountNo(reportSettings.bankAccountNo ?? '');
+    setBankBeneficiaryName(reportSettings.bankBeneficiaryName ?? '');
+    setBankName(reportSettings.bankName ?? '');
+    setBankBranch(reportSettings.bankBranch ?? '');
+    setBankIfsc(reportSettings.bankIfsc ?? '');
+    setCompanyPhone(reportSettings.companyPhone ?? '');
+    setCompanyEmail(reportSettings.companyEmail ?? '');
+    setFssaiLicenceNo(reportSettings.fssaiLicenceNo ?? '');
+  }, [reportSettings]);
 
   const savePoApproval = async () => {
     await run(async () => {
@@ -452,6 +472,50 @@ export default function InventorySettingsScreen() {
           <Text className="text-sm text-text">{company?.name ?? user?.companyName}</Text>
           <Text className="text-xs text-muted mt-1">GSTIN: {company?.gstin ?? '-'}</Text>
           <Text className="text-xs text-muted mt-0.5">State: {company?.state ?? '-'}</Text>
+        </Card>
+
+        <Card className="p-5 mb-4">
+          <Text className="text-base font-bold text-text mb-1">Invoice / bank details</Text>
+          <Text className="text-xs text-muted mb-3">
+            Shown on Tax Invoice PDFs only when filled. Leave blank to hide that row.
+          </Text>
+          <Input label="Company phone (optional)" value={companyPhone} onChangeText={setCompanyPhone} />
+          <View className="h-2" />
+          <Input label="Company email (optional)" value={companyEmail} onChangeText={setCompanyEmail} autoCapitalize="none" />
+          <View className="h-2" />
+          <Input label="FSSAI licence no (optional)" value={fssaiLicenceNo} onChangeText={setFssaiLicenceNo} />
+          <View className="h-2" />
+          <Input label="Account no (optional)" value={bankAccountNo} onChangeText={setBankAccountNo} />
+          <View className="h-2" />
+          <Input label="Beneficiary name (optional)" value={bankBeneficiaryName} onChangeText={setBankBeneficiaryName} />
+          <View className="h-2" />
+          <Input label="Bank name (optional)" value={bankName} onChangeText={setBankName} />
+          <View className="h-2" />
+          <Input label="Branch (optional)" value={bankBranch} onChangeText={setBankBranch} />
+          <View className="h-2" />
+          <Input label="IFSC (optional)" value={bankIfsc} onChangeText={setBankIfsc} autoCapitalize="characters" />
+          <View className="mt-3">
+            <Button
+              label="Save invoice details"
+              variant="secondary"
+              loading={updateReportSettings.isPending}
+              onPress={() => {
+                void run(async () => {
+                  await updateReportSettings.mutateAsync({
+                    bankAccountNo: bankAccountNo.trim() || null,
+                    bankBeneficiaryName: bankBeneficiaryName.trim() || null,
+                    bankName: bankName.trim() || null,
+                    bankBranch: bankBranch.trim() || null,
+                    bankIfsc: bankIfsc.trim() || null,
+                    companyPhone: companyPhone.trim() || null,
+                    companyEmail: companyEmail.trim() || null,
+                    fssaiLicenceNo: fssaiLicenceNo.trim() || null,
+                  });
+                  toast.success('Invoice details saved');
+                });
+              }}
+            />
+          </View>
         </Card>
 
 

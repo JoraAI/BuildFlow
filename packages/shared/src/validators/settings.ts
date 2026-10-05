@@ -218,6 +218,15 @@ export const updateReportSettingsSchema = z.object({
   // Inventory-only app language preference, stored in the shared settings JSON
   // so construction remains untouched.
   inventoryLanguage: inventoryLanguageEnum.optional(),
+  // Inventory Tax Invoice bank / contact block (omit empty values on PDF).
+  bankAccountNo: z.string().trim().max(40).optional().nullable(),
+  bankBeneficiaryName: z.string().trim().max(200).optional().nullable(),
+  bankName: z.string().trim().max(200).optional().nullable(),
+  bankBranch: z.string().trim().max(300).optional().nullable(),
+  bankIfsc: z.string().trim().max(20).optional().nullable(),
+  companyPhone: z.string().trim().max(30).optional().nullable(),
+  companyEmail: z.union([z.string().trim().email().max(200), z.literal(''), z.null()]).optional(),
+  fssaiLicenceNo: z.string().trim().max(50).optional().nullable(),
 });
 export type MyProfileUpdateInput = z.infer<typeof myProfileUpdateSchema>;
 export type CreateTicketInput = z.infer<typeof createTicketSchema>;

@@ -144,6 +144,14 @@ export interface ReportSettings {
   showWatermark?: boolean;
   footerText?: string;
   inventoryLanguage?: string;
+  bankAccountNo?: string | null;
+  bankBeneficiaryName?: string | null;
+  bankName?: string | null;
+  bankBranch?: string | null;
+  bankIfsc?: string | null;
+  companyPhone?: string | null;
+  companyEmail?: string | null;
+  fssaiLicenceNo?: string | null;
 }
 
 export const settingsReportKeys = {
