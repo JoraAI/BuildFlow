@@ -142,6 +142,9 @@ app.use('/api/boq', boqDetailRouter);
 app.use('/api/rate-analysis', rateAnalysisRouter);
 app.use('/api', estimateRouter); // /projects/:id/estimates + /estimates/:id/...
 app.use('/api/projects', reportRouter); // project-scoped: /:id/reports, /:id/checkin
+// PDF downloads must mount BEFORE /api/reports - that router gates reports_ops
+// (construction-only) and would 403 Inventory invoice/bill PDF downloads.
+app.use('/api/reports/pdf', pdfReportRouter);
 app.use('/api/reports', reportDetailRouter);
 app.use('/api/projects', invoiceProjectRouter); // project-scoped: /:id/invoices
 app.use('/api/invoices', invoiceRouter);
@@ -151,7 +154,6 @@ app.use('/api', financialReportRouter); // project + company financial reports
 app.use('/api/chatbot', chatbotRouter);
 app.use('/api/notifications', notificationRouter);
 app.use('/api', paymentRouter); // /invoices/:id/payment-link + /webhooks/razorpay
-app.use('/api/reports/pdf', pdfReportRouter); // 12 PDF report downloads
 app.use('/api/analytics', analyticsRouter); // OWNER-only dashboard
 app.use('/api/settings', settingsRouter); // company profile, users, audit log
 app.use('/api/projects', changeOrderRouter); // /:id/change-orders

@@ -8,7 +8,7 @@ import { Router } from 'express';
 import * as reportController from '../controllers/daily-report.controller';
 import * as attendanceController from '../controllers/attendance.controller';
 import { authenticateToken } from '../middleware/auth';
-import { requireModule, requireModuleForPaths } from '../middleware/module-gate';
+import { requireModuleForPaths } from '../middleware/module-gate';
 import { validate } from '../middleware/validate';
 import {
   createDailyReportSchema,
@@ -72,7 +72,15 @@ reportRouter.get(
 /* ------------------------------------------------------------------ */
 export const reportDetailRouter = Router();
 reportDetailRouter.use(authenticateToken);
-reportDetailRouter.use(requireModule('reports_ops'));
+// Path-aware: only daily-report document routes need reports_ops. Do not gate
+// sibling mounts under /api/reports/* (e.g. /api/reports/pdf).
+reportDetailRouter.use(
+  requireModuleForPaths('reports_ops', [
+    /^\/[^/]+$/,
+    /^\/[^/]+\/photos\b/,
+    /^\/material-usages\b/,
+  ]),
+);
 
 reportDetailRouter.get('/:id', validate({ params: dailyReportIdParamsSchema }), reportController.getReport);
 reportDetailRouter.put(
