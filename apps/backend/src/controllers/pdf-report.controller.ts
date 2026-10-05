@@ -6,7 +6,8 @@ import * as svc from '../services/pdf-report.service';
 
 function sendPdf(res: Response, result: svc.PdfResult) {
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `inline; filename="${result.filename}"`);
+  // attachment so browsers/download helpers treat it as a file download.
+  res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
   return res.status(200).send(result.buffer);
 }
 
@@ -28,6 +29,13 @@ export async function getDailyReportPdf(req: Request, res: Response) {
 export async function getInvoicePdf(req: Request, res: Response) {
   const { id } = req.params;
   const result = await svc.reportInvoice(req.user!.companyId, id);
+  return sendPdf(res, result);
+}
+
+// 3b. Vendor bill
+export async function getBillPdf(req: Request, res: Response) {
+  const { id } = req.params;
+  const result = await svc.reportBill(req.user!.companyId, id);
   return sendPdf(res, result);
 }
 

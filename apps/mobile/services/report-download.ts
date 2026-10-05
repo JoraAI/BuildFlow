@@ -6,23 +6,31 @@
  */
 import { apiDownload } from '@/lib/api-client';
 import * as Sharing from 'expo-sharing';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { toast } from '@/components/ui';
 
 /**
  * Download a PDF from an authenticated API path and share it via the OS share
- * sheet (or alert if sharing is unavailable).
+ * sheet (or trigger a browser download on web).
  */
 export async function downloadReportPdf(apiPath: string, filename: string): Promise<void> {
   try {
+    toast.info('Preparing PDF…');
     const uri = await apiDownload(apiPath, filename, 'application/pdf');
     if (uri && (await Sharing.isAvailableAsync())) {
-      await Sharing.shareAsync(uri);
-    } else {
-      Alert.alert('Saved', 'Report downloaded to device.');
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+      toast.success('PDF ready to share');
+      return;
     }
+    // Web: apiDownload already triggered the browser download (uri is null).
+    toast.success(Platform.OS === 'web' ? 'PDF download started' : 'PDF saved to device');
   } catch (e) {
-    Alert.alert('Download failed', e instanceof Error ? e.message : 'Could not download report');
+    const message = e instanceof Error ? e.message : 'Could not download report';
+    toast.error(message);
+    // Alert is unreliable on web; keep it as a native fallback only.
+    if (Platform.OS !== 'web') {
+      Alert.alert('Download failed', message);
+    }
   }
 }
 
@@ -66,6 +74,7 @@ export const reportPaths = {
   // Entity-scoped
   dailyReport: (reportId: string) => `/reports/pdf/reports/${reportId}`,
   invoice: (invoiceId: string) => `/reports/pdf/invoices/${invoiceId}`,
+  bill: (billId: string) => `/reports/pdf/bills/${billId}`,
   estimateSummary: (estimateId: string) => `/reports/pdf/estimates/${estimateId}`,
   estimateComparison: (idA: string, idB: string) => `/reports/pdf/estimates/${idA}/compare/${idB}`,
   // Company-scoped

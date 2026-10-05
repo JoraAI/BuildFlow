@@ -23,6 +23,7 @@ import {
   type Bill,
 } from '@/services/accounting.queries';
 import { formatINR, formatDate } from '@/utils/format';
+import { downloadReportPdf, reportPaths } from '@/services/report-download';
 
 const STATUS_COLOR: Record<string, 'success' | 'warning' | 'danger' | 'primary' | 'neutral'> = {
   DRAFT: 'neutral',
@@ -502,28 +503,43 @@ function BillActions({
   onPaymentAmountChange: (v: string) => void;
   onRecordPayment: () => void;
 }) {
+  const downloadButton = (
+    <Button
+      label="Download PDF"
+      variant="secondary"
+      onPress={() => void downloadReportPdf(reportPaths.bill(bill.id), `bill-${bill.billNumber}.pdf`)}
+    />
+  );
+
   if (bill.status === 'REJECTED') {
     return (
-      <Card className="border-danger/30 bg-danger/5">
-        <Text className="text-sm text-danger font-medium">This bill was rejected and cannot be paid.</Text>
-      </Card>
+      <View className="gap-3">
+        {downloadButton}
+        <Card className="border-danger/30 bg-danger/5">
+          <Text className="text-sm text-danger font-medium">This bill was rejected and cannot be paid.</Text>
+        </Card>
+      </View>
     );
   }
 
   if (isFullyPaid) {
     return (
-      <Card className="border-success/30 bg-success/5">
-        <View className="flex-row items-center gap-2">
-          <Ionicons name="checkmark-circle" size={22} color="#16A34A" />
-          <Text className="text-sm text-success font-semibold">This bill is fully paid.</Text>
-        </View>
-      </Card>
+      <View className="gap-3">
+        {downloadButton}
+        <Card className="border-success/30 bg-success/5">
+          <View className="flex-row items-center gap-2">
+            <Ionicons name="checkmark-circle" size={22} color="#16A34A" />
+            <Text className="text-sm text-success font-semibold">This bill is fully paid.</Text>
+          </View>
+        </Card>
+      </View>
     );
   }
 
   return (
     <View className="gap-3">
       <Text className="text-xs font-bold text-muted uppercase tracking-wide">Actions</Text>
+      {downloadButton}
       {canApprove && (bill.status === 'PENDING' || bill.status === 'DRAFT') && (
         <Button
           label={bill.status === 'DRAFT' ? 'Confirm draft bill' : 'Approve for payment'}

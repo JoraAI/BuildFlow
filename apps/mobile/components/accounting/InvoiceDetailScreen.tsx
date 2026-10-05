@@ -165,7 +165,7 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
       <Button
         label="Download PDF"
         variant="secondary"
-        onPress={() => downloadReportPdf(reportPaths.invoice(id), `invoice-${invoice.invoiceNumber}.pdf`)}
+        onPress={() => void downloadReportPdf(reportPaths.invoice(id), `invoice-${invoice.invoiceNumber}.pdf`)}
       />
       {invoice.status === 'DRAFT' && (
         <Button

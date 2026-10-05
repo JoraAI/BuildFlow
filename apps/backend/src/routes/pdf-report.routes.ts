@@ -1,11 +1,12 @@
 /**
  * BuildFlow - PDF report routes.
- * All 12 report types are exposed as PDF downloads.
+ * All report types are exposed as PDF downloads.
  */
 import { Router } from 'express';
 import * as ctrl from '../controllers/pdf-report.controller';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { requirePermission } from '../middleware/permission';
+import { asyncHandler } from '../utils/async-handler';
 
 const router = Router();
 
@@ -13,90 +14,97 @@ const router = Router();
 router.use(authenticateToken);
 
 // 1. Project Progress Report
-router.get('/projects/:id/progress', ctrl.getProjectProgressPdf);
+router.get('/projects/:id/progress', asyncHandler(ctrl.getProjectProgressPdf));
 
 // 2. Daily Report
-router.get('/reports/:id', ctrl.getDailyReportPdf);
+router.get('/reports/:id', asyncHandler(ctrl.getDailyReportPdf));
 
 // 3. Invoice
 router.get(
   '/invoices/:id',
   requirePermission('invoice.view'),
-  ctrl.getInvoicePdf,
+  asyncHandler(ctrl.getInvoicePdf),
+);
+
+// 3b. Vendor bill
+router.get(
+  '/bills/:id',
+  requirePermission('bill.view'),
+  asyncHandler(ctrl.getBillPdf),
 );
 
 // 4. Estimate
 router.get(
   '/estimates/:id',
   requirePermission('estimate.view'),
-  ctrl.getEstimatePdf,
+  asyncHandler(ctrl.getEstimatePdf),
 );
 
 // 5. Estimate Comparison
 router.get(
   '/estimates/:idA/compare/:idB',
   requirePermission('estimate.view'),
-  ctrl.getEstimateComparisonPdf,
+  asyncHandler(ctrl.getEstimateComparisonPdf),
 );
 
 // 6. Estimate vs Actual — money
 router.get(
   '/projects/:id/estimate-vs-actual',
   requirePermission('financials.view_amounts'),
-  ctrl.getEstimateVsActualPdf,
+  asyncHandler(ctrl.getEstimateVsActualPdf),
 );
 
 // 7. P&L
 router.get(
   '/projects/:id/profit-loss',
   requirePermission('financials.view_profit'),
-  ctrl.getProfitLossPdf,
+  asyncHandler(ctrl.getProfitLossPdf),
 );
 
 // 8. GST Summary (OWNER/ACCOUNTANT only - financial compliance)
-router.get('/gst-summary', requireRole('OWNER', 'ACCOUNTANT'), ctrl.getGstSummaryPdf);
+router.get('/gst-summary', requireRole('OWNER', 'ACCOUNTANT'), asyncHandler(ctrl.getGstSummaryPdf));
 
 // 9. TDS Report (OWNER/ACCOUNTANT only - financial compliance)
-router.get('/tds', requireRole('OWNER', 'ACCOUNTANT'), ctrl.getTdsPdf);
+router.get('/tds', requireRole('OWNER', 'ACCOUNTANT'), asyncHandler(ctrl.getTdsPdf));
 
 // 10. Resource Utilization
-router.get('/projects/:id/resource-utilization', ctrl.getResourceUtilizationPdf);
+router.get('/projects/:id/resource-utilization', asyncHandler(ctrl.getResourceUtilizationPdf));
 
 // 11. BOQ vs Actual — money
 router.get(
   '/projects/:id/boq-vs-actual',
   requirePermission('financials.view_amounts'),
-  ctrl.getBoqVsActualPdf,
+  asyncHandler(ctrl.getBoqVsActualPdf),
 );
 
 // 12. Material Price History
 router.get(
   '/material-price-history',
   requirePermission('settings.material_prices'),
-  ctrl.getMaterialPriceHistoryPdf,
+  asyncHandler(ctrl.getMaterialPriceHistoryPdf),
 );
 
 // 13. Measurement Book (RA certified qty)
-router.get('/projects/:id/measurement-book', ctrl.getMeasurementBookPdf);
+router.get('/projects/:id/measurement-book', asyncHandler(ctrl.getMeasurementBookPdf));
 
 // 14. Abstract Sheet
-router.get('/projects/:id/abstract-sheet', ctrl.getAbstractSheetPdf);
+router.get('/projects/:id/abstract-sheet', asyncHandler(ctrl.getAbstractSheetPdf));
 
 // 15. Project Material Rate Sheet
 router.get(
   '/projects/:id/material-rates',
   requirePermission('procurement.view_rates'),
-  ctrl.getProjectMaterialRatesPdf,
+  asyncHandler(ctrl.getProjectMaterialRatesPdf),
 );
 
 // 16–17. Subcontract WO PDFs
 router.get(
   '/projects/:id/subcontract/work-orders/:woId/measurement-book',
-  ctrl.getSubcontractMeasurementBookPdf,
+  asyncHandler(ctrl.getSubcontractMeasurementBookPdf),
 );
 router.get(
   '/projects/:id/subcontract/work-orders/:woId/abstract-sheet',
-  ctrl.getSubcontractAbstractSheetPdf,
+  asyncHandler(ctrl.getSubcontractAbstractSheetPdf),
 );
 
 export default router;

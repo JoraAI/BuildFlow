@@ -78,7 +78,12 @@ export interface PdfResult {
 }
 
 function newDoc(): PDFKit.PDFDocument {
-  return new PDFDocument({ size: 'A4', margins: { top: MARGIN, bottom: MARGIN, left: MARGIN, right: MARGIN } });
+  // bufferPages is required so footers/watermarks can switchToPage after content is written.
+  return new PDFDocument({
+    size: 'A4',
+    bufferPages: true,
+    margins: { top: MARGIN, bottom: MARGIN, left: MARGIN, right: MARGIN },
+  });
 }
 
 function endBuffer(doc: PDFKit.PDFDocument): Promise<Buffer> {
@@ -582,7 +587,7 @@ export async function reportDailyReport(companyId: string, reportId: string): Pr
 export async function reportInvoice(companyId: string, invoiceId: string): Promise<PdfResult> {
   const invoice = await prisma.invoice.findFirstOrThrow({
     where: { id: invoiceId, companyId },
-    include: { project: { select: { name: true } }, lineItems: true },
+    include: { project: { select: { name: true, code: true } }, lineItems: true },
   });
   const company = await loadCompanyForPdf(companyId);
 
@@ -595,7 +600,9 @@ export async function reportInvoice(companyId: string, invoiceId: string): Promi
         : 'TAX INVOICE';
   drawBrandedHeader(doc, title, company);
   doc.fontSize(11).font('Helvetica-Bold').fillColor(NAVY).text(`Invoice #: ${invoice.invoiceNumber}`, MARGIN);
-  let meta = `Date: ${invoice.invoiceDate.toISOString().slice(0, 10)} | Due: ${invoice.dueDate.toISOString().slice(0, 10)} | Project: ${invoice.project.name}`;
+  const projectLabel =
+    invoice.project.code === 'STORE' ? company?.name ?? 'Store' : invoice.project.name;
+  let meta = `Date: ${invoice.invoiceDate.toISOString().slice(0, 10)} | Due: ${invoice.dueDate.toISOString().slice(0, 10)} | ${projectLabel}`;
   if (invoice.invoiceType === 'RUNNING_ACCOUNT' && invoice.raSequence) {
     meta += ` | RA Bill #${invoice.raSequence}`;
   }
@@ -605,6 +612,8 @@ export async function reportInvoice(companyId: string, invoiceId: string): Promi
   doc.font('Helvetica-Bold').fillColor('#0F172A').text('Bill To:', MARGIN);
   doc.font('Helvetica').text(invoice.clientName, MARGIN);
   if (invoice.clientGstin) doc.text(`GSTIN: ${invoice.clientGstin}`);
+  if (invoice.clientAddress) doc.text(invoice.clientAddress);
+  if (invoice.clientPhone) doc.text(`Phone: ${invoice.clientPhone}`);
   doc.moveDown(1);
 
   if (invoice.invoiceType === 'RUNNING_ACCOUNT') {
@@ -872,6 +881,63 @@ export async function reportGoodsReceipt(companyId: string, grnId: string): Prom
   doc.font('Helvetica').fontSize(8).fillColor(MUTED).text('This is a computer-generated goods receipt note.', MARGIN, doc.y, { align: 'center', width: CONTENT_W });
   drawBrandedFooter(doc, company);
   return { buffer: await endBuffer(doc), filename: `grn-${grn.grnNumber}.pdf` };
+}
+
+// ===========================================================================
+// 3c. VENDOR BILL PDF (AP)
+// ===========================================================================
+export async function reportBill(companyId: string, billId: string): Promise<PdfResult> {
+  const bill = await prisma.bill.findFirstOrThrow({
+    where: { id: billId, companyId },
+    include: {
+      project: { select: { name: true, code: true } },
+      vendor: { select: { name: true, gstin: true, billingAddress: true, phone: true } },
+      purchaseOrder: { select: { poNumber: true } },
+      goodsReceipt: { select: { grnNumber: true } },
+    },
+  });
+  const company = await loadCompanyForPdf(companyId);
+
+  const doc = newDoc();
+  drawBrandedHeader(doc, 'VENDOR BILL', company);
+  doc.fontSize(11).font('Helvetica-Bold').fillColor(NAVY).text(`Bill #: ${bill.billNumber}`, MARGIN);
+  const projectLabel = bill.project.code === 'STORE' ? company?.name ?? 'Store' : bill.project.name;
+  const due = bill.dueDate ? bill.dueDate.toISOString().slice(0, 10) : '—';
+  let meta = `Date: ${bill.billDate.toISOString().slice(0, 10)} | Due: ${due} | ${projectLabel} | Status: ${bill.status}`;
+  if (bill.purchaseOrder?.poNumber) meta += ` | PO: ${bill.purchaseOrder.poNumber}`;
+  if (bill.goodsReceipt?.grnNumber) meta += ` | GRN: ${bill.goodsReceipt.grnNumber}`;
+  doc.font('Helvetica').fontSize(9).fillColor(MUTED).text(meta);
+  doc.moveDown(0.5);
+  doc.font('Helvetica-Bold').fillColor('#0F172A').text('Vendor:', MARGIN);
+  doc.font('Helvetica').text(bill.vendorName, MARGIN);
+  const vendorGstin = bill.vendorGstin ?? bill.vendor?.gstin;
+  if (vendorGstin) doc.text(`GSTIN: ${vendorGstin}`);
+  if (bill.vendor?.billingAddress) doc.text(bill.vendor.billingAddress);
+  if (bill.vendor?.phone) doc.text(`Phone: ${bill.vendor.phone}`);
+  doc.moveDown(1);
+
+  summaryLine(doc, 'Category', bill.category);
+  summaryLine(doc, 'Subtotal', inr(num(bill.subtotal)));
+  if (num(bill.gstAmount) > 0) summaryLine(doc, 'GST', inr(num(bill.gstAmount)));
+  if (num(bill.retentionAmount) > 0) summaryLine(doc, 'Retention (-)', `- ${inr(num(bill.retentionAmount))}`);
+  if (num(bill.advanceRecoveryAmount) > 0) {
+    summaryLine(doc, 'Advance recovery (-)', `- ${inr(num(bill.advanceRecoveryAmount))}`);
+  }
+  if (num(bill.tdsAmount) > 0) summaryLine(doc, 'TDS (-)', `- ${inr(num(bill.tdsAmount))}`);
+  doc.moveTo(MARGIN, doc.y).lineTo(PAGE_W - MARGIN, doc.y).strokeColor(NAVY).lineWidth(1.5).stroke();
+  summaryLine(doc, 'NET PAYABLE', inr(num(bill.total)), true);
+  if (num(bill.paidAmount) > 0) {
+    summaryLine(doc, 'Paid', inr(num(bill.paidAmount)));
+    summaryLine(doc, 'Balance due', inr(Math.max(0, num(bill.total) - num(bill.paidAmount))), true);
+  }
+  doc.moveDown(1);
+  doc.font('Helvetica').fontSize(8).fillColor(MUTED).text('This is a computer-generated vendor bill.', MARGIN, doc.y, {
+    align: 'center',
+    width: CONTENT_W,
+  });
+
+  drawBrandedFooter(doc, company);
+  return { buffer: await endBuffer(doc), filename: `bill-${bill.billNumber}.pdf` };
 }
 
 
