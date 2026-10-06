@@ -45,7 +45,8 @@ const envSchema = z.object({
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
   BCRYPT_COST: z.coerce.number().int().min(8).max(15).default(12),
 
-  CORS_ORIGIN: z.string().default('http://localhost:8081'),
+  // Explicit allowlist; app.ts also permits localhost / 127.0.0.1 any port for Expo.
+  CORS_ORIGIN: z.string().default('http://localhost:8081,http://localhost:8082'),
   RATE_LIMIT_AUTH_MAX: z.coerce.number().int().default(10),
   RATE_LIMIT_AUTH_WINDOW_MS: z.coerce.number().int().default(900000),
   RATE_LIMIT_API_MAX: z.coerce.number().int().default(200),

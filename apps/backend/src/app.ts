@@ -69,9 +69,39 @@ app.set('trust proxy', 1);
 // --- Security & infra middleware ---
 app.disable('x-powered-by');
 app.use(helmet());
+const corsAllowlist = new Set(
+  env.CORS_ORIGIN.split(',')
+    .map((o) => o.trim())
+    .filter(Boolean),
+);
+
+/** True for local Expo / Metro (buyer on :8082, owner on :8081, etc.). */
+function isLocalDevOrigin(origin: string): boolean {
+  try {
+    const u = new URL(origin);
+    return (
+      (u.protocol === 'http:' || u.protocol === 'https:') &&
+      (u.hostname === 'localhost' || u.hostname === '127.0.0.1')
+    );
+  } catch {
+    return false;
+  }
+}
+
 app.use(
   cors({
-    origin: env.CORS_ORIGIN.split(',').map((o) => o.trim()),
+    origin(origin, callback) {
+      // Non-browser clients (curl, mobile native) send no Origin.
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      if (corsAllowlist.has(origin) || isLocalDevOrigin(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(null, false);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   }),
