@@ -249,7 +249,7 @@ export function useInviteBuyer() {
   return useMutation({
     mutationFn: (body: {
       customerId: string;
-      email?: string | null;
+      email: string;
       name?: string | null;
       phone?: string | null;
       expiresInHours?: number;

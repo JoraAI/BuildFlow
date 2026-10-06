@@ -17,6 +17,7 @@ import {
   inviteBuyerSchema,
   regenerateBuyerInviteSchema,
   claimBuyerInviteSchema,
+  previewBuyerInviteSchema,
   buyerUpdateProfileSchema,
   setB2bPublishedSchema,
   updateSalesShippingSchema,
@@ -133,6 +134,11 @@ iceCreamStaffRouter.patch(
 export const buyerPublicRouter = Router();
 buyerPublicRouter.post('/auth/send-otp', validate({ body: buyerSendOtpSchema }), ctrl.buyerSendOtp);
 buyerPublicRouter.post('/auth/login', validate({ body: buyerLoginSchema }), ctrl.buyerLogin);
+buyerPublicRouter.post(
+  '/auth/preview-invite',
+  validate({ body: previewBuyerInviteSchema }),
+  ctrl.buyerPreviewInvite,
+);
 buyerPublicRouter.post(
   '/auth/claim-invite',
   validate({ body: claimBuyerInviteSchema }),

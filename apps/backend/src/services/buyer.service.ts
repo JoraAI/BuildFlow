@@ -90,7 +90,7 @@ export async function inviteBuyer(
   invitedById: string | null,
   input: {
     customerId: string;
-    email?: string | null;
+    email: string;
     name?: string | null;
     phone?: string | null;
     expiresInHours?: number;
@@ -102,7 +102,10 @@ export async function inviteBuyer(
   });
   if (!customer) throw ApiError.notFound('Customer not found');
 
-  const email = input.email?.trim().toLowerCase() || customer.email?.toLowerCase() || null;
+  const email = (input.email?.trim() || customer.email?.trim() || '').toLowerCase();
+  if (!email) {
+    throw ApiError.badRequest('Email is required on the invite so the customer can join with the code.');
+  }
   const name = input.name?.trim() || customer.name;
   const phone = input.phone?.trim() || customer.phone || null;
   const hours = input.expiresInHours ?? DEFAULT_INVITE_HOURS;
@@ -177,9 +180,13 @@ export async function regenerateBuyerInvite(
     data: { expiresAt: new Date() },
   });
 
+  const email = existing.email || undefined;
+  if (!email) {
+    throw ApiError.badRequest('Invite is missing an email. Create a new invite with an email address.');
+  }
   return inviteBuyer(companyId, invitedById, {
     customerId: existing.customerId,
-    email: existing.email,
+    email,
     name: existing.name,
     phone: existing.phone,
     expiresInHours: input?.expiresInHours,
@@ -232,13 +239,51 @@ export async function revokeBuyerAccess(companyId: string, buyerUserId: string) 
   });
 }
 
+/** Look up an unused invite by code — returns owner-prefilled party details. */
+export async function previewBuyerInvite(code: string) {
+  const codeHash = hashInviteToken(normalizeCode(code));
+  const invite = await prisma.buyerInvite.findUnique({
+    where: { codeHash },
+    include: {
+      customer: {
+        select: {
+          id: true,
+          name: true,
+          businessName: true,
+          email: true,
+          phone: true,
+          billingAddress: true,
+          shippingAddress: true,
+          gstin: true,
+        },
+      },
+      company: { select: { id: true, name: true } },
+    },
+  });
+  if (!invite) throw ApiError.notFound('Invalid invite code');
+  if (invite.acceptedAt) throw ApiError.badRequest('This invite code was already used. Sign in with OTP instead.');
+  if (invite.expiresAt < new Date()) {
+    throw ApiError.badRequest('Invite code has expired. Ask the manufacturer to regenerate it.');
+  }
+  await assertInventoryFeature(invite.companyId, 'b2b_buyer_app');
+
+  return {
+    companyName: invite.company.name,
+    expiresAt: invite.expiresAt,
+    name: invite.name || invite.customer.name,
+    email: invite.email || invite.customer.email,
+    phone: invite.phone || invite.customer.phone,
+    customer: invite.customer,
+  };
+}
+
 /**
  * Buyer enters join code on first open. Creates BuyerUser and returns session.
- * Subsequent logins use email + OTP.
+ * Details default to what the owner prefilled; subsequent logins use email + OTP.
  */
 export async function claimBuyerInvite(input: {
   code: string;
-  email: string;
+  email?: string;
   name?: string;
   phone?: string | null;
 }) {
@@ -258,7 +303,15 @@ export async function claimBuyerInvite(input: {
 
   await assertInventoryFeature(invite.companyId, 'b2b_buyer_app');
 
-  const email = input.email.trim().toLowerCase();
+  const email = (
+    input.email?.trim() ||
+    invite.email ||
+    invite.customer.email ||
+    ''
+  ).toLowerCase();
+  if (!email) {
+    throw ApiError.badRequest('Invite is missing an email. Ask the manufacturer to regenerate with an email.');
+  }
   const name = input.name?.trim() || invite.name || invite.customer.name;
   const phone = input.phone?.trim() || invite.phone || invite.customer.phone || null;
 

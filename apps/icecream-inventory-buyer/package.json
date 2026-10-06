@@ -2,11 +2,11 @@
   "name": "@buildflow/icecream-inventory-buyer",
   "version": "1.0.0",
   "private": true,
-  "main": "expo-router/entry",
+  "main": "index.ts",
   "scripts": {
-    "start": "expo start --port 8082",
-    "android": "expo start --android --port 8082",
-    "web": "expo start --web --port 8082",
+    "start": "EXPO_USE_METRO_WORKSPACE_ROOT=1 expo start --port 8082",
+    "android": "EXPO_USE_METRO_WORKSPACE_ROOT=1 expo start --android --port 8082",
+    "web": "EXPO_USE_METRO_WORKSPACE_ROOT=1 expo start --web --port 8082",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

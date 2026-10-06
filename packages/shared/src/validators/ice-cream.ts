@@ -37,7 +37,8 @@ export const createProductionBatchSchema = z.object({
 /** Owner invites a customer into Icecream-inventory-buyer with a short join code. */
 export const inviteBuyerSchema = z.object({
   customerId: z.string().uuid(),
-  email: z.string().trim().email().max(200).optional().nullable(),
+  /** Required so the buyer can join with code only (no typing email on join). */
+  email: z.string().trim().email().max(200),
   name: z.string().trim().max(200).optional().nullable(),
   phone: z.string().trim().max(30).optional().nullable(),
   /** Code lifetime in hours (default 48, max 168 = 7 days). */
@@ -48,10 +49,18 @@ export const regenerateBuyerInviteSchema = z.object({
   expiresInHours: z.number().int().min(1).max(168).optional(),
 });
 
-/** Buyer claims a join code on first open of the buyer app. */
+/** Preview invite details (owner-prefilled) without consuming the code. */
+export const previewBuyerInviteSchema = z.object({
+  code: z.string().trim().min(6).max(16),
+});
+
+/**
+ * Buyer claims a join code. Email/name/phone optional — defaults come from the
+ * owner-prefilled invite / customer party.
+ */
 export const claimBuyerInviteSchema = z.object({
   code: z.string().trim().min(6).max(16),
-  email: z.string().trim().email().max(200),
+  email: z.string().trim().email().max(200).optional(),
   name: z.string().trim().min(1).max(200).optional(),
   phone: z.string().trim().max(30).optional().nullable(),
 });

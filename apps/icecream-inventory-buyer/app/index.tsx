@@ -61,6 +61,24 @@ type Order = {
 type Tab = 'catalog' | 'cart' | 'orders' | 'profile';
 type AuthMode = 'join' | 'login';
 
+type InvitePreview = {
+  companyName: string;
+  expiresAt: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  customer: {
+    id: string;
+    name: string;
+    businessName?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    billingAddress?: string | null;
+    shippingAddress?: string | null;
+    gstin?: string | null;
+  };
+};
+
 const NAVY = '#1E3A5F';
 const AMBER = '#F59E0B';
 
@@ -69,9 +87,8 @@ export default function BuyerHome() {
   const [buyer, setBuyer] = useState<Buyer | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>('join');
   const [inviteCode, setInviteCode] = useState('');
+  const [invitePreview, setInvitePreview] = useState<InvitePreview | null>(null);
   const [email, setEmail] = useState('');
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [tab, setTab] = useState<Tab>('catalog');
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
@@ -116,22 +133,36 @@ export default function BuyerHome() {
     [catalog, cart],
   );
 
+  const previewInvite = async () => {
+    setBusy(true);
+    setError('');
+    setInvitePreview(null);
+    try {
+      const data = await buyerFetch<InvitePreview>('/buyer/auth/preview-invite', {
+        method: 'POST',
+        body: JSON.stringify({ code: inviteCode.trim() }),
+      });
+      setInvitePreview(data);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const claimInvite = async () => {
     setBusy(true);
     setError('');
     try {
+      // Code only — name/email/phone come from the owner-prefilled invite.
       const data = await buyerFetch<{ accessToken: string; buyer: Buyer }>('/buyer/auth/claim-invite', {
         method: 'POST',
-        body: JSON.stringify({
-          code: inviteCode.trim(),
-          email: email.trim(),
-          name: name.trim() || undefined,
-          phone: phone.trim() || undefined,
-        }),
+        body: JSON.stringify({ code: inviteCode.trim() }),
       });
       await setBuyerToken(data.accessToken);
       setToken(data.accessToken);
       setBuyer(data.buyer);
+      setInvitePreview(null);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -236,26 +267,9 @@ export default function BuyerHome() {
         <ScrollView contentContainerStyle={styles.pad}>
           <Text style={styles.brand}>Icecream-inventory-buyer</Text>
           <Text style={styles.muted}>
-            Order from your manufacturer&apos;s published catalog. First time: enter the invite code
-            they shared. Later: sign in with email OTP.
+            Enter the invite code from your manufacturer. Your details are already filled by them —
+            confirm and join. After that you can edit your profile and order from their catalog.
           </Text>
-
-          <View style={styles.tabs}>
-            {(['join', 'login'] as AuthMode[]).map((m) => (
-              <Pressable
-                key={m}
-                onPress={() => {
-                  setAuthMode(m);
-                  setError('');
-                }}
-                style={[styles.tab, authMode === m && styles.tabActive]}
-              >
-                <Text style={[styles.tabText, authMode === m && styles.tabTextActive]}>
-                  {m === 'join' ? 'Join with code' : 'Sign in'}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
 
           {authMode === 'join' ? (
             <>
@@ -263,34 +277,74 @@ export default function BuyerHome() {
               <TextInput
                 style={styles.input}
                 value={inviteCode}
-                onChangeText={setInviteCode}
+                onChangeText={(v) => {
+                  setInviteCode(v);
+                  setInvitePreview(null);
+                }}
                 autoCapitalize="characters"
                 placeholder="e.g. AB12CD34"
               />
-              <Text style={styles.label}>Your email (for later OTP login)</Text>
-              <TextInput
-                style={styles.input}
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-              />
-              <Text style={styles.label}>Your name</Text>
-              <TextInput style={styles.input} value={name} onChangeText={setName} />
-              <Text style={styles.label}>Phone (optional)</Text>
-              <TextInput
-                style={styles.input}
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-              />
+              {!invitePreview ? (
+                <Pressable style={styles.btn} onPress={previewInvite} disabled={busy}>
+                  <Text style={styles.btnText}>{busy ? 'Checking…' : 'Continue'}</Text>
+                </Pressable>
+              ) : (
+                <View style={styles.card}>
+                  <Text style={styles.cardTitle}>{invitePreview.companyName}</Text>
+                  <Text style={styles.muted}>
+                    Expires {new Date(invitePreview.expiresAt).toLocaleString()}
+                  </Text>
+                  <Text style={styles.label}>Name</Text>
+                  <Text style={styles.prefill}>{invitePreview.name}</Text>
+                  <Text style={styles.label}>Email</Text>
+                  <Text style={styles.prefill}>{invitePreview.email ?? '—'}</Text>
+                  <Text style={styles.label}>Phone</Text>
+                  <Text style={styles.prefill}>{invitePreview.phone ?? '—'}</Text>
+                  {invitePreview.customer.gstin ? (
+                    <>
+                      <Text style={styles.label}>GSTIN</Text>
+                      <Text style={styles.prefill}>{invitePreview.customer.gstin}</Text>
+                    </>
+                  ) : null}
+                  {invitePreview.customer.billingAddress ? (
+                    <>
+                      <Text style={styles.label}>Billing address</Text>
+                      <Text style={styles.prefill}>{invitePreview.customer.billingAddress}</Text>
+                    </>
+                  ) : null}
+                  <Text style={[styles.muted, { marginTop: 8 }]}>
+                    You can edit these after joining under Profile.
+                  </Text>
+                  <Pressable style={styles.btn} onPress={claimInvite} disabled={busy}>
+                    <Text style={styles.btnText}>Join & continue</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.btnSecondary}
+                    onPress={() => {
+                      setInvitePreview(null);
+                      setError('');
+                    }}
+                    disabled={busy}
+                  >
+                    <Text style={styles.btnSecondaryText}>Use a different code</Text>
+                  </Pressable>
+                </View>
+              )}
               {error ? <Text style={styles.err}>{error}</Text> : null}
-              <Pressable style={styles.btn} onPress={claimInvite} disabled={busy}>
-                <Text style={styles.btnText}>Join & continue</Text>
+              <Pressable
+                style={{ marginTop: 20 }}
+                onPress={() => {
+                  setAuthMode('login');
+                  setError('');
+                  setInvitePreview(null);
+                }}
+              >
+                <Text style={styles.link}>Already joined? Sign in with email OTP</Text>
               </Pressable>
             </>
           ) : (
             <>
+              <Text style={styles.muted}>For returning buyers after you have joined once.</Text>
               <Text style={styles.label}>Email</Text>
               <TextInput
                 style={styles.input}
@@ -312,6 +366,15 @@ export default function BuyerHome() {
               </Pressable>
               <Pressable style={styles.btn} onPress={login} disabled={busy}>
                 <Text style={styles.btnText}>Sign in</Text>
+              </Pressable>
+              <Pressable
+                style={{ marginTop: 16 }}
+                onPress={() => {
+                  setAuthMode('join');
+                  setError('');
+                }}
+              >
+                <Text style={styles.link}>Have an invite code? Join here</Text>
               </Pressable>
             </>
           )}
@@ -537,5 +600,6 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   cardTitle: { fontSize: 15, fontWeight: '700', color: NAVY },
+  prefill: { fontSize: 15, color: '#0F172A', marginBottom: 4 },
   line: { fontSize: 12, color: '#334155', marginTop: 2 },
 });

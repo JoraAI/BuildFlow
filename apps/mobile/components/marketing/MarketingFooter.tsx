@@ -16,6 +16,8 @@ export function MarketingFooter() {
         <View className="flex-row flex-wrap gap-4 mb-6">
           <FooterLink label="About" onPress={() => router.push('/about')} />
           <FooterLink label="Pricing" onPress={() => router.push('/pricing')} />
+          <FooterLink label="Privacy" onPress={() => router.push('/privacy')} />
+          <FooterLink label="Terms" onPress={() => router.push('/terms')} />
           <FooterLink label="Login" onPress={() => router.push('/login')} />
           <FooterLink label="Sign Up" onPress={() => router.push('/signup')} />
         </View>

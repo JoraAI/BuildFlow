@@ -1,16 +1,43 @@
+import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 const API = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000/api';
 
 const TOKEN_KEY = 'bf_buyer_access_token';
 
+/** SecureStore is unreliable on web; use localStorage there. */
+async function storageGet(key: string): Promise<string | null> {
+  if (Platform.OS === 'web') {
+    try {
+      return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+    } catch {
+      return null;
+    }
+  }
+  return SecureStore.getItemAsync(key);
+}
+
+async function storageSet(key: string, value: string | null): Promise<void> {
+  if (Platform.OS === 'web') {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      if (value) localStorage.setItem(key, value);
+      else localStorage.removeItem(key);
+    } catch {
+      // ignore quota / private mode
+    }
+    return;
+  }
+  if (value) await SecureStore.setItemAsync(key, value);
+  else await SecureStore.deleteItemAsync(key);
+}
+
 export async function setBuyerToken(token: string | null) {
-  if (token) await SecureStore.setItemAsync(TOKEN_KEY, token);
-  else await SecureStore.deleteItemAsync(TOKEN_KEY);
+  await storageSet(TOKEN_KEY, token);
 }
 
 export async function getBuyerToken() {
-  return SecureStore.getItemAsync(TOKEN_KEY);
+  return storageGet(TOKEN_KEY);
 }
 
 export async function buyerFetch<T>(path: string, init: RequestInit = {}): Promise<T> {

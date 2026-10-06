@@ -42,11 +42,15 @@ export function InviteBuyerModal({
 
   const create = async () => {
     setError('');
+    if (!email.trim()) {
+      setError('Email is required — the customer joins with the code using this email.');
+      return;
+    }
     setSaving(true);
     try {
       const data = await inviteBuyer.mutateAsync({
         customerId: customer.id,
-        email: email.trim() || null,
+        email: email.trim(),
         name: name.trim() || null,
         phone: phone.trim() || null,
         expiresInHours: 48,
@@ -91,16 +95,16 @@ export function InviteBuyerModal({
           </View>
           <View className="p-5">
             <Text className="text-xs text-muted mb-3">
-              Prefill details for {customer.name}. Customer joins Icecream-inventory-buyer with a
-              short code (expires in 48 hours). They can edit details after joining. Later logins use
-              email OTP.
+              Fill details for {customer.name}. They join Icecream-inventory-buyer with the code only
+              — name/email/phone are shown from what you enter here. Code expires in 48 hours. They
+              can edit profile after joining; later visits use email OTP.
             </Text>
             {!result ? (
               <>
-                <Input label="Contact name (optional)" value={name} onChangeText={setName} />
+                <Input label="Contact name" value={name} onChangeText={setName} />
                 <View className="h-2" />
                 <Input
-                  label="Email (optional prefill)"
+                  label="Email"
                   value={email}
                   onChangeText={setEmail}
                   autoCapitalize="none"

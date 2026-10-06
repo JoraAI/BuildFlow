@@ -211,6 +211,17 @@ export async function buyerLogin(req: Request, res: Response, next: NextFunction
   }
 }
 
+export async function buyerPreviewInvite(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json({
+      success: true,
+      data: await buyerSvc.previewBuyerInvite(String(req.body.code ?? '')),
+    });
+  } catch (e) {
+    next(e);
+  }
+}
+
 export async function buyerClaimInvite(req: Request, res: Response, next: NextFunction) {
   try {
     res.status(201).json({
