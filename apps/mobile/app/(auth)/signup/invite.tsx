@@ -6,6 +6,7 @@ import { View, Text } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Button, Input, Card, Badge } from '@/components/ui';
 import { AuthScreenShell } from '@/components/auth/AuthScreenShell';
+import { SmsConsentCheckbox } from '@/components/auth/SmsConsentCheckbox';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
 import { ApiError } from '@/lib/api-client';
@@ -23,6 +24,7 @@ export default function SignupInviteScreen() {
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [otpHint, setOtpHint] = useState<string | null>(null);
+  const [smsConsent, setSmsConsent] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
   const [preview, setPreview] = useState<{
     email: string | null;
@@ -55,6 +57,10 @@ export default function SignupInviteScreen() {
     setError('');
     if (!token.trim()) {
       setError('Invite token is required');
+      return;
+    }
+    if (preview?.inviteChannel === 'phone' && !smsConsent) {
+      setError('Please agree to receive SMS authentication codes before sending OTP');
       return;
     }
     setSendingOtp(true);
@@ -176,6 +182,12 @@ export default function SignupInviteScreen() {
       ) : null}
 
       <Input label="Your name" value={name} onChangeText={setName} />
+      <View className="h-3" />
+
+      {preview?.inviteChannel === 'phone' ? (
+        <SmsConsentCheckbox checked={smsConsent} onCheckedChange={setSmsConsent} />
+      ) : null}
+
       <View className="h-3" />
 
       <Button

@@ -10,7 +10,8 @@ import { MarketingAssistantFab } from '@/components/marketing/MarketingAssistant
 export default function PublicLayout() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const pathname = usePathname();
-  const isLegalPage = pathname === '/privacy' || pathname === '/terms';
+  const isLegalPage =
+    pathname === '/privacy' || pathname === '/terms' || pathname === '/sms-opt-in';
 
   if (isAuthenticated && !isLegalPage) {
     return <Redirect href="/dashboard" />;
@@ -24,6 +25,7 @@ export default function PublicLayout() {
         <Stack.Screen name="about" />
         <Stack.Screen name="privacy" />
         <Stack.Screen name="terms" />
+        <Stack.Screen name="sms-opt-in" />
       </Stack>
       {!isLegalPage ? <MarketingAssistantFab /> : null}
     </View>

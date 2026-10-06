@@ -409,7 +409,7 @@ export async function sendBuyerOtp(email: string, companyId?: string) {
     channel: 'email',
     destination: buyer.email,
     companyId: buyer.companyId,
-    messagePrefix: 'Your BuildFlow buyer login code is',
+    messagePrefix: 'StaffingPros: Your BuildFlow buyer login code is',
     emailSubject: 'Your BuildFlow buyer login code',
   });
 }

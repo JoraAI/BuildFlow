@@ -28,13 +28,14 @@ export default function PrivacyPolicyPage() {
     <MarketingPageShell>
       <MarketingSection
         title="Privacy Policy"
-        subtitle={`BuildFlow (“we”, “us”, “our”) by Jora AI. Last updated: ${LAST_UPDATED}.`}
+        subtitle={`StaffingPros and Jora AI (“we”, “us”, “our”), operating the BuildFlow platform. Last updated: ${LAST_UPDATED}.`}
       >
         <P>
-          This Privacy Policy explains how we collect, use, store, and share information when you
-          use BuildFlow construction ERP, Inventory, and related web/mobile apps at
+          This Privacy Policy explains how StaffingPros and Jora AI collect, use, store, and share
+          information when you use the BuildFlow business software platform at
           https://build-flow-frontend-jet.vercel.app/ (the “Service”), including SMS one-time
-          passcodes (OTPs) used for login and invite verification.
+          passcodes (OTPs) used for login and invite verification. BuildFlow is a product operated
+          by StaffingPros and Jora AI.
         </P>
 
         <View className="h-4" />
@@ -46,7 +47,7 @@ export default function PrivacyPolicyPage() {
           </P>
           <P>
             Business / operational data you enter in the Service (for example projects, stock,
-            invoices, parties, and related documents).
+            invoices, parties, staffing/workforce records, and related documents).
           </P>
           <P>
             Technical data such as device/browser type, IP address, app version, and logs needed to
@@ -62,19 +63,24 @@ export default function PrivacyPolicyPage() {
           <P>To create and manage your account and company workspace.</P>
           <P>
             To authenticate you via email or SMS OTP when you request a code on login or invite
-            acceptance screens.
+            acceptance screens after providing SMS consent.
           </P>
-          <P>To provide ERP / Inventory features you request (stock, sales, billing, reports).</P>
+          <P>
+            To provide BuildFlow ERP / Inventory and related business features you request (stock,
+            sales, billing, reports, workforce/operations tools).
+          </P>
           <P>To secure the Service, prevent abuse, troubleshoot issues, and meet legal obligations.</P>
           <P>We do not sell your personal information.</P>
         </PolicyBlock>
 
         <PolicyBlock title="3. SMS / OTP messaging">
           <P>
-            If you provide a mobile number and request an OTP (for example on
-            https://build-flow-frontend-jet.vercel.app/login or
-            https://build-flow-frontend-jet.vercel.app/signup/invite), we send transactional SMS
-            authentication codes only. We do not use that consent for promotional or marketing SMS.
+            If you provide a mobile number, check the SMS consent box, and request an OTP (for
+            example on https://build-flow-frontend-jet.vercel.app/login ,
+            https://build-flow-frontend-jet.vercel.app/signup/invite , or as shown on
+            https://build-flow-frontend-jet.vercel.app/sms-opt-in), StaffingPros / Jora AI send
+            transactional SMS authentication codes only. We do not use that consent for promotional
+            or marketing SMS.
           </P>
           <P>
             Message frequency is low and based on your login or invite verification actions. Message
@@ -136,10 +142,11 @@ export default function PrivacyPolicyPage() {
 
         <PolicyBlock title="10. Contact">
           <P>
-            Questions about this Privacy Policy: contact your BuildFlow organization admin or email
-            support through the in-app support / tickets channel. Legal pages:
-            Privacy https://build-flow-frontend-jet.vercel.app/privacy · Terms
-            https://build-flow-frontend-jet.vercel.app/terms
+            Questions about this Privacy Policy for StaffingPros, Jora AI, or BuildFlow: contact your
+            organization admin or email support through the in-app support / tickets channel. Legal
+            pages: Privacy https://build-flow-frontend-jet.vercel.app/privacy · Terms
+            https://build-flow-frontend-jet.vercel.app/terms · SMS opt-in
+            https://build-flow-frontend-jet.vercel.app/sms-opt-in
           </P>
         </PolicyBlock>
       </MarketingSection>

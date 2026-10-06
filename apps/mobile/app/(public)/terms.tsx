@@ -28,23 +28,23 @@ export default function TermsOfServicePage() {
     <MarketingPageShell>
       <MarketingSection
         title="Terms of Service"
-        subtitle={`BuildFlow (“Service”) by Jora AI. Last updated: ${LAST_UPDATED}.`}
+        subtitle={`StaffingPros and Jora AI (“we”, “us”, “our”), operating BuildFlow. Last updated: ${LAST_UPDATED}.`}
       >
         <P>
-          These Terms govern access to and use of BuildFlow at
-          https://build-flow-frontend-jet.vercel.app/ and related APIs, including Construction ERP
-          and Inventory features. By creating an account, accepting an invite, or using the Service,
-          you agree to these Terms and our Privacy Policy at
-          https://build-flow-frontend-jet.vercel.app/privacy .
+          These Terms govern access to and use of the BuildFlow platform operated by StaffingPros
+          and Jora AI at https://build-flow-frontend-jet.vercel.app/ and related APIs, including
+          business operations, inventory, and workforce/staffing-related tooling offered through the
+          Service. By creating an account, accepting an invite, or using the Service, you agree to
+          these Terms and our Privacy Policy at https://build-flow-frontend-jet.vercel.app/privacy .
         </P>
 
         <View className="h-4" />
 
         <PolicyBlock title="1. The Service">
           <P>
-            BuildFlow provides business software for construction and inventory operations
-            (projects, stock, procurement, invoicing, reports, and related tools). Features depend
-            on your subscription plan and company configuration.
+            StaffingPros and Jora AI provide BuildFlow business software for operations such as
+            projects, inventory, procurement, invoicing, reports, and related workforce/staffing
+            workflows. Features depend on your subscription plan and company configuration.
           </P>
         </PolicyBlock>
 
@@ -61,11 +61,12 @@ export default function TermsOfServicePage() {
 
         <PolicyBlock title="3. SMS authentication">
           <P>
-            By providing your mobile number and requesting an OTP on screens such as
-            https://build-flow-frontend-jet.vercel.app/login or
-            https://build-flow-frontend-jet.vercel.app/signup/invite , you consent to receive
-            transactional SMS one-time passcodes from BuildFlow for authentication and invite
-            acceptance only.
+            By providing your mobile number, checking the SMS consent box, and requesting an OTP on
+            screens such as https://build-flow-frontend-jet.vercel.app/login or
+            https://build-flow-frontend-jet.vercel.app/signup/invite (disclosure also shown at
+            https://build-flow-frontend-jet.vercel.app/sms-opt-in), you consent to receive
+            transactional SMS one-time passcodes from StaffingPros / Jora AI (BuildFlow) for
+            authentication and invite acceptance only.
           </P>
           <P>
             Message frequency varies based on your verification requests. Message and data rates may
@@ -82,14 +83,16 @@ export default function TermsOfServicePage() {
           </P>
           <P>
             You are responsible for the accuracy of business records you enter (invoices, GST
-            details, stock, etc.) and for compliance with laws that apply to your business.
+            details, stock, staffing/workforce records, etc.) and for compliance with laws that apply
+            to your business.
           </P>
         </PolicyBlock>
 
         <PolicyBlock title="5. Customer data">
           <P>
-            You retain rights to the business content you submit. You grant us a limited license to
-            host, process, and display that content solely to provide and improve the Service.
+            You retain rights to the business content you submit. You grant StaffingPros and Jora AI
+            a limited license to host, process, and display that content solely to provide and
+            improve the Service.
           </P>
           <P>
             Organization admins control user access within their tenant. We process personal data as
@@ -107,8 +110,9 @@ export default function TermsOfServicePage() {
 
         <PolicyBlock title="7. Intellectual property">
           <P>
-            BuildFlow software, branding, and documentation remain owned by Jora AI / BuildFlow
-            licensors. These Terms do not transfer ownership of our IP to you.
+            BuildFlow software, StaffingPros / Jora AI branding, and documentation remain owned by
+            StaffingPros, Jora AI, and their licensors. These Terms do not transfer ownership of our
+            IP to you.
           </P>
         </PolicyBlock>
 
@@ -122,9 +126,10 @@ export default function TermsOfServicePage() {
 
         <PolicyBlock title="9. Limitation of liability">
           <P>
-            To the maximum extent permitted by law, we are not liable for indirect, incidental,
-            special, consequential, or lost-profit damages, or for losses arising from your data,
-            downtime, or third-party services (including carriers and SMS delivery).
+            To the maximum extent permitted by law, StaffingPros and Jora AI are not liable for
+            indirect, incidental, special, consequential, or lost-profit damages, or for losses
+            arising from your data, downtime, or third-party services (including carriers and SMS
+            delivery).
           </P>
         </PolicyBlock>
 
@@ -144,9 +149,11 @@ export default function TermsOfServicePage() {
 
         <PolicyBlock title="12. Contact">
           <P>
-            Questions: use in-app support / tickets, or contact your organization admin. Privacy
-            Policy: https://build-flow-frontend-jet.vercel.app/privacy · Terms:
-            https://build-flow-frontend-jet.vercel.app/terms
+            Questions for StaffingPros, Jora AI, or BuildFlow: use in-app support / tickets, or
+            contact your organization admin. Privacy Policy:
+            https://build-flow-frontend-jet.vercel.app/privacy · Terms:
+            https://build-flow-frontend-jet.vercel.app/terms · SMS opt-in:
+            https://build-flow-frontend-jet.vercel.app/sms-opt-in
           </P>
         </PolicyBlock>
       </MarketingSection>

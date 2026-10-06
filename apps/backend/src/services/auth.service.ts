@@ -428,7 +428,7 @@ export async function sendLoginOtp(identifierRaw: string): Promise<{
       channel: 'email',
       destination: email,
       companyId: user.companyId,
-      messagePrefix: 'Your BuildFlow login code is',
+      messagePrefix: 'StaffingPros: Your BuildFlow login code is',
       emailSubject: 'Your BuildFlow login code',
     });
     return {
@@ -473,7 +473,7 @@ export async function sendLoginOtp(identifierRaw: string): Promise<{
     channel: 'sms',
     destination: phone,
     companyId: user.companyId,
-    messagePrefix: 'Your BuildFlow login code is',
+    messagePrefix: 'StaffingPros: Your BuildFlow login code is',
   });
 
   return {

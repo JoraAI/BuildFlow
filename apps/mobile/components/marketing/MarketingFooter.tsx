@@ -18,6 +18,7 @@ export function MarketingFooter() {
           <FooterLink label="Pricing" onPress={() => router.push('/pricing')} />
           <FooterLink label="Privacy" onPress={() => router.push('/privacy')} />
           <FooterLink label="Terms" onPress={() => router.push('/terms')} />
+          <FooterLink label="SMS opt-in" onPress={() => router.push('/sms-opt-in')} />
           <FooterLink label="Login" onPress={() => router.push('/login')} />
           <FooterLink label="Sign Up" onPress={() => router.push('/signup')} />
         </View>

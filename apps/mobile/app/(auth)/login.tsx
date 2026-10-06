@@ -6,15 +6,22 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Button, Input } from '@/components/ui';
 import { AuthScreenShell } from '@/components/auth/AuthScreenShell';
+import { SmsConsentCheckbox } from '@/components/auth/SmsConsentCheckbox';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
 import { ApiError } from '@/lib/api-client';
 import { sendLoginOtpRequest } from '@/services/auth.queries';
 
+function looksLikePhone(value: string): boolean {
+  const digits = value.replace(/\D/g, '');
+  return digits.length >= 10 && !value.includes('@');
+}
+
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [otpHint, setOtpHint] = useState<string | null>(null);
+  const [smsConsent, setSmsConsent] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -25,6 +32,10 @@ export default function LoginScreen() {
     setError('');
     if (!email.trim()) {
       setError('Enter email or mobile to receive an OTP');
+      return;
+    }
+    if (looksLikePhone(email) && !smsConsent) {
+      setError('Please agree to receive SMS authentication codes before sending OTP');
       return;
     }
     setSendingOtp(true);
@@ -95,6 +106,10 @@ export default function LoginScreen() {
         keyboardType="default"
         autoCapitalize="none"
       />
+
+      {looksLikePhone(email) ? (
+        <SmsConsentCheckbox checked={smsConsent} onCheckedChange={setSmsConsent} />
+      ) : null}
 
       <View className="h-3" />
 

@@ -405,7 +405,7 @@ export async function sendInviteOtp(token: string): Promise<{
       channel: 'email',
       destination: email,
       companyId: invite.companyId,
-      messagePrefix: 'Your BuildFlow invite code is',
+      messagePrefix: 'StaffingPros: Your BuildFlow invite code is',
       emailSubject: 'Your BuildFlow invite code',
     });
     return {
@@ -426,7 +426,7 @@ export async function sendInviteOtp(token: string): Promise<{
     channel: 'sms',
     destination: phone,
     companyId: invite.companyId,
-    messagePrefix: 'Your BuildFlow invite code is',
+    messagePrefix: 'StaffingPros: Your BuildFlow invite code is',
   });
 
   return {
