@@ -43,6 +43,8 @@ export interface Resource {
   preferredVendorId?: string | null;
   reorderQty?: string | number | null;
   leadTimeDays?: number | null;
+  /** ICE_CREAM: when true, item appears in Icecream-inventory-buyer catalog. */
+  b2bPublished?: boolean;
 }
 
 export interface PriceHistoryPoint {

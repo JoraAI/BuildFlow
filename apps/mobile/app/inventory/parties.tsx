@@ -3,7 +3,7 @@
  * Customer (AR) + Vendor (AP) master. Responsive: phone bottom sheets, desktop centered.
  */
 import React, { useMemo, useState } from 'react';
-import { View, Text, FlatList, Pressable } from 'react-native';
+import { View, Text, FlatList, Pressable, Modal, ScrollView, Platform, Share, Alert } from 'react-native';
 import { Card, Badge, Button, EmptyState, LoadingSkeleton, toast, BusyOverlay, useBusy } from '@/components/ui';
 import {
   useCustomers, useCreateCustomer, useUpdateCustomer, useDeleteCustomer,
@@ -14,14 +14,23 @@ import {
 import { confirmAsync } from '@/utils/confirm';
 import { PartyModal } from '@/components/inventory/PartyModal';
 import { PriceListModal } from '@/components/inventory/PriceListModal';
+import { InviteBuyerModal } from '@/components/inventory/InviteBuyerModal';
 import { useViewport } from '@/hooks/useViewport';
-import { Modal, ScrollView } from 'react-native';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 import { InventoryFilterBar } from '@/components/inventory/InventoryFilterBar';
 import { SegmentedTabsInline } from '@/components/inventory/SegmentedTabs';
 import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
 import { useFocusedRow } from '@/hooks/useFocusedRow';
 import { matchesStatus, matchesText } from '@/utils/inventory-filters';
+import { useAuthStore } from '@/stores/auth.store';
+import {
+  useBuyers,
+  useBuyerInvites,
+  useRevokeBuyer,
+  useRegenerateBuyerInvite,
+  type BuyerInviteRow,
+  type BuyerUserRow,
+} from '@/services/ice-cream.queries';
 
 type Kind = 'customer' | 'vendor';
 
@@ -35,6 +44,8 @@ type PartyStatus = (typeof PARTY_STATUS_TABS)[number]['value'];
 export default function InventoryPartiesScreen() {
   const { translate } = useInventoryLanguage();
   const { busy, run } = useBusy();
+  const user = useAuthStore((s) => s.user);
+  const isIceCream = user?.inventoryVertical === 'ICE_CREAM';
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop/tablet table rows.
   const { isTablet, isDesktop } = useViewport();
   const tableMode = isTablet || isDesktop;
@@ -45,6 +56,11 @@ export default function InventoryPartiesScreen() {
   const [ledgerParty, setLedgerParty] = useState<PartyRow | null>(null);
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 9.1): customer price overrides.
   const [priceOpen, setPriceOpen] = useState(false);
+  const [inviteCustomer, setInviteCustomer] = useState<PartyRow | null>(null);
+  const buyersQ = useBuyers(isIceCream && kind === 'customer');
+  const invitesQ = useBuyerInvites(isIceCream && kind === 'customer');
+  const revokeBuyer = useRevokeBuyer();
+  const regenerateInvite = useRegenerateBuyerInvite();
 
   const customers = useCustomers();
   const vendors = useVendors();
@@ -169,17 +185,6 @@ export default function InventoryPartiesScreen() {
           data={rows}
           keyExtractor={(p) => p.id}
           onScrollToIndexFailed={() => undefined}
-          ListHeaderComponent={
-            tableMode && rows.length > 0 ? (
-              <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
-                <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase">Party</Text>
-                <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Contact</Text>
-                <Text className="flex-1 text-[11px] font-bold text-muted uppercase">GSTIN</Text>
-                <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Status</Text>
-                <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
-              </View>
-            ) : null
-          }
           renderItem={({ item }) => {
             // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop row.
             if (tableMode) {
@@ -199,6 +204,9 @@ export default function InventoryPartiesScreen() {
                   <View className="flex-[1.4] flex-row flex-wrap justify-end gap-1">
                     <Button label="Ledger" size="sm" variant="secondary" onPress={() => setLedgerParty(item)} />
                     <Button label="Edit" size="sm" variant="secondary" onPress={() => setModal({ kind, editing: item })} />
+                    {isIceCream && kind === 'customer' && item.isActive ? (
+                      <Button label="Invite" size="sm" variant="accent" onPress={() => setInviteCustomer(item)} />
+                    ) : null}
                     {item.isActive ? (
                       <Button label="Remove" size="sm" variant="secondary" onPress={() => onDelete(item)} />
                     ) : null}
@@ -224,6 +232,9 @@ export default function InventoryPartiesScreen() {
                   <View className="flex-row gap-2 mt-1">
                     <Button label="Ledger" size="sm" variant="secondary" onPress={() => setLedgerParty(item)} />
                     <Button label="Edit" size="sm" variant="secondary" onPress={() => setModal({ kind, editing: item })} />
+                    {isIceCream && kind === 'customer' && item.isActive ? (
+                      <Button label="Invite" size="sm" variant="accent" onPress={() => setInviteCustomer(item)} />
+                    ) : null}
                     {item.isActive ? (
                       <Button label="Remove" size="sm" variant="secondary" onPress={() => onDelete(item)} />
                     ) : null}
@@ -233,6 +244,51 @@ export default function InventoryPartiesScreen() {
             </Card>
           );
           }}
+          ListHeaderComponent={
+            <>
+              {tableMode && rows.length > 0 ? (
+                <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+                  <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase">Party</Text>
+                  <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Contact</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase">GSTIN</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Status</Text>
+                  <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+                </View>
+              ) : null}
+              {isIceCream && kind === 'customer' ? (
+                <BuyerAccessPanel
+                  buyers={buyersQ.data ?? []}
+                  invites={invitesQ.data ?? []}
+                  onRevoke={(id) =>
+                    void run(async () => {
+                      try {
+                        await revokeBuyer.mutateAsync(id);
+                        toast.success('Buyer access revoked');
+                      } catch (e) {
+                        toast.error(e instanceof Error ? e.message : 'Could not revoke');
+                      }
+                    })
+                  }
+                  onRegenerate={(id) =>
+                    void run(async () => {
+                      try {
+                        const data = await regenerateInvite.mutateAsync(id);
+                        const msg = `New code ${data.code} (expires ${new Date(data.expiresAt).toLocaleString()})`;
+                        if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+                          await navigator.clipboard.writeText(msg);
+                          Alert.alert('Regenerated', msg);
+                        } else {
+                          await Share.share({ message: msg });
+                        }
+                      } catch (e) {
+                        toast.error(e instanceof Error ? e.message : 'Could not regenerate');
+                      }
+                    })
+                  }
+                />
+              ) : null}
+            </>
+          }
           ListEmptyComponent={
             filters.isFiltered ? (
               <EmptyState
@@ -262,9 +318,61 @@ export default function InventoryPartiesScreen() {
         />
       ) : null}
 
+      {inviteCustomer ? (
+        <InviteBuyerModal customer={inviteCustomer} onClose={() => setInviteCustomer(null)} />
+      ) : null}
+
       {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 9.1): customer price overrides. */}
       <PriceListModal open={priceOpen} onClose={() => setPriceOpen(false)} />
     </View>
+  );
+}
+
+function BuyerAccessPanel({
+  buyers,
+  invites,
+  onRevoke,
+  onRegenerate,
+}: {
+  buyers: BuyerUserRow[];
+  invites: BuyerInviteRow[];
+  onRevoke: (buyerId: string) => void;
+  onRegenerate: (inviteId: string) => void;
+}) {
+  const pending = invites.filter((i) => !i.acceptedAt && new Date(i.expiresAt) > new Date());
+  const activeBuyers = buyers.filter((b) => b.isActive);
+  if (pending.length === 0 && activeBuyers.length === 0) return null;
+  return (
+    <Card className="mb-3 p-4 mt-2">
+      <Text className="text-sm font-bold text-text mb-1">Buyer app access</Text>
+      <Text className="text-xs text-muted mb-3">
+        Customers join Icecream-inventory-buyer with a code, then order from your published catalog.
+      </Text>
+      {pending.map((inv) => (
+        <View key={inv.id} className="flex-row items-center justify-between py-2 border-b border-border/60">
+          <View className="flex-1 min-w-0 mr-2">
+            <Text className="text-sm text-text" numberOfLines={1}>
+              {inv.customer.businessName || inv.customer.name}
+            </Text>
+            <Text className="text-xs text-muted">
+              Pending · expires {new Date(inv.expiresAt).toLocaleString()}
+            </Text>
+          </View>
+          <Button label="Regenerate" size="sm" variant="secondary" onPress={() => onRegenerate(inv.id)} />
+        </View>
+      ))}
+      {activeBuyers.map((b) => (
+        <View key={b.id} className="flex-row items-center justify-between py-2 border-b border-border/60">
+          <View className="flex-1 min-w-0 mr-2">
+            <Text className="text-sm text-text" numberOfLines={1}>
+              {b.customer.businessName || b.customer.name}
+            </Text>
+            <Text className="text-xs text-muted">{b.email}</Text>
+          </View>
+          <Button label="Revoke" size="sm" variant="secondary" onPress={() => onRevoke(b.id)} />
+        </View>
+      ))}
+    </Card>
   );
 }
 

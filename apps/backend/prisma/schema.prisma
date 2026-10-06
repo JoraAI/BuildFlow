@@ -408,6 +408,7 @@ model Company {
   recipes             Recipe[]
   productionBatches   ProductionBatch[]
   buyerUsers          BuyerUser[]
+  buyerInvites        BuyerInvite[]
 
   @@map("companies")
 }
@@ -448,6 +449,7 @@ model Customer {
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 9.2): quotes for a customer.
   quotes Quote[] @relation("QuoteCustomer")
   buyerUsers BuyerUser[]
+  buyerInvites BuyerInvite[]
 
   @@index([companyId])
   @@map("customers")
@@ -2879,6 +2881,34 @@ model ProductionBatch {
   @@map("production_batches")
 }
 
+
+/// Time-limited join code for Icecream-inventory-buyer (B2B).
+model BuyerInvite {
+  id           String    @id @default(uuid()) @db.Uuid
+  companyId    String    @map("company_id") @db.Uuid
+  customerId   String    @map("customer_id") @db.Uuid
+  /// Prefill from owner; buyer may edit after join.
+  email        String?
+  name         String?
+  phone        String?
+  codeHash     String    @unique @map("code_hash")
+  invitedById  String?   @map("invited_by_id") @db.Uuid
+  expiresAt    DateTime  @map("expires_at")
+  acceptedAt   DateTime? @map("accepted_at")
+  buyerUserId  String?   @map("buyer_user_id") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer  Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  buyerUser BuyerUser? @relation(fields: [buyerUserId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([customerId])
+  @@index([companyId, expiresAt])
+  @@map("buyer_invites")
+}
+
 /// External B2B buyer login (bound to a manufacturer Customer / Party).
 model BuyerUser {
   id           String    @id @default(uuid()) @db.Uuid
@@ -2896,6 +2926,7 @@ model BuyerUser {
   company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   customer    Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
   salesOrders SalesOrder[]
+  invites     BuyerInvite[]
 
   @@unique([companyId, email])
   @@index([companyId])

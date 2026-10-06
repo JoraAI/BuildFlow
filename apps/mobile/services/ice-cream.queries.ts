@@ -173,19 +173,114 @@ export function useSalesDashboard(enabled = true) {
   });
 }
 
+export type BuyerInviteCreated = {
+  inviteId: string;
+  code: string;
+  expiresAt: string;
+  email?: string | null;
+  name?: string | null;
+  phone?: string | null;
+  customer: {
+    id: string;
+    name: string;
+    businessName?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  };
+};
+
+export type BuyerInviteRow = {
+  id: string;
+  email?: string | null;
+  name?: string | null;
+  phone?: string | null;
+  expiresAt: string;
+  acceptedAt?: string | null;
+  createdAt: string;
+  customer: {
+    id: string;
+    name: string;
+    businessName?: string | null;
+    phone?: string | null;
+    email?: string | null;
+  };
+  buyerUser?: {
+    id: string;
+    email: string;
+    isActive: boolean;
+    lastLoginAt?: string | null;
+  } | null;
+};
+
+export type BuyerUserRow = {
+  id: string;
+  email: string;
+  name?: string | null;
+  phone?: string | null;
+  isActive: boolean;
+  lastLoginAt?: string | null;
+  customer: {
+    id: string;
+    name: string;
+    businessName?: string | null;
+    phone?: string | null;
+    email?: string | null;
+  };
+};
+
+export function useBuyers(enabled = true) {
+  return useQuery({
+    queryKey: keys.buyers,
+    enabled,
+    queryFn: () => apiFetch<BuyerUserRow[]>('/inventory/ice-cream/buyers'),
+  });
+}
+
+export function useBuyerInvites(enabled = true) {
+  return useQuery({
+    queryKey: [...keys.buyers, 'invites'] as const,
+    enabled,
+    queryFn: () => apiFetch<BuyerInviteRow[]>('/inventory/ice-cream/buyers/invites'),
+  });
+}
+
 export function useInviteBuyer() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: {
       customerId: string;
-      email: string;
-      name?: string;
-      phone?: string;
+      email?: string | null;
+      name?: string | null;
+      phone?: string | null;
+      expiresInHours?: number;
     }) =>
-      apiFetch('/inventory/ice-cream/buyers/invite', {
+      apiFetch<BuyerInviteCreated>('/inventory/ice-cream/buyers/invite', {
         method: 'POST',
         body: JSON.stringify(body),
       }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.buyers });
+    },
+  });
+}
+
+export function useRegenerateBuyerInvite() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (inviteId: string) =>
+      apiFetch<BuyerInviteCreated>(`/inventory/ice-cream/buyers/invites/${inviteId}/regenerate`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.buyers }),
+  });
+}
+
+export function useRevokeBuyer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (buyerId: string) =>
+      apiFetch(`/inventory/ice-cream/buyers/${buyerId}/revoke`, { method: 'POST' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.buyers }),
   });
 }
@@ -198,6 +293,9 @@ export function useSetB2bPublished() {
         method: 'POST',
         body: JSON.stringify(body),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['resources'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['resources'] });
+      qc.invalidateQueries({ queryKey: ['materials'] });
+    },
   });
 }

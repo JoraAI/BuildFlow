@@ -13,6 +13,7 @@ import {
   useDeleteResource,
   type Resource,
 } from '@/services/estimate.queries';
+import { useSetB2bPublished } from '@/services/ice-cream.queries';
 import {
   useQuickVendorReceipt,
   useStockSummary,
@@ -87,6 +88,8 @@ export default function InventoryMaterialsScreen() {
   const deleteResource = useDeleteResource();
 
   const isKirana = user?.inventoryVertical === 'GENERAL';
+  const isIceCream = user?.inventoryVertical === 'ICE_CREAM';
+  const setB2bPublished = useSetB2bPublished();
   const { data: stock } = useStockSummary(user?.defaultProjectId ?? '');
 
   const materials = (data?.data ?? []).filter((r: Resource) => r.type === 'MATERIAL' || !r.type);
@@ -274,6 +277,31 @@ export default function InventoryMaterialsScreen() {
                         onPress={() => setReceiving(row.resource)}
                       />
                     ) : null}
+                    {isIceCream ? (
+                      <Button
+                        label={row.resource.b2bPublished ? 'Unpublish' : 'Publish B2B'}
+                        size="sm"
+                        variant={row.resource.b2bPublished ? 'secondary' : 'accent'}
+                        onPress={() =>
+                          void run(async () => {
+                            try {
+                              await setB2bPublished.mutateAsync({
+                                resourceId: row.resource.id,
+                                published: !row.resource.b2bPublished,
+                              });
+                              toast.success(
+                                row.resource.b2bPublished
+                                  ? 'Removed from buyer catalog'
+                                  : 'Published to buyer catalog',
+                              );
+                              void refetch();
+                            } catch (e) {
+                              toast.error(e instanceof Error ? e.message : 'Failed');
+                            }
+                          })
+                        }
+                      />
+                    ) : null}
                     <Button label="Edit" size="sm" variant="secondary" onPress={() => setEditing(row.resource)} />
                     <Button label="Delete" size="sm" variant="ghost" onPress={() => void onDelete(row.resource)} />
                   </View>
@@ -325,13 +353,38 @@ export default function InventoryMaterialsScreen() {
                   ) : null}
                 </View>
               </View>
-              <View className="flex-row gap-2 mt-3">
+              <View className="flex-row flex-wrap gap-2 mt-3">
                 {isKirana ? (
                   <Button
                     label={translate('inventory.materials.receiveStock', 'Receive stock')}
                     size="sm"
                     variant="accent"
                     onPress={() => setReceiving(row.resource)}
+                  />
+                ) : null}
+                {isIceCream ? (
+                  <Button
+                    label={row.resource.b2bPublished ? 'Unpublish' : 'Publish B2B'}
+                    size="sm"
+                    variant={row.resource.b2bPublished ? 'secondary' : 'accent'}
+                    onPress={() =>
+                      void run(async () => {
+                        try {
+                          await setB2bPublished.mutateAsync({
+                            resourceId: row.resource.id,
+                            published: !row.resource.b2bPublished,
+                          });
+                          toast.success(
+                            row.resource.b2bPublished
+                              ? 'Removed from buyer catalog'
+                              : 'Published to buyer catalog',
+                          );
+                          void refetch();
+                        } catch (e) {
+                          toast.error(e instanceof Error ? e.message : 'Failed');
+                        }
+                      })
+                    }
                   />
                 ) : null}
                 <Button label="Edit" size="sm" variant="secondary" onPress={() => setEditing(row.resource)} />

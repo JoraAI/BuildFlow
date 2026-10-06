@@ -34,11 +34,26 @@ export const createProductionBatchSchema = z.object({
   { message: 'Expiry must be on or after manufacture date', path: ['expiresAt'] },
 );
 
+/** Owner invites a customer into Icecream-inventory-buyer with a short join code. */
 export const inviteBuyerSchema = z.object({
   customerId: z.string().uuid(),
+  email: z.string().trim().email().max(200).optional().nullable(),
+  name: z.string().trim().max(200).optional().nullable(),
+  phone: z.string().trim().max(30).optional().nullable(),
+  /** Code lifetime in hours (default 48, max 168 = 7 days). */
+  expiresInHours: z.number().int().min(1).max(168).optional(),
+});
+
+export const regenerateBuyerInviteSchema = z.object({
+  expiresInHours: z.number().int().min(1).max(168).optional(),
+});
+
+/** Buyer claims a join code on first open of the buyer app. */
+export const claimBuyerInviteSchema = z.object({
+  code: z.string().trim().min(6).max(16),
   email: z.string().trim().email().max(200),
-  name: z.string().trim().max(200).optional(),
-  phone: z.string().trim().max(30).optional(),
+  name: z.string().trim().min(1).max(200).optional(),
+  phone: z.string().trim().max(30).optional().nullable(),
 });
 
 export const buyerLoginSchema = z.object({
@@ -51,6 +66,19 @@ export const buyerLoginSchema = z.object({
 export const buyerSendOtpSchema = z.object({
   email: z.string().trim().email(),
   companyId: z.string().uuid().optional(),
+});
+
+/** Buyer-editable party fields (credit limit / payment terms stay owner-only). */
+export const buyerUpdateProfileSchema = z.object({
+  name: z.string().trim().min(1).max(200).optional(),
+  businessName: z.string().trim().max(200).optional().nullable(),
+  gstin: z.string().trim().max(20).optional().nullable(),
+  pan: z.string().trim().max(20).optional().nullable(),
+  phone: z.string().trim().max(30).optional().nullable(),
+  email: z.string().trim().email().max(200).optional().nullable(),
+  billingAddress: z.string().trim().max(1000).optional().nullable(),
+  shippingAddress: z.string().trim().max(1000).optional().nullable(),
+  contactName: z.string().trim().max(200).optional().nullable(),
 });
 
 export const buyerPlaceOrderSchema = z.object({

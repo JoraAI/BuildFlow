@@ -95,7 +95,34 @@ export async function cancelProduction(req: Request, res: Response, next: NextFu
 
 export async function inviteBuyer(req: Request, res: Response, next: NextFunction) {
   try {
-    res.status(201).json({ success: true, data: await buyerSvc.inviteBuyer(companyId(req), req.body) });
+    res.status(201).json({
+      success: true,
+      data: await buyerSvc.inviteBuyer(companyId(req), userId(req), req.body),
+    });
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function regenerateBuyerInvite(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.status(201).json({
+      success: true,
+      data: await buyerSvc.regenerateBuyerInvite(
+        companyId(req),
+        req.params.inviteId,
+        userId(req),
+        req.body,
+      ),
+    });
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function listBuyerInvites(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json({ success: true, data: await buyerSvc.listBuyerInvites(companyId(req)) });
   } catch (e) {
     next(e);
   }
@@ -104,6 +131,17 @@ export async function inviteBuyer(req: Request, res: Response, next: NextFunctio
 export async function listBuyers(req: Request, res: Response, next: NextFunction) {
   try {
     res.json({ success: true, data: await buyerSvc.listBuyers(companyId(req)) });
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function revokeBuyer(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json({
+      success: true,
+      data: await buyerSvc.revokeBuyerAccess(companyId(req), req.params.buyerId),
+    });
   } catch (e) {
     next(e);
   }
@@ -173,8 +211,38 @@ export async function buyerLogin(req: Request, res: Response, next: NextFunction
   }
 }
 
+export async function buyerClaimInvite(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.status(201).json({
+      success: true,
+      data: await buyerSvc.claimBuyerInvite(req.body),
+    });
+  } catch (e) {
+    next(e);
+  }
+}
+
 function buyerFromReq(req: Request) {
   return (req as Request & { buyer: buyerSvc.BuyerTokenPayload }).buyer;
+}
+
+export async function buyerProfile(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json({ success: true, data: await buyerSvc.getBuyerProfile(buyerFromReq(req)) });
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function buyerUpdateProfile(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json({
+      success: true,
+      data: await buyerSvc.updateBuyerProfile(buyerFromReq(req), req.body),
+    });
+  } catch (e) {
+    next(e);
+  }
 }
 
 export async function buyerCatalog(req: Request, res: Response, next: NextFunction) {

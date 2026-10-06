@@ -1,6 +1,6 @@
 /**
- * Icecream-inventory-buyer - login, catalog/cart, orders.
- * Reuses simple RN primitives; cart UX mirrors Inventory checkout patterns.
+ * Icecream-inventory-buyer - join via invite code, OTP login, catalog/cart/orders, profile.
+ * Catalog = manufacturer item master rows marked b2bPublished.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -19,8 +19,23 @@ type Buyer = {
   id: string;
   email: string;
   name?: string | null;
+  phone?: string | null;
   companyName: string;
   customerName: string;
+  customerId?: string;
+};
+
+type CustomerProfile = {
+  id: string;
+  name: string;
+  businessName?: string | null;
+  gstin?: string | null;
+  pan?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  billingAddress?: string | null;
+  shippingAddress?: string | null;
+  paymentTerms?: string | null;
 };
 
 type CatalogItem = {
@@ -43,7 +58,8 @@ type Order = {
   lines: Array<{ itemName: string; quantity: string | number; unit: string }>;
 };
 
-type Tab = 'catalog' | 'cart' | 'orders';
+type Tab = 'catalog' | 'cart' | 'orders' | 'profile';
+type AuthMode = 'join' | 'login';
 
 const NAVY = '#1E3A5F';
 const AMBER = '#F59E0B';
@@ -51,12 +67,17 @@ const AMBER = '#F59E0B';
 export default function BuyerHome() {
   const [token, setToken] = useState<string | null>(null);
   const [buyer, setBuyer] = useState<Buyer | null>(null);
-  const [email, setEmail] = useState('buyer@cityscoop.com');
-  const [otp, setOtp] = useState('111111');
+  const [authMode, setAuthMode] = useState<AuthMode>('join');
+  const [inviteCode, setInviteCode] = useState('');
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
   const [tab, setTab] = useState<Tab>('catalog');
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [orders, setOrders] = useState<Order[]>([]);
+  const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -74,11 +95,18 @@ export default function BuyerHome() {
     setOrders(rows);
   }, []);
 
+  const loadProfile = useCallback(async () => {
+    const data = await buyerFetch<{ buyer: Buyer; customer: CustomerProfile }>('/buyer/profile');
+    setBuyer(data.buyer);
+    setProfile(data.customer);
+  }, []);
+
   useEffect(() => {
     if (!token) return;
     void loadCatalog().catch((e) => setError(String(e.message)));
     void loadOrders().catch(() => undefined);
-  }, [token, loadCatalog, loadOrders]);
+    void loadProfile().catch(() => undefined);
+  }, [token, loadCatalog, loadOrders, loadProfile]);
 
   const cartLines = useMemo(
     () =>
@@ -87,6 +115,29 @@ export default function BuyerHome() {
         .map((c) => ({ ...c, qty: cart[c.id]! })),
     [catalog, cart],
   );
+
+  const claimInvite = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const data = await buyerFetch<{ accessToken: string; buyer: Buyer }>('/buyer/auth/claim-invite', {
+        method: 'POST',
+        body: JSON.stringify({
+          code: inviteCode.trim(),
+          email: email.trim(),
+          name: name.trim() || undefined,
+          phone: phone.trim() || undefined,
+        }),
+      });
+      await setBuyerToken(data.accessToken);
+      setToken(data.accessToken);
+      setBuyer(data.buyer);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const sendOtp = async () => {
     setBusy(true);
@@ -145,30 +196,126 @@ export default function BuyerHome() {
     }
   };
 
+  const saveProfile = async () => {
+    if (!profile) return;
+    setBusy(true);
+    setError('');
+    try {
+      const data = await buyerFetch<{ buyer: Buyer; customer: CustomerProfile }>('/buyer/profile', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: profile.name,
+          businessName: profile.businessName,
+          gstin: profile.gstin,
+          pan: profile.pan,
+          phone: profile.phone,
+          email: profile.email,
+          billingAddress: profile.billingAddress,
+          shippingAddress: profile.shippingAddress,
+        }),
+      });
+      setProfile(data.customer);
+      setBuyer(data.buyer);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const logout = async () => {
     await setBuyerToken(null);
     setToken(null);
     setBuyer(null);
+    setProfile(null);
   };
 
   if (!token) {
     return (
       <SafeAreaView style={styles.safe}>
-        <View style={styles.pad}>
+        <ScrollView contentContainerStyle={styles.pad}>
           <Text style={styles.brand}>Icecream-inventory-buyer</Text>
-          <Text style={styles.muted}>Order from your manufacturer catalog</Text>
-          <Text style={styles.label}>Email</Text>
-          <TextInput style={styles.input} value={email} onChangeText={setEmail} autoCapitalize="none" />
-          <Text style={styles.label}>OTP</Text>
-          <TextInput style={styles.input} value={otp} onChangeText={setOtp} keyboardType="number-pad" />
-          {error ? <Text style={styles.err}>{error}</Text> : null}
-          <Pressable style={styles.btnSecondary} onPress={sendOtp} disabled={busy}>
-            <Text style={styles.btnSecondaryText}>Send OTP</Text>
-          </Pressable>
-          <Pressable style={styles.btn} onPress={login} disabled={busy}>
-            <Text style={styles.btnText}>Sign in</Text>
-          </Pressable>
-        </View>
+          <Text style={styles.muted}>
+            Order from your manufacturer&apos;s published catalog. First time: enter the invite code
+            they shared. Later: sign in with email OTP.
+          </Text>
+
+          <View style={styles.tabs}>
+            {(['join', 'login'] as AuthMode[]).map((m) => (
+              <Pressable
+                key={m}
+                onPress={() => {
+                  setAuthMode(m);
+                  setError('');
+                }}
+                style={[styles.tab, authMode === m && styles.tabActive]}
+              >
+                <Text style={[styles.tabText, authMode === m && styles.tabTextActive]}>
+                  {m === 'join' ? 'Join with code' : 'Sign in'}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {authMode === 'join' ? (
+            <>
+              <Text style={styles.label}>Invite code</Text>
+              <TextInput
+                style={styles.input}
+                value={inviteCode}
+                onChangeText={setInviteCode}
+                autoCapitalize="characters"
+                placeholder="e.g. AB12CD34"
+              />
+              <Text style={styles.label}>Your email (for later OTP login)</Text>
+              <TextInput
+                style={styles.input}
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+              <Text style={styles.label}>Your name</Text>
+              <TextInput style={styles.input} value={name} onChangeText={setName} />
+              <Text style={styles.label}>Phone (optional)</Text>
+              <TextInput
+                style={styles.input}
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+              />
+              {error ? <Text style={styles.err}>{error}</Text> : null}
+              <Pressable style={styles.btn} onPress={claimInvite} disabled={busy}>
+                <Text style={styles.btnText}>Join & continue</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Text style={styles.label}>Email</Text>
+              <TextInput
+                style={styles.input}
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+              <Text style={styles.label}>OTP</Text>
+              <TextInput
+                style={styles.input}
+                value={otp}
+                onChangeText={setOtp}
+                keyboardType="number-pad"
+              />
+              {error ? <Text style={styles.err}>{error}</Text> : null}
+              <Pressable style={styles.btnSecondary} onPress={sendOtp} disabled={busy}>
+                <Text style={styles.btnSecondaryText}>Send OTP</Text>
+              </Pressable>
+              <Pressable style={styles.btn} onPress={login} disabled={busy}>
+                <Text style={styles.btnText}>Sign in</Text>
+              </Pressable>
+            </>
+          )}
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -186,7 +333,7 @@ export default function BuyerHome() {
       </View>
 
       <View style={styles.tabs}>
-        {(['catalog', 'cart', 'orders'] as Tab[]).map((t) => (
+        {(['catalog', 'cart', 'orders', 'profile'] as Tab[]).map((t) => (
           <Pressable
             key={t}
             onPress={() => setTab(t)}
@@ -206,7 +353,11 @@ export default function BuyerHome() {
           data={catalog}
           keyExtractor={(i) => i.id}
           contentContainerStyle={styles.pad}
-          ListEmptyComponent={<Text style={styles.muted}>No published items yet.</Text>}
+          ListEmptyComponent={
+            <Text style={styles.muted}>
+              No published items yet. Your manufacturer publishes items from their Materials list.
+            </Text>
+          }
           renderItem={({ item }) => (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>{item.name}</Text>
@@ -235,9 +386,7 @@ export default function BuyerHome() {
                   <Text style={styles.cardTitle}>
                     {l.name} × {l.qty}
                   </Text>
-                  <Text style={styles.muted}>
-                    ₹{(Number(l.rate) * l.qty).toFixed(2)}
-                  </Text>
+                  <Text style={styles.muted}>₹{(Number(l.rate) * l.qty).toFixed(2)}</Text>
                 </View>
               ))}
               <Pressable style={styles.btn} onPress={placeOrder} disabled={busy}>
@@ -273,6 +422,43 @@ export default function BuyerHome() {
             </View>
           )}
         />
+      ) : null}
+
+      {tab === 'profile' && profile ? (
+        <ScrollView contentContainerStyle={styles.pad}>
+          <Text style={styles.muted}>
+            Details prefilled by your manufacturer. Edit anything that needs updating.
+          </Text>
+          {(
+            [
+              ['name', 'Business / party name'],
+              ['businessName', 'Trade name'],
+              ['gstin', 'GSTIN'],
+              ['pan', 'PAN'],
+              ['phone', 'Phone'],
+              ['email', 'Email'],
+              ['billingAddress', 'Billing address'],
+              ['shippingAddress', 'Shipping address'],
+            ] as Array<[keyof CustomerProfile, string]>
+          ).map(([key, label]) => (
+            <View key={key}>
+              <Text style={styles.label}>{label}</Text>
+              <TextInput
+                style={styles.input}
+                value={String(profile[key] ?? '')}
+                onChangeText={(v) => setProfile((p) => (p ? { ...p, [key]: v } : p))}
+              />
+            </View>
+          ))}
+          {profile.paymentTerms ? (
+            <Text style={[styles.muted, { marginTop: 8 }]}>
+              Payment terms (set by manufacturer): {profile.paymentTerms}
+            </Text>
+          ) : null}
+          <Pressable style={styles.btn} onPress={saveProfile} disabled={busy}>
+            <Text style={styles.btnText}>Save profile</Text>
+          </Pressable>
+        </ScrollView>
       ) : null}
     </SafeAreaView>
   );
@@ -340,7 +526,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tabActive: { backgroundColor: NAVY },
-  tabText: { fontSize: 12, fontWeight: '700', color: '#64748B' },
+  tabText: { fontSize: 11, fontWeight: '700', color: '#64748B' },
   tabTextActive: { color: '#fff' },
   card: {
     backgroundColor: '#fff',

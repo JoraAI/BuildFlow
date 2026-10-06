@@ -1,6 +1,10 @@
 /**
  * Ice cream B2B buyer app - auth, catalog, place order → manufacturer SalesOrder.
+ *
+ * Join flow: Owner creates a time-limited code → buyer claims once → later OTP login.
+ * Catalog: only items the manufacturer marked b2bPublished.
  */
+import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
@@ -10,8 +14,12 @@ import { createSalesOrder } from './sales-order.service';
 import { issueOtp, consumeOtp } from './otp.service';
 import { notifyMany } from './notification.service';
 import { logger } from '../config/logger';
+import { hashInviteToken } from '../utils/invite-token';
 
 const BUYER_JWT_TYPE = 'buyer_access';
+const DEFAULT_INVITE_HOURS = 48;
+/** Ambiguity-safe alphabet for short join codes. */
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 export interface BuyerTokenPayload {
   sub: string;
@@ -20,9 +28,73 @@ export interface BuyerTokenPayload {
   type: typeof BUYER_JWT_TYPE;
 }
 
+function generateJoinCode(): { code: string; codeHash: string } {
+  const bytes = crypto.randomBytes(8);
+  let code = '';
+  for (let i = 0; i < 8; i++) {
+    code += CODE_ALPHABET[bytes[i]! % CODE_ALPHABET.length];
+  }
+  return { code, codeHash: hashInviteToken(code.toUpperCase()) };
+}
+
+function normalizeCode(code: string): string {
+  return code.trim().toUpperCase().replace(/[\s-]/g, '');
+}
+
+function issueBuyerAccessToken(buyer: {
+  id: string;
+  companyId: string;
+  customerId: string;
+}): string {
+  return jwt.sign(
+    {
+      sub: buyer.id,
+      companyId: buyer.companyId,
+      customerId: buyer.customerId,
+      type: BUYER_JWT_TYPE,
+    } satisfies BuyerTokenPayload,
+    env.JWT_ACCESS_SECRET,
+    { expiresIn: '7d' },
+  );
+}
+
+async function serializeBuyerSession(buyerId: string) {
+  const buyer = await prisma.buyerUser.findUniqueOrThrow({
+    where: { id: buyerId },
+    include: {
+      customer: { select: { id: true, name: true, businessName: true } },
+      company: { select: { id: true, name: true } },
+    },
+  });
+  return {
+    accessToken: issueBuyerAccessToken(buyer),
+    buyer: {
+      id: buyer.id,
+      email: buyer.email,
+      name: buyer.name,
+      phone: buyer.phone,
+      companyId: buyer.companyId,
+      companyName: buyer.company.name,
+      customerId: buyer.customerId,
+      customerName: buyer.customer.businessName || buyer.customer.name,
+    },
+  };
+}
+
+/**
+ * Owner creates (or regenerates) a short join code for a customer party.
+ * Does not create BuyerUser until the customer claims the code.
+ */
 export async function inviteBuyer(
   companyId: string,
-  input: { customerId: string; email: string; name?: string; phone?: string },
+  invitedById: string | null,
+  input: {
+    customerId: string;
+    email?: string | null;
+    name?: string | null;
+    phone?: string | null;
+    expiresInHours?: number;
+  },
 ) {
   await assertInventoryFeature(companyId, 'b2b_buyer_app');
   const customer = await prisma.customer.findFirst({
@@ -30,28 +102,98 @@ export async function inviteBuyer(
   });
   if (!customer) throw ApiError.notFound('Customer not found');
 
-  const email = input.email.trim().toLowerCase();
-  const existing = await prisma.buyerUser.findUnique({
-    where: { companyId_email: { companyId, email } },
+  const email = input.email?.trim().toLowerCase() || customer.email?.toLowerCase() || null;
+  const name = input.name?.trim() || customer.name;
+  const phone = input.phone?.trim() || customer.phone || null;
+  const hours = input.expiresInHours ?? DEFAULT_INVITE_HOURS;
+
+  // Invalidate unused pending invites for this customer.
+  await prisma.buyerInvite.updateMany({
+    where: {
+      companyId,
+      customerId: customer.id,
+      acceptedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+    data: { expiresAt: new Date() },
   });
-  if (existing) {
-    return prisma.buyerUser.update({
-      where: { id: existing.id },
-      data: {
-        customerId: customer.id,
-        name: input.name?.trim() || existing.name,
-        phone: input.phone?.trim() || existing.phone,
-        isActive: true,
-      },
-    });
-  }
-  return prisma.buyerUser.create({
+
+  const { code, codeHash } = generateJoinCode();
+  const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
+
+  const invite = await prisma.buyerInvite.create({
     data: {
       companyId,
       customerId: customer.id,
       email,
-      name: input.name?.trim() || customer.name,
-      phone: input.phone?.trim() || customer.phone,
+      name,
+      phone,
+      codeHash,
+      invitedById,
+      expiresAt,
+    },
+    include: {
+      customer: {
+        select: {
+          id: true,
+          name: true,
+          businessName: true,
+          email: true,
+          phone: true,
+        },
+      },
+    },
+  });
+
+  return {
+    inviteId: invite.id,
+    code,
+    expiresAt: invite.expiresAt,
+    customer: invite.customer,
+    email: invite.email,
+    name: invite.name,
+    phone: invite.phone,
+  };
+}
+
+export async function regenerateBuyerInvite(
+  companyId: string,
+  inviteId: string,
+  invitedById: string | null,
+  input?: { expiresInHours?: number },
+) {
+  await assertInventoryFeature(companyId, 'b2b_buyer_app');
+  const existing = await prisma.buyerInvite.findFirst({
+    where: { id: inviteId, companyId },
+  });
+  if (!existing) throw ApiError.notFound('Invite not found');
+  if (existing.acceptedAt) {
+    throw ApiError.badRequest('Invite already accepted. Revoke the buyer and create a new invite if needed.');
+  }
+
+  // Expire the old invite, then issue a fresh code for the same customer/prefill.
+  await prisma.buyerInvite.update({
+    where: { id: existing.id },
+    data: { expiresAt: new Date() },
+  });
+
+  return inviteBuyer(companyId, invitedById, {
+    customerId: existing.customerId,
+    email: existing.email,
+    name: existing.name,
+    phone: existing.phone,
+    expiresInHours: input?.expiresInHours,
+  });
+}
+
+export async function listBuyerInvites(companyId: string) {
+  await assertInventoryFeature(companyId, 'b2b_buyer_app');
+  return prisma.buyerInvite.findMany({
+    where: { companyId },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      customer: { select: { id: true, name: true, businessName: true, phone: true, email: true } },
+      buyerUser: { select: { id: true, email: true, isActive: true, lastLoginAt: true } },
     },
   });
 }
@@ -61,8 +203,123 @@ export async function listBuyers(companyId: string) {
   return prisma.buyerUser.findMany({
     where: { companyId },
     orderBy: { createdAt: 'desc' },
+    include: { customer: { select: { id: true, name: true, businessName: true, phone: true, email: true } } },
+  });
+}
+
+export async function revokeBuyerAccess(companyId: string, buyerUserId: string) {
+  await assertInventoryFeature(companyId, 'b2b_buyer_app');
+  const buyer = await prisma.buyerUser.findFirst({
+    where: { id: buyerUserId, companyId },
+  });
+  if (!buyer) throw ApiError.notFound('Buyer not found');
+
+  // Expire any unused invites for this customer too.
+  await prisma.buyerInvite.updateMany({
+    where: {
+      companyId,
+      customerId: buyer.customerId,
+      acceptedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+    data: { expiresAt: new Date() },
+  });
+
+  return prisma.buyerUser.update({
+    where: { id: buyer.id },
+    data: { isActive: false },
     include: { customer: { select: { id: true, name: true, businessName: true } } },
   });
+}
+
+/**
+ * Buyer enters join code on first open. Creates BuyerUser and returns session.
+ * Subsequent logins use email + OTP.
+ */
+export async function claimBuyerInvite(input: {
+  code: string;
+  email: string;
+  name?: string;
+  phone?: string | null;
+}) {
+  const codeHash = hashInviteToken(normalizeCode(input.code));
+  const invite = await prisma.buyerInvite.findUnique({
+    where: { codeHash },
+    include: {
+      customer: true,
+      company: { select: { id: true, name: true } },
+    },
+  });
+  if (!invite) throw ApiError.notFound('Invalid invite code');
+  if (invite.acceptedAt) throw ApiError.badRequest('This invite code was already used');
+  if (invite.expiresAt < new Date()) {
+    throw ApiError.badRequest('Invite code has expired. Ask the manufacturer to regenerate it.');
+  }
+
+  await assertInventoryFeature(invite.companyId, 'b2b_buyer_app');
+
+  const email = input.email.trim().toLowerCase();
+  const name = input.name?.trim() || invite.name || invite.customer.name;
+  const phone = input.phone?.trim() || invite.phone || invite.customer.phone || null;
+
+  const conflict = await prisma.buyerUser.findUnique({
+    where: { companyId_email: { companyId: invite.companyId, email } },
+  });
+  if (conflict && conflict.isActive) {
+    throw ApiError.conflict('A buyer with this email already exists for this manufacturer. Sign in with OTP instead.');
+  }
+
+  const buyer = await prisma.$transaction(async (tx) => {
+    let user;
+    if (conflict && !conflict.isActive) {
+      user = await tx.buyerUser.update({
+        where: { id: conflict.id },
+        data: {
+          customerId: invite.customerId,
+          name,
+          phone,
+          isActive: true,
+          lastLoginAt: new Date(),
+        },
+      });
+    } else {
+      user = await tx.buyerUser.create({
+        data: {
+          companyId: invite.companyId,
+          customerId: invite.customerId,
+          email,
+          name,
+          phone,
+          isActive: true,
+          lastLoginAt: new Date(),
+        },
+      });
+    }
+
+    await tx.buyerInvite.update({
+      where: { id: invite.id },
+      data: {
+        acceptedAt: new Date(),
+        buyerUserId: user.id,
+        email,
+        name,
+        phone,
+      },
+    });
+
+    // Keep party email/name in sync with claim when owner left them blank.
+    await tx.customer.update({
+      where: { id: invite.customerId },
+      data: {
+        email: invite.customer.email || email,
+        phone: invite.customer.phone || phone,
+      },
+    });
+
+    return user;
+  });
+
+  return serializeBuyerSession(buyer.id);
 }
 
 export async function setResourceB2bPublished(
@@ -112,10 +369,6 @@ export async function loginBuyer(email: string, otp: string, companyId?: string)
       isActive: true,
       ...(companyId ? { companyId } : {}),
     },
-    include: {
-      customer: { select: { id: true, name: true, businessName: true } },
-      company: { select: { id: true, name: true } },
-    },
   });
   if (!buyer) throw ApiError.unauthorized('Invalid buyer credentials');
   await assertInventoryFeature(buyer.companyId, 'b2b_buyer_app');
@@ -129,28 +382,7 @@ export async function loginBuyer(email: string, otp: string, companyId?: string)
     where: { id: buyer.id },
     data: { lastLoginAt: new Date() },
   });
-  const accessToken = jwt.sign(
-    {
-      sub: buyer.id,
-      companyId: buyer.companyId,
-      customerId: buyer.customerId,
-      type: BUYER_JWT_TYPE,
-    } satisfies BuyerTokenPayload,
-    env.JWT_ACCESS_SECRET,
-    { expiresIn: '7d' },
-  );
-  return {
-    accessToken,
-    buyer: {
-      id: buyer.id,
-      email: buyer.email,
-      name: buyer.name,
-      companyId: buyer.companyId,
-      companyName: buyer.company.name,
-      customerId: buyer.customerId,
-      customerName: buyer.customer.name,
-    },
-  };
+  return serializeBuyerSession(buyer.id);
 }
 
 export function verifyBuyerToken(token: string): BuyerTokenPayload {
@@ -163,6 +395,7 @@ export function verifyBuyerToken(token: string): BuyerTokenPayload {
   }
 }
 
+/** Catalog = manufacturer item master rows marked for B2B (owner published). */
 export async function getBuyerCatalog(companyId: string) {
   await assertInventoryFeature(companyId, 'b2b_buyer_app');
   return prisma.resource.findMany({
@@ -184,6 +417,104 @@ export async function getBuyerCatalog(companyId: string) {
       imageUrl: true,
     },
   });
+}
+
+export async function getBuyerProfile(buyer: BuyerTokenPayload) {
+  const row = await prisma.buyerUser.findFirst({
+    where: { id: buyer.sub, companyId: buyer.companyId, isActive: true },
+    include: {
+      customer: true,
+      company: { select: { id: true, name: true } },
+    },
+  });
+  if (!row) throw ApiError.unauthorized('Buyer account inactive');
+  return {
+    buyer: {
+      id: row.id,
+      email: row.email,
+      name: row.name,
+      phone: row.phone,
+      companyId: row.companyId,
+      companyName: row.company.name,
+      customerId: row.customerId,
+    },
+    customer: {
+      id: row.customer.id,
+      name: row.customer.name,
+      businessName: row.customer.businessName,
+      gstin: row.customer.gstin,
+      pan: row.customer.pan,
+      phone: row.customer.phone,
+      email: row.customer.email,
+      billingAddress: row.customer.billingAddress,
+      shippingAddress: row.customer.shippingAddress,
+      paymentTerms: row.customer.paymentTerms,
+    },
+  };
+}
+
+export async function updateBuyerProfile(
+  buyer: BuyerTokenPayload,
+  input: {
+    name?: string;
+    businessName?: string | null;
+    gstin?: string | null;
+    pan?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    billingAddress?: string | null;
+    shippingAddress?: string | null;
+    contactName?: string | null;
+  },
+) {
+  const row = await prisma.buyerUser.findFirst({
+    where: { id: buyer.sub, companyId: buyer.companyId, isActive: true },
+  });
+  if (!row) throw ApiError.unauthorized('Buyer account inactive');
+
+  const customerEmail = input.email?.trim().toLowerCase() || undefined;
+  const buyerName = input.contactName?.trim() || input.name?.trim();
+
+  if (customerEmail && customerEmail !== row.email) {
+    const taken = await prisma.buyerUser.findUnique({
+      where: { companyId_email: { companyId: buyer.companyId, email: customerEmail } },
+    });
+    if (taken && taken.id !== row.id) {
+      throw ApiError.conflict('Another buyer already uses this email');
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.customer.update({
+      where: { id: row.customerId },
+      data: {
+        ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+        ...(input.businessName !== undefined ? { businessName: input.businessName } : {}),
+        ...(input.gstin !== undefined ? { gstin: input.gstin } : {}),
+        ...(input.pan !== undefined ? { pan: input.pan } : {}),
+        ...(input.phone !== undefined ? { phone: input.phone } : {}),
+        ...(customerEmail !== undefined ? { email: customerEmail } : {}),
+        ...(input.billingAddress !== undefined ? { billingAddress: input.billingAddress } : {}),
+        ...(input.shippingAddress !== undefined ? { shippingAddress: input.shippingAddress } : {}),
+      },
+    });
+
+    await tx.buyerUser.update({
+      where: { id: row.id },
+      data: {
+        ...(buyerName ? { name: buyerName } : {}),
+        ...(input.phone !== undefined ? { phone: input.phone } : {}),
+        // Login email stays on BuyerUser; allow update if provided and unique.
+        ...(customerEmail
+          ? {
+              email: customerEmail,
+            }
+          : {}),
+      },
+    });
+  });
+
+  return getBuyerProfile(buyer);
 }
 
 export async function placeBuyerOrder(
