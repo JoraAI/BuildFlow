@@ -2,8 +2,9 @@
  * BuildFlow - Party master service (INVENTORY_HORIZONTAL_PLATFORM Phase 1.1).
  *
  * Company-scoped Customer (AR) and Vendor (AP) masters so inventory tenants
- * stop retyping client/vendor details on invoices/bills. Deletion is a soft
- * toggle (`isActive = false`) because invoices/bills may reference a party.
+ * stop retyping client/vendor details on invoices/bills. Remove hard-deletes
+ * the party; invoice/bill/SO links use onDelete: SetNull so history keeps
+ * denormalized names.
  */
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
@@ -105,10 +106,10 @@ export async function updateCustomer(companyId: string, id: string, input: Parti
   });
 }
 
-/** Soft delete (deactivate) - keeps history for invoices that reference it. */
+/** Hard delete. Linked docs keep clientName / SetNull customerId. */
 export async function deleteCustomer(companyId: string, id: string) {
   await getCustomer(companyId, id);
-  return prisma.customer.update({ where: { id }, data: { isActive: false } });
+  return prisma.customer.delete({ where: { id } });
 }
 
 /* ── Vendors ───────────────────────────────────────────────────────── */
@@ -153,8 +154,8 @@ export async function updateVendor(companyId: string, id: string, input: Partial
   });
 }
 
-/** Soft delete (deactivate) - keeps history for bills that reference it. */
+/** Hard delete. Linked docs keep vendorName / SetNull vendorId. */
 export async function deleteVendor(companyId: string, id: string) {
   await getVendor(companyId, id);
-  return prisma.vendor.update({ where: { id }, data: { isActive: false } });
+  return prisma.vendor.delete({ where: { id } });
 }

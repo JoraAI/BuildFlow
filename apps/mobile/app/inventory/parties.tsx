@@ -92,21 +92,93 @@ export default function InventoryPartiesScreen() {
     clearFocus: filters.clearFocus,
   });
 
+  const pendingByCustomer = useMemo(() => {
+    const map = new Map<string, BuyerInviteRow>();
+    for (const inv of invitesQ.data ?? []) {
+      if (!inv.acceptedAt && new Date(inv.expiresAt) > new Date()) {
+        map.set(inv.customer.id, inv);
+      }
+    }
+    return map;
+  }, [invitesQ.data]);
+
+  const buyerByCustomer = useMemo(() => {
+    const map = new Map<string, BuyerUserRow>();
+    for (const b of buyersQ.data ?? []) {
+      if (b.isActive) map.set(b.customer.id, b);
+    }
+    return map;
+  }, [buyersQ.data]);
+
+  const onRevokeBuyer = (buyerId: string) =>
+    void run(async () => {
+      try {
+        await revokeBuyer.mutateAsync(buyerId);
+        toast.success('Buyer access revoked');
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Could not revoke');
+      }
+    });
+
+  const onRegenerateInvite = (inviteId: string) =>
+    void run(async () => {
+      try {
+        const data = await regenerateInvite.mutateAsync(inviteId);
+        const msg = `New code ${data.code} (expires ${new Date(data.expiresAt).toLocaleString()})`;
+        if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+          await navigator.clipboard.writeText(msg);
+          Alert.alert('Regenerated', msg);
+        } else {
+          await Share.share({ message: msg });
+        }
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Could not regenerate');
+      }
+    });
+
   const onDelete = async (party: PartyRow) => {
     const ok = await confirmAsync(
-      `Deactivate ${party.name}?`,
-      'Existing invoices/bills keep their details. The party is hidden from new selections.',
+      `Delete ${party.name}?`,
+      'This permanently removes the party. Existing invoices/bills keep their names; buyer app access for this customer is removed.',
     );
     if (!ok) return;
     await run(async () => {
       try {
         if (kind === 'customer') await deleteCustomer.mutateAsync(party.id);
         else await deleteVendor.mutateAsync(party.id);
-        toast.success(`${kind === 'customer' ? 'Customer' : 'Vendor'} deactivated`);
+        toast.success(`${kind === 'customer' ? 'Customer' : 'Vendor'} deleted`);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : 'Could not deactivate');
+        toast.error(e instanceof Error ? e.message : 'Could not delete');
       }
     });
+  };
+
+  const partyActions = (item: PartyRow) => {
+    const pending = isIceCream && kind === 'customer' ? pendingByCustomer.get(item.id) : undefined;
+    const buyer = isIceCream && kind === 'customer' ? buyerByCustomer.get(item.id) : undefined;
+    return (
+      <View className="flex-row flex-wrap justify-end gap-1">
+        <Button label="Ledger" size="sm" variant="secondary" onPress={() => setLedgerParty(item)} />
+        <Button label="Edit" size="sm" variant="secondary" onPress={() => setModal({ kind, editing: item })} />
+        {isIceCream && kind === 'customer' && item.isActive && !buyer ? (
+          <Button
+            label={pending ? 'Re-invite' : 'Invite'}
+            size="sm"
+            variant="accent"
+            onPress={() => setInviteCustomer(item)}
+          />
+        ) : null}
+        {pending ? (
+          <Button label="Regenerate" size="sm" variant="secondary" onPress={() => onRegenerateInvite(pending.id)} />
+        ) : null}
+        {buyer ? (
+          <Button label="Revoke" size="sm" variant="secondary" onPress={() => onRevokeBuyer(buyer.id)} />
+        ) : null}
+        {item.isActive ? (
+          <Button label="Remove" size="sm" variant="secondary" onPress={() => onDelete(item)} />
+        ) : null}
+      </View>
+    );
   };
 
   const onSave = async (input: PartyInput) => {
@@ -187,12 +259,22 @@ export default function InventoryPartiesScreen() {
           onScrollToIndexFailed={() => undefined}
           renderItem={({ item }) => {
             // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop row.
+            const accessLabel =
+              isIceCream && kind === 'customer'
+                ? buyerByCustomer.has(item.id)
+                  ? 'Buyer active'
+                  : pendingByCustomer.has(item.id)
+                    ? 'Invite pending'
+                    : null
+                : null;
+
             if (tableMode) {
               return (
                 <View className={`flex-row items-center px-4 py-3 bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
                   <View className="flex-[1.6] min-w-0 mr-2">
                     <Text className="text-sm font-semibold text-text" numberOfLines={1}>{item.name}</Text>
                     {item.businessName ? <Text className="text-[11px] text-muted">{item.businessName}</Text> : null}
+                    {accessLabel ? <Text className="text-[10px] text-primary mt-0.5">{accessLabel}</Text> : null}
                   </View>
                   <Text className="flex-[1.4] text-xs text-muted" numberOfLines={1}>
                     {[item.phone, item.email].filter(Boolean).join(' · ') || '-'}
@@ -201,16 +283,7 @@ export default function InventoryPartiesScreen() {
                   <View className="flex-1 items-end">
                     <Badge color={item.isActive ? 'success' : 'neutral'} label={item.isActive ? 'Active' : 'Inactive'} />
                   </View>
-                  <View className="flex-[1.4] flex-row flex-wrap justify-end gap-1">
-                    <Button label="Ledger" size="sm" variant="secondary" onPress={() => setLedgerParty(item)} />
-                    <Button label="Edit" size="sm" variant="secondary" onPress={() => setModal({ kind, editing: item })} />
-                    {isIceCream && kind === 'customer' && item.isActive ? (
-                      <Button label="Invite" size="sm" variant="accent" onPress={() => setInviteCustomer(item)} />
-                    ) : null}
-                    {item.isActive ? (
-                      <Button label="Remove" size="sm" variant="secondary" onPress={() => onDelete(item)} />
-                    ) : null}
-                  </View>
+                  <View className="flex-[1.8]">{partyActions(item)}</View>
                 </View>
               );
             }
@@ -226,68 +299,26 @@ export default function InventoryPartiesScreen() {
                   {item.creditLimit != null && kind === 'customer' ? (
                     <Text className="text-[11px] text-muted mt-0.5">Credit limit ₹{Number(item.creditLimit)}</Text>
                   ) : null}
+                  {accessLabel ? <Text className="text-[11px] text-primary mt-1">{accessLabel}</Text> : null}
                 </View>
                 <View className="items-end gap-1">
                   <Badge color={item.isActive ? 'success' : 'neutral'} label={item.isActive ? 'Active' : 'Inactive'} />
-                  <View className="flex-row gap-2 mt-1">
-                    <Button label="Ledger" size="sm" variant="secondary" onPress={() => setLedgerParty(item)} />
-                    <Button label="Edit" size="sm" variant="secondary" onPress={() => setModal({ kind, editing: item })} />
-                    {isIceCream && kind === 'customer' && item.isActive ? (
-                      <Button label="Invite" size="sm" variant="accent" onPress={() => setInviteCustomer(item)} />
-                    ) : null}
-                    {item.isActive ? (
-                      <Button label="Remove" size="sm" variant="secondary" onPress={() => onDelete(item)} />
-                    ) : null}
-                  </View>
+                  <View className="mt-1">{partyActions(item)}</View>
                 </View>
               </View>
             </Card>
           );
           }}
           ListHeaderComponent={
-            <>
-              {tableMode && rows.length > 0 ? (
-                <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
-                  <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase">Party</Text>
-                  <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Contact</Text>
-                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase">GSTIN</Text>
-                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Status</Text>
-                  <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
-                </View>
-              ) : null}
-              {isIceCream && kind === 'customer' ? (
-                <BuyerAccessPanel
-                  buyers={buyersQ.data ?? []}
-                  invites={invitesQ.data ?? []}
-                  onRevoke={(id) =>
-                    void run(async () => {
-                      try {
-                        await revokeBuyer.mutateAsync(id);
-                        toast.success('Buyer access revoked');
-                      } catch (e) {
-                        toast.error(e instanceof Error ? e.message : 'Could not revoke');
-                      }
-                    })
-                  }
-                  onRegenerate={(id) =>
-                    void run(async () => {
-                      try {
-                        const data = await regenerateInvite.mutateAsync(id);
-                        const msg = `New code ${data.code} (expires ${new Date(data.expiresAt).toLocaleString()})`;
-                        if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
-                          await navigator.clipboard.writeText(msg);
-                          Alert.alert('Regenerated', msg);
-                        } else {
-                          await Share.share({ message: msg });
-                        }
-                      } catch (e) {
-                        toast.error(e instanceof Error ? e.message : 'Could not regenerate');
-                      }
-                    })
-                  }
-                />
-              ) : null}
-            </>
+            tableMode && rows.length > 0 ? (
+              <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+                <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase">Party</Text>
+                <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Contact</Text>
+                <Text className="flex-1 text-[11px] font-bold text-muted uppercase">GSTIN</Text>
+                <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Status</Text>
+                <Text className="flex-[1.8] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+              </View>
+            ) : null
           }
           ListEmptyComponent={
             filters.isFiltered ? (
@@ -325,54 +356,6 @@ export default function InventoryPartiesScreen() {
       {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 9.1): customer price overrides. */}
       <PriceListModal open={priceOpen} onClose={() => setPriceOpen(false)} />
     </View>
-  );
-}
-
-function BuyerAccessPanel({
-  buyers,
-  invites,
-  onRevoke,
-  onRegenerate,
-}: {
-  buyers: BuyerUserRow[];
-  invites: BuyerInviteRow[];
-  onRevoke: (buyerId: string) => void;
-  onRegenerate: (inviteId: string) => void;
-}) {
-  const pending = invites.filter((i) => !i.acceptedAt && new Date(i.expiresAt) > new Date());
-  const activeBuyers = buyers.filter((b) => b.isActive);
-  if (pending.length === 0 && activeBuyers.length === 0) return null;
-  return (
-    <Card className="mb-3 p-4 mt-2">
-      <Text className="text-sm font-bold text-text mb-1">Buyer app access</Text>
-      <Text className="text-xs text-muted mb-3">
-        Customers join Icecream-inventory-buyer with a code, then order from your published catalog.
-      </Text>
-      {pending.map((inv) => (
-        <View key={inv.id} className="flex-row items-center justify-between py-2 border-b border-border/60">
-          <View className="flex-1 min-w-0 mr-2">
-            <Text className="text-sm text-text" numberOfLines={1}>
-              {inv.customer.businessName || inv.customer.name}
-            </Text>
-            <Text className="text-xs text-muted">
-              Pending · expires {new Date(inv.expiresAt).toLocaleString()}
-            </Text>
-          </View>
-          <Button label="Regenerate" size="sm" variant="secondary" onPress={() => onRegenerate(inv.id)} />
-        </View>
-      ))}
-      {activeBuyers.map((b) => (
-        <View key={b.id} className="flex-row items-center justify-between py-2 border-b border-border/60">
-          <View className="flex-1 min-w-0 mr-2">
-            <Text className="text-sm text-text" numberOfLines={1}>
-              {b.customer.businessName || b.customer.name}
-            </Text>
-            <Text className="text-xs text-muted">{b.email}</Text>
-          </View>
-          <Button label="Revoke" size="sm" variant="secondary" onPress={() => onRevoke(b.id)} />
-        </View>
-      ))}
-    </Card>
   );
 }
 

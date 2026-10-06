@@ -450,16 +450,29 @@ describe('INVENTORY_PRODUCT (integration)', () => {
       .delete(`/api/inventory/parties/customers/${custId}`)
       .set('Authorization', `Bearer ${invToken}`);
     expect(del.status).toBe(200);
-    expect(del.body.data.isActive).toBe(false); // soft delete keeps history
+    expect(del.body.data.id).toBe(custId);
+
+    const listAfter = await authGet(invToken, '/api/inventory/parties/customers');
+    expect(listAfter.status).toBe(200);
+    expect((listAfter.body.data as Array<{ id: string }>).some((c) => c.id === custId)).toBe(false);
 
     const vendor = await authPost(invToken, '/api/inventory/parties/vendors', {
       name: 'Acme Supplies',
       phone: '9988776600',
     });
     expect(vendor.status).toBe(201);
+    const vendorId = vendor.body.data.id as string;
     const vendors = await authGet(invToken, '/api/inventory/parties/vendors');
     expect(vendors.status).toBe(200);
-    expect((vendors.body.data as Array<{ id: string }>).some((v) => v.id === vendor.body.data.id)).toBe(true);
+    expect((vendors.body.data as Array<{ id: string }>).some((v) => v.id === vendorId)).toBe(true);
+
+    const delVendor = await request(app)
+      .delete(`/api/inventory/parties/vendors/${vendorId}`)
+      .set('Authorization', `Bearer ${invToken}`);
+    expect(delVendor.status).toBe(200);
+    expect(delVendor.body.data.id).toBe(vendorId);
+    const vendorsAfter = await authGet(invToken, '/api/inventory/parties/vendors');
+    expect((vendorsAfter.body.data as Array<{ id: string }>).some((v) => v.id === vendorId)).toBe(false);
   });
 
   /* ── Phase 1.2/1.3/1.4: item master + opening stock + adjustments ── */

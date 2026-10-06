@@ -115,7 +115,10 @@ export function useDeleteCustomer() {
   return useMutation({
     mutationFn: (id: string) =>
       apiFetch<PartyRow>(`/inventory/parties/customers/${id}`, { method: 'DELETE' }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: partyKeys.customers }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: partyKeys.customers });
+      void qc.invalidateQueries({ queryKey: ['ice-cream', 'buyers'] });
+    },
   });
 }
 
