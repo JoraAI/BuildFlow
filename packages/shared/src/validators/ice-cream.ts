@@ -66,14 +66,16 @@ export const claimBuyerInviteSchema = z.object({
 });
 
 export const buyerLoginSchema = z.object({
-  email: z.string().trim().email(),
+  /** Email or mobile (same field name kept for API compatibility). */
+  email: z.string().trim().min(3).max(254),
   otp: z.string().trim().min(4).max(10),
   /** Manufacturer company id (buyer may belong to one manufacturer). */
   companyId: z.string().uuid().optional(),
 });
 
 export const buyerSendOtpSchema = z.object({
-  email: z.string().trim().email(),
+  /** Email or mobile (same field name kept for API compatibility). */
+  email: z.string().trim().min(3).max(254),
   companyId: z.string().uuid().optional(),
 });
 

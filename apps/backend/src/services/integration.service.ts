@@ -221,7 +221,20 @@ export async function getIntegrationsOverview(companyId: string) {
   const llm = integrationStatus(llmS, companyLlmConfigured, platformLlmConfigured);
   const s3 = integrationStatus(s3S, companyS3Configured, platformS3Configured);
 
+  const msg91Configured = Boolean(env.MSG91_AUTH_KEY && env.MSG91_SENDER_ID && env.MSG91_FLOW_ID);
+
   return {
+    /** Platform India OTP (MSG91 Flow / DLT) — used by Construction ERP + Inventory login/invite/buyer SMS. */
+    msg91: {
+      configured: msg91Configured,
+      source: msg91Configured ? ('platform' as const) : ('none' as const),
+      settings: {
+        senderId: env.MSG91_SENDER_ID ? String(env.MSG91_SENDER_ID) : '',
+        flowId: env.MSG91_FLOW_ID ? `${String(env.MSG91_FLOW_ID).slice(0, 6)}…` : '',
+        provider: env.SMS_PROVIDER ?? 'auto',
+      },
+      webhookUrl: null,
+    },
     twilio: {
       ...twilio,
       settings: maskSettings({

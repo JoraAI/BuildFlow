@@ -339,19 +339,20 @@ export default function BuyerHome() {
                   setInvitePreview(null);
                 }}
               >
-                <Text style={styles.link}>Already joined? Sign in with email OTP</Text>
+                <Text style={styles.link}>Already joined? Sign in with email or mobile OTP</Text>
               </Pressable>
             </>
           ) : (
             <>
               <Text style={styles.muted}>For returning buyers after you have joined once.</Text>
-              <Text style={styles.label}>Email</Text>
+              <Text style={styles.label}>Email or mobile</Text>
               <TextInput
                 style={styles.input}
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
-                keyboardType="email-address"
+                keyboardType="default"
+                placeholder="you@company.com or 9876543210"
               />
               <Text style={styles.label}>OTP</Text>
               <TextInput

@@ -447,6 +447,8 @@ export interface IntegrationProviderStatus {
 }
 
 export interface IntegrationsOverview {
+  /** Platform MSG91 India OTP (Construction ERP + Inventory). */
+  msg91?: IntegrationProviderStatus;
   twilio: IntegrationProviderStatus;
   razorpay: IntegrationProviderStatus;
   stripe: IntegrationProviderStatus;

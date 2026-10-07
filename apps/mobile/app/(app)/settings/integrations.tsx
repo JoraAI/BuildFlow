@@ -9,6 +9,7 @@ import { SettingsPageLayout } from '@/components/layout/SettingsPageLayout';
 import { ResponsiveGrid } from '@/components/layout/ResponsiveGrid';
 import { API_BASE_URL } from '@/constants';
 import { alertAsync } from '@/utils/confirm';
+import { useAuthStore } from '@/stores/auth.store';
 import {
   useIntegrations,
   useUpdateIntegration,
@@ -111,6 +112,7 @@ function SaveRow({
 
 export default function IntegrationsScreen() {
   const router = useRouter();
+  const productMode = useAuthStore((s) => s.user?.productMode) ?? 'construction';
   const { data, isLoading, refetch } = useIntegrations();
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -191,17 +193,56 @@ export default function IntegrationsScreen() {
     >
       <Card className="mb-4 bg-primary/5 border-primary/20">
         <Text className="text-sm text-text leading-relaxed">
-          These integrations belong to <Text className="font-semibold">your construction company</Text> - not
-          BuildFlow. When you enter keys here, invoice payments and client WhatsApp messages use your accounts.
-          BuildFlow platform services (hosting, default assistant) use separate infrastructure unless you override
-          with BYOK below.
+          These integrations belong to{' '}
+          <Text className="font-semibold">
+            your {productMode === 'inventory' ? 'inventory' : 'construction'} company
+          </Text>{' '}
+          - not BuildFlow. When you enter keys here, payments and client messages use your accounts.
+          Login / invite OTP SMS for both Construction ERP and Inventory uses platform MSG91 (India DLT)
+          when configured below.
         </Text>
       </Card>
 
       <ResponsiveGrid gap={16}>
+        {data.msg91 ? (
+          <IntegrationPanel
+            title="India OTP SMS (MSG91)"
+            description="Platform DLT Flow for login & invite OTPs (Construction ERP + Inventory + buyer app)"
+            status={data.msg91}
+            expanded={expanded === 'msg91'}
+            onToggle={() => toggle('msg91')}
+            className={half}
+          >
+            <Text className="text-xs text-muted mb-2 leading-relaxed">
+              Configured by BuildFlow ops via server env (MSG91_AUTH_KEY, MSG91_SENDER_ID, MSG91_FLOW_ID).
+              Not editable per company. Provider mode:{' '}
+              <Text className="font-semibold text-text">{String(data.msg91.settings.provider ?? 'auto')}</Text>
+            </Text>
+            <Input
+              label="Sender ID"
+              value={String(data.msg91.settings.senderId ?? '')}
+              onChangeText={() => undefined}
+              editable={false}
+            />
+            <Input
+              label="Flow ID"
+              value={String(data.msg91.settings.flowId ?? '')}
+              onChangeText={() => undefined}
+              editable={false}
+            />
+            {!data.msg91.configured ? (
+              <Text className="text-xs text-danger mt-2">
+                Not configured — OTPs fall back to Twilio (if set) or show a dev code outside production.
+              </Text>
+            ) : (
+              <Text className="text-xs text-success mt-2">Ready — SMS OTPs go through MSG91.</Text>
+            )}
+          </IntegrationPanel>
+        ) : null}
+
         <IntegrationPanel
           title="WhatsApp & SMS (Twilio)"
-          description="Invoice links, payment reminders, and alerts to your clients"
+          description="Fallback SMS / WhatsApp alerts; used if MSG91 is not configured"
           status={data.twilio}
           expanded={expanded === 'twilio'}
           onToggle={() => toggle('twilio')}

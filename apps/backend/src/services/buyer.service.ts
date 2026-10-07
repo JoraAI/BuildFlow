@@ -392,17 +392,67 @@ export async function setResourceB2bPublished(
   });
 }
 
-export async function sendBuyerOtp(email: string, companyId?: string) {
-  const normalized = email.trim().toLowerCase();
-  const buyer = await prisma.buyerUser.findFirst({
+async function findActiveBuyerByIdentifier(identifierRaw: string, companyId?: string) {
+  const identifier = identifierRaw.trim();
+  const companyFilter = companyId ? { companyId } : {};
+
+  if (identifier.includes('@')) {
+    return prisma.buyerUser.findFirst({
+      where: {
+        email: identifier.toLowerCase(),
+        isActive: true,
+        ...companyFilter,
+      },
+    });
+  }
+
+  const { normalizePhone } = await import('@buildflow/shared');
+  const phone = normalizePhone(identifier);
+  const digits = phone.replace(/\D/g, '');
+  const variants = Array.from(
+    new Set(
+      [
+        phone,
+        digits,
+        `+${digits}`,
+        digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : '',
+        digits.length === 10 ? `+91${digits}` : '',
+      ].filter(Boolean),
+    ),
+  );
+
+  return prisma.buyerUser.findFirst({
     where: {
-      email: normalized,
       isActive: true,
-      ...(companyId ? { companyId } : {}),
+      phone: { in: variants },
+      ...companyFilter,
     },
   });
+}
+
+/**
+ * Buyer OTP — SMS via MSG91/Twilio when logging in with mobile; email otherwise.
+ * Same delivery stack as Construction ERP + Inventory staff login.
+ */
+export async function sendBuyerOtp(identifierRaw: string, companyId?: string) {
+  const buyer = await findActiveBuyerByIdentifier(identifierRaw, companyId);
   if (!buyer) throw ApiError.notFound('Buyer account not found. Ask the manufacturer to invite you.');
   await assertInventoryFeature(buyer.companyId, 'b2b_buyer_app');
+
+  const useSms = !identifierRaw.trim().includes('@') && Boolean(buyer.phone);
+  if (useSms && buyer.phone) {
+    const { normalizePhone } = await import('@buildflow/shared');
+    const phone = normalizePhone(buyer.phone);
+    return issueOtp({
+      purpose: 'login',
+      key: `buyer:${buyer.id}`,
+      channel: 'sms',
+      destination: phone,
+      companyId: buyer.companyId,
+      messagePrefix: 'StaffingPros: Your BuildFlow buyer login code is',
+    });
+  }
+
   return issueOtp({
     purpose: 'login',
     key: `buyer:${buyer.id}`,
@@ -414,22 +464,23 @@ export async function sendBuyerOtp(email: string, companyId?: string) {
   });
 }
 
-export async function loginBuyer(email: string, otp: string, companyId?: string) {
-  const normalized = email.trim().toLowerCase();
-  const buyer = await prisma.buyerUser.findFirst({
-    where: {
-      email: normalized,
-      isActive: true,
-      ...(companyId ? { companyId } : {}),
-    },
-  });
+export async function loginBuyer(identifierRaw: string, otp: string, companyId?: string) {
+  const buyer = await findActiveBuyerByIdentifier(identifierRaw, companyId);
   if (!buyer) throw ApiError.unauthorized('Invalid buyer credentials');
   await assertInventoryFeature(buyer.companyId, 'b2b_buyer_app');
+
+  const useSms = !identifierRaw.trim().includes('@') && Boolean(buyer.phone);
+  let expectedDestination = buyer.email;
+  if (useSms && buyer.phone) {
+    const { normalizePhone } = await import('@buildflow/shared');
+    expectedDestination = normalizePhone(buyer.phone);
+  }
+
   await consumeOtp({
     purpose: 'login',
     key: `buyer:${buyer.id}`,
     code: otp,
-    expectedDestination: buyer.email,
+    expectedDestination,
   });
   await prisma.buyerUser.update({
     where: { id: buyer.id },
