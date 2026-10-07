@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SMS Opt-In — StaffingPros / Jora AI (BuildFlow)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, sans-serif; line-height: 1.5; color: #1a1a1a; max-width: 720px; margin: 0 auto; padding: 2rem 1.25rem 4rem; background: #f7f7f5; }
+    h1 { font-size: 1.5rem; }
+    .box { background: #fff; border: 1px solid #ccc; border-radius: 8px; padding: 1rem 1.15rem; margin: 1rem 0; }
+    label { display: flex; gap: 0.75rem; align-items: flex-start; font-size: 0.95rem; }
+    a { color: #0b5fff; }
+    .meta { color: #555; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <h1>SMS opt-in (StaffingPros / Jora AI)</h1>
+  <p class="meta">How users consent to authentication texts for the BuildFlow platform.</p>
+
+  <div class="box">
+    <p>
+      StaffingPros and Jora AI operate BuildFlow at
+      <a href="https://build-flow-frontend-jet.vercel.app/">https://build-flow-frontend-jet.vercel.app/</a>.
+      End users consent to receive transactional SMS one-time passcodes when they provide a mobile
+      number and check the SMS consent box before requesting an OTP on login or invite acceptance.
+    </p>
+  </div>
+
+  <div class="box">
+    <p><strong>Example consent checkbox</strong> (same disclosure appears on login and invite screens before “Send OTP”):</p>
+    <label>
+      <input type="checkbox" checked disabled />
+      <span>
+        I agree to receive transactional SMS one-time passcodes from StaffingPros / Jora AI
+        (BuildFlow) for account login and invite verification. Msg frequency varies. Msg &amp; data
+        rates may apply. Reply STOP to opt out; reply HELP for help.
+        See
+        <a href="https://build-flow-frontend-jet.vercel.app/privacy.html">Privacy Policy</a> ·
+        <a href="https://build-flow-frontend-jet.vercel.app/terms.html">Terms</a>.
+      </span>
+    </label>
+  </div>
+
+  <div class="box">
+    <p><strong>Message types</strong></p>
+    <p>
+      Authentication OTPs only (login and invite verification). No promotional or marketing SMS.
+      Message frequency is low and user-initiated. Reply STOP to opt out; reply HELP for help.
+    </p>
+    <p>
+      We do not share, sell, or provide your mobile phone number or messaging consent data to third
+      parties or affiliates for marketing or promotional purposes.
+    </p>
+  </div>
+
+  <p>
+    Live opt-in screens:
+    <a href="https://build-flow-frontend-jet.vercel.app/login">Login</a> ·
+    <a href="https://build-flow-frontend-jet.vercel.app/signup/invite">Invite</a>
+  </p>
+</body>
+</html>

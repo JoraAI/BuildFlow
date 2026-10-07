@@ -3,5 +3,10 @@
   "installCommand": "cd ../.. && pnpm install",
   "buildCommand": "cd ../.. && pnpm --filter @buildflow/mobile run build:web",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "redirects": [
+    { "source": "/privacy", "destination": "/privacy.html", "permanent": false },
+    { "source": "/terms", "destination": "/terms.html", "permanent": false },
+    { "source": "/sms-opt-in", "destination": "/sms-opt-in.html", "permanent": false }
+  ],
+  "rewrites": [{ "source": "/((?!privacy\\.html|terms\\.html|sms-opt-in\\.html).*)", "destination": "/index.html" }]
 }

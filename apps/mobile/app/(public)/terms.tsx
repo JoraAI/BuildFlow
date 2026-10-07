@@ -8,7 +8,7 @@ import { MarketingPageShell } from '@/components/marketing/MarketingPageShell';
 import { MarketingSection } from '@/components/marketing/MarketingSection';
 import { Card } from '@/components/ui';
 
-const LAST_UPDATED = '6 October 2026';
+const LAST_UPDATED = '7 October 2026';
 
 function PolicyBlock({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -72,6 +72,10 @@ export default function TermsOfServicePage() {
             Message frequency varies based on your verification requests. Message and data rates may
             apply. Reply STOP to opt out; reply HELP for help. Carriers are not liable for delayed or
             undelivered messages. We do not send marketing SMS under this consent.
+          </P>
+          <P>
+            We do not share, sell, or provide your mobile phone number or messaging consent data to
+            third parties or affiliates for marketing or promotional purposes.
           </P>
         </PolicyBlock>
 

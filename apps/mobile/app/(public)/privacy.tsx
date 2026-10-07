@@ -8,7 +8,7 @@ import { MarketingPageShell } from '@/components/marketing/MarketingPageShell';
 import { MarketingSection } from '@/components/marketing/MarketingSection';
 import { Card } from '@/components/ui';
 
-const LAST_UPDATED = '6 October 2026';
+const LAST_UPDATED = '7 October 2026';
 
 function PolicyBlock({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -87,19 +87,30 @@ export default function PrivacyPolicyPage() {
             and data rates may apply. Reply STOP to opt out of SMS; reply HELP for help. Carriers are
             not liable for delayed or undelivered messages.
           </P>
+          <P>
+            We do not share, sell, or provide your mobile phone number or messaging consent data to
+            third parties or affiliates for marketing or promotional purposes.
+          </P>
         </PolicyBlock>
 
         <PolicyBlock title="4. Sharing of information">
           <P>
             We may share data with service providers who help us operate the Service (for example
-            hosting, email delivery, and SMS providers such as Twilio), under contracts that limit
-            use to providing those services.
+            hosting, email delivery, and SMS providers such as Twilio), solely to provide those
+            operational services under contracts that limit their use of the data. These providers
+            are not authorized to use your mobile number or messaging consent for their own marketing
+            or promotional purposes.
           </P>
           <P>
             Within your company workspace, authorized users of your organization can access
             business data according to their roles and permissions.
           </P>
           <P>We may disclose information if required by law or to protect rights, safety, or security.</P>
+          <P>
+            Except as described above for operating the Service, we do not share, sell, or provide
+            your mobile phone number or messaging consent data to third parties or affiliates for
+            marketing or promotional purposes.
+          </P>
         </PolicyBlock>
 
         <PolicyBlock title="5. Data retention">

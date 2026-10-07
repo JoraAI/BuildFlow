@@ -16,6 +16,7 @@
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
+    "db:reset-ice-cream": "tsx prisma/reset-ice-cream.ts",
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset --force",
     "db:test:reset": "prisma migrate reset --force",
