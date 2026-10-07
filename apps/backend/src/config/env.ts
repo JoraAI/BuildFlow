@@ -87,7 +87,19 @@ const envSchema = z.object({
   // Tally Prime export (optional ledger name mapping JSON)
   TALLY_LEDGER_MAP: z.string().optional(),
 
-  // Twilio (WhatsApp + SMS) - optional (used for phone OTP)
+  // SMS provider: auto (MSG91 if set, else Twilio) | msg91 | twilio
+  SMS_PROVIDER: z
+    .preprocess((v) => (v === '' || v == null ? 'auto' : v), z.enum(['auto', 'msg91', 'twilio']))
+    .default('auto'),
+
+  // MSG91 (India OTP via DLT Flow) — preferred for Indian mobiles
+  MSG91_AUTH_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  MSG91_SENDER_ID: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  MSG91_FLOW_ID: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  /** Variable name in the MSG91 Flow / DLT template (default OTP for ##OTP##). */
+  MSG91_FLOW_OTP_VAR: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()).default('OTP'),
+
+  // Twilio (WhatsApp + SMS) - optional fallback / non-India
   TWILIO_ACCOUNT_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_WHATSAPP_FROM: z.string().optional(),

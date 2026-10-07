@@ -1,12 +1,12 @@
 /**
  * BuildFlow - OTP helpers for invite accept & login (Redis-backed).
- * Supports SMS (Twilio) and email (Resend / SMTP). Master code bypass for seed/dev.
+ * Supports SMS (MSG91 Flow / Twilio) and email (Resend / SMTP). Master code bypass for seed/dev.
  */
 import { createHash, randomInt, randomBytes } from 'crypto';
 import { redis } from '../lib/redis';
 import { ApiError } from '../utils/errors';
 import { env } from '../config/env';
-import { sendSMS } from './twilio.service';
+import { sendOtpSms } from './sms.service';
 import { sendTransactionalEmail } from './email.service';
 import { logger } from '../config/logger';
 
@@ -67,7 +67,8 @@ export async function issueOtp(opts: {
   let delivered = false;
   try {
     if (opts.channel === 'sms') {
-      delivered = await sendSMS(opts.companyId, opts.destination, body);
+      // MSG91 uses DLT Flow (OTP var only); Twilio uses free-text body.
+      delivered = await sendOtpSms(opts.companyId, opts.destination, code, body);
     } else {
       delivered = await sendTransactionalEmail({
         to: opts.destination,

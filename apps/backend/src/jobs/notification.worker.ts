@@ -2,7 +2,8 @@
  * BuildFlow - Notification queue worker (WhatsApp / SMS / push).
  */
 import { getQueue } from '../lib/queue';
-import { sendWhatsApp, sendSMS, sendPush } from '../services/twilio.service';
+import { sendWhatsApp, sendPush } from '../services/twilio.service';
+import { sendSMS } from '../services/sms.service';
 import { logger } from '../config/logger';
 
 export function startNotificationWorker(): void {
