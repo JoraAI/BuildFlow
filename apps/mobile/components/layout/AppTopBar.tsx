@@ -11,6 +11,7 @@ import { CompanyLogo } from '@/components/ui/Avatar';
 import { ProjectSearchField } from '@/components/layout/ProjectSearchField';
 import { LanguageSwitcherModal } from '@/components/common/LanguageSwitcherModal';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useUnreadCount } from '@/services/chat.queries';
 
 export function AppTopBar() {
   const insets = useSafeAreaInsets();
@@ -21,6 +22,7 @@ export function AppTopBar() {
   const user = useAuthStore((s) => s.user);
   const [langModalVisible, setLangModalVisible] = useState(false);
   const { language, t } = useTranslation();
+  const { data: unreadCount } = useUnreadCount();
 
   const projectId = getProjectIdFromPath(pathname) ?? getProjectIdFromReturnTo(returnTo);
   const { data: project } = useProject(projectId ?? '');
@@ -108,9 +110,17 @@ export function AppTopBar() {
 
         <Pressable
           onPress={() => router.push('/notifications' as never)}
-          className="w-9 h-9 rounded-lg bg-surface border border-border items-center justify-center active:bg-border/50"
+          className="w-9 h-9 rounded-lg bg-surface border border-border items-center justify-center active:bg-border/50 relative"
+          accessibilityLabel="Notifications"
         >
           <Ionicons name="notifications-outline" size={18} color="#1E3A5F" />
+          {Number(unreadCount ?? 0) > 0 ? (
+            <View className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-danger items-center justify-center">
+              <Text className="text-[9px] font-bold text-white">
+                {Number(unreadCount) > 99 ? '99+' : unreadCount}
+              </Text>
+            </View>
+          ) : null}
         </Pressable>
 
         {user && (

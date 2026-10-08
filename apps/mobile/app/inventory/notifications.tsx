@@ -15,7 +15,6 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Badge, EmptyState } from '@/components/ui';
-import { useViewport } from '@/hooks/useViewport';
 import {
   useNotifications,
   useMarkAllNotificationsRead,
@@ -62,14 +61,14 @@ function deepLink(n: AppNotification): string | null {
 
 export default function InventoryNotificationsScreen() {
   const { translate } = useInventoryLanguage();
-  const { isPhone } = useViewport();
   const router = useRouter();
   const { data, isLoading, isFetching, refetch } = useNotifications();
   const markAll = useMarkAllNotificationsRead();
   const markOne = useMarkNotificationRead();
 
   const grouped = useMemo(() => {
-    const items = data?.notifications ?? [];
+    // API returns { items, unreadCount } (same as Construction ERP).
+    const items = data?.items ?? [];
     const map = new Map<string, AppNotification[]>();
     for (const n of items) {
       const key = bucketLabel(n.createdAt);
@@ -99,7 +98,7 @@ export default function InventoryNotificationsScreen() {
             Low stock, price anomalies and count variances - no separate product.
           </Text>
         </View>
-        {data?.notifications?.length ? (
+        {(data?.items?.length ?? 0) > 0 ? (
           <Pressable onPress={() => void markAll.mutate()}>
             <Text className="text-xs font-semibold text-primary">
               {translate('inventory.notifications.markAllRead', 'Mark all read')}

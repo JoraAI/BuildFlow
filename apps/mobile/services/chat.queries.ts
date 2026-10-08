@@ -97,10 +97,21 @@ export interface NotificationList {
   unreadCount: number;
 }
 
+/** Normalize API payload (always `{ items, unreadCount }`). */
+async function fetchNotificationList(unreadOnly: boolean): Promise<NotificationList> {
+  const raw = await apiFetch<NotificationList & { notifications?: AppNotification[] }>(
+    `/notifications?unreadOnly=${unreadOnly}`,
+  );
+  return {
+    items: raw.items ?? raw.notifications ?? [],
+    unreadCount: Number(raw.unreadCount ?? 0),
+  };
+}
+
 export function useNotifications(unreadOnly = false) {
   return useQuery({
     queryKey: ['notifications', 'list', unreadOnly] as const,
-    queryFn: () => apiFetch<NotificationList>(`/notifications?unreadOnly=${unreadOnly}`),
+    queryFn: () => fetchNotificationList(unreadOnly),
     refetchInterval: 30_000, // poll for new notifications
   });
 }
@@ -108,7 +119,7 @@ export function useNotifications(unreadOnly = false) {
 export function useUnreadCount() {
   return useQuery({
     queryKey: ['notifications', 'unread-count'] as const,
-    queryFn: () => apiFetch<NotificationList>(`/notifications?unreadOnly=true`),
+    queryFn: () => fetchNotificationList(true),
     refetchInterval: 30_000,
     select: (d) => d.unreadCount,
   });

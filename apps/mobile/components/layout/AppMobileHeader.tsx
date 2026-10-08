@@ -4,11 +4,13 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/auth.store';
+import { useUnreadCount } from '@/services/chat.queries';
 
 export function AppMobileHeader() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
+  const { data: unreadCount } = useUnreadCount();
 
   if (!user) return null;
 
@@ -38,10 +40,17 @@ export function AppMobileHeader() {
         <View className="flex-row items-center gap-2 shrink-0">
           <Pressable
             onPress={() => router.push('/notifications' as never)}
-            className="w-9 h-9 rounded-lg bg-white/10 items-center justify-center active:opacity-80"
+            className="w-9 h-9 rounded-lg bg-white/10 items-center justify-center active:opacity-80 relative"
             accessibilityLabel="Notifications"
           >
             <Ionicons name="notifications-outline" size={20} color="#FFFFFF" />
+            {Number(unreadCount ?? 0) > 0 ? (
+              <View className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-danger items-center justify-center">
+                <Text className="text-[9px] font-bold text-white">
+                  {Number(unreadCount) > 99 ? '99+' : unreadCount}
+                </Text>
+              </View>
+            ) : null}
           </Pressable>
           <Pressable
             onPress={() => router.push('/settings' as never)}
