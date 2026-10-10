@@ -121,7 +121,7 @@ export default function InventorySalesScreen() {
   const router = useRouter();
   const { busy, run } = useBusy();
   // Desktop/tablet get multi-line tables; phones keep the card list.
-  const { isTablet, isDesktop } = useViewport();
+  const { isPhone, isTablet, isDesktop } = useViewport();
   const tableMode = isTablet || isDesktop;
   const isIceCream = useIceCreamVertical();
   const projectId = useAuthStore((s) => s.user?.defaultProjectId ?? '');
@@ -569,7 +569,8 @@ export default function InventorySalesScreen() {
         {headerLabel ? <Button label={headerLabel} variant="accent" size="sm" disabled={busy} onPress={headerAction} /> : null}
       </View>
 
-      {isIceCream ? (
+      {/* Desktop: wrap pills (avoids RN-web ScrollView height stretch). Phone: horizontal scroll. */}
+      {isPhone ? (
         <SegmentedTabs tabs={[...TABS]} value={tab} onChange={setTab} />
       ) : (
         <SegmentedTabsInline

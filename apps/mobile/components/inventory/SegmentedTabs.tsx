@@ -27,7 +27,7 @@ function TabPill<T extends string>({
       accessibilityRole="tab"
       accessibilityState={{ selected: active }}
       onPress={() => onChange(tab.value)}
-      className={`px-3 py-1.5 rounded-lg border ${
+      className={`self-start px-3 py-1.5 rounded-lg border ${
         active ? 'bg-primary border-primary' : 'bg-card border-border'
       }`}
     >
@@ -55,8 +55,13 @@ export function SegmentedTabs<T extends string>({
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      className={`shrink-0 ${className ?? ''}`}
-      contentContainerClassName={contentContainerClassName ?? 'px-4 gap-2 pb-2'}
+      // RN Web: horizontal ScrollView otherwise stretches to parent height (tall pill columns).
+      style={{ flexGrow: 0, flexShrink: 0, maxHeight: 48 }}
+      className={`shrink-0 self-start ${className ?? ''}`}
+      contentContainerClassName={
+        contentContainerClassName ?? 'px-4 gap-2 pb-2 items-center flex-row'
+      }
+      contentContainerStyle={{ flexGrow: 0, alignItems: 'center' }}
     >
       {tabs.map((t) => (
         <TabPill key={t.value} tab={t} active={t.value === value} onChange={onChange} />
