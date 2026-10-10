@@ -526,7 +526,7 @@ export default function InventorySettingsScreen() {
           </View>
         </Card>
 
-        {company?.inventoryVertical === 'ICE_CREAM' ? (
+        {(company?.inventoryVertical ?? user?.inventoryVertical) === 'ICE_CREAM' ? (
           <Card className="p-5 mb-4">
             <Text className="text-base font-bold text-text mb-1">B2B trade discounts</Text>
             <Text className="text-xs text-muted mb-3">
