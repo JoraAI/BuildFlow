@@ -29,6 +29,7 @@ const idParams = z.object({ id: idSchema });
 
 // 9.1 Customer price lists.
 inventoryGtmRouter.get('/price-list', gtm.listPrices);
+inventoryGtmRouter.get('/effective-rates', gtm.listEffectiveRates);
 inventoryGtmRouter.post('/price-list', canManage, validate({ body: customerPriceSchema }), gtm.upsertPrice);
 inventoryGtmRouter.delete(
   '/price-list/:id',

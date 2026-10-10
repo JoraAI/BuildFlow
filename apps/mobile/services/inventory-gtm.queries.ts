@@ -70,19 +70,20 @@ export function useDeletePrice() {
   });
 }
 
-/** Effective-rate map for a customer: customer override → default → catalog. */
+/**
+ * Effective-rate map for a customer:
+ * price list → SKU role sell ₹ → role % off MRP → catalog rate.
+ */
 export function useEffectiveRates(customerId?: string) {
   return useQuery<Record<string, number>>({
     queryKey: ['inventory', 'effective-rates', customerId ?? 'default'],
     queryFn: async () => {
-      const rows = await apiFetch<PriceRow[]>('/inventory/price-list');
+      const q = customerId ? `?customerId=${encodeURIComponent(customerId)}` : '';
+      const rows = await apiFetch<Array<{ resourceId: string; rate: number; source: string }>>(
+        `/inventory/effective-rates${q}`,
+      );
       const map: Record<string, number> = {};
-      for (const r of rows) {
-        const applies = customerId ? r.customerId === customerId || r.customerId === null : r.customerId === null;
-        if (!applies) continue;
-        // Customer override wins; default fills gaps.
-        if (!(r.resourceId in map) || r.customerId) map[r.resourceId] = r.rate;
-      }
+      for (const r of rows) map[r.resourceId] = r.rate;
       return map;
     },
   });

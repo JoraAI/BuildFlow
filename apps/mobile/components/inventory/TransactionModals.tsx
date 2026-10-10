@@ -282,6 +282,20 @@ export function NewSalesOrderModal({
     }
   }, [open, warehouses]);
 
+  // Re-tag line rates when buyer changes (role SKU / price list).
+  useEffect(() => {
+    if (!customerId || !effectiveRates) return;
+    setLines((prev) =>
+      prev.map((l) => {
+        if (!l.resourceId) return l;
+        const override = effectiveRates[l.resourceId];
+        if (override == null || override <= 0) return l;
+        return { ...l, rate: String(override) };
+      }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId, effectiveRates]);
+
   const customerOptions = (customers ?? []).map((c: { id: string; name: string }) => ({ title: c.name, value: c.id }));
   const selectedWarehouse = (warehouses ?? []).find((w: Warehouse) => w.id === locationId);
 
@@ -617,6 +631,20 @@ export function NewQuoteModal({
       }
     }
   }, [open, warehouses]);
+
+  // Re-tag line rates when buyer changes (role SKU / price list).
+  useEffect(() => {
+    if (!customerId || !effectiveRates) return;
+    setLines((prev) =>
+      prev.map((l) => {
+        if (!l.resourceId) return l;
+        const override = effectiveRates[l.resourceId];
+        if (override == null || override <= 0) return l;
+        return { ...l, rate: String(override) };
+      }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId, effectiveRates]);
 
   const customerOptions = (customers ?? []).map((c: { id: string; name: string }) => ({ title: c.name, value: c.id }));
   const selectedWarehouse = (warehouses ?? []).find((w: Warehouse) => w.id === locationId);

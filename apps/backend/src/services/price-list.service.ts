@@ -288,3 +288,27 @@ export async function resolveEffectiveRate(
 ): Promise<number> {
   return (await resolveEffectiveRates(companyId, customerId, [resourceId])).get(resourceId) ?? 0;
 }
+
+/**
+ * Effective rates for all active catalog items for a customer (or company default).
+ * Used by SO/invoice UI prefills so role SKU prices + price lists apply.
+ */
+export async function listEffectiveRatesForCustomer(
+  companyId: string,
+  customerId?: string | null,
+): Promise<Array<{ resourceId: string; rate: number; source: string }>> {
+  const resources = await prisma.resource.findMany({
+    where: { companyId, isActive: true, isDeleted: false },
+    select: { id: true },
+  });
+  const detailed = await resolveDetailedRates(
+    companyId,
+    customerId ?? null,
+    resources.map((r) => r.id),
+  );
+  return [...detailed.values()].map((row) => ({
+    resourceId: row.resourceId,
+    rate: row.rate,
+    source: row.source,
+  }));
+}

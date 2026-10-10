@@ -7,6 +7,7 @@ import {
   upsertCustomerPrice,
   deleteCustomerPrice,
   listCustomerPrices,
+  listEffectiveRatesForCustomer,
 } from '../services/price-list.service';
 import {
   createQuote,
@@ -36,6 +37,17 @@ export async function listPrices(req: Request, res: Response, next: NextFunction
     const { companyId } = req.user!;
     const customerId = typeof req.query.customerId === 'string' ? req.query.customerId : undefined;
     const rows = await listCustomerPrices(companyId, customerId);
+    ok(res, rows);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function listEffectiveRates(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { companyId } = req.user!;
+    const customerId = typeof req.query.customerId === 'string' ? req.query.customerId : undefined;
+    const rows = await listEffectiveRatesForCustomer(companyId, customerId);
     ok(res, rows);
   } catch (err) {
     next(err);
