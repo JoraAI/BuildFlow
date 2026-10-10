@@ -40,6 +40,8 @@ export interface Invoice {
   invoiceType?: InvoiceType;
   raSequence?: number | null;
   subtotal: number;
+  discountPct?: number;
+  discountAmount?: number;
   gstRate: number;
   gstAmount: number;
   cgstAmount: number;
@@ -192,8 +194,19 @@ export function useSendInvoice() {
 export function useRecordPayment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, amount }: { id: string; amount: number }) =>
-      apiFetch<Invoice>(`/invoices/${id}/record-payment`, { method: 'POST', body: JSON.stringify({ amount }) }),
+    mutationFn: ({
+      id,
+      amount,
+      method,
+    }: {
+      id: string;
+      amount: number;
+      method?: 'CASH' | 'BANK' | 'UPI' | 'CARD' | 'OTHER';
+    }) =>
+      apiFetch<Invoice>(`/invoices/${id}/record-payment`, {
+        method: 'POST',
+        body: JSON.stringify({ amount, ...(method ? { method } : {}) }),
+      }),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['invoices', 'detail', data.id] });
       qc.invalidateQueries({ queryKey: ['invoices', 'list', data.projectId] });

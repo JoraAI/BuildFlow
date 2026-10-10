@@ -28,10 +28,11 @@ import {
   inventorySalesHref,
 } from '@/utils/navigation-paths';
 import { downloadReportPdf } from '@/services/report-download';
+import { CashBookPanel } from '@/components/inventory/CashBookPanel';
 
-type Tab = 'orders' | 'deliveries' | 'returns' | 'notes';
+type Tab = 'orders' | 'deliveries' | 'returns' | 'notes' | 'cash';
 
-const TABS: readonly SegmentedTab<Tab>[] = [
+const BASE_TABS: readonly SegmentedTab<Tab>[] = [
   { value: 'orders', label: 'Sales orders' },
   { value: 'deliveries', label: 'Deliveries' },
   { value: 'returns', label: 'Returns' },
@@ -39,7 +40,7 @@ const TABS: readonly SegmentedTab<Tab>[] = [
 ];
 
 /** Status chips per tab - values match the row `status` field for each list. */
-const STATUS_TABS: Record<Tab, readonly SegmentedTab<string>[]> = {
+const STATUS_TABS: Record<Exclude<Tab, 'cash'>, readonly SegmentedTab<string>[]> = {
   orders: [
     { value: 'ALL', label: 'All' },
     { value: 'DRAFT', label: 'Draft' },
@@ -96,7 +97,7 @@ function returnSourceHref(item: SalesReturn | PurchaseReturn): string {
     : inventoryBillsHref({ q: purchase.vendorName });
 }
 
-const SEARCH_PLACEHOLDER: Record<Tab, string> = {
+const SEARCH_PLACEHOLDER: Record<Exclude<Tab, 'cash'>, string> = {
   orders: 'Search SO #, customer, notes…',
   deliveries: 'Search challan #, customer, SO #…',
   returns: 'Search return #, party, reason…',
@@ -121,7 +122,16 @@ export default function InventorySalesScreen() {
   // Desktop/tablet get multi-line tables; phones keep the card list.
   const { isTablet, isDesktop } = useViewport();
   const tableMode = isTablet || isDesktop;
+  const user = useAuthStore((s) => s.user);
+  const isIceCream = user?.inventoryVertical === 'ICE_CREAM';
   const projectId = useAuthStore((s) => s.user?.defaultProjectId ?? '');
+  const TABS = useMemo(
+    () =>
+      isIceCream
+        ? ([...BASE_TABS, { value: 'cash' as const, label: 'Cash book' }] as const)
+        : BASE_TABS,
+    [isIceCream],
+  );
   const filters = useInventoryListFilters({ defaultTab: 'orders' });
   const tab = (TABS.some((t) => t.value === filters.tab) ? filters.tab : 'orders') as Tab;
   const setTab = filters.setTab;
@@ -507,13 +517,15 @@ export default function InventorySalesScreen() {
     (tab === 'notes' && (creditNotes.isLoading || debitNotes.isLoading));
 
   const allDataForTab: any[] =
-    tab === 'orders'
-      ? (orders.data ?? [])
-      : tab === 'deliveries'
-        ? (challans.data ?? [])
-        : tab === 'returns'
-          ? [...(salesReturns.data ?? []), ...(purchaseReturns.data ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-          : [...creditRows, ...debitRows].sort((a, b) => b.id.localeCompare(a.id));
+    tab === 'cash'
+      ? []
+      : tab === 'orders'
+        ? (orders.data ?? [])
+        : tab === 'deliveries'
+          ? (challans.data ?? [])
+          : tab === 'returns'
+            ? [...(salesReturns.data ?? []), ...(purchaseReturns.data ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+            : [...creditRows, ...debitRows].sort((a, b) => b.id.localeCompare(a.id));
 
   /** Searchable fields per tab - document number, party and free text. */
   const haystack = (row: any): Array<string | null | undefined> => {
@@ -558,91 +570,97 @@ export default function InventorySalesScreen() {
       </View>
 
       <SegmentedTabsInline
-        tabs={TABS}
+        tabs={[...TABS]}
         value={tab}
         onChange={setTab}
         className="px-4 pb-2 gap-2"
       />
 
+      {tab === 'cash' ? <CashBookPanel /> : null}
+
+      {tab !== 'cash' ? (
       <InventoryFilterBar
         query={filters.query}
         onQueryChange={filters.setQuery}
-        placeholder={SEARCH_PLACEHOLDER[tab]}
-        statusTabs={STATUS_TABS[tab]}
+        placeholder={SEARCH_PLACEHOLDER[tab as Exclude<Tab, 'cash'>]}
+        statusTabs={STATUS_TABS[tab as Exclude<Tab, 'cash'>]}
         status={filters.status}
         onStatusChange={filters.setStatus}
         resultCount={{ shown: dataForTab.length, total: allDataForTab.length }}
         isFiltered={filters.isFiltered}
         onClear={filters.clearAll}
       />
+      ) : null}
 
-      {loading ? (
-        <View className="px-4 gap-3">
-          {[1, 2, 3].map((i) => <LoadingSkeleton key={i} className="rounded-xl h-16" />)}
-        </View>
-      ) : (
-        <FlatList
-          ref={listRef}
-          className="flex-1 px-4"
-          data={dataForTab}
-          keyExtractor={(item) => item.id}
-          renderItem={renderRow}
-          onScrollToIndexFailed={() => undefined}
-          ListEmptyComponent={
-            filters.isFiltered ? (
+      {tab !== 'cash' ? (
+        loading ? (
+          <View className="px-4 gap-3">
+            {[1, 2, 3].map((i) => <LoadingSkeleton key={i} className="rounded-xl h-16" />)}
+          </View>
+        ) : (
+          <FlatList
+            ref={listRef}
+            className="flex-1 px-4"
+            data={dataForTab}
+            keyExtractor={(item) => item.id}
+            renderItem={renderRow}
+            onScrollToIndexFailed={() => undefined}
+            ListEmptyComponent={
+              filters.isFiltered ? (
+                <EmptyState
+                  title="No matching records"
+                  description="Try a different search term or clear the filters."
+                />
+              ) : (
               <EmptyState
-                title="No matching records"
-                description="Try a different search term or clear the filters."
+                title={
+                  tab === 'orders' ? 'No sales orders yet'
+                  : tab === 'deliveries' ? 'No delivery challans yet'
+                  : tab === 'returns' ? 'No returns yet'
+                  : 'No credit/debit notes yet'
+                }
+                description={
+                  tab === 'orders' ? 'Issue stock from Stock/materials to create a counter sale, or tap New order for the formal flow.'
+                  : tab === 'deliveries' ? 'Confirm a sales order, then create a challan.'
+                  : tab === 'returns' ? 'Record a return against an invoice or bill.'
+                  : 'Notes are created automatically from returns.'
+                }
               />
-            ) : (
-            <EmptyState
-              title={
-                tab === 'orders' ? 'No sales orders yet'
-                : tab === 'deliveries' ? 'No delivery challans yet'
-                : tab === 'returns' ? 'No returns yet'
-                : 'No credit/debit notes yet'
-              }
-              description={
-                tab === 'orders' ? 'Issue stock from Stock/materials to create a counter sale, or tap New order for the formal flow.'
-                : tab === 'deliveries' ? 'Confirm a sales order, then create a challan.'
-                : tab === 'returns' ? 'Record a return against an invoice or bill.'
-                : 'Notes are created automatically from returns.'
-              }
-            />
-            )
-          }
-          contentContainerStyle={{ paddingBottom: 24 }}
-          ListHeaderComponent={
-            <View>
-              {tableMode && dataForTab.length > 0 ? (
-                <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
-                  <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Number</Text>
-                  <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Party</Text>
-                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Status</Text>
-                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Total</Text>
-                  <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
-                </View>
-              ) : null}
-              {tab === 'returns' ? (
-                <View className="flex-row flex-wrap gap-2 pb-2">
-                  <Button
-                    label="+ New sales return"
-                    size="sm"
-                    variant="accent"
-                    onPress={() => setSalesReturnOpen(true)}
-                  />
-                  <Button
-                    label="+ New purchase return"
-                    size="sm"
-                    variant="secondary"
-                    onPress={() => setPurchaseReturnOpen(true)}
-                  />
-                </View>
-              ) : null}
-            </View>
-          }
-        />
-      )}
+              )
+            }
+            contentContainerStyle={{ paddingBottom: 24 }}
+            ListHeaderComponent={
+              <View>
+                {tableMode && dataForTab.length > 0 ? (
+                  <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+                    <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Number</Text>
+                    <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Party</Text>
+                    <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Status</Text>
+                    <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Total</Text>
+                    <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+                  </View>
+                ) : null}
+                {tab === 'returns' ? (
+                  <View className="flex-row flex-wrap gap-2 pb-2">
+                    <Button
+                      label="+ New sales return"
+                      size="sm"
+                      variant="accent"
+                      onPress={() => setSalesReturnOpen(true)}
+                    />
+                    <Button
+                      label="+ New purchase return"
+                      size="sm"
+                      variant="secondary"
+                      onPress={() => setPurchaseReturnOpen(true)}
+                    />
+                  </View>
+                ) : null}
+              </View>
+            }
+          />
+        )
+      ) : null}
 
       {soOpen ? (
         <NewSalesOrderModal

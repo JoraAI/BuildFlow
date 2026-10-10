@@ -47,8 +47,9 @@ export default function InventoryPartiesScreen() {
   const user = useAuthStore((s) => s.user);
   const isIceCream = user?.inventoryVertical === 'ICE_CREAM';
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop/tablet table rows.
-  const { isTablet, isDesktop } = useViewport();
+  const { isPhone, isTablet, isDesktop } = useViewport();
   const tableMode = isTablet || isDesktop;
+  const [moreMenuId, setMoreMenuId] = useState<string | null>(null);
   const filters = useInventoryListFilters({ defaultTab: 'customer' });
   const kind: Kind = filters.tab === 'vendor' ? 'vendor' : 'customer';
   const [modal, setModal] = useState<{ kind: Kind; editing: PartyRow | null } | null>(null);
@@ -156,27 +157,73 @@ export default function InventoryPartiesScreen() {
   const partyActions = (item: PartyRow) => {
     const pending = isIceCream && kind === 'customer' ? pendingByCustomer.get(item.id) : undefined;
     const buyer = isIceCream && kind === 'customer' ? buyerByCustomer.get(item.id) : undefined;
-    return (
-      <View className="flex-row flex-wrap justify-end gap-1">
-        <Button label="Ledger" size="sm" variant="secondary" onPress={() => setLedgerParty(item)} />
-        <Button label="Edit" size="sm" variant="secondary" onPress={() => setModal({ kind, editing: item })} />
+    const secondary = (
+      <>
         {isIceCream && kind === 'customer' && item.isActive && !buyer ? (
           <Button
             label={pending ? 'Re-invite' : 'Invite'}
             size="sm"
             variant="accent"
-            onPress={() => setInviteCustomer(item)}
+            onPress={() => {
+              setMoreMenuId(null);
+              setInviteCustomer(item);
+            }}
           />
         ) : null}
         {pending ? (
-          <Button label="Regenerate" size="sm" variant="secondary" onPress={() => onRegenerateInvite(pending.id)} />
+          <Button
+            label="Regenerate"
+            size="sm"
+            variant="secondary"
+            onPress={() => {
+              setMoreMenuId(null);
+              onRegenerateInvite(pending.id);
+            }}
+          />
         ) : null}
         {buyer ? (
-          <Button label="Revoke" size="sm" variant="secondary" onPress={() => onRevokeBuyer(buyer.id)} />
+          <Button
+            label="Revoke"
+            size="sm"
+            variant="secondary"
+            onPress={() => {
+              setMoreMenuId(null);
+              onRevokeBuyer(buyer.id);
+            }}
+          />
         ) : null}
         {item.isActive ? (
-          <Button label="Remove" size="sm" variant="secondary" onPress={() => onDelete(item)} />
+          <Button
+            label="Remove"
+            size="sm"
+            variant="secondary"
+            onPress={() => {
+              setMoreMenuId(null);
+              void onDelete(item);
+            }}
+          />
         ) : null}
+      </>
+    );
+    return (
+      <View className="flex-row flex-wrap justify-end gap-1 items-center">
+        <Button label="Ledger" size="sm" variant="secondary" onPress={() => setLedgerParty(item)} />
+        <Button label="Edit" size="sm" variant="secondary" onPress={() => setModal({ kind, editing: item })} />
+        {isPhone && isIceCream && kind === 'customer' ? (
+          <>
+            <Button
+              label="More"
+              size="sm"
+              variant="secondary"
+              onPress={() => setMoreMenuId(moreMenuId === item.id ? null : item.id)}
+            />
+            {moreMenuId === item.id ? (
+              <View className="w-full flex-row flex-wrap justify-end gap-1 mt-1">{secondary}</View>
+            ) : null}
+          </>
+        ) : (
+          secondary
+        )}
       </View>
     );
   };
@@ -338,7 +385,13 @@ export default function InventoryPartiesScreen() {
       )}
 
       {modal ? (
-        <PartyModal kind={modal.kind} editing={modal.editing} onClose={() => setModal(null)} onSave={onSave} />
+        <PartyModal
+          kind={modal.kind}
+          editing={modal.editing}
+          onClose={() => setModal(null)}
+          onSave={onSave}
+          showBuyerRole={isIceCream && modal.kind === 'customer'}
+        />
       ) : null}
 
       {ledgerParty ? (

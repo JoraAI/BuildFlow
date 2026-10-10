@@ -2,12 +2,13 @@
  * BuildFlow - Customer price list service (INVENTORY_HORIZONTAL_PLATFORM Phase 9.1).
  *
  * Per-customer (or company-default) rate overrides for resources. Effective-rate
- * resolution order: customer override > company default > `Resource.rate`.
- * Used when creating SO lines, issue draft-invoice lines and manual invoice lines.
+ * resolution order: customer override > company default > role trade discount
+ * off MRP > `Resource.rate`.
  */
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
-import type { CustomerPriceInput } from '@buildflow/shared';
+import { round2 } from './gst.service';
+import type { CustomerPriceInput, BuyerPartyRole } from '@buildflow/shared';
 
 function toNum(d: { toNumber(): number } | null | undefined): number {
   return d ? Number(d) : 0;
@@ -23,6 +24,39 @@ export interface PriceListRow {
   rate: number;
   /** 'CUSTOMER' = per-customer override; 'DEFAULT' = company-wide price. */
   scope: 'CUSTOMER' | 'DEFAULT';
+}
+
+export interface RoleDiscountDefaults {
+  distributorDiscountPct: number;
+  customerDiscountPct: number;
+}
+
+const DEFAULT_DISTRIBUTOR_PCT = 20;
+const DEFAULT_CUSTOMER_PCT = 10;
+
+export function roleDiscountDefaultsFromSettings(
+  settings: Record<string, unknown> | null | undefined,
+): RoleDiscountDefaults {
+  const dist = Number(settings?.distributorDiscountPct);
+  const cust = Number(settings?.customerDiscountPct);
+  return {
+    distributorDiscountPct:
+      Number.isFinite(dist) && dist >= 0 ? dist : DEFAULT_DISTRIBUTOR_PCT,
+    customerDiscountPct: Number.isFinite(cust) && cust >= 0 ? cust : DEFAULT_CUSTOMER_PCT,
+  };
+}
+
+export function resolveTradeDiscountPct(opts: {
+  buyerRole: BuyerPartyRole | string | null | undefined;
+  tradeDiscountPct: number | null | undefined;
+  defaults: RoleDiscountDefaults;
+}): number {
+  if (opts.tradeDiscountPct != null && Number.isFinite(Number(opts.tradeDiscountPct))) {
+    return Math.min(100, Math.max(0, Number(opts.tradeDiscountPct)));
+  }
+  return opts.buyerRole === 'DISTRIBUTOR'
+    ? opts.defaults.distributorDiscountPct
+    : opts.defaults.customerDiscountPct;
 }
 
 async function assertCustomer(companyId: string, customerId: string) {
@@ -93,16 +127,63 @@ export async function listCustomerPrices(companyId: string, customerId?: string)
   }));
 }
 
-/** Effective rates for many resources at once (customer override → default → catalog). */
+async function loadRolePricingContext(companyId: string, customerId: string | null) {
+  const [company, customer] = await Promise.all([
+    prisma.company.findFirst({
+      where: { id: companyId },
+      select: { reportSettings: true },
+    }),
+    customerId
+      ? prisma.customer.findFirst({
+          where: { id: customerId, companyId },
+          select: { buyerRole: true, tradeDiscountPct: true },
+        })
+      : Promise.resolve(null),
+  ]);
+  const defaults = roleDiscountDefaultsFromSettings(
+    (company?.reportSettings as Record<string, unknown> | null) ?? null,
+  );
+  const discountPct = customer
+    ? resolveTradeDiscountPct({
+        buyerRole: customer.buyerRole,
+        tradeDiscountPct: customer.tradeDiscountPct != null ? Number(customer.tradeDiscountPct) : null,
+        defaults,
+      })
+    : 0;
+  return { defaults, discountPct, buyerRole: customer?.buyerRole ?? null };
+}
+
+export interface ResolvedCatalogRate {
+  resourceId: string;
+  mrp: number | null;
+  listRate: number;
+  discountPct: number;
+  rate: number;
+  source: 'CUSTOMER_PRICE' | 'DEFAULT_PRICE' | 'ROLE_MRP' | 'CATALOG';
+}
+
+/** Effective rates for many resources at once (customer override → default → role MRP → catalog). */
 export async function resolveEffectiveRates(
   companyId: string,
   customerId: string | null,
   resourceIds: string[],
 ): Promise<Map<string, number>> {
+  const detailed = await resolveDetailedRates(companyId, customerId, resourceIds);
   const map = new Map<string, number>();
+  for (const [id, row] of detailed) map.set(id, row.rate);
+  return map;
+}
+
+export async function resolveDetailedRates(
+  companyId: string,
+  customerId: string | null,
+  resourceIds: string[],
+): Promise<Map<string, ResolvedCatalogRate>> {
+  const map = new Map<string, ResolvedCatalogRate>();
   if (resourceIds.length === 0) return map;
 
-  const [overrides, resources] = await Promise.all([
+  const [{ discountPct }, overrides, resources] = await Promise.all([
+    loadRolePricingContext(companyId, customerId),
     prisma.customerPrice.findMany({
       where: {
         companyId,
@@ -115,7 +196,7 @@ export async function resolveEffectiveRates(
     }),
     prisma.resource.findMany({
       where: { id: { in: resourceIds }, companyId },
-      select: { id: true, rate: true },
+      select: { id: true, rate: true, mrp: true },
     }),
   ]);
 
@@ -126,10 +207,54 @@ export async function resolveEffectiveRates(
     else entry.defaultRate = Number(o.rate);
     byResource.set(o.resourceId, entry);
   }
+
   for (const r of resources) {
     const entry = byResource.get(r.id);
-    const rate = entry?.customerRate ?? entry?.defaultRate ?? Number(r.rate ?? 0);
-    map.set(r.id, rate);
+    const catalogRate = Number(r.rate ?? 0);
+    const mrp = r.mrp != null ? Number(r.mrp) : null;
+    const listRate = mrp != null && mrp > 0 ? mrp : catalogRate;
+
+    if (entry?.customerRate != null) {
+      map.set(r.id, {
+        resourceId: r.id,
+        mrp,
+        listRate,
+        discountPct: 0,
+        rate: entry.customerRate,
+        source: 'CUSTOMER_PRICE',
+      });
+      continue;
+    }
+    if (entry?.defaultRate != null) {
+      map.set(r.id, {
+        resourceId: r.id,
+        mrp,
+        listRate,
+        discountPct: 0,
+        rate: entry.defaultRate,
+        source: 'DEFAULT_PRICE',
+      });
+      continue;
+    }
+    if (customerId && mrp != null && mrp > 0 && discountPct > 0) {
+      map.set(r.id, {
+        resourceId: r.id,
+        mrp,
+        listRate: mrp,
+        discountPct,
+        rate: round2(mrp * (1 - discountPct / 100)),
+        source: 'ROLE_MRP',
+      });
+      continue;
+    }
+    map.set(r.id, {
+      resourceId: r.id,
+      mrp,
+      listRate,
+      discountPct: customerId ? discountPct : 0,
+      rate: catalogRate,
+      source: 'CATALOG',
+    });
   }
   return map;
 }

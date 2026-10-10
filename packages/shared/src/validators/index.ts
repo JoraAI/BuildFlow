@@ -32,3 +32,4 @@ export * from './price-list';
 export * from './quote';
 export * from './inventory-catalog';
 export * from './ice-cream';
+export * from './cash-book';

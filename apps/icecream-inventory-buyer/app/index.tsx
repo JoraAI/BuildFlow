@@ -36,6 +36,8 @@ type CustomerProfile = {
   billingAddress?: string | null;
   shippingAddress?: string | null;
   paymentTerms?: string | null;
+  buyerRole?: 'DISTRIBUTOR' | 'CUSTOMER' | null;
+  tradeDiscountPct?: number | null;
 };
 
 type CatalogItem = {
@@ -44,6 +46,9 @@ type CatalogItem = {
   sku?: string | null;
   unit: string;
   rate: string | number;
+  mrp?: string | number | null;
+  listRate?: string | number | null;
+  discountPct?: string | number | null;
   category?: string | null;
 };
 
@@ -422,20 +427,28 @@ export default function BuyerHome() {
               No published items yet. Your manufacturer publishes items from their Materials list.
             </Text>
           }
-          renderItem={({ item }) => (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>{item.name}</Text>
-              <Text style={styles.muted}>
-                {item.sku ? `${item.sku} · ` : ''}₹{Number(item.rate).toFixed(2)} / {item.unit}
-              </Text>
-              <Pressable
-                style={styles.btnSmall}
-                onPress={() => setCart((c) => ({ ...c, [item.id]: (c[item.id] ?? 0) + 1 }))}
-              >
-                <Text style={styles.btnText}>Add</Text>
-              </Pressable>
-            </View>
-          )}
+          renderItem={({ item }) => {
+            const net = Number(item.rate);
+            const mrp = item.mrp != null ? Number(item.mrp) : null;
+            const disc = item.discountPct != null ? Number(item.discountPct) : 0;
+            return (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>{item.name}</Text>
+                <Text style={styles.muted}>
+                  {item.sku ? `${item.sku} · ` : ''}
+                  {mrp != null && mrp > net ? `MRP ₹${mrp.toFixed(2)} · ` : ''}
+                  {disc > 0 ? `${disc}% off · ` : ''}
+                  ₹{net.toFixed(2)} / {item.unit}
+                </Text>
+                <Pressable
+                  style={styles.btnSmall}
+                  onPress={() => setCart((c) => ({ ...c, [item.id]: (c[item.id] ?? 0) + 1 }))}
+                >
+                  <Text style={styles.btnText}>Add</Text>
+                </Pressable>
+              </View>
+            );
+          }}
         />
       ) : null}
 
@@ -514,6 +527,14 @@ export default function BuyerHome() {
               />
             </View>
           ))}
+          {profile.buyerRole ? (
+            <Text style={[styles.muted, { marginTop: 8 }]}>
+              Role: {profile.buyerRole === 'DISTRIBUTOR' ? 'Distributor' : 'Customer'}
+              {profile.tradeDiscountPct != null
+                ? ` · trade discount override ${profile.tradeDiscountPct}%`
+                : ''}
+            </Text>
+          ) : null}
           {profile.paymentTerms ? (
             <Text style={[styles.muted, { marginTop: 8 }]}>
               Payment terms (set by manufacturer): {profile.paymentTerms}

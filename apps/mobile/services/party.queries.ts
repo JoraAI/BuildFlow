@@ -17,6 +17,8 @@ export interface PartyRow {
   email?: string | null;
   paymentTerms?: string | null;
   creditLimit?: string | number | null;
+  buyerRole?: 'DISTRIBUTOR' | 'CUSTOMER' | null;
+  tradeDiscountPct?: string | number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -33,6 +35,8 @@ export interface PartyInput {
   email?: string;
   paymentTerms?: string;
   creditLimit?: number;
+  buyerRole?: 'DISTRIBUTOR' | 'CUSTOMER';
+  tradeDiscountPct?: number | null;
 }
 
 export const partyKeys = {

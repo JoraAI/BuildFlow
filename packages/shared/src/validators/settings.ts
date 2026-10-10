@@ -227,6 +227,10 @@ export const updateReportSettingsSchema = z.object({
   companyPhone: z.string().trim().max(30).optional().nullable(),
   companyEmail: z.union([z.string().trim().email().max(200), z.literal(''), z.null()]).optional(),
   fssaiLicenceNo: z.string().trim().max(50).optional().nullable(),
+  /** ICE_CREAM: default trade discount % off MRP for distributor parties. */
+  distributorDiscountPct: z.coerce.number().min(0).max(100).optional().nullable(),
+  /** ICE_CREAM: default trade discount % off MRP for customer parties. */
+  customerDiscountPct: z.coerce.number().min(0).max(100).optional().nullable(),
 });
 export type MyProfileUpdateInput = z.infer<typeof myProfileUpdateSchema>;
 export type CreateTicketInput = z.infer<typeof createTicketSchema>;

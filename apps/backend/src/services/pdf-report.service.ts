@@ -761,6 +761,14 @@ export async function reportInvoice(companyId: string, invoiceId: string): Promi
     doc.moveDown(1);
   }
   summaryLine(doc, 'Subtotal', inr(num(invoice.subtotal)));
+  if (num(invoice.discountAmount) > 0) {
+    const pct = num(invoice.discountPct);
+    summaryLine(
+      doc,
+      pct > 0 ? `Discount (${pct}%)` : 'Discount',
+      `- ${inr(num(invoice.discountAmount))}`,
+    );
+  }
   if (num(invoice.cgstAmount) > 0) summaryLine(doc, 'CGST', inr(num(invoice.cgstAmount)));
   if (num(invoice.sgstAmount) > 0) summaryLine(doc, 'SGST', inr(num(invoice.sgstAmount)));
   if (num(invoice.igstAmount) > 0) summaryLine(doc, 'IGST', inr(num(invoice.igstAmount)));
@@ -888,6 +896,13 @@ async function reportInventoryTaxInvoice(
   const totalLines: Array<{ label: string; value: string; bold?: boolean }> = [
     { label: 'Sub Total', value: `₹ ${invMoney(num(invoice.subtotal))}` },
   ];
+  if (num(invoice.discountAmount) > 0) {
+    const pct = num(invoice.discountPct);
+    totalLines.push({
+      label: pct > 0 ? `Discount (${pct}%)` : 'Discount',
+      value: `- ₹ ${invMoney(num(invoice.discountAmount))}`,
+    });
+  }
   if (num(invoice.cgstAmount) > 0) totalLines.push({ label: 'CGST', value: `₹ ${invMoney(num(invoice.cgstAmount))}` });
   if (num(invoice.sgstAmount) > 0) totalLines.push({ label: 'SGST', value: `₹ ${invMoney(num(invoice.sgstAmount))}` });
   if (num(invoice.igstAmount) > 0) totalLines.push({ label: 'IGST', value: `₹ ${invMoney(num(invoice.igstAmount))}` });

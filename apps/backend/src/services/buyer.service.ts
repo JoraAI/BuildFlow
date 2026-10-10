@@ -15,6 +15,7 @@ import { issueOtp, consumeOtp } from './otp.service';
 import { notifyMany } from './notification.service';
 import { logger } from '../config/logger';
 import { hashInviteToken } from '../utils/invite-token';
+import { resolveDetailedRates } from './price-list.service';
 
 const BUYER_JWT_TYPE = 'buyer_access';
 const DEFAULT_INVITE_HOURS = 48;
@@ -500,11 +501,11 @@ export function verifyBuyerToken(token: string): BuyerTokenPayload {
 }
 
 /** Catalog = manufacturer item master rows marked for B2B (owner published). */
-export async function getBuyerCatalog(companyId: string) {
-  await assertInventoryFeature(companyId, 'b2b_buyer_app');
-  return prisma.resource.findMany({
+export async function getBuyerCatalog(buyer: BuyerTokenPayload) {
+  await assertInventoryFeature(buyer.companyId, 'b2b_buyer_app');
+  const rows = await prisma.resource.findMany({
     where: {
-      companyId,
+      companyId: buyer.companyId,
       b2bPublished: true,
       isActive: true,
       isDeleted: false,
@@ -520,6 +521,21 @@ export async function getBuyerCatalog(companyId: string) {
       category: true,
       imageUrl: true,
     },
+  });
+  const priced = await resolveDetailedRates(
+    buyer.companyId,
+    buyer.customerId,
+    rows.map((r) => r.id),
+  );
+  return rows.map((r) => {
+    const p = priced.get(r.id);
+    return {
+      ...r,
+      mrp: p?.mrp ?? (r.mrp != null ? Number(r.mrp) : null),
+      listRate: p?.listRate ?? Number(r.rate ?? 0),
+      discountPct: p?.discountPct ?? 0,
+      rate: p?.rate ?? Number(r.rate ?? 0),
+    };
   });
 }
 
@@ -553,6 +569,9 @@ export async function getBuyerProfile(buyer: BuyerTokenPayload) {
       billingAddress: row.customer.billingAddress,
       shippingAddress: row.customer.shippingAddress,
       paymentTerms: row.customer.paymentTerms,
+      buyerRole: row.customer.buyerRole,
+      tradeDiscountPct:
+        row.customer.tradeDiscountPct != null ? Number(row.customer.tradeDiscountPct) : null,
     },
   };
 }
@@ -650,6 +669,11 @@ export async function placeBuyerOrder(
     throw ApiError.badRequest('One or more items are not available in the B2B catalog');
   }
   const unitById = new Map(published.map((r) => [r.id, r.unit]));
+  const rates = await resolveDetailedRates(
+    buyer.companyId,
+    buyerUser.customerId,
+    input.lines.map((l) => l.resourceId),
+  );
 
   const order = await createSalesOrder(
     buyer.companyId,
@@ -665,7 +689,7 @@ export async function placeBuyerOrder(
         resourceId: l.resourceId,
         quantity: l.quantity,
         unit: unitById.get(l.resourceId) ?? 'nos',
-        rate: l.rate ?? 0,
+        rate: rates.get(l.resourceId)?.rate ?? 0,
       })),
     },
     {

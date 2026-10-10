@@ -3,6 +3,8 @@ import * as recipeSvc from '../services/recipe.service';
 import * as productionSvc from '../services/production.service';
 import * as buyerSvc from '../services/buyer.service';
 import * as salesOrderSvc from '../services/sales-order.service';
+import * as cashBookSvc from '../services/cash-book.service';
+import { ApiError } from '../utils/errors';
 
 function companyId(req: Request): string {
   return req.user!.companyId;
@@ -190,6 +192,48 @@ export async function updateShipping(req: Request, res: Response, next: NextFunc
   }
 }
 
+export async function cashBookDay(req: Request, res: Response, next: NextFunction) {
+  try {
+    const date = String(req.query.date ?? '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw ApiError.badRequest('date must be YYYY-MM-DD');
+    res.json({ success: true, data: await cashBookSvc.listCashBookDay(companyId(req), date) });
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function createCashBookEntry(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.status(201).json({
+      success: true,
+      data: await cashBookSvc.createCashBookEntry(companyId(req), userId(req), req.body),
+    });
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function deleteCashBookEntry(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json({
+      success: true,
+      data: await cashBookSvc.deleteCashBookEntry(companyId(req), req.params.id),
+    });
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function dailySalesSummary(req: Request, res: Response, next: NextFunction) {
+  try {
+    const date = String(req.query.date ?? '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw ApiError.badRequest('date must be YYYY-MM-DD');
+    res.json({ success: true, data: await cashBookSvc.getDailySalesSummary(companyId(req), date) });
+  } catch (e) {
+    next(e);
+  }
+}
+
 // ── Public buyer routes ────────────────────────────────────────────
 
 export async function buyerSendOtp(req: Request, res: Response, next: NextFunction) {
@@ -259,7 +303,7 @@ export async function buyerUpdateProfile(req: Request, res: Response, next: Next
 export async function buyerCatalog(req: Request, res: Response, next: NextFunction) {
   try {
     const buyer = buyerFromReq(req);
-    res.json({ success: true, data: await buyerSvc.getBuyerCatalog(buyer.companyId) });
+    res.json({ success: true, data: await buyerSvc.getBuyerCatalog(buyer) });
   } catch (e) {
     next(e);
   }

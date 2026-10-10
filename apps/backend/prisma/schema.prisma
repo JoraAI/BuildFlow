@@ -174,6 +174,32 @@ enum CreditLimitPolicy {
   BLOCK
 }
 
+/// ICE_CREAM B2B party role — drives default trade discount % off MRP.
+enum BuyerPartyRole {
+  DISTRIBUTOR
+  CUSTOMER
+}
+
+enum CashBookDirection {
+  IN
+  OUT
+}
+
+enum CashBookEntryType {
+  OPENING
+  SALE_COLLECTION
+  EXPENSE
+  DEPOSIT
+  ADJUSTMENT
+}
+
+enum CashBookPaymentMode {
+  CASH
+  UPI
+  BANK
+  OTHER
+}
+
 /// INVENTORY_HORIZONTAL_PLATFORM (Phase 3.2): inter-location stock transfer.
 enum TransferOrderStatus {
   DRAFT
@@ -409,6 +435,7 @@ model Company {
   productionBatches   ProductionBatch[]
   buyerUsers          BuyerUser[]
   buyerInvites        BuyerInvite[]
+  cashBookEntries     InventoryCashBookEntry[]
 
   @@map("companies")
 }
@@ -433,6 +460,10 @@ model Customer {
   email          String?
   paymentTerms   String?  @map("payment_terms")
   creditLimit    Decimal? @default(0) @map("credit_limit") @db.Decimal(14, 2)
+  /// ICE_CREAM: distributor vs end customer — rolls into trade discount defaults.
+  buyerRole      BuyerPartyRole @default(CUSTOMER) @map("buyer_role")
+  /// Optional per-party trade discount % off MRP (overrides company role default).
+  tradeDiscountPct Decimal? @map("trade_discount_pct") @db.Decimal(5, 2)
   isActive       Boolean  @default(true) @map("is_active")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
@@ -450,6 +481,7 @@ model Customer {
   quotes Quote[] @relation("QuoteCustomer")
   buyerUsers BuyerUser[]
   buyerInvites BuyerInvite[]
+  cashBookEntries InventoryCashBookEntry[]
 
   @@index([companyId])
   @@map("customers")
@@ -607,6 +639,7 @@ id           String   @id @default(uuid()) @db.Uuid
   boqMeasurementsRecorded BoqMeasurement[] @relation("BoqMeasurementRecordedBy")
   subcontractMaterialIssues SubcontractorMaterialIssue[] @relation("SubcontractMaterialIssuedBy")
   pettyCashEntries     PettyCashEntry[] @relation("PettyCashRecordedBy")
+  cashBookEntries      InventoryCashBookEntry[] @relation("CashBookRecordedBy")
   punchItemsAssigned   PunchItem[] @relation("PunchItemAssignedTo")
   punchItemsClosed     PunchItem[] @relation("PunchItemClosedBy")
   punchItemsCreated    PunchItem[] @relation("PunchItemCreatedBy")
@@ -1345,6 +1378,9 @@ model Invoice {
   dueDate       DateTime      @map("due_date") @db.Date
   status        InvoiceStatus @default(DRAFT)
   subtotal      Decimal       @default(0) @db.Decimal(14, 2)
+  /// Sheet-level trade/invoice discount (applied after line sum, before GST).
+  discountPct    Decimal       @default(0) @map("discount_pct") @db.Decimal(5, 2)
+  discountAmount Decimal       @default(0) @map("discount_amount") @db.Decimal(14, 2)
   gstRate       Decimal       @default(0) @map("gst_rate") @db.Decimal(5, 2)
   gstAmount     Decimal       @default(0) @map("gst_amount") @db.Decimal(14, 2)
   cgstAmount    Decimal       @default(0) @map("cgst_amount") @db.Decimal(14, 2)
@@ -1378,6 +1414,7 @@ model Invoice {
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.2/2.4): returns + credit notes.
   salesReturns SalesReturn[]
   creditNotes  CreditNote[]
+  cashBookEntries InventoryCashBookEntry[]
 
   @@unique([companyId, invoiceNumber])
   @@unique([stockMovementId])
@@ -2739,6 +2776,34 @@ model PettyCashEntry {
   @@index([projectId])
   @@index([companyId, status])
   @@map("petty_cash_entries")
+}
+
+/// ICE_CREAM / inventory shop cash book (not construction site petty cash).
+model InventoryCashBookEntry {
+  id          String              @id @default(uuid()) @db.Uuid
+  companyId   String              @map("company_id") @db.Uuid
+  entryDate   DateTime            @map("entry_date") @db.Date
+  direction   CashBookDirection
+  entryType   CashBookEntryType   @map("entry_type")
+  paymentMode CashBookPaymentMode @default(CASH) @map("payment_mode")
+  amount      Decimal             @db.Decimal(14, 2)
+  description String
+  reference   String?
+  invoiceId   String?             @map("invoice_id") @db.Uuid
+  customerId  String?             @map("customer_id") @db.Uuid
+  recordedBy  String              @map("recorded_by") @db.Uuid
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoice  Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  recorder User     @relation("CashBookRecordedBy", fields: [recordedBy], references: [id])
+
+  @@index([companyId, entryDate])
+  @@index([companyId])
+  @@index([invoiceId])
+  @@map("inventory_cash_book_entries")
 }
 
 // ------------------------------------------------------------------

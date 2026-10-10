@@ -152,6 +152,8 @@ export interface ReportSettings {
   companyPhone?: string | null;
   companyEmail?: string | null;
   fssaiLicenceNo?: string | null;
+  distributorDiscountPct?: number | null;
+  customerDiscountPct?: number | null;
 }
 
 export const settingsReportKeys = {

@@ -24,6 +24,7 @@ import {
   buyerLoginSchema,
   buyerSendOtpSchema,
   buyerPlaceOrderSchema,
+  createCashBookEntrySchema,
 } from '@buildflow/shared';
 
 export const iceCreamStaffRouter = Router();
@@ -129,6 +130,26 @@ iceCreamStaffRouter.patch(
   requireRole(Role.OWNER, Role.INVENTORY_MANAGER),
   validate({ body: updateSalesShippingSchema }),
   ctrl.updateShipping,
+);
+
+iceCreamStaffRouter.get('/cash-book', requireInventoryFeature('b2b_buyer_app'), ctrl.cashBookDay);
+iceCreamStaffRouter.post(
+  '/cash-book',
+  requireInventoryFeature('b2b_buyer_app'),
+  requireRole(Role.OWNER, Role.INVENTORY_MANAGER),
+  validate({ body: createCashBookEntrySchema }),
+  ctrl.createCashBookEntry,
+);
+iceCreamStaffRouter.delete(
+  '/cash-book/:id',
+  requireInventoryFeature('b2b_buyer_app'),
+  requireRole(Role.OWNER, Role.INVENTORY_MANAGER),
+  ctrl.deleteCashBookEntry,
+);
+iceCreamStaffRouter.get(
+  '/daily-sales-summary',
+  requireInventoryFeature('b2b_buyer_app'),
+  ctrl.dailySalesSummary,
 );
 
 export const buyerPublicRouter = Router();

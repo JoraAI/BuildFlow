@@ -34,6 +34,10 @@ function normalizeCustomer(input: CustomerInput) {
     email: input.email?.trim() || null,
     paymentTerms: input.paymentTerms?.trim() || null,
     creditLimit: input.creditLimit ?? 0,
+    ...(input.buyerRole ? { buyerRole: input.buyerRole } : {}),
+    ...(input.tradeDiscountPct !== undefined
+      ? { tradeDiscountPct: input.tradeDiscountPct }
+      : {}),
   };
 }
 

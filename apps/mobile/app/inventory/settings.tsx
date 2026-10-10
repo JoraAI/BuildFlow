@@ -78,6 +78,8 @@ export default function InventorySettingsScreen() {
   const [companyPhone, setCompanyPhone] = useState('');
   const [companyEmail, setCompanyEmail] = useState('');
   const [fssaiLicenceNo, setFssaiLicenceNo] = useState('');
+  const [distributorDiscountPct, setDistributorDiscountPct] = useState('20');
+  const [customerDiscountPct, setCustomerDiscountPct] = useState('10');
 
   useEffect(() => {
     if (company?.inventoryProfile) setProfile(company.inventoryProfile);
@@ -116,6 +118,12 @@ export default function InventorySettingsScreen() {
     setCompanyPhone(reportSettings.companyPhone ?? '');
     setCompanyEmail(reportSettings.companyEmail ?? '');
     setFssaiLicenceNo(reportSettings.fssaiLicenceNo ?? '');
+    if (reportSettings.distributorDiscountPct != null) {
+      setDistributorDiscountPct(String(reportSettings.distributorDiscountPct));
+    }
+    if (reportSettings.customerDiscountPct != null) {
+      setCustomerDiscountPct(String(reportSettings.customerDiscountPct));
+    }
   }, [reportSettings]);
 
   const savePoApproval = async () => {
@@ -518,6 +526,52 @@ export default function InventorySettingsScreen() {
           </View>
         </Card>
 
+        {company?.inventoryVertical === 'ICE_CREAM' ? (
+          <Card className="p-5 mb-4">
+            <Text className="text-base font-bold text-text mb-1">B2B trade discounts</Text>
+            <Text className="text-xs text-muted mb-3">
+              Default % off MRP for buyer app catalog and role-based pricing. Per-party override wins;
+              explicit price-list rates win over both.
+            </Text>
+            <Input
+              label="Distributor discount %"
+              value={distributorDiscountPct}
+              onChangeText={setDistributorDiscountPct}
+              keyboardType="decimal-pad"
+            />
+            <View className="h-2" />
+            <Input
+              label="Customer discount %"
+              value={customerDiscountPct}
+              onChangeText={setCustomerDiscountPct}
+              keyboardType="decimal-pad"
+            />
+            {user?.role === 'OWNER' || user?.role === 'INVENTORY_MANAGER' ? (
+              <View className="mt-3">
+                <Button
+                  label="Save trade discounts"
+                  variant="secondary"
+                  loading={updateReportSettings.isPending}
+                  onPress={() => {
+                    void run(async () => {
+                      const d = Number(distributorDiscountPct);
+                      const c = Number(customerDiscountPct);
+                      if (!Number.isFinite(d) || d < 0 || d > 100 || !Number.isFinite(c) || c < 0 || c > 100) {
+                        toast.error('Enter discount % between 0 and 100');
+                        return;
+                      }
+                      await updateReportSettings.mutateAsync({
+                        distributorDiscountPct: d,
+                        customerDiscountPct: c,
+                      });
+                      toast.success('Trade discounts saved');
+                    });
+                  }}
+                />
+              </View>
+            ) : null}
+          </Card>
+        ) : null}
 
         {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 6): analytics reports entry. */}
         <Card className="p-5 mb-4">

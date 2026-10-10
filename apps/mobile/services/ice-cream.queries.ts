@@ -9,6 +9,8 @@ const keys = {
   production: ['ice-cream', 'production'] as const,
   buyers: ['ice-cream', 'buyers'] as const,
   salesDashboard: ['ice-cream', 'sales-dashboard'] as const,
+  cashBook: ['ice-cream', 'cash-book'] as const,
+  dailySales: ['ice-cream', 'daily-sales'] as const,
 };
 
 export type RecipeRow = {
@@ -296,6 +298,113 @@ export function useSetB2bPublished() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['resources'] });
       qc.invalidateQueries({ queryKey: ['materials'] });
+    },
+  });
+}
+
+export type CashBookEntry = {
+  id: string;
+  entryDate: string;
+  direction: 'IN' | 'OUT';
+  entryType: string;
+  paymentMode: string;
+  amount: number;
+  description: string;
+  reference?: string | null;
+  invoiceId?: string | null;
+  customerId?: string | null;
+  createdAt: string;
+};
+
+export type CashBookDay = {
+  date: string;
+  opening: number;
+  inTotal: number;
+  outTotal: number;
+  closing: number;
+  entries: CashBookEntry[];
+};
+
+export type DailySalesSummary = {
+  date: string;
+  sales: {
+    invoiceCount: number;
+    gross: number;
+    discount: number;
+    gst: number;
+    net: number;
+    collected: number;
+    outstanding: number;
+  };
+  cash: {
+    opening: number;
+    collectionsByMode: Record<string, number>;
+    expenses: number;
+    deposits: number;
+    closing: number;
+  };
+  invoices: Array<{
+    id: string;
+    invoiceNumber: string;
+    clientName: string;
+    total: number;
+    paidAmount: number;
+    status: string;
+  }>;
+  entries: CashBookEntry[];
+};
+
+export function useCashBookDay(date: string, enabled = true) {
+  return useQuery({
+    queryKey: [...keys.cashBook, date] as const,
+    enabled: enabled && !!date,
+    queryFn: () =>
+      apiFetch<CashBookDay>(`/inventory/ice-cream/cash-book?date=${encodeURIComponent(date)}`),
+  });
+}
+
+export function useDailySalesSummary(date: string, enabled = true) {
+  return useQuery({
+    queryKey: [...keys.dailySales, date] as const,
+    enabled: enabled && !!date,
+    queryFn: () =>
+      apiFetch<DailySalesSummary>(
+        `/inventory/ice-cream/daily-sales-summary?date=${encodeURIComponent(date)}`,
+      ),
+  });
+}
+
+export function useCreateCashBookEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      entryDate: string;
+      direction: 'IN' | 'OUT';
+      entryType: string;
+      paymentMode: string;
+      amount: number;
+      description: string;
+      reference?: string;
+    }) =>
+      apiFetch<CashBookEntry>('/inventory/ice-cream/cash-book', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.cashBook });
+      qc.invalidateQueries({ queryKey: keys.dailySales });
+    },
+  });
+}
+
+export function useDeleteCashBookEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch(`/inventory/ice-cream/cash-book/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.cashBook });
+      qc.invalidateQueries({ queryKey: keys.dailySales });
     },
   });
 }

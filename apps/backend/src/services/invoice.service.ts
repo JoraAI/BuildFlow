@@ -18,6 +18,32 @@ import type {
 
 const QTY_EPS = 0.001;
 
+/** Sheet discount: prefer amount when both set inconsistently; else pct × lineSum. */
+export function resolveSheetDiscount(
+  lineSum: number,
+  discountPct?: number | null,
+  discountAmount?: number | null,
+): { discountPct: number; discountAmount: number; taxable: number } {
+  const pct = discountPct != null && Number.isFinite(Number(discountPct)) ? Number(discountPct) : 0;
+  let amount =
+    discountAmount != null && Number.isFinite(Number(discountAmount))
+      ? Number(discountAmount)
+      : 0;
+  if (amount <= 0 && pct > 0) {
+    amount = round2((lineSum * pct) / 100);
+  } else if (amount > 0 && pct <= 0 && lineSum > 0) {
+    // derive display pct from absolute amount
+  }
+  amount = Math.min(Math.max(0, amount), lineSum);
+  const derivedPct =
+    pct > 0 ? Math.min(100, pct) : lineSum > 0 ? round2((amount / lineSum) * 100) : 0;
+  return {
+    discountPct: derivedPct,
+    discountAmount: amount,
+    taxable: round2(lineSum - amount),
+  };
+}
+
 /**
  * Prevent RA invoices from certifying more than (executed − already billed).
  * Lines without boqItemId are skipped (free-text RA lines).
@@ -113,6 +139,8 @@ export interface InvoiceListItem {
   raSequence: number | null;
   retentionPct: number;
   subtotal: number;
+  discountPct?: number;
+  discountAmount?: number;
   gstAmount: number;
   tdsAmount: number;
   total: number;
@@ -137,6 +165,8 @@ function serialize(inv: {
   dueDate: Date;
   status: string;
   subtotal: Decimal;
+  discountPct?: Decimal;
+  discountAmount?: Decimal;
   gstRate: Decimal;
   gstAmount: Decimal;
   cgstAmount: Decimal;
@@ -194,6 +224,8 @@ function serialize(inv: {
     currentCertifiedTotal: toNum(inv.currentCertifiedTotal),
     cumulativeCertifiedTotal: toNum(inv.cumulativeCertifiedTotal),
     subtotal: toNum(inv.subtotal),
+    discountPct: toNum(inv.discountPct),
+    discountAmount: toNum(inv.discountAmount),
     gstRate: toNum(inv.gstRate),
     gstAmount: toNum(inv.gstAmount),
     cgstAmount: toNum(inv.cgstAmount),
@@ -395,7 +427,9 @@ export async function createInvoice(companyId: string, _userId: string, input: C
       return { ...li, rate, amount, certifiedAmount: amount };
     });
 
-    const subtotal = sumAmounts(lineAmounts.map((li) => li.amount));
+    const lineSum = sumAmounts(lineAmounts.map((li) => li.amount));
+    const sheetDiscount = resolveSheetDiscount(lineSum, input.discountPct, input.discountAmount);
+    const subtotal = lineSum;
 
     let previousCertifiedTotal = 0;
     let raSequence = input.raSequence;
@@ -423,7 +457,8 @@ export async function createInvoice(companyId: string, _userId: string, input: C
       previousCertifiedTotal = prev[0] ? Number(prev[0].cumulativeCertifiedTotal) : 0;
     }
 
-    const currentCertifiedTotal = subtotal;
+    // GST / retention on taxable (after sheet discount). RA still uses certified line sum as base when no discount.
+    const currentCertifiedTotal = sheetDiscount.taxable;
     const cumulativeCertifiedTotal = round2(previousCertifiedTotal + currentCertifiedTotal);
     const retentionPct = input.retentionPct ?? 0;
     // FIX (FIN-H4): Retention applies to the CURRENT certified amount (this bill's
@@ -472,7 +507,9 @@ export async function createInvoice(companyId: string, _userId: string, input: C
         previousCertifiedTotal,
         currentCertifiedTotal,
         cumulativeCertifiedTotal,
-        subtotal: currentCertifiedTotal,
+        subtotal,
+        discountPct: sheetDiscount.discountPct,
+        discountAmount: sheetDiscount.discountAmount,
         gstRate: input.gstRate,
         gstAmount: gst.gstAmount,
         cgstAmount: gst.cgstAmount,
@@ -571,7 +608,7 @@ export async function updateInvoice(
 
   let subtotal = Number(inv.subtotal);
   let lineItemsData: Record<string, unknown> | undefined;
-  let currentCertifiedTotal = subtotal;
+  let lineSum = subtotal;
 
   if (input.lineItems) {
     if (invoiceType === 'RUNNING_ACCOUNT') {
@@ -596,8 +633,8 @@ export async function updateInvoice(
           amount,
         };
       });
-      currentCertifiedTotal = sumAmounts(lineAmounts.map((li) => li.amount));
-      subtotal = currentCertifiedTotal;
+      lineSum = sumAmounts(lineAmounts.map((li) => li.amount));
+      subtotal = lineSum;
       lineItemsData = {
         deleteMany: {},
         create: lineAmounts.map((li) => ({
@@ -621,8 +658,8 @@ export async function updateInvoice(
         ...li,
         amount: lineAmount(li.quantity, li.rate),
       }));
-      subtotal = sumAmounts(lineAmounts.map((li) => li.amount));
-      currentCertifiedTotal = subtotal;
+      lineSum = sumAmounts(lineAmounts.map((li) => li.amount));
+      subtotal = lineSum;
       lineItemsData = {
         deleteMany: {},
         create: lineAmounts.map((li) => ({
@@ -640,6 +677,13 @@ export async function updateInvoice(
     }
   }
 
+  const sheetDiscount = resolveSheetDiscount(
+    lineSum,
+    input.discountPct !== undefined ? input.discountPct : Number(inv.discountPct),
+    input.discountAmount !== undefined ? input.discountAmount : Number(inv.discountAmount),
+  );
+  const currentCertifiedTotal = sheetDiscount.taxable;
+
   const gst = calculateGST({
     subtotal: currentCertifiedTotal,
     gstRate,
@@ -652,14 +696,13 @@ export async function updateInvoice(
   // FIX (NR-5): Recompute retention for ALL invoice types, not just
   // RUNNING_ACCOUNT. Previously editing a STANDARD invoice that had retention
   // wrote retentionAmount: 0 and inflated total.
-  let total = gst.netPayable;
   const retentionAmount = round2((currentCertifiedTotal * retentionPct) / 100);
   let cumulativeCertifiedTotal = Number(inv.cumulativeCertifiedTotal);
   if (invoiceType === 'RUNNING_ACCOUNT') {
     const previousCertifiedTotal = Number(inv.previousCertifiedTotal);
     cumulativeCertifiedTotal = round2(previousCertifiedTotal + currentCertifiedTotal);
   }
-  total = round2(gst.netPayable - retentionAmount);
+  const total = round2(gst.netPayable - retentionAmount);
 
   return prisma.invoice.update({
     where: { id },
@@ -675,7 +718,9 @@ export async function updateInvoice(
       dueDate: input.dueDate,
       gstRate,
       tdsRate: tdsEnabled ? tdsRate : 0,
-      subtotal: currentCertifiedTotal,
+      subtotal,
+      discountPct: sheetDiscount.discountPct,
+      discountAmount: sheetDiscount.discountAmount,
       gstAmount: gst.gstAmount,
       cgstAmount: gst.cgstAmount,
       sgstAmount: gst.sgstAmount,
@@ -1125,6 +1170,32 @@ export async function recordPayment(
         createdBy: userId,
       },
     });
+
+    // ICE_CREAM cash book: post collection for cash-like methods (not CARD).
+    const method = input.method ?? 'BANK';
+    if (method === 'CASH' || method === 'UPI' || method === 'BANK') {
+      const company = await tx.company.findFirst({
+        where: { id: companyId },
+        select: { inventoryVertical: true },
+      });
+      if (company?.inventoryVertical === 'ICE_CREAM') {
+        await tx.inventoryCashBookEntry.create({
+          data: {
+            companyId,
+            entryDate: input.paymentDate ?? new Date(),
+            direction: 'IN',
+            entryType: 'SALE_COLLECTION',
+            paymentMode: method === 'UPI' ? 'UPI' : method === 'BANK' ? 'BANK' : 'CASH',
+            amount: input.amount,
+            description: `Collection for invoice ${inv.invoiceNumber}`,
+            reference: input.reference ?? inv.invoiceNumber,
+            invoiceId: inv.id,
+            customerId: inv.customerId,
+            recordedBy: userId,
+          },
+        });
+      }
+    }
 
     return tx.invoice.findUniqueOrThrow({ where: { id } });
   });

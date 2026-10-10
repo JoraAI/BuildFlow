@@ -24,11 +24,14 @@ export function PartyModal({
   editing,
   onClose,
   onSave,
+  showBuyerRole = false,
 }: {
   kind: Kind;
   editing: PartyRow | null;
   onClose: () => void;
   onSave: (input: PartyInput) => Promise<void>;
+  /** ICE_CREAM: distributor vs customer + optional trade discount override. */
+  showBuyerRole?: boolean;
 }) {
   const { isPhone } = useViewport();
   const [name, setName] = useState(editing?.name ?? '');
@@ -42,6 +45,12 @@ export function PartyModal({
   const [paymentTerms, setPaymentTerms] = useState(editing?.paymentTerms ?? '');
   const [creditLimit, setCreditLimit] = useState(
     editing?.creditLimit != null ? String(Number(editing.creditLimit)) : '',
+  );
+  const [buyerRole, setBuyerRole] = useState<'DISTRIBUTOR' | 'CUSTOMER'>(
+    editing?.buyerRole === 'DISTRIBUTOR' ? 'DISTRIBUTOR' : 'CUSTOMER',
+  );
+  const [tradeDiscountPct, setTradeDiscountPct] = useState(
+    editing?.tradeDiscountPct != null ? String(Number(editing.tradeDiscountPct)) : '',
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -64,7 +73,18 @@ export function PartyModal({
         billingAddress: billingAddress.trim() || undefined,
         shippingAddress: shippingAddress.trim() || undefined,
         paymentTerms: paymentTerms || undefined,
-        ...(kind === 'customer' ? { creditLimit: creditLimit === '' ? 0 : Number(creditLimit) } : {}),
+        ...(kind === 'customer'
+          ? {
+              creditLimit: creditLimit === '' ? 0 : Number(creditLimit),
+              ...(showBuyerRole
+                ? {
+                    buyerRole,
+                    tradeDiscountPct:
+                      tradeDiscountPct.trim() === '' ? null : Number(tradeDiscountPct),
+                  }
+                : {}),
+            }
+          : {}),
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save');
@@ -109,6 +129,26 @@ export function PartyModal({
                 keyboardType="decimal-pad"
                 placeholder="0 = upfront only"
               />
+            ) : null}
+            {kind === 'customer' && showBuyerRole ? (
+              <>
+                <Select
+                  label="Buyer role"
+                  value={buyerRole}
+                  onChange={(v) => v && setBuyerRole(v as 'DISTRIBUTOR' | 'CUSTOMER')}
+                  options={[
+                    { title: 'Customer', value: 'CUSTOMER' },
+                    { title: 'Distributor', value: 'DISTRIBUTOR' },
+                  ]}
+                />
+                <Input
+                  label="Trade discount % override (optional)"
+                  value={tradeDiscountPct}
+                  onChangeText={setTradeDiscountPct}
+                  keyboardType="decimal-pad"
+                  placeholder="Blank = use company role default"
+                />
+              </>
             ) : null}
             {error ? <Text className="text-sm text-danger mt-2">{error}</Text> : null}
             <View className="flex-row flex-wrap gap-2 mt-4 mb-4">

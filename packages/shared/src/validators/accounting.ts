@@ -48,6 +48,10 @@ export const createInvoiceSchema = z.object({
   raSequence: z.coerce.number().int().positive().optional(),
   milestoneLabel: z.string().max(200).optional(),
   retentionPct: z.coerce.number().min(0).max(100).default(0),
+  /** Sheet-level discount % off line sum (before GST). */
+  discountPct: z.coerce.number().min(0).max(100).optional(),
+  /** Absolute sheet discount ₹; used when pct omitted or as override. */
+  discountAmount: z.coerce.number().nonnegative().optional(),
   lineItems: z.array(invoiceLineItemSchema).min(1),
 });
 export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>;
@@ -65,6 +69,8 @@ export const updateInvoiceSchema = z.object({
   tdsEnabled: z.boolean().optional(),
   tdsRate: z.coerce.number().min(0).max(30).optional(),
   notes: z.string().max(2000).optional(),
+  discountPct: z.coerce.number().min(0).max(100).optional(),
+  discountAmount: z.coerce.number().nonnegative().optional(),
   lineItems: z.array(invoiceLineItemSchema).optional(),
 });
 export type UpdateInvoiceInput = z.infer<typeof updateInvoiceSchema>;

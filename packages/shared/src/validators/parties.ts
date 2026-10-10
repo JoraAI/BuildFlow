@@ -24,9 +24,16 @@ const partyContactSchema = z.object({
   paymentTerms: z.string().max(100).optional(),
 });
 
+export const buyerPartyRoleSchema = z.enum(['DISTRIBUTOR', 'CUSTOMER']);
+export type BuyerPartyRole = z.infer<typeof buyerPartyRoleSchema>;
+
 export const customerSchema = partyContactSchema.extend({
   /** Credit limit in ₹ (0 = no credit / upfront only). */
   creditLimit: z.coerce.number().nonnegative().max(1e12).optional(),
+  /** ICE_CREAM B2B role — drives default trade discount % off MRP. */
+  buyerRole: buyerPartyRoleSchema.optional(),
+  /** Optional per-party trade discount % (overrides company role default). */
+  tradeDiscountPct: z.coerce.number().min(0).max(100).optional().nullable(),
 });
 export type CustomerInput = z.infer<typeof customerSchema>;
 

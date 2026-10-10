@@ -118,6 +118,7 @@ function NewInvoiceModal({
     clientAddress?: string;
     invoiceDate: string;
     dueDate: string;
+    discountPct?: number;
     lineItems: Array<{
       description: string;
       quantity: number;
@@ -142,6 +143,7 @@ function NewInvoiceModal({
   const [unit, setUnit] = useState('no');
   const [rate, setRate] = useState('');
   const [gstRate, setGstRate] = useState('18');
+  const [discountPct, setDiscountPct] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -153,6 +155,7 @@ function NewInvoiceModal({
     }
     setSaving(true);
     try {
+      const disc = discountPct.trim() === '' ? undefined : Number(discountPct);
       await onSubmit({
         // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.1): optional party-master link.
         ...(customerId ? { customerId } : {}),
@@ -161,6 +164,7 @@ function NewInvoiceModal({
         clientAddress: clientAddress.trim() || undefined,
         invoiceDate,
         dueDate,
+        ...(disc != null && Number.isFinite(disc) && disc > 0 ? { discountPct: disc } : {}),
         lineItems: [
           {
             description,
@@ -180,6 +184,7 @@ function NewInvoiceModal({
       setHsnSacCode('');
       setQuantity('1');
       setRate('');
+      setDiscountPct('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create invoice');
     } finally {
@@ -272,9 +277,17 @@ function NewInvoiceModal({
                 <Input label="GST %" value={gstRate} onChangeText={setGstRate} keyboardType="numeric" />
               </View>
             </View>
+            <Input
+              label="Sheet discount % (optional)"
+              value={discountPct}
+              onChangeText={setDiscountPct}
+              keyboardType="decimal-pad"
+              placeholder="Applied after lines, before GST"
+            />
             {error ? <Text className="text-danger text-sm mt-2">{error}</Text> : null}
             <View className="h-4" />
             <Button label="Create invoice" onPress={submit} loading={saving} fullWidth />
+            {isPhone ? <View className="h-6" /> : null}
           </ScrollView>
         </Pressable>
       </Pressable>

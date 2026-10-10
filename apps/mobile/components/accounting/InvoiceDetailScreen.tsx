@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
-import { Card, Badge, Button, Input, EmptyState, LoadingSkeleton, toast, BusyOverlay, useBusy } from '@/components/ui';
+import { Card, Badge, Button, Input, Select, EmptyState, LoadingSkeleton, toast, BusyOverlay, useBusy } from '@/components/ui';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { useViewport } from '@/hooks/useViewport';
@@ -51,6 +51,7 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
     fallbackBackHref.startsWith('/inventory');
   const [showPayment, setShowPayment] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'BANK' | 'UPI' | 'CARD' | 'OTHER'>('CASH');
   const [formError, setFormError] = useState<string | null>(null);
 
   if (isLoading) {
@@ -104,7 +105,11 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
     if (!ok) return;
     try {
       await run(async () => {
-        await recordPayment.mutateAsync({ id: invoice.id, amount: balanceDue });
+        await recordPayment.mutateAsync({
+          id: invoice.id,
+          amount: balanceDue,
+          ...(isInventoryShell ? { method: paymentMethod } : {}),
+        });
       });
       toast.success('Full payment recorded');
     } catch (e) {
@@ -122,7 +127,11 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
     void (async () => {
       try {
         await run(async () => {
-          await recordPayment.mutateAsync({ id: invoice.id, amount });
+          await recordPayment.mutateAsync({
+            id: invoice.id,
+            amount,
+            ...(isInventoryShell ? { method: paymentMethod } : {}),
+          });
         });
         setShowPayment(false);
         setPaymentAmount('');
@@ -140,6 +149,17 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
     <Card>
       <View className="gap-2">
         <Row label="Subtotal" value={formatINR(invoice.subtotal)} />
+        {(invoice.discountAmount ?? 0) > 0 ? (
+          <Row
+            label={
+              (invoice.discountPct ?? 0) > 0
+                ? `Discount (${invoice.discountPct}%)`
+                : 'Discount'
+            }
+            value={`- ${formatINR(invoice.discountAmount ?? 0)}`}
+            danger
+          />
+        ) : null}
         {invoice.cgstAmount > 0 && <Row label="CGST" value={formatINR(invoice.cgstAmount)} muted />}
         {invoice.sgstAmount > 0 && <Row label="SGST" value={formatINR(invoice.sgstAmount)} muted />}
         {invoice.igstAmount > 0 && <Row label="IGST" value={formatINR(invoice.igstAmount)} muted />}
@@ -240,6 +260,20 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
             placeholder={balanceDue.toString()}
             error={formError ?? undefined}
           />
+          {isInventoryShell ? (
+            <Select
+              label="Payment mode"
+              value={paymentMethod}
+              onChange={(v) => v && setPaymentMethod(v as typeof paymentMethod)}
+              options={[
+                { title: 'Cash', value: 'CASH' },
+                { title: 'UPI', value: 'UPI' },
+                { title: 'Bank', value: 'BANK' },
+                { title: 'Card', value: 'CARD' },
+                { title: 'Other', value: 'OTHER' },
+              ]}
+            />
+          ) : null}
           <View className="flex-row gap-2 mt-2">
             <View className="flex-1">
               <Button
