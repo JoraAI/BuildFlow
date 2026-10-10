@@ -173,6 +173,8 @@ export async function createResource(
       mrpUpdatedAt: input.mrp != null ? new Date() : null,
       // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor unit cost.
       costPrice: input.costPrice ?? null,
+      distributorRate: input.distributorRate ?? null,
+      customerRate: input.customerRate ?? null,
       gstRate: input.gstRate ?? 0,
       hsnSacCode: input.hsnSacCode ?? null,
       brandOrSpec: input.brandOrSpec ?? null,
@@ -271,6 +273,8 @@ export async function updateResource(
       }),
       // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor unit cost.
       ...(input.costPrice !== undefined && { costPrice: input.costPrice }),
+      ...(input.distributorRate !== undefined && { distributorRate: input.distributorRate }),
+      ...(input.customerRate !== undefined && { customerRate: input.customerRate }),
       ...(input.gstRate !== undefined && { gstRate: input.gstRate }),
       ...(input.hsnSacCode !== undefined && { hsnSacCode: input.hsnSacCode }),
       ...(input.brandOrSpec !== undefined && { brandOrSpec: input.brandOrSpec }),

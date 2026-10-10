@@ -45,6 +45,10 @@ export interface Resource {
   leadTimeDays?: number | null;
   /** ICE_CREAM: when true, item appears in Icecream-inventory-buyer catalog. */
   b2bPublished?: boolean;
+  /** ICE_CREAM B2B: sell ₹ for distributor role. */
+  distributorRate?: string | number | null;
+  /** ICE_CREAM B2B: sell ₹ for customer role. */
+  customerRate?: string | number | null;
 }
 
 export interface PriceHistoryPoint {

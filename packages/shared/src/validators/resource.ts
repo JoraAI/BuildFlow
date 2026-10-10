@@ -28,6 +28,10 @@ export const createResourceSchema = z.object({
   // from the selling `rate`. Inventory-only; construction keeps `rate` as the
   // estimate catalog rate and never reads this field.
   costPrice: z.number().min(0).nullable().optional(),
+  /** ICE_CREAM B2B: sell ₹ for distributor role (price list still overrides). */
+  distributorRate: z.number().min(0).nullable().optional(),
+  /** ICE_CREAM B2B: sell ₹ for customer role (price list still overrides). */
+  customerRate: z.number().min(0).nullable().optional(),
   gstRate: z.number().min(0).max(100).optional(),
   hsnSacCode: z.string().max(20).optional(),
   brandOrSpec: z.string().max(200).optional(),

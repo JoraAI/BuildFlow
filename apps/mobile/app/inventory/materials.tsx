@@ -33,6 +33,7 @@ import { InventoryFilterBar } from '@/components/inventory/InventoryFilterBar';
 import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
 import { matchesStatus, matchesText } from '@/utils/inventory-filters';
 import { inventoryProcurementHref } from '@/utils/navigation-paths';
+import { useIceCreamVertical } from '@/hooks/useIceCreamVertical';
 
 const MATERIAL_STATUS_TABS = [
   { value: 'ALL' as const, label: 'All' },
@@ -88,7 +89,7 @@ export default function InventoryMaterialsScreen() {
   const deleteResource = useDeleteResource();
 
   const isKirana = user?.inventoryVertical === 'GENERAL';
-  const isIceCream = user?.inventoryVertical === 'ICE_CREAM';
+  const isIceCream = useIceCreamVertical();
   const setB2bPublished = useSetB2bPublished();
   const { data: stock } = useStockSummary(user?.defaultProjectId ?? '');
 
@@ -401,6 +402,7 @@ export default function InventoryMaterialsScreen() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         itemLabel={itemLabel}
+        showRoleRates={isIceCream}
         submitting={createResource.isPending}
         onSubmit={async (input) => {
           await run(async () => {
@@ -418,6 +420,7 @@ export default function InventoryMaterialsScreen() {
         initial={editing ?? undefined}
         onClose={() => setEditing(null)}
         itemLabel={itemLabel}
+        showRoleRates={isIceCream}
         submitting={editing !== null && updateResource.isPending}
         onSubmit={async (input) => {
           if (!editing) return;
@@ -470,6 +473,7 @@ function MaterialFormModal({
   onClose,
   initial,
   itemLabel,
+  showRoleRates = false,
   onSubmit,
   submitting,
 }: {
@@ -478,6 +482,8 @@ function MaterialFormModal({
   onClose: () => void;
   initial?: Resource;
   itemLabel: string;
+  /** ICE_CREAM: show distributor / customer B2B sell prices. */
+  showRoleRates?: boolean;
   onSubmit: (input: {
     name: string;
     type: 'MATERIAL';
@@ -486,6 +492,8 @@ function MaterialFormModal({
     mrp?: number | null;
     // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor unit cost.
     costPrice?: number | null;
+    distributorRate?: number | null;
+    customerRate?: number | null;
     gstRate?: number;
     hsnSacCode?: string;
     brandOrSpec?: string;
@@ -513,6 +521,8 @@ function MaterialFormModal({
   const [mrp, setMrp] = useState('');
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor unit cost.
   const [costPrice, setCostPrice] = useState('');
+  const [distributorRate, setDistributorRate] = useState('');
+  const [customerRate, setCustomerRate] = useState('');
   const [gstRate, setGstRate] = useState('18');
   const [hsnSacCode, setHsnSacCode] = useState('');
   const [brandOrSpec, setBrandOrSpec] = useState('');
@@ -540,6 +550,12 @@ function MaterialFormModal({
       setRate(String(initial.rate ?? 0));
       setMrp(initial.mrp == null ? '' : String(initial.mrp));
       setCostPrice(initial.costPrice == null ? '' : String(Number(initial.costPrice) || ''));
+      setDistributorRate(
+        initial.distributorRate == null ? '' : String(Number(initial.distributorRate) || ''),
+      );
+      setCustomerRate(
+        initial.customerRate == null ? '' : String(Number(initial.customerRate) || ''),
+      );
       setGstRate(initial.gstRate !== undefined ? String(initial.gstRate) : '18');
       setHsnSacCode(initial.hsnSacCode ?? '');
       setBrandOrSpec(initial.brandOrSpec ?? '');
@@ -567,6 +583,8 @@ function MaterialFormModal({
     setRate('');
     setMrp('');
     setCostPrice('');
+    setDistributorRate('');
+    setCustomerRate('');
     setGstRate('18');
     setHsnSacCode('');
     setBrandOrSpec('');
@@ -645,6 +663,26 @@ function MaterialFormModal({
               keyboardType="decimal-pad"
               placeholder="Printed maximum retail price"
             />
+            {showRoleRates ? (
+              <>
+                <Input
+                  label="Distributor sell price (₹, optional)"
+                  value={distributorRate}
+                  onChangeText={setDistributorRate}
+                  keyboardType="decimal-pad"
+                  placeholder="B2B price for distributor parties"
+                  helper="Used in Icecream-inventory-buyer for Distributor role. Price lists override this."
+                />
+                <Input
+                  label="Customer sell price (₹, optional)"
+                  value={customerRate}
+                  onChangeText={setCustomerRate}
+                  keyboardType="decimal-pad"
+                  placeholder="B2B price for customer parties"
+                  helper="Used in Icecream-inventory-buyer for Customer role. Price lists override this."
+                />
+              </>
+            ) : null}
             <Input
               label="GST %"
               value={gstRate}
@@ -781,6 +819,18 @@ function MaterialFormModal({
                     setError('Selling price cannot exceed MRP');
                     return;
                   }
+                  const distNum = distributorRate === '' ? null : Number(distributorRate);
+                  const custNum = customerRate === '' ? null : Number(customerRate);
+                  if (showRoleRates) {
+                    if (distNum !== null && (!Number.isFinite(distNum) || distNum < 0)) {
+                      setError('Enter a valid distributor sell price');
+                      return;
+                    }
+                    if (custNum !== null && (!Number.isFinite(custNum) || custNum < 0)) {
+                      setError('Enter a valid customer sell price');
+                      return;
+                    }
+                  }
                   setError(null);
                   void onSubmit({
                     name: name.trim(),
@@ -789,6 +839,9 @@ function MaterialFormModal({
                     rate: rateNum,
                     mrp: mrpNum,
                     costPrice: costNum,
+                    ...(showRoleRates
+                      ? { distributorRate: distNum, customerRate: custNum }
+                      : {}),
                     gstRate: Number(gstRate) || 0,
                     hsnSacCode: hsnSacCode.trim() || undefined,
                     brandOrSpec: brandOrSpec.trim() || undefined,

@@ -159,7 +159,7 @@ export interface ResolvedCatalogRate {
   listRate: number;
   discountPct: number;
   rate: number;
-  source: 'CUSTOMER_PRICE' | 'DEFAULT_PRICE' | 'ROLE_MRP' | 'CATALOG';
+  source: 'CUSTOMER_PRICE' | 'DEFAULT_PRICE' | 'ROLE_SKU' | 'ROLE_MRP' | 'CATALOG';
 }
 
 /** Effective rates for many resources at once (customer override → default → role MRP → catalog). */
@@ -182,7 +182,7 @@ export async function resolveDetailedRates(
   const map = new Map<string, ResolvedCatalogRate>();
   if (resourceIds.length === 0) return map;
 
-  const [{ discountPct }, overrides, resources] = await Promise.all([
+  const [{ discountPct, buyerRole }, overrides, resources] = await Promise.all([
     loadRolePricingContext(companyId, customerId),
     prisma.customerPrice.findMany({
       where: {
@@ -196,15 +196,15 @@ export async function resolveDetailedRates(
     }),
     prisma.resource.findMany({
       where: { id: { in: resourceIds }, companyId },
-      select: { id: true, rate: true, mrp: true },
+      select: { id: true, rate: true, mrp: true, distributorRate: true, customerRate: true },
     }),
   ]);
 
-  const byResource = new Map<string, { customerRate?: number; defaultRate?: number }>();
+  const byResource = new Map<string, { customerPrice?: number; defaultPrice?: number }>();
   for (const o of overrides) {
     const entry = byResource.get(o.resourceId) ?? {};
-    if (o.customerId) entry.customerRate = Number(o.rate);
-    else entry.defaultRate = Number(o.rate);
+    if (o.customerId) entry.customerPrice = Number(o.rate);
+    else entry.defaultPrice = Number(o.rate);
     byResource.set(o.resourceId, entry);
   }
 
@@ -213,26 +213,47 @@ export async function resolveDetailedRates(
     const catalogRate = Number(r.rate ?? 0);
     const mrp = r.mrp != null ? Number(r.mrp) : null;
     const listRate = mrp != null && mrp > 0 ? mrp : catalogRate;
+    const roleSkuRate =
+      buyerRole === 'DISTRIBUTOR'
+        ? r.distributorRate != null
+          ? Number(r.distributorRate)
+          : null
+        : buyerRole === 'CUSTOMER'
+          ? r.customerRate != null
+            ? Number(r.customerRate)
+            : null
+          : null;
 
-    if (entry?.customerRate != null) {
+    if (entry?.customerPrice != null) {
       map.set(r.id, {
         resourceId: r.id,
         mrp,
         listRate,
         discountPct: 0,
-        rate: entry.customerRate,
+        rate: entry.customerPrice,
         source: 'CUSTOMER_PRICE',
       });
       continue;
     }
-    if (entry?.defaultRate != null) {
+    if (entry?.defaultPrice != null) {
       map.set(r.id, {
         resourceId: r.id,
         mrp,
         listRate,
         discountPct: 0,
-        rate: entry.defaultRate,
+        rate: entry.defaultPrice,
         source: 'DEFAULT_PRICE',
+      });
+      continue;
+    }
+    if (customerId && roleSkuRate != null && roleSkuRate >= 0) {
+      map.set(r.id, {
+        resourceId: r.id,
+        mrp,
+        listRate: roleSkuRate,
+        discountPct: 0,
+        rate: roleSkuRate,
+        source: 'ROLE_SKU',
       });
       continue;
     }

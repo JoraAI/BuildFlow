@@ -914,6 +914,10 @@ model Resource {
   trackingMode     ResourceTrackingMode @default(NONE) @map("tracking_mode")
   /// ICE_CREAM: when true, finished SKU is visible in the B2B buyer app catalog.
   b2bPublished     Boolean  @default(false) @map("b2b_published")
+  /// ICE_CREAM B2B: sell price for distributor parties (price list still overrides).
+  distributorRate  Decimal? @map("distributor_rate") @db.Decimal(12, 2)
+  /// ICE_CREAM B2B: sell price for customer parties (price list still overrides).
+  customerRate     Decimal? @map("customer_rate") @db.Decimal(12, 2)
   imageUrl         String?  @map("image_url")
   lastRateUpdatedAt DateTime? @map("last_rate_updated_at")
   isActive         Boolean  @default(true) @map("is_active")
