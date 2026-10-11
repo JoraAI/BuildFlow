@@ -23,6 +23,7 @@ import { useKeyboardOpen } from '@/hooks/useKeyboardOpen';
 import { BarcodeScannerOverlay } from '@/components/inventory/BarcodeScannerOverlay';
 import { SegmentedTrack } from '@/components/inventory/SegmentedTabs';
 import { useCustomers } from '@/services/party.queries';
+import { useEffectiveRates } from '@/services/inventory-gtm.queries';
 import { apiFetch } from '@/lib/api-client';
 import type { BarcodeItem } from '@/services/warehouse.queries';
 import type { StockSummaryRow } from '@/services/expansion.queries';
@@ -104,6 +105,8 @@ export function CheckoutCart({
   // collapsed behind "Add customer" until the shopkeeper needs it.
   const [customerOpen, setCustomerOpen] = useState(false);
   const [customerId, setCustomerId] = useState('');
+  // ICE_CREAM / B2B: role SKU + price-list rates for the selected party.
+  const { data: effectiveRates } = useEffectiveRates(customerId || undefined);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
@@ -111,6 +114,14 @@ export function CheckoutCart({
   const [allowExpired, setAllowExpired] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const priceForResource = (resourceId: string): string => {
+    const override = effectiveRates?.[resourceId];
+    if (override != null && override > 0) return String(override);
+    const row = rowFor(resourceId);
+    if (row?.catalogRate != null && Number(row.catalogRate) > 0) return String(row.catalogRate);
+    return '';
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -122,8 +133,7 @@ export function CheckoutCart({
               key: `cart-${Date.now()}-seed`,
               resourceId: seed.resourceId,
               quantity: '1',
-              unitPrice:
-                seed.catalogRate != null && Number(seed.catalogRate) > 0 ? String(seed.catalogRate) : '',
+              unitPrice: priceForResource(seed.resourceId),
             },
           ]
         : [],
@@ -141,6 +151,20 @@ export function CheckoutCart({
     setError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialResourceId]);
+
+  // Re-tag cart line prices when the party (or their role rates) changes.
+  useEffect(() => {
+    if (!customerId || !effectiveRates) return;
+    setLines((prev) =>
+      prev.map((l) => {
+        if (!l.resourceId) return l;
+        const override = effectiveRates[l.resourceId];
+        if (override == null || override <= 0) return l;
+        return { ...l, unitPrice: String(override) };
+      }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId, effectiveRates]);
 
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.1): explicit Esc close on web
   // (backdrop dismiss stays disabled while submitting).
@@ -193,7 +217,7 @@ export function CheckoutCart({
         key: `cart-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         resourceId,
         quantity: '1',
-        unitPrice: row?.catalogRate != null && Number(row.catalogRate) > 0 ? String(row.catalogRate) : '',
+        unitPrice: priceForResource(resourceId),
       },
     ]);
   };
