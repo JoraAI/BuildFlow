@@ -225,7 +225,14 @@ export default function InventoryMaterialsScreen() {
                 <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Stock</Text>
                 <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">MRP</Text>
                 <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Cost</Text>
-                <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Sell</Text>
+                {isIceCream ? (
+                  <>
+                    <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Dist</Text>
+                    <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Cust</Text>
+                  </>
+                ) : (
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Sell</Text>
+                )}
                 <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
               </View>
             ) : null
@@ -268,7 +275,24 @@ export default function InventoryMaterialsScreen() {
                   <Text className="flex-1 text-xs text-muted text-right">
                     {row.resource.costPrice != null ? `₹${Number(row.resource.costPrice).toFixed(2)}` : '-'}
                   </Text>
-                  <Text className="flex-1 text-sm font-bold text-primary text-right">{formatINR(Number(row.resource.rate))}</Text>
+                  {isIceCream ? (
+                    <>
+                      <Text className="flex-1 text-sm font-bold text-primary text-right">
+                        {row.resource.distributorRate != null
+                          ? formatINR(Number(row.resource.distributorRate))
+                          : '-'}
+                      </Text>
+                      <Text className="flex-1 text-sm font-bold text-primary text-right">
+                        {row.resource.customerRate != null
+                          ? formatINR(Number(row.resource.customerRate))
+                          : '-'}
+                      </Text>
+                    </>
+                  ) : (
+                    <Text className="flex-1 text-sm font-bold text-primary text-right">
+                      {formatINR(Number(row.resource.rate))}
+                    </Text>
+                  )}
                   <View className="flex-[1.6] flex-row flex-wrap justify-end gap-2 pl-2">
                     {isKirana ? (
                       <Button
@@ -339,12 +363,30 @@ export default function InventoryMaterialsScreen() {
                   ) : null}
                 </View>
                 <View className="items-end">
-                  <Text className="text-sm font-bold text-primary">
-                    {formatINR(Number(row.resource.rate))}
-                  </Text>
+                  {isIceCream ? (
+                    <>
+                      <Text className="text-sm font-bold text-primary">
+                        Dist{' '}
+                        {row.resource.distributorRate != null
+                          ? formatINR(Number(row.resource.distributorRate))
+                          : '—'}
+                      </Text>
+                      <Text className="text-sm font-bold text-primary mt-0.5">
+                        Cust{' '}
+                        {row.resource.customerRate != null
+                          ? formatINR(Number(row.resource.customerRate))
+                          : '—'}
+                      </Text>
+                    </>
+                  ) : (
+                    <Text className="text-sm font-bold text-primary">
+                      {formatINR(Number(row.resource.rate))}
+                    </Text>
+                  )}
                   {row.resource.costPrice != null ? (
                     <Text className="text-[11px] text-muted">
-                      Cost ₹{Number(row.resource.costPrice).toFixed(2)} · Sell ₹{Number(row.resource.rate).toFixed(2)}
+                      Cost ₹{Number(row.resource.costPrice).toFixed(2)}
+                      {!isIceCream ? ` · Sell ₹${Number(row.resource.rate).toFixed(2)}` : ''}
                     </Text>
                   ) : null}
                   {row.resource.mrp != null ? (
@@ -648,14 +690,16 @@ function MaterialFormModal({
               placeholder="0"
               helper="What you pay the vendor - new POs, receipts and reorder use this."
             />
-            <Input
-              label="Selling price (₹)"
-              value={rate}
-              onChangeText={setRate}
-              keyboardType="decimal-pad"
-              placeholder="0"
-              helper="What you charge customers - checkout, sales orders and invoices use this."
-            />
+            {!showRoleRates ? (
+              <Input
+                label="Selling price (₹)"
+                value={rate}
+                onChangeText={setRate}
+                keyboardType="decimal-pad"
+                placeholder="0"
+                helper="What you charge customers - checkout, sales orders and invoices use this."
+              />
+            ) : null}
             <Input
               label="MRP (₹, optional)"
               value={mrp}
@@ -666,20 +710,20 @@ function MaterialFormModal({
             {showRoleRates ? (
               <>
                 <Input
-                  label="Distributor sell price (₹, optional)"
+                  label="Distributor sell price (₹)"
                   value={distributorRate}
                   onChangeText={setDistributorRate}
                   keyboardType="decimal-pad"
-                  placeholder="B2B price for distributor parties"
-                  helper="Used in Icecream-inventory-buyer for Distributor role. Price lists override this."
+                  placeholder="Required"
+                  helper="Auto-applied on SO / invoice / buyer app when the party role is Distributor. Price lists override this."
                 />
                 <Input
-                  label="Customer sell price (₹, optional)"
+                  label="Customer sell price (₹)"
                   value={customerRate}
                   onChangeText={setCustomerRate}
                   keyboardType="decimal-pad"
-                  placeholder="B2B price for customer parties"
-                  helper="Used in Icecream-inventory-buyer for Customer role. Price lists override this."
+                  placeholder="Required"
+                  helper="Auto-applied when the party role is Customer. Also used as the catalog sell price. Price lists override this."
                 />
               </>
             ) : null}
@@ -798,11 +842,6 @@ function MaterialFormModal({
                     setError('Name is required');
                     return;
                   }
-                  const rateNum = Number(rate);
-                  if (!Number.isFinite(rateNum) || rateNum < 0) {
-                    setError('Enter a valid rate');
-                    return;
-                  }
                   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): cost has no
                   // MRP cap (cost is what you pay the vendor).
                   const costNum = costPrice === '' ? null : Number(costPrice);
@@ -815,21 +854,37 @@ function MaterialFormModal({
                     setError('Enter a valid MRP');
                     return;
                   }
-                  if (mrpNum !== null && mrpNum > 0 && rateNum > mrpNum) {
-                    setError('Selling price cannot exceed MRP');
-                    return;
-                  }
                   const distNum = distributorRate === '' ? null : Number(distributorRate);
                   const custNum = customerRate === '' ? null : Number(customerRate);
+                  let rateNum = Number(rate);
                   if (showRoleRates) {
-                    if (distNum !== null && (!Number.isFinite(distNum) || distNum < 0)) {
-                      setError('Enter a valid distributor sell price');
+                    if (distNum === null || !Number.isFinite(distNum) || distNum < 0) {
+                      setError('Distributor sell price is required');
                       return;
                     }
-                    if (custNum !== null && (!Number.isFinite(custNum) || custNum < 0)) {
-                      setError('Enter a valid customer sell price');
+                    if (custNum === null || !Number.isFinite(custNum) || custNum < 0) {
+                      setError('Customer sell price is required');
                       return;
                     }
+                    if (mrpNum !== null && mrpNum > 0) {
+                      if (distNum > mrpNum) {
+                        setError('Distributor sell price cannot exceed MRP');
+                        return;
+                      }
+                      if (custNum > mrpNum) {
+                        setError('Customer sell price cannot exceed MRP');
+                        return;
+                      }
+                    }
+                    // Catalog rate stays in sync with customer sell price (ICE_CREAM only).
+                    rateNum = custNum;
+                  } else if (!Number.isFinite(rateNum) || rateNum < 0) {
+                    setError('Enter a valid rate');
+                    return;
+                  }
+                  if (!showRoleRates && mrpNum !== null && mrpNum > 0 && rateNum > mrpNum) {
+                    setError('Selling price cannot exceed MRP');
+                    return;
                   }
                   setError(null);
                   void onSubmit({

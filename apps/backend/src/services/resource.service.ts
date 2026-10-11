@@ -51,6 +51,45 @@ async function assertTrackingModeAllowed(companyId: string, trackingMode?: strin
   }
 }
 
+async function isIceCreamCompany(companyId: string): Promise<boolean> {
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { inventoryVertical: true },
+  });
+  return company?.inventoryVertical === 'ICE_CREAM';
+}
+
+/**
+ * ICE_CREAM only: distributor + customer sell prices are mandatory; catalog
+ * `rate` is kept in sync with customerRate for legacy dependents.
+ */
+function assertIceCreamRoleRates(opts: {
+  distributorRate: number | null | undefined;
+  customerRate: number | null | undefined;
+  mrp: number | null | undefined;
+}): { distributorRate: number; customerRate: number; rate: number } {
+  if (opts.distributorRate == null || !Number.isFinite(opts.distributorRate) || opts.distributorRate < 0) {
+    throw ApiError.unprocessable('Distributor sell price is required.');
+  }
+  if (opts.customerRate == null || !Number.isFinite(opts.customerRate) || opts.customerRate < 0) {
+    throw ApiError.unprocessable('Customer sell price is required.');
+  }
+  const mrp = opts.mrp;
+  if (mrp != null && mrp > 0) {
+    if (opts.distributorRate > mrp) {
+      throw ApiError.unprocessable('Distributor sell price cannot exceed MRP.');
+    }
+    if (opts.customerRate > mrp) {
+      throw ApiError.unprocessable('Customer sell price cannot exceed MRP.');
+    }
+  }
+  return {
+    distributorRate: opts.distributorRate,
+    customerRate: opts.customerRate,
+    rate: opts.customerRate,
+  };
+}
+
 async function resolveResourceImageUrl(
   companyId: string,
   imageUrl: string | null,
@@ -147,7 +186,20 @@ export async function createResource(
   input: CreateResourceInput,
   ipAddress?: string,
 ) {
-  if (input.mrp != null && input.mrp > 0 && input.rate > input.mrp) {
+  const iceCream = await isIceCreamCompany(companyId);
+  let rate = input.rate;
+  let distributorRate = input.distributorRate ?? null;
+  let customerRate = input.customerRate ?? null;
+  if (iceCream) {
+    const role = assertIceCreamRoleRates({
+      distributorRate: input.distributorRate,
+      customerRate: input.customerRate,
+      mrp: input.mrp,
+    });
+    rate = role.rate;
+    distributorRate = role.distributorRate;
+    customerRate = role.customerRate;
+  } else if (input.mrp != null && input.mrp > 0 && input.rate > input.mrp) {
     throw ApiError.unprocessable('Selling price cannot exceed MRP.');
   }
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): preferred vendor must belong to
@@ -168,13 +220,13 @@ export async function createResource(
       name: input.name,
       type: input.type,
       unit: input.unit,
-      rate: input.rate,
+      rate,
       mrp: input.mrp ?? null,
       mrpUpdatedAt: input.mrp != null ? new Date() : null,
       // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor unit cost.
       costPrice: input.costPrice ?? null,
-      distributorRate: input.distributorRate ?? null,
-      customerRate: input.customerRate ?? null,
+      distributorRate,
+      customerRate,
       gstRate: input.gstRate ?? 0,
       hsnSacCode: input.hsnSacCode ?? null,
       brandOrSpec: input.brandOrSpec ?? null,
@@ -232,12 +284,38 @@ export async function updateResource(
   ipAddress?: string,
 ) {
   const existing = await getResource(companyId, id);
+  const iceCream = await isIceCreamCompany(companyId);
   const effectiveMrp = input.mrp === undefined
     ? (existing.mrp == null ? null : Number(existing.mrp))
     : input.mrp;
-  const effectiveRate = input.rate === undefined ? Number(existing.rate) : input.rate;
-  if (effectiveMrp != null && effectiveMrp > 0 && effectiveRate > effectiveMrp) {
-    throw ApiError.unprocessable('Selling price cannot exceed MRP.');
+
+  let nextRate = input.rate;
+  let nextDistributorRate = input.distributorRate;
+  let nextCustomerRate = input.customerRate;
+  if (iceCream) {
+    const role = assertIceCreamRoleRates({
+      distributorRate:
+        input.distributorRate !== undefined
+          ? input.distributorRate
+          : existing.distributorRate == null
+            ? null
+            : Number(existing.distributorRate),
+      customerRate:
+        input.customerRate !== undefined
+          ? input.customerRate
+          : existing.customerRate == null
+            ? null
+            : Number(existing.customerRate),
+      mrp: effectiveMrp,
+    });
+    nextRate = role.rate;
+    nextDistributorRate = role.distributorRate;
+    nextCustomerRate = role.customerRate;
+  } else {
+    const effectiveRate = input.rate === undefined ? Number(existing.rate) : input.rate;
+    if (effectiveMrp != null && effectiveMrp > 0 && effectiveRate > effectiveMrp) {
+      throw ApiError.unprocessable('Selling price cannot exceed MRP.');
+    }
   }
 
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): validate preferred vendor tenancy.
@@ -255,7 +333,8 @@ export async function updateResource(
   // price-history endpoint; here we just update the master).
   // FIX (EST-H7): Write a MaterialPriceHistory row when rate changes so
   // syncEffectiveResourceRate doesn't silently revert manual edits.
-  const rateChanged = input.rate !== undefined && input.rate !== Number(existing.rate);
+  const rateChanged =
+    nextRate !== undefined && nextRate !== Number(existing.rate);
   const mrpChanged =
     input.mrp !== undefined &&
     (input.mrp === null ? existing.mrp != null : input.mrp !== Number(existing.mrp));
@@ -266,15 +345,15 @@ export async function updateResource(
       ...(input.name !== undefined && { name: input.name }),
       ...(input.type !== undefined && { type: input.type }),
       ...(input.unit !== undefined && { unit: input.unit }),
-      ...(input.rate !== undefined && { rate: input.rate }),
+      ...(nextRate !== undefined && { rate: nextRate }),
       ...(input.mrp !== undefined && {
         mrp: input.mrp,
         mrpUpdatedAt: new Date(),
       }),
       // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor unit cost.
       ...(input.costPrice !== undefined && { costPrice: input.costPrice }),
-      ...(input.distributorRate !== undefined && { distributorRate: input.distributorRate }),
-      ...(input.customerRate !== undefined && { customerRate: input.customerRate }),
+      ...(nextDistributorRate !== undefined && { distributorRate: nextDistributorRate }),
+      ...(nextCustomerRate !== undefined && { customerRate: nextCustomerRate }),
       ...(input.gstRate !== undefined && { gstRate: input.gstRate }),
       ...(input.hsnSacCode !== undefined && { hsnSacCode: input.hsnSacCode }),
       ...(input.brandOrSpec !== undefined && { brandOrSpec: input.brandOrSpec }),

@@ -386,6 +386,20 @@ export async function setResourceB2bPublished(
     where: { id: resourceId, companyId, isDeleted: false },
   });
   if (!resource) throw ApiError.notFound('Item not found');
+  // ICE_CREAM: role sell prices are mandatory before publishing to the buyer app.
+  if (published) {
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: { inventoryVertical: true },
+    });
+    if (company?.inventoryVertical === 'ICE_CREAM') {
+      if (resource.distributorRate == null || resource.customerRate == null) {
+        throw ApiError.unprocessable(
+          'Set distributor and customer sell prices before publishing to the buyer catalog.',
+        );
+      }
+    }
+  }
   return prisma.resource.update({
     where: { id: resourceId },
     data: { b2bPublished: published },
