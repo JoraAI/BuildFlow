@@ -278,13 +278,14 @@ export default function InventoryMaterialsScreen() {
                   {isIceCream ? (
                     <>
                       <Text className="flex-1 text-sm font-bold text-primary text-right">
-                        {row.resource.distributorRate != null
-                          ? formatINR(Number(row.resource.distributorRate))
+                        {row.resource.distributorRate != null &&
+                        Number(row.resource.distributorRate) >= 0
+                          ? `₹${Number(row.resource.distributorRate).toFixed(2)}`
                           : '-'}
                       </Text>
                       <Text className="flex-1 text-sm font-bold text-primary text-right">
-                        {row.resource.customerRate != null
-                          ? formatINR(Number(row.resource.customerRate))
+                        {row.resource.customerRate != null && Number(row.resource.customerRate) >= 0
+                          ? `₹${Number(row.resource.customerRate).toFixed(2)}`
                           : '-'}
                       </Text>
                     </>
@@ -367,14 +368,15 @@ export default function InventoryMaterialsScreen() {
                     <>
                       <Text className="text-sm font-bold text-primary">
                         Dist{' '}
-                        {row.resource.distributorRate != null
-                          ? formatINR(Number(row.resource.distributorRate))
+                        {row.resource.distributorRate != null &&
+                        Number(row.resource.distributorRate) >= 0
+                          ? `₹${Number(row.resource.distributorRate).toFixed(2)}`
                           : '—'}
                       </Text>
                       <Text className="text-sm font-bold text-primary mt-0.5">
                         Cust{' '}
-                        {row.resource.customerRate != null
-                          ? formatINR(Number(row.resource.customerRate))
+                        {row.resource.customerRate != null && Number(row.resource.customerRate) >= 0
+                          ? `₹${Number(row.resource.customerRate).toFixed(2)}`
                           : '—'}
                       </Text>
                     </>
