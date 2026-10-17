@@ -1,7 +1,7 @@
 /**
- * Icecream-inventory-buyer - join via invite code, OTP login,
+ * Jora Trade (buyer app) - join via invite code, OTP login,
  * then a single-scroll home: Shop → Cart → Recent orders → Account.
- * Catalog = manufacturer item master rows marked b2bPublished.
+ * Catalog = supplier item master rows marked b2bPublished (any vertical).
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -367,9 +367,9 @@ export default function BuyerHome() {
     return (
       <SafeAreaView style={styles.safe}>
         <ScrollView contentContainerStyle={styles.pad}>
-          <Text style={styles.brand}>Icecream-inventory-buyer</Text>
+          <Text style={styles.brand}>Jora Trade</Text>
           <Text style={styles.muted}>
-            Enter the invite code from your manufacturer. Your details are already filled by them —
+            Enter the invite code from your supplier. Your details are already filled by them —
             confirm and join. After that you can edit your profile and order from their catalog.
           </Text>
 
@@ -534,7 +534,7 @@ export default function BuyerHome() {
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <View style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
-          <Text style={styles.brandSmall}>Icecream-inventory-buyer</Text>
+          <Text style={styles.brandSmall}>Jora Trade</Text>
           <Text style={styles.mutedHeader}>{buyer?.companyName ?? 'Catalog'}</Text>
           {roleLabel ? (
             <View style={styles.roleChip}>

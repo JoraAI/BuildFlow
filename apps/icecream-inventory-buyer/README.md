@@ -1,8 +1,8 @@
-# Icecream-inventory-buyer (`@buildflow/icecream-inventory-buyer`)
+# Jora Trade (`@buildflow/icecream-inventory-buyer`)
 
-Thin B2B ordering app for the **Ice cream manufacturer** inventory vertical.
+B2B ordering app for distributors and customers. Join with a supplier invite code, sign in with email/mobile **OTP**, browse the published catalog (any inventory vertical), place orders (`SalesOrder` with `source=B2B_APP`), and track recent history. Suppliers get an in-app `B2B_ORDER_PLACED` notification (Sales → focused order).
 
-Buyers join with a manufacturer invite code, then sign in with email/mobile **OTP**. They browse the published catalog, place orders (creates `SalesOrder` with `source=B2B_APP`), and see recent order history. Manufacturers get an in-app `B2B_ORDER_PLACED` notification (Sales → focused order).
+**Play Store name:** Jora Trade · **Package:** `com.joraai.joratrade`
 
 ## Run locally
 
@@ -23,8 +23,6 @@ Default API: `https://buildflow-api-backend.onrender.com/api` (override with `EX
 2. Preview APK: `npx eas build -p android --profile preview`
 3. Production AAB: `npx eas build -p android --profile production`
 4. Upload AAB to Play Console internal testing.
-
-Package id: `com.buildflow.icecreaminventorybuyer`
 
 Privacy / Terms / SMS opt-in (store listing + in-app links):
 
