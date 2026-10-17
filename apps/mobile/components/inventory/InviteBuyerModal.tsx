@@ -1,5 +1,5 @@
 /**
- * Owner invites a customer into Icecream-inventory-buyer with a short join code.
+ * Owner invites a customer into Jora Trade (buyer app) with a short join code.
  */
 import React, { useState } from 'react';
 import { View, Text, Modal, Pressable, Platform, Share, Alert } from 'react-native';
@@ -31,7 +31,7 @@ export function InviteBuyerModal({
 
   const shareCode = async (code: string, expiresAt: string) => {
     const when = new Date(expiresAt).toLocaleString();
-    const message = `Join BuildFlow Icecream-inventory-buyer with code ${code}. Expires ${when}.`;
+    const message = `Join Jora Trade with code ${code}. Expires ${when}.`;
     if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
       await navigator.clipboard.writeText(message);
       Alert.alert('Copied', 'Invite code copied. Share it with your customer.');
@@ -95,9 +95,9 @@ export function InviteBuyerModal({
           </View>
           <View className="p-5">
             <Text className="text-xs text-muted mb-3">
-              Fill details for {customer.name}. They join Icecream-inventory-buyer with the code only
-              — name/email/phone are shown from what you enter here. Code expires in 48 hours. They
-              can edit profile after joining; later visits use email OTP.
+              Fill details for {customer.name}. They join Jora Trade with the code only — name/email/phone
+              are shown from what you enter here. Code expires in 48 hours. They can edit profile after
+              joining; later visits use email OTP.
             </Text>
             {!result ? (
               <>
