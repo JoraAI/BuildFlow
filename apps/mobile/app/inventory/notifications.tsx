@@ -22,6 +22,7 @@ import {
   type AppNotification,
 } from '@/services/chat.queries';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
+import { inventorySalesHref } from '@/utils/navigation-paths';
 
 function startOfDay(d: Date): number {
   const x = new Date(d);
@@ -54,6 +55,11 @@ function deepLink(n: AppNotification): string | null {
       return ref ? `/inventory/invoices/${ref}` : '/inventory/invoices';
     case 'BILL':
       return ref ? `/inventory/bills/${ref}` : '/inventory/bills';
+    // Ice cream B2B buyer app → manufacturer SalesOrder
+    case 'B2B_ORDER_PLACED':
+      return ref
+        ? inventorySalesHref({ tab: 'orders', focus: ref })
+        : inventorySalesHref({ tab: 'orders' });
     default:
       return null;
   }
@@ -95,7 +101,7 @@ export default function InventoryNotificationsScreen() {
             {translate('inventory.page.notifications', 'Notifications')}
           </Text>
           <Text className="text-sm text-muted mt-0.5">
-            Low stock, price anomalies and count variances - no separate product.
+            Low stock, B2B buyer orders, price anomalies and count variances.
           </Text>
         </View>
         {(data?.items?.length ?? 0) > 0 ? (

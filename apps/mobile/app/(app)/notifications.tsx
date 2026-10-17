@@ -20,6 +20,7 @@ import {
   useMarkNotificationRead,
   type AppNotification,
 } from '@/services/chat.queries';
+import { inventorySalesHref } from '@/utils/navigation-paths';
 
 function startOfDay(d: Date): number {
   const x = new Date(d);
@@ -61,6 +62,10 @@ function deepLink(n: AppNotification): string | null {
     case 'TRIAL_ENDING':
     case 'TRIAL_EXPIRED':
       return '/(app)/settings/billing';
+    case 'B2B_ORDER_PLACED':
+      return ref
+        ? inventorySalesHref({ tab: 'orders', focus: ref })
+        : inventorySalesHref({ tab: 'orders' });
     default:
       return null;
   }

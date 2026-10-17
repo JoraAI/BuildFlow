@@ -2,30 +2,43 @@
 
 Thin B2B ordering app for the **Ice cream manufacturer** inventory vertical.
 
-Buyers log in with manufacturer-issued credentials, browse the published catalog, place orders (creates `SalesOrder` with `source=B2B_APP` in the manufacturer Inventory tenant), and track shipping.
+Buyers join with a manufacturer invite code, then sign in with email/mobile **OTP**. They browse the published catalog, place orders (creates `SalesOrder` with `source=B2B_APP`), and see recent order history. Manufacturers get an in-app `B2B_ORDER_PLACED` notification (Sales → focused order).
 
 ## Run locally
 
 ```bash
-# from repo root (API must be on :4000)
+# from repo root — API on Render or localhost
 pnpm install
+# optional: copy .env.example → .env and point at local API
 pnpm --filter @buildflow/icecream-inventory-buyer start
 ```
 
-Demo buyer (after seed): `buyer@cityscoop.com` / OTP `111111`
+Demo buyer (after seed): `buyer@cityscoop.com` / OTP from SMS or master/dev code when enabled.
 
-## Play Store
+Default API: `https://buildflow-api-backend.onrender.com/api` (override with `EXPO_PUBLIC_API_URL`).
 
-1. Create an EAS project and set `extra.eas.projectId` in `app.json`.
-2. `npx eas build -p android --profile preview` (add `eas.json` as needed).
-3. Upload the AAB to Play Console internal testing.
+## Play Store / EAS
+
+1. From this app directory: `npx eas init` — paste the project id into `app.json` → `extra.eas.projectId`.
+2. Preview APK: `npx eas build -p android --profile preview`
+3. Production AAB: `npx eas build -p android --profile production`
+4. Upload AAB to Play Console internal testing.
 
 Package id: `com.buildflow.icecreaminventorybuyer`
 
+Privacy / Terms / SMS opt-in (store listing + in-app links):
+
+- https://build-flow-frontend-jet.vercel.app/privacy
+- https://build-flow-frontend-jet.vercel.app/terms
+- https://build-flow-frontend-jet.vercel.app/sms-opt-in
+
 ## API
 
+- `POST /api/buyer/auth/preview-invite`
+- `POST /api/buyer/auth/claim-invite`
 - `POST /api/buyer/auth/send-otp`
 - `POST /api/buyer/auth/login`
 - `GET /api/buyer/catalog` (Bearer buyer JWT)
+- `GET /api/buyer/profile` / `PATCH /api/buyer/profile`
 - `POST /api/buyer/orders`
 - `GET /api/buyer/orders`

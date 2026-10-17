@@ -1,24 +1,38 @@
 {
   "expo": {
-    "name": "Icecream-inventory-buyer",
+    "name": "Icecream Buyer",
     "slug": "icecream-inventory-buyer",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "icecream-inventory-buyer",
     "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1E3A5F"
+    },
     "android": {
       "package": "com.buildflow.icecreaminventorybuyer",
-      "versionCode": 1
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#F59E0B"
+      }
     },
     "ios": {
-      "bundleIdentifier": "com.buildflow.icecreaminventorybuyer"
+      "bundleIdentifier": "com.buildflow.icecreaminventorybuyer",
+      "supportsTablet": true
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
     },
     "plugins": ["expo-router", "expo-secure-store"],
     "extra": {
       "eas": {
         "projectId": "replace-with-eas-project-id"
-      },
-      "apiUrl": "http://localhost:4000/api"
+      }
     }
   }
 }

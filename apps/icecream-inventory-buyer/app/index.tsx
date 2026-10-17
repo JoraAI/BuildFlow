@@ -12,8 +12,18 @@ import {
   ScrollView,
   StyleSheet,
   SafeAreaView,
+  Linking,
 } from 'react-native';
 import { buyerFetch, getBuyerToken, setBuyerToken } from '../lib/api';
+
+const PRIVACY_URL = 'https://build-flow-frontend-jet.vercel.app/privacy';
+const TERMS_URL = 'https://build-flow-frontend-jet.vercel.app/terms';
+const SMS_OPT_IN_URL = 'https://build-flow-frontend-jet.vercel.app/sms-opt-in';
+
+function looksLikeMobile(value: string): boolean {
+  const digits = value.replace(/\D/g, '');
+  return digits.length >= 10 && !value.includes('@');
+}
 
 type Buyer = {
   id: string;
@@ -143,6 +153,8 @@ export default function BuyerHome() {
   const [successNote, setSuccessNote] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [smsConsent, setSmsConsent] = useState(false);
+  const [otpHint, setOtpHint] = useState('');
 
   useEffect(() => {
     void getBuyerToken().then(setToken);
@@ -233,13 +245,30 @@ export default function BuyerHome() {
   };
 
   const sendOtp = async () => {
+    const dest = email.trim();
+    if (looksLikeMobile(dest) && !smsConsent) {
+      setError('Please agree to receive SMS OTPs before requesting a code.');
+      return;
+    }
     setBusy(true);
     setError('');
+    setOtpHint('');
     try {
-      await buyerFetch('/buyer/auth/send-otp', {
+      const data = await buyerFetch<{
+        sent: boolean;
+        expiresInSec: number;
+        destinationMasked?: string;
+        devCode?: string;
+      }>('/buyer/auth/send-otp', {
         method: 'POST',
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email: dest }),
       });
+      const masked = data.destinationMasked ? ` to ${data.destinationMasked}` : '';
+      setOtpHint(
+        data.devCode
+          ? `Code sent${masked}. Dev code: ${data.devCode}`
+          : `Code sent${masked}. Valid for ${Math.round((data.expiresInSec ?? 600) / 60)} minutes.`,
+      );
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -258,6 +287,7 @@ export default function BuyerHome() {
       await setBuyerToken(data.accessToken);
       setToken(data.accessToken);
       setBuyer(data.buyer);
+      setOtpHint('');
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -433,6 +463,42 @@ export default function BuyerHome() {
                 onChangeText={setOtp}
                 keyboardType="number-pad"
               />
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: smsConsent }}
+                onPress={() => setSmsConsent((v) => !v)}
+                style={styles.consentBox}
+              >
+                <View style={[styles.checkbox, smsConsent && styles.checkboxOn]}>
+                  {smsConsent ? <Text style={styles.checkboxMark}>✓</Text> : null}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.consentText}>
+                    I agree to receive transactional SMS one-time passcodes from StaffingPros /
+                    Jora AI (BuildFlow) for buyer login. Msg frequency varies. Msg & data rates may
+                    apply. Reply STOP to opt out; HELP for help.
+                  </Text>
+                  <Text style={[styles.muted, { marginBottom: 0, marginTop: 6 }]}>
+                    See{' '}
+                    <Text style={styles.linkInline} onPress={() => void Linking.openURL(PRIVACY_URL)}>
+                      Privacy
+                    </Text>
+                    {' · '}
+                    <Text style={styles.linkInline} onPress={() => void Linking.openURL(TERMS_URL)}>
+                      Terms
+                    </Text>
+                    {' · '}
+                    <Text
+                      style={styles.linkInline}
+                      onPress={() => void Linking.openURL(SMS_OPT_IN_URL)}
+                    >
+                      SMS opt-in
+                    </Text>
+                    .
+                  </Text>
+                </View>
+              </Pressable>
+              {otpHint ? <Text style={styles.success}>{otpHint}</Text> : null}
               {error ? <Text style={styles.err}>{error}</Text> : null}
               <Pressable style={styles.btnSecondary} onPress={sendOtp} disabled={busy}>
                 <Text style={styles.btnSecondaryText}>Send OTP</Text>
@@ -445,6 +511,7 @@ export default function BuyerHome() {
                 onPress={() => {
                   setAuthMode('join');
                   setError('');
+                  setOtpHint('');
                 }}
               >
                 <Text style={styles.link}>Have an invite code? Join here</Text>
@@ -733,7 +800,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   btnSecondaryText: { color: NAVY, fontWeight: '700' },
-  err: { color: '#DC2626', marginBottom: 8 },
+  err: { color: '#DC2626', marginBottom: 8, marginTop: 8 },
   success: {
     color: '#047857',
     backgroundColor: '#ECFDF5',
@@ -741,9 +808,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     marginBottom: 10,
+    marginTop: 8,
     fontWeight: '600',
     fontSize: 13,
   },
+  consentBox: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  checkboxOn: { backgroundColor: NAVY, borderColor: NAVY },
+  checkboxMark: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  consentText: { fontSize: 12, color: '#0F172A', lineHeight: 17 },
+  linkInline: { color: AMBER, fontWeight: '700' },
   header: {
     paddingHorizontal: 16,
     paddingVertical: 12,

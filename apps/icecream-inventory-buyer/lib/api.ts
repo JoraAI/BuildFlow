@@ -1,7 +1,9 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
-const API = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000/api';
+/** Must end with `/api`. Override via EXPO_PUBLIC_API_URL (EAS env / .env). */
+const API =
+  process.env.EXPO_PUBLIC_API_URL ?? 'https://buildflow-api-backend.onrender.com/api';
 
 const TOKEN_KEY = 'bf_buyer_access_token';
 
