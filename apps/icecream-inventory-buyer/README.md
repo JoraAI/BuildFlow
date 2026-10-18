@@ -1,6 +1,6 @@
 # Jora Trade (`@buildflow/icecream-inventory-buyer`)
 
-B2B ordering app for distributors and customers. Join with a supplier invite code, sign in with email/mobile **OTP**, browse the published catalog (any inventory vertical), place orders (`SalesOrder` with `source=B2B_APP`), and track recent history. Suppliers get an in-app `B2B_ORDER_PLACED` notification (Sales → focused order).
+Invite-only B2B ordering app. Buyers **must** receive an invite code from their ice cream manufacturer / supplier (BuildFlow inventory). After joining, returning sign-in uses the registered email/mobile **OTP**. Browse catalog, place orders (`SalesOrder` `source=B2B_APP`); suppliers get `B2B_ORDER_PLACED` (Sales → focused order).
 
 **Play Store name:** Jora Trade · **Package:** `com.joraai.joratrade`
 

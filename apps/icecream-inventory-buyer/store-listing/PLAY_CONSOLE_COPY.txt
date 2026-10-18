@@ -1,0 +1,50 @@
+Jora Trade — Google Play Console copy (paste into Store listing)
+
+================================================================================
+App name
+================================================================================
+Jora Trade
+
+================================================================================
+Short description (max 80 characters)
+================================================================================
+Invite-only B2B ordering from your manufacturer’s catalog
+
+================================================================================
+Full description
+================================================================================
+Jora Trade is an invite-only B2B ordering app for distributors and customers.
+
+How access works
+• Your ice cream manufacturer (or supplier) creates an invite for you in their BuildFlow inventory app.
+• They share a one-time invite code with you.
+• You open Jora Trade, enter that code, confirm your details, and join.
+• There is no public signup. You cannot use the app without a code from your manufacturer.
+• After you have joined once, you can sign in again with the email or mobile OTP registered on your invite.
+
+What you can do
+• Browse the catalog your supplier publishes for you (role-based pricing when configured).
+• Add quantities, review your cart, and place orders.
+• See recent order history and update your account details.
+
+Jora Trade is built for wholesale ordering across product lines — not limited to a single category.
+
+Support / privacy
+• Privacy: https://build-flow-frontend-jet.vercel.app/privacy
+• Terms: https://build-flow-frontend-jet.vercel.app/terms
+• SMS opt-in (OTP): https://build-flow-frontend-jet.vercel.app/sms-opt-in
+
+================================================================================
+Category
+================================================================================
+Business
+
+================================================================================
+Contact email (use your real support inbox)
+================================================================================
+(your-support@domain.com)
+
+================================================================================
+Privacy policy URL
+================================================================================
+https://build-flow-frontend-jet.vercel.app/privacy

@@ -415,8 +415,8 @@ export default function BuyerHome() {
           <Text style={styles.authHeading}>{authMode === 'join' ? 'LOGIN' : 'SIGN IN'}</Text>
           <Text style={styles.authSub}>
             {authMode === 'join'
-              ? 'Join Jora Trade by entering your supplier invite code to get started.'
-              : 'For returning buyers after you have joined once. Use email or mobile OTP.'}
+              ? 'Access is invite-only. Enter the code from your ice cream manufacturer (or supplier) to join and order from their catalog.'
+              : 'Already joined with an invite code? Sign in with the email or mobile they registered for you.'}
           </Text>
 
           {authMode === 'join' ? (
@@ -585,7 +585,7 @@ export default function BuyerHome() {
           <View style={styles.secureNote}>
             <Text style={styles.secureNoteIcon}>✓</Text>
             <Text style={styles.secureNoteText}>
-              Your invite code is secure and used only for verification.
+              Invite-only access. Codes are issued by your manufacturer and used only for verification.
             </Text>
           </View>
         </ScrollView>
