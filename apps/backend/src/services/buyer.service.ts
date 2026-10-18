@@ -19,6 +19,7 @@ import { logger } from '../config/logger';
 import { hashInviteToken } from '../utils/invite-token';
 import { resolveDetailedRates } from './price-list.service';
 import { cacheKeys, hashQuery, invalidateCache, invalidatePattern } from '../utils/cache';
+import { resolveResourceImageUrl } from './resource.service';
 
 const BUYER_JWT_TYPE = 'buyer_access';
 const DEFAULT_INVITE_HOURS = 48;
@@ -733,16 +734,82 @@ export async function getBuyerCatalog(buyer: BuyerTokenPayload) {
     buyer.customerId,
     rows.map((r) => r.id),
   );
-  return rows.map((r) => {
-    const p = priced.get(r.id);
-    return {
-      ...r,
-      mrp: p?.mrp ?? (r.mrp != null ? Number(r.mrp) : null),
-      listRate: p?.listRate ?? Number(r.rate ?? 0),
-      discountPct: p?.discountPct ?? 0,
-      rate: p?.rate ?? Number(r.rate ?? 0),
-    };
+  return Promise.all(
+    rows.map(async (r) => {
+      const p = priced.get(r.id);
+      const imageUrl = await resolveResourceImageUrl(buyer.companyId, r.imageUrl);
+      return {
+        ...r,
+        imageUrl,
+        mrp: p?.mrp ?? (r.mrp != null ? Number(r.mrp) : null),
+        listRate: p?.listRate ?? Number(r.rate ?? 0),
+        discountPct: p?.discountPct ?? 0,
+        rate: p?.rate ?? Number(r.rate ?? 0),
+      };
+    }),
+  );
+}
+
+/** Other manufacturer accounts linked to the same buyer email/phone. */
+export async function listBuyerMemberships(buyer: BuyerTokenPayload) {
+  const me = await prisma.buyerUser.findFirst({
+    where: { id: buyer.sub, isActive: true },
   });
+  if (!me) throw ApiError.unauthorized('Buyer account inactive');
+
+  const or: Array<{ email: string } | { phone: string }> = [];
+  if (me.email) or.push({ email: me.email.toLowerCase() });
+  if (me.phone) or.push({ phone: me.phone });
+
+  const rows = await prisma.buyerUser.findMany({
+    where: or.length > 0 ? { isActive: true, OR: or } : { id: me.id, isActive: true },
+    include: {
+      company: { select: { id: true, name: true, inventoryVertical: true } },
+      customer: { select: { name: true, businessName: true } },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  return rows.map((r) => ({
+    buyerUserId: r.id,
+    companyId: r.companyId,
+    companyName: r.company.name,
+    inventoryVertical: r.company.inventoryVertical,
+    customerName: r.customer.businessName || r.customer.name,
+    isCurrent: r.id === buyer.sub,
+  }));
+}
+
+export async function switchBuyerMembership(
+  buyer: BuyerTokenPayload,
+  targetBuyerUserId: string,
+) {
+  const me = await prisma.buyerUser.findFirst({
+    where: { id: buyer.sub, isActive: true },
+  });
+  if (!me) throw ApiError.unauthorized('Buyer account inactive');
+
+  const target = await prisma.buyerUser.findFirst({
+    where: { id: targetBuyerUserId, isActive: true },
+    include: { company: { select: { id: true } } },
+  });
+  if (!target) throw ApiError.notFound('Manufacturer account not found');
+
+  const sameEmail =
+    Boolean(me.email) &&
+    Boolean(target.email) &&
+    me.email.toLowerCase() === target.email.toLowerCase();
+  const samePhone = Boolean(me.phone) && Boolean(target.phone) && me.phone === target.phone;
+  if (!sameEmail && !samePhone) {
+    throw ApiError.forbidden('That manufacturer is not linked to this buyer profile');
+  }
+
+  await assertInventoryFeature(target.companyId, 'b2b_buyer_app');
+  await prisma.buyerUser.update({
+    where: { id: target.id },
+    data: { lastLoginAt: new Date() },
+  });
+  return serializeBuyerSession(target.id);
 }
 
 export async function getBuyerProfile(buyer: BuyerTokenPayload) {

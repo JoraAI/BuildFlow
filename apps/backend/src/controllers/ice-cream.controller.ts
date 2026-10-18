@@ -309,6 +309,25 @@ export async function buyerCatalog(req: Request, res: Response, next: NextFuncti
   }
 }
 
+export async function buyerMemberships(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json({ success: true, data: await buyerSvc.listBuyerMemberships(buyerFromReq(req)) });
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function buyerSwitchMembership(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json({
+      success: true,
+      data: await buyerSvc.switchBuyerMembership(buyerFromReq(req), req.body.buyerUserId),
+    });
+  } catch (e) {
+    next(e);
+  }
+}
+
 export async function buyerPlaceOrder(req: Request, res: Response, next: NextFunction) {
   try {
     res.status(201).json({

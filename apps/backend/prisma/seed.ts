@@ -2617,13 +2617,28 @@ async function main(): Promise<void> {
         }
       }
 
+      // Product images for manufacturer Materials + buyer catalog (public HTTPS).
+      const FG_IMAGES: Record<string, string> = {
+        'FG-VAN-100':
+          'https://images.unsplash.com/photo-1563805042-7684c019e1cb?auto=format&fit=crop&w=400&q=80',
+        'FG-CHOC-100':
+          'https://images.unsplash.com/photo-1567206563064-6f60f40a2b57?auto=format&fit=crop&w=400&q=80',
+        'FG-CHOC-1L':
+          'https://images.unsplash.com/photo-1497034825429-c343d7c6a68f?auto=format&fit=crop&w=400&q=80',
+        'FG-STRW-100':
+          'https://images.unsplash.com/photo-1488900128323-2150794f0adf?auto=format&fit=crop&w=400&q=80',
+      };
+
       // Publish finished goods to Icecream-inventory-buyer catalog
       for (const fg of [vanCup, chocCup, chocTub, strawCup]) {
         if (fg) {
+          const sku = fg.sku ?? '';
           await prisma.resource.update({
             where: { id: fg.id },
             data: {
               b2bPublished: true,
+              category: fg.category ?? 'Finished goods',
+              imageUrl: FG_IMAGES[sku] ?? fg.imageUrl,
               // Role rates required by buyer catalog publish rules
               distributorRate: fg.distributorRate ?? fg.rate,
               customerRate: fg.customerRate ?? fg.rate,

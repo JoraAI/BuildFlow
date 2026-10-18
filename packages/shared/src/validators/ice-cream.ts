@@ -113,3 +113,8 @@ export const setB2bPublishedSchema = z.object({
   resourceId: z.string().uuid(),
   published: z.boolean(),
 });
+
+/** Switch active manufacturer for a buyer linked to multiple companies. */
+export const switchBuyerMembershipSchema = z.object({
+  buyerUserId: z.string().uuid(),
+});

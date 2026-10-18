@@ -2,6 +2,7 @@ import React, { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Text, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
@@ -29,9 +30,11 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 
 export default function RootLayout() {
   return (
-    <ErrorBoundary>
-      <StatusBar style="dark" />
-      <Stack screenOptions={{ headerShown: false }} />
-    </ErrorBoundary>
+    <SafeAreaProvider>
+      <ErrorBoundary>
+        <StatusBar style="light" />
+        <Stack screenOptions={{ headerShown: false }} />
+      </ErrorBoundary>
+    </SafeAreaProvider>
   );
 }

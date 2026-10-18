@@ -24,6 +24,7 @@ import {
   buyerLoginSchema,
   buyerSendOtpSchema,
   buyerPlaceOrderSchema,
+  switchBuyerMembershipSchema,
   createCashBookEntrySchema,
 } from '@buildflow/shared';
 
@@ -168,6 +169,13 @@ buyerPublicRouter.post(
 
 buyerPublicRouter.get('/catalog', authenticateBuyer, ctrl.buyerCatalog);
 buyerPublicRouter.get('/profile', authenticateBuyer, ctrl.buyerProfile);
+buyerPublicRouter.get('/memberships', authenticateBuyer, ctrl.buyerMemberships);
+buyerPublicRouter.post(
+  '/memberships/switch',
+  authenticateBuyer,
+  validate({ body: switchBuyerMembershipSchema }),
+  ctrl.buyerSwitchMembership,
+);
 buyerPublicRouter.patch(
   '/profile',
   authenticateBuyer,

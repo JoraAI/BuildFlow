@@ -34,6 +34,7 @@ import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
 import { matchesStatus, matchesText } from '@/utils/inventory-filters';
 import { inventoryProcurementHref } from '@/utils/navigation-paths';
 import { useIceCreamVertical } from '@/hooks/useIceCreamVertical';
+import { MaterialThumbnail } from '@/components/materials/MaterialThumbnail';
 
 const MATERIAL_STATUS_TABS = [
   { value: 'ALL' as const, label: 'All' },
@@ -260,6 +261,9 @@ export default function InventoryMaterialsScreen() {
             if (tableMode) {
               return (
                 <View className="mb-2 flex-row items-center rounded-xl border border-border bg-card px-4 py-4">
+                  <View className="mr-3">
+                    <MaterialThumbnail material={row.resource} size={44} iceCream={isIceCream} />
+                  </View>
                   <View className="flex-[2.2] min-w-0 mr-2 pr-1">
                     <Text className="text-sm font-semibold text-text" numberOfLines={1}>{row.name}</Text>
                     <Text className="text-[11px] text-muted mt-1">
@@ -343,6 +347,9 @@ export default function InventoryMaterialsScreen() {
             return (
               <Card className="mb-2 p-4">
               <View className="flex-row items-start justify-between">
+                <View className="mr-3 mt-0.5">
+                  <MaterialThumbnail material={row.resource} size={56} iceCream={isIceCream} />
+                </View>
                 <View className="flex-1 mr-2">
                   <Text className="text-sm font-semibold text-text">{row.name}</Text>
                   <Text className="text-xs text-muted mt-0.5">

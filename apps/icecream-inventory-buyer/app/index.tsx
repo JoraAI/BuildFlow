@@ -12,9 +12,11 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
+  Image,
+  Modal,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { buyerFetch, getBuyerToken, setBuyerToken } from '../lib/api';
 
 type Buyer = {
@@ -25,6 +27,15 @@ type Buyer = {
   companyName: string;
   customerName: string;
   customerId?: string;
+};
+
+type Membership = {
+  buyerUserId: string;
+  companyId: string;
+  companyName: string;
+  inventoryVertical?: string | null;
+  customerName?: string | null;
+  isCurrent: boolean;
 };
 
 type CustomerProfile = {
@@ -52,6 +63,7 @@ type CatalogItem = {
   listRate?: string | number | null;
   discountPct?: string | number | null;
   category?: string | null;
+  imageUrl?: string | null;
 };
 
 type Order = {
@@ -161,7 +173,8 @@ export default function BuyerHome() {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [orders, setOrders] = useState<Order[]>([]);
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
-  const [accountOpen, setAccountOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [memberships, setMemberships] = useState<Membership[]>([]);
   const [showAllOrders, setShowAllOrders] = useState(false);
   const [orderQuery, setOrderQuery] = useState('');
   const [successNote, setSuccessNote] = useState('');
@@ -188,12 +201,18 @@ export default function BuyerHome() {
     setProfile(data.customer);
   }, []);
 
+  const loadMemberships = useCallback(async () => {
+    const rows = await buyerFetch<Membership[]>('/buyer/memberships');
+    setMemberships(rows);
+  }, []);
+
   useEffect(() => {
     if (!token) return;
     void loadCatalog().catch((e) => setError(String(e.message)));
     void loadOrders().catch(() => undefined);
     void loadProfile().catch(() => undefined);
-  }, [token, loadCatalog, loadOrders, loadProfile]);
+    void loadMemberships().catch(() => undefined);
+  }, [token, loadCatalog, loadOrders, loadProfile, loadMemberships]);
 
   const cartLines = useMemo(
     () =>
@@ -318,21 +337,46 @@ export default function BuyerHome() {
     }
   };
 
-  const logout = async () => {
-    await setBuyerToken(null);
-    setToken(null);
-    setBuyer(null);
-    setCatalog([]);
-    setCart({});
-    setOrders([]);
-    setSuccessNote('');
-    setAccountOpen(false);
-    setShowAllOrders(false);
+  const openProfile = async () => {
+    setProfileOpen(true);
+    setError('');
+    try {
+      await Promise.all([loadProfile(), loadMemberships()]);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  const switchManufacturer = async (m: Membership) => {
+    if (m.isCurrent) return;
+    setBusy(true);
+    setError('');
+    try {
+      const data = await buyerFetch<{ accessToken: string; buyer: Buyer }>(
+        '/buyer/memberships/switch',
+        {
+          method: 'POST',
+          body: JSON.stringify({ buyerUserId: m.buyerUserId }),
+        },
+      );
+      await setBuyerToken(data.accessToken);
+      setToken(data.accessToken);
+      setBuyer(data.buyer);
+      setCart({});
+      setCatalog([]);
+      setOrders([]);
+      setSuccessNote(`Switched to ${data.buyer.companyName}`);
+      setProfileOpen(false);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (!token) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={styles.safeNavy} edges={['top', 'left', 'right']}>
         <StatusBar barStyle="light-content" backgroundColor={NAVY} />
         <View style={styles.authHero}>
           <View style={styles.authHeroRow}>
@@ -345,7 +389,11 @@ export default function BuyerHome() {
           <View style={styles.authHeroCurve} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.authPad} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          style={styles.mainBody}
+          contentContainerStyle={styles.authPad}
+          keyboardShouldPersistTaps="handled"
+        >
           <Text style={styles.authHeading}>LOGIN</Text>
           <Text style={styles.authSub}>
             Access is invite-only. Enter the code from your manufacturer to open their catalog. No
@@ -431,7 +479,7 @@ export default function BuyerHome() {
         : null;
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safeNavy} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="light-content" backgroundColor={NAVY} />
       <View style={styles.topBar}>
         <Text style={styles.topBarBrand}>
@@ -443,11 +491,12 @@ export default function BuyerHome() {
               <Text style={styles.cartBadgeText}>{cartCount}</Text>
             </View>
           ) : null}
-          <Pressable onPress={logout} hitSlop={8}>
-            <Text style={styles.topBarLogout}>Logout</Text>
+          <Pressable onPress={() => void openProfile()} hitSlop={8}>
+            <Text style={styles.topBarProfile}>Profile</Text>
           </Pressable>
         </View>
       </View>
+      <View style={styles.mainBody}>
       <View style={styles.topBarCurve} />
 
       <View style={styles.partyRow}>
@@ -495,9 +544,13 @@ export default function BuyerHome() {
             return (
               <View key={item.id} style={styles.card}>
                 <View style={styles.cardRow}>
-                  <View style={styles.thumb}>
-                    <Text style={styles.thumbText}>{initial}</Text>
-                  </View>
+                  {item.imageUrl ? (
+                    <Image source={{ uri: item.imageUrl }} style={styles.thumbImage} />
+                  ) : (
+                    <View style={styles.thumb}>
+                      <Text style={styles.thumbText}>{initial}</Text>
+                    </View>
+                  )}
                   <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
                     <Text style={styles.cardTitle}>{item.name}</Text>
                     <Text style={styles.muted}>
@@ -644,60 +697,16 @@ export default function BuyerHome() {
           </>
         )}
 
-        <Pressable style={styles.accountCard} onPress={() => setAccountOpen((v) => !v)}>
+        <Pressable style={styles.accountCard} onPress={() => void openProfile()}>
           <View style={styles.accountAvatar}>
             <Text style={styles.accountAvatarText}>👤</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>Account</Text>
-            <Text style={styles.muted}>Manage your account details and preferences.</Text>
+            <Text style={styles.cardTitle}>Profile</Text>
+            <Text style={styles.muted}>Switch manufacturer or update account details.</Text>
           </View>
-          <Text style={styles.chevron}>{accountOpen ? '▴' : '▾'}</Text>
+          <Text style={styles.chevron}>›</Text>
         </Pressable>
-        {accountOpen && profile ? (
-          <View style={{ marginTop: 8 }}>
-            <Text style={styles.muted}>
-              Details prefilled by your supplier. Edit anything that needs updating.
-            </Text>
-            {(
-              [
-                ['name', 'Business / party name'],
-                ['businessName', 'Trade name'],
-                ['gstin', 'GSTIN'],
-                ['pan', 'PAN'],
-                ['phone', 'Phone'],
-                ['email', 'Email'],
-                ['billingAddress', 'Billing address'],
-                ['shippingAddress', 'Shipping address'],
-              ] as Array<[keyof CustomerProfile, string]>
-            ).map(([key, label]) => (
-              <View key={key}>
-                <Text style={styles.label}>{label}</Text>
-                <TextInput
-                  style={styles.input}
-                  value={String(profile[key] ?? '')}
-                  onChangeText={(v) => setProfile((p) => (p ? { ...p, [key]: v } : p))}
-                />
-              </View>
-            ))}
-            {profile.buyerRole ? (
-              <Text style={[styles.muted, { marginTop: 8 }]}>
-                Role: {profile.buyerRole === 'DISTRIBUTOR' ? 'Distributor' : 'Customer'}
-                {profile.tradeDiscountPct != null
-                  ? ` · trade discount override ${profile.tradeDiscountPct}%`
-                  : ''}
-              </Text>
-            ) : null}
-            {profile.paymentTerms ? (
-              <Text style={[styles.muted, { marginTop: 8 }]}>
-                Payment terms (set by supplier): {profile.paymentTerms}
-              </Text>
-            ) : null}
-            <Pressable style={styles.btnPrimary} onPress={saveProfile} disabled={busy}>
-              <Text style={styles.btnPrimaryText}>Save profile</Text>
-            </Pressable>
-          </View>
-        ) : null}
       </ScrollView>
 
       {cartCount > 0 ? (
@@ -709,12 +718,105 @@ export default function BuyerHome() {
           <Text style={styles.stickyRight}>{busy ? '…' : 'Place order ›'}</Text>
         </Pressable>
       ) : null}
+      </View>
+
+      <Modal visible={profileOpen} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
+          <View style={styles.profileHeader}>
+            <Text style={styles.profileTitle}>Profile</Text>
+            <Pressable onPress={() => setProfileOpen(false)} hitSlop={8}>
+              <Text style={styles.profileClose}>Done</Text>
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={styles.pad} keyboardShouldPersistTaps="handled">
+            <Text style={styles.sectionTitle}>Manufacturers</Text>
+            <Text style={styles.sectionHint}>
+              Switch between ice cream manufacturers linked to this buyer. Enter another invite code
+              on the login screen to add more.
+            </Text>
+            {memberships.length === 0 ? (
+              <Text style={styles.muted}>No linked manufacturers yet.</Text>
+            ) : (
+              memberships.map((m) => (
+                <Pressable
+                  key={m.buyerUserId}
+                  style={[styles.memberCard, m.isCurrent && styles.memberCardCurrent]}
+                  onPress={() => void switchManufacturer(m)}
+                  disabled={busy || m.isCurrent}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.cardTitle}>{m.companyName}</Text>
+                    <Text style={styles.muted}>
+                      {m.customerName ?? 'Buyer'}
+                      {m.inventoryVertical ? ` · ${m.inventoryVertical.replace(/_/g, ' ')}` : ''}
+                    </Text>
+                  </View>
+                  <Text style={m.isCurrent ? styles.memberCurrent : styles.memberSwitch}>
+                    {m.isCurrent ? 'Current' : 'Switch'}
+                  </Text>
+                </Pressable>
+              ))
+            )}
+
+            <Text style={[styles.sectionTitle, styles.sectionGap]}>Account details</Text>
+            {profile ? (
+              <>
+                <Text style={styles.muted}>
+                  Details prefilled by your supplier. Edit anything that needs updating.
+                </Text>
+                {(
+                  [
+                    ['name', 'Business / party name'],
+                    ['businessName', 'Trade name'],
+                    ['gstin', 'GSTIN'],
+                    ['pan', 'PAN'],
+                    ['phone', 'Phone'],
+                    ['email', 'Email'],
+                    ['billingAddress', 'Billing address'],
+                    ['shippingAddress', 'Shipping address'],
+                  ] as Array<[keyof CustomerProfile, string]>
+                ).map(([key, label]) => (
+                  <View key={key}>
+                    <Text style={styles.label}>{label}</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={String(profile[key] ?? '')}
+                      onChangeText={(v) => setProfile((p) => (p ? { ...p, [key]: v } : p))}
+                    />
+                  </View>
+                ))}
+                {profile.buyerRole ? (
+                  <Text style={[styles.muted, { marginTop: 8 }]}>
+                    Role: {profile.buyerRole === 'DISTRIBUTOR' ? 'Distributor' : 'Customer'}
+                    {profile.tradeDiscountPct != null
+                      ? ` · trade discount override ${profile.tradeDiscountPct}%`
+                      : ''}
+                  </Text>
+                ) : null}
+                {profile.paymentTerms ? (
+                  <Text style={[styles.muted, { marginTop: 8 }]}>
+                    Payment terms (set by supplier): {profile.paymentTerms}
+                  </Text>
+                ) : null}
+                <Pressable style={styles.btnPrimary} onPress={saveProfile} disabled={busy}>
+                  <Text style={styles.btnPrimaryText}>Save profile</Text>
+                </Pressable>
+              </>
+            ) : (
+              <Text style={styles.muted}>Loading profile…</Text>
+            )}
+            {error ? <Text style={styles.err}>{error}</Text> : null}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: BG },
+  safeNavy: { flex: 1, backgroundColor: NAVY },
+  mainBody: { flex: 1, backgroundColor: BG },
   pad: { paddingHorizontal: 16, paddingBottom: 32 },
   padWithFooter: { paddingBottom: 100 },
 
@@ -804,7 +906,7 @@ const styles = StyleSheet.create({
   topBarBrand: { color: '#fff', fontSize: 20, fontWeight: '800' },
   topBarBrandAccent: { color: AMBER },
   topBarRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  topBarLogout: { color: '#E2E8F0', fontWeight: '700', fontSize: 13 },
+  topBarProfile: { color: '#E2E8F0', fontWeight: '700', fontSize: 13 },
   cartBadge: {
     minWidth: 22,
     height: 22,
@@ -1007,7 +1109,40 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 10,
   },
+  thumbImage: {
+    width: 52,
+    height: 52,
+    borderRadius: 10,
+    marginRight: 10,
+    backgroundColor: '#E2E8F0',
+  },
   thumbText: { fontSize: 20, fontWeight: '800', color: NAVY },
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E2E8F0',
+    backgroundColor: '#fff',
+  },
+  profileTitle: { fontSize: 18, fontWeight: '800', color: NAVY },
+  profileClose: { fontSize: 15, fontWeight: '700', color: AMBER },
+  memberCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 14,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  memberCardCurrent: { borderColor: AMBER, backgroundColor: '#FFFBEB' },
+  memberCurrent: { color: AMBER, fontWeight: '800', fontSize: 12 },
+  memberSwitch: { color: NAVY, fontWeight: '700', fontSize: 13 },
   prefill: { fontSize: 15, color: '#0F172A', marginBottom: 4 },
   line: { fontSize: 12, color: '#334155', marginTop: 2 },
   muted: { color: '#64748B', fontSize: 13, marginBottom: 4 },

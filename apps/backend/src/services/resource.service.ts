@@ -90,7 +90,8 @@ function assertIceCreamRoleRates(opts: {
   };
 }
 
-async function resolveResourceImageUrl(
+/** Resolve stored imageUrl (https passthrough or s3:// → presigned GET). */
+export async function resolveResourceImageUrl(
   companyId: string,
   imageUrl: string | null,
 ): Promise<string | null> {
