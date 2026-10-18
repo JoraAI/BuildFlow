@@ -5,12 +5,14 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, Modal, ScrollView, RefreshControl, Pressable } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { Card, Button, Input, EmptyState, LoadingSkeleton, Select, toast, BusyOverlay, useBusy } from '@/components/ui';
 import {
   useResources,
   useCreateResource,
   useUpdateResource,
   useDeleteResource,
+  useUploadMaterialImage,
   type Resource,
 } from '@/services/estimate.queries';
 import { useSetB2bPublished } from '@/services/ice-cream.queries';
@@ -466,7 +468,11 @@ export default function InventoryMaterialsScreen() {
         submitting={createResource.isPending}
         onSubmit={async (input) => {
           await run(async () => {
-            await createResource.mutateAsync(input);
+            const { imageUrl, ...rest } = input;
+            await createResource.mutateAsync({
+              ...rest,
+              ...(typeof imageUrl === 'string' ? { imageUrl } : {}),
+            });
             toast.success(`${itemLabel} added`);
             setCreateOpen(false);
             void refetch();
@@ -558,6 +564,7 @@ function MaterialFormModal({
     hsnSacCode?: string;
     brandOrSpec?: string;
     category?: string;
+    imageUrl?: string | null;
     // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.2): optional item master fields.
     sku?: string;
     itemCode?: string;
@@ -575,6 +582,7 @@ function MaterialFormModal({
 }) {
   const { isPhone } = useViewport();
   const { data: vendors } = useVendors();
+  const uploadImage = useUploadMaterialImage();
   const [name, setName] = useState('');
   const [unit, setUnit] = useState('nos');
   const [rate, setRate] = useState('');
@@ -587,6 +595,9 @@ function MaterialFormModal({
   const [hsnSacCode, setHsnSacCode] = useState('');
   const [brandOrSpec, setBrandOrSpec] = useState('');
   const [category, setCategory] = useState('');
+  const [localImageUri, setLocalImageUri] = useState<string | null>(null);
+  const [removeImage, setRemoveImage] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.2): optional item master fields.
   const [itemCode, setItemCode] = useState('');
   const [sku, setSku] = useState('');
@@ -630,6 +641,8 @@ function MaterialFormModal({
       setPreferredVendorId(initial.preferredVendorId ?? '');
       setReorderQty(initial.reorderQty != null ? String(Number(initial.reorderQty)) : '');
       setLeadTimeDays(initial.leadTimeDays != null ? String(initial.leadTimeDays) : '');
+      setLocalImageUri(null);
+      setRemoveImage(false);
     } else {
       reset();
     }
@@ -649,6 +662,8 @@ function MaterialFormModal({
     setHsnSacCode('');
     setBrandOrSpec('');
     setCategory('');
+    setLocalImageUri(null);
+    setRemoveImage(false);
     setItemCode('');
     setSku('');
     setBarcode('');
@@ -659,6 +674,35 @@ function MaterialFormModal({
     setPreferredVendorId('');
     setReorderQty('');
     setLeadTimeDays('');
+  };
+
+  const pickPhoto = async (fromCamera: boolean) => {
+    setError(null);
+    const perm = fromCamera
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      setError(fromCamera ? 'Camera permission is required' : 'Photo library permission is required');
+      return;
+    }
+    const result = fromCamera
+      ? await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.85,
+        })
+      : await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.85,
+        });
+    if (result.canceled || !result.assets[0]) return;
+    setLocalImageUri(result.assets[0].uri);
+    setRemoveImage(false);
+  };
+
+  const existingImageUrl = removeImage ? null : initial?.imageUrl ?? null;
+  const previewMaterial: Pick<Resource, 'category' | 'imageUrl'> = {
+    category: category || initial?.category || null,
+    imageUrl: existingImageUrl,
   };
 
   return (
@@ -682,6 +726,45 @@ function MaterialFormModal({
             {mode === 'edit' ? `Edit ${itemLabel.toLowerCase()}` : `Add ${itemLabel.toLowerCase()}`}
           </Text>
           <ScrollView keyboardShouldPersistTaps="handled">
+            <View className="items-center gap-2 mb-3">
+              <MaterialThumbnail
+                material={previewMaterial}
+                localUri={localImageUri}
+                size={88}
+                iceCream={showRoleRates}
+              />
+              <View className="flex-row flex-wrap gap-2 justify-center">
+                <Button
+                  label="Gallery"
+                  size="sm"
+                  variant="secondary"
+                  disabled={submitting || uploadingPhoto}
+                  onPress={() => void pickPhoto(false)}
+                />
+                <Button
+                  label="Camera"
+                  size="sm"
+                  variant="secondary"
+                  disabled={submitting || uploadingPhoto}
+                  onPress={() => void pickPhoto(true)}
+                />
+                {(localImageUri || existingImageUrl) && !removeImage ? (
+                  <Button
+                    label="Remove"
+                    size="sm"
+                    variant="ghost"
+                    disabled={submitting || uploadingPhoto}
+                    onPress={() => {
+                      setLocalImageUri(null);
+                      setRemoveImage(true);
+                    }}
+                  />
+                ) : null}
+              </View>
+              <Text className="text-[10px] text-muted text-center">
+                Optional product photo — shown in the items list and buyer catalog.
+              </Text>
+            </View>
             <Input label="Name" value={name} onChangeText={setName} placeholder="e.g. OPC 53 Cement" />
             <Select
               label="Unit"
@@ -851,10 +934,10 @@ function MaterialFormModal({
                 }}
               />
               <Button
-                label={submitting ? 'Saving…' : 'Save'}
+                label={submitting || uploadingPhoto ? 'Saving…' : 'Save'}
                 variant="accent"
                 className="flex-1"
-                disabled={submitting}
+                disabled={submitting || uploadingPhoto}
                 onPress={() => {
                   if (!name.trim()) {
                     setError('Name is required');
@@ -905,32 +988,64 @@ function MaterialFormModal({
                     return;
                   }
                   setError(null);
-                  void onSubmit({
-                    name: name.trim(),
-                    type: 'MATERIAL',
-                    unit,
-                    rate: rateNum,
-                    mrp: mrpNum,
-                    costPrice: costNum,
-                    ...(showRoleRates
-                      ? { distributorRate: distNum, customerRate: custNum }
-                      : {}),
-                    gstRate: Number(gstRate) || 0,
-                    hsnSacCode: hsnSacCode.trim() || undefined,
-                    brandOrSpec: brandOrSpec.trim() || undefined,
-                    category: category.trim() || undefined,
-                    // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.6): item code field.
-                    itemCode: itemCode.trim() || undefined,
-                    sku: sku.trim() || undefined,
-                    barcode: barcode.trim() || undefined,
-                    secondaryUnit: secondaryUnit.trim() || undefined,
-                    conversionFactor: Number(conversionFactor) > 0 ? Number(conversionFactor) : undefined,
-                    reorderPoint: reorderPoint === '' ? undefined : Number(reorderPoint),
-                    trackingMode,
-                    preferredVendorId: preferredVendorId || undefined,
-                    reorderQty: reorderQty === '' ? undefined : Number(reorderQty),
-                    leadTimeDays: leadTimeDays === '' ? undefined : Number(leadTimeDays),
-                  }).then(reset);
+                  void (async () => {
+                    let imagePatch: { imageUrl?: string | null } = {};
+                    if (removeImage) {
+                      imagePatch = { imageUrl: null };
+                    } else if (localImageUri) {
+                      setUploadingPhoto(true);
+                      try {
+                        const ext = localImageUri.split('.').pop()?.toLowerCase() ?? 'jpg';
+                        const contentType =
+                          ext === 'png'
+                            ? 'image/png'
+                            : ext === 'webp'
+                              ? 'image/webp'
+                              : ext === 'heic'
+                                ? 'image/heic'
+                                : 'image/jpeg';
+                        const imageUrl = await uploadImage.mutateAsync({
+                          uri: localImageUri,
+                          filename: `item.${ext}`,
+                          contentType,
+                        });
+                        imagePatch = { imageUrl };
+                      } catch {
+                        setError('Photo upload failed. Check S3 in Integrations or save without a photo.');
+                        setUploadingPhoto(false);
+                        return;
+                      }
+                      setUploadingPhoto(false);
+                    }
+                    await onSubmit({
+                      name: name.trim(),
+                      type: 'MATERIAL',
+                      unit,
+                      rate: rateNum,
+                      mrp: mrpNum,
+                      costPrice: costNum,
+                      ...(showRoleRates
+                        ? { distributorRate: distNum, customerRate: custNum }
+                        : {}),
+                      gstRate: Number(gstRate) || 0,
+                      hsnSacCode: hsnSacCode.trim() || undefined,
+                      brandOrSpec: brandOrSpec.trim() || undefined,
+                      category: category.trim() || undefined,
+                      ...imagePatch,
+                      // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.6): item code field.
+                      itemCode: itemCode.trim() || undefined,
+                      sku: sku.trim() || undefined,
+                      barcode: barcode.trim() || undefined,
+                      secondaryUnit: secondaryUnit.trim() || undefined,
+                      conversionFactor: Number(conversionFactor) > 0 ? Number(conversionFactor) : undefined,
+                      reorderPoint: reorderPoint === '' ? undefined : Number(reorderPoint),
+                      trackingMode,
+                      preferredVendorId: preferredVendorId || undefined,
+                      reorderQty: reorderQty === '' ? undefined : Number(reorderQty),
+                      leadTimeDays: leadTimeDays === '' ? undefined : Number(leadTimeDays),
+                    });
+                    reset();
+                  })();
                 }}
               />
             </View>
