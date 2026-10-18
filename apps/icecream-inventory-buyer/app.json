@@ -2,7 +2,7 @@
   "expo": {
     "name": "Jora Trade",
     "slug": "jora-trade",
-    "version": "1.0.0",
+    "version": "0.9.0",
     "orientation": "portrait",
     "scheme": "jora-trade",
     "userInterfaceStyle": "light",
@@ -14,7 +14,7 @@
     },
     "android": {
       "package": "com.joraai.joratrade",
-      "versionCode": 2,
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#1E3A5F"
