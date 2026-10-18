@@ -4,6 +4,8 @@ B2B ordering app for distributors and customers. Join with a supplier invite cod
 
 **Play Store name:** Jora Trade · **Package:** `com.joraai.joratrade`
 
+**Play Console high-res icon:** upload `assets/play-icon-512.png` (512×512 PNG, full-bleed, &lt;1 MB).
+
 ## Run locally
 
 ```bash
