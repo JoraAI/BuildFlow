@@ -16,11 +16,11 @@ Full description
 Jora Trade is an invite-only B2B ordering app for distributors and customers.
 
 How access works
-• Your ice cream manufacturer (or supplier) creates an invite for you in their BuildFlow inventory app.
-• They share a one-time invite code with you.
-• You open Jora Trade, enter that code, confirm your details, and join.
-• There is no public signup. You cannot use the app without a code from your manufacturer.
-• After you have joined once, you can sign in again with the email or mobile OTP registered on your invite.
+• Your ice cream manufacturer (or supplier) creates an invite in their BuildFlow inventory app.
+• They share an invite code with you.
+• You open Jora Trade, enter that code, and open their catalog.
+• There is no public signup and no email/phone password login.
+• Use the same invite code anytime to return to your manufacturer’s listings.
 
 What you can do
 • Browse the catalog your supplier publishes for you (role-based pricing when configured).
@@ -32,7 +32,6 @@ Jora Trade is built for wholesale ordering across product lines — not limited 
 Support / privacy
 • Privacy: https://build-flow-frontend-jet.vercel.app/privacy
 • Terms: https://build-flow-frontend-jet.vercel.app/terms
-• SMS opt-in (OTP): https://build-flow-frontend-jet.vercel.app/sms-opt-in
 
 ================================================================================
 Category
@@ -48,3 +47,8 @@ Contact email (use your real support inbox)
 Privacy policy URL
 ================================================================================
 https://build-flow-frontend-jet.vercel.app/privacy
+
+================================================================================
+App access for Google reviewers
+================================================================================
+See GOOGLE_REVIEWER_ACCESS.txt — demo code PLAYREVIEW (no username/password).

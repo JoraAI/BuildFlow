@@ -1,6 +1,6 @@
 /**
- * Jora Trade (buyer app) - join via invite code, OTP login,
- * then a single-scroll home: Shop → Cart → Recent orders → Account.
+ * Jora Trade (buyer app) - invite-code only (no email/phone OTP for buyers).
+ * Single-scroll home: Shop → Cart → Recent orders → Account.
  * Catalog = supplier item master rows marked b2bPublished (any vertical).
  * Visual design aligned with Play Store listing screenshots.
  */
@@ -13,19 +13,9 @@ import {
   ScrollView,
   StyleSheet,
   SafeAreaView,
-  Linking,
   StatusBar,
 } from 'react-native';
 import { buyerFetch, getBuyerToken, setBuyerToken } from '../lib/api';
-
-const PRIVACY_URL = 'https://build-flow-frontend-jet.vercel.app/privacy';
-const TERMS_URL = 'https://build-flow-frontend-jet.vercel.app/terms';
-const SMS_OPT_IN_URL = 'https://build-flow-frontend-jet.vercel.app/sms-opt-in';
-
-function looksLikeMobile(value: string): boolean {
-  const digits = value.replace(/\D/g, '');
-  return digits.length >= 10 && !value.includes('@');
-}
 
 type Buyer = {
   id: string;
@@ -77,14 +67,14 @@ type Order = {
   lines: Array<{ itemName: string; quantity: string | number; unit: string }>;
 };
 
-type AuthMode = 'join' | 'login';
-
 type InvitePreview = {
   companyName: string;
   expiresAt: string;
   name: string;
   email: string | null;
   phone: string | null;
+  alreadyJoined?: boolean;
+  playReview?: boolean;
   customer: {
     id: string;
     name: string;
@@ -165,11 +155,8 @@ function QtyStepper({
 export default function BuyerHome() {
   const [token, setToken] = useState<string | null>(null);
   const [buyer, setBuyer] = useState<Buyer | null>(null);
-  const [authMode, setAuthMode] = useState<AuthMode>('join');
   const [inviteCode, setInviteCode] = useState('');
   const [invitePreview, setInvitePreview] = useState<InvitePreview | null>(null);
-  const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [orders, setOrders] = useState<Order[]>([]);
@@ -180,8 +167,6 @@ export default function BuyerHome() {
   const [successNote, setSuccessNote] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [smsConsent, setSmsConsent] = useState(false);
-  const [otpHint, setOtpHint] = useState('');
 
   useEffect(() => {
     void getBuyerToken().then(setToken);
@@ -281,57 +266,6 @@ export default function BuyerHome() {
     }
   };
 
-  const sendOtp = async () => {
-    const dest = email.trim();
-    if (looksLikeMobile(dest) && !smsConsent) {
-      setError('Please agree to receive SMS OTPs before requesting a code.');
-      return;
-    }
-    setBusy(true);
-    setError('');
-    setOtpHint('');
-    try {
-      const data = await buyerFetch<{
-        sent: boolean;
-        expiresInSec: number;
-        destinationMasked?: string;
-        devCode?: string;
-      }>('/buyer/auth/send-otp', {
-        method: 'POST',
-        body: JSON.stringify({ email: dest }),
-      });
-      const masked = data.destinationMasked ? ` to ${data.destinationMasked}` : '';
-      setOtpHint(
-        data.devCode
-          ? `Code sent${masked}. Dev code: ${data.devCode}`
-          : `Code sent${masked}. Valid for ${Math.round((data.expiresInSec ?? 600) / 60)} minutes.`,
-      );
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const login = async () => {
-    setBusy(true);
-    setError('');
-    try {
-      const data = await buyerFetch<{ accessToken: string; buyer: Buyer }>('/buyer/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email: email.trim(), otp: otp.trim() }),
-      });
-      await setBuyerToken(data.accessToken);
-      setToken(data.accessToken);
-      setBuyer(data.buyer);
-      setOtpHint('');
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const placeOrder = async () => {
     if (cartLines.length === 0) return;
     setBusy(true);
@@ -412,180 +346,76 @@ export default function BuyerHome() {
         </View>
 
         <ScrollView contentContainerStyle={styles.authPad} keyboardShouldPersistTaps="handled">
-          <Text style={styles.authHeading}>{authMode === 'join' ? 'LOGIN' : 'SIGN IN'}</Text>
+          <Text style={styles.authHeading}>LOGIN</Text>
           <Text style={styles.authSub}>
-            {authMode === 'join'
-              ? 'Access is invite-only. Enter the code from your ice cream manufacturer (or supplier) to join and order from their catalog.'
-              : 'Already joined with an invite code? Sign in with the email or mobile they registered for you.'}
+            Access is invite-only. Enter the code from your manufacturer to open their catalog. No
+            email or phone sign-in is required — use the same code again anytime to return.
           </Text>
 
-          {authMode === 'join' ? (
-            <>
-              <Text style={styles.label}>Invite code</Text>
-              <View style={styles.inputWrap}>
-                <Text style={styles.inputIcon}>🔒</Text>
-                <TextInput
-                  style={styles.inputFlex}
-                  value={inviteCode}
-                  onChangeText={(v) => {
-                    setInviteCode(v);
-                    setInvitePreview(null);
-                  }}
-                  autoCapitalize="characters"
-                  placeholder="Enter invite code"
-                  placeholderTextColor="#94A3B8"
-                />
-              </View>
-              {!invitePreview ? (
-                <Pressable style={styles.btnPrimary} onPress={previewInvite} disabled={busy}>
-                  <Text style={styles.btnPrimaryText}>{busy ? 'Checking…' : 'Confirm/Join'}</Text>
-                </Pressable>
-              ) : (
-                <View style={styles.card}>
-                  <Text style={styles.cardTitle}>{invitePreview.companyName}</Text>
-                  <Text style={styles.muted}>
-                    Expires {new Date(invitePreview.expiresAt).toLocaleString()}
-                  </Text>
-                  <Text style={styles.label}>Name</Text>
-                  <Text style={styles.prefill}>{invitePreview.name}</Text>
-                  <Text style={styles.label}>Email</Text>
-                  <Text style={styles.prefill}>{invitePreview.email ?? '—'}</Text>
-                  <Text style={styles.label}>Phone</Text>
-                  <Text style={styles.prefill}>{invitePreview.phone ?? '—'}</Text>
-                  {invitePreview.customer.gstin ? (
-                    <>
-                      <Text style={styles.label}>GSTIN</Text>
-                      <Text style={styles.prefill}>{invitePreview.customer.gstin}</Text>
-                    </>
-                  ) : null}
-                  {invitePreview.customer.billingAddress ? (
-                    <>
-                      <Text style={styles.label}>Billing address</Text>
-                      <Text style={styles.prefill}>{invitePreview.customer.billingAddress}</Text>
-                    </>
-                  ) : null}
-                  <Text style={[styles.muted, { marginTop: 8 }]}>
-                    You can edit these after joining under Account.
-                  </Text>
-                  <Pressable style={styles.btnPrimary} onPress={claimInvite} disabled={busy}>
-                    <Text style={styles.btnPrimaryText}>Join & continue</Text>
-                  </Pressable>
-                  <Pressable
-                    style={styles.btnGhost}
-                    onPress={() => {
-                      setInvitePreview(null);
-                      setError('');
-                    }}
-                    disabled={busy}
-                  >
-                    <Text style={styles.btnGhostText}>Use a different code</Text>
-                  </Pressable>
-                </View>
-              )}
-              {error ? <Text style={styles.err}>{error}</Text> : null}
-              <View style={styles.authSwitch}>
-                <Text style={styles.mutedCenter}>Already joined?</Text>
-                <Pressable
-                  onPress={() => {
-                    setAuthMode('login');
-                    setError('');
-                    setInvitePreview(null);
-                  }}
-                >
-                  <Text style={styles.linkUnderline}>
-                    Sign in with email or mobile OTP
-                  </Text>
-                </Pressable>
-              </View>
-            </>
+          <Text style={styles.label}>Invite code</Text>
+          <View style={styles.inputWrap}>
+            <Text style={styles.inputIcon}>🔒</Text>
+            <TextInput
+              style={styles.inputFlex}
+              value={inviteCode}
+              onChangeText={(v) => {
+                setInviteCode(v);
+                setInvitePreview(null);
+              }}
+              autoCapitalize="characters"
+              placeholder="Enter invite code"
+              placeholderTextColor="#94A3B8"
+            />
+          </View>
+          {!invitePreview ? (
+            <Pressable style={styles.btnPrimary} onPress={previewInvite} disabled={busy}>
+              <Text style={styles.btnPrimaryText}>{busy ? 'Checking…' : 'Continue'}</Text>
+            </Pressable>
           ) : (
-            <>
-              <Text style={styles.label}>Email or mobile</Text>
-              <View style={styles.inputWrap}>
-                <Text style={styles.inputIcon}>✉</Text>
-                <TextInput
-                  style={styles.inputFlex}
-                  value={email}
-                  onChangeText={setEmail}
-                  autoCapitalize="none"
-                  keyboardType="default"
-                  placeholder="you@company.com or 9876543210"
-                  placeholderTextColor="#94A3B8"
-                />
-              </View>
-              <Text style={styles.label}>OTP</Text>
-              <View style={styles.inputWrap}>
-                <Text style={styles.inputIcon}>#</Text>
-                <TextInput
-                  style={styles.inputFlex}
-                  value={otp}
-                  onChangeText={setOtp}
-                  keyboardType="number-pad"
-                  placeholder="6-digit code"
-                  placeholderTextColor="#94A3B8"
-                />
-              </View>
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>{invitePreview.companyName}</Text>
+              {invitePreview.playReview ? (
+                <Text style={styles.muted}>Demo catalog for app review (reusable code).</Text>
+              ) : invitePreview.alreadyJoined ? (
+                <Text style={styles.muted}>Welcome back — continue to open your catalog.</Text>
+              ) : (
+                <Text style={styles.muted}>
+                  Expires {new Date(invitePreview.expiresAt).toLocaleString()}
+                </Text>
+              )}
+              <Text style={styles.label}>Name</Text>
+              <Text style={styles.prefill}>{invitePreview.name}</Text>
+              {invitePreview.customer.gstin ? (
+                <>
+                  <Text style={styles.label}>GSTIN</Text>
+                  <Text style={styles.prefill}>{invitePreview.customer.gstin}</Text>
+                </>
+              ) : null}
+              <Pressable style={styles.btnPrimary} onPress={claimInvite} disabled={busy}>
+                <Text style={styles.btnPrimaryText}>
+                  {invitePreview.alreadyJoined || invitePreview.playReview
+                    ? 'Open catalog'
+                    : 'Join & continue'}
+                </Text>
+              </Pressable>
               <Pressable
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: smsConsent }}
-                onPress={() => setSmsConsent((v) => !v)}
-                style={styles.consentBox}
+                style={styles.btnGhost}
+                onPress={() => {
+                  setInvitePreview(null);
+                  setError('');
+                }}
+                disabled={busy}
               >
-                <View style={[styles.checkbox, smsConsent && styles.checkboxOn]}>
-                  {smsConsent ? <Text style={styles.checkboxMark}>✓</Text> : null}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.consentText}>
-                    I agree to receive transactional SMS one-time passcodes from StaffingPros /
-                    Jora AI (BuildFlow) for buyer login. Msg frequency varies. Msg & data rates may
-                    apply. Reply STOP to opt out; HELP for help.
-                  </Text>
-                  <Text style={[styles.muted, { marginBottom: 0, marginTop: 6 }]}>
-                    See{' '}
-                    <Text style={styles.linkInline} onPress={() => void Linking.openURL(PRIVACY_URL)}>
-                      Privacy
-                    </Text>
-                    {' · '}
-                    <Text style={styles.linkInline} onPress={() => void Linking.openURL(TERMS_URL)}>
-                      Terms
-                    </Text>
-                    {' · '}
-                    <Text
-                      style={styles.linkInline}
-                      onPress={() => void Linking.openURL(SMS_OPT_IN_URL)}
-                    >
-                      SMS opt-in
-                    </Text>
-                    .
-                  </Text>
-                </View>
+                <Text style={styles.btnGhostText}>Use a different code</Text>
               </Pressable>
-              {otpHint ? <Text style={styles.success}>{otpHint}</Text> : null}
-              {error ? <Text style={styles.err}>{error}</Text> : null}
-              <Pressable style={styles.btnGhost} onPress={sendOtp} disabled={busy}>
-                <Text style={styles.btnGhostText}>Send OTP</Text>
-              </Pressable>
-              <Pressable style={styles.btnPrimary} onPress={login} disabled={busy}>
-                <Text style={styles.btnPrimaryText}>Sign in</Text>
-              </Pressable>
-              <View style={styles.authSwitch}>
-                <Pressable
-                  onPress={() => {
-                    setAuthMode('join');
-                    setError('');
-                    setOtpHint('');
-                  }}
-                >
-                  <Text style={styles.linkUnderline}>Have an invite code? Join here</Text>
-                </Pressable>
-              </View>
-            </>
+            </View>
           )}
+          {error ? <Text style={styles.err}>{error}</Text> : null}
 
           <View style={styles.secureNote}>
             <Text style={styles.secureNoteIcon}>✓</Text>
             <Text style={styles.secureNoteText}>
-              Invite-only access. Codes are issued by your manufacturer and used only for verification.
+              Invite-only. Keep your manufacturer code — it is how you sign in again.
             </Text>
           </View>
         </ScrollView>

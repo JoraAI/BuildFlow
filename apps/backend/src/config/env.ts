@@ -167,6 +167,19 @@ const envSchema = z.object({
   // Trial length in days for new company registrations
   TRIAL_DAYS: z.coerce.number().int().min(1).max(90).default(14),
 
+  /**
+   * Hard-coded Jora Trade invite code for Google Play reviewers (reusable).
+   * Empty string disables. Default PLAYREVIEW — document in Play Console App access.
+   */
+  BUYER_PLAY_REVIEW_CODE: z
+    .preprocess((v) => (v === '' ? undefined : v), z.string().min(4).max(32).optional())
+    .default('PLAYREVIEW'),
+  /** Optional: pin review catalog to a company. Else resolves Frosty Cups / ICE_CREAM seed. */
+  BUYER_PLAY_REVIEW_COMPANY_ID: z
+    .preprocess((v) => (v === '' ? undefined : v), z.string().uuid().optional()),
+  /** Buyer JWT lifetime after invite-code join (no OTP required later). */
+  BUYER_JWT_EXPIRES_IN: z.string().default('365d'),
+
   // BuildFlow SaaS billing (platform-owned - charges companies for subscriptions)
   SAAS_RAZORPAY_KEY_ID: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
   SAAS_RAZORPAY_KEY_SECRET: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),

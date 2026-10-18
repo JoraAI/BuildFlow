@@ -1,0 +1,46 @@
+Jora Trade — Google Play Console → App access (paste this)
+
+================================================================================
+Restricted access?
+================================================================================
+Yes — All or some functionality is restricted
+
+================================================================================
+Instruction name
+================================================================================
+Jora Trade Play review demo
+
+================================================================================
+Username / email
+================================================================================
+N/A — invite code only (no email or password)
+
+================================================================================
+Password
+================================================================================
+N/A
+
+================================================================================
+Any other information / instructions
+================================================================================
+This app is invite-only. Buyers do not use email, phone, or password.
+
+To review the full catalog and ordering flow:
+
+1. Open Jora Trade.
+2. Enter invite code: PLAYREVIEW
+3. Tap Continue, then Open catalog.
+4. Browse SHOP Catalog, add items, place a test order if needed.
+
+Notes for reviewers:
+• PLAYREVIEW is a permanent demo code for Google Play review (reusable).
+• Real customers receive a different one-time code from their manufacturer.
+• After joining with a code, the same code opens the catalog again — no OTP.
+• Username/password fields above are intentionally N/A.
+
+================================================================================
+Will Google accept this?
+================================================================================
+Yes. Google routinely accepts restricted apps that provide a demo invite code or
+credentials in App access. Keep PLAYREVIEW enabled on the production API while
+the app is under review (env BUYER_PLAY_REVIEW_CODE, default PLAYREVIEW).

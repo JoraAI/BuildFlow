@@ -1,8 +1,10 @@
 /**
  * Ice cream B2B buyer app - auth, catalog, place order → manufacturer SalesOrder.
  *
- * Join flow: Owner creates a time-limited code → buyer claims once → later OTP login.
+ * Join / sign-in: manufacturer invite code only (no email/OTP required for buyers).
+ * The same code can be re-entered later to restore a session.
  * Catalog: only items the manufacturer marked b2bPublished.
+ * Google Play: env BUYER_PLAY_REVIEW_CODE (default PLAYREVIEW) is a reusable demo code.
  */
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
@@ -55,8 +57,127 @@ function issueBuyerAccessToken(buyer: {
       type: BUYER_JWT_TYPE,
     } satisfies BuyerTokenPayload,
     env.JWT_ACCESS_SECRET,
-    { expiresIn: '7d' },
+    { expiresIn: env.BUYER_JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'] },
   );
+}
+
+function playReviewCodeNormalized(): string | null {
+  const raw = env.BUYER_PLAY_REVIEW_CODE?.trim();
+  if (!raw) return null;
+  return normalizeCode(raw);
+}
+
+function isPlayReviewCode(code: string): boolean {
+  const review = playReviewCodeNormalized();
+  return Boolean(review && normalizeCode(code) === review);
+}
+
+/** Resolve manufacturer catalog for Google Play reviewers. */
+async function resolvePlayReviewCompanyId(): Promise<string> {
+  if (env.BUYER_PLAY_REVIEW_COMPANY_ID) {
+    const pinned = await prisma.company.findFirst({
+      where: { id: env.BUYER_PLAY_REVIEW_COMPANY_ID },
+      select: { id: true },
+    });
+    if (!pinned) throw ApiError.badRequest('Play review company is not configured correctly.');
+    return pinned.id;
+  }
+
+  const byOwner = await prisma.user.findFirst({
+    where: { email: 'owner@frostycups.com', isActive: true },
+    select: { companyId: true },
+  });
+  if (byOwner?.companyId) return byOwner.companyId;
+
+  const ice = await prisma.company.findFirst({
+    where: { inventoryVertical: 'ICE_CREAM' },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true },
+  });
+  if (ice) return ice.id;
+
+  throw ApiError.badRequest(
+    'Play review catalog unavailable. Seed an ICE_CREAM manufacturer or set BUYER_PLAY_REVIEW_COMPANY_ID.',
+  );
+}
+
+/** Reusable Google Play reviewer session (hard-coded invite code). */
+async function sessionForPlayReviewCode() {
+  const companyId = await resolvePlayReviewCompanyId();
+  await assertInventoryFeature(companyId, 'b2b_buyer_app');
+
+  const reviewEmail = 'play-reviewer@jora.trade';
+  let customer = await prisma.customer.findFirst({
+    where: { companyId, email: reviewEmail, isActive: true },
+  });
+  if (!customer) {
+    customer = await prisma.customer.create({
+      data: {
+        companyId,
+        name: 'Google Play Reviewer',
+        businessName: 'Play Store Review',
+        email: reviewEmail,
+        phone: null,
+        isActive: true,
+      },
+    });
+  }
+
+  let buyer = await prisma.buyerUser.findUnique({
+    where: { companyId_email: { companyId, email: reviewEmail } },
+  });
+  if (!buyer) {
+    buyer = await prisma.buyerUser.create({
+      data: {
+        companyId,
+        customerId: customer.id,
+        email: reviewEmail,
+        name: 'Google Play Reviewer',
+        phone: null,
+        isActive: true,
+        lastLoginAt: new Date(),
+      },
+    });
+  } else if (!buyer.isActive) {
+    buyer = await prisma.buyerUser.update({
+      where: { id: buyer.id },
+      data: { isActive: true, lastLoginAt: new Date(), customerId: customer.id },
+    });
+  } else {
+    await prisma.buyerUser.update({
+      where: { id: buyer.id },
+      data: { lastLoginAt: new Date() },
+    });
+  }
+
+  return serializeBuyerSession(buyer.id);
+}
+
+async function previewForPlayReviewCode() {
+  const companyId = await resolvePlayReviewCompanyId();
+  await assertInventoryFeature(companyId, 'b2b_buyer_app');
+  const company = await prisma.company.findUniqueOrThrow({
+    where: { id: companyId },
+    select: { name: true },
+  });
+  return {
+    companyName: company.name,
+    expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+    name: 'Google Play Reviewer',
+    email: 'play-reviewer@jora.trade',
+    phone: null as string | null,
+    customer: {
+      id: 'play-review',
+      name: 'Google Play Reviewer',
+      businessName: 'Play Store Review',
+      email: 'play-reviewer@jora.trade',
+      phone: null,
+      billingAddress: null,
+      shippingAddress: null,
+      gstin: null,
+    },
+    playReview: true as const,
+  };
 }
 
 async function serializeBuyerSession(buyerId: string) {
@@ -240,8 +361,12 @@ export async function revokeBuyerAccess(companyId: string, buyerUserId: string) 
   });
 }
 
-/** Look up an unused invite by code — returns owner-prefilled party details. */
+/** Look up an invite by code — returns owner-prefilled party details (or Play review demo). */
 export async function previewBuyerInvite(code: string) {
+  if (isPlayReviewCode(code)) {
+    return previewForPlayReviewCode();
+  }
+
   const codeHash = hashInviteToken(normalizeCode(code));
   const invite = await prisma.buyerInvite.findUnique({
     where: { codeHash },
@@ -259,11 +384,11 @@ export async function previewBuyerInvite(code: string) {
         },
       },
       company: { select: { id: true, name: true } },
+      buyerUser: { select: { id: true, isActive: true } },
     },
   });
   if (!invite) throw ApiError.notFound('Invalid invite code');
-  if (invite.acceptedAt) throw ApiError.badRequest('This invite code was already used. Sign in with OTP instead.');
-  if (invite.expiresAt < new Date()) {
+  if (invite.expiresAt < new Date() && !invite.acceptedAt) {
     throw ApiError.badRequest('Invite code has expired. Ask the manufacturer to regenerate it.');
   }
   await assertInventoryFeature(invite.companyId, 'b2b_buyer_app');
@@ -275,12 +400,14 @@ export async function previewBuyerInvite(code: string) {
     email: invite.email || invite.customer.email,
     phone: invite.phone || invite.customer.phone,
     customer: invite.customer,
+    /** Already joined — Confirm re-opens their catalog session (no OTP). */
+    alreadyJoined: Boolean(invite.acceptedAt && invite.buyerUser?.isActive),
   };
 }
 
 /**
- * Buyer enters join code on first open. Creates BuyerUser and returns session.
- * Details default to what the owner prefilled; subsequent logins use email + OTP.
+ * Buyer enters join code. First use creates BuyerUser; later use of the same code
+ * restores the session (no email/phone OTP required).
  */
 export async function claimBuyerInvite(input: {
   code: string;
@@ -288,21 +415,39 @@ export async function claimBuyerInvite(input: {
   name?: string;
   phone?: string | null;
 }) {
+  if (isPlayReviewCode(input.code)) {
+    return sessionForPlayReviewCode();
+  }
+
   const codeHash = hashInviteToken(normalizeCode(input.code));
   const invite = await prisma.buyerInvite.findUnique({
     where: { codeHash },
     include: {
       customer: true,
       company: { select: { id: true, name: true } },
+      buyerUser: true,
     },
   });
   if (!invite) throw ApiError.notFound('Invalid invite code');
-  if (invite.acceptedAt) throw ApiError.badRequest('This invite code was already used');
+
+  await assertInventoryFeature(invite.companyId, 'b2b_buyer_app');
+
+  // Re-entry with the same invite code → restore session (invite-only login).
+  if (invite.acceptedAt && invite.buyerUserId) {
+    const existing = invite.buyerUser;
+    if (!existing || !existing.isActive) {
+      throw ApiError.forbidden('Buyer access was revoked. Ask the manufacturer for a new invite.');
+    }
+    await prisma.buyerUser.update({
+      where: { id: existing.id },
+      data: { lastLoginAt: new Date() },
+    });
+    return serializeBuyerSession(existing.id);
+  }
+
   if (invite.expiresAt < new Date()) {
     throw ApiError.badRequest('Invite code has expired. Ask the manufacturer to regenerate it.');
   }
-
-  await assertInventoryFeature(invite.companyId, 'b2b_buyer_app');
 
   const email = (
     input.email?.trim() ||
@@ -320,7 +465,22 @@ export async function claimBuyerInvite(input: {
     where: { companyId_email: { companyId: invite.companyId, email } },
   });
   if (conflict && conflict.isActive) {
-    throw ApiError.conflict('A buyer with this email already exists for this manufacturer. Sign in with OTP instead.');
+    // Same email already a buyer — treat code claim as re-login for that account.
+    await prisma.buyerInvite.update({
+      where: { id: invite.id },
+      data: {
+        acceptedAt: new Date(),
+        buyerUserId: conflict.id,
+        email,
+        name,
+        phone,
+      },
+    });
+    await prisma.buyerUser.update({
+      where: { id: conflict.id },
+      data: { lastLoginAt: new Date(), customerId: invite.customerId },
+    });
+    return serializeBuyerSession(conflict.id);
   }
 
   const buyer = await prisma.$transaction(async (tx) => {
