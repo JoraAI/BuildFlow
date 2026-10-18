@@ -18,6 +18,7 @@ import { notifyMany } from './notification.service';
 import { logger } from '../config/logger';
 import { hashInviteToken } from '../utils/invite-token';
 import { resolveDetailedRates } from './price-list.service';
+import { invalidatePattern } from '../utils/cache';
 
 const BUYER_JWT_TYPE = 'buyer_access';
 const DEFAULT_INVITE_HOURS = 48;
@@ -560,11 +561,15 @@ export async function setResourceB2bPublished(
       }
     }
   }
-  return prisma.resource.update({
+  const updated = await prisma.resource.update({
     where: { id: resourceId },
     data: { b2bPublished: published },
     select: { id: true, name: true, sku: true, b2bPublished: true, rate: true, unit: true },
   });
+  // listResources caches page-1 for 1h; without this, Publish B2B toast succeeds
+  // but the Materials screen keeps showing the old unpublished button state.
+  await invalidatePattern(`cache:${companyId}:resources:*`);
+  return updated;
 }
 
 async function findActiveBuyerByIdentifier(identifierRaw: string, companyId?: string) {

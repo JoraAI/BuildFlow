@@ -287,6 +287,10 @@ export function useRevokeBuyer() {
   });
 }
 
+type ResourcesQueryData = {
+  data?: Array<{ id: string; b2bPublished?: boolean }>;
+};
+
 export function useSetB2bPublished() {
   const qc = useQueryClient();
   return useMutation({
@@ -295,9 +299,30 @@ export function useSetB2bPublished() {
         method: 'POST',
         body: JSON.stringify(body),
       }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['resources'] });
-      qc.invalidateQueries({ queryKey: ['materials'] });
+    onMutate: async ({ resourceId, published }) => {
+      await qc.cancelQueries({ queryKey: ['resources'] });
+      const previous = qc.getQueriesData<ResourcesQueryData>({
+        queryKey: ['resources'],
+      });
+      qc.setQueriesData<ResourcesQueryData>({ queryKey: ['resources'] }, (old: ResourcesQueryData | undefined) => {
+        if (!old?.data) return old;
+        return {
+          ...old,
+          data: old.data.map((row: { id: string; b2bPublished?: boolean }) =>
+            row.id === resourceId ? { ...row, b2bPublished: published } : row,
+          ),
+        };
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, ctx) => {
+      ctx?.previous?.forEach(([key, data]) => {
+        qc.setQueryData(key, data);
+      });
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ['resources'] });
+      void qc.invalidateQueries({ queryKey: ['materials'] });
     },
   });
 }
