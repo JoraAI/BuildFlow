@@ -2,6 +2,7 @@
  * Jora Trade (buyer app) - join via invite code, OTP login,
  * then a single-scroll home: Shop → Cart → Recent orders → Account.
  * Catalog = supplier item master rows marked b2bPublished (any vertical).
+ * Visual design aligned with Play Store listing screenshots.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -13,6 +14,7 @@ import {
   StyleSheet,
   SafeAreaView,
   Linking,
+  StatusBar,
 } from 'react-native';
 import { buyerFetch, getBuyerToken, setBuyerToken } from '../lib/api';
 
@@ -97,6 +99,7 @@ type InvitePreview = {
 
 const NAVY = '#1E3A5F';
 const AMBER = '#F59E0B';
+const BG = '#F1F5F9';
 const RECENT_LIMIT = 10;
 
 function formatOrderDate(order: Order): string {
@@ -104,7 +107,30 @@ function formatOrderDate(order: Order): string {
   if (!raw) return '';
   const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function formatInr(n: number): string {
+  return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function statusTone(status: string): 'confirmed' | 'pending' | 'neutral' {
+  const s = status.toUpperCase();
+  if (s.includes('CONFIRM') || s.includes('FULFILL') || s === 'COMPLETED' || s === 'SHIPPED') {
+    return 'confirmed';
+  }
+  if (s.includes('PEND') || s.includes('DRAFT') || s.includes('NEW') || s === 'OPEN') {
+    return 'pending';
+  }
+  return 'neutral';
+}
+
+function BrandMark({ size = 40 }: { size?: number }) {
+  return (
+    <View style={[styles.brandMark, { width: size, height: size, borderRadius: size * 0.22 }]}>
+      <Text style={[styles.brandMarkJ, { fontSize: size * 0.55 }]}>J</Text>
+    </View>
+  );
 }
 
 function QtyStepper({
@@ -118,8 +144,8 @@ function QtyStepper({
 }) {
   if (qty <= 0) {
     return (
-      <Pressable style={styles.btnSmall} onPress={onInc}>
-        <Text style={styles.btnText}>Add</Text>
+      <Pressable style={styles.btnAdd} onPress={onInc}>
+        <Text style={styles.btnAddText}>Add</Text>
       </Pressable>
     );
   }
@@ -150,6 +176,7 @@ export default function BuyerHome() {
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const [showAllOrders, setShowAllOrders] = useState(false);
+  const [orderQuery, setOrderQuery] = useState('');
   const [successNote, setSuccessNote] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -197,11 +224,22 @@ export default function BuyerHome() {
     [cartLines],
   );
 
-  const visibleOrders = showAllOrders ? orders : orders.slice(0, RECENT_LIMIT);
+  const filteredOrders = useMemo(() => {
+    const q = orderQuery.trim().toLowerCase();
+    if (!q) return orders;
+    return orders.filter(
+      (o) =>
+        o.soNumber.toLowerCase().includes(q) ||
+        o.status.toLowerCase().includes(q) ||
+        o.lines.some((l) => l.itemName.toLowerCase().includes(q)),
+    );
+  }, [orders, orderQuery]);
+
+  const visibleOrders = showAllOrders ? filteredOrders : filteredOrders.slice(0, RECENT_LIMIT);
 
   const setQty = (id: string, next: number) => {
-    setCart((c) => {
-      const copy = { ...c };
+    setCart((prev) => {
+      const copy = { ...prev };
       if (next <= 0) delete copy[id];
       else copy[id] = next;
       return copy;
@@ -211,7 +249,6 @@ export default function BuyerHome() {
   const previewInvite = async () => {
     setBusy(true);
     setError('');
-    setInvitePreview(null);
     try {
       const data = await buyerFetch<InvitePreview>('/buyer/auth/preview-invite', {
         method: 'POST',
@@ -220,6 +257,7 @@ export default function BuyerHome() {
       setInvitePreview(data);
     } catch (e) {
       setError((e as Error).message);
+      setInvitePreview(null);
     } finally {
       setBusy(false);
     }
@@ -236,7 +274,6 @@ export default function BuyerHome() {
       await setBuyerToken(data.accessToken);
       setToken(data.accessToken);
       setBuyer(data.buyer);
-      setInvitePreview(null);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -307,15 +344,12 @@ export default function BuyerHome() {
           lines: cartLines.map((l) => ({
             resourceId: l.id,
             quantity: l.qty,
-            rate: Number(l.rate),
           })),
         }),
       });
       setCart({});
+      setSuccessNote(`Order ${created.soNumber} placed`);
       await loadOrders();
-      setSuccessNote(
-        created?.soNumber ? `Order ${created.soNumber} placed` : 'Order placed successfully',
-      );
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -328,7 +362,7 @@ export default function BuyerHome() {
     setBusy(true);
     setError('');
     try {
-      const data = await buyerFetch<{ buyer: Buyer; customer: CustomerProfile }>('/buyer/profile', {
+      await buyerFetch('/buyer/profile', {
         method: 'PATCH',
         body: JSON.stringify({
           name: profile.name,
@@ -341,9 +375,8 @@ export default function BuyerHome() {
           shippingAddress: profile.shippingAddress,
         }),
       });
-      setProfile(data.customer);
-      setBuyer(data.buyer);
-      setSuccessNote('Account details saved');
+      setSuccessNote('Profile saved');
+      await loadProfile();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -355,7 +388,7 @@ export default function BuyerHome() {
     await setBuyerToken(null);
     setToken(null);
     setBuyer(null);
-    setProfile(null);
+    setCatalog([]);
     setCart({});
     setOrders([]);
     setSuccessNote('');
@@ -366,29 +399,46 @@ export default function BuyerHome() {
   if (!token) {
     return (
       <SafeAreaView style={styles.safe}>
-        <ScrollView contentContainerStyle={styles.pad}>
-          <Text style={styles.brand}>Jora Trade</Text>
-          <Text style={styles.muted}>
-            Enter the invite code from your supplier. Your details are already filled by them —
-            confirm and join. After that you can edit your profile and order from their catalog.
+        <StatusBar barStyle="light-content" backgroundColor={NAVY} />
+        <View style={styles.authHero}>
+          <View style={styles.authHeroRow}>
+            <BrandMark size={44} />
+            <View style={{ marginLeft: 12, flex: 1 }}>
+              <Text style={styles.authHeroTitle}>Jora Trade</Text>
+              <Text style={styles.authHeroTag}>B2B Trade. Built for Buyers.</Text>
+            </View>
+          </View>
+          <View style={styles.authHeroCurve} />
+        </View>
+
+        <ScrollView contentContainerStyle={styles.authPad} keyboardShouldPersistTaps="handled">
+          <Text style={styles.authHeading}>{authMode === 'join' ? 'LOGIN' : 'SIGN IN'}</Text>
+          <Text style={styles.authSub}>
+            {authMode === 'join'
+              ? 'Join Jora Trade by entering your supplier invite code to get started.'
+              : 'For returning buyers after you have joined once. Use email or mobile OTP.'}
           </Text>
 
           {authMode === 'join' ? (
             <>
               <Text style={styles.label}>Invite code</Text>
-              <TextInput
-                style={styles.input}
-                value={inviteCode}
-                onChangeText={(v) => {
-                  setInviteCode(v);
-                  setInvitePreview(null);
-                }}
-                autoCapitalize="characters"
-                placeholder="e.g. AB12CD34"
-              />
+              <View style={styles.inputWrap}>
+                <Text style={styles.inputIcon}>🔒</Text>
+                <TextInput
+                  style={styles.inputFlex}
+                  value={inviteCode}
+                  onChangeText={(v) => {
+                    setInviteCode(v);
+                    setInvitePreview(null);
+                  }}
+                  autoCapitalize="characters"
+                  placeholder="Enter invite code"
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
               {!invitePreview ? (
-                <Pressable style={styles.btn} onPress={previewInvite} disabled={busy}>
-                  <Text style={styles.btnText}>{busy ? 'Checking…' : 'Continue'}</Text>
+                <Pressable style={styles.btnPrimary} onPress={previewInvite} disabled={busy}>
+                  <Text style={styles.btnPrimaryText}>{busy ? 'Checking…' : 'Confirm/Join'}</Text>
                 </Pressable>
               ) : (
                 <View style={styles.card}>
@@ -417,52 +467,64 @@ export default function BuyerHome() {
                   <Text style={[styles.muted, { marginTop: 8 }]}>
                     You can edit these after joining under Account.
                   </Text>
-                  <Pressable style={styles.btn} onPress={claimInvite} disabled={busy}>
-                    <Text style={styles.btnText}>Join & continue</Text>
+                  <Pressable style={styles.btnPrimary} onPress={claimInvite} disabled={busy}>
+                    <Text style={styles.btnPrimaryText}>Join & continue</Text>
                   </Pressable>
                   <Pressable
-                    style={styles.btnSecondary}
+                    style={styles.btnGhost}
                     onPress={() => {
                       setInvitePreview(null);
                       setError('');
                     }}
                     disabled={busy}
                   >
-                    <Text style={styles.btnSecondaryText}>Use a different code</Text>
+                    <Text style={styles.btnGhostText}>Use a different code</Text>
                   </Pressable>
                 </View>
               )}
               {error ? <Text style={styles.err}>{error}</Text> : null}
-              <Pressable
-                style={{ marginTop: 20 }}
-                onPress={() => {
-                  setAuthMode('login');
-                  setError('');
-                  setInvitePreview(null);
-                }}
-              >
-                <Text style={styles.link}>Already joined? Sign in with email or mobile OTP</Text>
-              </Pressable>
+              <View style={styles.authSwitch}>
+                <Text style={styles.mutedCenter}>Already joined?</Text>
+                <Pressable
+                  onPress={() => {
+                    setAuthMode('login');
+                    setError('');
+                    setInvitePreview(null);
+                  }}
+                >
+                  <Text style={styles.linkUnderline}>
+                    Sign in with email or mobile OTP
+                  </Text>
+                </Pressable>
+              </View>
             </>
           ) : (
             <>
-              <Text style={styles.muted}>For returning buyers after you have joined once.</Text>
               <Text style={styles.label}>Email or mobile</Text>
-              <TextInput
-                style={styles.input}
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="default"
-                placeholder="you@company.com or 9876543210"
-              />
+              <View style={styles.inputWrap}>
+                <Text style={styles.inputIcon}>✉</Text>
+                <TextInput
+                  style={styles.inputFlex}
+                  value={email}
+                  onChangeText={setEmail}
+                  autoCapitalize="none"
+                  keyboardType="default"
+                  placeholder="you@company.com or 9876543210"
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
               <Text style={styles.label}>OTP</Text>
-              <TextInput
-                style={styles.input}
-                value={otp}
-                onChangeText={setOtp}
-                keyboardType="number-pad"
-              />
+              <View style={styles.inputWrap}>
+                <Text style={styles.inputIcon}>#</Text>
+                <TextInput
+                  style={styles.inputFlex}
+                  value={otp}
+                  onChangeText={setOtp}
+                  keyboardType="number-pad"
+                  placeholder="6-digit code"
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
               <Pressable
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: smsConsent }}
@@ -500,24 +562,32 @@ export default function BuyerHome() {
               </Pressable>
               {otpHint ? <Text style={styles.success}>{otpHint}</Text> : null}
               {error ? <Text style={styles.err}>{error}</Text> : null}
-              <Pressable style={styles.btnSecondary} onPress={sendOtp} disabled={busy}>
-                <Text style={styles.btnSecondaryText}>Send OTP</Text>
+              <Pressable style={styles.btnGhost} onPress={sendOtp} disabled={busy}>
+                <Text style={styles.btnGhostText}>Send OTP</Text>
               </Pressable>
-              <Pressable style={styles.btn} onPress={login} disabled={busy}>
-                <Text style={styles.btnText}>Sign in</Text>
+              <Pressable style={styles.btnPrimary} onPress={login} disabled={busy}>
+                <Text style={styles.btnPrimaryText}>Sign in</Text>
               </Pressable>
-              <Pressable
-                style={{ marginTop: 16 }}
-                onPress={() => {
-                  setAuthMode('join');
-                  setError('');
-                  setOtpHint('');
-                }}
-              >
-                <Text style={styles.link}>Have an invite code? Join here</Text>
-              </Pressable>
+              <View style={styles.authSwitch}>
+                <Pressable
+                  onPress={() => {
+                    setAuthMode('join');
+                    setError('');
+                    setOtpHint('');
+                  }}
+                >
+                  <Text style={styles.linkUnderline}>Have an invite code? Join here</Text>
+                </Pressable>
+              </View>
             </>
           )}
+
+          <View style={styles.secureNote}>
+            <Text style={styles.secureNoteIcon}>✓</Text>
+            <Text style={styles.secureNoteText}>
+              Your invite code is secure and used only for verification.
+            </Text>
+          </View>
         </ScrollView>
       </SafeAreaView>
     );
@@ -532,19 +602,42 @@ export default function BuyerHome() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <View style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
-          <Text style={styles.brandSmall}>Jora Trade</Text>
-          <Text style={styles.mutedHeader}>{buyer?.companyName ?? 'Catalog'}</Text>
-          {roleLabel ? (
-            <View style={styles.roleChip}>
-              <Text style={styles.roleChipText}>{roleLabel} pricing</Text>
+      <StatusBar barStyle="light-content" backgroundColor={NAVY} />
+      <View style={styles.topBar}>
+        <Text style={styles.topBarBrand}>
+          Jora <Text style={styles.topBarBrandAccent}>Trade</Text>
+        </Text>
+        <View style={styles.topBarRight}>
+          {cartCount > 0 ? (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{cartCount}</Text>
             </View>
           ) : null}
+          <Pressable onPress={logout} hitSlop={8}>
+            <Text style={styles.topBarLogout}>Logout</Text>
+          </Pressable>
         </View>
-        <Pressable onPress={logout}>
-          <Text style={styles.link}>Logout</Text>
-        </Pressable>
+      </View>
+      <View style={styles.topBarCurve} />
+
+      <View style={styles.partyRow}>
+        <View style={styles.partyIcon}>
+          <Text style={styles.partyIconText}>🛍</Text>
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.partyName} numberOfLines={1}>
+            {buyer?.companyName ?? 'Supplier catalog'}
+          </Text>
+          <Text style={styles.partySub} numberOfLines={1}>
+            {buyer?.customerName ?? 'Buyer'}
+            {roleLabel ? ` · ${roleLabel} pricing` : ''}
+          </Text>
+        </View>
+        {roleLabel ? (
+          <View style={styles.roleChip}>
+            <Text style={styles.roleChipText}>{roleLabel} pricing</Text>
+          </View>
+        ) : null}
       </View>
 
       <ScrollView
@@ -554,12 +647,13 @@ export default function BuyerHome() {
         {error ? <Text style={styles.err}>{error}</Text> : null}
         {successNote ? <Text style={styles.success}>{successNote}</Text> : null}
 
-        {/* Shop */}
-        <Text style={styles.sectionTitle}>Shop</Text>
+        <View style={styles.sectionHead}>
+          <Text style={styles.sectionTitle}>SHOP Catalog</Text>
+        </View>
         <Text style={styles.sectionHint}>Your prices for this account. Tap + / − to set quantity.</Text>
         {catalog.length === 0 ? (
           <Text style={styles.muted}>
-            No published items yet. Your manufacturer publishes items from their Materials list.
+            No published items yet. Your supplier publishes items from their Materials list.
           </Text>
         ) : (
           catalog.map((item) => {
@@ -567,21 +661,28 @@ export default function BuyerHome() {
             const mrp = item.mrp != null ? Number(item.mrp) : null;
             const disc = item.discountPct != null ? Number(item.discountPct) : 0;
             const qty = cart[item.id] ?? 0;
+            const initial = (item.name || '?').trim().charAt(0).toUpperCase();
             return (
               <View key={item.id} style={styles.card}>
                 <View style={styles.cardRow}>
+                  <View style={styles.thumb}>
+                    <Text style={styles.thumbText}>{initial}</Text>
+                  </View>
                   <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
                     <Text style={styles.cardTitle}>{item.name}</Text>
                     <Text style={styles.muted}>
                       {item.sku ? `${item.sku} · ` : ''}
                       {item.category ? `${item.category} · ` : ''}
-                      per {item.unit}
+                      {item.unit}
                     </Text>
                     <View style={styles.priceRow}>
                       {mrp != null && mrp > net ? (
-                        <Text style={styles.mrpStrike}>MRP ₹{mrp.toFixed(2)}</Text>
+                        <Text style={styles.mrpStrike}>MRP {formatInr(mrp)}</Text>
                       ) : null}
-                      <Text style={styles.price}>₹{net.toFixed(2)}</Text>
+                      <Text style={styles.price}>
+                        {formatInr(net)}
+                        <Text style={styles.priceUnit}> / {item.unit}</Text>
+                      </Text>
                       {disc > 0 ? <Text style={styles.discBadge}>{disc}% off</Text> : null}
                     </View>
                   </View>
@@ -596,7 +697,6 @@ export default function BuyerHome() {
           })
         )}
 
-        {/* Cart */}
         <Text style={[styles.sectionTitle, styles.sectionGap]}>Your cart</Text>
         {cartLines.length === 0 ? (
           <Text style={styles.muted}>Cart is empty. Add items from Shop above.</Text>
@@ -608,7 +708,7 @@ export default function BuyerHome() {
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={styles.cardTitle}>{l.name}</Text>
                     <Text style={styles.muted}>
-                      ₹{Number(l.rate).toFixed(2)} × {l.qty} = ₹{(Number(l.rate) * l.qty).toFixed(2)}
+                      {formatInr(Number(l.rate))} × {l.qty} = {formatInr(Number(l.rate) * l.qty)}
                     </Text>
                   </View>
                   <QtyStepper
@@ -623,76 +723,111 @@ export default function BuyerHome() {
               <Text style={styles.subtotalLabel}>
                 {cartCount} item{cartCount === 1 ? '' : 's'}
               </Text>
-              <Text style={styles.subtotalValue}>₹{cartTotal.toFixed(2)}</Text>
+              <Text style={styles.subtotalValue}>{formatInr(cartTotal)}</Text>
             </View>
-            <Pressable style={styles.btn} onPress={placeOrder} disabled={busy}>
-              <Text style={styles.btnText}>{busy ? 'Placing…' : 'Place order'}</Text>
-            </Pressable>
           </>
         )}
 
-        {/* Recent orders */}
-        <Text style={[styles.sectionTitle, styles.sectionGap]}>Recent orders</Text>
-        {orders.length === 0 ? (
-          <Text style={styles.muted}>No orders yet. Place your first order from the cart.</Text>
+        <View style={styles.searchWrap}>
+          <Text style={styles.inputIcon}>🔍</Text>
+          <TextInput
+            style={styles.inputFlex}
+            value={orderQuery}
+            onChangeText={setOrderQuery}
+            placeholder="Search orders"
+            placeholderTextColor="#94A3B8"
+          />
+        </View>
+
+        <Text style={[styles.sectionTitle, styles.sectionGapTight]}>Recent orders</Text>
+        {filteredOrders.length === 0 ? (
+          <Text style={styles.muted}>
+            {orders.length === 0
+              ? 'No orders yet. Place your first order from the cart.'
+              : 'No orders match your search.'}
+          </Text>
         ) : (
           <>
             {visibleOrders.map((item) => {
               const dateLabel = formatOrderDate(item);
+              const tone = statusTone(item.status);
+              const lineCount = item.lines.reduce((s, l) => s + Number(l.quantity || 0), 0);
               return (
-                <View key={item.id} style={styles.card}>
+                <View key={item.id} style={styles.orderCard}>
                   <View style={styles.cardRow}>
                     <Text style={styles.cardTitle}>{item.soNumber}</Text>
-                    <Text style={styles.statusPill}>{item.status.replace(/_/g, ' ')}</Text>
+                    <View
+                      style={[
+                        styles.statusPill,
+                        tone === 'confirmed' && styles.statusConfirmed,
+                        tone === 'pending' && styles.statusPending,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.statusPillText,
+                          tone === 'confirmed' && styles.statusConfirmedText,
+                          tone === 'pending' && styles.statusPendingText,
+                        ]}
+                      >
+                        {item.status.replace(/_/g, ' ')}
+                      </Text>
+                    </View>
                   </View>
-                  <Text style={styles.muted}>
-                    {dateLabel ? `${dateLabel} · ` : ''}₹{Number(item.total).toFixed(2)}
-                  </Text>
+                  {dateLabel ? <Text style={styles.orderDate}>{dateLabel}</Text> : null}
+                  <View style={styles.orderDivider} />
+                  <View style={styles.cardRow}>
+                    <Text style={styles.muted}>
+                      {lineCount || item.lines.length} item
+                      {(lineCount || item.lines.length) === 1 ? '' : 's'}
+                    </Text>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.orderTotal}>{formatInr(Number(item.total))}</Text>
+                      <Text style={styles.orderTotalLabel}>Total</Text>
+                    </View>
+                  </View>
                   {item.trackingRef ? (
                     <Text style={styles.muted}>
                       Ship: {item.carrier ?? '—'} · {item.trackingRef}
                     </Text>
                   ) : null}
-                  {item.lines.slice(0, 4).map((l, idx) => (
+                  {item.lines.slice(0, 3).map((l, idx) => (
                     <Text key={idx} style={styles.line}>
                       • {l.itemName} × {String(l.quantity)} {l.unit}
                     </Text>
                   ))}
-                  {item.lines.length > 4 ? (
-                    <Text style={styles.line}>+{item.lines.length - 4} more lines</Text>
+                  {item.lines.length > 3 ? (
+                    <Text style={styles.line}>+{item.lines.length - 3} more lines</Text>
                   ) : null}
                 </View>
               );
             })}
-            {orders.length > RECENT_LIMIT ? (
-              <Pressable
-                style={styles.btnSecondary}
-                onPress={() => setShowAllOrders((v) => !v)}
-              >
-                <Text style={styles.btnSecondaryText}>
+            {filteredOrders.length > RECENT_LIMIT ? (
+              <Pressable style={styles.btnGhost} onPress={() => setShowAllOrders((v) => !v)}>
+                <Text style={styles.btnGhostText}>
                   {showAllOrders
                     ? 'Show recent only'
-                    : `Show all orders (${orders.length})`}
+                    : `Show all orders (${filteredOrders.length})`}
                 </Text>
               </Pressable>
             ) : null}
           </>
         )}
 
-        {/* Account */}
-        <Text style={[styles.sectionTitle, styles.sectionGap]}>Account</Text>
-        <Pressable
-          style={styles.accountToggle}
-          onPress={() => setAccountOpen((v) => !v)}
-        >
-          <Text style={styles.accountToggleText}>
-            {accountOpen ? 'Hide account details' : 'Edit account details'}
-          </Text>
+        <Pressable style={styles.accountCard} onPress={() => setAccountOpen((v) => !v)}>
+          <View style={styles.accountAvatar}>
+            <Text style={styles.accountAvatarText}>👤</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>Account</Text>
+            <Text style={styles.muted}>Manage your account details and preferences.</Text>
+          </View>
+          <Text style={styles.chevron}>{accountOpen ? '▴' : '▾'}</Text>
         </Pressable>
         {accountOpen && profile ? (
           <View style={{ marginTop: 8 }}>
             <Text style={styles.muted}>
-              Details prefilled by your manufacturer. Edit anything that needs updating.
+              Details prefilled by your supplier. Edit anything that needs updating.
             </Text>
             {(
               [
@@ -725,88 +860,255 @@ export default function BuyerHome() {
             ) : null}
             {profile.paymentTerms ? (
               <Text style={[styles.muted, { marginTop: 8 }]}>
-                Payment terms (set by manufacturer): {profile.paymentTerms}
+                Payment terms (set by supplier): {profile.paymentTerms}
               </Text>
             ) : null}
-            <Pressable style={styles.btn} onPress={saveProfile} disabled={busy}>
-              <Text style={styles.btnText}>Save profile</Text>
+            <Pressable style={styles.btnPrimary} onPress={saveProfile} disabled={busy}>
+              <Text style={styles.btnPrimaryText}>Save profile</Text>
             </Pressable>
           </View>
         ) : null}
       </ScrollView>
 
       {cartCount > 0 ? (
-        <View style={styles.stickyFooter}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.stickyMeta}>
-              {cartCount} item{cartCount === 1 ? '' : 's'} · ₹{cartTotal.toFixed(2)}
-            </Text>
-          </View>
-          <Pressable
-            style={[styles.stickyBtn, busy ? styles.stickyBtnDisabled : null]}
-            onPress={placeOrder}
-            disabled={busy}
-          >
-            <Text style={styles.btnText}>{busy ? '…' : 'Place order'}</Text>
-          </Pressable>
-        </View>
+        <Pressable style={styles.stickyFooter} onPress={placeOrder} disabled={busy}>
+          <Text style={styles.stickyLeft}>
+            Cart · {cartCount} item{cartCount === 1 ? '' : 's'}
+          </Text>
+          <Text style={styles.stickyMid}>{formatInr(cartTotal)}</Text>
+          <Text style={styles.stickyRight}>{busy ? '…' : 'Place order ›'}</Text>
+        </Pressable>
       ) : null}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F8FAFC' },
-  pad: { padding: 16, paddingBottom: 32 },
-  padWithFooter: { paddingBottom: 96 },
-  brand: { fontSize: 28, fontWeight: '800', color: NAVY, marginBottom: 4 },
-  brandSmall: { fontSize: 16, fontWeight: '800', color: NAVY },
-  muted: { color: '#64748B', fontSize: 13, marginBottom: 8 },
-  mutedHeader: { color: '#64748B', fontSize: 13, marginTop: 2 },
+  safe: { flex: 1, backgroundColor: BG },
+  pad: { paddingHorizontal: 16, paddingBottom: 32 },
+  padWithFooter: { paddingBottom: 100 },
+
+  brandMark: {
+    backgroundColor: AMBER,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FBBF24',
+  },
+  brandMarkJ: { color: NAVY, fontWeight: '900' },
+
+  authHero: {
+    backgroundColor: NAVY,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 28,
+  },
+  authHeroRow: { flexDirection: 'row', alignItems: 'center' },
+  authHeroTitle: { color: '#fff', fontSize: 26, fontWeight: '800' },
+  authHeroTag: { color: '#CBD5E1', fontSize: 13, marginTop: 2 },
+  authHeroCurve: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: -1,
+    height: 18,
+    backgroundColor: BG,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  authPad: { padding: 20, paddingBottom: 40 },
+  authHeading: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: NAVY,
+    textAlign: 'center',
+    letterSpacing: 1,
+    marginTop: 8,
+  },
+  authSub: {
+    color: '#64748B',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  authSwitch: { marginTop: 20, alignItems: 'center', gap: 4 },
+  mutedCenter: { color: '#64748B', fontSize: 13, textAlign: 'center' },
+  linkUnderline: {
+    color: NAVY,
+    fontWeight: '700',
+    fontSize: 14,
+    textDecorationLine: 'underline',
+    textAlign: 'center',
+  },
+  secureNote: {
+    marginTop: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  secureNoteIcon: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#E2E8F0',
+    color: '#64748B',
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '800',
+    overflow: 'hidden',
+    lineHeight: 18,
+  },
+  secureNoteText: { color: '#94A3B8', fontSize: 12, flexShrink: 1 },
+
+  topBar: {
+    backgroundColor: NAVY,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  topBarBrand: { color: '#fff', fontSize: 20, fontWeight: '800' },
+  topBarBrandAccent: { color: AMBER },
+  topBarRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  topBarLogout: { color: '#E2E8F0', fontWeight: '700', fontSize: 13 },
+  cartBadge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: AMBER,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  cartBadgeText: { color: NAVY, fontWeight: '800', fontSize: 12 },
+  topBarCurve: {
+    height: 14,
+    backgroundColor: BG,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    marginTop: -1,
+  },
+
+  partyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    gap: 10,
+  },
+  partyIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: NAVY,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  partyIconText: { fontSize: 16 },
+  partyName: { fontSize: 15, fontWeight: '800', color: NAVY },
+  partySub: { fontSize: 12, color: '#64748B', marginTop: 2 },
+  roleChip: {
+    borderWidth: 1.5,
+    borderColor: AMBER,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: '#FFFBEB',
+  },
+  roleChipText: { fontSize: 11, fontWeight: '700', color: AMBER },
+
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
   sectionTitle: { fontSize: 18, fontWeight: '800', color: NAVY, marginBottom: 4 },
   sectionHint: { color: '#64748B', fontSize: 13, marginBottom: 12 },
   sectionGap: { marginTop: 28 },
-  label: { fontSize: 12, fontWeight: '700', color: NAVY, marginTop: 10, marginBottom: 4 },
+  sectionGapTight: { marginTop: 16 },
+
+  label: { fontSize: 12, fontWeight: '700', color: NAVY, marginTop: 10, marginBottom: 6 },
   input: {
     borderWidth: 1,
     borderColor: '#CBD5E1',
     backgroundColor: '#fff',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-  },
-  btn: {
-    marginTop: 16,
-    backgroundColor: NAVY,
-    borderRadius: 10,
+    borderRadius: 12,
+    paddingHorizontal: 14,
     paddingVertical: 12,
+    fontSize: 15,
+    color: '#0F172A',
+  },
+  inputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+  },
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#fff',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    marginTop: 28,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  inputIcon: { fontSize: 14, marginRight: 8, color: '#94A3B8' },
+  inputFlex: {
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#0F172A',
+  },
+
+  btnPrimary: {
+    marginTop: 16,
+    backgroundColor: AMBER,
+    borderRadius: 12,
+    paddingVertical: 14,
     alignItems: 'center',
   },
-  btnSmall: {
-    backgroundColor: NAVY,
-    borderRadius: 8,
-    paddingHorizontal: 14,
+  btnPrimaryText: { color: NAVY, fontWeight: '800', fontSize: 16 },
+  btnAdd: {
+    backgroundColor: AMBER,
+    borderRadius: 10,
+    paddingHorizontal: 16,
     paddingVertical: 8,
     alignSelf: 'center',
   },
-  btnText: { color: '#fff', fontWeight: '700' },
-  btnSecondary: {
+  btnAddText: { color: NAVY, fontWeight: '800' },
+  btnGhost: {
     marginTop: 12,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: NAVY,
-    borderRadius: 10,
-    paddingVertical: 10,
+    borderRadius: 12,
+    paddingVertical: 12,
     alignItems: 'center',
+    backgroundColor: '#fff',
   },
-  btnSecondaryText: { color: NAVY, fontWeight: '700' },
+  btnGhostText: { color: NAVY, fontWeight: '700' },
+
   err: { color: '#DC2626', marginBottom: 8, marginTop: 8 },
   success: {
     color: '#047857',
     backgroundColor: '#ECFDF5',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     marginBottom: 10,
     marginTop: 8,
     fontWeight: '600',
@@ -817,7 +1119,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
     backgroundColor: '#fff',
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 12,
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -838,44 +1140,50 @@ const styles = StyleSheet.create({
   checkboxMark: { color: '#fff', fontSize: 12, fontWeight: '800' },
   consentText: { fontSize: 12, color: '#0F172A', lineHeight: 17 },
   linkInline: { color: AMBER, fontWeight: '700' },
-  header: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    backgroundColor: '#fff',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  link: { color: AMBER, fontWeight: '700' },
-  roleChip: {
-    alignSelf: 'flex-start',
-    marginTop: 6,
-    backgroundColor: '#EEF2FF',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-  },
-  roleChipText: { fontSize: 11, fontWeight: '700', color: NAVY },
+
   card: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 14,
+    padding: 14,
     marginBottom: 10,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+  },
+  orderCard: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   cardRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: NAVY },
+  cardTitle: { fontSize: 15, fontWeight: '800', color: NAVY },
+  thumb: {
+    width: 52,
+    height: 52,
+    borderRadius: 10,
+    backgroundColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  thumbText: { fontSize: 20, fontWeight: '800', color: NAVY },
   prefill: { fontSize: 15, color: '#0F172A', marginBottom: 4 },
   line: { fontSize: 12, color: '#334155', marginTop: 2 },
+  muted: { color: '#64748B', fontSize: 13, marginBottom: 4 },
   priceRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  price: { fontSize: 16, fontWeight: '800', color: NAVY },
+  price: { fontSize: 16, fontWeight: '800', color: AMBER },
+  priceUnit: { fontSize: 12, fontWeight: '600', color: '#94A3B8' },
   mrpStrike: {
     fontSize: 12,
     color: '#94A3B8',
@@ -890,23 +1198,25 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 6,
   },
+
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#FFFBEB',
     borderRadius: 10,
-    paddingHorizontal: 4,
-    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    paddingHorizontal: 2,
+    paddingVertical: 2,
   },
   stepBtn: {
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: NAVY,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepBtnText: { color: '#fff', fontSize: 18, fontWeight: '700', lineHeight: 20 },
+  stepBtnText: { color: AMBER, fontSize: 20, fontWeight: '800', lineHeight: 22 },
   stepQty: {
     minWidth: 28,
     textAlign: 'center',
@@ -914,6 +1224,7 @@ const styles = StyleSheet.create({
     color: NAVY,
     fontSize: 15,
   },
+
   subtotalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -923,50 +1234,63 @@ const styles = StyleSheet.create({
   },
   subtotalLabel: { fontSize: 14, fontWeight: '600', color: '#475569' },
   subtotalValue: { fontSize: 18, fontWeight: '800', color: NAVY },
+
   statusPill: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: NAVY,
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
     borderRadius: 999,
-    overflow: 'hidden',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: '#F1F5F9',
   },
-  accountToggle: {
+  statusPillText: { fontSize: 11, fontWeight: '700', color: NAVY, textTransform: 'capitalize' },
+  statusConfirmed: { backgroundColor: AMBER },
+  statusConfirmedText: { color: '#fff' },
+  statusPending: { backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#FDE68A' },
+  statusPendingText: { color: AMBER },
+  orderDate: { color: '#94A3B8', fontSize: 12, marginTop: 4 },
+  orderDivider: { height: 1, backgroundColor: '#E2E8F0', marginVertical: 10 },
+  orderTotal: { fontSize: 15, fontWeight: '800', color: NAVY },
+  orderTotalLabel: { fontSize: 11, color: '#94A3B8', textAlign: 'right' },
+
+  accountCard: {
+    marginTop: 28,
     backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-  accountToggleText: { color: NAVY, fontWeight: '700', fontSize: 14 },
-  stickyFooter: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+  },
+  accountAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  accountAvatarText: { fontSize: 16 },
+  chevron: { color: NAVY, fontSize: 18, fontWeight: '700' },
+
+  stickyFooter: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: AMBER,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
     shadowColor: '#0F172A',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
     elevation: 8,
   },
-  stickyMeta: { fontSize: 14, fontWeight: '700', color: NAVY },
-  stickyBtn: {
-    backgroundColor: NAVY,
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  stickyBtnDisabled: { opacity: 0.6 },
+  stickyLeft: { flex: 1.2, fontSize: 13, fontWeight: '800', color: NAVY },
+  stickyMid: { flex: 1, fontSize: 15, fontWeight: '900', color: NAVY, textAlign: 'center' },
+  stickyRight: { flex: 1.1, fontSize: 13, fontWeight: '800', color: NAVY, textAlign: 'right' },
 });
