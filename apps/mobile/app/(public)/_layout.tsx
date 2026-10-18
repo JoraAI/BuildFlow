@@ -11,7 +11,10 @@ export default function PublicLayout() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const pathname = usePathname();
   const isLegalPage =
-    pathname === '/privacy' || pathname === '/terms' || pathname === '/sms-opt-in';
+    pathname === '/privacy' ||
+    pathname === '/terms' ||
+    pathname === '/sms-opt-in' ||
+    pathname === '/delete-account';
 
   if (isAuthenticated && !isLegalPage) {
     return <Redirect href="/dashboard" />;
@@ -26,6 +29,7 @@ export default function PublicLayout() {
         <Stack.Screen name="privacy" />
         <Stack.Screen name="terms" />
         <Stack.Screen name="sms-opt-in" />
+        <Stack.Screen name="delete-account" />
       </Stack>
       {!isLegalPage ? <MarketingAssistantFab /> : null}
     </View>
