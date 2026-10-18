@@ -6,12 +6,13 @@ Access model: **invite-only**. Buyers join with a code from their ice cream manu
 
 | Play Console field | File |
 |--------------------|------|
-| App icon (512×512) | `../assets/play-icon-512.png` |
+| App icon (512×512) | `app-icon-512.png` (same as `../assets/play-icon-512.png`) |
 | Feature graphic (1024×500) | `feature/feature-graphic-1024x500.png` |
 | Phone screenshots (2–8) | `phone/phone-1-1080x1920.png` … `phone-3-…` |
 | 7″ tablet screenshots | `tablet-7/tablet7-1-1200x1920.png` … (or land variants) |
 | 10″ tablet screenshots | `tablet-10/tablet10-1-1600x2560.png` … (or land variants) |
-| Production AAB | See `builds/DOWNLOADS.md` after EAS build finishes |
+| Production AAB | `builds/jora-trade-production-1.0.0.aab` (or link in `builds/DOWNLOADS.md`) |
+| Preview APK (QA only) | `builds/jora-trade-preview-1.0.0.apk` — not for Play upload |
 | Store text | Paste from `PLAY_CONSOLE_COPY.txt` |
 
 ## B. Play Console steps

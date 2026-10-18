@@ -1,0 +1,4 @@
+
+# Local Play/EAS binaries (download via store-listing/builds/DOWNLOADS.md)
+store-listing/builds/*.aab
+store-listing/builds/*.apk
