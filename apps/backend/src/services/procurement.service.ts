@@ -1048,15 +1048,11 @@ export async function issueStockManual(
         );
       }
 
-      await tx.stockBalance.update({
-        where: { id: balance.id },
-        data: { quantity: { decrement: l.quantity } },
-      });
-
       // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): batch-tracked items are
       // FEFO-allocated (earliest expiry first). Each allocated lot becomes its
       // own OUT movement so the audit trail records the actual lot(s) sold;
       // the draft sales invoice still uses ONE line per resource (first lot).
+      // Allocate before aggregate decrement so LEGACY lot backfill sees full on-hand.
       const tracked = isBatchTracked(resource.trackingMode);
       if (tracked) {
         const allocations = await allocateBatchOut(tx, {
@@ -1066,6 +1062,10 @@ export async function issueStockManual(
           unit: resource.unit,
           quantity: l.quantity,
           allowExpired: input.allowExpired,
+        });
+        await tx.stockBalance.update({
+          where: { id: balance.id },
+          data: { quantity: { decrement: l.quantity } },
         });
         const firstMovement = await tx.stockMovement.create({
           data: {
@@ -1113,6 +1113,10 @@ export async function issueStockManual(
         continue;
       }
 
+      await tx.stockBalance.update({
+        where: { id: balance.id },
+        data: { quantity: { decrement: l.quantity } },
+      });
       const movement = await tx.stockMovement.create({
         data: {
           locationId: location.id,

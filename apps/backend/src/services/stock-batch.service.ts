@@ -86,6 +86,48 @@ export async function applyBatchIn(
 }
 
 /**
+ * Seed / legacy paths sometimes wrote aggregate `StockBalance` without
+ * `StockBatchBalance` rows. FEFO OUT then sees 0 lots while Stock shows qty.
+ * Backfill the gap into a null-dated LEGACY lot (same as catalog intake).
+ *
+ * Call while aggregate still reflects on-hand (before decrementing StockBalance).
+ */
+export async function backfillOrphanAggregateLots(
+  tx: BatchTx,
+  input: { locationId: string; resourceId: string },
+): Promise<number> {
+  const balance = await tx.stockBalance.findUnique({
+    where: {
+      locationId_resourceId: {
+        locationId: input.locationId,
+        resourceId: input.resourceId,
+      },
+    },
+  });
+  const aggregate = Number(balance?.quantity ?? 0);
+  if (aggregate <= EPS) return 0;
+
+  const lotAgg = await tx.stockBatchBalance.aggregate({
+    where: {
+      locationId: input.locationId,
+      resourceId: input.resourceId,
+    },
+    _sum: { quantity: true },
+  });
+  const inLots = Number(lotAgg._sum.quantity ?? 0);
+  const gap = round3(aggregate - inLots);
+  if (gap <= EPS) return 0;
+
+  await applyBatchIn(tx, {
+    locationId: input.locationId,
+    resourceId: input.resourceId,
+    batchCode: 'LEGACY',
+    quantity: gap,
+  });
+  return gap;
+}
+
+/**
  * OUT (FEFO): allocate `quantity` from the earliest-expiring lots first.
  *
  * - Fresh (non-expired or no expiry) lots are always used first, oldest expiry
@@ -106,6 +148,12 @@ export async function allocateBatchOut(
     allowExpired?: boolean;
   },
 ): Promise<BatchAllocation[]> {
+  // Heal orphan aggregate stock (e.g. Frosty seed opening qty without lots).
+  await backfillOrphanAggregateLots(tx, {
+    locationId: input.locationId,
+    resourceId: input.resourceId,
+  });
+
   const now = new Date();
   const lots = await tx.stockBatchBalance.findMany({
     where: {
@@ -126,7 +174,7 @@ export async function allocateBatchOut(
     const msg =
       expiredQty > 0
         ? `${input.resourceName}: only ${round3(totalUsable)} ${input.unit} available in non-expired lots (${expiredQty} ${input.unit} expired). Tick "Include expired" to sell it.`
-        : `${input.resourceName}: only ${round3(totalUsable)} ${input.unit} available in tracked lots, requested ${round3(input.quantity)} ${input.unit}.`;
+        : `${input.resourceName}: only ${round3(totalUsable)} ${input.unit} available in tracked lots, requested ${round3(input.quantity)} ${input.unit}. Stock on hand may be missing lot codes — receive stock with a batch/expiry, or re-try after deploy (legacy lot backfill).`;
     throw ApiError.unprocessable(msg);
   }
 

@@ -362,13 +362,14 @@ export async function dispatchDeliveryChallan(
           `${line.itemName}: only ${onHand} on hand in ${location.name}, challan requires ${qty} - dispatch aborted.`,
         );
       }
-      await tx.stockBalance.update({ where: { id: balance.id }, data: { quantity: { decrement: qty } } });
       const res = await tx.resource.findUnique({
         where: { id: line.resourceId },
         select: { avgCost: true, name: true, unit: true },
       });
       // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): batch-tracked items are
       // FEFO-allocated out on dispatch - one OUT movement per lot.
+      // Allocate lots BEFORE decrementing aggregate so orphan-stock backfill
+      // can sync LEGACY lots to the full on-hand qty.
       if (isBatchTracked(dcTracking.get(line.resourceId))) {
         const allocations = await allocateBatchOut(tx, {
           locationId: location.id,
@@ -376,6 +377,10 @@ export async function dispatchDeliveryChallan(
           resourceName: res?.name ?? line.itemName,
           unit: res?.unit ?? line.unit,
           quantity: qty,
+        });
+        await tx.stockBalance.update({
+          where: { id: balance.id },
+          data: { quantity: { decrement: qty } },
         });
         for (const alloc of allocations) {
           await tx.stockMovement.create({
@@ -394,6 +399,10 @@ export async function dispatchDeliveryChallan(
           });
         }
       } else {
+        await tx.stockBalance.update({
+          where: { id: balance.id },
+          data: { quantity: { decrement: qty } },
+        });
         await tx.stockMovement.create({
           data: {
             locationId: location.id,

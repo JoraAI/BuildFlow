@@ -290,7 +290,6 @@ export async function dispatchTransfer(companyId: string, userId: string, role: 
           `${line.itemName}: only ${onHand} ${line.unit} on hand at source, transfer requires ${qty} ${line.unit} - dispatch aborted.`,
         );
       }
-      await tx.stockBalance.update({ where: { id: balance.id }, data: { quantity: { decrement: qty } } });
       const resOut = await tx.resource.findUnique({
         where: { id: line.resourceId },
         select: { avgCost: true, name: true, unit: true },
@@ -298,6 +297,7 @@ export async function dispatchTransfer(companyId: string, userId: string, role: 
       // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): batch-tracked items are
       // FEFO-allocated out - one TRANSFER_OUT movement per lot so the receiving
       // warehouse can recreate the exact lots on receive.
+      // Allocate before aggregate decrement so LEGACY lot backfill sees full on-hand.
       if (isBatchTracked(trackingByResource.get(line.resourceId))) {
         const allocations = await allocateBatchOut(tx, {
           locationId: transfer.fromLocationId,
@@ -305,6 +305,10 @@ export async function dispatchTransfer(companyId: string, userId: string, role: 
           resourceName: resOut?.name ?? line.itemName,
           unit: resOut?.unit ?? line.unit,
           quantity: qty,
+        });
+        await tx.stockBalance.update({
+          where: { id: balance.id },
+          data: { quantity: { decrement: qty } },
         });
         for (const alloc of allocations) {
           await tx.stockMovement.create({
@@ -324,6 +328,10 @@ export async function dispatchTransfer(companyId: string, userId: string, role: 
         }
         continue;
       }
+      await tx.stockBalance.update({
+        where: { id: balance.id },
+        data: { quantity: { decrement: qty } },
+      });
       await tx.stockMovement.create({
         data: {
           locationId: transfer.fromLocationId,

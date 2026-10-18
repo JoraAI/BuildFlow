@@ -74,6 +74,40 @@ async function applyStockIn(
         referenceId: grnId,
       },
     });
+    // BATCH_EXPIRY items need lot rows or FEFO dispatch sees 0 tracked lots.
+    const resource = await prisma.resource.findUnique({
+      where: { id: line.resourceId },
+      select: { trackingMode: true, sku: true },
+    });
+    if (resource?.trackingMode === ResourceTrackingMode.BATCH_EXPIRY) {
+      const batchCode = `SEED-${resource.sku ?? line.resourceId.slice(0, 8)}`;
+      const lot = await prisma.stockBatchBalance.findUnique({
+        where: {
+          locationId_resourceId_batchCode: {
+            locationId,
+            resourceId: line.resourceId,
+            batchCode,
+          },
+        },
+      });
+      if (lot) {
+        await prisma.stockBatchBalance.update({
+          where: { id: lot.id },
+          data: { quantity: { increment: line.quantity } },
+        });
+      } else {
+        await prisma.stockBatchBalance.create({
+          data: {
+            locationId,
+            resourceId: line.resourceId,
+            batchCode,
+            quantity: line.quantity,
+            manufacturedAt: new Date(),
+            expiresAt: new Date(Date.now() + 90 * 86_400_000),
+          },
+        });
+      }
+    }
   }
 }
 
