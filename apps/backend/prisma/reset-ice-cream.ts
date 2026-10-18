@@ -594,7 +594,11 @@ async function seedFrostyCups(passwordHash: string): Promise<void> {
   for (const fg of [vanCup, chocCup, chocTub, strawCup]) {
     await prisma.resource.update({
       where: { id: fg.id },
-      data: { b2bPublished: true },
+      data: {
+        b2bPublished: true,
+        distributorRate: fg.distributorRate ?? fg.rate,
+        customerRate: fg.customerRate ?? fg.rate,
+      },
     });
   }
 

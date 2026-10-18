@@ -91,6 +91,10 @@ export default function InventoryMaterialsScreen() {
   const isKirana = user?.inventoryVertical === 'GENERAL';
   const isIceCream = useIceCreamVertical();
   const setB2bPublished = useSetB2bPublished();
+  /** Survives stale React Query / Redis list cache after Publish B2B. */
+  const [b2bLocal, setB2bLocal] = useState<Record<string, boolean>>({});
+  const isB2bPublished = (r: Resource) =>
+    b2bLocal[r.id] !== undefined ? b2bLocal[r.id]! : Boolean(r.b2bPublished);
   const { data: stock } = useStockSummary(user?.defaultProjectId ?? '');
 
   const materials = (data?.data ?? []).filter((r: Resource) => r.type === 'MATERIAL' || !r.type);
@@ -305,20 +309,22 @@ export default function InventoryMaterialsScreen() {
                     ) : null}
                     {isIceCream ? (
                       <Button
-                        label={row.resource.b2bPublished ? 'Unpublish' : 'Publish B2B'}
+                        label={isB2bPublished(row.resource) ? 'Unpublish' : 'Publish B2B'}
                         size="sm"
-                        variant={row.resource.b2bPublished ? 'secondary' : 'accent'}
+                        variant={isB2bPublished(row.resource) ? 'secondary' : 'accent'}
                         onPress={() =>
                           void run(async () => {
+                            const next = !isB2bPublished(row.resource);
                             try {
                               await setB2bPublished.mutateAsync({
                                 resourceId: row.resource.id,
-                                published: !row.resource.b2bPublished,
+                                published: next,
                               });
+                              setB2bLocal((prev) => ({ ...prev, [row.resource.id]: next }));
                               toast.success(
-                                row.resource.b2bPublished
-                                  ? 'Removed from buyer catalog'
-                                  : 'Published to buyer catalog',
+                                next
+                                  ? 'Published to buyer catalog'
+                                  : 'Removed from buyer catalog',
                               );
                               void refetch();
                             } catch (e) {
@@ -344,6 +350,7 @@ export default function InventoryMaterialsScreen() {
                     {row.resource.brandOrSpec ? ` · ${row.resource.brandOrSpec}` : ''}
                     {row.category ? ` · ${row.category}` : ''}
                     {row.resource.hsnSacCode ? ` · HSN ${row.resource.hsnSacCode}` : ''}
+                    {isIceCream && isB2bPublished(row.resource) ? ' · On B2B catalog' : ''}
                   </Text>
                   <Text className="text-xs text-muted mt-0.5">
                     {Number(row.stock?.balance ?? 0) > 0
@@ -409,20 +416,22 @@ export default function InventoryMaterialsScreen() {
                 ) : null}
                 {isIceCream ? (
                   <Button
-                    label={row.resource.b2bPublished ? 'Unpublish' : 'Publish B2B'}
+                    label={isB2bPublished(row.resource) ? 'Unpublish' : 'Publish B2B'}
                     size="sm"
-                    variant={row.resource.b2bPublished ? 'secondary' : 'accent'}
+                    variant={isB2bPublished(row.resource) ? 'secondary' : 'accent'}
                     onPress={() =>
                       void run(async () => {
+                        const next = !isB2bPublished(row.resource);
                         try {
                           await setB2bPublished.mutateAsync({
                             resourceId: row.resource.id,
-                            published: !row.resource.b2bPublished,
+                            published: next,
                           });
+                          setB2bLocal((prev) => ({ ...prev, [row.resource.id]: next }));
                           toast.success(
-                            row.resource.b2bPublished
-                              ? 'Removed from buyer catalog'
-                              : 'Published to buyer catalog',
+                            next
+                              ? 'Published to buyer catalog'
+                              : 'Removed from buyer catalog',
                           );
                           void refetch();
                         } catch (e) {

@@ -18,7 +18,7 @@ import { notifyMany } from './notification.service';
 import { logger } from '../config/logger';
 import { hashInviteToken } from '../utils/invite-token';
 import { resolveDetailedRates } from './price-list.service';
-import { invalidatePattern } from '../utils/cache';
+import { cacheKeys, hashQuery, invalidateCache, invalidatePattern } from '../utils/cache';
 
 const BUYER_JWT_TYPE = 'buyer_access';
 const DEFAULT_INVITE_HOURS = 48;
@@ -547,28 +547,55 @@ export async function setResourceB2bPublished(
     where: { id: resourceId, companyId, isDeleted: false },
   });
   if (!resource) throw ApiError.notFound('Item not found');
-  // ICE_CREAM: role sell prices are mandatory before publishing to the buyer app.
+
+  // ICE_CREAM: buyer catalog needs role sell prices. Seeded FG often only has `rate`
+  // — default missing distributor/customer rates from that sell price so Publish B2B
+  // is not a silent failure after the busy overlay.
+  const data: {
+    b2bPublished: boolean;
+    distributorRate?: typeof resource.rate;
+    customerRate?: typeof resource.rate;
+  } = { b2bPublished: published };
+
   if (published) {
     const company = await prisma.company.findUnique({
       where: { id: companyId },
       select: { inventoryVertical: true },
     });
     if (company?.inventoryVertical === 'ICE_CREAM') {
-      if (resource.distributorRate == null || resource.customerRate == null) {
-        throw ApiError.unprocessable(
-          'Set distributor and customer sell prices before publishing to the buyer catalog.',
-        );
-      }
+      if (resource.distributorRate == null) data.distributorRate = resource.rate;
+      if (resource.customerRate == null) data.customerRate = resource.rate;
     }
   }
+
   const updated = await prisma.resource.update({
     where: { id: resourceId },
-    data: { b2bPublished: published },
-    select: { id: true, name: true, sku: true, b2bPublished: true, rate: true, unit: true },
+    data,
+    select: {
+      id: true,
+      name: true,
+      sku: true,
+      b2bPublished: true,
+      rate: true,
+      unit: true,
+      distributorRate: true,
+      customerRate: true,
+    },
   });
-  // listResources caches page-1 for 1h; without this, Publish B2B toast succeeds
-  // but the Materials screen keeps showing the old unpublished button state.
+
+  // listResources caches page-1 for 1h; clear pattern + common exact list keys.
   await invalidatePattern(`cache:${companyId}:resources:*`);
+  await invalidateCache(
+    cacheKeys.resourcesList(
+      companyId,
+      hashQuery({ type: undefined, active: undefined, page: 1, limit: 200 }),
+    ),
+    cacheKeys.resourcesList(
+      companyId,
+      hashQuery({ type: undefined, active: undefined, page: 1, limit: 50 }),
+    ),
+    cacheKeys.resource(companyId, resourceId),
+  );
   return updated;
 }
 
