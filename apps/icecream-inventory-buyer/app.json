@@ -14,7 +14,7 @@
     },
     "android": {
       "package": "com.joraai.joratrade",
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#1E3A5F"
