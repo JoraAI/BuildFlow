@@ -6,6 +6,8 @@ B2B ordering app for distributors and customers. Join with a supplier invite cod
 
 **Play Console high-res icon:** upload `assets/play-icon-512.png` (512×512 PNG, full-bleed, &lt;1 MB).
 
+**Feature graphic + phone/tablet screenshots:** see `store-listing/README.md`.
+
 ## Run locally
 
 ```bash
