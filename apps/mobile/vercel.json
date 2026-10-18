@@ -6,7 +6,13 @@
   "redirects": [
     { "source": "/privacy", "destination": "/privacy.html", "permanent": false },
     { "source": "/terms", "destination": "/terms.html", "permanent": false },
-    { "source": "/sms-opt-in", "destination": "/sms-opt-in.html", "permanent": false }
+    { "source": "/sms-opt-in", "destination": "/sms-opt-in.html", "permanent": false },
+    { "source": "/delete-account", "destination": "/delete-account.html", "permanent": false }
   ],
-  "rewrites": [{ "source": "/((?!privacy\\.html|terms\\.html|sms-opt-in\\.html).*)", "destination": "/index.html" }]
+  "rewrites": [
+    {
+      "source": "/((?!privacy\\.html|terms\\.html|sms-opt-in\\.html|delete-account\\.html).*)",
+      "destination": "/index.html"
+    }
+  ]
 }
