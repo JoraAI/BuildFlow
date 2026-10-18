@@ -93,7 +93,7 @@ export function amountInWordsINR(amount: number): string {
 }
 
 /**
- * Header: seller details left, logo + title right (as in printed Tax Invoice).
+ * Header: seller details left; company logo top-right + title (printed Tax Invoice).
  * Returns Y below the header block.
  */
 export function drawInventoryDocHeader(
@@ -131,30 +131,35 @@ export function drawInventoryDocHeader(
     y = doc.y + 1;
   }
 
-  // Right: logo + title
+  // Right: logo (top-right) + company name + document title
+  const rightW = PAGE_W - MARGIN - midX - 16;
   let rightY = top + 8;
   if (opts?.originalForRecipient !== false) {
     doc.font('Helvetica').fontSize(7).fillColor(MUTED).text('(ORIGINAL FOR RECIPIENT)', midX + 8, rightY, {
-      width: PAGE_W - MARGIN - midX - 16,
+      width: rightW,
       align: 'right',
     });
     rightY = doc.y + 4;
   }
+
+  const logoFitW = 72;
+  const logoFitH = 48;
   if (company.logoBuffer) {
     try {
-      doc.image(company.logoBuffer, midX + 12, rightY, { fit: [56, 40] });
-      rightY += 44;
+      const logoX = PAGE_W - MARGIN - 8 - logoFitW;
+      doc.image(company.logoBuffer, logoX, rightY, { fit: [logoFitW, logoFitH], align: 'right' });
+      rightY += logoFitH + 4;
     } catch {
       // skip broken logo
     }
   }
   doc.font('Helvetica-Bold').fontSize(9).fillColor(BLACK).text(company.name, midX + 8, rightY, {
-    width: PAGE_W - MARGIN - midX - 16,
+    width: rightW,
     align: 'center',
   });
   rightY = doc.y + 6;
   doc.font('Helvetica-Bold').fontSize(16).fillColor(BLACK).text(title, midX + 8, rightY, {
-    width: PAGE_W - MARGIN - midX - 16,
+    width: rightW,
     align: 'center',
   });
 
@@ -241,21 +246,33 @@ export function drawBillShipTo(
 
 export type LineCol = { title: string; width: number; align?: 'left' | 'right' | 'center' };
 
+export type DrawGridTableOpts = {
+  /** Shift table right from the page margin (points). */
+  startX?: number;
+  /** Column index used to size row height for wrapped text (default: 1 = Item & Description). */
+  wrapColIndex?: number;
+  /** Minimum body row height (points). */
+  minRowH?: number;
+};
+
 export function drawGridTable(
   doc: PDFDoc,
   startY: number,
   cols: LineCol[],
   rows: string[][],
+  opts?: DrawGridTableOpts,
 ): number {
   const headerH = 28;
-  const rowH = 16;
+  const minRowH = opts?.minRowH ?? 24;
+  const wrapColIndex = opts?.wrapColIndex ?? 1;
+  const tableX = opts?.startX ?? MARGIN;
   let y = startY;
   const totalW = cols.reduce((s, c) => s + c.width, 0);
 
   // Header (two-line capable for CGST/SGST)
-  doc.rect(MARGIN, y, totalW, headerH).fill(HEADER_GRAY);
-  strokeRect(doc, MARGIN, y, totalW, headerH);
-  let x = MARGIN;
+  doc.rect(tableX, y, totalW, headerH).fill(HEADER_GRAY);
+  strokeRect(doc, tableX, y, totalW, headerH);
+  let x = tableX;
   cols.forEach((c) => {
     drawVLine(doc, x, y, y + headerH);
     doc.font('Helvetica-Bold').fontSize(7).fillColor(BLACK).text(c.title, x + 2, y + 8, {
@@ -271,15 +288,34 @@ export function drawGridTable(
       doc.addPage();
       y = MARGIN;
     }
-    strokeRect(doc, MARGIN, y, totalW, rowH);
-    let cx = MARGIN;
+
+    // Size the row from the wrapped description (or tallest cell).
+    doc.font('Helvetica').fontSize(7);
+    let rowH = minRowH;
+    cells.forEach((cell, i) => {
+      const col = cols[i];
+      if (!col) return;
+      const textH = doc.heightOfString(cell ?? '', {
+        width: col.width - 4,
+        align: col.align ?? (i === wrapColIndex ? 'left' : 'left'),
+      });
+      rowH = Math.max(rowH, Math.ceil(textH) + 8);
+    });
+
+    strokeRect(doc, tableX, y, totalW, rowH);
+    let cx = tableX;
     cells.forEach((cell, i) => {
       const col = cols[i];
       drawVLine(doc, cx, y, y + rowH);
-      doc.font('Helvetica').fontSize(7).fillColor(BLACK).text(cell ?? '', cx + 2, y + 4, {
+      const align = col.align ?? 'left';
+      const textOpts = {
         width: col.width - 4,
-        align: col.align ?? 'left',
-      });
+        align,
+      };
+      // Vertically center single-line cells; top-pad multi-line descriptions.
+      const textH = doc.heightOfString(cell ?? '', textOpts);
+      const textY = textH + 4 < rowH ? y + (rowH - textH) / 2 : y + 4;
+      doc.font('Helvetica').fontSize(7).fillColor(BLACK).text(cell ?? '', cx + 2, textY, textOpts);
       cx += col.width;
     });
     y += rowH;

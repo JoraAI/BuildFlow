@@ -3,11 +3,12 @@
  */
 import React, { useState, useEffect } from 'react';
 import { View, KeyboardAvoidingView, Platform, Text } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { Card, Input, Button, LoadingSkeleton, CompanyLogo } from '@/components/ui';
 import { SettingsPageLayout } from '@/components/layout/SettingsPageLayout';
 import { useViewport } from '@/hooks/useViewport';
 import { goBackToSettings } from '@/utils/navigation';
-import { useCompany, useUpdateCompany } from '@/services/settings.queries';
+import { useCompany, useUpdateCompany, useCompanyLogoUpload } from '@/services/settings.queries';
 import { useAuthStore } from '@/stores/auth.store';
 import { alertAsync } from '@/utils/confirm';
 
@@ -16,6 +17,7 @@ export default function CompanyProfileScreen() {
   const refreshUser = useAuthStore((s) => s.refreshUser);
   const { data: company, isLoading } = useCompany();
   const update = useUpdateCompany();
+  const uploadLogo = useCompanyLogoUpload();
 
   const [form, setForm] = useState({
     name: '',
@@ -26,6 +28,7 @@ export default function CompanyProfileScreen() {
     logoUrl: '',
   });
   const [formError, setFormError] = useState<string | null>(null);
+  const [previewUri, setPreviewUri] = useState<string | null>(null);
 
   useEffect(() => {
     if (company) {
@@ -37,6 +40,7 @@ export default function CompanyProfileScreen() {
         state: company.state ?? '',
         logoUrl: company.logoUrl ?? '',
       });
+      setPreviewUri(null);
     }
   }, [company]);
 
@@ -44,7 +48,11 @@ export default function CompanyProfileScreen() {
     setFormError(null);
     update.mutate(
       {
-        ...form,
+        name: form.name,
+        gstin: form.gstin,
+        pan: form.pan,
+        address: form.address,
+        state: form.state,
         logoUrl: form.logoUrl.trim() || undefined,
       },
       {
@@ -61,6 +69,55 @@ export default function CompanyProfileScreen() {
     );
   };
 
+  const pickAndUploadLogo = async () => {
+    setFormError(null);
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        setFormError('Photo library permission is required to upload a logo');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.85,
+        allowsEditing: true,
+        aspect: [1, 1],
+      });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      const filename = asset.fileName ?? `company-logo-${Date.now()}.jpg`;
+      const contentType = asset.mimeType ?? 'image/jpeg';
+      const logoUrl = await uploadLogo.mutateAsync({
+        uri: asset.uri,
+        filename,
+        contentType,
+      });
+      setForm((f) => ({ ...f, logoUrl }));
+      setPreviewUri(asset.uri);
+      await update.mutateAsync({ logoUrl });
+      await refreshUser();
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : 'Could not upload logo');
+    }
+  };
+
+  const clearLogo = async () => {
+    setFormError(null);
+    try {
+      setForm((f) => ({ ...f, logoUrl: '' }));
+      setPreviewUri(null);
+      await update.mutateAsync({ logoUrl: null });
+      await refreshUser();
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : 'Could not remove logo');
+    }
+  };
+
+  const displayLogo =
+    previewUri ??
+    company?.logoDisplayUrl ??
+    (form.logoUrl.startsWith('http') ? form.logoUrl : null);
+
   const formContent = isLoading ? (
     <View className="gap-3">
       <LoadingSkeleton className="h-12" />
@@ -70,20 +127,30 @@ export default function CompanyProfileScreen() {
     <>
       <Card className="mb-4">
         <Text className="text-sm font-semibold text-text mb-3">Company logo</Text>
-        <View className="flex-row items-center gap-4 mb-4">
-          <CompanyLogo
-            name={form.name || 'Company'}
-            logoUrl={company?.logoDisplayUrl ?? (form.logoUrl.startsWith('http') ? form.logoUrl : null)}
-            size={72}
-          />
+        <View className="flex-row items-center gap-4 mb-3">
+          <CompanyLogo name={form.name || 'Company'} logoUrl={displayLogo} size={80} />
           <View className="flex-1">
-            <Input
-              label="Logo URL"
-              value={form.logoUrl}
-              onChangeText={(v) => setForm((f) => ({ ...f, logoUrl: v }))}
-              placeholder="https://..."
-              helper="Paste a public image URL (HTTPS)"
-            />
+            <Text className="text-xs text-muted mb-2">
+              Upload a square logo for invoices and reports (top-right on Tax Invoice PDFs).
+            </Text>
+            <View className="flex-row flex-wrap gap-2">
+              <Button
+                label={displayLogo ? 'Change logo' : 'Upload logo'}
+                variant="secondary"
+                size="sm"
+                loading={uploadLogo.isPending || update.isPending}
+                onPress={() => void pickAndUploadLogo()}
+              />
+              {displayLogo ? (
+                <Button
+                  label="Remove"
+                  variant="ghost"
+                  size="sm"
+                  loading={update.isPending}
+                  onPress={() => void clearLogo()}
+                />
+              ) : null}
+            </View>
           </View>
         </View>
         <Input
@@ -153,7 +220,7 @@ export default function CompanyProfileScreen() {
     >
       <SettingsPageLayout
         title="Company Profile"
-        subtitle="Legal name, tax IDs, and registered address"
+        subtitle="Legal name, tax IDs, logo, and registered address"
         maxWidth="narrow"
       >
         {formContent}

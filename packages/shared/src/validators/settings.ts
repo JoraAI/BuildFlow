@@ -38,7 +38,8 @@ export const companyUpdateSchema = z.object({
   gstin: z.string().regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/).optional(),
   pan: z.string().regex(/^[A-Z]{5}[0-9]{4}[A-Z]$/).optional(),
   address: z.string().max(500).optional(),
-  logoUrl: z.string().min(1).optional(),
+  /** HTTPS URL, logical s3:// key, or null to clear the company logo. */
+  logoUrl: z.union([z.string().min(1), z.null()]).optional(),
   state: z.string().min(2).max(50).optional(),
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 0): accepted by the validator for all
   // companies, but the service IGNORES it on construction plans (hidden field).

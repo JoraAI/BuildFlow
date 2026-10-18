@@ -6,13 +6,26 @@
  */
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Modal, Pressable } from 'react-native';
-import { Card, Badge, Button, Input, Select, LoadingSkeleton, BusyOverlay, useBusy } from '@/components/ui';
+import * as ImagePicker from 'expo-image-picker';
+import {
+  Card,
+  Badge,
+  Button,
+  Input,
+  Select,
+  LoadingSkeleton,
+  BusyOverlay,
+  useBusy,
+  CompanyLogo,
+  toast,
+} from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
 import { useRouter } from 'expo-router';
 import {
   useCompany,
   useUpdateCompany,
+  useCompanyLogoUpload,
   useSubscription,
   useUsers,
   usePendingInvites,
@@ -22,7 +35,6 @@ import {
   useUpdateReportSettings,
 } from '@/services/settings.queries';
 import { downloadTallyXml } from '@/services/report-download';
-import { toast } from '@/components/ui';
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/constants/i18n';
 import {
   PLAN_PRICES_INR,
@@ -52,7 +64,9 @@ export default function InventorySettingsScreen() {
   const createInvite = useCreateInvite();
   const revokeInvite = useRevokeInvite();
   const updateCompany = useUpdateCompany();
+  const uploadLogo = useCompanyLogoUpload();
   const updateReportSettings = useUpdateReportSettings();
+  const canEditLogo = user?.role === 'OWNER' || user?.role === 'INVENTORY_MANAGER';
   /** INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.1): vertical starter catalog. */
   const kiranaEnabled = hasInventoryFeature(
     (user?.subscriptionPlan ?? 'INVENTORY') as SubscriptionPlanKey,
@@ -193,6 +207,50 @@ export default function InventorySettingsScreen() {
         toast.success(translate('inventory.settings.language.saved', 'Inventory language saved'));
       } catch (e) {
         toast.error(e instanceof Error ? e.message : 'Could not save inventory language');
+      }
+    });
+  };
+
+  const pickAndUploadLogo = async () => {
+    await run(async () => {
+      try {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) {
+          toast.error('Photo library permission is required to upload a logo');
+          return;
+        }
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.85,
+          allowsEditing: true,
+          aspect: [1, 1],
+        });
+        if (result.canceled || !result.assets[0]) return;
+        const asset = result.assets[0];
+        const filename = asset.fileName ?? `company-logo-${Date.now()}.jpg`;
+        const contentType = asset.mimeType ?? 'image/jpeg';
+        const logoUrl = await uploadLogo.mutateAsync({
+          uri: asset.uri,
+          filename,
+          contentType,
+        });
+        await updateCompany.mutateAsync({ logoUrl });
+        await refreshUser();
+        toast.success('Company logo updated — it will appear on invoices');
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Could not upload logo');
+      }
+    });
+  };
+
+  const clearLogo = async () => {
+    await run(async () => {
+      try {
+        await updateCompany.mutateAsync({ logoUrl: null });
+        await refreshUser();
+        toast.success('Company logo removed');
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Could not remove logo');
       }
     });
   };
@@ -474,12 +532,46 @@ export default function InventorySettingsScreen() {
           )}
         </Card>
 
-        {/* Company */}
+        {/* Company + logo (shown top-right on Tax Invoice PDFs) */}
         <Card className="p-5 mb-4">
           <Text className="text-base font-bold text-text mb-2">Company</Text>
-          <Text className="text-sm text-text">{company?.name ?? user?.companyName}</Text>
-          <Text className="text-xs text-muted mt-1">GSTIN: {company?.gstin ?? '-'}</Text>
-          <Text className="text-xs text-muted mt-0.5">State: {company?.state ?? '-'}</Text>
+          <View className="flex-row items-center gap-4 mb-3">
+            <CompanyLogo
+              name={company?.name ?? user?.companyName ?? 'Company'}
+              logoUrl={company?.logoDisplayUrl ?? null}
+              size={80}
+            />
+            <View className="flex-1 min-w-0">
+              <Text className="text-sm text-text" numberOfLines={2}>
+                {company?.name ?? user?.companyName}
+              </Text>
+              <Text className="text-xs text-muted mt-1">GSTIN: {company?.gstin ?? '-'}</Text>
+              <Text className="text-xs text-muted mt-0.5">State: {company?.state ?? '-'}</Text>
+              <Text className="text-[11px] text-muted mt-2">
+                Logo appears on the top-right of Tax Invoice PDFs.
+              </Text>
+            </View>
+          </View>
+          {canEditLogo ? (
+            <View className="flex-row flex-wrap gap-2">
+              <Button
+                label={company?.logoDisplayUrl ? 'Change logo' : 'Upload logo'}
+                variant="secondary"
+                size="sm"
+                loading={uploadLogo.isPending || updateCompany.isPending}
+                onPress={() => void pickAndUploadLogo()}
+              />
+              {company?.logoDisplayUrl || company?.logoUrl ? (
+                <Button
+                  label="Remove"
+                  variant="ghost"
+                  size="sm"
+                  loading={updateCompany.isPending}
+                  onPress={() => void clearLogo()}
+                />
+              ) : null}
+            </View>
+          ) : null}
         </Card>
 
         <Card className="p-5 mb-4">

@@ -831,30 +831,32 @@ async function reportInventoryTaxInvoice(
   y = drawBillShipTo(doc, y, billTo, shipTo);
 
   const useIgst = num(invoice.igstAmount) > 0 && num(invoice.cgstAmount) <= 0;
+  // Shift table slightly right; widen Item & Description for longer product names.
+  const tableStartX = MARGIN + 12;
   const cols = useIgst
     ? [
-        { title: 'SR No', width: 28, align: 'center' as const },
-        { title: 'Item & Description', width: 150 },
-        { title: 'HSN/SAC', width: 48, align: 'center' as const },
-        { title: 'Qty', width: 36, align: 'right' as const },
-        { title: 'Units', width: 34, align: 'center' as const },
-        { title: 'Rate', width: 48, align: 'right' as const },
-        { title: 'IGST %', width: 36, align: 'right' as const },
-        { title: 'IGST Amt', width: 52, align: 'right' as const },
-        { title: 'Amount', width: 60, align: 'right' as const },
-      ]
-    : [
-        { title: 'SR No', width: 24, align: 'center' as const },
-        { title: 'Item & Description', width: 120 },
-        { title: 'HSN/SAC', width: 42, align: 'center' as const },
+        { title: 'SR No', width: 26, align: 'center' as const },
+        { title: 'Item & Description', width: 175 },
+        { title: 'HSN/SAC', width: 44, align: 'center' as const },
         { title: 'Qty', width: 32, align: 'right' as const },
         { title: 'Units', width: 30, align: 'center' as const },
-        { title: 'Rate', width: 42, align: 'right' as const },
-        { title: 'CGST %', width: 32, align: 'right' as const },
-        { title: 'CGST Amt', width: 42, align: 'right' as const },
-        { title: 'SGST %', width: 32, align: 'right' as const },
-        { title: 'SGST Amt', width: 42, align: 'right' as const },
-        { title: 'Amount', width: 50, align: 'right' as const },
+        { title: 'Rate', width: 44, align: 'right' as const },
+        { title: 'IGST %', width: 32, align: 'right' as const },
+        { title: 'IGST Amt', width: 48, align: 'right' as const },
+        { title: 'Amount', width: 54, align: 'right' as const },
+      ]
+    : [
+        { title: 'SR No', width: 22, align: 'center' as const },
+        { title: 'Item & Description', width: 155 },
+        { title: 'HSN/SAC', width: 40, align: 'center' as const },
+        { title: 'Qty', width: 30, align: 'right' as const },
+        { title: 'Units', width: 28, align: 'center' as const },
+        { title: 'Rate', width: 40, align: 'right' as const },
+        { title: 'CGST %', width: 30, align: 'right' as const },
+        { title: 'CGST Amt', width: 40, align: 'right' as const },
+        { title: 'SGST %', width: 30, align: 'right' as const },
+        { title: 'SGST Amt', width: 40, align: 'right' as const },
+        { title: 'Amount', width: 48, align: 'right' as const },
       ];
 
   const rows = invoice.lineItems.map((li: any, i: number) => {
@@ -891,7 +893,11 @@ async function reportInventoryTaxInvoice(
       invMoney(taxable),
     ];
   });
-  y = drawGridTable(doc, y, cols, rows);
+  y = drawGridTable(doc, y, cols, rows, {
+    startX: tableStartX,
+    wrapColIndex: 1,
+    minRowH: 26,
+  });
 
   const totalLines: Array<{ label: string; value: string; bold?: boolean }> = [
     { label: 'Sub Total', value: `₹ ${invMoney(num(invoice.subtotal))}` },

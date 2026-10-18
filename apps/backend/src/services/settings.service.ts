@@ -141,7 +141,7 @@ export interface CompanyUpdateInput {
   gstin?: string;
   pan?: string;
   address?: string;
-  logoUrl?: string;
+  logoUrl?: string | null;
   state?: string;
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 0): inventory-only field.
   inventoryProfile?: InventoryBusinessProfile;
