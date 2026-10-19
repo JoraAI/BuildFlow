@@ -30,7 +30,7 @@ export function AuthHeroPanel({
       <View className="flex-1 bg-primary/80 px-12 py-16 justify-between">
         <View>
           <View className="flex-row items-center gap-3 mb-10">
-            <BuildFlowMark size={48} variant="accent" />
+            <BuildFlowMark size={48} />
             <View>
               <Text className="text-white text-2xl font-bold">BuildFlow</Text>
               <Text className="text-white/60 text-sm">Construction ERP</Text>

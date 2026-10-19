@@ -44,7 +44,7 @@ export function AppSidebar({ allowedTabs }: AppSidebarProps) {
       >
         <View className="px-5 pt-7 pb-5 border-b border-white/10">
           <View className="flex-row items-center gap-3">
-            <BuildFlowMark size={44} variant="accent" />
+            <BuildFlowMark size={44} />
             <View className="flex-1">
               <Text className="text-white text-xl font-bold tracking-tight">BuildFlow</Text>
               <Text className="text-white/55 text-[11px] font-medium uppercase tracking-wider">

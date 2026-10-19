@@ -27,7 +27,7 @@ export function AppMobileHeader() {
           onPress={() => router.push('/dashboard')}
           className="flex-row items-center gap-2 active:opacity-80 shrink min-w-0 flex-1"
         >
-          <BuildFlowMark size={32} variant="accent" />
+          <BuildFlowMark size={32} />
           <View className="min-w-0 flex-1">
             <Text className="text-white text-sm font-bold">BuildFlow</Text>
             <Text className="text-white/60 text-[11px]" numberOfLines={1}>

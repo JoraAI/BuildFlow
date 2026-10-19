@@ -25,7 +25,7 @@ export function MarketingNav() {
           onPress={() => router.push('/')}
           className="flex-row items-center gap-2 active:opacity-80"
         >
-          <BuildFlowMark size={36} variant="accent" />
+          <BuildFlowMark size={36} />
           <Text className="text-white text-lg font-bold">BuildFlow</Text>
         </Pressable>
 

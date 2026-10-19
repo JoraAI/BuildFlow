@@ -52,7 +52,7 @@ export function AppTopBar() {
           onPress={() => router.push('/dashboard' as never)}
           className="flex-row items-center gap-2 shrink-0 active:opacity-80"
         >
-          <BuildFlowMark size={32} variant="plain" />
+          <BuildFlowMark size={32} />
           <Text className="text-sm font-bold text-text">BuildFlow</Text>
         </Pressable>
 

@@ -78,7 +78,7 @@ function InventoryLayoutBody() {
               }}
             >
               <View className="flex-row items-center gap-2 shrink-0 min-w-0">
-                <BuildFlowMark size={32} variant="plain" />
+                <BuildFlowMark size={32} />
                 {/* M3: shorter mobile title; min-w-0 + numberOfLines so the
                     company chip never gets crushed mid-name. */}
                 <Text
