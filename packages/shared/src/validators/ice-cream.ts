@@ -2,6 +2,7 @@
  * Ice cream manufacturer vertical validators (recipes, production, B2B buyers).
  */
 import { z } from 'zod';
+import { otpCodeSchema } from './auth';
 
 export const recipeLineSchema = z.object({
   inputResourceId: z.string().uuid(),
@@ -77,7 +78,7 @@ export const claimBuyerInviteSchema = z.object({
 export const buyerLoginSchema = z.object({
   /** Email or mobile (same field name kept for API compatibility). */
   email: z.string().trim().min(3).max(254),
-  otp: z.string().trim().min(4).max(10),
+  otp: otpCodeSchema,
   /** Manufacturer company id (buyer may belong to one manufacturer). */
   companyId: z.string().uuid().optional(),
 });

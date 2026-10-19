@@ -3,6 +3,7 @@
  * Supports SMS (MSG91 Flow / Twilio) and email (Resend / SMTP). Master code bypass for seed/dev.
  */
 import { createHash, randomInt, randomBytes } from 'crypto';
+import { OTP_DIGITS } from '@buildflow/shared';
 import { redis } from '../lib/redis';
 import { ApiError } from '../utils/errors';
 import { env } from '../config/env';
@@ -17,8 +18,11 @@ function hashOtp(code: string): string {
   return createHash('sha256').update(code).digest('hex');
 }
 
+/** Always 6 digits — shared by Construction ERP, Inventory, and buyer login OTP. */
 function generateOtpCode(): string {
-  return String(randomInt(100000, 999999));
+  const min = 10 ** (OTP_DIGITS - 1);
+  const max = 10 ** OTP_DIGITS - 1;
+  return String(randomInt(min, max + 1));
 }
 
 /** Strong random password used when joining via OTP (user may set one later). */

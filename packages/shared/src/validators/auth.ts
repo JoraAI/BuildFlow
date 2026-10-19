@@ -15,6 +15,13 @@ export const passwordSchema = z
 
 export const emailSchema = z.string().trim().toLowerCase().email('Invalid email').max(254);
 
+/** Login / invite / buyer OTP — always 6 digits (Construction ERP + Inventory + buyer). */
+export const OTP_DIGITS = 6 as const;
+export const otpCodeSchema = z
+  .string()
+  .trim()
+  .regex(new RegExp(`^\\d{${OTP_DIGITS}}$`), `OTP must be ${OTP_DIGITS} digits`);
+
 const optionalEmail = z
   .union([emailSchema, z.literal('')])
   .optional()
@@ -153,10 +160,7 @@ export type SendLoginOtpInput = z.infer<typeof sendLoginOtpSchema>;
 export const acceptInviteSchema = z.object({
   token: z.string().min(16).max(256),
   name: z.string().trim().min(2).max(120),
-  otp: z
-    .string()
-    .trim()
-    .regex(/^\d{6}$/, 'OTP must be 6 digits'),
+  otp: otpCodeSchema,
 });
 
 export type AcceptInviteInput = z.infer<typeof acceptInviteSchema>;
@@ -164,10 +168,7 @@ export type AcceptInviteInput = z.infer<typeof acceptInviteSchema>;
 /** Login: email or mobile + OTP only. */
 export const loginSchema = z.object({
   email: z.string().trim().min(3, 'Enter email or mobile number').max(254),
-  otp: z
-    .string()
-    .trim()
-    .regex(/^\d{6}$/, 'OTP must be 6 digits'),
+  otp: otpCodeSchema,
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;
