@@ -8,6 +8,7 @@ import { useProject } from '@/services/project.queries';
 import { getBreadcrumbs, getProjectIdFromPath, getProjectIdFromReturnTo } from '@/constants/navigation';
 import { parseReturnTo } from '@/utils/navigation';
 import { CompanyLogo } from '@/components/ui/Avatar';
+import { BuildFlowMark } from '@/components/brand/BuildFlowMark';
 import { ProjectSearchField } from '@/components/layout/ProjectSearchField';
 import { LanguageSwitcherModal } from '@/components/common/LanguageSwitcherModal';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -51,9 +52,7 @@ export function AppTopBar() {
           onPress={() => router.push('/dashboard' as never)}
           className="flex-row items-center gap-2 shrink-0 active:opacity-80"
         >
-          <View className="w-8 h-8 rounded-lg bg-primary items-center justify-center">
-            <Ionicons name="construct" size={18} color="#F59E0B" />
-          </View>
+          <BuildFlowMark size={32} variant="plain" />
           <Text className="text-sm font-bold text-text">BuildFlow</Text>
         </Pressable>
 

@@ -335,5 +335,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'reports.download',
     'settings.tickets',
     'settings.material_prices',
+    // Company logo + profile (logo prints top-right on inventory Tax Invoices).
+    'settings.company',
   ],
 };

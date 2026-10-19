@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/auth.store';
 import { useUnreadCount } from '@/services/chat.queries';
+import { BuildFlowMark } from '@/components/brand/BuildFlowMark';
 
 export function AppMobileHeader() {
   const router = useRouter();
@@ -26,9 +27,7 @@ export function AppMobileHeader() {
           onPress={() => router.push('/dashboard')}
           className="flex-row items-center gap-2 active:opacity-80 shrink min-w-0 flex-1"
         >
-          <View className="w-8 h-8 rounded-lg bg-accent items-center justify-center shrink-0">
-            <Ionicons name="construct" size={18} color="#1E3A5F" />
-          </View>
+          <BuildFlowMark size={32} variant="accent" />
           <View className="min-w-0 flex-1">
             <Text className="text-white text-sm font-bold">BuildFlow</Text>
             <Text className="text-white/60 text-[11px]" numberOfLines={1}>

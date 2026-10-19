@@ -5,6 +5,7 @@ import React from 'react';
 import { View, Text, ImageBackground } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BRAND_IMAGES } from '@/constants/navigation';
+import { BuildFlowMark } from '@/components/brand/BuildFlowMark';
 
 const DEFAULT_BENEFITS: {
   icon: keyof typeof Ionicons.glyphMap;
@@ -29,9 +30,7 @@ export function AuthHeroPanel({
       <View className="flex-1 bg-primary/80 px-12 py-16 justify-between">
         <View>
           <View className="flex-row items-center gap-3 mb-10">
-            <View className="w-12 h-12 rounded-xl bg-accent items-center justify-center">
-              <Ionicons name="construct" size={26} color="#1E3A5F" />
-            </View>
+            <BuildFlowMark size={48} variant="accent" />
             <View>
               <Text className="text-white text-2xl font-bold">BuildFlow</Text>
               <Text className="text-white/60 text-sm">Construction ERP</Text>

@@ -13,6 +13,7 @@ import {
 } from '@/constants/navigation';
 import { parseReturnTo } from '@/utils/navigation';
 import { useTranslation } from '@/hooks/useTranslation';
+import { BuildFlowMark } from '@/components/brand/BuildFlowMark';
 
 interface AppSidebarProps {
   allowedTabs: TabName[];
@@ -43,9 +44,7 @@ export function AppSidebar({ allowedTabs }: AppSidebarProps) {
       >
         <View className="px-5 pt-7 pb-5 border-b border-white/10">
           <View className="flex-row items-center gap-3">
-            <View className="w-11 h-11 rounded-xl bg-accent items-center justify-center shadow-lg">
-              <Ionicons name="construct" size={24} color="#1E3A5F" />
-            </View>
+            <BuildFlowMark size={44} variant="accent" />
             <View className="flex-1">
               <Text className="text-white text-xl font-bold tracking-tight">BuildFlow</Text>
               <Text className="text-white/55 text-[11px] font-medium uppercase tracking-wider">

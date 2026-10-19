@@ -13,6 +13,7 @@ import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
 import { InventorySidebar, InventoryMobileTabBar } from '@/components/navigation/InventoryTabBar';
 import { CompanyLogo } from '@/components/ui/Avatar';
+import { BuildFlowMark } from '@/components/brand/BuildFlowMark';
 import { AssistantFab } from '@/components/navigation/AssistantFab';
 import { AssistantOverlay } from '@/components/assistant/AssistantOverlay';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
@@ -77,9 +78,7 @@ function InventoryLayoutBody() {
               }}
             >
               <View className="flex-row items-center gap-2 shrink-0 min-w-0">
-                <View className="w-8 h-8 rounded-lg bg-primary items-center justify-center shrink-0">
-                  <Text className="text-accent font-bold text-sm">BF</Text>
-                </View>
+                <BuildFlowMark size={32} variant="plain" />
                 {/* M3: shorter mobile title; min-w-0 + numberOfLines so the
                     company chip never gets crushed mid-name. */}
                 <Text

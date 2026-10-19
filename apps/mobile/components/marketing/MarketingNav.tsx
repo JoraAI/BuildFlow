@@ -1,10 +1,10 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useViewport } from '@/hooks/useViewport';
 import { StartFreeTrialButton } from '@/components/marketing/StartFreeTrialButton';
+import { BuildFlowMark } from '@/components/brand/BuildFlowMark';
 
 export function MarketingNav() {
   const router = useRouter();
@@ -25,9 +25,7 @@ export function MarketingNav() {
           onPress={() => router.push('/')}
           className="flex-row items-center gap-2 active:opacity-80"
         >
-          <View className="w-9 h-9 rounded-lg bg-accent items-center justify-center">
-            <Ionicons name="construct" size={20} color="#1E3A5F" />
-          </View>
+          <BuildFlowMark size={36} variant="accent" />
           <Text className="text-white text-lg font-bold">BuildFlow</Text>
         </Pressable>
 

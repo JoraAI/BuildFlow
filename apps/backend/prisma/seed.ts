@@ -2617,8 +2617,8 @@ async function main(): Promise<void> {
         }
       }
 
-      // Product images for manufacturer Materials + buyer catalog (public HTTPS).
-      const FG_IMAGES: Record<string, string> = {
+      // Product images for Materials + buyer catalog (public HTTPS).
+      const ITEM_IMAGES: Record<string, string> = {
         'FG-VAN-100':
           'https://images.unsplash.com/photo-1563805042-7684c019e1cb?auto=format&fit=crop&w=400&q=80',
         'FG-CHOC-100':
@@ -2627,7 +2627,34 @@ async function main(): Promise<void> {
           'https://images.unsplash.com/photo-1497034825429-c343d7c6a68f?auto=format&fit=crop&w=400&q=80',
         'FG-STRW-100':
           'https://images.unsplash.com/photo-1488900128323-2150794f0adf?auto=format&fit=crop&w=400&q=80',
+        'RAW-MILK':
+          'https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=400&q=80',
+        'RAW-CREAM':
+          'https://images.unsplash.com/photo-1628088062854-d1870b4553da?auto=format&fit=crop&w=400&q=80',
+        'RAW-SUGAR':
+          'https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=400&q=80',
+        'RAW-COCOA':
+          'https://images.unsplash.com/photo-1511381939415-e44015466834?auto=format&fit=crop&w=400&q=80',
+        'RAW-VAN':
+          'https://images.unsplash.com/photo-1599599810769-bcde5a160d32?auto=format&fit=crop&w=400&q=80',
+        'RAW-STAB':
+          'https://images.unsplash.com/photo-1505576399279-565b52d4ac71?auto=format&fit=crop&w=400&q=80',
+        'PKG-CUP-100':
+          'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=400&q=80',
+        'PKG-TUB-1L':
+          'https://images.unsplash.com/photo-1583947215259-38e31be8751f?auto=format&fit=crop&w=400&q=80',
+        'PKG-CONE':
+          'https://images.unsplash.com/photo-1557142046-c704a93ced90?auto=format&fit=crop&w=400&q=80',
       };
+
+      // Company logo → Tax Invoice top-right
+      await prisma.company.update({
+        where: { id: frosty.id },
+        data: {
+          logoUrl:
+            'https://images.unsplash.com/photo-1563805042-7684c019e1cb?auto=format&fit=crop&w=256&h=256&q=80',
+        },
+      });
 
       // Publish finished goods to Icecream-inventory-buyer catalog
       for (const fg of [vanCup, chocCup, chocTub, strawCup]) {
@@ -2638,13 +2665,22 @@ async function main(): Promise<void> {
             data: {
               b2bPublished: true,
               category: fg.category ?? 'Finished goods',
-              imageUrl: FG_IMAGES[sku] ?? fg.imageUrl,
+              imageUrl: ITEM_IMAGES[sku] ?? fg.imageUrl,
               // Role rates required by buyer catalog publish rules
               distributorRate: fg.distributorRate ?? fg.rate,
               customerRate: fg.customerRate ?? fg.rate,
             },
           });
         }
+      }
+
+      // Seed images for raw materials + packaging still missing photos
+      for (const [sku, imageUrl] of Object.entries(ITEM_IMAGES)) {
+        if (sku.startsWith('FG-')) continue;
+        await prisma.resource.updateMany({
+          where: { companyId: frosty.id, sku, isDeleted: false },
+          data: { imageUrl },
+        });
       }
 
       // Draft production batches for UI (Complete consumes raw → produces FG + lot)
