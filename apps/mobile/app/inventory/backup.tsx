@@ -5,7 +5,7 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, toast } from '@/components/ui';
-import { INVENTORY_PINK, INVENTORY_PINK_SOFT } from '@/components/navigation/InventoryTabBar';
+import { INVENTORY_ACCENT, INVENTORY_ACCENT_SOFT } from '@/components/navigation/InventoryTabBar';
 import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 import { downloadInventoryExcel } from '@/services/inventory-analytics.queries';
 import { useRouter } from 'expo-router';
@@ -61,15 +61,15 @@ export default function InventoryBackupScreen() {
           >
             <View
               className="w-10 h-10 rounded-xl items-center justify-center"
-              style={{ backgroundColor: INVENTORY_PINK_SOFT }}
+              style={{ backgroundColor: INVENTORY_ACCENT_SOFT }}
             >
-              <Ionicons name="download-outline" size={20} color={INVENTORY_PINK} />
+              <Ionicons name="download-outline" size={20} color={INVENTORY_ACCENT} />
             </View>
             <View className="flex-1 min-w-0">
               <Text className="text-sm font-semibold text-text">{item.title}</Text>
               <Text className="text-xs text-muted">{item.subtitle}</Text>
             </View>
-            <Text className="text-xs font-semibold" style={{ color: INVENTORY_PINK }}>
+            <Text className="text-xs font-semibold" style={{ color: INVENTORY_ACCENT }}>
               {busy === item.key ? '…' : 'XLSX'}
             </Text>
           </Pressable>

@@ -15,7 +15,7 @@ import { useInventoryDashboard } from '@/services/inventory-analytics.queries';
 import { useStockSummary, type StockSummaryRow } from '@/services/expansion.queries';
 import { useDailySalesSummary } from '@/services/ice-cream.queries';
 import { formatINR } from '@/utils/format';
-import { INVENTORY_PINK, INVENTORY_PINK_SOFT } from '@/components/navigation/InventoryTabBar';
+import { INVENTORY_ACCENT, INVENTORY_ACCENT_SOFT } from '@/components/navigation/InventoryTabBar';
 import { CompanyLogo } from '@/components/ui/Avatar';
 import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 
@@ -150,9 +150,9 @@ export default function InventoryHomeScreen() {
           >
             <View
               className="w-10 h-10 rounded-full items-center justify-center mb-1.5"
-              style={{ backgroundColor: INVENTORY_PINK_SOFT }}
+              style={{ backgroundColor: INVENTORY_ACCENT_SOFT }}
             >
-              <Ionicons name={a.icon} size={20} color={INVENTORY_PINK} />
+              <Ionicons name={a.icon} size={20} color={INVENTORY_ACCENT} />
             </View>
             <Text className="text-[11px] font-semibold text-text text-center" numberOfLines={2}>
               {a.label}
@@ -164,7 +164,7 @@ export default function InventoryHomeScreen() {
       <View className="flex-row items-center justify-between mb-2">
         <Text className="text-sm font-bold text-text">Low stock alerts</Text>
         <Pressable onPress={() => router.push('/inventory/materials' as never)}>
-          <Text style={{ color: INVENTORY_PINK }} className="text-xs font-semibold">
+          <Text style={{ color: INVENTORY_ACCENT }} className="text-xs font-semibold">
             View all
           </Text>
         </Pressable>
@@ -223,7 +223,7 @@ function KpiCard({
   width: DimensionValue;
 }) {
   const valueColor =
-    tone === 'success' ? '#10B981' : tone === 'danger' ? '#EF4444' : tone === 'primary' ? INVENTORY_PINK : '#0F172A';
+    tone === 'success' ? '#10B981' : tone === 'danger' ? '#EF4444' : tone === 'primary' ? INVENTORY_ACCENT : '#0F172A';
   return (
     <View className="rounded-2xl border border-border bg-card p-3" style={{ width, flexGrow: 1 }}>
       <Text className="text-[11px] text-muted mb-1">{label}</Text>

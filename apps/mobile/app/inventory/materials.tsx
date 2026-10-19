@@ -38,7 +38,7 @@ import { matchesStatus, matchesText } from '@/utils/inventory-filters';
 import { inventoryProcurementHref } from '@/utils/navigation-paths';
 import { useIceCreamVertical } from '@/hooks/useIceCreamVertical';
 import { MaterialThumbnail } from '@/components/materials/MaterialThumbnail';
-import { INVENTORY_PINK } from '@/components/navigation/InventoryTabBar';
+import { INVENTORY_ACCENT } from '@/components/navigation/InventoryTabBar';
 import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 
 const MATERIAL_STATUS_TABS = [
@@ -468,7 +468,7 @@ export default function InventoryMaterialsScreen() {
           className="absolute right-4 w-14 h-14 rounded-full items-center justify-center shadow-lg"
           style={{
             bottom: mobileListBottomPadding(true) + 8,
-            backgroundColor: INVENTORY_PINK,
+            backgroundColor: INVENTORY_ACCENT,
           }}
           accessibilityLabel={`Add ${itemLabel.toLowerCase()}`}
         >
