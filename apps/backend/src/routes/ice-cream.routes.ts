@@ -14,6 +14,7 @@ import {
   createRecipeSchema,
   updateRecipeSchema,
   createProductionBatchSchema,
+  completeProductionBatchSchema,
   inviteBuyerSchema,
   regenerateBuyerInviteSchema,
   claimBuyerInviteSchema,
@@ -73,6 +74,7 @@ iceCreamStaffRouter.post(
   '/production/:id/complete',
   requireInventoryFeature('production_batches'),
   requireRole(Role.OWNER, Role.INVENTORY_MANAGER),
+  validate({ body: completeProductionBatchSchema }),
   ctrl.completeProduction,
 );
 iceCreamStaffRouter.post(
@@ -133,23 +135,24 @@ iceCreamStaffRouter.patch(
   ctrl.updateShipping,
 );
 
-iceCreamStaffRouter.get('/cash-book', requireInventoryFeature('b2b_buyer_app'), ctrl.cashBookDay);
+// Legacy aliases — prefer /api/inventory/cash-book (all verticals).
+iceCreamStaffRouter.get('/cash-book', requireInventoryFeature('cash_book'), ctrl.cashBookDay);
 iceCreamStaffRouter.post(
   '/cash-book',
-  requireInventoryFeature('b2b_buyer_app'),
+  requireInventoryFeature('cash_book'),
   requireRole(Role.OWNER, Role.INVENTORY_MANAGER),
   validate({ body: createCashBookEntrySchema }),
   ctrl.createCashBookEntry,
 );
 iceCreamStaffRouter.delete(
   '/cash-book/:id',
-  requireInventoryFeature('b2b_buyer_app'),
+  requireInventoryFeature('cash_book'),
   requireRole(Role.OWNER, Role.INVENTORY_MANAGER),
   ctrl.deleteCashBookEntry,
 );
 iceCreamStaffRouter.get(
   '/daily-sales-summary',
-  requireInventoryFeature('b2b_buyer_app'),
+  requireInventoryFeature('cash_book'),
   ctrl.dailySalesSummary,
 );
 

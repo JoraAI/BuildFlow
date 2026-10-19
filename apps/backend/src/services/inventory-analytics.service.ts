@@ -415,3 +415,165 @@ export async function getPurchaseHistoryReport(
   return rows.sort((a, b) => Math.abs(b.wacVsLastBuy) - Math.abs(a.wacVsLastBuy));
 }
 
+/* ── Estimated P&L (sales − COGS − expenses) ──────────────────────── */
+
+export interface ProfitLossReport {
+  from: string;
+  to: string;
+  sales: number;
+  cogs: number;
+  grossMargin: number;
+  expenses: number;
+  expensesByCategory: Record<string, number>;
+  estimatedProfit: number;
+}
+
+export async function getProfitLossReport(
+  companyId: string,
+  userId: string,
+  role: string,
+  opts?: { from?: string; to?: string },
+): Promise<ProfitLossReport> {
+  await resolveDefaultProject(companyId, userId, role);
+  const to = opts?.to ?? istToday();
+  const from = opts?.from ?? to.slice(0, 8) + '01'; // month start default
+  const start = new Date(`${from}T00:00:00.000Z`);
+  const end = new Date(`${to}T23:59:59.999Z`);
+
+  const [invoices, margins, expenseEntries] = await Promise.all([
+    prisma.invoice.findMany({
+      where: {
+        companyId,
+        invoiceDate: { gte: start, lte: end },
+        status: { not: 'DRAFT' },
+      },
+      select: { total: true, subtotal: true },
+    }),
+    getMarginReport(companyId, userId, role),
+    prisma.inventoryCashBookEntry.findMany({
+      where: {
+        companyId,
+        entryType: 'EXPENSE',
+        entryDate: { gte: start, lte: end },
+      },
+      select: { amount: true, category: true },
+    }),
+  ]);
+
+  const sales = round2(invoices.reduce((s, i) => s + Number(i.total), 0));
+  // Prefer billed COGS from margin rows when available; else estimate from margins sum.
+  const cogs = round2(margins.reduce((s, r) => s + r.cogs, 0));
+  const expensesByCategory: Record<string, number> = {};
+  for (const e of expenseEntries) {
+    const cat = e.category ?? 'OTHER';
+    expensesByCategory[cat] = round2((expensesByCategory[cat] ?? 0) + Number(e.amount));
+  }
+  const expenses = round2(Object.values(expensesByCategory).reduce((s, n) => s + n, 0));
+  const grossMargin = round2(sales - cogs);
+  const estimatedProfit = round2(grossMargin - expenses);
+
+  return {
+    from,
+    to,
+    sales,
+    cogs,
+    grossMargin,
+    expenses,
+    expensesByCategory,
+    estimatedProfit,
+  };
+}
+
+/** Build an Excel workbook buffer for a named analytics report. */
+export async function buildAnalyticsExcel(
+  companyId: string,
+  userId: string,
+  role: string,
+  report: 'pnl' | 'margin' | 'stock-health' | 'expenses',
+  opts?: { from?: string; to?: string; days?: number },
+): Promise<{ buffer: Buffer; filename: string }> {
+  const ExcelJS = (await import('exceljs')).default;
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'BuildFlow';
+  const to = opts?.to ?? istToday();
+  const from = opts?.from ?? to.slice(0, 8) + '01';
+
+  if (report === 'pnl') {
+    const pnl = await getProfitLossReport(companyId, userId, role, { from, to });
+    const sheet = wb.addWorksheet('P&L');
+    sheet.addRow(['From', pnl.from]);
+    sheet.addRow(['To', pnl.to]);
+    sheet.addRow([]);
+    sheet.addRow(['Sales', pnl.sales]);
+    sheet.addRow(['COGS', pnl.cogs]);
+    sheet.addRow(['Gross margin', pnl.grossMargin]);
+    sheet.addRow(['Expenses', pnl.expenses]);
+    sheet.addRow(['Estimated profit', pnl.estimatedProfit]);
+    sheet.addRow([]);
+    sheet.addRow(['Category', 'Amount']);
+    for (const [cat, amt] of Object.entries(pnl.expensesByCategory)) {
+      sheet.addRow([cat, amt]);
+    }
+    const buffer = Buffer.from(await wb.xlsx.writeBuffer());
+    return { buffer, filename: `pnl-${pnl.from}-${pnl.to}.xlsx` };
+  }
+
+  if (report === 'margin') {
+    const rows = await getMarginReport(companyId, userId, role);
+    const sheet = wb.addWorksheet('Margins');
+    sheet.addRow(['Item', 'Unit', 'Qty sold', 'Revenue', 'COGS', 'Margin', 'Margin %']);
+    for (const r of rows) {
+      sheet.addRow([r.name, r.unit, r.qtySold, r.revenue, r.cogs, r.margin, r.marginPct]);
+    }
+    const buffer = Buffer.from(await wb.xlsx.writeBuffer());
+    return { buffer, filename: `margins-${to}.xlsx` };
+  }
+
+  if (report === 'expenses') {
+    const { getExpensesByCategory } = await import('./cash-book.service');
+    const data = await getExpensesByCategory(companyId, from, to);
+    const sheet = wb.addWorksheet('Expenses');
+    sheet.addRow(['From', data.from]);
+    sheet.addRow(['To', data.to]);
+    sheet.addRow(['Total', data.total]);
+    sheet.addRow([]);
+    sheet.addRow(['Category', 'Amount']);
+    for (const [cat, amt] of Object.entries(data.byCategory)) {
+      sheet.addRow([cat, amt]);
+    }
+    sheet.addRow([]);
+    sheet.addRow(['Date', 'Description', 'Category', 'Amount', 'Mode']);
+    for (const e of data.entries) {
+      sheet.addRow([
+        String(e.entryDate).slice(0, 10),
+        e.description,
+        e.category ?? 'OTHER',
+        e.amount,
+        e.paymentMode,
+      ]);
+    }
+    const buffer = Buffer.from(await wb.xlsx.writeBuffer());
+    return { buffer, filename: `expenses-${from}-${to}.xlsx` };
+  }
+
+  // stock-health
+  const rows = await getStockHealthReport(companyId, userId, role, {
+    days: opts?.days ?? 90,
+  });
+  const sheet = wb.addWorksheet('Stock health');
+  sheet.addRow(['Item', 'Unit', 'On hand', 'Unit cost', 'Value', 'Days since out', 'Class']);
+  for (const r of rows) {
+    sheet.addRow([
+      r.name,
+      r.unit,
+      r.onHand,
+      r.unitCost,
+      r.value,
+      r.daysSinceLastOut ?? '',
+      r.classification,
+    ]);
+  }
+  const buffer = Buffer.from(await wb.xlsx.writeBuffer());
+  return { buffer, filename: `stock-health-${to}.xlsx` };
+}
+

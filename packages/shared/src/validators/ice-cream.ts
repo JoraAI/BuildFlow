@@ -25,6 +25,8 @@ export const createProductionBatchSchema = z.object({
   recipeId: z.string().uuid(),
   locationId: z.string().uuid().optional(),
   outputQty: z.number().positive(),
+  /** Optional FG wastage recorded when the batch is completed. */
+  wastageQty: z.number().nonnegative().optional(),
   batchCode: z.string().trim().min(1).max(50),
   manufacturedAt: z.coerce.date().optional(),
   expiresAt: z.coerce.date().optional(),
@@ -33,6 +35,13 @@ export const createProductionBatchSchema = z.object({
   (v) => !v.manufacturedAt || !v.expiresAt || v.expiresAt >= v.manufacturedAt,
   { message: 'Expiry must be on or after manufacture date', path: ['expiresAt'] },
 );
+
+export const completeProductionBatchSchema = z
+  .object({
+    wastageQty: z.number().nonnegative().optional(),
+  })
+  .default({});
+export type CompleteProductionBatchInput = z.infer<typeof completeProductionBatchSchema>;
 
 /** Owner invites a customer into Icecream-inventory-buyer with a short join code. */
 export const inviteBuyerSchema = z.object({

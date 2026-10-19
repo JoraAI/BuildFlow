@@ -5,6 +5,7 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, Modal, ScrollView, RefreshControl, Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Card, Button, Input, EmptyState, LoadingSkeleton, Select, toast, BusyOverlay, useBusy } from '@/components/ui';
 import {
@@ -37,6 +38,8 @@ import { matchesStatus, matchesText } from '@/utils/inventory-filters';
 import { inventoryProcurementHref } from '@/utils/navigation-paths';
 import { useIceCreamVertical } from '@/hooks/useIceCreamVertical';
 import { MaterialThumbnail } from '@/components/materials/MaterialThumbnail';
+import { INVENTORY_PINK } from '@/components/navigation/InventoryTabBar';
+import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 
 const MATERIAL_STATUS_TABS = [
   { value: 'ALL' as const, label: 'All' },
@@ -220,7 +223,7 @@ export default function InventoryMaterialsScreen() {
           }
           contentContainerStyle={{
             paddingHorizontal: tableMode ? 24 : 16,
-            paddingBottom: tableMode ? 48 : 24,
+            paddingBottom: mobileListBottomPadding(true) + (tableMode ? 48 : 72),
             paddingTop: tableMode ? 8 : 0,
           }}
           ListHeaderComponent={
@@ -458,6 +461,20 @@ export default function InventoryMaterialsScreen() {
           }}
         />
       )}
+
+      {isPhone ? (
+        <Pressable
+          onPress={() => (isKirana ? setSkuLibraryOpen(true) : setCreateOpen(true))}
+          className="absolute right-4 w-14 h-14 rounded-full items-center justify-center shadow-lg"
+          style={{
+            bottom: mobileListBottomPadding(true) + 8,
+            backgroundColor: INVENTORY_PINK,
+          }}
+          accessibilityLabel={`Add ${itemLabel.toLowerCase()}`}
+        >
+          <Ionicons name="add" size={28} color="#fff" />
+        </Pressable>
+      ) : null}
 
       <MaterialFormModal
         mode="create"

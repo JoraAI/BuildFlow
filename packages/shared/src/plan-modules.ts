@@ -124,7 +124,9 @@ export type InventoryFeatureFlag =
   // ICE_CREAM manufacturer vertical: recipes → production batches → B2B buyer app.
   | 'recipes'
   | 'production_batches'
-  | 'b2b_buyer_app';
+  | 'b2b_buyer_app'
+  /** Daily cash book + sales summary — all inventory verticals. */
+  | 'cash_book';
 
 /** True only for the INVENTORY plan, and only for flags whose phase shipped. */
 const INVENTORY_FEATURE_FLAGS: Record<InventoryFeatureFlag, boolean> = {
@@ -152,6 +154,8 @@ const INVENTORY_FEATURE_FLAGS: Record<InventoryFeatureFlag, boolean> = {
   recipes: true,
   production_batches: true,
   b2b_buyer_app: true,
+  // Cash drawer / daily summary for every inventory vertical.
+  cash_book: true,
 };
 
 /**

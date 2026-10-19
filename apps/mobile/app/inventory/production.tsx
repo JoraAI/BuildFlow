@@ -63,6 +63,7 @@ export default function IceCreamProductionScreen() {
 
   const [batchRecipeId, setBatchRecipeId] = useState('');
   const [batchQty, setBatchQty] = useState('100');
+  const [batchWastage, setBatchWastage] = useState('0');
   const [batchCode, setBatchCode] = useState(`B-${Date.now().toString().slice(-6)}`);
 
   // useResources() returns { data: Resource[] } (list envelope), not a bare array.
@@ -386,6 +387,13 @@ export default function IceCreamProductionScreen() {
             <View className="h-2" />
             <Input label="Output qty" value={batchQty} onChangeText={setBatchQty} keyboardType="decimal-pad" />
             <View className="h-2" />
+            <Input
+              label="Wastage qty (optional)"
+              value={batchWastage}
+              onChangeText={setBatchWastage}
+              keyboardType="decimal-pad"
+            />
+            <View className="h-2" />
             <Input label="Batch code" value={batchCode} onChangeText={setBatchCode} />
             <View className="mt-3">
               <Button
@@ -401,10 +409,12 @@ export default function IceCreamProductionScreen() {
                     await createBatch.mutateAsync({
                       recipeId: batchRecipeId,
                       outputQty: Number(batchQty) || 1,
+                      wastageQty: Number(batchWastage) || 0,
                       batchCode,
                     });
                     toast.success('Draft batch created');
                     setBatchCode(`B-${Date.now().toString().slice(-6)}`);
+                    setBatchWastage('0');
                   } catch (e) {
                     toast.error((e as Error).message || 'Failed');
                   }
@@ -434,7 +444,7 @@ export default function IceCreamProductionScreen() {
                       loading={completeBatch.isPending}
                       onPress={async () => {
                         try {
-                          await completeBatch.mutateAsync(b.id);
+                          await completeBatch.mutateAsync({ id: b.id });
                           toast.success('Production completed');
                         } catch (e) {
                           toast.error((e as Error).message || 'Failed');

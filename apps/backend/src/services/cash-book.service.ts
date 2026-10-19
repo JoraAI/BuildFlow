@@ -1,10 +1,11 @@
 /**
- * Inventory cash book + daily sales summary (ICE_CREAM manufacture).
+ * Inventory cash book + daily sales summary (all inventory verticals).
  */
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
 import { round2 } from './gst.service';
 import type { CreateCashBookEntryInput } from '@buildflow/shared';
+import { assertInventoryFeature } from './module-gate.service';
 
 function dayBounds(dateStr: string): { start: Date; end: Date } {
   const start = new Date(`${dateStr}T00:00:00.000Z`);
@@ -12,14 +13,8 @@ function dayBounds(dateStr: string): { start: Date; end: Date } {
   return { start, end };
 }
 
-async function assertIceCream(companyId: string) {
-  const company = await prisma.company.findFirst({
-    where: { id: companyId },
-    select: { inventoryVertical: true },
-  });
-  if (company?.inventoryVertical !== 'ICE_CREAM') {
-    throw ApiError.forbidden('Cash book is available for ice cream manufacture only');
-  }
+async function assertCashBook(companyId: string) {
+  await assertInventoryFeature(companyId, 'cash_book');
 }
 
 function serializeEntry(e: {
@@ -31,6 +26,7 @@ function serializeEntry(e: {
   amount: { toNumber?(): number } | number;
   description: string;
   reference: string | null;
+  category?: string | null;
   invoiceId: string | null;
   customerId: string | null;
   createdAt: Date;
@@ -44,6 +40,7 @@ function serializeEntry(e: {
     amount: Number(e.amount),
     description: e.description,
     reference: e.reference,
+    category: e.category ?? null,
     invoiceId: e.invoiceId,
     customerId: e.customerId,
     createdAt: e.createdAt,
@@ -51,7 +48,7 @@ function serializeEntry(e: {
 }
 
 export async function listCashBookDay(companyId: string, dateStr: string) {
-  await assertIceCream(companyId);
+  await assertCashBook(companyId);
   const { start, end } = dayBounds(dateStr);
   const entries = await prisma.inventoryCashBookEntry.findMany({
     where: { companyId, entryDate: { gte: start, lte: end } },
@@ -84,7 +81,7 @@ export async function createCashBookEntry(
   userId: string,
   input: CreateCashBookEntryInput,
 ) {
-  await assertIceCream(companyId);
+  await assertCashBook(companyId);
   if (input.invoiceId) {
     const inv = await prisma.invoice.findFirst({
       where: { id: input.invoiceId, companyId },
@@ -100,6 +97,25 @@ export async function createCashBookEntry(
     if (!c) throw ApiError.notFound('Customer not found');
   }
 
+  // Duplicate guard: same day + type + amount + description within 2 minutes.
+  const since = new Date(Date.now() - 2 * 60 * 1000);
+  const dup = await prisma.inventoryCashBookEntry.findFirst({
+    where: {
+      companyId,
+      entryDate: input.entryDate,
+      entryType: input.entryType,
+      amount: input.amount,
+      description: input.description.trim(),
+      createdAt: { gte: since },
+    },
+  });
+  if (dup) {
+    throw ApiError.badRequest('Duplicate cash book entry detected — wait a moment or change the description');
+  }
+
+  const category =
+    input.entryType === 'EXPENSE' ? (input.category ?? 'OTHER') : input.category ?? null;
+
   const row = await prisma.inventoryCashBookEntry.create({
     data: {
       companyId,
@@ -110,6 +126,7 @@ export async function createCashBookEntry(
       amount: input.amount,
       description: input.description.trim(),
       reference: input.reference?.trim() || null,
+      category,
       invoiceId: input.invoiceId,
       customerId: input.customerId,
       recordedBy: userId,
@@ -119,7 +136,7 @@ export async function createCashBookEntry(
 }
 
 export async function deleteCashBookEntry(companyId: string, id: string) {
-  await assertIceCream(companyId);
+  await assertCashBook(companyId);
   const existing = await prisma.inventoryCashBookEntry.findFirst({
     where: { id, companyId },
   });
@@ -133,7 +150,7 @@ export async function deleteCashBookEntry(companyId: string, id: string) {
 
 /** Daily sales summary: invoices for the day + cash book movement. */
 export async function getDailySalesSummary(companyId: string, dateStr: string) {
-  await assertIceCream(companyId);
+  await assertCashBook(companyId);
   const { start, end } = dayBounds(dateStr);
 
   const invoices = await prisma.invoice.findMany({
@@ -180,6 +197,13 @@ export async function getDailySalesSummary(companyId: string, dateStr: string) {
     cash.entries.filter((e) => e.entryType === 'DEPOSIT').reduce((s, e) => s + e.amount, 0),
   );
 
+  const expensesByCategory: Record<string, number> = {};
+  for (const e of cash.entries) {
+    if (e.entryType !== 'EXPENSE') continue;
+    const cat = e.category ?? 'OTHER';
+    expensesByCategory[cat] = round2((expensesByCategory[cat] ?? 0) + e.amount);
+  }
+
   return {
     date: dateStr,
     sales: {
@@ -195,6 +219,7 @@ export async function getDailySalesSummary(companyId: string, dateStr: string) {
       opening: cash.opening,
       collectionsByMode: byMode,
       expenses,
+      expensesByCategory,
       deposits,
       closing: cash.closing,
     },
@@ -210,5 +235,36 @@ export async function getDailySalesSummary(companyId: string, dateStr: string) {
       status: i.status,
     })),
     entries: cash.entries,
+  };
+}
+
+/** Expense totals by category for a date range (Excel / reports). */
+export async function getExpensesByCategory(
+  companyId: string,
+  fromStr: string,
+  toStr: string,
+) {
+  await assertCashBook(companyId);
+  const { start } = dayBounds(fromStr);
+  const { end } = dayBounds(toStr);
+  const entries = await prisma.inventoryCashBookEntry.findMany({
+    where: {
+      companyId,
+      entryType: 'EXPENSE',
+      entryDate: { gte: start, lte: end },
+    },
+    orderBy: [{ entryDate: 'asc' }, { createdAt: 'asc' }],
+  });
+  const byCategory: Record<string, number> = {};
+  for (const e of entries) {
+    const cat = e.category ?? 'OTHER';
+    byCategory[cat] = round2((byCategory[cat] ?? 0) + Number(e.amount));
+  }
+  return {
+    from: fromStr,
+    to: toStr,
+    total: round2(Object.values(byCategory).reduce((s, n) => s + n, 0)),
+    byCategory,
+    entries: entries.map(serializeEntry),
   };
 }

@@ -17,7 +17,6 @@ import {
 } from '@/components/inventory/TransactionModals';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 import { SegmentedTabs, SegmentedTabsInline, type SegmentedTab } from '@/components/inventory/SegmentedTabs';
-import { useIceCreamVertical } from '@/hooks/useIceCreamVertical';
 import { InventoryFilterBar } from '@/components/inventory/InventoryFilterBar';
 import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
 import { useFocusedRow } from '@/hooks/useFocusedRow';
@@ -123,14 +122,10 @@ export default function InventorySalesScreen() {
   // Desktop/tablet get multi-line tables; phones keep the card list.
   const { isPhone, isTablet, isDesktop } = useViewport();
   const tableMode = isTablet || isDesktop;
-  const isIceCream = useIceCreamVertical();
   const projectId = useAuthStore((s) => s.user?.defaultProjectId ?? '');
   const TABS = useMemo(
-    () =>
-      isIceCream
-        ? ([...BASE_TABS, { value: 'cash' as const, label: 'Cash book' }] as const)
-        : BASE_TABS,
-    [isIceCream],
+    () => [...BASE_TABS, { value: 'cash' as const, label: 'Cash book' }] as const,
+    [],
   );
   const filters = useInventoryListFilters({ defaultTab: 'orders' });
   const tab = (TABS.some((t) => t.value === filters.tab) ? filters.tab : 'orders') as Tab;

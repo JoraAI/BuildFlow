@@ -25,3 +25,7 @@ inventoryAnalyticsRouter.get('/reports/warehouse', analyticsController.getWareho
 // 6.3 Margins + purchase history.
 inventoryAnalyticsRouter.get('/reports/margin', analyticsController.getMargin);
 inventoryAnalyticsRouter.get('/reports/purchase-history', analyticsController.getPurchaseHistory);
+
+// Estimated P&L + Excel export pack.
+inventoryAnalyticsRouter.get('/reports/profit-loss', analyticsController.getProfitLoss);
+inventoryAnalyticsRouter.get('/export/excel', analyticsController.exportExcel);

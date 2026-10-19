@@ -41,6 +41,7 @@ export async function createProductionBatch(
     recipeId: string;
     locationId?: string;
     outputQty: number;
+    wastageQty?: number;
     batchCode: string;
     manufacturedAt?: Date;
     expiresAt?: Date;
@@ -63,12 +64,18 @@ export async function createProductionBatch(
       });
   if (!location) throw ApiError.notFound('Warehouse location not found');
 
+  const wastageQty = Math.max(0, Number(input.wastageQty ?? 0));
+  if (wastageQty > input.outputQty) {
+    throw ApiError.badRequest('Wastage cannot exceed output quantity');
+  }
+
   return prisma.productionBatch.create({
     data: {
       companyId,
       recipeId: recipe.id,
       locationId: location.id,
       outputQty: input.outputQty,
+      wastageQty,
       batchCode: input.batchCode.trim(),
       manufacturedAt: input.manufacturedAt ?? null,
       expiresAt: input.expiresAt ?? null,
@@ -91,9 +98,14 @@ export async function createProductionBatch(
 }
 
 /**
- * Complete a draft production batch: consume recipe inputs, produce finished goods.
+ * Complete a draft production batch: consume recipe inputs, produce finished goods,
+ * then optionally write off wastageQty as ADJUST / WASTAGE on FG.
  */
-export async function completeProductionBatch(companyId: string, id: string) {
+export async function completeProductionBatch(
+  companyId: string,
+  id: string,
+  opts?: { wastageQty?: number },
+) {
   await assertInventoryFeature(companyId, 'production_batches');
   const batch = await prisma.productionBatch.findFirst({
     where: { id, companyId },
@@ -108,6 +120,12 @@ export async function completeProductionBatch(companyId: string, id: string) {
   });
   if (!batch) throw ApiError.notFound('Production batch not found');
   if (batch.status !== 'DRAFT') throw ApiError.badRequest('Only draft batches can be completed');
+
+  const wastageOverride =
+    opts?.wastageQty != null ? Math.max(0, Number(opts.wastageQty)) : Number(batch.wastageQty ?? 0);
+  if (wastageOverride > Number(batch.outputQty)) {
+    throw ApiError.badRequest('Wastage cannot exceed output quantity');
+  }
 
   const recipeOut = Number(batch.recipe.outputQty);
   const scale = Number(batch.outputQty) / (recipeOut || 1);
@@ -208,6 +226,7 @@ export async function completeProductionBatch(companyId: string, id: string) {
         },
       },
     });
+    let fgOnHand = produced;
     if (!outBalance) {
       await tx.stockBalance.create({
         data: {
@@ -217,15 +236,63 @@ export async function completeProductionBatch(companyId: string, id: string) {
         },
       });
     } else {
+      fgOnHand = round3(Number(outBalance.quantity) + produced);
       await tx.stockBalance.update({
         where: { id: outBalance.id },
-        data: { quantity: round3(Number(outBalance.quantity) + produced) },
+        data: { quantity: fgOnHand },
       });
+    }
+
+    // Production wastage: write off FG (spoilage / yield loss) after produce.
+    if (wastageOverride > 0) {
+      const tracked = isBatchTracked(outRes.trackingMode) || trackedOut;
+      if (tracked) {
+        await allocateBatchOut(tx, {
+          locationId: batch.locationId,
+          resourceId: outRes.id,
+          resourceName: outRes.name,
+          unit: outRes.unit,
+          quantity: wastageOverride,
+        });
+      }
+      await tx.stockMovement.create({
+        data: {
+          locationId: batch.locationId,
+          resourceId: outRes.id,
+          quantity: wastageOverride,
+          type: 'ADJUST',
+          referenceType: 'PRODUCTION_BATCH',
+          referenceId: batch.id,
+          reason: 'WASTAGE',
+          notes: `Production wastage ${batch.batchCode}`,
+          unitCost: Number(outRes.avgCost ?? 0),
+          inventoryValue: round2(Number(outRes.avgCost ?? 0) * wastageOverride),
+          batchCode: trackedOut ? batch.batchCode : null,
+        },
+      });
+      const bal = await tx.stockBalance.findUnique({
+        where: {
+          locationId_resourceId: {
+            locationId: batch.locationId,
+            resourceId: outRes.id,
+          },
+        },
+      });
+      if (bal) {
+        await tx.stockBalance.update({
+          where: { id: bal.id },
+          data: { quantity: round3(Number(bal.quantity) - wastageOverride) },
+        });
+      }
     }
 
     return tx.productionBatch.update({
       where: { id: batch.id },
-      data: { status: 'COMPLETED', completedAt: new Date() },
+      data: {
+        status: 'COMPLETED',
+        completedAt: new Date(),
+        wastageQty: wastageOverride,
+      },
       include: {
         recipe: {
           select: {

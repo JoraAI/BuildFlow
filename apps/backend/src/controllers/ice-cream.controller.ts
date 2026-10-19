@@ -75,9 +75,13 @@ export async function createProduction(req: Request, res: Response, next: NextFu
 
 export async function completeProduction(req: Request, res: Response, next: NextFunction) {
   try {
+    const wastageQty =
+      typeof req.body?.wastageQty === 'number' ? req.body.wastageQty : undefined;
     res.json({
       success: true,
-      data: await productionSvc.completeProductionBatch(companyId(req), req.params.id),
+      data: await productionSvc.completeProductionBatch(companyId(req), req.params.id, {
+        wastageQty,
+      }),
     });
   } catch (e) {
     next(e);

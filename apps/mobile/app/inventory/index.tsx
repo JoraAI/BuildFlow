@@ -1,733 +1,236 @@
 /**
- * Inventory shell - Stock home.
- *
- * Stock summary for the tenant's default STORE project. Tap an item for history.
- * Supports manual stock issue (OUT) with selling price → draft sales invoice.
+ * Inventory Home dashboard — KPIs, quick actions, low-stock alerts
+ * (matches Creamy Kulfi mockup Home screen). Responsive: 2-col KPIs on phone,
+ * 4-col on tablet/desktop; action grid wraps; content capped on wide screens.
  */
-import React, { useEffect, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  RefreshControl,
-  Pressable,
-  type ViewStyle,
-} from 'react-native';
-import { useQueryClient } from '@tanstack/react-query';
-import { Badge, Button, EmptyState, LoadingSkeleton, Input, Select, toast, BusyOverlay } from '@/components/ui';
-import { useAuthStore } from '@/stores/auth.store';
-import { useViewport } from '@/hooks/useViewport';
+import React, { useMemo } from 'react';
+import { View, Text, ScrollView, Pressable, RefreshControl, type DimensionValue } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { getInventoryLabel, getInventoryLabelMode, hasInventoryFeature, type SubscriptionPlanKey } from '@buildflow/shared';
-import { AdjustStockModal, OpeningStockModal, MultiIssueStockModal } from '@/components/inventory/StockModals';
-import { CheckoutCart } from '@/components/inventory/CheckoutCart';
-import {
-  inventoryInvoiceDetailHref,
-  inventoryMaterialsHref,
-  inventoryStockItemHref,
-} from '@/utils/navigation-paths';
-import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
-import { useWarehouses, useBarcodeLookup, type Warehouse } from '@/services/warehouse.queries';
-import DashboardCards, { KiranaKpiCards } from '@/components/inventory/DashboardCards';
-import AnomalyStrip from '@/components/inventory/AnomalyStrip';
-import { BarcodeScannerOverlay } from '@/components/inventory/BarcodeScannerOverlay';
-import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
-import { InventoryPageHeader } from '@/components/inventory/InventoryPageHeader';
-import { StockHero, formatHeroMoney } from '@/components/inventory/StockHero';
-import { StockRow } from '@/components/inventory/StockRow';
-import { mobileListBottomPadding } from '@/components/layout/fab-layout';
+import { LoadingSkeleton, toast } from '@/components/ui';
+import { useAuthStore } from '@/stores/auth.store';
+import { useIceCreamVertical } from '@/hooks/useIceCreamVertical';
+import { useViewport } from '@/hooks/useViewport';
 import { useInventoryDashboard } from '@/services/inventory-analytics.queries';
-import { useExpirySummary } from '@/services/expansion.queries';
-import {
-  useStockSummary,
-  useIssueStock,
-  useAdjustStock,
-  useImportOpeningStock,
-  expansionKeys,
-  type StockSummaryRow,
-} from '@/services/expansion.queries';
+import { useStockSummary, type StockSummaryRow } from '@/services/expansion.queries';
+import { useDailySalesSummary } from '@/services/ice-cream.queries';
+import { formatINR } from '@/utils/format';
+import { INVENTORY_PINK, INVENTORY_PINK_SOFT } from '@/components/navigation/InventoryTabBar';
+import { CompanyLogo } from '@/components/ui/Avatar';
+import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 
-/** Shared desktop stock-table column widths (header + rows must match). */
-const STOCK_COL = {
-  name: { flexGrow: 2.4, flexShrink: 1, flexBasis: 0, minWidth: 148, marginRight: 8 } satisfies ViewStyle,
-  balance: { flexGrow: 0.85, flexShrink: 0, flexBasis: 0, minWidth: 72 } satisfies ViewStyle,
-  money: { flexGrow: 1, flexShrink: 0, flexBasis: 0, minWidth: 84 } satisfies ViewStyle,
-  actions: { flexGrow: 1.45, flexShrink: 0, flexBasis: 0, minWidth: 168 } satisfies ViewStyle,
-} as const;
-
-async function bufferUntil(
-  run: () => Promise<unknown>,
-  predicate: () => boolean,
-  timeoutMs = 12000,
-): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    await run();
-    if (predicate()) return true;
-    await new Promise((r) => setTimeout(r, 200));
-  }
-  await run();
-  return predicate();
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
 }
 
-export default function InventoryStockScreen() {
-  const user = useAuthStore((s) => s.user);
+type QuickAction = {
+  key: string;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  href: string;
+};
+
+export default function InventoryHomeScreen() {
   const router = useRouter();
-  const qc = useQueryClient();
-  const { isDesktop, isPhone } = useViewport();
+  const user = useAuthStore((s) => s.user);
+  const isIceCream = useIceCreamVertical();
+  const { isPhone, isDesktop } = useViewport();
   const projectId = user?.defaultProjectId ?? '';
+  const { data: dashboard, isLoading, isFetching, refetch } = useInventoryDashboard();
+  const { data: stock, refetch: refetchStock } = useStockSummary(projectId);
+  const date = todayISO();
+  const summaryQ = useDailySalesSummary(date, true);
 
-  // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.1): multi-warehouse - the stock
-  // home shows one warehouse at a time (default = company default location).
-  const multiWarehouseEnabled = hasInventoryFeature(
-    (user?.subscriptionPlan ?? 'INVENTORY') as SubscriptionPlanKey,
-    'multi_warehouse',
-  );
-  const barcodeEnabled = hasInventoryFeature(
-    (user?.subscriptionPlan ?? 'INVENTORY') as SubscriptionPlanKey,
-    'barcode',
-  );
-  // INVENTORY_KIRANA_RETAIL_WHOLESALE & HORIZONTAL PARITY:
-  // POS counter checkout cart is enabled for all inventory plans
-  // (Kirana, Electronics, Hardware, Retail, Wholesale, etc.).
-  const posCheckoutEnabled = hasInventoryFeature(
-    (user?.subscriptionPlan ?? 'INVENTORY') as SubscriptionPlanKey,
-    'pos_checkout',
-  );
-  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4): Kirana-vertical KPI row.
-  const kiranaVertical = user?.inventoryVertical === 'GENERAL';
-  const { data: warehouses }: { data?: Warehouse[] } = useWarehouses();
-  const [selectedLocationId, setSelectedLocationId] = useState<string | undefined>(undefined);
-  useEffect(() => {
-    if (!selectedLocationId && warehouses && warehouses.length > 0) {
-      const def = warehouses.find((w) => w.isDefault);
-      setSelectedLocationId(def?.id ?? warehouses[0].id);
-    }
-  }, [warehouses, selectedLocationId]);
+  const lowStock = useMemo(() => {
+    return (stock ?? [])
+      .filter((r: StockSummaryRow) => {
+        const bal = Number(r.balance ?? 0);
+        const rp = Number(r.reorderPoint ?? 0);
+        return rp > 0 && bal <= rp;
+      })
+      .slice(0, 8);
+  }, [stock]);
 
-  const { data: summary, isLoading, isFetching, refetch, isError, error } = useStockSummary(projectId, selectedLocationId);
-  const [issueOpen, setIssueOpen] = useState(false);
-  /** When opened from a row CTA, prefill the multi sheet with this one material. */
-  const [issueInitialResourceId, setIssueInitialResourceId] = useState<string | null>(null);
-  const [buffering, setBuffering] = useState(false);
-  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4): searchable stock rows.
-  // INVENTORY_UX_POLISH (M4): 150ms debounce + match name/sku/itemCode/barcode/unit.
-  const [stockSearch, setStockSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(stockSearch), 150);
-    return () => clearTimeout(t);
-  }, [stockSearch]);
-  // Cross-nav (?q=…) seeds the search box; typing here stays local to the screen.
-  const { query: paramQuery } = useInventoryListFilters();
-  useEffect(() => {
-    if (paramQuery) setStockSearch(paramQuery);
-  }, [paramQuery]);
-  // Live filter as you type (150ms debounce). No Find button - search is automatic.
-  const filteredSummary = useMemo(() => {
-    const rows = summary ?? [];
-    const q = debouncedSearch.trim().toLowerCase();
-    const matched = !q
-      ? rows
-      : rows.filter((r: StockSummaryRow) => {
-          const haystack = [
-            r.name,
-            r.unit,
-            r.sku ?? '',
-            r.itemCode ?? '',
-            r.barcode ?? '',
-          ]
-            .join(' ')
-            .toLowerCase();
-          return haystack.includes(q);
-        });
-    return [...matched].sort((a, b) =>
-      (a.name ?? '').localeCompare(b.name ?? '', undefined, { sensitivity: 'base' }),
-    );
-  }, [summary, debouncedSearch]);
-  const isSearchActive = debouncedSearch.trim().length > 0;
+  const cashInHand = summaryQ.data?.cash?.closing ?? null;
+  const expenses = summaryQ.data?.cash?.expenses ?? null;
 
-  // Camera Scan (or paste of a full barcode into search after scan) → API lookup → item detail.
-  const [barcodeQuery, setBarcodeQuery] = useState('');
-  const [scannerOpen, setScannerOpen] = useState(false);
-  const barcodeLookup = useBarcodeLookup(barcodeQuery);
-  useEffect(() => {
-    if (barcodeLookup.data) {
-      const id = barcodeLookup.data.id;
-      const name = barcodeLookup.data.name;
-      setBarcodeQuery('');
-      toast.success(`${name} found`);
-      router.push(inventoryStockItemHref(id, selectedLocationId) as never);
-    }
-  }, [barcodeLookup.data, router, selectedLocationId]);
-  useEffect(() => {
-    if (barcodeQuery && barcodeLookup.isError) {
-      setBarcodeQuery('');
-      toast.error('No item found with this barcode');
-    }
-  }, [barcodeQuery, barcodeLookup.isError]);
+  const actions: QuickAction[] = [
+    { key: 'sale', label: 'New Sale', icon: 'cart-outline', href: '/inventory/sales' },
+    ...(isIceCream
+      ? [{ key: 'prod', label: 'Production', icon: 'nutrition-outline' as const, href: '/inventory/production' }]
+      : []),
+    { key: 'purchase', label: 'Add Purchase', icon: 'bag-outline', href: '/inventory/procurement' },
+    { key: 'expense', label: 'Add Expense', icon: 'wallet-outline', href: '/inventory/cash' },
+    { key: 'stock', label: 'View Stock', icon: 'cube-outline', href: '/inventory/materials' },
+    { key: 'reports', label: 'Reports', icon: 'bar-chart-outline', href: '/inventory/reports' },
+  ];
 
-  const issueStock = useIssueStock(projectId);
-  const adjustStock = useAdjustStock();
-  const importOpening = useImportOpeningStock();
-  const [adjustRow, setAdjustRow] = useState<StockSummaryRow | null>(null);
-  const [openingOpen, setOpeningOpen] = useState(false);
-  // Phase 1.3/1.4 flags - shipped for INVENTORY this pass.
-  const stockAdjustEnabled = hasInventoryFeature(
-    (user?.subscriptionPlan ?? 'INVENTORY') as SubscriptionPlanKey,
-    'stock_adjustments',
-  );
-
-  const totals = useMemo(() => {
-    const rows: StockSummaryRow[] = summary ?? [];
-    return {
-      items: rows.length,
-      onHand: rows.reduce((acc: number, r: StockSummaryRow) => acc + (Number(r.balance) || 0), 0),
-      received: rows.reduce((acc: number, r: StockSummaryRow) => acc + (Number(r.received) || 0), 0),
-      issued: rows.reduce((acc: number, r: StockSummaryRow) => acc + (Number(r.issued) || 0), 0),
-    };
-  }, [summary]);
-
-  /** Any material with on-hand stock is issuable. */
-  const hasIssuableStock = useMemo(
-    () => (summary ?? []).some((r: StockSummaryRow) => Number(r.balance) > 0),
-    [summary],
-  );
-
-  // INVENTORY_HORIZONTAL_PLATFORM (Phase 0): profile-based wording.
-  const labelMode = getInventoryLabelMode(user?.inventoryProfile ?? null);
-  const itemLabel = getInventoryLabel('item', labelMode);
-
-  // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.3): shared counter-sale submit
-  // handler used by BOTH the POS checkout cart (Kirana) and the legacy multi
-  // issue modal (non-Kirana). After commit: buffer until balances settle,
-  // toast (incl. server FEFO lot allocations), invalidate stock/sales/invoices
-  // (expiry + dashboard handled by useIssueStock.onSuccess), then open the
-  // draft invoice when one was auto-created.
-  const handleCounterSale = async (input: {
-    lines: Array<{ resourceId: string; quantity: number; unitPrice?: number; batchCode?: string }>;
-    customerId?: string;
-    customerName?: string;
-    customerPhone?: string;
-    customerAddress?: string;
-    notes?: string;
-    allowExpired?: boolean;
-  }) => {
-    const prevBalances = new Map<string, number>();
-    for (const l of input.lines) {
-      const row = (summary ?? []).find((r: StockSummaryRow) => r.resourceId === l.resourceId);
-      prevBalances.set(l.resourceId, row ? Number(row.balance) : 0);
-    }
-    setBuffering(true);
-    try {
-      const result = await issueStock.mutateAsync({
-        ...input,
-        ...(selectedLocationId ? { locationId: selectedLocationId } : {}),
-      });
-      await bufferUntil(
-        async () => {
-          await refetch();
-          await qc.refetchQueries({ queryKey: ['invoices', 'list', projectId] });
-          await qc.refetchQueries({ queryKey: ['transactions', 'sales-orders'] });
-        },
-        () => {
-          const rows =
-            (qc.getQueryData([...expansionKeys.stockSummary(projectId), selectedLocationId ?? 'all']) as
-              | StockSummaryRow[]
-              | undefined) ?? [];
-          return input.lines.every((l) => {
-            const prev = prevBalances.get(l.resourceId) ?? 0;
-            const row = rows.find((r) => r.resourceId === l.resourceId);
-            if (!row) return false;
-            return Number(row.balance) <= prev - l.quantity + 0.001;
-          });
-        },
-      );
-      const names = result.lines
-        .map((l) => `${l.resourceName} ${l.quantityIssued} ${l.unit}`)
-        .join(', ');
-      // 11.3.5: server-side FEFO lot allocations - warnings/feedback only.
-      const lotSummary = result.lines
-        .filter((l) => l.allocations && l.allocations.length > 0)
-        .map((l) => l.allocations!.map((a) => `${a.batchCode}×${a.quantity}`).join(', '))
-        .join(' · ');
-      toast.success(
-        result.draftInvoiceId
-          ? `Issued ${names} · counter sale on Sales · draft invoice created${lotSummary ? ` · from batch ${lotSummary}` : ''}`
-          : `Issued ${names}${lotSummary ? ` · from batch ${lotSummary}` : ''}`,
-      );
-      setIssueOpen(false);
-      setIssueInitialResourceId(null);
-      if (result.draftInvoiceId) {
-        router.push(
-          inventoryInvoiceDetailHref(result.draftInvoiceId, '/inventory') as never,
-        );
-      }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Issue failed');
-      throw e;
-    } finally {
-      setBuffering(false);
-    }
-  };
-  const itemPluralLabel = getInventoryLabel('item_plural', labelMode);
-  const { translate } = useInventoryLanguage();
-  const localizedItemsLabel =
-    itemPluralLabel === 'Materials'
-      ? translate('inventory.materials', 'Materials')
-      : itemPluralLabel === 'Items'
-        ? translate('inventory.items', 'Items')
-        : itemPluralLabel;
-
-  const { data: dashboard } = useInventoryDashboard();
-  const { data: expiry } = useExpirySummary();
-  const [overviewOpen, setOverviewOpen] = useState(false);
-
-  const warehouseName =
-    warehouses?.find((w) => w.id === selectedLocationId)?.name ??
-    (multiWarehouseEnabled
-      ? translate('inventory.stock.allStores', 'All stores')
-      : translate('inventory.stock.oneStore', '1 store'));
-
-  const heroPrimaryLabel = kiranaVertical
-    ? translate('inventory.stock.counterSalesToday', 'Counter sales today')
-    : translate('inventory.stock.inventoryValue', 'Inventory value');
-  const heroPrimaryValue = kiranaVertical
-    ? formatHeroMoney(dashboard?.salesToday)
-    : formatHeroMoney(dashboard?.inventoryValue);
-
-  const attentionParts: string[] = [];
-  if ((dashboard?.lowStockCount ?? 0) > 0) {
-    attentionParts.push(`${dashboard!.lowStockCount} low stock`);
-  }
-  if (kiranaVertical && expiry && expiry['0_30'] > 0) {
-    attentionParts.push(`${Math.round(expiry['0_30'])} expiring soon`);
-  }
-  const attentionLabel = attentionParts.length ? attentionParts.join(' · ') : null;
-
-  const onRefresh = () => {
-    void refetch();
-  };
-
-  const checkoutLabel = posCheckoutEnabled
-    ? translate('inventory.stock.checkout', 'Checkout')
-    : translate('inventory.stock.bulkIssue', 'Bulk issue');
-
-  /** Warehouse only - search + Scan live in the sticky search row (no Find button). */
-  const filtersBlock = multiWarehouseEnabled ? (
-    <View className={isPhone ? 'mb-3' : undefined}>
-      <Select
-        label={translate('inventory.stock.warehouse', 'Warehouse')}
-        value={selectedLocationId}
-        options={(warehouses ?? []).map((w) => ({ title: `${w.name}${w.isDefault ? ' (default)' : ''}`, value: w.id }))}
-        onChange={(v) => v && setSelectedLocationId(v)}
-        placeholder={translate('inventory.stock.allStores', 'All stores')}
-      />
-    </View>
-  ) : null;
-
-  const listHeader = (
-    <View className="pb-2">
-      {isPhone ? filtersBlock : null}
-
-      <StockHero
-        companyName={user?.companyName}
-        warehouseLabel={warehouseName}
-        primaryLabel={heroPrimaryLabel}
-        primaryValue={heroPrimaryValue}
-        supportLeft={{
-          label: localizedItemsLabel,
-          value: String(totals.items),
-        }}
-        supportRight={{
-          label: translate('inventory.stock.onHand', 'On hand'),
-          value: String(totals.onHand),
-        }}
-        attentionLabel={attentionLabel}
-        onAttentionPress={attentionLabel ? () => setOverviewOpen(true) : undefined}
-      />
-
-      <AnomalyStrip />
-
-      <Pressable
-        onPress={() => setOverviewOpen((v) => !v)}
-        className="mb-2 flex-row items-center justify-between py-1"
-      >
-        <Text className="text-xs font-semibold text-muted uppercase tracking-wide">
-          {overviewOpen
-            ? translate('inventory.stock.hideOverview', 'Hide overview')
-            : translate('inventory.stock.showOverview', 'Show overview')}
-        </Text>
-        <Text className="text-xs font-bold text-primary">{overviewOpen ? '−' : '+'}</Text>
-      </Pressable>
-      {overviewOpen ? (
-        <View className="mb-3">
-          {kiranaVertical ? <KiranaKpiCards /> : <DashboardCards />}
-        </View>
-      ) : null}
-
-      <Text className="text-sm font-bold text-text mt-3 mb-2">
-        {translate('inventory.stock.summary', 'Stock summary')}
-      </Text>
-
-      {isDesktop && filteredSummary.length > 0 ? (
-        <View className="flex-row items-center py-3 px-4 mb-2 rounded-xl bg-surface border border-border">
-          <Text style={STOCK_COL.name} className="text-[11px] font-bold text-muted uppercase">Name</Text>
-          <Text style={STOCK_COL.balance} className="text-[11px] font-bold text-muted uppercase text-right">Balance</Text>
-          <Text style={STOCK_COL.money} className="text-[11px] font-bold text-muted uppercase text-right">Cost</Text>
-          <Text style={STOCK_COL.money} className="text-[11px] font-bold text-muted uppercase text-right">Sell</Text>
-          <Text style={STOCK_COL.money} className="text-[11px] font-bold text-muted uppercase text-right">WAC</Text>
-          <Text style={STOCK_COL.money} className="text-[11px] font-bold text-muted uppercase text-right">Value</Text>
-          <Text style={STOCK_COL.actions} className="text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
-        </View>
-      ) : null}
-    </View>
-  );
+  const actionWidth: DimensionValue = isDesktop ? '15%' : isPhone ? '30%' : '22%';
+  const kpiWidth: DimensionValue = isDesktop ? '23%' : '47%';
 
   return (
-    <View className="flex-1 bg-surface min-h-0">
-      <BusyOverlay
-        visible={buffering}
-        title={translate('inventory.stock.title', 'Stock')}
-        subtitle="Please wait until stock and the sale refresh. Do not tap again."
-      />
-
-      <InventoryPageHeader
-        title={translate('inventory.stock.title', 'Stock')}
-        subtitle={
-          isPhone
-            ? undefined
-            : [
-                user?.companyName,
-                multiWarehouseEnabled
-                  ? warehouses?.find((w) => w.id === selectedLocationId)?.name ??
-                    translate('inventory.stock.allStores', 'All stores')
-                  : translate('inventory.stock.oneStore', '1 store'),
-              ]
-                .filter(Boolean)
-                .join(' · ')
-        }
-        primaryLabel={checkoutLabel}
-        primaryDisabled={buffering || !hasIssuableStock}
-        onPrimary={() => {
-          setIssueInitialResourceId(null);
-          setIssueOpen(true);
-        }}
-        secondaryLabel={isPhone ? undefined : localizedItemsLabel}
-        onSecondary={
-          isPhone
-            ? undefined
-            : () => router.push(inventoryMaterialsHref({ q: stockSearch.trim() || undefined }) as never)
-        }
-      />
-      {!isPhone && stockAdjustEnabled ? (
-        <View className="px-4 pb-1 shrink-0 flex-row justify-end">
-          <Button
-            label={translate('inventory.stock.importOpening', 'Import opening stock')}
-            variant="secondary"
-            size="sm"
-            disabled={buffering}
-            onPress={() => setOpeningOpen(true)}
-          />
+    <ScrollView
+      className="flex-1 bg-surface"
+      contentContainerStyle={{
+        padding: isDesktop ? 24 : 16,
+        paddingBottom: isPhone ? mobileListBottomPadding() + 24 : 48,
+        maxWidth: isDesktop ? 1100 : undefined,
+        width: '100%',
+        alignSelf: 'center',
+      }}
+      refreshControl={
+        <RefreshControl
+          refreshing={isFetching || summaryQ.isFetching}
+          onRefresh={() => {
+            void refetch();
+            void refetchStock();
+            void summaryQ.refetch();
+          }}
+        />
+      }
+    >
+      <View className="flex-row items-center gap-3 mb-4">
+        <CompanyLogo name={user?.companyName ?? 'Store'} logoUrl={user?.companyLogoUrl} size={44} />
+        <View className="flex-1 min-w-0">
+          <Text className="text-lg font-bold text-text" numberOfLines={1}>
+            {user?.companyName ?? 'Store'}
+          </Text>
+          <Text className="text-xs text-muted">Today · {date}</Text>
         </View>
-      ) : null}
-
-      {!isPhone && multiWarehouseEnabled ? (
-        <View className="px-4 pb-3 shrink-0">{filtersBlock}</View>
-      ) : null}
-
-      <View className="px-4 pb-2 shrink-0">
-        {/* One sticky row: live search + Scan (inline). Typing filters the list; Scan looks up barcode. */}
-        <View className="flex-row items-center gap-2">
-          <View className="flex-1 min-w-0">
-            <Input
-              label=""
-              compact
-              fullWidth
-              accessibilityLabel={`Search ${localizedItemsLabel.toLowerCase()}`}
-              value={stockSearch}
-              onChangeText={setStockSearch}
-              autoCapitalize="none"
-              placeholder={translate(
-                'inventory.stock.searchPlaceholder',
-                `Search ${localizedItemsLabel.toLowerCase()} (name, SKU, barcode)…`,
-              )}
-            />
-          </View>
-          {barcodeEnabled ? (
-            <Button
-              label={translate('inventory.stock.scan', 'Scan')}
-              variant="secondary"
-              size="sm"
-              disabled={buffering}
-              onPress={() => setScannerOpen(true)}
-            />
-          ) : null}
-        </View>
-        {isPhone ? (
-          <View className="flex-row flex-wrap gap-2 mt-2">
-            <Button
-              label={localizedItemsLabel}
-              variant="ghost"
-              size="sm"
-              disabled={buffering}
-              onPress={() =>
-                router.push(inventoryMaterialsHref({ q: stockSearch.trim() || undefined }) as never)
-              }
-            />
-            {stockAdjustEnabled ? (
-              <Button
-                label={translate('inventory.stock.importOpening', 'Import opening')}
-                variant="ghost"
-                size="sm"
-                disabled={buffering}
-                onPress={() => setOpeningOpen(true)}
-              />
-            ) : null}
-          </View>
-        ) : null}
       </View>
 
       {isLoading ? (
-        <View className="px-4 gap-3 flex-1 min-h-0">
-          {[1, 2, 3].map((i) => (
-            <LoadingSkeleton key={i} className="rounded-xl h-16" />
+        <View className="flex-row flex-wrap gap-3 mb-4">
+          {[1, 2, 3, 4].map((i) => (
+            <View key={i} style={{ width: kpiWidth, flexGrow: 1 }}>
+              <LoadingSkeleton className="h-24 rounded-2xl" />
+            </View>
           ))}
         </View>
       ) : (
-        <FlatList
-          className="flex-1"
-          style={{ flex: 1, minHeight: 0 }}
-          data={filteredSummary}
-          keyExtractor={(item) => item.resourceId}
-          refreshControl={
-            <RefreshControl
-              refreshing={isFetching && !buffering}
-              onRefresh={onRefresh}
-              tintColor="#1E3A5F"
-            />
-          }
-          ListHeaderComponent={listHeader}
-          renderItem={({ item }) => {
-            const isLowStock =
-              item.reorderPoint != null && Number(item.reorderPoint) > 0 && Number(item.balance) < Number(item.reorderPoint);
-            if (isDesktop) {
-              const rowIssueLabel = posCheckoutEnabled
-                ? translate('inventory.stock.checkoutRow', 'Checkout')
-                : translate('inventory.stock.issue', 'Issue');
-              // Card-style rows (same spacing language as Items list) for every inventory vertical.
-              return (
-                <Pressable
-                  disabled={buffering}
-                  onPress={() => router.push(inventoryStockItemHref(item.resourceId, selectedLocationId) as never)}
-                  className="mb-2 flex-row items-center rounded-xl border border-border bg-card px-4 py-4 active:bg-primary/5"
-                >
-                  <View style={STOCK_COL.name} className="min-w-0 pr-2">
-                    <Text className="text-sm font-semibold text-text" numberOfLines={1}>{item.name}</Text>
-                    <View className="flex-row items-center gap-1.5 mt-1 flex-wrap">
-                      <Text className="text-[11px] text-muted">{item.unit}</Text>
-                      {item.sku ? (
-                        <Text className="text-[11px] text-muted">· SKU {item.sku}</Text>
-                      ) : null}
-                      {isLowStock ? (
-                        <Badge color="danger" label={`Low (reorder ${Number(item.reorderPoint)})`} />
-                      ) : null}
-                    </View>
-                  </View>
-                  <Text style={STOCK_COL.balance} className="text-sm font-bold text-primary text-right">{item.balance}</Text>
-                  <Text style={STOCK_COL.money} className="text-xs text-muted text-right">
-                    {item.costPrice != null && Number(item.costPrice) > 0 ? `₹${Number(item.costPrice).toFixed(2)}` : '-'}
-                  </Text>
-                  <Text style={STOCK_COL.money} className="text-xs text-muted text-right">
-                    {Number(item.catalogRate) > 0 ? `₹${Number(item.catalogRate).toFixed(2)}` : '-'}
-                  </Text>
-                  <Text style={STOCK_COL.money} className="text-xs text-muted text-right">
-                    {Number(item.unitCost) > 0 ? `₹${Number(item.unitCost).toFixed(2)}` : '-'}
-                  </Text>
-                  <Text style={STOCK_COL.money} className="text-sm text-text text-right">
-                    {Number(item.inventoryValue) > 0 ? `₹${Number(item.inventoryValue).toFixed(2)}` : '-'}
-                  </Text>
-                  <View style={STOCK_COL.actions} className="flex-row flex-wrap justify-end gap-2 pl-2">
-                    <Button
-                      label={rowIssueLabel}
-                      size="sm"
-                      variant="secondary"
-                      disabled={buffering || Number(item.balance) <= 0}
-                      onPress={() => {
-                        setIssueInitialResourceId(item.resourceId);
-                        setIssueOpen(true);
-                      }}
-                    />
-                    {stockAdjustEnabled ? (
-                      <Button
-                        label={translate('inventory.stock.adjust', 'Adjust')}
-                        size="sm"
-                        variant="secondary"
-                        disabled={buffering}
-                        onPress={() => setAdjustRow(item)}
-                      />
-                    ) : null}
-                  </View>
-                </Pressable>
-              );
-            }
-            return (
-              <StockRow
-                name={item.name}
-                unit={item.unit}
-                balance={item.balance}
-                sellRate={Number(item.catalogRate) || 0}
-                sku={item.sku}
-                isLowStock={isLowStock}
-                reorderPoint={item.reorderPoint}
-                primaryLabel={
-                  posCheckoutEnabled
-                    ? translate('inventory.stock.checkoutRow', 'Checkout')
-                    : translate('inventory.stock.issue', 'Issue')
-                }
-                disabled={buffering}
-                onPress={() =>
-                  router.push(inventoryStockItemHref(item.resourceId, selectedLocationId) as never)
-                }
-                onPrimary={() => {
-                  setIssueInitialResourceId(item.resourceId);
-                  setIssueOpen(true);
-                }}
-                onAdjust={
-                  stockAdjustEnabled
-                    ? () => setAdjustRow(item)
-                    : undefined
-                }
-              />
-            );
-          }}
-          ListEmptyComponent={
-            isError ? (
-              <EmptyState
-                title="Could not load stock"
-                description={error instanceof Error ? error.message : 'Check your connection and try again.'}
-              />
-            ) : isSearchActive ? (
-              <EmptyState
-                title="No items match"
-                description={`No ${localizedItemsLabel.toLowerCase()} match “${debouncedSearch.trim()}”. Try a name, SKU, barcode or unit.`}
-              />
-            ) : (
-              <EmptyState
-                title="No stock yet"
-                description={`Add ${localizedItemsLabel.toLowerCase()}, create a purchase order, and record a GRN to bring stock in. Then ${posCheckoutEnabled ? 'checkout' : 'issue'} when you sell.`}
-              />
-            )
-          }
-          contentContainerStyle={{
-            // Match Items list horizontal rhythm across all inventory verticals.
-            paddingHorizontal: isDesktop ? 24 : 16,
-            paddingBottom: isPhone ? mobileListBottomPadding(false) : isDesktop ? 48 : 32,
-            paddingTop: isDesktop ? 8 : 0,
-            flexGrow: 1,
-          }}
-        />
+        <View className="flex-row flex-wrap gap-3 mb-5">
+          <KpiCard
+            width={kpiWidth}
+            label="Sales"
+            value={formatINR(dashboard?.salesToday ?? 0)}
+            sub="Today"
+            tone="success"
+          />
+          <KpiCard
+            width={kpiWidth}
+            label="Purchases"
+            value={formatINR(dashboard?.purchasesToday ?? 0)}
+            sub="Today"
+          />
+          <KpiCard
+            width={kpiWidth}
+            label="Expenses"
+            value={expenses != null ? formatINR(expenses) : '—'}
+            sub="Cash book"
+            tone="danger"
+          />
+          <KpiCard
+            width={kpiWidth}
+            label="Cash in hand"
+            value={cashInHand != null ? formatINR(cashInHand) : formatINR(0)}
+            sub="Closing"
+            tone="primary"
+          />
+        </View>
       )}
 
-      {posCheckoutEnabled ? (
-        <CheckoutCart
-          open={issueOpen}
-          submitting={issueStock.isPending || buffering}
-          rows={summary ?? []}
-          itemLabel={itemLabel}
-          initialResourceId={issueInitialResourceId}
-          onClose={() => {
-            if (!buffering) {
-              setIssueOpen(false);
-              setIssueInitialResourceId(null);
-            }
-          }}
-          onSubmit={handleCounterSale}
-        />
+      <Text className="text-sm font-bold text-text mb-2">Quick actions</Text>
+      <View className="flex-row flex-wrap gap-2 mb-5">
+        {actions.map((a) => (
+          <Pressable
+            key={a.key}
+            onPress={() => router.push(a.href as never)}
+            className="min-w-[100px] flex-grow items-center rounded-2xl border border-border bg-card py-3 px-2 active:opacity-80"
+            style={{ width: actionWidth }}
+          >
+            <View
+              className="w-10 h-10 rounded-full items-center justify-center mb-1.5"
+              style={{ backgroundColor: INVENTORY_PINK_SOFT }}
+            >
+              <Ionicons name={a.icon} size={20} color={INVENTORY_PINK} />
+            </View>
+            <Text className="text-[11px] font-semibold text-text text-center" numberOfLines={2}>
+              {a.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <View className="flex-row items-center justify-between mb-2">
+        <Text className="text-sm font-bold text-text">Low stock alerts</Text>
+        <Pressable onPress={() => router.push('/inventory/materials' as never)}>
+          <Text style={{ color: INVENTORY_PINK }} className="text-xs font-semibold">
+            View all
+          </Text>
+        </Pressable>
+      </View>
+      {lowStock.length === 0 ? (
+        <View className="rounded-2xl border border-border bg-card p-4 mb-4">
+          <Text className="text-sm text-muted">No low-stock items right now.</Text>
+        </View>
       ) : (
-        <MultiIssueStockModal
-          open={issueOpen}
-          submitting={issueStock.isPending || buffering}
-          rows={summary ?? []}
-          initialResourceId={issueInitialResourceId}
-          itemLabel={itemLabel}
-          onClose={() => {
-            if (!buffering) {
-              setIssueOpen(false);
-              setIssueInitialResourceId(null);
-            }
-          }}
-          onSubmit={handleCounterSale}
-        />
+        <View className="rounded-2xl border border-border bg-card overflow-hidden mb-4">
+          {lowStock.map((row, i) => (
+            <Pressable
+              key={row.resourceId}
+              onPress={() => router.push(`/inventory/stock/${row.resourceId}` as never)}
+              className={`flex-row items-center justify-between px-4 py-3 ${
+                i > 0 ? 'border-t border-border/60' : ''
+              }`}
+            >
+              <Text className="text-sm font-medium text-text flex-1 mr-2" numberOfLines={1}>
+                {row.name}
+              </Text>
+              <Text className="text-sm font-bold text-danger">
+                {Number(row.balance)} {row.unit}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       )}
 
-      <AdjustStockModal
-        row={adjustRow}
-        open={!!adjustRow}
-        onClose={() => {
-          if (!buffering) setAdjustRow(null);
+      <Pressable
+        onPress={() => {
+          toast.success('Pull down to refresh dashboard');
         }}
-        onSubmit={async (input) => {
-          setBuffering(true);
-          try {
-            const result = await adjustStock.mutateAsync({
-              ...input,
-              ...(selectedLocationId ? { locationId: selectedLocationId } : {}),
-            });
-            await refetch();
-            toast.success(
-              `Adjusted ${result.resourceName} by ${result.delta > 0 ? '+' : ''}${result.delta} ${result.unit} ` +
-                `(${result.reason.replace(/_/g, ' ').toLowerCase()}) · on hand ${result.quantityOnHand}`,
-            );
-            setAdjustRow(null);
-          } catch (e) {
-            toast.error(e instanceof Error ? e.message : 'Adjustment failed');
-            throw e;
-          } finally {
-            setBuffering(false);
-          }
-        }}
-      />
+        className="items-center py-2"
+      >
+        <Text className="text-[11px] text-muted">
+          Inventory value {formatINR(dashboard?.inventoryValue ?? 0)} · Low stock{' '}
+          {dashboard?.lowStockCount ?? lowStock.length}
+        </Text>
+      </Pressable>
+    </ScrollView>
+  );
+}
 
-      <OpeningStockModal
-        open={openingOpen}
-        onClose={() => {
-          if (!buffering) setOpeningOpen(false);
-        }}
-        onSubmit={async (lines) => {
-          setBuffering(true);
-          try {
-            const result = await importOpening.mutateAsync({
-              lines,
-              ...(selectedLocationId ? { locationId: selectedLocationId } : {}),
-            });
-            await refetch();
-            toast.success(
-              result.applied > 0
-                ? `Opening stock applied to ${result.applied} item(s)` +
-                    (result.missed > 0 ? ` · ${result.missed} not matched` : '')
-                : 'No items matched - check names/SKUs',
-            );
-            setOpeningOpen(false);
-          } catch (e) {
-            toast.error(e instanceof Error ? e.message : 'Import failed');
-            throw e;
-          } finally {
-            setBuffering(false);
-          }
-        }}
-      />
-
-      <BarcodeScannerOverlay
-        open={scannerOpen}
-        onClose={() => setScannerOpen(false)}
-        onScanned={(code) => {
-          setStockSearch(code);
-          setBarcodeQuery(code);
-          setScannerOpen(false);
-          toast.success(`Scanned ${code} - finding item…`);
-        }}
-      />
+function KpiCard({
+  label,
+  value,
+  sub,
+  tone,
+  width,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  tone?: 'success' | 'danger' | 'primary';
+  width: DimensionValue;
+}) {
+  const valueColor =
+    tone === 'success' ? '#10B981' : tone === 'danger' ? '#EF4444' : tone === 'primary' ? INVENTORY_PINK : '#0F172A';
+  return (
+    <View className="rounded-2xl border border-border bg-card p-3" style={{ width, flexGrow: 1 }}>
+      <Text className="text-[11px] text-muted mb-1">{label}</Text>
+      <Text className="text-lg font-bold" style={{ color: valueColor }} numberOfLines={1}>
+        {value}
+      </Text>
+      <Text className="text-[10px] text-muted mt-0.5">{sub}</Text>
     </View>
   );
 }

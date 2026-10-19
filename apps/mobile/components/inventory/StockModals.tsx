@@ -46,6 +46,8 @@ function CellInput({
 const ADJUST_REASONS = [
   { title: 'Damage', value: 'DAMAGE' },
   { title: 'Loss', value: 'LOSS' },
+  { title: 'Wastage', value: 'WASTAGE' },
+  { title: 'Free sample', value: 'FREE_SAMPLE' },
   { title: 'Theft', value: 'THEFT' },
   { title: 'Expiry', value: 'EXPIRY' },
   { title: 'Stocktake', value: 'STOCKTAKE' },
@@ -53,6 +55,8 @@ const ADJUST_REASONS = [
   { title: 'Correction', value: 'CORRECTION' },
   { title: 'Other', value: 'OTHER' },
 ];
+
+const REMOVE_ONLY_REASONS = new Set(['WASTAGE', 'FREE_SAMPLE', 'DAMAGE', 'LOSS', 'THEFT', 'EXPIRY']);
 
 export function AdjustStockModal({
   row,
@@ -141,8 +145,23 @@ export function AdjustStockModal({
               keyboardType="decimal-pad"
               placeholder="0"
             />
-            <Select label="Reason" value={reason} onChange={(v) => v && setReason(v)} options={ADJUST_REASONS} />
-            <Input label="Notes (optional)" value={notes} onChangeText={setNotes} multiline placeholder="e.g. carton damaged in transit" />
+            <Select
+              label="Reason"
+              value={reason}
+              onChange={(v) => {
+                if (!v) return;
+                setReason(v);
+                if (REMOVE_ONLY_REASONS.has(v)) setDirection('remove');
+              }}
+              options={ADJUST_REASONS}
+            />
+            <Input
+              label="Notes (optional)"
+              value={notes}
+              onChangeText={setNotes}
+              multiline
+              placeholder="e.g. free sample for distributor / production wastage"
+            />
             {error ? <Text className="text-sm text-danger mt-2">{error}</Text> : null}
             <View className="flex-row gap-2 mt-4 mb-4">
               <Button label="Cancel" variant="secondary" className="flex-1" disabled={saving} onPress={onClose} />

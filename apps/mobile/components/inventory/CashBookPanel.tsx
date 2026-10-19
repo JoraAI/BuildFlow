@@ -1,10 +1,11 @@
 /**
- * ICE_CREAM cash book + daily sales summary (Sales sub-tab).
+ * Inventory cash book + daily sales summary (all verticals).
  */
 import React, { useMemo, useState } from 'react';
 import { View, Text, FlatList, Modal, Pressable, ScrollView } from 'react-native';
 import { Button, Card, EmptyState, Input, LoadingSkeleton, Select, toast, useBusy } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
+import { CASH_EXPENSE_CATEGORIES } from '@buildflow/shared';
 import {
   useCashBookDay,
   useCreateCashBookEntry,
@@ -12,6 +13,11 @@ import {
   useDeleteCashBookEntry,
   type CashBookEntry,
 } from '@/services/ice-cream.queries';
+
+const EXPENSE_CATEGORY_OPTIONS = CASH_EXPENSE_CATEGORIES.map((c) => ({
+  title: c.replace(/_/g, ' '),
+  value: c,
+}));
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -75,7 +81,10 @@ export function CashBookPanel() {
                     {item.description}
                   </Text>
                   <Text className="text-[11px] text-muted mt-0.5">
-                    {item.entryType.replace(/_/g, ' ')} · {item.paymentMode} · {item.direction}
+                    {item.entryType.replace(/_/g, ' ')}
+                    {item.category ? ` · ${String(item.category).replace(/_/g, ' ')}` : ''}
+                    {' · '}
+                    {item.paymentMode} · {item.direction}
                   </Text>
                 </View>
                 <View className="items-end">
@@ -200,11 +209,13 @@ function CashEntryModal({
     amount: number;
     description: string;
     reference?: string;
+    category?: string;
   }) => Promise<void>;
 }) {
   const { isPhone } = useViewport();
   const [entryType, setEntryType] = useState<'OPENING' | 'EXPENSE' | 'DEPOSIT' | 'ADJUSTMENT'>('EXPENSE');
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'UPI' | 'BANK' | 'OTHER'>('CASH');
+  const [category, setCategory] = useState<string>('MISC');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [reference, setReference] = useState('');
@@ -228,10 +239,12 @@ function CashEntryModal({
         amount: Number(amount),
         description: description.trim(),
         reference: reference.trim() || undefined,
+        category: entryType === 'EXPENSE' ? category : undefined,
       });
       setAmount('');
       setDescription('');
       setReference('');
+      setCategory('MISC');
       setEntryType('EXPENSE');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save');
@@ -272,6 +285,14 @@ function CashEntryModal({
                 { title: 'Other', value: 'OTHER' },
               ]}
             />
+            {entryType === 'EXPENSE' ? (
+              <Select
+                label="Expense category"
+                value={category}
+                onChange={(v) => v && setCategory(v)}
+                options={EXPENSE_CATEGORY_OPTIONS}
+              />
+            ) : null}
             <Input label="Amount ₹" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
             <Input label="Description" value={description} onChangeText={setDescription} />
             <Input label="Reference (optional)" value={reference} onChangeText={setReference} />

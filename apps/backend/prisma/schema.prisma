@@ -2782,7 +2782,7 @@ model PettyCashEntry {
   @@map("petty_cash_entries")
 }
 
-/// ICE_CREAM / inventory shop cash book (not construction site petty cash).
+/// Inventory shop cash book (all verticals; not construction site petty cash).
 model InventoryCashBookEntry {
   id          String              @id @default(uuid()) @db.Uuid
   companyId   String              @map("company_id") @db.Uuid
@@ -2793,6 +2793,8 @@ model InventoryCashBookEntry {
   amount      Decimal             @db.Decimal(14, 2)
   description String
   reference   String?
+  /// Expense category (RENT / SALARY / …) when entryType = EXPENSE.
+  category    String?
   invoiceId   String?             @map("invoice_id") @db.Uuid
   customerId  String?             @map("customer_id") @db.Uuid
   recordedBy  String              @map("recorded_by") @db.Uuid
@@ -2931,6 +2933,8 @@ model ProductionBatch {
   locationId     String                @map("location_id") @db.Uuid
   /// Absolute finished-goods qty to produce (inputs scaled vs recipe.outputQty).
   outputQty      Decimal               @map("output_qty") @db.Decimal(12, 3)
+  /// FG write-off after produce (spoilage / yield loss); stock ADJUST WASTAGE.
+  wastageQty     Decimal               @default(0) @map("wastage_qty") @db.Decimal(12, 3)
   batchCode      String                @map("batch_code")
   manufacturedAt DateTime?             @map("manufactured_at")
   expiresAt      DateTime?             @map("expires_at")

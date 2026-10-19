@@ -15,7 +15,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Card, Badge, Button, Select, EmptyState, LoadingSkeleton } from '@/components/ui';
+import { Card, Badge, Button, Select, EmptyState, LoadingSkeleton, toast } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
 import { useWarehouses, type Warehouse } from '@/services/warehouse.queries';
 import {
@@ -23,6 +23,8 @@ import {
   useWarehouseValueReport,
   useMarginReport,
   usePurchaseHistoryReport,
+  useProfitLossReport,
+  downloadInventoryExcel,
   type StockHealthRow,
   type WarehouseValueRow,
   type MarginRow,
@@ -32,14 +34,23 @@ import { formatINR, formatINRCompact, formatDate } from '@/utils/format';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 import { SegmentedTabs } from '@/components/inventory/SegmentedTabs';
 
-type Tab = 'health' | 'warehouse' | 'margin' | 'purchase';
+type Tab = 'health' | 'warehouse' | 'margin' | 'purchase' | 'pnl';
 
 const TABS = [
   { value: 'health' as const, label: 'Stock health' },
   { value: 'warehouse' as const, label: 'Warehouse value' },
   { value: 'margin' as const, label: 'Margins' },
   { value: 'purchase' as const, label: 'Purchase history' },
+  { value: 'pnl' as const, label: 'P&L' },
 ];
+
+function monthStartISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 const CLASSIFICATION_BADGE: Record<
   StockHealthRow['classification'],
@@ -65,6 +76,9 @@ export default function InventoryReportsScreen() {
   const warehouseValue = useWarehouseValueReport();
   const margin = useMarginReport();
   const purchase = usePurchaseHistoryReport();
+  const [pnlFrom] = useState(monthStartISO());
+  const [pnlTo] = useState(todayISO());
+  const pnl = useProfitLossReport(pnlFrom, pnlTo, tab === 'pnl');
 
   const warehouseTotal = useMemo(
     () => (warehouseValue.data ?? []).reduce((s: number, r: WarehouseValueRow) => s + Number(r.value), 0),
@@ -247,6 +261,68 @@ export default function InventoryReportsScreen() {
                 </View>
               </Card>
             ))
+          )
+        ) : null}
+
+        {tab === 'pnl' ? (
+          pnl.isLoading ? (
+            <LoadingSkeleton className="rounded-xl h-24" />
+          ) : !pnl.data ? (
+            <EmptyState title="No P&L data" description="Sales, stock issues, and cash expenses feed this estimate." />
+          ) : (
+            <>
+              <Card className="p-4 gap-2">
+                <Text className="text-xs text-muted">
+                  {pnl.data.from} → {pnl.data.to}
+                </Text>
+                <View className="flex-row justify-between">
+                  <Text className="text-sm text-muted">Sales</Text>
+                  <Text className="text-sm font-bold text-text">{formatINR(pnl.data.sales)}</Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-sm text-muted">COGS</Text>
+                  <Text className="text-sm font-bold text-text">{formatINR(pnl.data.cogs)}</Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-sm text-muted">Gross margin</Text>
+                  <Text className="text-sm font-bold text-text">{formatINR(pnl.data.grossMargin)}</Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-sm text-muted">Expenses</Text>
+                  <Text className="text-sm font-bold text-danger">{formatINR(pnl.data.expenses)}</Text>
+                </View>
+                <View className="flex-row justify-between pt-2 border-t border-border/60">
+                  <Text className="text-sm font-semibold text-text">Estimated profit</Text>
+                  <Text
+                    className={`text-lg font-bold ${
+                      pnl.data.estimatedProfit >= 0 ? 'text-success' : 'text-danger'
+                    }`}
+                  >
+                    {formatINR(pnl.data.estimatedProfit)}
+                  </Text>
+                </View>
+              </Card>
+              {Object.keys(pnl.data.expensesByCategory).length > 0 ? (
+                <Card className="p-4">
+                  <Text className="text-sm font-bold text-text mb-2">Expenses by category</Text>
+                  {Object.entries(pnl.data.expensesByCategory).map(([cat, amt]) => (
+                    <View key={cat} className="flex-row justify-between py-1">
+                      <Text className="text-xs text-muted">{cat.replace(/_/g, ' ')}</Text>
+                      <Text className="text-sm font-semibold text-text">{formatINR(amt)}</Text>
+                    </View>
+                  ))}
+                </Card>
+              ) : null}
+              <Button
+                label="Export Excel"
+                variant="accent"
+                onPress={() => {
+                  void downloadInventoryExcel('pnl', { from: pnlFrom, to: pnlTo })
+                    .then(() => toast.success('Excel ready'))
+                    .catch((e) => toast.error(e instanceof Error ? e.message : 'Export failed'));
+                }}
+              />
+            </>
           )
         ) : null}
       </ScrollView>

@@ -2,7 +2,7 @@
  * Inventory shell layout (INVENTORY_PRODUCT).
  *
  * Inventory tenants land here instead of the construction app shell. The shell
- * exposes Stock | Procurement | Invoices | Bills | Settings - no construction
+ * exposes Home | Stock | Sales | Production | More - no construction
  * "Projects" navigator. Construction users are redirected to /dashboard.
  */
 import React from 'react';
@@ -120,8 +120,13 @@ function InventoryLayoutBody() {
               }}
             >
               <Stack.Screen name="index" />
+              <Stack.Screen name="on-hand" />
               <Stack.Screen name="stock/[resourceId]" />
               <Stack.Screen name="materials" />
+              <Stack.Screen name="more" />
+              <Stack.Screen name="cash" />
+              <Stack.Screen name="activity" />
+              <Stack.Screen name="backup" />
               <Stack.Screen name="parties" />
               <Stack.Screen name="quotes" />
               <Stack.Screen name="production" />

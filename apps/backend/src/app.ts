@@ -58,6 +58,7 @@ import { accountingExportRouter } from './routes/accounting-export.routes';
 import { labourRouter } from './routes/labour.routes';
 import { i18nRouter } from './routes/i18n.routes';
 import { buyerPublicRouter, iceCreamStaffRouter } from './routes/ice-cream.routes';
+import { cashBookRouter } from './routes/cash-book.routes';
 
 const app = express();
 
@@ -163,6 +164,7 @@ app.use('/api/inventory/transactions', transactionRouter); // Phase 2 SO/DC/retu
 app.use('/api/inventory', warehouseRouter); // Phase 3 warehouses/transfers/stock-counts/barcode (INVENTORY only)
 app.use('/api/inventory', inventoryGtmRouter); // Phase 9 price lists, quotes, PDFs, reminders (INVENTORY only)
 app.use('/api/inventory', inventoryCatalogRouter); // Phase 11.1 vertical starter catalog (INVENTORY only)
+app.use('/api/inventory/cash-book', cashBookRouter); // Cash book — all inventory verticals
 app.use('/api/inventory/ice-cream', iceCreamStaffRouter); // ICE_CREAM recipes/production/B2B
 app.use('/api/inventory/reorder', reorderRouter); // Phase 4 reorder suggestions + one-click purchase (INVENTORY only)
 app.use('/api/inventory/analytics', inventoryAnalyticsRouter); // Phase 6 dashboard + stock/margin reports (INVENTORY only)

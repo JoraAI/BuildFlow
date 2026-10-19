@@ -16,6 +16,10 @@ export const StockAdjustReason = {
   OPENING_STOCK: 'OPENING_STOCK',
   FOUND_STOCK: 'FOUND_STOCK',
   CORRECTION: 'CORRECTION',
+  /** Finished-goods / RM write-off during ops or production. */
+  WASTAGE: 'WASTAGE',
+  /** Complimentary giveaway — stock out, no invoice. */
+  FREE_SAMPLE: 'FREE_SAMPLE',
   OTHER: 'OTHER',
 } as const;
 export type StockAdjustReason = (typeof StockAdjustReason)[keyof typeof StockAdjustReason];
@@ -29,6 +33,8 @@ export const stockAdjustReasonSchema = z.enum([
   StockAdjustReason.OPENING_STOCK,
   StockAdjustReason.FOUND_STOCK,
   StockAdjustReason.CORRECTION,
+  StockAdjustReason.WASTAGE,
+  StockAdjustReason.FREE_SAMPLE,
   StockAdjustReason.OTHER,
 ]);
 

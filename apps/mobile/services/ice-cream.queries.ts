@@ -120,6 +120,7 @@ export function useCreateProductionBatch() {
     mutationFn: (body: {
       recipeId: string;
       outputQty: number;
+      wastageQty?: number;
       batchCode: string;
       manufacturedAt?: string;
       expiresAt?: string;
@@ -137,8 +138,11 @@ export function useCreateProductionBatch() {
 export function useCompleteProductionBatch() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) =>
-      apiFetch<ProductionRow>(`/inventory/ice-cream/production/${id}/complete`, { method: 'POST' }),
+    mutationFn: ({ id, wastageQty }: { id: string; wastageQty?: number }) =>
+      apiFetch<ProductionRow>(`/inventory/ice-cream/production/${id}/complete`, {
+        method: 'POST',
+        body: JSON.stringify({ wastageQty }),
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.production });
       qc.invalidateQueries({ queryKey: ['stock'] });
@@ -336,6 +340,7 @@ export type CashBookEntry = {
   amount: number;
   description: string;
   reference?: string | null;
+  category?: string | null;
   invoiceId?: string | null;
   customerId?: string | null;
   createdAt: string;
@@ -384,7 +389,7 @@ export function useCashBookDay(date: string, enabled = true) {
     queryKey: [...keys.cashBook, date] as const,
     enabled: enabled && !!date,
     queryFn: () =>
-      apiFetch<CashBookDay>(`/inventory/ice-cream/cash-book?date=${encodeURIComponent(date)}`),
+      apiFetch<CashBookDay>(`/inventory/cash-book?date=${encodeURIComponent(date)}`),
   });
 }
 
@@ -394,7 +399,7 @@ export function useDailySalesSummary(date: string, enabled = true) {
     enabled: enabled && !!date,
     queryFn: () =>
       apiFetch<DailySalesSummary>(
-        `/inventory/ice-cream/daily-sales-summary?date=${encodeURIComponent(date)}`,
+        `/inventory/cash-book/daily-sales-summary?date=${encodeURIComponent(date)}`,
       ),
   });
 }
@@ -410,8 +415,9 @@ export function useCreateCashBookEntry() {
       amount: number;
       description: string;
       reference?: string;
+      category?: string;
     }) =>
-      apiFetch<CashBookEntry>('/inventory/ice-cream/cash-book', {
+      apiFetch<CashBookEntry>('/inventory/cash-book', {
         method: 'POST',
         body: JSON.stringify(body),
       }),
@@ -426,7 +432,7 @@ export function useDeleteCashBookEntry() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      apiFetch(`/inventory/ice-cream/cash-book/${id}`, { method: 'DELETE' }),
+      apiFetch(`/inventory/cash-book/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.cashBook });
       qc.invalidateQueries({ queryKey: keys.dailySales });

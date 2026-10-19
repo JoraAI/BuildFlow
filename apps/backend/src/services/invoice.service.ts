@@ -1171,14 +1171,14 @@ export async function recordPayment(
       },
     });
 
-    // ICE_CREAM cash book: post collection for cash-like methods (not CARD).
+    // Inventory cash book: post collection for cash-like methods (not CARD).
     const method = input.method ?? 'BANK';
     if (method === 'CASH' || method === 'UPI' || method === 'BANK') {
       const company = await tx.company.findFirst({
         where: { id: companyId },
-        select: { inventoryVertical: true },
+        select: { subscriptionPlan: true },
       });
-      if (company?.inventoryVertical === 'ICE_CREAM') {
+      if (company?.subscriptionPlan === 'INVENTORY') {
         await tx.inventoryCashBookEntry.create({
           data: {
             companyId,
