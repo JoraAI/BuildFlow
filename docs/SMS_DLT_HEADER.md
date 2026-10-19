@@ -1,63 +1,64 @@
 # India DLT SMS header (VILPOWER / MSG91)
 
-## Rejection (Oct 2026)
+## Decision (Oct 2026)
 
-Header **`BLDFLO`** was rejected by VILPOWER:
+| Field | Value |
+|--------|--------|
+| Principal Entity | **StaffingPros** (registered business) |
+| SMS Header / Sender ID | **`STAFFP`** |
+| Why it matches | `STAFFP` = abbreviation of **StaffingPros** (entity name) |
+| Product using OTPs | BuildFlow (operated by StaffingPros / Jora AI) |
 
-> Header should match with entity name
+**Do not resubmit `BLDFLO`.** It was rejected because it matched the product name, not the entity name.
 
-`BLDFLO` abbreviates the **product** (BuildFlow). DLT headers must match the **Principal Entity (PE)** registered on VILPOWER — typically **StaffingPros** or **Jora AI**, not the product name.
+## Support PDFs (upload with header application)
 
-## What to do on VILPOWER
+| File | Use |
+|------|-----|
+| [docs/dlt-support/StaffingPros_STAFFP_Sender_ID_Declaration.pdf](dlt-support/StaffingPros_STAFFP_Sender_ID_Declaration.pdf) | Full signed declaration |
+| [docs/dlt-support/StaffingPros_STAFFP_Sender_ID_Declaration_Simple.pdf](dlt-support/StaffingPros_STAFFP_Sender_ID_Declaration_Simple.pdf) | Short supporting note |
 
-1. Sign in → open your **Principal Entity**.
-2. Copy the **exact Entity Name** as shown (including Pvt Ltd / LLP wording if present).
-3. **Do not resubmit `BLDFLO`.**
-4. Create a new **Header** (usually **6 letters**, A–Z) derived only from that entity name.
-5. Category: **Transactional** (OTP / account verification).
-6. After the header is **Approved**, map it in MSG91 and update templates + env (below).
+Also copied to Windows Downloads as:
 
-### Suggested headers (pick the set that matches *your* PE name)
+- `C:\Users\vlaks\Downloads\StaffingPros_STAFFP_Sender_ID_Declaration.pdf`
+- `C:\Users\vlaks\Downloads\StaffingPros_STAFFP_Sender_ID_Declaration_Simple.pdf`
 
-| If PE name contains… | Submit these (in order) | Avoid |
-|----------------------|-------------------------|--------|
-| StaffingPros / Staffing Pros | **`STAFFP`**, then `STFPS`, `STFPRO` | `BLDFLO`, `BLDFLOW` |
-| Jora AI / JoraAI / Jora | **`JORAAI`**, then `JORAII` | Product-only headers |
-| BuildFlow *as legal PE name* | `BLDFLO` only if PE literally contains BuildFlow | Using it when PE is StaffingPros |
+## VILPOWER submission checklist
 
-India headers are commonly **exactly 6 characters**. Prefer letters that appear in the PE name.
+1. PE entity name on VILPOWER must be **StaffingPros** (or contain StaffingPros).
+2. New header: **`STAFFP`** — category **Transactional**.
+3. Attach both STAFFP PDFs above (sign the full declaration).
+4. Attach business website screenshot / registration if asked: https://staffingpros.tech
+5. App / opt-in links: https://build-flow-frontend-jet.vercel.app/ and `/sms-opt-in`
+6. Wait until header status = **Approved** before sending SMS.
 
-## After approval — MSG91 + BuildFlow
+## MSG91 + BuildFlow after approval
 
-1. **MSG91** (control.msg91.com): set Sender ID = approved header; Flow must use that sender and a DLT-approved template.
-2. **Recommended DLT / Flow template text** (must match character-for-character once registered):
+Template text (must match DLT template exactly):
 
-   ```text
-   StaffingPros: Your BuildFlow login code is ##OTP##. Valid for 10 minutes. Do not share this code.
-   ```
+```text
+StaffingPros: Your BuildFlow login code is ##OTP##. Valid for 10 minutes. Do not share this code.
+```
 
-   Same pattern for invite / buyer OTP templates if separate.
+Render / API env:
 
-3. **Render (API) env:**
+```bash
+MSG91_SENDER_ID=STAFFP
+MSG91_AUTH_KEY=...
+MSG91_FLOW_ID=...
+MSG91_FLOW_OTP_VAR=OTP
+SMS_PROVIDER=msg91
+```
 
-   ```bash
-   MSG91_AUTH_KEY=...
-   MSG91_SENDER_ID=<APPROVED_6_CHAR_HEADER>
-   MSG91_FLOW_ID=...
-   MSG91_FLOW_OTP_VAR=OTP
-   SMS_PROVIDER=msg91
-   ```
+Redeploy API after changing `MSG91_SENDER_ID`.
 
-4. Redeploy API after changing `MSG91_SENDER_ID`.
+## Why this should pass
 
-Code reads sender from env only — see `apps/backend/src/services/msg91.service.ts` and `apps/backend/src/config/env.ts`.
+| Rule | How STAFFP satisfies it |
+|------|-------------------------|
+| Header matches entity name | STAFFP ↔ StaffingPros |
+| Not a third-party brand | Same PE owns BuildFlow |
+| Transactional use only | OTP / authentication |
+| Traceable brand sites | staffingpros.tech + BuildFlow URL |
 
-## Checklist
-
-- [ ] PE entity name confirmed on VILPOWER
-- [ ] New header submitted (not BLDFLO unless PE is BuildFlow)
-- [ ] Header status = Approved
-- [ ] DLT templates approved for that header
-- [ ] MSG91 Flow linked to template + sender
-- [ ] `MSG91_SENDER_ID` updated on Render and API redeployed
-- [ ] Test OTP to an Indian mobile
+Code: `apps/backend/src/services/msg91.service.ts` (sender from env only).
