@@ -1,9 +1,11 @@
 /**
  * BuildFlow - MSG91 SMS (India OTP via Flow / DLT templates).
  *
- * Setup (control.msg91.com):
+ * Setup (control.msg91.com + VILPOWER DLT):
  *  1. Authkey → Settings → Authkey
- *  2. Sender ID (6 chars) approved on DLT + MSG91
+ *  2. Sender ID (6 chars) approved on DLT — must match Principal Entity name
+ *     (e.g. STAFFP / JORAAI). Do not use product-only IDs like BLDFLO unless
+ *     the PE name itself is BuildFlow. See docs/SMS_DLT_HEADER.md.
  *  3. One API → Flow with DLT template, e.g.
  *     StaffingPros: Your BuildFlow login code is ##OTP##. Valid for 10 minutes. Do not share this code.
  *  4. Map the flow to your DLT template ID
