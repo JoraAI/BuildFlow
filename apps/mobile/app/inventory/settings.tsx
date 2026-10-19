@@ -6,7 +6,6 @@
  */
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Modal, Pressable } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import {
   Card,
   Badge,
@@ -19,6 +18,7 @@ import {
   CompanyLogo,
   toast,
 } from '@/components/ui';
+import { pickImage } from '@/utils/pick-image';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
 import { useRouter } from 'expo-router';
@@ -50,7 +50,7 @@ import { useSetInventoryVertical } from '@/services/settings.queries';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 
 export default function InventorySettingsScreen() {
-  const { busy, run } = useBusy();
+  const { busy, run, clearBusy } = useBusy();
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
@@ -212,35 +212,31 @@ export default function InventorySettingsScreen() {
   };
 
   const pickAndUploadLogo = async () => {
-    await run(async () => {
-      try {
-        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) {
-          toast.error('Photo library permission is required to upload a logo');
-          return;
+    // Pick outside `run()` — on web, cancelling the file dialog must not leave
+    // BusyOverlay stuck (expo-image-picker never resolves on cancel).
+    try {
+      const result = await pickImage({ allowsEditing: true, aspect: [1, 1] });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      const filename = asset.fileName ?? `company-logo-${Date.now()}.jpg`;
+      const contentType = asset.mimeType ?? 'image/jpeg';
+      await run(async () => {
+        try {
+          const logoUrl = await uploadLogo.mutateAsync({
+            uri: asset.uri,
+            filename,
+            contentType,
+          });
+          await updateCompany.mutateAsync({ logoUrl });
+          await refreshUser();
+          toast.success('Company logo updated — it will appear on invoices');
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : 'Could not upload logo');
         }
-        const result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality: 0.85,
-          allowsEditing: true,
-          aspect: [1, 1],
-        });
-        if (result.canceled || !result.assets[0]) return;
-        const asset = result.assets[0];
-        const filename = asset.fileName ?? `company-logo-${Date.now()}.jpg`;
-        const contentType = asset.mimeType ?? 'image/jpeg';
-        const logoUrl = await uploadLogo.mutateAsync({
-          uri: asset.uri,
-          filename,
-          contentType,
-        });
-        await updateCompany.mutateAsync({ logoUrl });
-        await refreshUser();
-        toast.success('Company logo updated — it will appear on invoices');
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : 'Could not upload logo');
-      }
-    });
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not open photo library');
+    }
   };
 
   const clearLogo = async () => {
@@ -257,7 +253,7 @@ export default function InventorySettingsScreen() {
 
   return (
     <View className="flex-1 bg-surface">
-      <BusyOverlay visible={busy} title="Saving settings…" />
+      <BusyOverlay visible={busy} title="Saving settings…" onDismiss={clearBusy} />
       <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
         <Text className="text-2xl font-bold text-text mb-1">
           {translate('inventory.tab.settings', 'Settings')}

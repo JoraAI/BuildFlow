@@ -6,8 +6,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, Modal, ScrollView, RefreshControl, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import { Card, Button, Input, EmptyState, LoadingSkeleton, Select, toast, BusyOverlay, useBusy } from '@/components/ui';
+import { pickImage } from '@/utils/pick-image';
 import {
   useResources,
   useCreateResource,
@@ -72,7 +72,7 @@ function translatedItemsTitle(
 }
 
 export default function InventoryMaterialsScreen() {
-  const { busy, run } = useBusy();
+  const { busy, run, clearBusy } = useBusy();
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const { data, isLoading, isFetching, refetch } = useResources();
@@ -166,7 +166,11 @@ export default function InventoryMaterialsScreen() {
 
   return (
     <View className="flex-1 bg-surface">
-      <BusyOverlay visible={busy} title={`Updating ${itemPluralLabel.toLowerCase()}…`} />
+      <BusyOverlay
+        visible={busy}
+        title={`Updating ${itemPluralLabel.toLowerCase()}…`}
+        onDismiss={clearBusy}
+      />
       <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between">
         <View className="flex-1 mr-2 min-w-[160px]">
           <Text className="text-2xl font-bold text-text">
@@ -695,25 +699,14 @@ function MaterialFormModal({
 
   const pickPhoto = async (fromCamera: boolean) => {
     setError(null);
-    const perm = fromCamera
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
+    try {
+      const result = await pickImage({ fromCamera });
+      if (result.canceled || !result.assets?.[0]) return;
+      setLocalImageUri(result.assets[0].uri);
+      setRemoveImage(false);
+    } catch {
       setError(fromCamera ? 'Camera permission is required' : 'Photo library permission is required');
-      return;
     }
-    const result = fromCamera
-      ? await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality: 0.85,
-        })
-      : await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality: 0.85,
-        });
-    if (result.canceled || !result.assets[0]) return;
-    setLocalImageUri(result.assets[0].uri);
-    setRemoveImage(false);
   };
 
   const existingImageUrl = removeImage ? null : initial?.imageUrl ?? null;

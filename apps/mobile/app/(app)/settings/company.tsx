@@ -3,7 +3,6 @@
  */
 import React, { useState, useEffect } from 'react';
 import { View, KeyboardAvoidingView, Platform, Text } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import { Card, Input, Button, LoadingSkeleton, CompanyLogo } from '@/components/ui';
 import { SettingsPageLayout } from '@/components/layout/SettingsPageLayout';
 import { useViewport } from '@/hooks/useViewport';
@@ -11,6 +10,7 @@ import { goBackToSettings } from '@/utils/navigation';
 import { useCompany, useUpdateCompany, useCompanyLogoUpload } from '@/services/settings.queries';
 import { useAuthStore } from '@/stores/auth.store';
 import { alertAsync } from '@/utils/confirm';
+import { pickImage } from '@/utils/pick-image';
 
 export default function CompanyProfileScreen() {
   const { isDesktop } = useViewport();
@@ -72,18 +72,8 @@ export default function CompanyProfileScreen() {
   const pickAndUploadLogo = async () => {
     setFormError(null);
     try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        setFormError('Photo library permission is required to upload a logo');
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.85,
-        allowsEditing: true,
-        aspect: [1, 1],
-      });
-      if (result.canceled || !result.assets[0]) return;
+      const result = await pickImage({ allowsEditing: true, aspect: [1, 1] });
+      if (result.canceled || !result.assets?.[0]) return;
       const asset = result.assets[0];
       const filename = asset.fileName ?? `company-logo-${Date.now()}.jpg`;
       const contentType = asset.mimeType ?? 'image/jpeg';

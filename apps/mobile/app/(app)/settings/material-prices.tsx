@@ -13,8 +13,8 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { pickImage } from '@/utils/pick-image';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, Button, Badge, LoadingSkeleton, EmptyState, SearchBar, DateField, Input } from '@/components/ui';
 import { LineChart, Sparkline } from '@/components/charts/LineChart';
@@ -935,28 +935,17 @@ function MaterialFormModal({
 
   async function pickPhoto(fromCamera: boolean) {
     setPhotoError(null);
-    const perm = fromCamera
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
+    try {
+      const result = await pickImage({ fromCamera });
+      if (result.canceled || !result.assets?.[0]) return;
+      onChange({
+        ...form,
+        localImageUri: result.assets[0].uri,
+        removeImage: false,
+      });
+    } catch {
       setPhotoError('Permission required to add a photo');
-      return;
     }
-    const result = fromCamera
-      ? await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality: 0.85,
-        })
-      : await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality: 0.85,
-        });
-    if (result.canceled || !result.assets[0]) return;
-    onChange({
-      ...form,
-      localImageUri: result.assets[0].uri,
-      removeImage: false,
-    });
   }
 
   useEffect(() => {
