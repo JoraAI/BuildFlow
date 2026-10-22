@@ -7,7 +7,7 @@ jest.mock('../../config/env', () => ({
   env: {
     SMS_PROVIDER: 'auto',
     MSG91_AUTH_KEY: 'test-key',
-    MSG91_SENDER_ID: 'VIDTL',
+    MSG91_SENDER_ID: 'STAFFP',
     MSG91_TEMPLATE_ID: 'template-123',
     MSG91_FLOW_ID: undefined,
     MSG91_FLOW_OTP_VAR: 'OTP',

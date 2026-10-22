@@ -6,7 +6,7 @@
 |--------|--------|
 | Principal Entity | **StaffingPros** (registered business) |
 | Brand name (register on VILPOWER) | **StaffingPros** (same as entity) |
-| SMS Header / Sender ID | **`VIDTL`** (approved) |
+| SMS Header / Sender ID | **`STAFFP`** (approved; abbreviation of StaffingPros) |
 | Product using OTPs | BuildFlow (operated by StaffingPros / Jora AI) |
 
 **Do not resubmit `BLDFLO`.** It was rejected because it matched the product name, not the entity name.
@@ -19,7 +19,7 @@
 | Brand selected in VILPOWER dropdown | **Recommended** — dropdown is empty until you register + enable a brand; VILPOWER marks the field optional, but registering avoids “No header associated with the brand name” / empty-dropdown friction |
 | Template name = entity name | **No** — use any label, e.g. `buildflow_otp` |
 
-**Practical path:** register brand **StaffingPros** first (docs below), enable it, then create the Content Template with header **VIDTL**.
+**Practical path:** register brand **StaffingPros** first (docs below), enable it, then create the Content Template with header **STAFFP**.
 
 ## Support PDFs — Brand (upload with Brand → + Add)
 
@@ -40,7 +40,7 @@
 1. **Brand** → **+ Add** → name **`StaffingPros`**
 2. Upload signed `StaffingPros_Brand_Name_Declaration.pdf` (+ PAN/GST if asked)
 3. Wait until status = **Approved**, then **Enable** the brand
-4. Content Templates → **+ Add** → header **VIDTL** → select brand **StaffingPros**
+4. Content Templates → **+ Add** → header **STAFFP** → select brand **StaffingPros**
 
 ## MSG91 + BuildFlow after template approval
 
@@ -55,7 +55,7 @@ Your BuildFlow login code is {#var#}. Valid for 10 minutes. Do not share this co
 ```bash
 SMS_PROVIDER=msg91
 MSG91_AUTH_KEY=...
-MSG91_SENDER_ID=VIDTL
+MSG91_SENDER_ID=STAFFP
 MSG91_TEMPLATE_ID=...
 MSG91_FLOW_OTP_VAR=OTP
 ```
@@ -67,7 +67,7 @@ Redeploy the API after setting these (Render: `buildflow-api-backend`). `MSG91_F
 | Rule | How it is satisfied |
 |------|---------------------|
 | Brand = entity name | StaffingPros ↔ Principal Entity |
-| Header on same PE | VIDTL approved under StaffingPros |
+| Header on same PE | STAFFP approved under StaffingPros |
 | Brand in SMS body | “… - StaffingPros” |
 | Not a third-party brand | Same PE owns BuildFlow |
 | Transactional use only | OTP / authentication |

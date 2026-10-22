@@ -3,12 +3,12 @@
  *
  * Setup (control.msg91.com + VILPOWER DLT):
  *  1. Authkey → Settings → Authkey
- *  2. Sender ID (6 chars) approved on DLT — e.g. VIDTL. See docs/SMS_DLT_HEADER.md.
+ *  2. Sender ID (6 chars) approved on DLT — e.g. STAFFP. See docs/SMS_DLT_HEADER.md.
  *  3. OTP → Templates: map the approved DLT body (##OTP##) and copy Template ID
  *     OR One API → Flow mapped to the same DLT template
  *
  * Env: MSG91_AUTH_KEY + (MSG91_TEMPLATE_ID or MSG91_FLOW_ID)
- *      MSG91_SENDER_ID=VIDTL  MSG91_FLOW_OTP_VAR=OTP
+ *      MSG91_SENDER_ID=STAFFP  MSG91_FLOW_OTP_VAR=OTP
  */
 import { OTP_DIGITS } from '@buildflow/shared';
 import { env } from '../config/env';
