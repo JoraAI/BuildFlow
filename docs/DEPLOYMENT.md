@@ -142,6 +142,7 @@ Without cloud storage, **bill/tender uploads will not persist** on ephemeral hos
 
 | Feature | Variables |
 |---------|-----------|
+| India login OTP SMS | `SMS_PROVIDER=msg91`, `MSG91_AUTH_KEY`, `MSG91_SENDER_ID=VIDTL`, `MSG91_TEMPLATE_ID` |
 | AI chatbot | `LLM_API_URL`, `LLM_API_KEY`, `LLM_MODEL` |
 | SaaS checkout | `SAAS_RAZORPAY_*` or `SAAS_STRIPE_*` |
 | Maps | `GOOGLE_MAPS_API_KEY` |

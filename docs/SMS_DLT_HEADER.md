@@ -53,14 +53,14 @@ Your BuildFlow login code is {#var#}. Valid for 10 minutes. Do not share this co
 (In MSG91 Flow you may use `##OTP##` instead of `{#var#}` — keep the rest identical. `{#var#}` will be a 6-digit number for Construction ERP + Inventory login/signup OTPs.)
 
 ```bash
-MSG91_SENDER_ID=VIDTL
-MSG91_AUTH_KEY=...
-MSG91_FLOW_ID=...
-MSG91_FLOW_OTP_VAR=OTP
 SMS_PROVIDER=msg91
+MSG91_AUTH_KEY=...
+MSG91_SENDER_ID=VIDTL
+MSG91_TEMPLATE_ID=...
+MSG91_FLOW_OTP_VAR=OTP
 ```
 
-Redeploy API after changing `MSG91_SENDER_ID`.
+Redeploy the API after setting these (Render: `buildflow-api-backend`). `MSG91_FLOW_ID` is optional if `MSG91_TEMPLATE_ID` is set.
 
 ## Why this should pass
 

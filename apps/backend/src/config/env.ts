@@ -92,11 +92,14 @@ const envSchema = z.object({
     .preprocess((v) => (v === '' || v == null ? 'auto' : v), z.enum(['auto', 'msg91', 'twilio']))
     .default('auto'),
 
-  // MSG91 (India OTP via DLT Flow) — preferred for Indian mobiles
+  // MSG91 (India OTP via DLT). Prefer SendOTP v5 (authkey + template_id).
   MSG91_AUTH_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
   MSG91_SENDER_ID: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  /** MSG91 OTP template ID (SendOTP v5). Use this when you have a template, not a Flow. */
+  MSG91_TEMPLATE_ID: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  /** Optional MSG91 Flow ID (One API). Used only if MSG91_TEMPLATE_ID is unset. */
   MSG91_FLOW_ID: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
-  /** Variable name in the MSG91 Flow / DLT template (default OTP for ##OTP##). */
+  /** Variable name in the MSG91 Flow / extra template vars (default OTP for ##OTP##). */
   MSG91_FLOW_OTP_VAR: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()).default('OTP'),
 
   // Twilio (WhatsApp + SMS) - optional fallback / non-India

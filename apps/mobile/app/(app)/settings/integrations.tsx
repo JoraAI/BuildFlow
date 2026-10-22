@@ -207,14 +207,14 @@ export default function IntegrationsScreen() {
         {data.msg91 ? (
           <IntegrationPanel
             title="India OTP SMS (MSG91)"
-            description="Platform DLT Flow for login & invite OTPs (Construction ERP + Inventory + buyer app)"
+            description="Platform DLT OTP for login & invite (Construction ERP + Inventory + buyer app)"
             status={data.msg91}
             expanded={expanded === 'msg91'}
             onToggle={() => toggle('msg91')}
             className={half}
           >
             <Text className="text-xs text-muted mb-2 leading-relaxed">
-              Configured by BuildFlow ops via server env (MSG91_AUTH_KEY, MSG91_SENDER_ID, MSG91_FLOW_ID).
+              Configured by BuildFlow ops via server env (MSG91_AUTH_KEY, MSG91_SENDER_ID, MSG91_TEMPLATE_ID).
               Not editable per company. Provider mode:{' '}
               <Text className="font-semibold text-text">{String(data.msg91.settings.provider ?? 'auto')}</Text>
             </Text>
@@ -225,8 +225,8 @@ export default function IntegrationsScreen() {
               editable={false}
             />
             <Input
-              label="Flow ID"
-              value={String(data.msg91.settings.flowId ?? '')}
+              label="Template ID"
+              value={String(data.msg91.settings.templateId ?? '')}
               onChangeText={() => undefined}
               editable={false}
             />

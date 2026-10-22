@@ -7,14 +7,15 @@ jest.mock('../../config/env', () => ({
   env: {
     SMS_PROVIDER: 'auto',
     MSG91_AUTH_KEY: 'test-key',
-    MSG91_SENDER_ID: 'STAFFP',
-    MSG91_FLOW_ID: 'flow-123',
+    MSG91_SENDER_ID: 'VIDTL',
+    MSG91_TEMPLATE_ID: 'template-123',
+    MSG91_FLOW_ID: undefined,
     MSG91_FLOW_OTP_VAR: 'OTP',
   },
 }));
 
 describe('MSG91 OTP coverage (Construction ERP + Inventory)', () => {
-  it('reports MSG91 configured when auth key, sender, and flow are set', () => {
+  it('reports MSG91 configured when auth key and template id are set', () => {
     expect(isMsg91Configured()).toBe(true);
   });
 
