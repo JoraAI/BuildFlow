@@ -6,21 +6,25 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { z } from 'zod';
 
-// Monorepo: .env lives at the repo root, but the backend process CWD is
-// apps/backend. Walk up from CWD until we find a .env file.
-function findEnvPath(): string | undefined {
+// Monorepo: secrets live in the repo-root .env, but the backend CWD is often
+// apps/backend (which may have its own empty .env). Load root first, then
+// closer files so local overrides still work.
+function loadEnvFiles(): void {
+  const paths: string[] = [];
   let dir = process.cwd();
   for (let i = 0; i < 6; i += 1) {
     const candidate = resolve(dir, '.env');
-    if (existsSync(candidate)) return candidate;
+    if (existsSync(candidate)) paths.push(candidate);
     const parent = resolve(dir, '..');
     if (parent === dir) break;
     dir = parent;
   }
-  return undefined;
+  for (const p of paths.reverse()) {
+    dotenv.config({ path: p, override: true });
+  }
 }
 
-dotenv.config({ path: findEnvPath() });
+loadEnvFiles();
 
 /** Accept redis:// and rediss:// (Upstash TLS). Zod .url() rejects rediss://. */
 const redisUrlSchema = z
