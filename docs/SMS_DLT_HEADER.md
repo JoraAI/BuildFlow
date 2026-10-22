@@ -50,14 +50,14 @@ Template text (must match DLT template exactly; brand in body; OTP is always **6
 Your BuildFlow login code is {#var#}. Valid for 10 minutes. Do not share this code. - StaffingPros
 ```
 
-(In MSG91 Flow you may use `##OTP##` instead of `{#var#}` — keep the rest identical. `{#var#}` will be a 6-digit number for Construction ERP + Inventory login/signup OTPs.)
+On MSG91 Flow the DLT `{#var#}` field is named `var` (not `##OTP##`). Keep the rest of the body identical. `{#var#}` is a 6-digit number.
 
 ```bash
 SMS_PROVIDER=msg91
 MSG91_AUTH_KEY=...
 MSG91_SENDER_ID=STAFFP
 MSG91_TEMPLATE_ID=...
-MSG91_FLOW_OTP_VAR=OTP
+MSG91_FLOW_OTP_VAR=var
 ```
 
 Redeploy the API after setting these (Render: `buildflow-api-backend`). `MSG91_FLOW_ID` is optional if `MSG91_TEMPLATE_ID` is set.

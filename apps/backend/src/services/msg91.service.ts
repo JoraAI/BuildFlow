@@ -1,16 +1,12 @@
 /**
- * BuildFlow - MSG91 SMS (India OTP via DLT templates).
+ * BuildFlow - MSG91 SMS (India OTP via DLT / One API Flow).
  *
- * Setup (control.msg91.com + VILPOWER DLT):
- *  1. Authkey → Settings → Authkey
- *  2. Sender ID (6 chars) approved on DLT — e.g. STAFFP. See docs/SMS_DLT_HEADER.md.
- *  3. OTP → Templates: map the approved DLT body (##OTP##) and copy Template ID
- *     OR One API → Flow mapped to the same DLT template
+ * Working MSG91 shape (staffingpros): POST /api/v5/flow with template_id
+ * and recipient field `var` (maps to DLT {#var#}).
  *
- * Env: MSG91_AUTH_KEY + (MSG91_TEMPLATE_ID or MSG91_FLOW_ID)
- *      MSG91_SENDER_ID=STAFFP  MSG91_FLOW_OTP_VAR=OTP
+ * Env: MSG91_AUTH_KEY + MSG91_TEMPLATE_ID (or MSG91_FLOW_ID)
+ *      MSG91_SENDER_ID=STAFFP  MSG91_FLOW_OTP_VAR=var
  */
-import { OTP_DIGITS } from '@buildflow/shared';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
 
@@ -23,7 +19,7 @@ function hasTemplate(): boolean {
 }
 
 function hasFlow(): boolean {
-  return Boolean(env.MSG91_FLOW_ID && env.MSG91_SENDER_ID);
+  return Boolean(env.MSG91_FLOW_ID);
 }
 
 function isConfigured(): boolean {
@@ -73,7 +69,7 @@ async function postMsg91(url: string, body: Record<string, unknown>): Promise<Ms
 }
 
 /**
- * Send OTP via MSG91 SendOTP (template_id) or Flow API. Returns false if not configured.
+ * Send OTP via MSG91 Flow API (template_id). Returns false if not configured.
  */
 export async function sendMsg91Otp(to: string, otp: string): Promise<boolean> {
   if (!isConfigured()) {
@@ -82,36 +78,20 @@ export async function sendMsg91Otp(to: string, otp: string): Promise<boolean> {
   }
 
   const mobile = toMsg91Mobile(to);
-  const varName = env.MSG91_FLOW_OTP_VAR || 'OTP';
-
-  if (hasTemplate()) {
-    const params = new URLSearchParams({
-      template_id: env.MSG91_TEMPLATE_ID!,
-      mobile,
-      otp,
-      otp_length: String(OTP_DIGITS),
-      otp_expiry: '10',
-      realTimeResponse: '1',
-    });
-    if (env.MSG91_SENDER_ID) params.set('sender', env.MSG91_SENDER_ID);
-    const parsed = await postMsg91(
-      `https://control.msg91.com/api/v5/otp?${params.toString()}`,
-      { [varName]: otp },
-    );
-    logger.info('MSG91 OTP sent (template)', { to: mobile, type: parsed.type });
-    return true;
-  }
-
-  const parsed = await postMsg91('https://control.msg91.com/api/v5/flow/', {
-    flow_id: env.MSG91_FLOW_ID,
-    sender: env.MSG91_SENDER_ID,
+  const varName = env.MSG91_FLOW_OTP_VAR || 'var';
+  const payload: Record<string, unknown> = {
     recipients: [
       {
         mobiles: mobile,
         [varName]: otp,
       },
     ],
-  });
+  };
+  if (hasTemplate()) payload.template_id = env.MSG91_TEMPLATE_ID;
+  else payload.flow_id = env.MSG91_FLOW_ID;
+  if (env.MSG91_SENDER_ID) payload.sender = env.MSG91_SENDER_ID;
+
+  const parsed = await postMsg91('https://control.msg91.com/api/v5/flow', payload);
   logger.info('MSG91 OTP sent (flow)', { to: mobile, type: parsed.type });
   return true;
 }
