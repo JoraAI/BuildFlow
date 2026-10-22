@@ -137,6 +137,11 @@ const envSchema = z.object({
       if (v === 'false') return false;
       return undefined;
     }),
+  /**
+   * Comma-separated mobiles that skip MSG91/Twilio (no charge).
+   * Sign in with OTP_MASTER_CODE (default 111111). Example: +919948648599,9876543210
+   */
+  OTP_TEST_PHONES: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
 
   // Razorpay - optional
   RAZORPAY_KEY_ID: z.string().optional(),

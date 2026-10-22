@@ -4,6 +4,7 @@
  */
 import { env } from '../config/env';
 import { logger } from '../config/logger';
+import { isOtpTestPhone, phoneLast10 } from '../lib/otp-test-phones';
 import { isMsg91Configured, sendMsg91Otp } from './msg91.service';
 import { sendSMS as sendTwilioSms } from './twilio.service';
 
@@ -23,6 +24,14 @@ export async function sendOtpSms(
   /** Free-text body used only for Twilio fallback. */
   twilioBody: string,
 ): Promise<boolean> {
+  if (isOtpTestPhone(to, env.OTP_TEST_PHONES)) {
+    logger.info('OTP SMS skipped (test number, not billed)', {
+      companyId,
+      last10: phoneLast10(to),
+    });
+    return true;
+  }
+
   const pref = preference();
   const tryMsg91 = pref === 'msg91' || (pref === 'auto' && isMsg91Configured());
   const tryTwilio = pref === 'twilio' || pref === 'auto';

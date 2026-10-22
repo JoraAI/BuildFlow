@@ -7,6 +7,7 @@ import { OTP_DIGITS } from '@buildflow/shared';
 import { redis } from '../lib/redis';
 import { ApiError } from '../utils/errors';
 import { env } from '../config/env';
+import { isOtpTestPhone } from '../lib/otp-test-phones';
 import { sendOtpSms } from './sms.service';
 import { sendTransactionalEmail } from './email.service';
 import { logger } from '../config/logger';
@@ -118,6 +119,18 @@ export async function consumeOtp(opts: {
 }): Promise<void> {
   // Seed / staging bypass until real SMS/email credentials are wired.
   if (isMasterOtpCode(opts.code)) {
+    const redisKey = `otp:${opts.purpose}:${opts.key}`;
+    await redis.del(redisKey);
+    return;
+  }
+
+  // Test phones skip MSG91; they still sign in with the master code.
+  const testDest = opts.expectedDestination ?? opts.expectedPhone ?? opts.key;
+  if (
+    env.OTP_MASTER_CODE &&
+    opts.code === env.OTP_MASTER_CODE &&
+    isOtpTestPhone(testDest, env.OTP_TEST_PHONES)
+  ) {
     const redisKey = `otp:${opts.purpose}:${opts.key}`;
     await redis.del(redisKey);
     return;
