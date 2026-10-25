@@ -93,7 +93,7 @@ export function CashBookPanel() {
                   >
                     {item.direction === 'IN' ? '+' : '-'}₹{item.amount.toFixed(2)}
                   </Text>
-                  {item.entryType !== 'SALE_COLLECTION' ? (
+                  {item.entryType !== 'SALE_COLLECTION' && item.entryType !== 'VENDOR_PAYMENT' ? (
                     <Button
                       label="Delete"
                       size="sm"

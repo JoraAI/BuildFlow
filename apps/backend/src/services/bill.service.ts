@@ -467,6 +467,22 @@ export async function recordBillPayment(
       },
     });
 
+    const { postAutoInventoryCashBook } = await import('./cash-book.service');
+    await postAutoInventoryCashBook(tx, {
+      companyId,
+      recordedBy: userId,
+      entryDate: input.paymentDate ?? new Date(),
+      direction: 'OUT',
+      entryType: 'VENDOR_PAYMENT',
+      method: input.method ?? 'BANK',
+      amount: input.amount,
+      description: `Payment for bill ${bill.billNumber} · ${bill.vendorName}`,
+      reference: input.reference ?? bill.billNumber,
+      category: bill.category === 'MATERIAL' ? 'RAW_MATERIAL' : 'MISC',
+      billId: bill.id,
+      vendorId: bill.vendorId,
+    });
+
     return result;
   });
 

@@ -344,6 +344,8 @@ export type CashBookEntry = {
   category?: string | null;
   invoiceId?: string | null;
   customerId?: string | null;
+  billId?: string | null;
+  vendorId?: string | null;
   createdAt: string;
 };
 

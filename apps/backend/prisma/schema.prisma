@@ -191,6 +191,8 @@ enum CashBookEntryType {
   EXPENSE
   DEPOSIT
   ADJUSTMENT
+  /// Inventory vendor bill payment (PO → GRN → bill → pay).
+  VENDOR_PAYMENT
 }
 
 enum CashBookPaymentMode {
@@ -596,6 +598,7 @@ model Vendor {
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   bills   Bill[]
+  cashBookEntries InventoryCashBookEntry[]
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 2): transaction engine relations.
   purchaseReturns PurchaseReturn[]
   debitNotes DebitNote[]
@@ -1528,6 +1531,7 @@ model Bill {
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.3/2.4): returns + debit notes.
   purchaseReturns PurchaseReturn[]
   debitNotes      DebitNote[]
+  cashBookEntries InventoryCashBookEntry[]
 
   @@unique([companyId, billNumber])
   @@unique([goodsReceiptId])
@@ -2804,6 +2808,8 @@ model InventoryCashBookEntry {
   category    String?
   invoiceId   String?             @map("invoice_id") @db.Uuid
   customerId  String?             @map("customer_id") @db.Uuid
+  billId      String?             @map("bill_id") @db.Uuid
+  vendorId    String?             @map("vendor_id") @db.Uuid
   recordedBy  String              @map("recorded_by") @db.Uuid
   createdAt   DateTime            @default(now()) @map("created_at")
   updatedAt   DateTime            @updatedAt @map("updated_at")
@@ -2811,11 +2817,14 @@ model InventoryCashBookEntry {
   company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   invoice  Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  bill     Bill?    @relation(fields: [billId], references: [id], onDelete: SetNull)
+  vendor   Vendor?  @relation(fields: [vendorId], references: [id], onDelete: SetNull)
   recorder User     @relation("CashBookRecordedBy", fields: [recordedBy], references: [id])
 
   @@index([companyId, entryDate])
   @@index([companyId])
   @@index([invoiceId])
+  @@index([billId])
   @@map("inventory_cash_book_entries")
 }
 

@@ -1171,31 +1171,20 @@ export async function recordPayment(
       },
     });
 
-    // Inventory cash book: post collection for cash-like methods (not CARD).
-    const method = input.method ?? 'BANK';
-    if (method === 'CASH' || method === 'UPI' || method === 'BANK') {
-      const company = await tx.company.findFirst({
-        where: { id: companyId },
-        select: { subscriptionPlan: true },
-      });
-      if (company?.subscriptionPlan === 'INVENTORY') {
-        await tx.inventoryCashBookEntry.create({
-          data: {
-            companyId,
-            entryDate: input.paymentDate ?? new Date(),
-            direction: 'IN',
-            entryType: 'SALE_COLLECTION',
-            paymentMode: method === 'UPI' ? 'UPI' : method === 'BANK' ? 'BANK' : 'CASH',
-            amount: input.amount,
-            description: `Collection for invoice ${inv.invoiceNumber}`,
-            reference: input.reference ?? inv.invoiceNumber,
-            invoiceId: inv.id,
-            customerId: inv.customerId,
-            recordedBy: userId,
-          },
-        });
-      }
-    }
+    const { postAutoInventoryCashBook } = await import('./cash-book.service');
+    await postAutoInventoryCashBook(tx, {
+      companyId,
+      recordedBy: userId,
+      entryDate: input.paymentDate ?? new Date(),
+      direction: 'IN',
+      entryType: 'SALE_COLLECTION',
+      method: input.method ?? 'BANK',
+      amount: input.amount,
+      description: `Collection for invoice ${inv.invoiceNumber}`,
+      reference: input.reference ?? inv.invoiceNumber,
+      invoiceId: inv.id,
+      customerId: inv.customerId,
+    });
 
     return tx.invoice.findUniqueOrThrow({ where: { id } });
   });

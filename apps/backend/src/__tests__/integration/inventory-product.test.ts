@@ -62,6 +62,7 @@ describe('INVENTORY_PRODUCT (integration)', () => {
       await prisma.stockCount.deleteMany({ where: { companyId } });
       // Stock locations cascade stock balances + movements.
       await prisma.stockLocation.deleteMany({ where: { companyId } });
+      await prisma.inventoryCashBookEntry.deleteMany({ where: { companyId } });
       await prisma.invoice.deleteMany({ where: { companyId } });
       await prisma.bill.deleteMany({ where: { companyId } });
       await prisma.journalEntry.deleteMany({ where: { companyId } });
@@ -172,7 +173,9 @@ describe('INVENTORY_PRODUCT (integration)', () => {
 
 
   /* ── Full stock + AP/AR happy path as INVENTORY_MANAGER ───────────── */
-  it('runs catalog → indent → PO → GRN → issue → bill → sales invoice as INVENTORY_MANAGER', async () => {
+  it(
+    'runs catalog → indent → PO → GRN → issue → bill → sales invoice as INVENTORY_MANAGER',
+    async () => {
     // Invite + accept an INVENTORY_MANAGER.
     const inviteRes = await authPost(invToken, '/api/settings/users/invite', {
       email: `im-flow-${suffix}@example.com`,
@@ -249,6 +252,25 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     expect(confirmRes.status).toBe(200);
     expect(confirmRes.body.data.status).toBe('APPROVED');
 
+    const payBillRes = await authPost(imToken, `/api/bills/${draft!.id}/pay`, {});
+    expect(payBillRes.status).toBe(200);
+    expect(payBillRes.body.data.status).toBe('PAID');
+    const billTotal = Number(payBillRes.body.data.total);
+    const cashDate = new Date().toISOString().slice(0, 10);
+    const cashRes = await authGet(imToken, `/api/inventory/cash-book?date=${cashDate}`);
+    expect(cashRes.status).toBe(200);
+    const vendorPay = (
+      cashRes.body.data.entries as Array<{
+        entryType: string;
+        direction: string;
+        amount: number;
+        billId?: string | null;
+      }>
+    ).find((e) => e.entryType === 'VENDOR_PAYMENT' && e.billId === draft!.id);
+    expect(vendorPay).toBeTruthy();
+    expect(vendorPay!.direction).toBe('OUT');
+    expect(Number(vendorPay!.amount)).toBeCloseTo(billTotal, 2);
+
     // Stock on hand after GRN
     const summaryAfterGrn = await authGet(
       imToken,
@@ -319,7 +341,9 @@ describe('INVENTORY_PRODUCT (integration)', () => {
       (r) => r.resourceId === resourceId,
     );
     expect(Number(afterIssue!.balance)).toBeCloseTo(7, 3);
-  });
+  },
+  60_000,
+  );
 
   it('creates a separate draft bill per partial GRN on the same PO', async () => {
     const suffix = `PART-${Date.now()}`;

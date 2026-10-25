@@ -1,6 +1,7 @@
 /**
  * Inventory cash book + daily sales summary (all inventory verticals).
  */
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
 import { round2 } from './gst.service';
@@ -29,6 +30,8 @@ function serializeEntry(e: {
   category?: string | null;
   invoiceId: string | null;
   customerId: string | null;
+  billId?: string | null;
+  vendorId?: string | null;
   createdAt: Date;
 }) {
   return {
@@ -43,8 +46,64 @@ function serializeEntry(e: {
     category: e.category ?? null,
     invoiceId: e.invoiceId,
     customerId: e.customerId,
+    billId: e.billId ?? null,
+    vendorId: e.vendorId ?? null,
     createdAt: e.createdAt,
   };
+}
+
+/**
+ * Post a cash-book row for inventory tenants when money actually moves
+ * (invoice collection or vendor bill payment). Skips construction and CARD.
+ */
+export async function postAutoInventoryCashBook(
+  tx: Prisma.TransactionClient,
+  opts: {
+    companyId: string;
+    recordedBy: string;
+    entryDate: Date;
+    direction: 'IN' | 'OUT';
+    entryType: 'SALE_COLLECTION' | 'VENDOR_PAYMENT';
+    method?: string;
+    amount: number;
+    description: string;
+    reference?: string | null;
+    category?: string | null;
+    invoiceId?: string | null;
+    customerId?: string | null;
+    billId?: string | null;
+    vendorId?: string | null;
+  },
+): Promise<void> {
+  const method = opts.method ?? 'BANK';
+  if (method === 'CARD') return;
+  const company = await tx.company.findFirst({
+    where: { id: opts.companyId },
+    select: { subscriptionPlan: true },
+  });
+  if (company?.subscriptionPlan !== 'INVENTORY') return;
+
+  const paymentMode =
+    method === 'UPI' ? 'UPI' : method === 'BANK' ? 'BANK' : method === 'OTHER' ? 'OTHER' : 'CASH';
+
+  await tx.inventoryCashBookEntry.create({
+    data: {
+      companyId: opts.companyId,
+      entryDate: opts.entryDate,
+      direction: opts.direction,
+      entryType: opts.entryType,
+      paymentMode,
+      amount: opts.amount,
+      description: opts.description,
+      reference: opts.reference ?? null,
+      category: opts.category ?? null,
+      invoiceId: opts.invoiceId ?? null,
+      customerId: opts.customerId ?? null,
+      billId: opts.billId ?? null,
+      vendorId: opts.vendorId ?? null,
+      recordedBy: opts.recordedBy,
+    },
+  });
 }
 
 export async function listCashBookDay(companyId: string, dateStr: string) {
@@ -143,6 +202,9 @@ export async function deleteCashBookEntry(companyId: string, id: string) {
   if (!existing) throw ApiError.notFound('Cash book entry not found');
   if (existing.entryType === 'SALE_COLLECTION' && existing.invoiceId) {
     throw ApiError.badRequest('Cannot delete auto-posted collection entries; reverse via invoice payment flow');
+  }
+  if (existing.entryType === 'VENDOR_PAYMENT') {
+    throw ApiError.badRequest('Cannot delete auto-posted vendor payments; reverse via the bill payment flow');
   }
   await prisma.inventoryCashBookEntry.delete({ where: { id } });
   return { deleted: true };
