@@ -96,6 +96,7 @@ export async function createSaasCheckout(
   const rzp = saasRazorpayClient();
   if (!rzp) throw new Error('SAAS_RAZORPAY_NOT_CONFIGURED');
 
+  const returnPath = plan === SubscriptionPlan.INVENTORY ? '/inventory/settings' : '/settings/billing';
   const link = await rzp.paymentLink.create({
     amount: amountInr * 100,
     currency: 'INR',
@@ -105,6 +106,8 @@ export async function createSaasCheckout(
     notify: { sms: false, email: false },
     reminder_enable: false,
     notes: { companyId, plan },
+    callback_url: `${env.APP_PUBLIC_URL}${returnPath}?paid=1`,
+    callback_method: 'get',
   });
 
   await prisma.company.update({

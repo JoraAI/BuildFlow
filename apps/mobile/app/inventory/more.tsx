@@ -29,7 +29,7 @@ const SUBTITLES: Record<string, string> = {
   reports: 'Sales, stock, production, P&L, export',
   activity: 'Audit trail for this company',
   backup: 'Cloud snapshot & data recovery',
-  settings: 'Business profile, catalog, users',
+  settings: 'Plan, GSTIN, catalog, users',
 };
 
 export default function InventoryMoreScreen() {

@@ -5,7 +5,7 @@
  * pending invites, and logout. Tally export entry point included.
  */
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Modal, Pressable } from 'react-native';
+import { View, Text, ScrollView, Modal, Pressable, Linking } from 'react-native';
 import {
   Card,
   Badge,
@@ -21,11 +21,12 @@ import {
 import { pickImage } from '@/utils/pick-image';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   useCompany,
   useUpdateCompany,
   useCompanyLogoUpload,
+  useCreateSubscriptionCheckout,
   useSubscription,
   useUsers,
   usePendingInvites,
@@ -54,13 +55,15 @@ import { useInventoryLanguage } from '@/components/inventory/InventoryLanguagePr
 export default function InventorySettingsScreen() {
   const { busy, run, clearBusy } = useBusy();
   const router = useRouter();
+  const params = useLocalSearchParams<{ paid?: string }>();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const refreshUser = useAuthStore((s) => s.refreshUser);
   const { translate } = useInventoryLanguage();
   const { data: company } = useCompany();
   const { data: reportSettings } = useReportSettings();
-  const { data: subscription } = useSubscription();
+  const { data: subscription, refetch: refetchSubscription } = useSubscription();
+  const checkout = useCreateSubscriptionCheckout();
   const { data: users } = useUsers();
   const { data: invites } = usePendingInvites();
   const createInvite = useCreateInvite();
@@ -131,6 +134,13 @@ export default function InventorySettingsScreen() {
     setGstin(company.gstin ?? '');
     setPan(company.pan ?? '');
   }, [company]);
+
+  useEffect(() => {
+    if (params.paid !== '1') return;
+    void refetchSubscription();
+    void refreshUser();
+    toast.success('Payment received. Your plan will activate shortly.');
+  }, [params.paid, refetchSubscription, refreshUser]);
 
   useEffect(() => {
     if (!reportSettings) return;
@@ -209,6 +219,27 @@ export default function InventorySettingsScreen() {
       ? undefined
       : 'Enter a valid 10-character PAN'
     : undefined;
+
+  const payInventory = async () => {
+    if (subscription?.billing && !subscription.billing.razorpay) {
+      toast.error('Razorpay checkout is not configured yet.');
+      return;
+    }
+    await run(async () => {
+      try {
+        const result = await checkout.mutateAsync({ plan: 'INVENTORY', gateway: 'razorpay' });
+        if (typeof window !== 'undefined') {
+          window.open(result.paymentUrl, '_blank');
+        } else {
+          const ok = await Linking.canOpenURL(result.paymentUrl);
+          if (ok) await Linking.openURL(result.paymentUrl);
+          else toast.error('Could not open Razorpay');
+        }
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Could not start Razorpay checkout');
+      }
+    });
+  };
 
   const saveTaxIds = async () => {
     if (gstLiveError || panLiveError) {
@@ -304,13 +335,17 @@ export default function InventorySettingsScreen() {
           <View className="flex-row items-center justify-between">
             <Text className="text-base font-bold text-text">Plan</Text>
             <Badge
-              label={subscription?.plan ?? user?.subscriptionPlan ?? 'INVENTORY'}
-              color="success"
+              label={subscription?.status ?? 'TRIAL'}
+              color={subscription?.status === 'ACTIVE' ? 'success' : 'warning'}
             />
           </View>
           <Text className="text-xs text-muted mt-1">
-            {subscription?.status ?? 'TRIAL'} · ₹{PLAN_PRICES_INR.INVENTORY}/month (+18% GST) · 14-day
-            trial
+            Inventory · ₹{PLAN_PRICES_INR.INVENTORY}/month (+18% GST)
+            {subscription?.status === 'TRIAL' && subscription.daysRemaining != null
+              ? ` · ${subscription.daysRemaining} day${subscription.daysRemaining === 1 ? '' : 's'} left in trial`
+              : subscription?.status === 'ACTIVE'
+                ? ' · subscription active'
+                : ' · 14-day trial'}
           </Text>
           <View className="flex-row gap-6 mt-4">
             <View>
@@ -326,6 +361,20 @@ export default function InventorySettingsScreen() {
               </Text>
             </View>
           </View>
+          {user?.role === 'OWNER' && (subscription?.status ?? 'TRIAL') !== 'ACTIVE' ? (
+            <View className="mt-4">
+              <Button
+                label={`Pay ₹${PLAN_PRICES_INR.INVENTORY} with Razorpay`}
+                variant="accent"
+                size="sm"
+                loading={checkout.isPending}
+                onPress={() => void payInventory()}
+              />
+              <Text className="text-[11px] text-muted mt-2">
+                Pay BuildFlow on Razorpay. After payment this plan activates automatically.
+              </Text>
+            </View>
+          ) : null}
         </Card>
         {/* Business profile (INVENTORY_HORIZONTAL_PLATFORM Phase 0) */}
         <Card className="p-5 mb-4">

@@ -512,7 +512,7 @@ export interface SubscriptionUsage {
 }
 
 export interface SubscriptionSummary {
-  plan: 'STARTER' | 'PROFESSIONAL' | 'ENTERPRISE';
+  plan: 'INVENTORY' | 'STARTER' | 'PROFESSIONAL' | 'ENTERPRISE';
   status: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'CANCELLED' | 'EXPIRED';
   trialStartsAt: string;
   trialEndsAt: string | null;
