@@ -218,33 +218,49 @@ export const GST_RATES = {
 /** TDS u/s 194C (contractor) - single (non-transport) rate, in %. */
 export const TDS_SECTION_194C_RATE = 2;
 
+export const INDIA_COUNTRY = { code: 'IN', name: 'India' } as const;
+
 /* ------------------------------------------------------------------ */
-/* Indian states (GSTIN first 2 digits) - subset, commonly used.       */
-/* Full 37-state list can be extended later; key states included here.  */
+/* Indian states & UTs (GSTIN first 2 digits).                         */
 /* ------------------------------------------------------------------ */
 
 export const INDIAN_STATES: ReadonlyArray<{ code: string; name: string }> = [
-  { code: '01', name: 'Jammu & Kashmir' },
+  { code: '37', name: 'Andhra Pradesh' },
+  { code: '35', name: 'Andaman and Nicobar Islands' },
+  { code: '12', name: 'Arunachal Pradesh' },
+  { code: '18', name: 'Assam' },
+  { code: '10', name: 'Bihar' },
+  { code: '04', name: 'Chandigarh' },
+  { code: '22', name: 'Chhattisgarh' },
+  { code: '26', name: 'Dadra and Nagar Haveli and Daman and Diu' },
   { code: '07', name: 'Delhi' },
+  { code: '30', name: 'Goa' },
+  { code: '24', name: 'Gujarat' },
   { code: '06', name: 'Haryana' },
-  { code: '05', name: 'Uttarakhand' },
-  { code: '08', name: 'Rajasthan' },
-  { code: '09', name: 'Uttar Pradesh' },
+  { code: '02', name: 'Himachal Pradesh' },
+  { code: '01', name: 'Jammu & Kashmir' },
   { code: '20', name: 'Jharkhand' },
-  { code: '27', name: 'Maharashtra' },
   { code: '29', name: 'Karnataka' },
+  { code: '32', name: 'Kerala' },
+  { code: '38', name: 'Ladakh' },
+  { code: '31', name: 'Lakshadweep' },
+  { code: '23', name: 'Madhya Pradesh' },
+  { code: '27', name: 'Maharashtra' },
+  { code: '14', name: 'Manipur' },
+  { code: '17', name: 'Meghalaya' },
+  { code: '15', name: 'Mizoram' },
+  { code: '13', name: 'Nagaland' },
+  { code: '21', name: 'Odisha' },
+  { code: '34', name: 'Puducherry' },
+  { code: '03', name: 'Punjab' },
+  { code: '08', name: 'Rajasthan' },
+  { code: '11', name: 'Sikkim' },
   { code: '33', name: 'Tamil Nadu' },
   { code: '36', name: 'Telangana' },
-  { code: '37', name: 'Andhra Pradesh' },
-  { code: '32', name: 'Kerala' },
-  { code: '24', name: 'Gujarat' },
-  { code: '23', name: 'Madhya Pradesh' },
+  { code: '16', name: 'Tripura' },
+  { code: '09', name: 'Uttar Pradesh' },
+  { code: '05', name: 'Uttarakhand' },
   { code: '19', name: 'West Bengal' },
-  { code: '10', name: 'Bihar' },
-  { code: '21', name: 'Odisha' },
-  { code: '22', name: 'Chhattisgarh' },
-  { code: '02', name: 'Himachal Pradesh' },
-  { code: '03', name: 'Punjab' },
 ];
 
 /** Lookup: state name by GSTIN prefix code. */

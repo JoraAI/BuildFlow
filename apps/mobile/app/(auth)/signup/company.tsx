@@ -12,6 +12,8 @@ import {
   panSchema,
   phoneSchema,
   registerCompanySchema,
+  INDIAN_STATES,
+  INDIA_COUNTRY,
   INVENTORY_VERTICAL_HINTS,
   INVENTORY_VERTICAL_LABELS,
   INVENTORY_VERTICAL_VALUES,
@@ -33,6 +35,12 @@ import {
   formatValidationSummary,
   validationFieldErrors,
 } from '@/utils/validation-errors';
+
+function digitsIndiaMobile(raw: string): string {
+  let digits = raw.replace(/\D/g, '');
+  if (digits.startsWith('91') && digits.length > 10) digits = digits.slice(2);
+  return digits.slice(0, 10);
+}
 
 type ContactMethod = 'email' | 'phone';
 type FormKey =
@@ -105,10 +113,10 @@ export default function SignupCompanyScreen() {
   };
 
   const phoneLiveError =
-    (isInventorySignup || contactMethod === 'phone') && form.ownerPhone
+    usesPhoneSignup && form.ownerPhone
       ? phoneSchema.safeParse(form.ownerPhone).success
         ? undefined
-        : 'Enter a valid mobile number'
+        : 'Enter a valid 10-digit mobile number'
       : undefined;
   const emailLiveError =
     !isInventorySignup && contactMethod === 'email' && form.ownerEmail
@@ -128,7 +136,9 @@ export default function SignupCompanyScreen() {
     : undefined;
 
   const canSubmit = useMemo(() => {
-    const companyOk = form.companyName.trim().length >= 2 && form.state.trim().length >= 2;
+    const companyOk =
+      form.companyName.trim().length >= 2 &&
+      INDIAN_STATES.some((s) => s.name === form.state);
     const ownerOk = form.ownerName.trim().length >= 2;
     const contactOk = isInventorySignup || contactMethod === 'phone'
       ? phoneSchema.safeParse(form.ownerPhone).success
@@ -303,12 +313,27 @@ export default function SignupCompanyScreen() {
           />
         </View>
         <View className="flex-1 min-w-0">
-          <Input
-            label="State"
-            value={form.state}
-            onChangeText={(v) => set('state', v)}
-            error={fieldErrors.state}
+          <Select
+            label="Country"
+            value={INDIA_COUNTRY.code}
+            options={[{ value: INDIA_COUNTRY.code, title: INDIA_COUNTRY.name }]}
+            onChange={() => undefined}
+            disabled
+            helper="India only for now"
           />
+        </View>
+        <View className="flex-1 min-w-0">
+          <Select
+            label="State"
+            value={form.state || undefined}
+            onChange={(v) => set('state', v ?? '')}
+            placeholder="Select state"
+            title="State"
+            options={INDIAN_STATES.map((s) => ({ value: s.name, title: s.name }))}
+          />
+          {fieldErrors.state ? (
+            <Text className="text-xs text-danger -mt-2 mb-2">{fieldErrors.state}</Text>
+          ) : null}
         </View>
       </View>
       <Input
@@ -346,13 +371,25 @@ export default function SignupCompanyScreen() {
         helper="10 characters, or leave blank"
       />
       <View className="h-3" />
-      <Input
-        label="State"
-        value={form.state}
-        onChangeText={(v) => set('state', v)}
-        error={fieldErrors.state}
+      <Select
+        label="Country"
+        value={INDIA_COUNTRY.code}
+        options={[{ value: INDIA_COUNTRY.code, title: INDIA_COUNTRY.name }]}
+        onChange={() => undefined}
+        disabled
+        helper="India only for now"
       />
-      <View className="h-3" />
+      <Select
+        label="State"
+        value={form.state || undefined}
+        onChange={(v) => set('state', v ?? '')}
+        placeholder="Select state"
+        title="State"
+        options={INDIAN_STATES.map((s) => ({ value: s.name, title: s.name }))}
+      />
+      {fieldErrors.state ? (
+        <Text className="text-xs text-danger -mt-2 mb-2">{fieldErrors.state}</Text>
+      ) : null}
       <Input
         label="Address (optional)"
         value={form.address}
@@ -500,10 +537,17 @@ export default function SignupCompanyScreen() {
             <Input
               label="Mobile number"
               value={form.ownerPhone}
-              onChangeText={(v) => set('ownerPhone', v)}
+              onChangeText={(v) => set('ownerPhone', digitsIndiaMobile(v))}
               keyboardType="phone-pad"
-              placeholder="9876543210 or +919876543210"
+              placeholder="9876543210"
+              maxLength={10}
+              leftIcon={
+                <Text className="text-sm font-semibold text-text pr-2 mr-2 border-r border-border">
+                  +91
+                </Text>
+              }
               error={fieldErrors.ownerPhone ?? phoneLiveError}
+              helper="10-digit Indian mobile number"
             />
             <SmsConsentCheckbox checked={smsConsent} onCheckedChange={setSmsConsent} />
           </>
