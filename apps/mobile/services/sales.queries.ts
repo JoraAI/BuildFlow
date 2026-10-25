@@ -5,6 +5,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
+import { inventoryLiveQueryOptions, INVENTORY_STOCK_POLL_MS } from '@/lib/inventory-live';
 
 export interface SalesOrderLine {
   id: string;
@@ -145,6 +146,7 @@ export function useSalesOrders() {
   return useQuery({
     queryKey: transactionKeys.salesOrders,
     queryFn: () => apiFetch<SalesOrder[]>('/inventory/transactions/sales-orders'),
+    ...inventoryLiveQueryOptions(INVENTORY_STOCK_POLL_MS),
   });
 }
 

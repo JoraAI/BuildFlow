@@ -21,7 +21,7 @@ import { InventoryLanguageProvider, useInventoryLanguage } from '@/components/in
 // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.5): in-app notification bell.
 import { useRouter } from 'expo-router';
 import { useKeyboardOpen } from '@/hooks/useKeyboardOpen';
-import { useUnreadCount } from '@/services/chat.queries';
+import { useInventoryLiveSync } from '@/hooks/useInventoryLiveSync';
 
 export default function InventoryLayout() {
   return (
@@ -39,7 +39,7 @@ function InventoryLayoutBody() {
   const pathname = usePathname();
   const router = useRouter();
   const { translate } = useInventoryLanguage();
-  const { data: unreadCount } = useUnreadCount();
+  const { data: unreadCount } = useInventoryLiveSync();
   const keyboardOpen = useKeyboardOpen();
 
   if (!isAuthenticated) return <Redirect href="/login" />;

@@ -30,6 +30,7 @@ import type {
   CreateReportScheduleInput,
 } from '@buildflow/shared';
 import type { Role } from '@buildflow/shared';
+import { inventoryLiveQueryOptions, INVENTORY_STOCK_POLL_MS } from '@/lib/inventory-live';
 
 /* ------------------------------------------------------------------ */
 /* Keys                                                                */
@@ -639,6 +640,7 @@ export function useStock(projectId: string) {
     queryKey: expansionKeys.stock(projectId),
     queryFn: () => apiFetch<StockLocation[]>(`/projects/${projectId}/procurement/stock`),
     enabled: !!projectId,
+    ...inventoryLiveQueryOptions(INVENTORY_STOCK_POLL_MS),
   });
 }
 
@@ -650,6 +652,7 @@ export function useStockSummary(projectId: string, locationId?: string) {
         `/projects/${projectId}/procurement/stock/summary${locationId ? `?locationId=${locationId}` : ''}`,
       ),
     enabled: !!projectId,
+    ...inventoryLiveQueryOptions(INVENTORY_STOCK_POLL_MS),
   });
 }
 
@@ -661,6 +664,7 @@ export function useStockMovements(projectId: string, resourceId: string | undefi
         `/projects/${projectId}/procurement/stock/movements?resourceId=${resourceId}&locationId=${locationId ?? ''}&limit=50`,
       ),
     enabled: !!projectId && !!resourceId,
+    ...inventoryLiveQueryOptions(INVENTORY_STOCK_POLL_MS),
   });
 }
 
@@ -785,6 +789,7 @@ export function useExpirySummary() {
   return useQuery({
     queryKey: expansionKeys.expirySummary,
     queryFn: () => apiFetch<ExpiryBucketSummary>('/inventory/stock/expiry-summary'),
+    ...inventoryLiveQueryOptions(INVENTORY_STOCK_POLL_MS),
   });
 }
 

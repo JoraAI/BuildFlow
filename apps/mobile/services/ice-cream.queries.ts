@@ -3,6 +3,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
+import { inventoryLiveQueryOptions, INVENTORY_STOCK_POLL_MS } from '@/lib/inventory-live';
 
 const keys = {
   recipes: ['ice-cream', 'recipes'] as const,
@@ -401,6 +402,7 @@ export function useDailySalesSummary(date: string, enabled = true) {
       apiFetch<DailySalesSummary>(
         `/inventory/cash-book/daily-sales-summary?date=${encodeURIComponent(date)}`,
       ),
+    ...inventoryLiveQueryOptions(INVENTORY_STOCK_POLL_MS),
   });
 }
 

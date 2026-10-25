@@ -2,6 +2,7 @@
  * BuildFlow - React Query hooks for chat (BuildFlow Assistant) + notifications.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { inventoryLiveQueryOptions, INVENTORY_NOTIF_POLL_MS } from '@/lib/inventory-live';
 import { apiFetch } from '@/lib/api-client';
 
 // ---------------------------------------------------------------------------
@@ -112,7 +113,7 @@ export function useNotifications(unreadOnly = false) {
   return useQuery({
     queryKey: ['notifications', 'list', unreadOnly] as const,
     queryFn: () => fetchNotificationList(unreadOnly),
-    refetchInterval: 30_000, // poll for new notifications
+    ...inventoryLiveQueryOptions(INVENTORY_NOTIF_POLL_MS),
   });
 }
 
@@ -120,7 +121,7 @@ export function useUnreadCount() {
   return useQuery({
     queryKey: ['notifications', 'unread-count'] as const,
     queryFn: () => fetchNotificationList(true),
-    refetchInterval: 30_000,
+    ...inventoryLiveQueryOptions(INVENTORY_NOTIF_POLL_MS),
     select: (d) => d.unreadCount,
   });
 }

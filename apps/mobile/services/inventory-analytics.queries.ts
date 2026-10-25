@@ -11,6 +11,7 @@
 import { useQuery } from '@tanstack/react-query';
 import * as Sharing from 'expo-sharing';
 import { apiDownload, apiFetch } from '@/lib/api-client';
+import { inventoryLiveQueryOptions, INVENTORY_STOCK_POLL_MS } from '@/lib/inventory-live';
 
 export const inventoryAnalyticsKeys = {
   dashboard: ['inventory', 'analytics', 'dashboard'] as const,
@@ -79,6 +80,7 @@ export function useInventoryDashboard() {
   return useQuery<InventoryDashboard>({
     queryKey: inventoryAnalyticsKeys.dashboard,
     queryFn: () => apiFetch<InventoryDashboard>('/inventory/analytics/dashboard'),
+    ...inventoryLiveQueryOptions(INVENTORY_STOCK_POLL_MS),
   });
 }
 

@@ -6,17 +6,32 @@
  * detection (navigator.onLine on web, assumed online on native).
  */
 import React from 'react';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { AppState, Platform } from 'react-native';
+import { focusManager, QueryClientProvider } from '@tanstack/react-query';
 import { initOfflineSync } from '@/services/offline-sync.service';
 import { queryClient } from '@/lib/query-client';
 
+function bindQueryFocus() {
+  if (Platform.OS === 'web') return undefined;
+  const sub = AppState.addEventListener('change', (status) => {
+    focusManager.setFocused(status === 'active');
+  });
+  return () => sub.remove();
+}
+
 export function QueryProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
+    const unbindFocus = bindQueryFocus();
+    let unbindSync: undefined | (() => void);
     try {
-      return initOfflineSync();
+      unbindSync = initOfflineSync();
     } catch {
-      return undefined;
+      unbindSync = undefined;
     }
+    return () => {
+      unbindFocus?.();
+      unbindSync?.();
+    };
   }, []);
 
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
