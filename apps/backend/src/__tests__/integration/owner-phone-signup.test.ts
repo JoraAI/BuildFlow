@@ -28,7 +28,7 @@ describe('owner signup with phone or email', () => {
     }
   });
 
-  it('registers construction owner with mobile + password and logs in by phone', async () => {
+  it('registers construction owner with mobile and logs in by OTP', async () => {
     const phone = `98${stamp}01`.slice(0, 10);
     const res = await request(app).post('/api/auth/register').send({
       companyName: `Phone Co ${stamp}`,
@@ -37,7 +37,6 @@ describe('owner signup with phone or email', () => {
       state: 'Telangana',
       ownerName: 'Phone Owner',
       ownerPhone: phone,
-      password,
       product: 'construction',
     });
     expect(res.status).toBe(201);
@@ -55,7 +54,7 @@ describe('owner signup with phone or email', () => {
     expect(login.body.data.user.companyId).toBe(res.body.data.user.companyId);
   });
 
-  it('registers inventory owner with mobile + password', async () => {
+  it('registers inventory owner with mobile and no password', async () => {
     const phone = `97${stamp}02`.slice(0, 10);
     const res = await request(app).post('/api/auth/register').send({
       companyName: `Inv Phone ${stamp}`,
@@ -64,7 +63,6 @@ describe('owner signup with phone or email', () => {
       state: 'Telangana',
       ownerName: 'Inv Phone Owner',
       ownerPhone: phone,
-      password,
       product: 'inventory',
       inventoryVertical: 'ICE_CREAM',
     });
@@ -83,7 +81,7 @@ describe('owner signup with phone or email', () => {
     expect(login.status).toBe(200);
   });
 
-  it('still registers with email for construction', async () => {
+  it('registers construction owner with email and logs in by OTP', async () => {
     const email = `owner-email-${stamp}@example.com`;
     const res = await request(app).post('/api/auth/register').send({
       companyName: `Email Co ${stamp}`,
@@ -92,13 +90,20 @@ describe('owner signup with phone or email', () => {
       state: 'Telangana',
       ownerName: 'Email Owner',
       ownerEmail: email,
-      password,
       product: 'construction',
     });
     expect(res.status).toBe(201);
-    expect(res.body.data.needsOtp).toBe(false);
-    expect(res.body.data.accessToken).toBeTruthy();
+    expect(res.body.data.needsOtp).toBe(true);
+    expect(res.body.data.accessToken).toBeUndefined();
+    expect(res.body.data.destination).toBe(email);
     createdCompanyIds.push(res.body.data.user.companyId);
+
+    const login = await request(app).post('/api/auth/login').send({
+      email,
+      otp: '111111',
+    });
+    expect(login.status).toBe(200);
+    expect(login.body.data.user.companyId).toBe(res.body.data.user.companyId);
   });
 
   it('rejects inventory register without a vertical', async () => {

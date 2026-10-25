@@ -78,7 +78,11 @@ export const registerCompanySchema = z
       .max(120, 'Owner name is too long'),
     ownerEmail: optionalEmail,
     ownerPhone: optionalPhone,
-    password: passwordSchema,
+    // Unused for login (OTP). Kept optional for older clients.
+    password: z
+      .union([passwordSchema, z.literal('')])
+      .optional()
+      .transform((v) => (v ? v : undefined)),
 
     // INVENTORY_PRODUCT: dedicated inventory signup path
     product: z.enum(['inventory', 'construction']).default('construction'),

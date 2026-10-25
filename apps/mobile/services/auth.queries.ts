@@ -60,6 +60,7 @@ export interface AuthResponsePayload {
 export interface RegisterCompanyResult {
   user: AuthResponsePayload['user'];
   needsOtp: boolean;
+  destination?: string;
   phone?: string | null;
   otp?: {
     destinationMasked?: string;

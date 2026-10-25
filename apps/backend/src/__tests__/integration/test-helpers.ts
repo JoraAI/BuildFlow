@@ -27,7 +27,6 @@ export async function registerInventoryAndLogin(opts: {
     state: 'Telangana',
     ownerName: opts.ownerName ?? 'Inventory Owner',
     ownerPhone: phone,
-    password: 'Test@1234',
     product: 'inventory',
     inventoryVertical: opts.vertical ?? 'GENERAL',
   });

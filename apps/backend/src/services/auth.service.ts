@@ -61,6 +61,7 @@ export interface AuthResponse {
 export type RegisterCompanyResult = {
   user: AuthResponse['user'];
   needsOtp: boolean;
+  destination?: string;
   phone?: string | null;
   otp?: {
     destinationMasked: string;
@@ -228,7 +229,8 @@ export async function registerCompany(
   // company (no construction modules) with a hidden default STORE project.
   const isInventory = input.product === 'inventory';
 
-  const passwordHash = await hashPassword(input.password);
+  const { generateRandomPassword } = await import('./otp.service');
+  const passwordHash = await hashPassword(input.password ?? generateRandomPassword());
 
   const inventoryVertical = isInventory ? input.inventoryVertical : undefined;
 
@@ -329,28 +331,19 @@ export async function registerCompany(
     },
   });
 
-  // Phone signup must verify OTP before a session is issued.
-  if (ownerPhone) {
-    const otp = await sendLoginOtp(ownerPhone);
-    return {
-      user: publicUser,
-      needsOtp: true,
-      phone: ownerPhone,
-      otp: {
-        destinationMasked: otp.destinationMasked,
-        expiresInSec: otp.expiresInSec,
-        channel: otp.channel,
-        ...(otp.devCode ? { devCode: otp.devCode } : {}),
-      },
-    };
-  }
-
-  const payload = { sub: owner.id, companyId: company.id, role: Role.OWNER };
-  const tokens = issueTokens(payload);
+  const otpDestination = ownerPhone ?? ownerEmail!;
+  const otp = await sendLoginOtp(otpDestination);
   return {
     user: publicUser,
-    needsOtp: false,
-    ...tokens,
+    needsOtp: true,
+    destination: otpDestination,
+    phone: ownerPhone,
+    otp: {
+      destinationMasked: otp.destinationMasked,
+      expiresInSec: otp.expiresInSec,
+      channel: otp.channel,
+      ...(otp.devCode ? { devCode: otp.devCode } : {}),
+    },
   };
 }
 
