@@ -51,13 +51,28 @@ export interface AuthResponsePayload {
     defaultProjectId?: string | null;
     subscriptionPlan?: string;
     inventoryProfile?: string | null;
+    inventoryVertical?: string | null;
   };
   accessToken: string;
   refreshToken: string;
 }
 
+export interface RegisterCompanyResult {
+  user: AuthResponsePayload['user'];
+  needsOtp: boolean;
+  phone?: string | null;
+  otp?: {
+    destinationMasked?: string;
+    expiresInSec: number;
+    channel?: 'sms' | 'email';
+    devCode?: string;
+  };
+  accessToken?: string;
+  refreshToken?: string;
+}
+
 export function registerCompanyRequest(body: RegisterCompanyInput) {
-  return apiFetch<AuthResponsePayload>('/auth/register', {
+  return apiFetch<RegisterCompanyResult>('/auth/register', {
     method: 'POST',
     body: JSON.stringify(body),
   });

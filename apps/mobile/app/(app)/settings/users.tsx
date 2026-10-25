@@ -26,6 +26,7 @@ import {
   isPasswordValid,
   type Role,
 } from '@buildflow/shared';
+import { PasswordRuleHints } from '@/components/auth/PasswordRuleHints';
 import {
   useUsers,
   useUpdateUser,
@@ -80,6 +81,7 @@ export default function UsersScreen() {
   const [createPhone, setCreatePhone] = useState('');
   const [createPassword, setCreatePassword] = useState('');
   const [createConfirmPassword, setCreateConfirmPassword] = useState('');
+  const [createConfirmActive, setCreateConfirmActive] = useState(false);
   const [createRole, setCreateRole] = useState<InviteRole>(defaultRole);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createdCreds, setCreatedCreds] = useState<{ loginHint: string; password: string } | null>(
@@ -576,16 +578,22 @@ export default function UsersScreen() {
           label="Temporary password"
           value={createPassword}
           onChangeText={setCreatePassword}
+          onFocus={() => setCreateConfirmActive(false)}
           placeholder="Min 8 chars, upper, lower, number"
           secureTextEntry
           passwordToggle
           error={createPassword ? getPasswordFormatError(createPassword) : undefined}
           helper={createPassword ? undefined : 'Min 8 characters, with upper, lower, and a number'}
         />
+        <PasswordRuleHints password={createPassword} confirmActive={createConfirmActive} />
         <Input
           label="Confirm password"
           value={createConfirmPassword}
-          onChangeText={setCreateConfirmPassword}
+          onChangeText={(v) => {
+            setCreateConfirmActive(true);
+            setCreateConfirmPassword(v);
+          }}
+          onFocus={() => setCreateConfirmActive(true)}
           secureTextEntry
           passwordToggle
           error={

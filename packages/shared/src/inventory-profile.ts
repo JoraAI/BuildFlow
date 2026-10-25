@@ -56,9 +56,15 @@ export const INVENTORY_VERTICAL_VALUES: readonly InventoryVertical[] = [
 ];
 
 export const INVENTORY_VERTICAL_LABELS: Record<InventoryVertical, string> = {
-  GENERAL: 'General retail (grocery, medical, pharmacy, hardware, …)',
+  GENERAL: 'General retail (grocery, medical, pharmacy, hardware)',
   EVENTS: 'Events & lighting',
-  ICE_CREAM: 'Ice cream manufacturer (recipes, production, Jora Trade buyer app)',
+  ICE_CREAM: 'Ice cream manufacture',
+};
+
+export const INVENTORY_VERTICAL_HINTS: Record<InventoryVertical, string> = {
+  GENERAL: 'Product library plus batch and expiry tracking',
+  EVENTS: 'Event and lighting quotation wording',
+  ICE_CREAM: 'Recipes, production batches, and Jora Trade buyer orders',
 };
 
 /** Human-readable labels for the Settings profile picker. */

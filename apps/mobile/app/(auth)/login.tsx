@@ -10,6 +10,7 @@ import { SmsConsentCheckbox } from '@/components/auth/SmsConsentCheckbox';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
 import { ApiError } from '@/lib/api-client';
+import { OTP_DIGITS } from '@buildflow/shared';
 import { sendLoginOtpRequest } from '@/services/auth.queries';
 
 function looksLikePhone(value: string): boolean {
@@ -77,7 +78,13 @@ export default function LoginScreen() {
   };
 
   const signInButton = (
-    <Button label="Sign In" onPress={handleLogin} loading={loading} fullWidth />
+    <Button
+      label="Sign In"
+      onPress={handleLogin}
+      loading={loading}
+      disabled={otp.trim().length !== OTP_DIGITS}
+      fullWidth
+    />
   );
 
   return (

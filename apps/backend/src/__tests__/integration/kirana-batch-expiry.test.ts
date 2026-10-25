@@ -15,28 +15,17 @@
 import request from 'supertest';
 import { app } from '../../app';
 import { prisma } from '../../lib/prisma';
-import { loginAs, authGet, authPost, authPut, getProjectId } from './test-helpers';
+import { loginAs, authGet, authPost, authPut, getProjectId, registerInventoryAndLogin } from './test-helpers';
 
-const PASSWORD = 'Test@1234';
 const CONSTRUCTION_OWNER = 'owner@reddyconst.com';
 
-function uniqueGstin(): string {
-  const n = Date.now().toString().slice(-6);
-  return `36AABCR${n.slice(0, 4)}A1Z5`;
-}
-
 async function registerInventoryCompany(suffix: string) {
-  const res = await request(app).post('/api/auth/register').send({
+  return registerInventoryAndLogin({
+    suffix,
     companyName: `Test Kirana Co ${suffix}`,
-    gstin: uniqueGstin(),
-    pan: `AABCR${suffix.slice(-4).toUpperCase()}A`,
-    state: 'Telangana',
     ownerName: 'Kirana Owner',
-    ownerEmail: `kirana-owner-${suffix}@example.com`,
-    password: PASSWORD,
-    product: 'inventory',
+    vertical: 'GENERAL',
   });
-  return res;
 }
 
 describe('KIRANA_BATCH_EXPIRY (Phase 11.2) - batch / expiry / FEFO', () => {
@@ -49,12 +38,9 @@ describe('KIRANA_BATCH_EXPIRY (Phase 11.2) - batch / expiry / FEFO', () => {
 
   beforeAll(async () => {
     const res = await registerInventoryCompany(suffix);
-    if (res.status !== 201) {
-      throw new Error(`Kirana register failed: ${res.status} ${JSON.stringify(res.body)}`);
-    }
-    invToken = res.body.data.accessToken as string;
-    companyId = res.body.data.user.companyId as string;
-    projectId = res.body.data.user.defaultProjectId as string;
+    invToken = res.token;
+    companyId = res.companyId;
+    projectId = res.defaultProjectId;
 
     // Opt into the KIRANA vertical (RETAIL profile first) and apply the pack.
     const profile = await authPut(invToken, '/api/settings/company', { inventoryProfile: 'RETAIL' });

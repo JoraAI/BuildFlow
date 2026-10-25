@@ -18,7 +18,12 @@ import { blacklistToken, isTokenBlacklisted } from '../lib/redis';
 import { recordAudit } from '../utils/audit';
 import { initializeTrial, notifyNewTrialSignup } from './subscription.service';
 import { env } from '../config/env';
-import { Role, INVENTORY_DEFAULT_PROJECT, InventoryBusinessProfile } from '@buildflow/shared';
+import {
+  Role,
+  INVENTORY_DEFAULT_PROJECT,
+  InventoryBusinessProfile,
+  type InventoryVertical,
+} from '@buildflow/shared';
 import { SubscriptionPlan } from '@prisma/client';
 import type { RegisterCompanyInput, LoginInput } from '@buildflow/shared';
 
@@ -46,10 +51,29 @@ export interface AuthResponse {
     subscriptionPlan: string;
     // INVENTORY_HORIZONTAL_PLATFORM (Phase 0): null on construction plans.
     inventoryProfile: InventoryBusinessProfile | null;
+    inventoryVertical?: string | null;
   };
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
+}
+
+export type RegisterCompanyResult = {
+  user: AuthResponse['user'];
+  needsOtp: boolean;
+  phone?: string | null;
+  otp?: {
+    destinationMasked: string;
+    expiresInSec: number;
+    channel: 'sms' | 'email';
+    devCode?: string;
+  };
+} & Partial<AuthTokens>;
+
+function profileForVertical(vertical: InventoryVertical): InventoryBusinessProfile {
+  if (vertical === 'ICE_CREAM') return InventoryBusinessProfile.WHOLESALE;
+  if (vertical === 'EVENTS') return InventoryBusinessProfile.RETAIL;
+  return InventoryBusinessProfile.RETAIL;
 }
 
 async function toPublicUser(
@@ -117,7 +141,10 @@ function issueTokens(payload: { sub: string; companyId: string; role: Role }): A
 /* register                                                            */
 /* ------------------------------------------------------------------ */
 
-export async function registerCompany(input: RegisterCompanyInput, ipAddress?: string): Promise<AuthResponse> {
+export async function registerCompany(
+  input: RegisterCompanyInput,
+  ipAddress?: string,
+): Promise<RegisterCompanyResult> {
   if (!env.ALLOW_PUBLIC_COMPANY_REGISTRATION) {
     throw ApiError.forbidden('Public company registration is disabled. Contact sales to get started.');
   }
@@ -203,6 +230,8 @@ export async function registerCompany(input: RegisterCompanyInput, ipAddress?: s
 
   const passwordHash = await hashPassword(input.password);
 
+  const inventoryVertical = isInventory ? input.inventoryVertical : undefined;
+
   const company = await prisma.company.create({
     data: {
       name: input.companyName,
@@ -210,7 +239,17 @@ export async function registerCompany(input: RegisterCompanyInput, ipAddress?: s
       pan: input.pan || '',
       address: input.address || null,
       state: input.state,
-      ...(isInventory ? { subscriptionPlan: SubscriptionPlan.INVENTORY } : {}),
+      ...(isInventory
+        ? {
+            subscriptionPlan: SubscriptionPlan.INVENTORY,
+            ...(inventoryVertical
+              ? {
+                  inventoryVertical,
+                  inventoryProfile: profileForVertical(inventoryVertical),
+                }
+              : {}),
+          }
+        : {}),
     },
   });
 
@@ -252,9 +291,6 @@ export async function registerCompany(input: RegisterCompanyInput, ipAddress?: s
     defaultProjectId = store.id;
   }
 
-  const payload = { sub: owner.id, companyId: company.id, role: Role.OWNER };
-  const tokens = issueTokens(payload);
-
   await recordAudit({
     companyId: company.id,
     userId: owner.id,
@@ -265,6 +301,7 @@ export async function registerCompany(input: RegisterCompanyInput, ipAddress?: s
       name: company.name,
       product: input.product,
       ownerContact: ownerPhone ?? ownerEmail,
+      inventoryVertical: inventoryVertical ?? null,
     },
     ipAddress,
   });
@@ -284,14 +321,35 @@ export async function registerCompany(input: RegisterCompanyInput, ipAddress?: s
       subscriptionPlan: isInventory ? SubscriptionPlan.INVENTORY : SubscriptionPlan.STARTER,
       defaultProjectId,
       inventoryProfile: isInventory
-        ? (company.inventoryProfile ?? InventoryBusinessProfile.GENERAL)
+        ? (inventoryVertical
+          ? profileForVertical(inventoryVertical)
+          : (company.inventoryProfile ?? InventoryBusinessProfile.GENERAL))
         : null,
-      inventoryVertical: isInventory ? (company.inventoryVertical ?? null) : null,
+      inventoryVertical: isInventory ? (inventoryVertical ?? company.inventoryVertical ?? null) : null,
     },
   });
 
+  // Phone signup must verify OTP before a session is issued.
+  if (ownerPhone) {
+    const otp = await sendLoginOtp(ownerPhone);
+    return {
+      user: publicUser,
+      needsOtp: true,
+      phone: ownerPhone,
+      otp: {
+        destinationMasked: otp.destinationMasked,
+        expiresInSec: otp.expiresInSec,
+        channel: otp.channel,
+        ...(otp.devCode ? { devCode: otp.devCode } : {}),
+      },
+    };
+  }
+
+  const payload = { sub: owner.id, companyId: company.id, role: Role.OWNER };
+  const tokens = issueTokens(payload);
   return {
     user: publicUser,
+    needsOtp: false,
     ...tokens,
   };
 }

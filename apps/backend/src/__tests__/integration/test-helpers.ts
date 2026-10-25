@@ -5,6 +5,48 @@ import request from 'supertest';
 import { app } from '../../app';
 
 /** Seed / test login uses master OTP 111111 when OTP_MASTER_ENABLED (default in test). */
+/** Register an inventory owner on mobile + OTP, then return the session token. */
+export async function registerInventoryAndLogin(opts: {
+  suffix: string;
+  companyName: string;
+  ownerName?: string;
+  vertical?: 'GENERAL' | 'EVENTS' | 'ICE_CREAM';
+}): Promise<{
+  token: string;
+  userId: string;
+  companyId: string;
+  defaultProjectId: string;
+  phone: string;
+}> {
+  const digits = opts.suffix.replace(/\D/g, '').padStart(8, '0').slice(-8);
+  const phone = `98${digits}`.slice(0, 10);
+  const register = await request(app).post('/api/auth/register').send({
+    companyName: opts.companyName,
+    gstin: `36AABCR${digits.slice(0, 4)}A1Z5`,
+    pan: `AABCR${digits.slice(0, 4)}A`,
+    state: 'Telangana',
+    ownerName: opts.ownerName ?? 'Inventory Owner',
+    ownerPhone: phone,
+    password: 'Test@1234',
+    product: 'inventory',
+    inventoryVertical: opts.vertical ?? 'GENERAL',
+  });
+  if (register.status !== 201) {
+    throw new Error(`Inventory register failed: ${register.status} ${JSON.stringify(register.body)}`);
+  }
+  if (register.body.data.accessToken) {
+    throw new Error('Phone register must not issue a session before OTP');
+  }
+  const token = await loginAs(phone);
+  return {
+    token,
+    userId: register.body.data.user.id as string,
+    companyId: register.body.data.user.companyId as string,
+    defaultProjectId: register.body.data.user.defaultProjectId as string,
+    phone,
+  };
+}
+
 export async function loginAs(email: string, _passwordIgnored = 'Test@1234'): Promise<string> {
   const res = await request(app).post('/api/auth/login').send({ email, otp: '111111' });
   if (res.status !== 200) {

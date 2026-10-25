@@ -16,7 +16,7 @@
 import request from 'supertest';
 import { app } from '../../app';
 import { prisma } from '../../lib/prisma';
-import { authPost, authGet, authPut, loginAs } from './test-helpers';
+import { authPost, authGet, authPut, loginAs, registerInventoryAndLogin } from './test-helpers';
 import { istToday } from '../../services/inventory-analytics.service';
 import { PLAN_PRICES_INR, PLAN_ANNUAL_INR, PLAN_LIMITS } from '@buildflow/shared';
 import { resolveAssistantIdentity, executeAssistantTool } from '../../services/assistant-tools.service';
@@ -31,17 +31,11 @@ function uniqueGstin(): string {
 }
 
 async function registerInventoryCompany(suffix: string) {
-  const res = await request(app).post('/api/auth/register').send({
+  return registerInventoryAndLogin({
+    suffix,
     companyName: `Test Inventory Co ${suffix}`,
-    gstin: uniqueGstin(),
-    pan: `AABCR${suffix.slice(-4).toUpperCase()}A`,
-    state: 'Telangana',
     ownerName: 'Inventory Owner',
-    ownerEmail: `inv-owner-${suffix}@example.com`,
-    password: PASSWORD,
-    product: 'inventory',
   });
-  return res;
 }
 
 describe('INVENTORY_PRODUCT (integration)', () => {
@@ -53,13 +47,10 @@ describe('INVENTORY_PRODUCT (integration)', () => {
 
   beforeAll(async () => {
     const res = await registerInventoryCompany(suffix);
-    if (res.status !== 201) {
-      throw new Error(`Inventory register failed: ${res.status} ${JSON.stringify(res.body)}`);
-    }
-    invToken = res.body.data.accessToken as string;
-    invUserId = res.body.data.user.id as string;
-    companyId = res.body.data.user.companyId as string;
-    defaultProjectId = res.body.data.user.defaultProjectId as string;
+    invToken = res.token;
+    invUserId = res.userId;
+    companyId = res.companyId;
+    defaultProjectId = res.defaultProjectId;
   });
 
   afterAll(async () => {

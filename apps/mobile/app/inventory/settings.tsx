@@ -350,9 +350,7 @@ export default function InventorySettingsScreen() {
           ) : null}
         </Card>
         {/* Shop vertical — OWNER + RETAIL/WHOLESALE. GENERAL = library+FEFO; EVENTS = quote copy. */}
-        {user?.role === 'OWNER' &&
-        kiranaEnabled &&
-        (company?.inventoryProfile === 'RETAIL' || company?.inventoryProfile === 'WHOLESALE') ? (
+        {user?.role === 'OWNER' && kiranaEnabled ? (
           <Card className="p-5 mb-4">
             <Text className="text-base font-bold text-text mb-1">Shop vertical</Text>
             <Text className="text-xs text-muted mb-3">

@@ -41,6 +41,8 @@ describe('owner signup with phone or email', () => {
       product: 'construction',
     });
     expect(res.status).toBe(201);
+    expect(res.body.data.needsOtp).toBe(true);
+    expect(res.body.data.accessToken).toBeUndefined();
     expect(res.body.data.user.productMode).toBe('construction');
     expect(res.body.data.user.phone).toBeTruthy();
     createdCompanyIds.push(res.body.data.user.companyId);
@@ -64,10 +66,14 @@ describe('owner signup with phone or email', () => {
       ownerPhone: phone,
       password,
       product: 'inventory',
+      inventoryVertical: 'ICE_CREAM',
     });
     expect(res.status).toBe(201);
+    expect(res.body.data.needsOtp).toBe(true);
+    expect(res.body.data.accessToken).toBeUndefined();
     expect(res.body.data.user.productMode).toBe('inventory');
     expect(res.body.data.user.defaultProjectId).toBeTruthy();
+    expect(res.body.data.user.inventoryVertical).toBe('ICE_CREAM');
     createdCompanyIds.push(res.body.data.user.companyId);
 
     const login = await request(app).post('/api/auth/login').send({
@@ -90,7 +96,24 @@ describe('owner signup with phone or email', () => {
       product: 'construction',
     });
     expect(res.status).toBe(201);
+    expect(res.body.data.needsOtp).toBe(false);
+    expect(res.body.data.accessToken).toBeTruthy();
     createdCompanyIds.push(res.body.data.user.companyId);
+  });
+
+  it('rejects inventory register without a vertical', async () => {
+    const phone = `96${stamp}06`.slice(0, 10);
+    const res = await request(app).post('/api/auth/register').send({
+      companyName: `Inv No Vert ${stamp}`,
+      gstin: uniqueGstin(6),
+      pan: 'AABCR1234A',
+      state: 'Telangana',
+      ownerName: 'Inv No Vert',
+      ownerPhone: phone,
+      password,
+      product: 'inventory',
+    });
+    expect(res.status).toBe(422);
   });
 
   it('rejects inventory register with email only', async () => {

@@ -9,30 +9,16 @@
  * 5. Owner 1-click approves and restocks items back to the target warehouse.
  * 6. Verifies Credit Note generation, Stock Balance increment, and ledger reconciliation.
  */
-import request from 'supertest';
-import { app } from '../../app';
 import { prisma } from '../../lib/prisma';
-import { authPost, authPut } from './test-helpers';
-
-const PASSWORD = 'Test@1234';
-
-function uniqueGstin(): string {
-  const n = Date.now().toString().slice(-6);
-  return `36AABCR${n.slice(0, 4)}A1Z5`;
-}
+import { authPost, authPut, registerInventoryAndLogin } from './test-helpers';
 
 async function registerWholesaleCompany(suffix: string) {
-  const res = await request(app).post('/api/auth/register').send({
+  return registerInventoryAndLogin({
+    suffix,
     companyName: `Bright Lights Co ${suffix}`,
-    gstin: uniqueGstin(),
-    pan: `AABCR${suffix.slice(-4).toUpperCase()}A`,
-    state: 'Telangana',
     ownerName: 'Lighting Owner',
-    ownerEmail: `lighting-owner-${suffix}@example.com`,
-    password: PASSWORD,
-    product: 'inventory',
+    vertical: 'EVENTS',
   });
-  return res;
 }
 
 describe('POS Barcode Scan-and-Return & Approval Workflow', () => {
@@ -47,12 +33,9 @@ describe('POS Barcode Scan-and-Return & Approval Workflow', () => {
 
   beforeAll(async () => {
     const res = await registerWholesaleCompany(suffix);
-    if (res.status !== 201) {
-      throw new Error(`Register failed: ${res.status} ${JSON.stringify(res.body)}`);
-    }
-    token = res.body.data.accessToken as string;
-    companyId = res.body.data.user.companyId as string;
-    projectId = res.body.data.user.defaultProjectId as string;
+    token = res.token;
+    companyId = res.companyId;
+    projectId = res.defaultProjectId;
 
     // Set WHOLESALE inventory profile & EVENTS vertical
     await authPut(token, '/api/settings/company', {

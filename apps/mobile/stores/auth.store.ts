@@ -11,6 +11,7 @@ import {
   registerCompanyRequest,
   type AcceptInvitePayload,
   type AuthResponsePayload,
+  type RegisterCompanyResult,
 } from '@/services/auth.queries';
 import { apiFetch, scheduleAccessTokenRefresh, clearScheduledAccessTokenRefresh } from '@/lib/api-client';
 import { queryClient } from '@/lib/query-client';
@@ -45,7 +46,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, otp: string) => Promise<void>;
-  registerCompany: (input: RegisterCompanyInput) => Promise<void>;
+  registerCompany: (input: RegisterCompanyInput) => Promise<RegisterCompanyResult>;
   acceptInvite: (input: AcceptInvitePayload) => Promise<void>;
   logout: () => Promise<void>;
   hydrate: () => Promise<void>;
@@ -82,9 +83,17 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   registerCompany: async (input: RegisterCompanyInput) => {
     const data = await registerCompanyRequest(input);
-    await persistSession(data);
+    if (data.needsOtp || !data.accessToken || !data.refreshToken) {
+      return data;
+    }
+    await persistSession({
+      user: data.user,
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+    });
     queryClient.clear();
     set({ user: data.user as AuthUser, accessToken: data.accessToken, isAuthenticated: true });
+    return data;
   },
 
   acceptInvite: async (input: AcceptInvitePayload) => {

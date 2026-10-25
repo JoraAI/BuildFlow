@@ -3,6 +3,7 @@
  */
 import { z } from 'zod';
 import { gstinSchema, panSchema, phoneSchema } from './common';
+import { inventoryVerticalSchema } from './inventory-catalog';
 
 /** Strong-ish password: 8+ chars, 1 upper, 1 lower, 1 number. */
 export const PASSWORD_RULES = [
@@ -81,6 +82,7 @@ export const registerCompanySchema = z
 
     // INVENTORY_PRODUCT: dedicated inventory signup path
     product: z.enum(['inventory', 'construction']).default('construction'),
+    inventoryVertical: inventoryVerticalSchema.optional(),
   })
   .superRefine((d, ctx) => {
     if (d.product === 'inventory') {
@@ -89,6 +91,13 @@ export const registerCompanySchema = z
           code: z.ZodIssueCode.custom,
           message: 'Mobile number is required',
           path: ['ownerPhone'],
+        });
+      }
+      if (!d.inventoryVertical) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Select an inventory vertical',
+          path: ['inventoryVertical'],
         });
       }
       return;

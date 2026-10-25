@@ -12,12 +12,19 @@ import {
   getPasswordFormatError,
   isPasswordValid,
   panSchema,
-  PASSWORD_RULES,
   phoneSchema,
   registerCompanySchema,
+  INVENTORY_VERTICAL_HINTS,
+  INVENTORY_VERTICAL_LABELS,
+  INVENTORY_VERTICAL_VALUES,
+  OTP_DIGITS,
+  type InventoryVertical,
 } from '@buildflow/shared';
-import { Button, Input, Card } from '@/components/ui';
+import { Button, Input, Card, Select } from '@/components/ui';
 import { AuthScreenShell } from '@/components/auth/AuthScreenShell';
+import { SmsConsentCheckbox } from '@/components/auth/SmsConsentCheckbox';
+import { PasswordRuleHints } from '@/components/auth/PasswordRuleHints';
+import { sendLoginOtpRequest } from '@/services/auth.queries';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
 import { FreeTrialBadge } from '@/components/marketing/FreeTrialBadge';
@@ -41,7 +48,8 @@ type FormKey =
   | 'ownerEmail'
   | 'ownerPhone'
   | 'password'
-  | 'confirmPassword';
+  | 'confirmPassword'
+  | 'inventoryVertical';
 
 export default function SignupCompanyScreen() {
   const router = useRouter();
@@ -51,6 +59,7 @@ export default function SignupCompanyScreen() {
     params.product === 'inventory' ? 'inventory' : 'construction';
   const isInventorySignup = product === 'inventory';
   const registerCompany = useAuthStore((s) => s.registerCompany);
+  const login = useAuthStore((s) => s.login);
   const { isDesktop } = useViewport();
 
   const [allowed, setAllowed] = useState<boolean | null>(null);
@@ -60,6 +69,13 @@ export default function SignupCompanyScreen() {
   const [contactMethod, setContactMethod] = useState<ContactMethod>(
     isInventorySignup ? 'phone' : 'email',
   );
+  const [smsConsent, setSmsConsent] = useState(false);
+  const [confirmActive, setConfirmActive] = useState(false);
+  const [otpStep, setOtpStep] = useState(false);
+  const [otpPhone, setOtpPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [otpHint, setOtpHint] = useState<string | null>(null);
+  const [sendingOtp, setSendingOtp] = useState(false);
 
   const [form, setForm] = useState({
     companyName: '',
@@ -72,6 +88,7 @@ export default function SignupCompanyScreen() {
     ownerPhone: '',
     password: '',
     confirmPassword: '',
+    inventoryVertical: '' as InventoryVertical | '',
   });
 
   useEffect(() => {
@@ -132,8 +149,12 @@ export default function SignupCompanyScreen() {
     const panOk = !form.pan.trim() || panSchema.safeParse(form.pan).success;
     const passwordOk = isPasswordValid(form.password);
     const confirmOk = form.confirmPassword === form.password && isPasswordValid(form.confirmPassword);
-    return companyOk && ownerOk && contactOk && gstOk && panOk && passwordOk && confirmOk;
-  }, [form, isInventorySignup, contactMethod]);
+    const verticalOk = !isInventorySignup || Boolean(form.inventoryVertical);
+    const consentOk = !(isInventorySignup || contactMethod === 'phone') || smsConsent;
+    return (
+      companyOk && ownerOk && contactOk && gstOk && panOk && passwordOk && confirmOk && verticalOk && consentOk
+    );
+  }, [form, isInventorySignup, contactMethod, smsConsent]);
 
   const applyZodIssues = (issues: { path: (string | number)[]; message: string }[]) => {
     const details = issues.map((i) => ({
@@ -179,6 +200,9 @@ export default function SignupCompanyScreen() {
         : { ownerEmail: form.ownerEmail.trim().toLowerCase() }),
       password: form.password,
       product,
+      ...(isInventorySignup && form.inventoryVertical
+        ? { inventoryVertical: form.inventoryVertical }
+        : {}),
     };
 
     const local = registerCompanySchema.safeParse(payload);
@@ -189,7 +213,18 @@ export default function SignupCompanyScreen() {
 
     setLoading(true);
     try {
-      await registerCompany(local.data);
+      const result = await registerCompany(local.data);
+      if (result.needsOtp) {
+        setOtpPhone(result.phone || form.ownerPhone.trim());
+        setOtpHint(
+          result.otp?.devCode
+            ? `Code sent (dev): ${result.otp.devCode}`
+            : `Code sent to ${result.otp?.destinationMasked ?? 'your mobile'}`,
+        );
+        setOtp('');
+        setOtpStep(true);
+        return;
+      }
       router.replace(isInventorySignup ? '/inventory' : '/dashboard');
     } catch (err) {
       const apiErr = err as ApiError;
@@ -204,7 +239,50 @@ export default function SignupCompanyScreen() {
     }
   };
 
-  const submitFooter = (
+  const onResendOtp = async () => {
+    setError('');
+    if (!otpPhone.trim()) return;
+    setSendingOtp(true);
+    try {
+      const res = await sendLoginOtpRequest(otpPhone.trim());
+      setOtpHint(
+        res.devCode
+          ? `Code sent (dev): ${res.devCode}`
+          : `Code sent to ${res.destinationMasked ?? res.phoneMasked}`,
+      );
+    } catch (err) {
+      setError((err as ApiError).message || 'Could not send OTP');
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const onVerifyOtp = async () => {
+    setError('');
+    if (otp.trim().length !== OTP_DIGITS) {
+      setError(`Enter the ${OTP_DIGITS}-digit OTP sent to your mobile`);
+      return;
+    }
+    setLoading(true);
+    try {
+      await login(otpPhone.trim(), otp.trim());
+      router.replace(isInventorySignup ? '/inventory' : '/dashboard');
+    } catch (err) {
+      setError((err as ApiError).message || 'Invalid OTP');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitFooter = otpStep ? (
+    <Button
+      label="Verify OTP & sign in"
+      onPress={onVerifyOtp}
+      loading={loading}
+      disabled={otp.trim().length !== OTP_DIGITS}
+      fullWidth
+    />
+  ) : (
     <Button
       label={isInventorySignup ? 'Create inventory account' : 'Create account'}
       onPress={onSubmit}
@@ -339,19 +417,73 @@ export default function SignupCompanyScreen() {
       heroBenefits={TRIAL_HERO_BENEFITS}
       backHref="/"
       formWidth="wide"
-      formTitle={isInventorySignup ? 'Register your store' : 'Register company'}
+      formTitle={
+        otpStep
+          ? 'Verify mobile OTP'
+          : isInventorySignup
+            ? 'Register your store'
+            : 'Register company'
+      }
       formSubtitle={
-        isInventorySignup
-          ? 'Create your inventory business and owner account (₹499/month after trial)'
-          : 'Create your company and owner account'
+        otpStep
+          ? `Enter the ${OTP_DIGITS}-digit code sent to your mobile to finish sign-in`
+          : isInventorySignup
+            ? 'Create your inventory business and owner account (₹499/month after trial)'
+            : 'Create your company and owner account'
       }
       footer={isDesktop ? submitFooter : undefined}
     >
       <FreeTrialBadge className="mb-5" />
 
+      {otpStep ? (
+        <Card className="mb-4">
+          <Text className="text-sm font-bold text-text mb-2">OTP check</Text>
+          <Text className="text-xs text-muted mb-3">
+            We sent a one-time code to your mobile. Sign-in completes only after this check.
+          </Text>
+          <Button
+            label={sendingOtp ? 'Sending…' : 'Resend OTP'}
+            variant="secondary"
+            onPress={onResendOtp}
+            loading={sendingOtp}
+            fullWidth
+          />
+          {otpHint ? <Text className="text-xs text-muted mt-2">{otpHint}</Text> : null}
+          <View className="h-3" />
+          <Input
+            label="OTP"
+            value={otp}
+            onChangeText={setOtp}
+            placeholder={`${OTP_DIGITS}-digit code`}
+            keyboardType="number-pad"
+            maxLength={OTP_DIGITS}
+          />
+        </Card>
+      ) : (
+        <>
       <Card className="mb-4">
         <Text className="text-sm font-bold text-text mb-3">Company</Text>
         {companyFields}
+        {isInventorySignup ? (
+          <>
+            <View className="h-3" />
+            <Select
+              label="Inventory vertical"
+              value={form.inventoryVertical || undefined}
+              onChange={(v) => set('inventoryVertical', (v ?? '') as InventoryVertical | '')}
+              placeholder="Select your inventory type"
+              title="Inventory vertical"
+              options={INVENTORY_VERTICAL_VALUES.map((value) => ({
+                value,
+                title: INVENTORY_VERTICAL_LABELS[value],
+                subtitle: INVENTORY_VERTICAL_HINTS[value],
+              }))}
+            />
+            {fieldErrors.inventoryVertical ? (
+              <Text className="text-xs text-danger mt-1">{fieldErrors.inventoryVertical}</Text>
+            ) : null}
+          </>
+        ) : null}
       </Card>
 
       <Card className="mb-4">
@@ -387,14 +519,17 @@ export default function SignupCompanyScreen() {
         ) : null}
 
         {isInventorySignup || contactMethod === 'phone' ? (
-          <Input
-            label="Mobile number"
-            value={form.ownerPhone}
-            onChangeText={(v) => set('ownerPhone', v)}
-            keyboardType="phone-pad"
-            placeholder="9876543210 or +919876543210"
-            error={fieldErrors.ownerPhone ?? phoneLiveError}
-          />
+          <>
+            <Input
+              label="Mobile number"
+              value={form.ownerPhone}
+              onChangeText={(v) => set('ownerPhone', v)}
+              keyboardType="phone-pad"
+              placeholder="9876543210 or +919876543210"
+              error={fieldErrors.ownerPhone ?? phoneLiveError}
+            />
+            <SmsConsentCheckbox checked={smsConsent} onCheckedChange={setSmsConsent} />
+          </>
         ) : (
           <Input
             label="Email"
@@ -412,27 +547,21 @@ export default function SignupCompanyScreen() {
           label="Password"
           value={form.password}
           onChangeText={(v) => set('password', v)}
+          onFocus={() => setConfirmActive(false)}
           secureTextEntry
           passwordToggle
           error={fieldErrors.password ?? passwordLiveError}
           helper={form.password ? undefined : 'Min 8 characters, with upper, lower, and a number'}
         />
-        {form.password ? (
-          <View className="mb-3 gap-1">
-            {PASSWORD_RULES.filter((r) => r.id !== 'max' || !r.test(form.password)).map((rule) => {
-              const ok = rule.test(form.password);
-              return (
-                <Text key={rule.id} className={`text-xs ${ok ? 'text-muted' : 'text-danger'}`}>
-                  {ok ? '✓' : '•'} {rule.label}
-                </Text>
-              );
-            })}
-          </View>
-        ) : null}
+        <PasswordRuleHints password={form.password} confirmActive={confirmActive} />
         <Input
           label="Confirm password"
           value={form.confirmPassword}
-          onChangeText={(v) => set('confirmPassword', v)}
+          onChangeText={(v) => {
+            setConfirmActive(true);
+            set('confirmPassword', v);
+          }}
+          onFocus={() => setConfirmActive(true)}
           secureTextEntry
           passwordToggle
           error={fieldErrors.confirmPassword ?? confirmLiveError}
@@ -442,7 +571,7 @@ export default function SignupCompanyScreen() {
             <Text
               className={`text-xs ${
                 form.confirmPassword === form.password && isPasswordValid(form.confirmPassword)
-                  ? 'text-muted'
+                  ? 'text-success'
                   : 'text-danger'
               }`}
             >
@@ -453,6 +582,8 @@ export default function SignupCompanyScreen() {
           </View>
         ) : null}
       </Card>
+        </>
+      )}
 
       {error ? (
         <View className="mb-4 px-3 py-2 rounded-lg bg-danger/10 border border-danger/30">
