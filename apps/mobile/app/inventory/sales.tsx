@@ -29,6 +29,7 @@ import {
 } from '@/utils/navigation-paths';
 import { downloadReportPdf } from '@/services/report-download';
 import { CashBookPanel } from '@/components/inventory/CashBookPanel';
+import { DocumentLines, ExpandHint, PartyLabel, type PreviewLine } from '@/components/inventory/DocumentLinePreview';
 
 type Tab = 'orders' | 'deliveries' | 'returns' | 'notes' | 'cash';
 
@@ -136,6 +137,8 @@ export default function InventorySalesScreen() {
   const [returnChallan, setReturnChallan] = useState<DeliveryChallan | null>(null);
   const [salesReturnOpen, setSalesReturnOpen] = useState(false);
   const [purchaseReturnOpen, setPurchaseReturnOpen] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const toggleExpanded = (id: string) => setExpandedId((cur) => (cur === id ? null : id));
   const approveSalesReturn = useApproveSalesReturn();
 
   const orders = useSalesOrders();
@@ -162,14 +165,30 @@ export default function InventorySalesScreen() {
   };
   const headerLabel = tab === 'orders' ? 'New order' : tab === 'deliveries' ? 'New challan' : undefined;
 
+  const orderLines = (item: SalesOrder): PreviewLine[] =>
+    item.lines.map((l) => ({
+      key: l.id,
+      name: l.itemName,
+      qty: `${Number(l.quantity)} ${l.unit}`,
+      meta: `₹${Number(l.amount).toFixed(2)}`,
+    }));
+
   const renderOrder = ({ item }: { item: SalesOrder }) => {
     const hasDraftChallan = item.deliveryChallans.some((d) => d.status === 'DRAFT');
     const allDelivered = item.lines.length > 0 && item.lines.every((l) => Number(l.deliveredQty) >= Number(l.quantity) - 0.0001);
     const delivered = item.deliveryChallans.some((d) => d.status === 'DISPATCHED' || d.status === 'DELIVERED');
+    const expanded = expandedId === item.id;
+    const linesPreview = (
+      <View className={tableMode ? 'px-4 pb-3' : 'mt-2'}>
+        <ExpandHint expanded={expanded} count={item.lines.length} onPress={() => toggleExpanded(item.id)} />
+        {expanded ? <DocumentLines lines={orderLines(item)} /> : null}
+      </View>
+    );
 
     if (tableMode) {
       return (
-        <View className={`flex-row items-center px-4 py-3 bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
+        <View className={`bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
+        <View className="flex-row items-center px-4 py-3">
           <Text className="flex-[1.1] text-sm font-mono font-semibold text-text">{item.soNumber}</Text>
           <Text className="flex-[1.4] text-sm text-text" numberOfLines={1}>{item.customerName}</Text>
           <View className="flex-1">
@@ -218,6 +237,8 @@ export default function InventorySalesScreen() {
             <Button label="PDF" size="sm" variant="ghost" onPress={() => void downloadReportPdf(`/inventory/pdf/sales-orders/${item.id}`, `so-${item.soNumber}.pdf`)} />
           </View>
         </View>
+        {linesPreview}
+        </View>
       );
     }
     return (
@@ -225,11 +246,12 @@ export default function InventorySalesScreen() {
         <View className="flex-row items-start justify-between gap-2">
           <View className="flex-1 min-w-0">
             <Text className="text-sm font-bold text-text">{item.soNumber}</Text>
-            <Text className="text-xs text-muted">{item.customerName}</Text>
-            <Text className="text-[11px] text-muted mt-0.5">Total ₹{Number(item.total).toFixed(2)} · {item.lines.length} line(s)</Text>
+            <PartyLabel kind="customer" name={item.customerName} />
+            <Text className="text-[11px] text-muted mt-0.5">Total ₹{Number(item.total).toFixed(2)}</Text>
           </View>
           <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
         </View>
+        {linesPreview}
         {item.notes?.includes('AUTO_STOCK_ISSUE') ? (
           <Text className="text-[11px] text-muted mt-1">Counter sale from stock issue - already invoiced</Text>
         ) : null}
@@ -279,9 +301,26 @@ export default function InventorySalesScreen() {
   };
 
   const renderChallan = ({ item }: { item: DeliveryChallan }) => {
+    const expanded = expandedId === item.id;
+    const linesPreview = (
+      <View className={tableMode ? 'px-4 pb-3' : 'mt-2'}>
+        <ExpandHint expanded={expanded} count={item.lines.length} onPress={() => toggleExpanded(item.id)} />
+        {expanded ? (
+          <DocumentLines
+            lines={item.lines.map((l) => ({
+              key: l.id,
+              name: l.itemName,
+              qty: `${Number(l.quantity)} ${l.unit}`,
+              meta: `₹${Number(l.rate).toFixed(2)}`,
+            }))}
+          />
+        ) : null}
+      </View>
+    );
     if (tableMode) {
       return (
-        <View className={`flex-row items-center px-4 py-3 bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
+        <View className={`bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
+        <View className="flex-row items-center px-4 py-3">
           <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.dcNumber}</Text>
           <Text className="flex-[1.4] text-sm text-text" numberOfLines={1}>{item.customerName}</Text>
           <View className="flex-1">
@@ -316,6 +355,8 @@ export default function InventorySalesScreen() {
             <Button label="PDF" size="sm" variant="ghost" onPress={() => void downloadReportPdf(`/inventory/pdf/delivery-challans/${item.id}`, `dc-${item.dcNumber}.pdf`)} />
           </View>
         </View>
+        {linesPreview}
+        </View>
       );
     }
     return (
@@ -323,13 +364,14 @@ export default function InventorySalesScreen() {
         <View className="flex-row items-start justify-between gap-2">
           <View className="flex-1 min-w-0">
             <Text className="text-sm font-bold text-text">{item.dcNumber}</Text>
-            <Text className="text-xs text-muted">{item.customerName}</Text>
+            <PartyLabel kind="customer" name={item.customerName} />
             <Text className="text-[11px] text-muted mt-0.5">
-              {item.salesOrder ? `From ${item.salesOrder.soNumber} · ` : ''}{item.lines.length} line(s)
+              {item.salesOrder ? `From ${item.salesOrder.soNumber}` : 'No sales order'}
             </Text>
           </View>
           <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
         </View>
+        {linesPreview}
         <View className="flex-row flex-wrap gap-2 mt-3">
           {item.status === 'DRAFT' ? (
             <Button label="Dispatch (stock OUT)" size="sm" variant="accent" onPress={() => setDispatchChallan(item)} />
@@ -367,10 +409,27 @@ export default function InventorySalesScreen() {
     const note = isSales ? (item as SalesReturn).creditNote : (item as PurchaseReturn).debitNote;
     const noteLabel = note ? ('creditNoteNumber' in note ? note.creditNoteNumber : note.debitNoteNumber) : null;
     const isPending = item.status === 'DRAFT';
+    const expanded = expandedId === item.id;
+    const linesPreview = (
+      <View className={tableMode ? 'px-4 pb-3' : 'mt-2'}>
+        <ExpandHint expanded={expanded} count={item.lines.length} onPress={() => toggleExpanded(item.id)} />
+        {expanded ? (
+          <DocumentLines
+            lines={item.lines.map((l) => ({
+              key: l.id,
+              name: l.itemName,
+              qty: `${Number(l.quantity)} ${l.unit}`,
+              meta: 'rate' in l ? `₹${Number(l.rate).toFixed(2)}` : undefined,
+            }))}
+          />
+        ) : null}
+      </View>
+    );
 
     if (tableMode) {
       return (
-        <View className={`flex-row items-center px-4 py-3 bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
+        <View className={`bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
+        <View className="flex-row items-center px-4 py-3">
           <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.returnNumber}</Text>
           <Text className="flex-[1.4] text-sm text-text" numberOfLines={1}>{party}</Text>
           <Text className="flex-1 text-xs text-muted">{isSales ? 'Sales return' : 'Purchase return'}</Text>
@@ -401,6 +460,8 @@ export default function InventorySalesScreen() {
             />
           </View>
         </View>
+        {linesPreview}
+        </View>
       );
     }
     return (
@@ -408,14 +469,15 @@ export default function InventorySalesScreen() {
         <View className="flex-row items-start justify-between gap-2">
           <View className="flex-1 min-w-0">
             <Text className="text-sm font-bold text-text">{item.returnNumber}</Text>
-            <Text className="text-xs text-muted">{party} · {isSales ? 'sales return' : 'purchase return'}</Text>
+            <PartyLabel kind={isSales ? 'customer' : 'vendor'} name={party} />
             <Text className="text-[11px] text-muted mt-0.5">
-              Total ₹{Number(item.total).toFixed(2)} · {item.lines.length} line(s)
+              {isSales ? 'Sales return' : 'Purchase return'} · ₹{Number(item.total).toFixed(2)}
               {noteLabel ? ` · ${noteLabel}` : ''}
             </Text>
           </View>
           <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
         </View>
+        {linesPreview}
         <View className="flex-row flex-wrap gap-2 mt-3">
           {isSales && isPending ? (
             <Button

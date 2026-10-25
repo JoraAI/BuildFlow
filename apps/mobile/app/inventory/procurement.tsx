@@ -39,6 +39,8 @@ import { InventoryFilterBar } from '@/components/inventory/InventoryFilterBar';
 import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
 import { matchesText } from '@/utils/inventory-filters';
 import { inventoryBillsHref } from '@/utils/navigation-paths';
+import { useVendors, type PartyRow } from '@/services/party.queries';
+import { DocumentLines, ExpandHint, PartyLabel, type PreviewLine } from '@/components/inventory/DocumentLinePreview';
 
 const APPROVAL_COLOR: Record<string, 'warning' | 'success' | 'danger' | 'neutral'> = {
   DRAFT: 'neutral',
@@ -116,17 +118,15 @@ export default function InventoryProcurementScreen() {
   const eligiblePoIndents = (requisitions ?? []).filter(indentAvailableForNewPo);
   const eligibleGrnPos = allPurchaseOrders(requisitions ?? []).filter(poAvailableForNewGrn);
 
-  /** D3: jump to Purchase orders tab + open Create PO prefilled for this indent. */
+  /** Open the PO modal on this screen so tab changes cannot dismiss it. */
   const openCreatePoForIndent = (requisitionId: string) => {
     setPrefillRequisitionId(requisitionId);
-    setSection('orders');
     setCreatePoOpen(true);
   };
 
-  /** D4: jump to Goods receipts tab + open Record GRN prefilled for this PO. */
+  /** Open the GRN modal on this screen so tab changes cannot dismiss it. */
   const openRecordGrnForPo = (purchaseOrderId: string) => {
     setPrefillPurchaseOrderId(purchaseOrderId);
-    setSection('grns');
     setRecordGrnOpen(true);
   };
 
@@ -312,7 +312,8 @@ export default function InventoryProcurementScreen() {
             await bufferUntilVisible(refetch, (list) => list.some((r) => r.id === created.id));
             toast.success(`${indentLabel} created & approved`);
             setCreateIndentOpen(false);
-            setSection('indents');
+            setPrefillRequisitionId(created.id);
+            setCreatePoOpen(true);
           } finally {
             setBuffering(false);
           }
@@ -399,6 +400,7 @@ function IndentsSection({
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop/tablet tables.
   const { isTablet, isDesktop } = useViewport();
   const tableMode = isTablet || isDesktop;
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const rows = useMemo(
     () =>
       requisitions.filter((r) =>
@@ -406,6 +408,13 @@ function IndentsSection({
       ),
     [requisitions, query],
   );
+  const indentLines = (item: Requisition): PreviewLine[] =>
+    item.lines.map((l) => ({
+      key: l.id,
+      name: l.resource?.name ?? 'Item',
+      qty: `${Number(l.quantity)} ${l.unit}`,
+    }));
+  const toggle = (id: string) => setExpandedId((cur) => (cur === id ? null : id));
   return (
     <FlatList
       className="flex-1 px-4"
@@ -426,22 +435,29 @@ function IndentsSection({
       renderItem={({ item }) => {
         const canCreatePo = indentAvailableForNewPo(item);
         // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop row.
+        const expanded = expandedId === item.id;
         if (tableMode) {
           return (
-            <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
-              <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.reqNumber}</Text>
-              <Text className="flex-[2] text-xs text-muted" numberOfLines={1}>{item.notes || '-'}</Text>
-              <Text className="flex-1 text-xs text-text text-right">{item.lines.length}</Text>
-              <Text className="flex-1 text-xs text-muted text-right">{new Date(item.createdAt).toLocaleDateString('en-IN')}</Text>
-              <View className="flex-1 items-end">
-                <Badge color={APPROVAL_COLOR[item.status] ?? 'neutral'} label={item.status} />
+            <View className="bg-card border-b border-border/60">
+              <View className="flex-row items-center px-4 py-3">
+                <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.reqNumber}</Text>
+                <Text className="flex-[2] text-xs text-muted" numberOfLines={1}>{item.notes || '-'}</Text>
+                <Text className="flex-1 text-xs text-text text-right">{item.lines.length}</Text>
+                <Text className="flex-1 text-xs text-muted text-right">{new Date(item.createdAt).toLocaleDateString('en-IN')}</Text>
+                <View className="flex-1 items-end">
+                  <Badge color={APPROVAL_COLOR[item.status] ?? 'neutral'} label={item.status} />
+                </View>
+                <View className="flex-[1.2] items-end">
+                  {canCreatePo ? (
+                    <Button label="Create PO" size="sm" onPress={() => onCreatePo(item.id)} />
+                  ) : item.status === 'APPROVED' ? (
+                    <Text className="text-[11px] text-muted text-right">PO created</Text>
+                  ) : null}
+                </View>
               </View>
-              <View className="flex-[1.2] items-end">
-                {canCreatePo ? (
-                  <Button label="Create PO" size="sm" onPress={() => onCreatePo(item.id)} />
-                ) : item.status === 'APPROVED' ? (
-                  <Text className="text-[11px] text-muted text-right">PO created</Text>
-                ) : null}
+              <View className="px-4 pb-3">
+                <ExpandHint expanded={expanded} count={item.lines.length} onPress={() => toggle(item.id)} />
+                {expanded ? <DocumentLines lines={indentLines(item)} /> : null}
               </View>
             </View>
           );
@@ -454,9 +470,12 @@ function IndentsSection({
             </View>
             {item.notes ? <Text className="text-xs text-muted mt-1">{item.notes}</Text> : null}
             <Text className="text-xs text-muted mt-1">
-              {item.lines.length} line{item.lines.length === 1 ? '' : 's'} ·{' '}
-              {new Date(item.createdAt).toLocaleDateString('en-IN')}
+              {new Date(item.createdAt).toLocaleDateString('en-IN')} · vendor chosen on the PO
             </Text>
+            <View className="mt-2">
+              <ExpandHint expanded={expanded} count={item.lines.length} onPress={() => toggle(item.id)} />
+              {expanded ? <DocumentLines lines={indentLines(item)} /> : null}
+            </View>
             {canCreatePo ? (
               <View className="mt-3">
                 <Button
@@ -755,6 +774,15 @@ function OrdersSection({
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop/tablet tables.
   const { isTablet, isDesktop } = useViewport();
   const tableMode = isTablet || isDesktop;
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const toggle = (id: string) => setExpandedId((cur) => (cur === id ? null : id));
+  const poLines = (item: (typeof pos)[number]): PreviewLine[] =>
+    item.lines.map((l) => ({
+      key: l.id,
+      name: l.resource?.name ?? 'Item',
+      qty: `${Number(l.quantity)} ${l.unit}`,
+      meta: `₹${Number(l.rate).toLocaleString('en-IN')}`,
+    }));
   return (
     <FlatList
       className="flex-1 px-4"
@@ -775,41 +803,48 @@ function OrdersSection({
       renderItem={({ item }) => {
         const draftBills = (item.bills ?? []).filter((b) => b.status === 'DRAFT');
         const canRecordGrn = poAvailableForNewGrn(item);
+        const expanded = expandedId === item.id;
         // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop row.
         if (tableMode) {
           return (
-            <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
-              <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.poNumber}</Text>
-              <Text className="flex-[1.8] text-xs text-text" numberOfLines={1}>
-                {item.vendorName ?? 'Vendor'}
-                {draftBills.length > 0 ? <Text className="text-[11px] text-warning"> · {draftBills.length} draft bill(s)</Text> : null}
-              </Text>
-              <Text className="flex-1 text-xs text-text text-right">₹{Number(item.totalAmount ?? 0).toLocaleString('en-IN')}</Text>
-              <Text className="flex-1 text-xs text-success text-right">
-                {item.goodsReceipts && item.goodsReceipts.length > 0 ? `${item.goodsReceipts.length} GRN(s)` : '-'}
-              </Text>
-              <View className="flex-1 items-end">
-                <Badge label={item.status ?? 'DRAFT'} color={item.status === 'SUBMITTED' ? 'warning' : undefined} />
+            <View className="bg-card border-b border-border/60">
+              <View className="flex-row items-center px-4 py-3">
+                <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.poNumber}</Text>
+                <Text className="flex-[1.8] text-xs text-text" numberOfLines={1}>
+                  {item.vendorName ?? 'Vendor not set'}
+                  {draftBills.length > 0 ? <Text className="text-[11px] text-warning"> · {draftBills.length} draft bill(s)</Text> : null}
+                </Text>
+                <Text className="flex-1 text-xs text-text text-right">₹{Number(item.totalAmount ?? 0).toLocaleString('en-IN')}</Text>
+                <Text className="flex-1 text-xs text-success text-right">
+                  {item.goodsReceipts && item.goodsReceipts.length > 0 ? `${item.goodsReceipts.length} GRN(s)` : '-'}
+                </Text>
+                <View className="flex-1 items-end">
+                  <Badge label={item.status ?? 'DRAFT'} color={item.status === 'SUBMITTED' ? 'warning' : undefined} />
+                </View>
+                <View className="flex-[1.6] flex-row flex-wrap justify-end gap-1">
+                  {draftBills.length > 0 ? (
+                    <Button
+                      label="Open bills"
+                      size="sm"
+                      variant="secondary"
+                      onPress={() =>
+                        router.push(
+                          inventoryBillsHref({ status: 'DRAFT', focus: draftBills[0]?.id }) as never,
+                        )
+                      }
+                    />
+                  ) : null}
+                  {item.status === 'SUBMITTED' ? (
+                    <Button label="Approve PO" size="sm" variant="accent" onPress={() => void onApprovePo(item.id)} />
+                  ) : null}
+                  {canRecordGrn ? (
+                    <Button label="Record GRN" size="sm" onPress={() => onRecordGrn(item.id)} />
+                  ) : null}
+                </View>
               </View>
-              <View className="flex-[1.6] flex-row flex-wrap justify-end gap-1">
-                {draftBills.length > 0 ? (
-                  <Button
-                    label="Open bills"
-                    size="sm"
-                    variant="secondary"
-                    onPress={() =>
-                      router.push(
-                        inventoryBillsHref({ status: 'DRAFT', focus: draftBills[0]?.id }) as never,
-                      )
-                    }
-                  />
-                ) : null}
-                {item.status === 'SUBMITTED' ? (
-                  <Button label="Approve PO" size="sm" variant="accent" onPress={() => void onApprovePo(item.id)} />
-                ) : null}
-                {canRecordGrn ? (
-                  <Button label="Record GRN" size="sm" onPress={() => onRecordGrn(item.id)} />
-                ) : null}
+              <View className="px-4 pb-3">
+                <ExpandHint expanded={expanded} count={item.lines.length} onPress={() => toggle(item.id)} />
+                {expanded ? <DocumentLines lines={poLines(item)} /> : null}
               </View>
             </View>
           );
@@ -820,9 +855,14 @@ function OrdersSection({
               <Text className="text-sm font-bold text-text">{item.poNumber}</Text>
               <Badge label={item.status ?? 'DRAFT'} color={item.status === 'SUBMITTED' ? 'warning' : undefined} />
             </View>
+            <PartyLabel kind="vendor" name={item.vendorName} />
             <Text className="text-xs text-muted mt-1">
-              {item.vendorName ?? 'Vendor'} · ₹{Number(item.totalAmount ?? 0).toLocaleString('en-IN')}
+              ₹{Number(item.totalAmount ?? 0).toLocaleString('en-IN')}
             </Text>
+            <View className="mt-2">
+              <ExpandHint expanded={expanded} count={item.lines.length} onPress={() => toggle(item.id)} />
+              {expanded ? <DocumentLines lines={poLines(item)} /> : null}
+            </View>
             {item.goodsReceipts && item.goodsReceipts.length > 0 ? (
               <Text className="text-xs text-success mt-1">
                 {item.goodsReceipts.length} GRN{item.goodsReceipts.length === 1 ? '' : 's'} received
@@ -913,7 +953,12 @@ function GrnsSection({
     () =>
       allPurchaseOrders(requisitions)
         .flatMap((po) =>
-          (po.goodsReceipts ?? []).map((g) => ({ ...g, poNumber: po.poNumber, vendorName: po.vendorName })),
+          (po.goodsReceipts ?? []).map((g) => ({
+            ...g,
+            poNumber: po.poNumber,
+            vendorName: po.vendorName,
+            poLines: po.lines,
+          })),
         )
         .filter((g) => matchesText([g.grnNumber, g.poNumber, g.vendorName], query)),
     [requisitions, query],
@@ -921,6 +966,17 @@ function GrnsSection({
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop/tablet tables.
   const { isTablet, isDesktop } = useViewport();
   const tableMode = isTablet || isDesktop;
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const toggle = (id: string) => setExpandedId((cur) => (cur === id ? null : id));
+  const grnLines = (item: (typeof grns)[number]): PreviewLine[] =>
+    item.lines.map((l, idx) => {
+      const named = item.poLines.find((p) => p.resourceId === l.resourceId)?.resource?.name;
+      return {
+        key: `${item.id}-${l.resourceId}-${idx}`,
+        name: named ?? 'Item',
+        qty: `${Number(l.quantity)} ${l.unit}`,
+      };
+    });
   return (
     <FlatList
       className="flex-1 px-4"
@@ -930,6 +986,7 @@ function GrnsSection({
         tableMode && grns.length > 0 ? (
           <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
             <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">GRN</Text>
+            <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Vendor</Text>
             <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">PO</Text>
             <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Lines</Text>
             <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Date</Text>
@@ -938,27 +995,35 @@ function GrnsSection({
         ) : null
       }
       renderItem={({ item }) => {
+        const expanded = expandedId === item.id;
         // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop row.
         if (tableMode) {
           return (
-            <View className="flex-row items-center px-4 py-3 bg-card border-b border-border/60">
-              <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.grnNumber}</Text>
-              <Text className="flex-[1.2] text-xs text-muted" numberOfLines={1}>{item.poNumber || '-'}</Text>
-              <Text className="flex-1 text-xs text-text text-right">{item.lines.length}</Text>
-              <Text className="flex-1 text-xs text-muted text-right">{new Date(item.receivedDate).toLocaleDateString('en-IN')}</Text>
-              <View className="flex-[1.6] flex-row flex-wrap justify-end gap-1">
-                <Button
-                  label="Vendor bills"
-                  size="sm"
-                  variant="secondary"
-                  onPress={() => router.push(inventoryBillsHref({ q: item.vendorName }) as never)}
-                />
-                <Button
-                  label="PDF"
-                  size="sm"
-                  variant="ghost"
-                  onPress={() => void downloadReportPdf(`/inventory/pdf/grn/${item.id}`, `grn-${item.grnNumber}.pdf`)}
-                />
+            <View className="bg-card border-b border-border/60">
+              <View className="flex-row items-center px-4 py-3">
+                <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.grnNumber}</Text>
+                <Text className="flex-[1.4] text-xs text-text" numberOfLines={1}>{item.vendorName || 'Vendor not set'}</Text>
+                <Text className="flex-[1.2] text-xs text-muted" numberOfLines={1}>{item.poNumber || '-'}</Text>
+                <Text className="flex-1 text-xs text-text text-right">{item.lines.length}</Text>
+                <Text className="flex-1 text-xs text-muted text-right">{new Date(item.receivedDate).toLocaleDateString('en-IN')}</Text>
+                <View className="flex-[1.6] flex-row flex-wrap justify-end gap-1">
+                  <Button
+                    label="Vendor bills"
+                    size="sm"
+                    variant="secondary"
+                    onPress={() => router.push(inventoryBillsHref({ q: item.vendorName }) as never)}
+                  />
+                  <Button
+                    label="PDF"
+                    size="sm"
+                    variant="ghost"
+                    onPress={() => void downloadReportPdf(`/inventory/pdf/grn/${item.id}`, `grn-${item.grnNumber}.pdf`)}
+                  />
+                </View>
+              </View>
+              <View className="px-4 pb-3">
+                <ExpandHint expanded={expanded} count={item.lines.length} onPress={() => toggle(item.id)} />
+                {expanded ? <DocumentLines lines={grnLines(item)} /> : null}
               </View>
             </View>
           );
@@ -971,10 +1036,14 @@ function GrnsSection({
               {new Date(item.receivedDate).toLocaleDateString('en-IN')}
             </Text>
           </View>
+          <PartyLabel kind="vendor" name={item.vendorName} />
           <Text className="text-xs text-muted mt-1">
-            {item.poNumber ? `PO ${item.poNumber} · ` : ''}
-            {item.lines.length} line{item.lines.length === 1 ? '' : 's'}
+            {item.poNumber ? `PO ${item.poNumber}` : 'No PO'}
           </Text>
+          <View className="mt-2">
+            <ExpandHint expanded={expanded} count={item.lines.length} onPress={() => toggle(item.id)} />
+            {expanded ? <DocumentLines lines={grnLines(item)} /> : null}
+          </View>
           {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 9.3): printable GRN PDF. */}
           <View className="flex-row flex-wrap gap-2 mt-3">
             <Button
@@ -1157,8 +1226,11 @@ function CreatePOModal({
   }) => Promise<void>;
 }) {
   const approved = requisitions.filter(indentAvailableForNewPo);
+  const vendorsQ = useVendors();
+  const vendors = ((vendorsQ.data ?? []) as PartyRow[]).filter((v) => v.isActive);
   const [requisitionId, setRequisitionId] = useState('');
   const [poNumber, setPoNumber] = useState('');
+  const [vendorId, setVendorId] = useState('');
   const [vendorName, setVendorName] = useState('');
   const [rates, setRates] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -1197,6 +1269,7 @@ function CreatePOModal({
     if (!open) {
       setRequisitionId('');
       setPoNumber('');
+      setVendorId('');
       setVendorName('');
       setRates({});
       setError('');
@@ -1229,6 +1302,7 @@ function CreatePOModal({
       });
       setRequisitionId('');
       setPoNumber('');
+      setVendorId('');
       setVendorName('');
       setRates({});
     } catch (e) {
@@ -1272,7 +1346,30 @@ function CreatePOModal({
             Suggested automatically - edit if you need a custom number.
           </Text>
           <View className="h-3" />
-          <Input label="Vendor name" value={vendorName} onChangeText={setVendorName} />
+          {vendors.length > 0 ? (
+            <Select
+              label="Vendor (from Parties)"
+              value={vendorId || undefined}
+              onChange={(v) => {
+                setVendorId(v ?? '');
+                const party = vendors.find((p) => p.id === v);
+                setVendorName(party?.name ?? '');
+              }}
+              options={vendors.map((v) => ({
+                title: v.businessName ? `${v.name} · ${v.businessName}` : v.name,
+                value: v.id,
+                subtitle: [v.phone, v.gstin].filter(Boolean).join(' · ') || undefined,
+              }))}
+              placeholder="Choose a vendor"
+            />
+          ) : (
+            <Input
+              label="Vendor name"
+              value={vendorName}
+              onChangeText={setVendorName}
+              helper="Add vendors under Parties to pick them from a list next time."
+            />
+          )}
           {req ? (
             <View className="mt-3">
               <Text className="text-sm font-bold text-text mb-2">Cost ₹ (what you pay the vendor)</Text>
