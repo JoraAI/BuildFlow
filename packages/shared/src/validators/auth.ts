@@ -5,6 +5,22 @@ import { z } from 'zod';
 import { gstinSchema, panSchema, phoneSchema } from './common';
 
 /** Strong-ish password: 8+ chars, 1 upper, 1 lower, 1 number. */
+export const PASSWORD_RULES = [
+  { id: 'min', label: 'At least 8 characters', test: (v: string) => v.length >= 8 },
+  { id: 'max', label: 'At most 128 characters', test: (v: string) => v.length <= 128 },
+  { id: 'upper', label: 'One uppercase letter', test: (v: string) => /[A-Z]/.test(v) },
+  { id: 'lower', label: 'One lowercase letter', test: (v: string) => /[a-z]/.test(v) },
+  { id: 'number', label: 'One number', test: (v: string) => /[0-9]/.test(v) },
+] as const;
+
+export function getPasswordFormatError(value: string): string | undefined {
+  return PASSWORD_RULES.find((r) => !r.test(value))?.label;
+}
+
+export function isPasswordValid(value: string): boolean {
+  return PASSWORD_RULES.every((r) => r.test(value));
+}
+
 export const passwordSchema = z
   .string()
   .min(8, 'Password must be at least 8 characters')
@@ -66,9 +82,24 @@ export const registerCompanySchema = z
     // INVENTORY_PRODUCT: dedicated inventory signup path
     product: z.enum(['inventory', 'construction']).default('construction'),
   })
-  .refine((d) => Boolean(d.ownerEmail || d.ownerPhone), {
-    message: 'Owner email or mobile number is required',
-    path: ['ownerEmail'],
+  .superRefine((d, ctx) => {
+    if (d.product === 'inventory') {
+      if (!d.ownerPhone) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Mobile number is required',
+          path: ['ownerPhone'],
+        });
+      }
+      return;
+    }
+    if (!d.ownerEmail && !d.ownerPhone) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Owner email or mobile number is required',
+        path: ['ownerEmail'],
+      });
+    }
   });
 
 export type RegisterCompanyInput = z.infer<typeof registerCompanySchema>;

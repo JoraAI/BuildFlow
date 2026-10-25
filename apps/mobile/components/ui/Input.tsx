@@ -1,5 +1,6 @@
-import React from 'react';
-import { View, Text, TextInput } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TextInput, Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useViewport } from '@/hooks/useViewport';
 
 interface InputProps {
@@ -10,6 +11,8 @@ interface InputProps {
   error?: string;
   helper?: string;
   secureTextEntry?: boolean;
+  /** Eye button to reveal a password / secret field. */
+  passwordToggle?: boolean;
   keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad' | 'decimal-pad' | 'number-pad';
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   leftIcon?: React.ReactNode;
@@ -36,6 +39,7 @@ export function Input({
   error,
   helper,
   secureTextEntry,
+  passwordToggle = false,
   keyboardType = 'default',
   autoCapitalize = 'none',
   leftIcon,
@@ -51,6 +55,8 @@ export function Input({
   onSubmitEditing,
 }: InputProps) {
   const { isDesktop } = useViewport();
+  const [revealed, setRevealed] = useState(false);
+  const hideSecret = Boolean(secureTextEntry) && !(passwordToggle && revealed);
   const widthClass =
     fullWidth || !isDesktop
       ? 'w-full'
@@ -74,7 +80,7 @@ export function Input({
           onBlur={onBlur}
           onSubmitEditing={onSubmitEditing}
           placeholder={placeholder}
-          secureTextEntry={secureTextEntry}
+          secureTextEntry={hideSecret}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
           autoCorrect={false}
@@ -89,7 +95,22 @@ export function Input({
           }`}
           placeholderTextColor="#94A3B8"
         />
-        {rightIcon}
+        {passwordToggle ? (
+          <Pressable
+            onPress={() => setRevealed((v) => !v)}
+            accessibilityLabel={revealed ? 'Hide password' : 'Show password'}
+            hitSlop={8}
+            className="pl-2 py-2"
+          >
+            <Ionicons
+              name={revealed ? 'eye-off-outline' : 'eye-outline'}
+              size={20}
+              color="#64748B"
+            />
+          </Pressable>
+        ) : (
+          rightIcon
+        )}
       </View>
       {error ? <Text className="text-xs text-danger mt-1">{error}</Text> : null}
       {helper && !error ? <Text className="text-xs text-muted mt-1">{helper}</Text> : null}

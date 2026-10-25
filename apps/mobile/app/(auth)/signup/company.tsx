@@ -3,10 +3,19 @@
  * Supports Construction ERP and Inventory (?product=inventory).
  * Owner can register with email or mobile + password.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { registerCompanySchema } from '@buildflow/shared';
+import {
+  emailSchema,
+  gstinSchema,
+  getPasswordFormatError,
+  isPasswordValid,
+  panSchema,
+  PASSWORD_RULES,
+  phoneSchema,
+  registerCompanySchema,
+} from '@buildflow/shared';
 import { Button, Input, Card } from '@/components/ui';
 import { AuthScreenShell } from '@/components/auth/AuthScreenShell';
 import { useAuthStore } from '@/stores/auth.store';
@@ -48,7 +57,9 @@ export default function SignupCompanyScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<FormKey | string, string>>>({});
-  const [contactMethod, setContactMethod] = useState<ContactMethod>('email');
+  const [contactMethod, setContactMethod] = useState<ContactMethod>(
+    isInventorySignup ? 'phone' : 'email',
+  );
 
   const [form, setForm] = useState({
     companyName: '',
@@ -69,6 +80,10 @@ export default function SignupCompanyScreen() {
       .catch(() => setAllowed(true));
   }, []);
 
+  useEffect(() => {
+    if (isInventorySignup) setContactMethod('phone');
+  }, [isInventorySignup]);
+
   const set = (key: FormKey, value: string) => {
     setForm((f) => ({ ...f, [key]: value }));
     setFieldErrors((prev) => {
@@ -78,6 +93,47 @@ export default function SignupCompanyScreen() {
       return next;
     });
   };
+
+  const passwordLiveError = form.password ? getPasswordFormatError(form.password) : undefined;
+  const confirmLiveError = form.confirmPassword
+    ? getPasswordFormatError(form.confirmPassword) ??
+      (form.confirmPassword !== form.password ? 'Passwords do not match' : undefined)
+    : undefined;
+  const phoneLiveError =
+    (isInventorySignup || contactMethod === 'phone') && form.ownerPhone
+      ? phoneSchema.safeParse(form.ownerPhone).success
+        ? undefined
+        : 'Enter a valid mobile number'
+      : undefined;
+  const emailLiveError =
+    !isInventorySignup && contactMethod === 'email' && form.ownerEmail
+      ? emailSchema.safeParse(form.ownerEmail).success
+        ? undefined
+        : 'Enter a valid email address'
+      : undefined;
+  const gstLiveError = form.gstin.trim()
+    ? gstinSchema.safeParse(form.gstin).success
+      ? undefined
+      : 'GSTIN must be 15 characters (e.g. 36AABCR1234A1Z5)'
+    : undefined;
+  const panLiveError = form.pan.trim()
+    ? panSchema.safeParse(form.pan).success
+      ? undefined
+      : 'PAN must be 10 characters (e.g. AABCR1234A)'
+    : undefined;
+
+  const canSubmit = useMemo(() => {
+    const companyOk = form.companyName.trim().length >= 2 && form.state.trim().length >= 2;
+    const ownerOk = form.ownerName.trim().length >= 2;
+    const contactOk = isInventorySignup || contactMethod === 'phone'
+      ? phoneSchema.safeParse(form.ownerPhone).success
+      : emailSchema.safeParse(form.ownerEmail).success;
+    const gstOk = !form.gstin.trim() || gstinSchema.safeParse(form.gstin).success;
+    const panOk = !form.pan.trim() || panSchema.safeParse(form.pan).success;
+    const passwordOk = isPasswordValid(form.password);
+    const confirmOk = form.confirmPassword === form.password && isPasswordValid(form.confirmPassword);
+    return companyOk && ownerOk && contactOk && gstOk && panOk && passwordOk && confirmOk;
+  }, [form, isInventorySignup, contactMethod]);
 
   const applyZodIssues = (issues: { path: (string | number)[]; message: string }[]) => {
     const details = issues.map((i) => ({
@@ -92,22 +148,25 @@ export default function SignupCompanyScreen() {
     setError('');
     setFieldErrors({});
 
+    if (!canSubmit) return;
+
     if (form.password !== form.confirmPassword) {
       setFieldErrors({ confirmPassword: 'Passwords do not match' });
       setError('Confirm password: Passwords do not match');
       return;
     }
-    if (contactMethod === 'email' && !form.ownerEmail.trim()) {
-      setFieldErrors({ ownerEmail: 'Enter your email address' });
-      setError('Email: Enter your email address');
-      return;
-    }
-    if (contactMethod === 'phone' && !form.ownerPhone.trim()) {
+    if ((isInventorySignup || contactMethod === 'phone') && !form.ownerPhone.trim()) {
       setFieldErrors({ ownerPhone: 'Enter your mobile number' });
       setError('Mobile number: Enter your mobile number');
       return;
     }
+    if (!isInventorySignup && contactMethod === 'email' && !form.ownerEmail.trim()) {
+      setFieldErrors({ ownerEmail: 'Enter your email address' });
+      setError('Email: Enter your email address');
+      return;
+    }
 
+    const usePhone = isInventorySignup || contactMethod === 'phone';
     const payload = {
       companyName: form.companyName,
       gstin: form.gstin,
@@ -115,9 +174,9 @@ export default function SignupCompanyScreen() {
       state: form.state,
       address: form.address || undefined,
       ownerName: form.ownerName,
-      ...(contactMethod === 'email'
-        ? { ownerEmail: form.ownerEmail.trim().toLowerCase() }
-        : { ownerPhone: form.ownerPhone.trim() }),
+      ...(usePhone
+        ? { ownerPhone: form.ownerPhone.trim() }
+        : { ownerEmail: form.ownerEmail.trim().toLowerCase() }),
       password: form.password,
       product,
     };
@@ -150,6 +209,7 @@ export default function SignupCompanyScreen() {
       label={isInventorySignup ? 'Create inventory account' : 'Create account'}
       onPress={onSubmit}
       loading={loading}
+      disabled={!canSubmit}
       fullWidth
     />
   );
@@ -171,7 +231,7 @@ export default function SignupCompanyScreen() {
             value={form.gstin}
             onChangeText={(v) => set('gstin', v.toUpperCase())}
             autoCapitalize="characters"
-            error={fieldErrors.gstin}
+            error={fieldErrors.gstin ?? gstLiveError}
             helper="15 characters, or leave blank"
           />
         </View>
@@ -183,7 +243,7 @@ export default function SignupCompanyScreen() {
             value={form.pan}
             onChangeText={(v) => set('pan', v.toUpperCase())}
             autoCapitalize="characters"
-            error={fieldErrors.pan}
+            error={fieldErrors.pan ?? panLiveError}
             helper="10 characters, or leave blank"
           />
         </View>
@@ -218,7 +278,7 @@ export default function SignupCompanyScreen() {
         value={form.gstin}
         onChangeText={(v) => set('gstin', v.toUpperCase())}
         autoCapitalize="characters"
-        error={fieldErrors.gstin}
+        error={fieldErrors.gstin ?? gstLiveError}
         helper="15 characters, or leave blank"
       />
       <View className="h-3" />
@@ -227,7 +287,7 @@ export default function SignupCompanyScreen() {
         value={form.pan}
         onChangeText={(v) => set('pan', v.toUpperCase())}
         autoCapitalize="characters"
-        error={fieldErrors.pan}
+        error={fieldErrors.pan ?? panLiveError}
         helper="10 characters, or leave blank"
       />
       <View className="h-3" />
@@ -304,27 +364,38 @@ export default function SignupCompanyScreen() {
         />
         <View className="h-3" />
 
-        <View className="flex-row gap-2 mb-3">
-          {(['email', 'phone'] as const).map((m) => (
-            <TouchableOpacity
-              key={m}
-              onPress={() => setContactMethod(m)}
-              className={`flex-1 py-2.5 rounded-lg items-center ${
-                contactMethod === m ? 'bg-primary' : 'bg-surface'
-              }`}
-            >
-              <Text
-                className={`text-sm font-semibold ${
-                  contactMethod === m ? 'text-white' : 'text-text'
+        {!isInventorySignup ? (
+          <View className="flex-row gap-2 mb-3">
+            {(['email', 'phone'] as const).map((m) => (
+              <TouchableOpacity
+                key={m}
+                onPress={() => setContactMethod(m)}
+                className={`flex-1 py-2.5 rounded-lg items-center ${
+                  contactMethod === m ? 'bg-primary' : 'bg-surface'
                 }`}
               >
-                {m === 'email' ? 'Email' : 'Mobile'}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+                <Text
+                  className={`text-sm font-semibold ${
+                    contactMethod === m ? 'text-white' : 'text-text'
+                  }`}
+                >
+                  {m === 'email' ? 'Email' : 'Mobile'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : null}
 
-        {contactMethod === 'email' ? (
+        {isInventorySignup || contactMethod === 'phone' ? (
+          <Input
+            label="Mobile number"
+            value={form.ownerPhone}
+            onChangeText={(v) => set('ownerPhone', v)}
+            keyboardType="phone-pad"
+            placeholder="9876543210 or +919876543210"
+            error={fieldErrors.ownerPhone ?? phoneLiveError}
+          />
+        ) : (
           <Input
             label="Email"
             value={form.ownerEmail}
@@ -332,16 +403,7 @@ export default function SignupCompanyScreen() {
             keyboardType="email-address"
             autoCapitalize="none"
             placeholder="you@company.com"
-            error={fieldErrors.ownerEmail}
-          />
-        ) : (
-          <Input
-            label="Mobile number"
-            value={form.ownerPhone}
-            onChangeText={(v) => set('ownerPhone', v)}
-            keyboardType="phone-pad"
-            placeholder="9876543210 or +919876543210"
-            error={fieldErrors.ownerPhone}
+            error={fieldErrors.ownerEmail ?? emailLiveError}
           />
         )}
 
@@ -351,17 +413,45 @@ export default function SignupCompanyScreen() {
           value={form.password}
           onChangeText={(v) => set('password', v)}
           secureTextEntry
-          error={fieldErrors.password}
-          helper="Min 8 characters, with upper, lower, and a number"
+          passwordToggle
+          error={fieldErrors.password ?? passwordLiveError}
+          helper={form.password ? undefined : 'Min 8 characters, with upper, lower, and a number'}
         />
-        <View className="h-3" />
+        {form.password ? (
+          <View className="mb-3 gap-1">
+            {PASSWORD_RULES.filter((r) => r.id !== 'max' || !r.test(form.password)).map((rule) => {
+              const ok = rule.test(form.password);
+              return (
+                <Text key={rule.id} className={`text-xs ${ok ? 'text-muted' : 'text-danger'}`}>
+                  {ok ? '✓' : '•'} {rule.label}
+                </Text>
+              );
+            })}
+          </View>
+        ) : null}
         <Input
           label="Confirm password"
           value={form.confirmPassword}
           onChangeText={(v) => set('confirmPassword', v)}
           secureTextEntry
-          error={fieldErrors.confirmPassword}
+          passwordToggle
+          error={fieldErrors.confirmPassword ?? confirmLiveError}
         />
+        {form.confirmPassword ? (
+          <View className="mb-1">
+            <Text
+              className={`text-xs ${
+                form.confirmPassword === form.password && isPasswordValid(form.confirmPassword)
+                  ? 'text-muted'
+                  : 'text-danger'
+              }`}
+            >
+              {form.confirmPassword === form.password && isPasswordValid(form.confirmPassword)
+                ? '✓ Passwords match'
+                : '• Must match the password and meet the same format'}
+            </Text>
+          </View>
+        ) : null}
       </Card>
 
       {error ? (

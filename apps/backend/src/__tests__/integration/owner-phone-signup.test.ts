@@ -93,6 +93,20 @@ describe('owner signup with phone or email', () => {
     createdCompanyIds.push(res.body.data.user.companyId);
   });
 
+  it('rejects inventory register with email only', async () => {
+    const res = await request(app).post('/api/auth/register').send({
+      companyName: `Inv Email ${stamp}`,
+      gstin: uniqueGstin(5),
+      pan: 'AABCR1234A',
+      state: 'Telangana',
+      ownerName: 'Inv Email Owner',
+      ownerEmail: `inv-email-${stamp}@example.com`,
+      password,
+      product: 'inventory',
+    });
+    expect(res.status).toBe(422);
+  });
+
   it('rejects register without email or phone', async () => {
     const res = await request(app).post('/api/auth/register').send({
       companyName: 'No Contact Co',

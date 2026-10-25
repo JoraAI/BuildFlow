@@ -13,7 +13,7 @@ import {
   TextInput,
   ScrollView,
 } from 'react-native';
-import { Card, Avatar, Badge, Button, LoadingSkeleton, EmptyState } from '@/components/ui';
+import { Card, Avatar, Badge, Button, Input, LoadingSkeleton, EmptyState } from '@/components/ui';
 import { SettingsPageLayout } from '@/components/layout/SettingsPageLayout';
 import { ResponsiveGrid } from '@/components/layout/ResponsiveGrid';
 import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
@@ -22,6 +22,8 @@ import { useAuthStore } from '@/stores/auth.store';
 import {
   INVITABLE_ROLES_BY_PRODUCT,
   ROLE_LABELS,
+  getPasswordFormatError,
+  isPasswordValid,
   type Role,
 } from '@buildflow/shared';
 import {
@@ -77,6 +79,7 @@ export default function UsersScreen() {
   const [createEmail, setCreateEmail] = useState('');
   const [createPhone, setCreatePhone] = useState('');
   const [createPassword, setCreatePassword] = useState('');
+  const [createConfirmPassword, setCreateConfirmPassword] = useState('');
   const [createRole, setCreateRole] = useState<InviteRole>(defaultRole);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createdCreds, setCreatedCreds] = useState<{ loginHint: string; password: string } | null>(
@@ -164,8 +167,12 @@ export default function UsersScreen() {
       setCreateError('Enter email or mobile number.');
       return;
     }
-    if (!createPassword.trim()) {
-      setCreateError('Password is required.');
+    if (!isPasswordValid(createPassword)) {
+      setCreateError(getPasswordFormatError(createPassword) ?? 'Password is required.');
+      return;
+    }
+    if (createPassword !== createConfirmPassword) {
+      setCreateError('Passwords do not match.');
       return;
     }
     setCreateError(null);
@@ -184,6 +191,7 @@ export default function UsersScreen() {
           setCreateEmail('');
           setCreatePhone('');
           setCreatePassword('');
+          setCreateConfirmPassword('');
           await alertAsync(
             'User created',
             `Share login: ${result.loginHint}. They sign in with OTP (use 111111 until SMS/email delivery is configured).`,
@@ -525,6 +533,12 @@ export default function UsersScreen() {
               label={createTeamUser.isPending ? 'Creating…' : 'Create user'}
               onPress={onCreateUser}
               loading={createTeamUser.isPending}
+              disabled={
+                !createName.trim() ||
+                (!createEmail.trim() && !createPhone.trim()) ||
+                !isPasswordValid(createPassword) ||
+                createPassword !== createConfirmPassword
+              }
               fullWidth
             />
             <Button label="Close" variant="ghost" onPress={() => setCreateOpen(false)} fullWidth />
@@ -558,13 +572,28 @@ export default function UsersScreen() {
           className="border border-border rounded-lg px-3 py-2.5 text-text mb-3 bg-surface"
         />
 
-        <Text className="text-sm font-semibold text-text mb-1">Temporary password</Text>
-        <TextInput
+        <Input
+          label="Temporary password"
           value={createPassword}
           onChangeText={setCreatePassword}
           placeholder="Min 8 chars, upper, lower, number"
           secureTextEntry
-          className="border border-border rounded-lg px-3 py-2.5 text-text mb-3 bg-surface"
+          passwordToggle
+          error={createPassword ? getPasswordFormatError(createPassword) : undefined}
+          helper={createPassword ? undefined : 'Min 8 characters, with upper, lower, and a number'}
+        />
+        <Input
+          label="Confirm password"
+          value={createConfirmPassword}
+          onChangeText={setCreateConfirmPassword}
+          secureTextEntry
+          passwordToggle
+          error={
+            createConfirmPassword
+              ? getPasswordFormatError(createConfirmPassword) ??
+                (createConfirmPassword !== createPassword ? 'Passwords do not match' : undefined)
+              : undefined
+          }
         />
 
         {createError ? (
