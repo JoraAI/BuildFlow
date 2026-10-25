@@ -8,7 +8,7 @@ import { generateInviteToken, hashInviteToken } from '../utils/invite-token';
 import { recordAudit } from '../utils/audit';
 import { signAccessToken, signRefreshToken, expiresInSeconds } from '../utils/jwt';
 import { env } from '../config/env';
-import { Role, INVITABLE_ROLES_BY_PRODUCT, normalizePhone } from '@buildflow/shared';
+import { Role, INVITABLE_ROLES_BY_PRODUCT, ROLE_LABELS, normalizePhone } from '@buildflow/shared';
 import type {
   AcceptInviteInput,
   CreateTeamUserInput,
@@ -50,6 +50,41 @@ async function findUserByPhone(phone: string, opts?: { activeOnly?: boolean }) {
     },
     select: { id: true, email: true, phone: true, isActive: true, companyId: true },
   });
+}
+
+const PENDING_INVITE_COMPANY_SELECT = {
+  name: true,
+  logoUrl: true,
+  subscriptionPlan: true,
+  defaultProjectId: true,
+  inventoryProfile: true,
+  inventoryVertical: true,
+} as const;
+
+/** Latest unused, unexpired invite matching this mobile (any shop). */
+export async function findPendingInviteByPhone(phone: string) {
+  const variants = phoneLookupVariants(phone);
+  return prisma.userInvite.findFirst({
+    where: {
+      phone: { in: variants },
+      acceptedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+    include: { company: { select: PENDING_INVITE_COMPANY_SELECT } },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
+function inviteJoinName(
+  invite: { name?: string | null; role: string; phone?: string | null },
+  fallback?: string,
+): string {
+  const named = invite.name?.trim() || fallback?.trim();
+  if (named && named.length >= 2) return named;
+  const roleLabel = ROLE_LABELS[invite.role as Role];
+  if (roleLabel) return roleLabel;
+  const digits = (invite.phone ?? '').replace(/\D/g, '');
+  return digits.length >= 4 ? `Team member ${digits.slice(-4)}` : 'Team member';
 }
 
 function syntheticEmailFromPhone(phone: string): string {
@@ -146,12 +181,21 @@ export async function createInvite(
 ): Promise<{ inviteId: string; token: string; inviteUrl: string; expiresAt: Date }> {
   const email = input.email?.toLowerCase() || null;
   const phone = input.phone ? normalizePhone(input.phone) : null;
+  const name = input.name?.trim() || null;
 
   if (!email && !phone) {
     throw ApiError.badRequest('Email or mobile number is required');
   }
 
   await assertInvitableRole(companyId, input.role);
+
+  const company = await prisma.company.findUniqueOrThrow({
+    where: { id: companyId },
+    select: { subscriptionPlan: true },
+  });
+  if (company.subscriptionPlan === 'INVENTORY' && !phone) {
+    throw ApiError.badRequest('Mobile number is required to invite a team member');
+  }
 
   if (email || phone) {
     await assertContactAvailableForActiveUser({ email, phone });
@@ -166,7 +210,12 @@ export async function createInvite(
 
   if (phone) {
     const pendingPhone = await prisma.userInvite.findFirst({
-      where: { companyId, phone, acceptedAt: null, expiresAt: { gt: new Date() } },
+      where: {
+        companyId,
+        phone: { in: phoneLookupVariants(phone) },
+        acceptedAt: null,
+        expiresAt: { gt: new Date() },
+      },
     });
     if (pendingPhone) throw ApiError.conflict('A pending invite already exists for this mobile number');
   }
@@ -181,7 +230,8 @@ export async function createInvite(
   const invite = await prisma.userInvite.create({
     data: {
       companyId,
-      email,
+      name,
+      email: company.subscriptionPlan === 'INVENTORY' ? null : email,
       phone,
       role: input.role,
       tokenHash,
@@ -196,7 +246,7 @@ export async function createInvite(
     action: 'CREATE',
     entityType: 'user_invite',
     entityId: invite.id,
-    newValue: { email, phone, role: input.role },
+    newValue: { name, email: invite.email, phone, role: input.role },
   });
 
   const inviteUrl = `${env.APP_PUBLIC_URL}/signup/invite?token=${encodeURIComponent(token)}`;
@@ -296,6 +346,7 @@ export async function listPendingInvites(companyId: string) {
     orderBy: { createdAt: 'desc' },
     select: {
       id: true,
+      name: true,
       email: true,
       phone: true,
       role: true,
@@ -337,6 +388,7 @@ export async function resendInvite(
   await prisma.userInvite.delete({ where: { id: inviteId } });
 
   return createInvite(companyId, invitedById, {
+    name: invite.name ?? undefined,
     email: invite.email ?? undefined,
     phone: invite.phone ?? undefined,
     role: invite.role as CreateUserInviteInput['role'],
@@ -358,6 +410,7 @@ export async function getInvitePreview(token: string) {
   if (invite.expiresAt < new Date()) throw ApiError.badRequest('Invite has expired');
 
   return {
+    name: invite.name,
     email: invite.email,
     phone: invite.phone,
     role: invite.role,
@@ -436,6 +489,136 @@ export async function sendInviteOtp(token: string): Promise<{
   };
 }
 
+export async function completeInviteAsUser(
+  invite: {
+    id: string;
+    companyId: string;
+    email: string | null;
+    phone: string | null;
+    role: Role;
+    company: { defaultProjectId: string | null };
+  },
+  name: string,
+) {
+  const phone = invite.phone ? normalizePhone(invite.phone) : null;
+  const email = (
+    invite.email ??
+    (phone ? syntheticEmailFromPhone(phone) : null)
+  )?.toLowerCase();
+
+  if (!email) {
+    throw ApiError.badRequest('Invite is missing contact details');
+  }
+
+  await assertContactAvailableForActiveUser({ email, phone });
+
+  const { generateRandomPassword } = await import('./otp.service');
+  const passwordHash = await hashPassword(generateRandomPassword());
+
+  return prisma.$transaction(async (tx) => {
+    const created = await tx.user.create({
+      data: {
+        companyId: invite.companyId,
+        name,
+        email,
+        phone,
+        passwordHash,
+        role: invite.role,
+      },
+    });
+
+    // INVENTORY_PRODUCT: invited users of an inventory company are auto-added
+    // as members of the single default STORE project so project-scoped routes
+    // (procurement, stock, invoices, bills) pass the project-access check.
+    if (invite.company.defaultProjectId) {
+      await tx.projectMember.create({
+        data: {
+          projectId: invite.company.defaultProjectId,
+          userId: created.id,
+          role: invite.role,
+        },
+      });
+    }
+
+    await tx.userInvite.update({
+      where: { id: invite.id },
+      data: { acceptedAt: new Date() },
+    });
+
+    return created;
+  });
+}
+
+/** Sign-in + OTP: consume login OTP and join the shop from a pending phone invite. */
+export async function acceptPendingPhoneInvite(
+  phoneRaw: string,
+  otp: string,
+  ipAddress?: string,
+): Promise<AuthResponse | null> {
+  const phone = normalizePhone(phoneRaw);
+  const invite = await findPendingInviteByPhone(phone);
+  if (!invite) return null;
+
+  const { consumeOtp } = await import('./otp.service');
+  await consumeOtp({
+    purpose: 'login',
+    key: phone,
+    code: otp,
+    expectedDestination: phone,
+  });
+
+  const user = await completeInviteAsUser(invite, inviteJoinName(invite));
+
+  await recordAudit({
+    companyId: invite.companyId,
+    userId: user.id,
+    action: 'CREATE',
+    entityType: 'user',
+    entityId: user.id,
+    newValue: {
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      joinMethod: 'login-otp',
+    },
+    ipAddress,
+  });
+
+  const tokens = issueTokens({ sub: user.id, companyId: user.companyId, role: user.role });
+  const { resolveLogoDisplayUrl } = await import('./settings.service');
+  const { getRolePermissions } = await import('../lib/permissions');
+  const { getProductMode, PLAN_MODULES, InventoryBusinessProfile } = await import('@buildflow/shared');
+  const [companyLogoUrl, permissions] = await Promise.all([
+    resolveLogoDisplayUrl(user.companyId, invite.company.logoUrl),
+    getRolePermissions(user.companyId, user.role),
+  ]);
+  const planKey = invite.company.subscriptionPlan as keyof typeof PLAN_MODULES;
+
+  return {
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      companyId: user.companyId,
+      companyName: invite.company.name,
+      phone: user.phone,
+      companyLogoUrl,
+      permissions,
+      productMode: getProductMode(invite.company.subscriptionPlan),
+      defaultProjectId: invite.company.defaultProjectId,
+      enabledModules: [...(PLAN_MODULES[planKey] ?? PLAN_MODULES.STARTER)],
+      subscriptionPlan: invite.company.subscriptionPlan,
+      inventoryProfile:
+        getProductMode(invite.company.subscriptionPlan) === 'inventory'
+          ? (invite.company.inventoryProfile ?? InventoryBusinessProfile.GENERAL)
+          : null,
+      inventoryVertical: invite.company.inventoryVertical,
+    },
+    ...tokens,
+  };
+}
+
 export async function acceptInvite(
   input: AcceptInviteInput,
   ipAddress?: string,
@@ -471,7 +654,7 @@ export async function acceptInvite(
     throw ApiError.badRequest('Invite is missing contact details');
   }
 
-  const { consumeOtp, generateRandomPassword } = await import('./otp.service');
+  const { consumeOtp } = await import('./otp.service');
   await consumeOtp({
     purpose: 'invite',
     key: tokenHash,
@@ -479,53 +662,7 @@ export async function acceptInvite(
     expectedDestination,
   });
 
-  // Email invites use the invite email (locked). Phone invites use a synthetic
-  // internal email; the invite phone is locked and stored on the user.
-  const email = (
-    invite.email ??
-    (phone ? syntheticEmailFromPhone(phone) : null)
-  )?.toLowerCase();
-
-  if (!email) {
-    throw ApiError.badRequest('Invite is missing contact details');
-  }
-
-  await assertContactAvailableForActiveUser({ email, phone });
-
-  const passwordHash = await hashPassword(generateRandomPassword());
-
-  const user = await prisma.$transaction(async (tx) => {
-    const created = await tx.user.create({
-      data: {
-        companyId: invite.companyId,
-        name: input.name,
-        email,
-        phone,
-        passwordHash,
-        role: invite.role,
-      },
-    });
-
-    // INVENTORY_PRODUCT: invited users of an inventory company are auto-added
-    // as members of the single default STORE project so project-scoped routes
-    // (procurement, stock, invoices, bills) pass the project-access check.
-    if (invite.company.defaultProjectId) {
-      await tx.projectMember.create({
-        data: {
-          projectId: invite.company.defaultProjectId,
-          userId: created.id,
-          role: invite.role,
-        },
-      });
-    }
-
-    await tx.userInvite.update({
-      where: { id: invite.id },
-      data: { acceptedAt: new Date() },
-    });
-
-    return created;
-  });
+  const user = await completeInviteAsUser(invite, inviteJoinName(invite, input.name));
 
   await recordAudit({
     companyId: invite.companyId,

@@ -126,7 +126,7 @@ export default function SignupInviteScreen() {
 
   const contactHint =
     preview?.inviteChannel === 'phone'
-      ? 'Your mobile is locked to this invite — verify with OTP to join'
+      ? 'Your mobile is locked to this invite — verify with OTP to join. You can also Sign in with this mobile and OTP.'
       : 'Your email is locked to this invite — verify with OTP to join';
 
   return (

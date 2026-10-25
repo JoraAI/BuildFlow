@@ -398,7 +398,14 @@ export async function login(
         });
       })();
 
-  if (!user) throw ApiError.unauthorized('Invalid email/mobile or OTP');
+  if (!user) {
+    if (!identifier.includes('@')) {
+      const { acceptPendingPhoneInvite } = await import('./invite.service');
+      const joined = await acceptPendingPhoneInvite(identifier, input.otp, ipAddress);
+      if (joined) return joined;
+    }
+    throw ApiError.unauthorized('Invalid email/mobile or OTP');
+  }
 
   const { consumeOtp } = await import('./otp.service');
   if (identifier.includes('@')) {
@@ -508,7 +515,13 @@ export async function sendLoginOtp(identifierRaw: string): Promise<{
     where: { phone: { in: variants }, isActive: true },
     select: { id: true, companyId: true, phone: true },
   });
-  if (!user?.phone) {
+  let companyId = user?.companyId ?? null;
+  if (!companyId) {
+    const { findPendingInviteByPhone } = await import('./invite.service');
+    const pending = await findPendingInviteByPhone(phone);
+    companyId = pending?.companyId ?? null;
+  }
+  if (!companyId) {
     return {
       sent: true,
       expiresInSec: 600,
@@ -523,7 +536,7 @@ export async function sendLoginOtp(identifierRaw: string): Promise<{
     key: phone,
     channel: 'sms',
     destination: phone,
-    companyId: user.companyId,
+    companyId,
     messagePrefix: 'StaffingPros: Your BuildFlow login code is',
   });
 

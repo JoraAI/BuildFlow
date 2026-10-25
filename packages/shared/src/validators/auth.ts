@@ -157,6 +157,7 @@ export const inviteRoleSchema = z.enum([
 
 export const createUserInviteSchema = z
   .object({
+    name: z.string().trim().min(2).max(120).optional(),
     email: optionalEmail,
     phone: optionalPhone,
     role: inviteRoleSchema.default('PM'),

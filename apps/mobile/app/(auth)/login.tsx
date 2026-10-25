@@ -93,7 +93,7 @@ export default function LoginScreen() {
       heroSubline="Sign in to Construction ERP or Inventory - stock profiles, warehouses, sales & GST."
       backHref="/"
       formTitle="Sign in"
-      formSubtitle="Enter your email or mobile and the OTP we send you"
+      formSubtitle="Enter your email or mobile and the OTP we send you. Invited to a shop? Use that mobile to join it."
       footer={
         isDesktop ? (
           <>

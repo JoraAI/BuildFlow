@@ -675,6 +675,8 @@ model UserInvite {
   email       String?
   /// Optional when inviting by email only. Normalized E.164-ish (+91…).
   phone       String?
+  /// Display name used when the invitee joins via Sign in + OTP.
+  name        String?
   role        Role      @default(PM)
   tokenHash   String    @unique @map("token_hash")
   invitedById String    @map("invited_by_id") @db.Uuid

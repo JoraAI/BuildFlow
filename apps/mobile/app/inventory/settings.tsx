@@ -48,6 +48,7 @@ import {
   gstinSchema,
   hasInventoryFeature,
   panSchema,
+  phoneSchema,
   type InventoryBusinessProfile,
   type SubscriptionPlanKey,
 } from '@buildflow/shared';
@@ -637,7 +638,7 @@ export default function InventorySettingsScreen() {
             <Button label="Invite" variant="accent" size="sm" onPress={() => setInviteOpen(true)} />
           </View>
           {users ? (
-            users.map((u: { id: string; name: string; email: string; role: string }) => (
+            users.map((u: { id: string; name: string; email: string; phone?: string | null; role: string }) => (
               <View
                 key={u.id}
                 className="flex-row items-center justify-between py-2 border-b border-border/60"
@@ -646,7 +647,7 @@ export default function InventorySettingsScreen() {
                   <Text className="text-sm font-semibold text-text" numberOfLines={1}>
                     {u.name}
                   </Text>
-                  <Text className="text-xs text-muted">{u.email}</Text>
+                  <Text className="text-xs text-muted">{u.phone || u.email}</Text>
                 </View>
                 <Badge label={String(u.role)} />
               </View>
@@ -660,16 +661,18 @@ export default function InventorySettingsScreen() {
         <Card className="p-5 mb-4">
           <Text className="text-sm font-bold text-text mt-4 mb-2">Pending invites</Text>
           {invites && invites.length > 0 ? (
-            invites.map((inv: { id: string; email: string; role: string }) => (
+            invites.map((inv: { id: string; name?: string | null; email?: string | null; phone?: string | null; role: string }) => (
               <View
                 key={inv.id}
                 className="flex-row items-center justify-between py-2 border-b border-border/60"
               >
                 <View className="flex-1 min-w-0 mr-2">
                   <Text className="text-sm text-text" numberOfLines={1}>
-                    {inv.email}
+                    {inv.name || inv.phone || inv.email || 'Pending invite'}
                   </Text>
-                  <Text className="text-xs text-muted">{inv.role}</Text>
+                  <Text className="text-xs text-muted">
+                    {[inv.role, inv.phone || inv.email].filter(Boolean).join(' · ')}
+                  </Text>
                 </View>
                 <Button
                   size="sm"
@@ -888,10 +891,10 @@ export default function InventorySettingsScreen() {
       <InviteModal
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
-        onSubmit={async (email, role) => {
+        onSubmit={async (input) => {
           await run(async () => {
-            await createInvite.mutateAsync({ email, role });
-            toast.success('Invite sent');
+            await createInvite.mutateAsync(input);
+            toast.success('Invite ready. They can Sign in with this mobile and OTP to join this shop.');
             setInviteOpen(false);
           });
         }}
@@ -901,6 +904,12 @@ export default function InventorySettingsScreen() {
 }
 
 
+function digitsIndiaMobile(raw: string): string {
+  let digits = raw.replace(/\D/g, '');
+  if (digits.startsWith('91') && digits.length > 10) digits = digits.slice(2);
+  return digits.slice(0, 10);
+}
+
 function InviteModal({
   open,
   onClose,
@@ -908,24 +917,31 @@ function InviteModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onSubmit: (email: string, role: string) => Promise<void>;
+  onSubmit: (input: { name?: string; phone: string; role: string }) => Promise<void>;
 }) {
   const { isDesktop } = useViewport();
-  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [role, setRole] = useState('INVENTORY_MANAGER');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   const submit = async () => {
     setError('');
-    if (!email) {
-      setError('Enter an email address.');
+    const parsed = phoneSchema.safeParse(phone);
+    if (!parsed.success) {
+      setError('Enter a 10-digit Indian mobile number.');
       return;
     }
     setSaving(true);
     try {
-      await onSubmit(email.trim().toLowerCase(), role);
-      setEmail('');
+      await onSubmit({
+        name: name.trim() || undefined,
+        phone: parsed.data,
+        role,
+      });
+      setName('');
+      setPhone('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to send invite');
     } finally {
@@ -948,14 +964,31 @@ function InviteModal({
           </View>
           <View className="p-5">
             <Text className="text-xs text-muted mb-3">
-              Inventory accounts can only invite OWNER or INVENTORY_MANAGER roles.
+              Invite an owner or inventory manager by mobile. They Sign in with this number and OTP
+              and join this shop directly — no email.
             </Text>
             <Input
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
+              label="Name (optional)"
+              value={name}
+              onChangeText={setName}
+              placeholder="Hari Reddy"
             />
+            <View className="h-3" />
+            <Input
+              label="Mobile number"
+              value={phone}
+              onChangeText={(v) => setPhone(digitsIndiaMobile(v))}
+              keyboardType="phone-pad"
+              placeholder="9876543210"
+              maxLength={10}
+              leftIcon={
+                <Text className="text-sm font-semibold text-text pr-2 mr-2 border-r border-border">
+                  +91
+                </Text>
+              }
+              helper="10-digit Indian mobile number"
+            />
+            <View className="h-3" />
             <Select
               label="Role"
               value={role}

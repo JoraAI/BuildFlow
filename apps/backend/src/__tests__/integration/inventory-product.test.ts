@@ -133,15 +133,52 @@ describe('INVENTORY_PRODUCT (integration)', () => {
   });
 
   it('accepts inviting INVENTORY_MANAGER on an inventory company (201)', async () => {
+    const phone = `91${suffix.slice(-8)}`;
     const res = await authPost(invToken, '/api/settings/users/invite', {
-      email: `im-${suffix}@example.com`,
+      phone,
+      name: 'Invited Manager',
       role: 'INVENTORY_MANAGER',
     });
     expect(res.status).toBe(201);
     const inviteRow = await prisma.userInvite.findFirst({
-      where: { companyId, email: `im-${suffix}@example.com` },
+      where: { companyId, phone: { contains: suffix.slice(-8) } },
     });
     expect(inviteRow?.role).toBe('INVENTORY_MANAGER');
+    expect(inviteRow?.email).toBeNull();
+  });
+
+  it('rejects inventory email-only invites (400)', async () => {
+    const res = await authPost(invToken, '/api/settings/users/invite', {
+      email: `im-email-${suffix}@example.com`,
+      role: 'INVENTORY_MANAGER',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('joins the shop directly via Sign in + OTP after a phone invite', async () => {
+    const phone = `94${suffix.slice(-8)}`;
+    const inviteRes = await authPost(invToken, '/api/settings/users/invite', {
+      phone,
+      name: 'Login Joiner',
+      role: 'INVENTORY_MANAGER',
+    });
+    expect(inviteRes.status).toBe(201);
+
+    const otpSend = await request(app).post('/api/auth/login/send-otp').send({ email: phone });
+    expect(otpSend.status).toBe(200);
+    expect(otpSend.body.data.channel).toBe('sms');
+
+    const login = await request(app).post('/api/auth/login').send({
+      email: phone,
+      otp: '111111',
+    });
+    expect(login.status).toBe(200);
+    expect(login.body.data.user.companyId).toBe(companyId);
+    expect(login.body.data.user.role).toBe('INVENTORY_MANAGER');
+    expect(login.body.data.user.productMode).toBe('inventory');
+    expect(login.body.data.user.defaultProjectId).toBe(defaultProjectId);
+    expect(login.body.data.user.name).toBe('Login Joiner');
+    expect(login.body.data.accessToken).toBeTruthy();
   });
 
   it('rejects inviting INVENTORY_MANAGER on a construction company (400)', async () => {
@@ -178,7 +215,8 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     async () => {
     // Invite + accept an INVENTORY_MANAGER.
     const inviteRes = await authPost(invToken, '/api/settings/users/invite', {
-      email: `im-flow-${suffix}@example.com`,
+      phone: `92${suffix.slice(-8)}`,
+      name: 'Store Manager',
       role: 'INVENTORY_MANAGER',
     });
     expect(inviteRes.status).toBe(201);
@@ -1365,7 +1403,8 @@ describe('INVENTORY_PRODUCT (integration)', () => {
 
       // Accept an INVENTORY_MANAGER to exercise the manager band.
       const inviteRes = await authPost(invToken, '/api/settings/users/invite', {
-        email: `im-band-${suffix}@example.com`,
+        phone: `93${suffix.slice(-8)}`,
+        name: 'Band Manager',
         role: 'INVENTORY_MANAGER',
       });
       expect(inviteRes.status).toBe(201);

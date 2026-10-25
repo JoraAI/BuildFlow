@@ -348,6 +348,7 @@ export function useExportZip() {
 
 export interface PendingInvite {
   id: string;
+  name: string | null;
   email: string | null;
   phone: string | null;
   role: string;
@@ -382,7 +383,7 @@ export function usePendingInvites() {
 export function useCreateInvite() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { email?: string; phone?: string; role: string }) =>
+    mutationFn: (data: { name?: string; email?: string; phone?: string; role: string }) =>
       apiFetch<InviteCreated>('/settings/users/invite', {
         method: 'POST',
         body: JSON.stringify(data),

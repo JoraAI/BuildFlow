@@ -96,6 +96,29 @@ describe('team invite & phone auth smoke', () => {
     expect(login.status).toBe(200);
   });
 
+  it('phone invite joins via Sign in + OTP without the invite token', async () => {
+    const phone = `94${String(Date.now()).slice(-8)}`;
+    const invite = await request(app)
+      .post('/api/settings/users/invite')
+      .set(authHeader)
+      .send({ phone, name: 'Direct Joiner', role: 'DPM' });
+    expect(invite.status).toBe(201);
+
+    const otpSend = await request(app).post('/api/auth/login/send-otp').send({ email: phone });
+    expect(otpSend.status).toBe(200);
+    expect(otpSend.body.data.channel).toBe('sms');
+
+    const login = await request(app).post('/api/auth/login').send({
+      email: phone,
+      otp: MASTER_OTP,
+    });
+    expect(login.status).toBe(200);
+    expect(login.body.data.user.companyId).toBe(companyId);
+    expect(login.body.data.user.name).toBe('Direct Joiner');
+    expect(login.body.data.user.role).toBe('DPM');
+    createdUserIds.push(login.body.data.user.id);
+  });
+
   it('phone invite: OTP join + OTP login', async () => {
     const phone = `98${String(Date.now()).slice(-8)}`;
     const invite = await request(app)
