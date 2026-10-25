@@ -22,7 +22,6 @@ import { PLAN_PRICES_INR, PLAN_ANNUAL_INR, PLAN_LIMITS } from '@buildflow/shared
 import { resolveAssistantIdentity, executeAssistantTool } from '../../services/assistant-tools.service';
 import { notifyLowStock } from '../../services/inventory-alerts.service';
 
-const PASSWORD = 'Test@1234';
 const CONSTRUCTION_OWNER = 'owner@reddyconst.com';
 
 function uniqueGstin(): string {
