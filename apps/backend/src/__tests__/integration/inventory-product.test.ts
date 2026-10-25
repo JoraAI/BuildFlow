@@ -389,11 +389,11 @@ describe('INVENTORY_PRODUCT (integration)', () => {
 
   /* ── Pricing constants (single source of truth) ───────────────────── */
   it('exposes India-friendly prices + inventory limits in shared constants', () => {
-    expect(PLAN_PRICES_INR.INVENTORY).toBe(499);
+    expect(PLAN_PRICES_INR.INVENTORY).toBe(799);
     expect(PLAN_PRICES_INR.STARTER).toBe(1999);
     expect(PLAN_PRICES_INR.PROFESSIONAL).toBe(4999);
     expect(PLAN_PRICES_INR.ENTERPRISE).toBeNull(); // contact sales
-    expect(PLAN_ANNUAL_INR.INVENTORY).toBe(4990);
+    expect(PLAN_ANNUAL_INR.INVENTORY).toBe(7990);
     expect(PLAN_ANNUAL_INR.STARTER).toBe(19990);
     expect(PLAN_ANNUAL_INR.PROFESSIONAL).toBe(49990);
     expect(PLAN_LIMITS.INVENTORY).toEqual({ maxProjects: 1, maxUsers: 10 });

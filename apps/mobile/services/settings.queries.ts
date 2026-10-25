@@ -502,6 +502,17 @@ export interface BillingAvailability {
   razorpay: boolean;
   stripe: boolean;
   plans: Record<string, number>;
+  annualPlans?: Record<string, number>;
+}
+
+export interface SaasQuote {
+  mode: 'new' | 'extend' | 'upgrade_prorate' | 'schedule';
+  amountInr: number;
+  creditInr: number;
+  periodStart: string;
+  periodEnd: string;
+  message: string;
+  requiresPayment: boolean;
 }
 
 export interface SubscriptionUsage {
@@ -519,6 +530,9 @@ export interface SubscriptionSummary {
   daysRemaining: number | null;
   isTrial: boolean;
   lastPaymentAt: string | null;
+  billingInterval?: 'MONTHLY' | 'YEARLY' | null;
+  pendingBillingInterval?: 'MONTHLY' | 'YEARLY' | null;
+  quotes?: { MONTHLY: SaasQuote; YEARLY: SaasQuote };
   usage: SubscriptionUsage;
   billing?: BillingAvailability;
 }
@@ -532,11 +546,30 @@ export function useSubscription() {
 
 export function useCreateSubscriptionCheckout() {
   return useMutation({
-    mutationFn: (data: { plan: string; gateway: 'razorpay' | 'stripe' }) =>
-      apiFetch<{ paymentUrl: string; gateway: string; amount: number; plan: string }>(
-        '/settings/subscription/checkout',
-        { method: 'POST', body: JSON.stringify(data) },
-      ),
+    mutationFn: (data: { plan: string; gateway: 'razorpay' | 'stripe'; interval?: 'MONTHLY' | 'YEARLY' }) =>
+      apiFetch<{
+        paymentUrl: string;
+        gateway: string;
+        amount: number;
+        plan: string;
+        interval?: string;
+        scheduled?: boolean;
+        quote?: SaasQuote;
+      }>('/settings/subscription/checkout', { method: 'POST', body: JSON.stringify(data) }),
+  });
+}
+
+export function useScheduleSubscriptionInterval() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (interval: 'MONTHLY' | 'YEARLY' | null) =>
+      apiFetch('/settings/subscription/interval', {
+        method: 'POST',
+        body: JSON.stringify({ interval }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: settingsKeys.subscription });
+    },
   });
 }
 

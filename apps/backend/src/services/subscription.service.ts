@@ -1,13 +1,14 @@
 /**
  * BuildFlow - Company subscription / trial lifecycle.
  */
-import { SubscriptionPlan, SubscriptionStatus, Role } from '@prisma/client';
-import { getPlanLimit, type PlanLimitKey } from '@buildflow/shared';
+import { BillingInterval, SubscriptionPlan, SubscriptionStatus, Role } from '@prisma/client';
+import { getPlanLimit, type PlanLimitKey, type SaasQuote } from '@buildflow/shared';
 import { prisma } from '../lib/prisma';
 import { env } from '../config/env';
 import { notify } from './notification.service';
 import { notifyInternalOps } from './ops-notification.service';
 import { logger } from '../config/logger';
+import { quoteCompanyInterval } from './saas-billing.service';
 
 export const TRIAL_DAYS = env.TRIAL_DAYS;
 
@@ -26,6 +27,9 @@ export interface SubscriptionSummary {
   daysRemaining: number | null;
   isTrial: boolean;
   lastPaymentAt: string | null;
+  billingInterval: BillingInterval | null;
+  pendingBillingInterval: BillingInterval | null;
+  quotes?: { MONTHLY: SaasQuote; YEARLY: SaasQuote };
   usage: SubscriptionUsage;
 }
 
@@ -50,6 +54,8 @@ export async function getSubscriptionSummary(companyId: string): Promise<Subscri
       trialStartsAt: true,
       trialEndsAt: true,
       lastPaymentAt: true,
+      billingInterval: true,
+      pendingBillingInterval: true,
     },
   });
 
@@ -76,6 +82,15 @@ export async function getSubscriptionSummary(companyId: string): Promise<Subscri
     daysRemaining: daysUntil(company.trialEndsAt),
     isTrial,
     lastPaymentAt: company.lastPaymentAt?.toISOString() ?? null,
+    billingInterval: company.billingInterval,
+    pendingBillingInterval: company.pendingBillingInterval,
+    quotes:
+      company.subscriptionPlan === SubscriptionPlan.ENTERPRISE
+        ? undefined
+        : {
+            MONTHLY: quoteCompanyInterval(company, BillingInterval.MONTHLY),
+            YEARLY: quoteCompanyInterval(company, BillingInterval.YEARLY),
+          },
     usage: {
       projectCount,
       userCount,
@@ -126,6 +141,17 @@ export async function runSubscriptionCron(): Promise<void> {
   logger.info('Running subscription trial cron');
 
   const now = new Date();
+  const expiredPaid = await prisma.company.findMany({
+    where: { subscriptionStatus: SubscriptionStatus.ACTIVE, trialEndsAt: { lte: now } },
+    select: { id: true },
+  });
+  if (expiredPaid.length) {
+    await prisma.company.updateMany({
+      where: { id: { in: expiredPaid.map((c) => c.id) } },
+      data: { subscriptionStatus: SubscriptionStatus.PAST_DUE },
+    });
+  }
+
   const companies = await prisma.company.findMany({
     where: { subscriptionStatus: SubscriptionStatus.TRIAL },
     select: {

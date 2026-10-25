@@ -26,6 +26,7 @@ import { env } from '../config/env';
 const BILLING_EXEMPT_PREFIXES = [
   '/api/auth/',
   '/api/settings/billing',
+  '/api/settings/subscription',
   '/api/settings/company',
   '/api/platform/',
   '/api/webhooks/',
@@ -44,7 +45,9 @@ function isBillingExemptPath(originalUrl: string): boolean {
 /** True if the company's subscription should block API access. */
 function isSubscriptionBlocked(status: SubscriptionStatus, trialEndsAt: Date | null): boolean {
   if (status === SubscriptionStatus.EXPIRED || status === SubscriptionStatus.CANCELLED) return true;
+  if (status === SubscriptionStatus.PAST_DUE) return true;
   if (status === SubscriptionStatus.TRIAL && trialEndsAt && trialEndsAt < new Date()) return true;
+  if (status === SubscriptionStatus.ACTIVE && trialEndsAt && trialEndsAt < new Date()) return true;
   return false;
 }
 

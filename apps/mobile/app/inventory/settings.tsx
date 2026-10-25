@@ -27,6 +27,7 @@ import {
   useUpdateCompany,
   useCompanyLogoUpload,
   useCreateSubscriptionCheckout,
+  useScheduleSubscriptionInterval,
   useSubscription,
   useUsers,
   usePendingInvites,
@@ -38,6 +39,7 @@ import {
 import { downloadTallyXml } from '@/services/report-download';
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/constants/i18n';
 import {
+  PLAN_ANNUAL_INR,
   PLAN_PRICES_INR,
   INVENTORY_PROFILE_OPTIONS,
   INVENTORY_PROFILE_LABELS,
@@ -64,6 +66,7 @@ export default function InventorySettingsScreen() {
   const { data: reportSettings } = useReportSettings();
   const { data: subscription, refetch: refetchSubscription } = useSubscription();
   const checkout = useCreateSubscriptionCheckout();
+  const scheduleInterval = useScheduleSubscriptionInterval();
   const { data: users } = useUsers();
   const { data: invites } = usePendingInvites();
   const createInvite = useCreateInvite();
@@ -220,14 +223,40 @@ export default function InventorySettingsScreen() {
       : 'Enter a valid 10-character PAN'
     : undefined;
 
-  const payInventory = async () => {
+  const payInventory = async (interval: 'MONTHLY' | 'YEARLY') => {
+    const quote = subscription?.quotes?.[interval];
+    if (quote && !quote.requiresPayment) {
+      await run(async () => {
+        try {
+          await scheduleInterval.mutateAsync(interval);
+          toast.success(quote.message);
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : 'Could not schedule billing change');
+        }
+      });
+      return;
+    }
     if (subscription?.billing && !subscription.billing.razorpay) {
       toast.error('Razorpay checkout is not configured yet.');
       return;
     }
     await run(async () => {
       try {
-        const result = await checkout.mutateAsync({ plan: 'INVENTORY', gateway: 'razorpay' });
+        const result = await checkout.mutateAsync({
+          plan: 'INVENTORY',
+          gateway: 'razorpay',
+          interval,
+        });
+        if (result.scheduled) {
+          toast.success(result.quote?.message ?? 'Monthly billing will start after this period.');
+          await refetchSubscription();
+          return;
+        }
+        if (!result.paymentUrl) {
+          toast.success(result.quote?.message ?? 'Plan updated');
+          await refetchSubscription();
+          return;
+        }
         if (typeof window !== 'undefined') {
           window.open(result.paymentUrl, '_blank');
         } else {
@@ -340,13 +369,27 @@ export default function InventorySettingsScreen() {
             />
           </View>
           <Text className="text-xs text-muted mt-1">
-            Inventory · ₹{PLAN_PRICES_INR.INVENTORY}/month (+18% GST)
+            Inventory · ₹{PLAN_PRICES_INR.INVENTORY}/mo or ₹{PLAN_ANNUAL_INR.INVENTORY.toLocaleString('en-IN')}/yr
+            (+18% GST)
             {subscription?.status === 'TRIAL' && subscription.daysRemaining != null
               ? ` · ${subscription.daysRemaining} day${subscription.daysRemaining === 1 ? '' : 's'} left in trial`
               : subscription?.status === 'ACTIVE'
-                ? ' · subscription active'
+                ? ` · ${subscription.billingInterval === 'YEARLY' ? 'yearly' : 'monthly'} until ${
+                    subscription.trialEndsAt
+                      ? new Date(subscription.trialEndsAt).toLocaleDateString('en-IN', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })
+                      : 'renewal'
+                  }`
                 : ' · 14-day trial'}
           </Text>
+          {subscription?.pendingBillingInterval === 'MONTHLY' ? (
+            <Text className="text-[11px] text-muted mt-2">
+              Switches to monthly after this yearly period. Unused yearly time is not refunded.
+            </Text>
+          ) : null}
           <View className="flex-row gap-6 mt-4">
             <View>
               <Text className="text-xs text-muted">Stores</Text>
@@ -361,17 +404,53 @@ export default function InventorySettingsScreen() {
               </Text>
             </View>
           </View>
-          {user?.role === 'OWNER' && (subscription?.status ?? 'TRIAL') !== 'ACTIVE' ? (
-            <View className="mt-4">
-              <Button
-                label={`Pay ₹${PLAN_PRICES_INR.INVENTORY} with Razorpay`}
-                variant="accent"
-                size="sm"
-                loading={checkout.isPending}
-                onPress={() => void payInventory()}
-              />
-              <Text className="text-[11px] text-muted mt-2">
-                Pay BuildFlow on Razorpay. After payment this plan activates automatically.
+          {user?.role === 'OWNER' ? (
+            <View className="mt-4 gap-3">
+              {(['MONTHLY', 'YEARLY'] as const).map((interval) => {
+                const quote = subscription?.quotes?.[interval];
+                const price =
+                  interval === 'YEARLY' ? PLAN_ANNUAL_INR.INVENTORY : PLAN_PRICES_INR.INVENTORY;
+                const label = !quote
+                  ? interval === 'YEARLY'
+                    ? `Pay ₹${price.toLocaleString('en-IN')}/year`
+                    : `Pay ₹${price}/month`
+                  : quote.mode === 'schedule'
+                    ? 'Switch to monthly after this period'
+                    : quote.mode === 'extend'
+                      ? `Extend ${interval === 'YEARLY' ? 'yearly' : 'monthly'} · ₹${quote.amountInr.toLocaleString('en-IN')}`
+                      : `Pay ₹${quote.amountInr.toLocaleString('en-IN')} ${interval === 'YEARLY' ? '/year' : '/month'}`;
+                return (
+                  <View key={interval}>
+                    <Button
+                      label={label}
+                      variant={interval === 'YEARLY' ? 'accent' : 'secondary'}
+                      size="sm"
+                      loading={checkout.isPending || scheduleInterval.isPending}
+                      onPress={() => void payInventory(interval)}
+                    />
+                    {quote?.message ? (
+                      <Text className="text-[11px] text-muted mt-1">{quote.message}</Text>
+                    ) : null}
+                  </View>
+                );
+              })}
+              {subscription?.pendingBillingInterval ? (
+                <Button
+                  label="Keep yearly billing"
+                  variant="ghost"
+                  size="sm"
+                  loading={scheduleInterval.isPending}
+                  onPress={() => {
+                    void run(async () => {
+                      await scheduleInterval.mutateAsync(null);
+                      toast.success('Yearly billing kept');
+                    });
+                  }}
+                />
+              ) : null}
+              <Text className="text-[11px] text-muted">
+                Pay BuildFlow on Razorpay. Switching monthly → yearly mid-cycle credits unused days.
+                Switching yearly → monthly waits until this period ends.
               </Text>
             </View>
           ) : null}

@@ -13,6 +13,7 @@ import * as integrationService from '../services/integration.service';
 import {
   createSaasCheckout,
   getSaasBillingAvailability,
+  scheduleBillingInterval,
 } from '../services/saas-billing.service';
 
 // ---------------------------------------------------------------------------
@@ -289,6 +290,7 @@ export async function createSubscriptionCheckout(req: Request, res: Response) {
       req.user!.companyId,
       req.body.plan,
       req.body.gateway ?? 'razorpay',
+      req.body.interval ?? 'MONTHLY',
     );
     return ok(res, result);
   } catch (err) {
@@ -297,6 +299,11 @@ export async function createSubscriptionCheckout(req: Request, res: Response) {
     }
     throw err;
   }
+}
+
+export async function updateSubscriptionInterval(req: Request, res: Response) {
+  const result = await scheduleBillingInterval(req.user!.companyId, req.body.interval ?? null);
+  return ok(res, result);
 }
 
 export async function exportData(req: Request, res: Response) {

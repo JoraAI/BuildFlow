@@ -206,6 +206,11 @@ export const saasCheckoutSchema = z.object({
   // ENTERPRISE is contact-sales only (no self-serve checkout amount).
   plan: z.enum(['INVENTORY', 'STARTER', 'PROFESSIONAL']),
   gateway: z.enum(['razorpay', 'stripe']).default('razorpay'),
+  interval: z.enum(['MONTHLY', 'YEARLY']).default('MONTHLY'),
+});
+
+export const saasIntervalSchema = z.object({
+  interval: z.enum(['MONTHLY', 'YEARLY']).nullable(),
 });
 
 export type CompanyUpdateInput = z.infer<typeof companyUpdateSchema>;

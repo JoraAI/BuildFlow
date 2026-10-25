@@ -52,9 +52,13 @@ export default function BillingScreen() {
   const { data, isLoading, isError, refetch } = useSubscription();
   const checkout = useCreateSubscriptionCheckout();
 
-  const startCheckout = (plan: string, gateway: 'razorpay' | 'stripe') => {
+  const startCheckout = (
+    plan: string,
+    gateway: 'razorpay' | 'stripe',
+    interval: 'MONTHLY' | 'YEARLY' = 'MONTHLY',
+  ) => {
     checkout.mutate(
-      { plan, gateway },
+      { plan, gateway, interval },
       {
         onSuccess: async (result) => {
           if (typeof window !== 'undefined') {
@@ -127,7 +131,10 @@ export default function BillingScreen() {
           )}
         </Card>
 
-        {(data.status === 'TRIAL' || data.status === 'EXPIRED' || data.status === 'PAST_DUE') && (
+        {(data.status === 'TRIAL' ||
+          data.status === 'EXPIRED' ||
+          data.status === 'PAST_DUE' ||
+          data.status === 'ACTIVE') && (
           <Card className="mb-4">
             <Text className="text-sm font-bold text-text mb-2">Upgrade your plan</Text>
             <Text className="text-xs text-muted mb-4">
@@ -143,21 +150,30 @@ export default function BillingScreen() {
                       <Text className="text-xs text-muted">₹{price.toLocaleString('en-IN')}/month</Text>
                     ) : null}
                   </View>
-                  <View className="flex-row gap-2">
+                  <View className="flex-row flex-wrap gap-2">
                     {data.billing?.razorpay ? (
-                      <Button
-                        label="Pay (IN)"
-                        size="sm"
-                        onPress={() => startCheckout(plan, 'razorpay')}
-                        disabled={checkout.isPending}
-                      />
+                      <>
+                        <Button
+                          label="Monthly"
+                          size="sm"
+                          onPress={() => startCheckout(plan, 'razorpay', 'MONTHLY')}
+                          disabled={checkout.isPending}
+                        />
+                        <Button
+                          label="Yearly"
+                          size="sm"
+                          variant="secondary"
+                          onPress={() => startCheckout(plan, 'razorpay', 'YEARLY')}
+                          disabled={checkout.isPending}
+                        />
+                      </>
                     ) : null}
                     {data.billing?.stripe ? (
                       <Button
                         label="Stripe"
                         size="sm"
-                        variant="secondary"
-                        onPress={() => startCheckout(plan, 'stripe')}
+                        variant="ghost"
+                        onPress={() => startCheckout(plan, 'stripe', 'MONTHLY')}
                         disabled={checkout.isPending}
                       />
                     ) : null}

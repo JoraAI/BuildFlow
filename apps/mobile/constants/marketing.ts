@@ -70,9 +70,9 @@ export const GST_PRICING_NOTE = '+ 18% GST';
 export const MARKETING_PRICING = [
   {
     name: 'Inventory',
-    price: '₹499',
+    price: '₹799',
     period: '/month',
-    annualPrice: '₹4,990/yr',
+    annualPrice: '₹7,990/yr',
     description: 'Stock & trading product with business profiles (retail → equipment) and GST accounting',
     features: [
       'Business profiles (retail, wholesale, distribution, trading, materials, equipment)',
@@ -197,7 +197,7 @@ export const PRICING_FAQ = [
   },
   {
     q: 'Do you offer annual billing?',
-    a: 'Yes. Inventory is ₹4,990/year, Starter is ₹19,990/year and Professional is ₹49,990/year (2 months free vs monthly). Enterprise pricing is custom - contact sales. All prices are before 18% GST. Inventory includes business profiles and multi-warehouse ops.',
+    a: 'Yes. Inventory is ₹7,990/year, Starter is ₹19,990/year and Professional is ₹49,990/year (2 months free vs monthly). Enterprise pricing is custom - contact sales. All prices are before 18% GST. Inventory includes business profiles and multi-warehouse ops.',
   },
   {
     q: 'Is GST included in the listed price?',
@@ -246,7 +246,7 @@ export const PRICING_COMPARISON: Array<{
 export const MARKETING_FAQ = [
   {
     q: 'How much does BuildFlow cost?',
-    a: 'Visit Pricing: Inventory from ₹499/mo, construction Starter from ₹1,999/mo. All tiers include a 14-day free trial. Prices are ex-GST.',
+    a: 'Visit Pricing: Inventory from ₹799/mo, construction Starter from ₹1,999/mo. All tiers include a 14-day free trial. Prices are ex-GST.',
   },
   {
     q: 'How do inventory / trading businesses sign up?',

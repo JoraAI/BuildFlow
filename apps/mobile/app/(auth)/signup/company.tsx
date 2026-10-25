@@ -442,7 +442,7 @@ export default function SignupCompanyScreen() {
         otpStep
           ? `Enter the ${OTP_DIGITS}-digit code we sent you to finish sign-in`
           : isInventorySignup
-            ? 'Create your inventory business and owner account (₹499/month after trial)'
+            ? 'Create your inventory business and owner account (₹799/month after trial)'
             : 'Create your company and owner account'
       }
       footer={isDesktop ? submitFooter : undefined}

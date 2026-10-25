@@ -258,6 +258,11 @@ enum SubscriptionPlan {
   ENTERPRISE
 }
 
+enum BillingInterval {
+  MONTHLY
+  YEARLY
+}
+
 /// INVENTORY_HORIZONTAL_PLATFORM (Phase 0): optional business profile for
 /// inventory tenants (drives terminology + future phase branches).
 enum InventoryBusinessProfile {
@@ -360,6 +365,8 @@ model Company {
   trialEndsAt          DateTime?          @map("trial_ends_at")
   lastPaymentAt        DateTime?          @map("last_payment_at")
   saasPaymentRef       String?            @map("saas_payment_ref")
+  billingInterval        BillingInterval? @map("billing_interval")
+  pendingBillingInterval BillingInterval? @map("pending_billing_interval")
 
   /// INVENTORY_PRODUCT: the hidden default store project (code 'STORE').
   defaultProjectId String?   @unique @map("default_project_id") @db.Uuid

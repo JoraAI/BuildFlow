@@ -8,6 +8,7 @@ import { Router } from 'express';
 import {
   getCompany,
   updateCompany,
+  updateSubscriptionInterval,
   listCompanyUsers,
   updateUserRole,
   deleteTeamUser,
@@ -66,6 +67,7 @@ import {
   s3IntegrationSchema,
   updateReportSettingsSchema,
   saasCheckoutSchema,
+  saasIntervalSchema,
   createRateRegionSchema,
   updateRateRegionSchema,
   rateRegionParamsSchema,
@@ -248,6 +250,13 @@ router.post(
   requirePermission('settings.billing'),
   validate({ body: saasCheckoutSchema }),
   createSubscriptionCheckout,
+);
+router.post(
+  '/subscription/interval',
+  authenticateToken,
+  requirePermission('settings.billing'),
+  validate({ body: saasIntervalSchema }),
+  updateSubscriptionInterval,
 );
 
 // Data Export

@@ -213,7 +213,7 @@ function cannedReply(message: string, context: string): string {
 function cannedMarketingReply(message: string): string {
   const q = message.toLowerCase();
   if (q.includes('price') || q.includes('cost') || q.includes('plan')) {
-    return 'BuildFlow plans: Inventory ₹499/month (stock + procurement + invoicing + Tally), Starter ₹1,999/month (up to 3 projects), Professional ₹4,999/month (up to 25 projects). Enterprise is custom - contact sales. All prices before 18% GST. Sign up for a free trial from the homepage.';
+    return 'BuildFlow plans: Inventory ₹799/month or ₹7,990/year (stock + procurement + invoicing + Tally), Starter ₹1,999/month (up to 3 projects), Professional ₹4,999/month (up to 25 projects). Enterprise is custom - contact sales. All prices before 18% GST. Sign up for a free trial from the homepage.';
   }
   if (q.includes('gst') || q.includes('invoice') || q.includes('bill')) {
     return 'BuildFlow includes GST-aware invoicing (client invoices) and vendor bills with CGST/SGST/IGST split and TDS tracking - built for Indian construction firms and inventory businesses.';
