@@ -4,7 +4,18 @@
  */
 import React, { useMemo, useState } from 'react';
 import { View, Text, FlatList, Pressable, Modal, ScrollView, Platform, Share, Alert } from 'react-native';
-import { Card, Badge, Button, EmptyState, LoadingSkeleton, toast, BusyOverlay, useBusy } from '@/components/ui';
+import {
+  Card,
+  Badge,
+  Button,
+  EmptyState,
+  LoadingSkeleton,
+  toast,
+  BusyOverlay,
+  useBusy,
+  OverflowMenu,
+  type OverflowMenuItem,
+} from '@/components/ui';
 import {
   useCustomers, useCreateCustomer, useUpdateCustomer, useDeleteCustomer,
   useVendors, useCreateVendor, useUpdateVendor, useDeleteVendor,
@@ -48,7 +59,6 @@ export default function InventoryPartiesScreen() {
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop/tablet table rows.
   const { isPhone, isTablet, isDesktop } = useViewport();
   const tableMode = isTablet || isDesktop;
-  const [moreMenuId, setMoreMenuId] = useState<string | null>(null);
   const filters = useInventoryListFilters({ defaultTab: 'customer' });
   const kind: Kind = filters.tab === 'vendor' ? 'vendor' : 'customer';
   const [modal, setModal] = useState<{ kind: Kind; editing: PartyRow | null } | null>(null);
@@ -156,74 +166,58 @@ export default function InventoryPartiesScreen() {
   const partyActions = (item: PartyRow) => {
     const pending = isIceCream && kind === 'customer' ? pendingByCustomer.get(item.id) : undefined;
     const buyer = isIceCream && kind === 'customer' ? buyerByCustomer.get(item.id) : undefined;
-    const secondary = (
-      <>
-        {isIceCream && kind === 'customer' && item.isActive && !buyer ? (
-          <Button
-            label={pending ? 'Re-invite' : 'Invite'}
-            size="sm"
-            variant="accent"
-            onPress={() => {
-              setMoreMenuId(null);
-              setInviteCustomer(item);
-            }}
-          />
-        ) : null}
-        {pending ? (
-          <Button
-            label="Regenerate"
-            size="sm"
-            variant="secondary"
-            onPress={() => {
-              setMoreMenuId(null);
-              onRegenerateInvite(pending.id);
-            }}
-          />
-        ) : null}
-        {buyer ? (
-          <Button
-            label="Revoke"
-            size="sm"
-            variant="secondary"
-            onPress={() => {
-              setMoreMenuId(null);
-              onRevokeBuyer(buyer.id);
-            }}
-          />
-        ) : null}
-        {item.isActive ? (
-          <Button
-            label="Remove"
-            size="sm"
-            variant="secondary"
-            onPress={() => {
-              setMoreMenuId(null);
-              void onDelete(item);
-            }}
-          />
-        ) : null}
-      </>
-    );
+    const items: OverflowMenuItem[] = [
+      {
+        key: 'ledger',
+        label: 'Ledger',
+        icon: 'book-outline',
+        onPress: () => setLedgerParty(item),
+      },
+      {
+        key: 'edit',
+        label: 'Edit',
+        icon: 'create-outline',
+        onPress: () => setModal({ kind, editing: item }),
+      },
+      {
+        key: 'invite',
+        label: pending ? 'Re-invite buyer' : 'Invite buyer',
+        icon: pending ? 'send-outline' : 'person-add-outline',
+        tone: 'accent',
+        hidden: !(isIceCream && kind === 'customer' && item.isActive && !buyer),
+        onPress: () => setInviteCustomer(item),
+      },
+      {
+        key: 'regenerate',
+        label: 'Regenerate invite',
+        icon: 'refresh-outline',
+        hidden: !pending,
+        onPress: () => onRegenerateInvite(pending!.id),
+      },
+      {
+        key: 'revoke',
+        label: 'Revoke buyer access',
+        icon: 'ban-outline',
+        tone: 'danger',
+        hidden: !buyer,
+        onPress: () => onRevokeBuyer(buyer!.id),
+      },
+      {
+        key: 'remove',
+        label: `Remove ${kind}`,
+        icon: 'trash-outline',
+        tone: 'danger',
+        hidden: !item.isActive,
+        onPress: () => void onDelete(item),
+      },
+    ];
     return (
-      <View className="flex-row flex-wrap justify-end gap-1 items-center">
-        <Button label="Ledger" size="sm" variant="secondary" onPress={() => setLedgerParty(item)} />
-        <Button label="Edit" size="sm" variant="secondary" onPress={() => setModal({ kind, editing: item })} />
-        {isPhone && isIceCream && kind === 'customer' ? (
-          <>
-            <Button
-              label="More"
-              size="sm"
-              variant="secondary"
-              onPress={() => setMoreMenuId(moreMenuId === item.id ? null : item.id)}
-            />
-            {moreMenuId === item.id ? (
-              <View className="w-full flex-row flex-wrap justify-end gap-1 mt-1">{secondary}</View>
-            ) : null}
-          </>
-        ) : (
-          secondary
-        )}
-      </View>
+      <OverflowMenu
+        items={items}
+        title={item.name}
+        accessibilityLabel={`Actions for ${item.name}`}
+        align="right"
+      />
     );
   };
 
@@ -245,25 +239,61 @@ export default function InventoryPartiesScreen() {
   return (
     <View className="flex-1 bg-surface">
       <BusyOverlay visible={busy} title={translate('inventory.page.parties', 'Parties')} />
-      <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between gap-2">
-        <View className="flex-1 min-w-[160px]">
-          <Text className="text-2xl font-bold text-text">
+      <View className="px-4 pt-4 pb-2 flex-row items-center justify-between gap-3">
+        <View className="flex-1 min-w-0">
+          <Text className="text-2xl font-bold text-text" numberOfLines={1}>
             {translate('inventory.page.parties', 'Parties')}
           </Text>
-          <Text className="text-sm text-muted mt-0.5">Customers & vendors for invoices and bills</Text>
+          <Text className="text-sm text-muted mt-0.5" numberOfLines={isPhone ? 1 : 2}>
+            Customers & vendors for invoices and bills
+          </Text>
         </View>
-        <Button
-          label={`Add ${kind === 'customer' ? 'customer' : 'vendor'}`}
-          variant="accent"
-          size="sm"
-          onPress={() => setModal({ kind, editing: null })}
-        />
-        <Button
-          label={translate('inventory.parties.priceLists', 'Price lists')}
-          variant="secondary"
-          size="sm"
-          onPress={() => setPriceOpen(true)}
-        />
+        {!isDesktop ? (
+          <View className="flex-row items-center gap-2 shrink-0">
+            <Button
+              label="Add"
+              variant="accent"
+              size="sm"
+              accessibilityLabel={`Add ${kind === 'customer' ? 'customer' : 'vendor'}`}
+              onPress={() => setModal({ kind, editing: null })}
+            />
+            <OverflowMenu
+              trigger="outline"
+              title="Party tools"
+              accessibilityLabel="Party tools"
+              items={[
+                {
+                  key: 'add',
+                  label: `Add ${kind === 'customer' ? 'customer' : 'vendor'}`,
+                  icon: 'add-circle-outline',
+                  tone: 'accent',
+                  onPress: () => setModal({ kind, editing: null }),
+                },
+                {
+                  key: 'prices',
+                  label: translate('inventory.parties.priceLists', 'Price lists'),
+                  icon: 'pricetags-outline',
+                  onPress: () => setPriceOpen(true),
+                },
+              ]}
+            />
+          </View>
+        ) : (
+          <View className="flex-row items-center gap-2 shrink-0">
+            <Button
+              label={translate('inventory.parties.priceLists', 'Price lists')}
+              variant="secondary"
+              size="sm"
+              onPress={() => setPriceOpen(true)}
+            />
+            <Button
+              label={`Add ${kind === 'customer' ? 'customer' : 'vendor'}`}
+              variant="accent"
+              size="sm"
+              onPress={() => setModal({ kind, editing: null })}
+            />
+          </View>
+        )}
       </View>
 
       <SegmentedTabsInline
@@ -334,10 +364,10 @@ export default function InventoryPartiesScreen() {
                     {[item.phone, item.email].filter(Boolean).join(' · ') || '-'}
                   </Text>
                   <Text className="flex-1 text-xs text-muted" numberOfLines={1}>{item.gstin ?? '-'}</Text>
-                  <View className="flex-1 items-end">
+                  <View className="w-20 items-end mr-1">
                     <Badge color={item.isActive ? 'success' : 'neutral'} label={item.isActive ? 'Active' : 'Inactive'} />
                   </View>
-                  <View className="flex-[1.8]">{partyActions(item)}</View>
+                  <View className="w-11 items-end">{partyActions(item)}</View>
                 </View>
               );
             }
@@ -363,9 +393,9 @@ export default function InventoryPartiesScreen() {
                     </Text>
                   ) : null}
                 </View>
-                <View className="items-end gap-1">
+                <View className="items-end gap-2 shrink-0">
                   <Badge color={item.isActive ? 'success' : 'neutral'} label={item.isActive ? 'Active' : 'Inactive'} />
-                  <View className="mt-1">{partyActions(item)}</View>
+                  {partyActions(item)}
                 </View>
               </View>
             </Card>
@@ -377,8 +407,8 @@ export default function InventoryPartiesScreen() {
                 <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase">Party</Text>
                 <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Contact</Text>
                 <Text className="flex-1 text-[11px] font-bold text-muted uppercase">GSTIN</Text>
-                <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Status</Text>
-                <Text className="flex-[1.8] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+                <Text className="w-20 text-[11px] font-bold text-muted uppercase text-right mr-1">Status</Text>
+                <Text className="w-11 text-[11px] font-bold text-muted uppercase text-right"> </Text>
               </View>
             ) : null
           }

@@ -1,4 +1,6 @@
 export { Button } from './Button';
+export { OverflowMenu } from './OverflowMenu';
+export type { OverflowMenuItem } from './OverflowMenu';
 export { Card } from './Card';
 export { Input } from './Input';
 export { Badge } from './Badge';
