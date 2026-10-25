@@ -3,7 +3,7 @@ import { View, Text, Modal, ScrollView, Pressable, TextInput, Platform, Keyboard
 import { Button, Input, Select, Badge } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
 import { useAuthStore } from '@/stores/auth.store';
-import { useCustomers } from '@/services/party.queries';
+import { useCustomers, type PartyRow } from '@/services/party.queries';
 import { useResources } from '@/services/estimate.queries';
 import { useInvoices, useBills } from '@/services/accounting.queries';
 import { useStockSummary } from '@/services/expansion.queries';
@@ -58,7 +58,7 @@ function Sheet({
             className={`bg-card w-full ${
               isDialog
                 ? fullScreen
-                  ? 'max-w-2xl lg:max-w-3xl xl:max-w-4xl max-h-[90vh] rounded-2xl p-6 shadow-2xl border border-border'
+                  ? 'max-w-3xl lg:max-w-5xl xl:max-w-6xl max-h-[92vh] rounded-2xl p-6 shadow-2xl border border-border'
                   : 'max-w-lg max-h-[85vh] rounded-2xl p-6 shadow-2xl border border-border'
                 : 'rounded-t-3xl max-h-[94%] p-4 border-t border-border shadow-2xl'
             }`}
@@ -104,7 +104,53 @@ type DraftLine = {
   unit: string;
   returnKind: 'GOOD' | 'DAMAGED';
 };
+type CatalogResource = {
+  id: string;
+  name: string;
+  unit: string;
+  rate?: number | string | null;
+  gstRate?: number | string | null;
+  customerRate?: number | string | null;
+  distributorRate?: number | string | null;
+};
+type BuyerRole = 'DISTRIBUTOR' | 'CUSTOMER' | null;
 const newKey = () => `l-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+function customerCatalogRate(r: CatalogResource): number {
+  const n = Number(r.customerRate ?? r.rate ?? 0);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** Walk-in / no party → customer ₹. Selected distributor → distributor ₹. Price list wins via overrides. */
+function resolveLineRate(
+  resourceId: string,
+  resources: CatalogResource[],
+  rateOverrides?: Record<string, number>,
+  buyerRole?: BuyerRole,
+): string {
+  const override = rateOverrides?.[resourceId];
+  if (override != null && override > 0) return String(override);
+  const r = resources.find((x) => x.id === resourceId);
+  if (!r) return '';
+  if (buyerRole === 'DISTRIBUTOR') {
+    const d = Number(r.distributorRate ?? 0);
+    if (Number.isFinite(d) && d > 0) return String(d);
+  }
+  const c = customerCatalogRate(r);
+  return c > 0 ? String(c) : '';
+}
+
+function asParties(rows: unknown): PartyRow[] {
+  return Array.isArray(rows) ? (rows as PartyRow[]) : [];
+}
+
+function partyOptions(customers: PartyRow[] | undefined) {
+  return (customers ?? []).map((c) => ({
+    title: c.businessName ? `${c.name} · ${c.businessName}` : c.name,
+    value: c.id,
+    subtitle: c.buyerRole === 'DISTRIBUTOR' ? 'Distributor prices' : 'Customer prices',
+  }));
+}
 
 function useProjectStockBalances(locationId?: string) {
   const projectId = useAuthStore((s) => s.user?.defaultProjectId ?? '');
@@ -122,6 +168,8 @@ function LineEditor({
   allowedResourceIds,
   locationId,
   warehouseName,
+  buyerRole,
+  priceHint,
 }: {
   lines: DraftLine[];
   setLines: React.Dispatch<React.SetStateAction<DraftLine[]>>;
@@ -130,108 +178,235 @@ function LineEditor({
   allowedResourceIds?: string[];
   locationId?: string;
   warehouseName?: string;
+  buyerRole?: BuyerRole;
+  priceHint?: string;
 }) {
+  const { isPhone } = useViewport();
+  const tableMode = !isPhone;
   const { data } = useResources();
-  const resources: Array<{ id: string; name: string; unit: string; rate?: number | string | null; gstRate?: number | string | null }> =
-    Array.isArray(data) ? data : (data?.data ?? []);
+  const resources: CatalogResource[] = Array.isArray(data) ? data : (data?.data ?? []);
   const balances = useProjectStockBalances(locationId);
   const filteredResources = allowedResourceIds && allowedResourceIds.length > 0
     ? resources.filter((r) => allowedResourceIds.includes(r.id))
     : resources;
   const options = filteredResources.map((r) => {
     const bal = balances.get(r.id) ?? 0;
+    const shown = resolveLineRate(r.id, resources, rateOverrides, buyerRole);
     return {
-      title: `${r.name} · on hand ${bal} ${r.unit || ''}`,
+      title: r.name,
       value: r.id,
+      subtitle: `On hand ${bal} ${r.unit || ''}`.trim(),
+      meta: shown ? `₹${Number(shown).toLocaleString('en-IN')}` : undefined,
     };
   });
   const patch = (key: string, field: keyof DraftLine, value: string) =>
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, [field]: value } : l)));
 
+  const applyItem = (lineKey: string, resourceId: string) => {
+    const r = resources.find((x) => x.id === resourceId);
+    setLines((prev) =>
+      prev.map((l) =>
+        l.key === lineKey
+          ? {
+              ...l,
+              resourceId,
+              unit: r?.unit ?? 'no',
+              gstRate: r?.gstRate != null ? String(r.gstRate) : l.gstRate,
+              rate: resolveLineRate(resourceId, resources, rateOverrides, buyerRole) || l.rate,
+            }
+          : l,
+      ),
+    );
+  };
+
+  useEffect(() => {
+    if (!rateOverrides && buyerRole == null) return;
+    setLines((prev) =>
+      prev.map((l) => {
+        if (!l.resourceId) return l;
+        const next = resolveLineRate(l.resourceId, resources, rateOverrides, buyerRole);
+        if (!next || next === l.rate) return l;
+        return { ...l, rate: next };
+      }),
+    );
+    // Retag when the party (or their price book) changes — not on every catalog refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buyerRole, rateOverrides]);
+
+  const addLine = () =>
+    setLines((prev) => [
+      ...prev,
+      { key: newKey(), resourceId: '', quantity: '', rate: '', gstRate: '18', unit: '', returnKind: 'GOOD' },
+    ]);
+
+  const kindRow = (l: DraftLine) =>
+    showKind ? (
+      <View className="flex-row gap-2 mt-2">
+        {(['GOOD', 'DAMAGED'] as const).map((k) => {
+          const active = (l.returnKind ?? 'GOOD') === k;
+          return (
+            <Pressable
+              key={k}
+              onPress={() => patch(l.key, 'returnKind', k)}
+              className={`px-3 py-1.5 rounded-lg border ${active ? 'bg-primary border-primary' : 'bg-card border-border'}`}
+            >
+              <Text className={`text-xs font-medium ${active ? 'text-white' : 'text-muted'}`}>
+                {k === 'GOOD' ? 'Good → restock' : 'Damaged → scrap'}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    ) : null;
+
   return (
-    <View className="gap-2 mt-2">
-      {lines.map((l, idx) => {
-        const resource = resources.find((r) => r.id === l.resourceId);
-        const onHand = l.resourceId ? (balances.get(l.resourceId) ?? 0) : 0;
-        const requestedQty = Number(l.quantity) || 0;
-        const isShortage = l.resourceId && requestedQty > onHand;
+    <View className="gap-2 mt-3">
+      <View className="flex-row items-end justify-between gap-2">
+        <View className="flex-1 min-w-0">
+          <Text className="text-sm font-bold text-text">Items</Text>
+          <Text className="text-[11px] text-muted mt-0.5">
+            {priceHint ??
+              (buyerRole === 'DISTRIBUTOR'
+                ? 'Selling ₹ uses distributor prices for this party.'
+                : buyerRole === 'CUSTOMER'
+                  ? 'Selling ₹ uses customer prices for this party.'
+                  : 'Add items, quantities and selling ₹.')}
+          </Text>
+        </View>
+        <Button label="Add item" variant="secondary" size="sm" onPress={addLine} />
+      </View>
 
-        return (
-          <View key={l.key} className="bg-surface rounded-xl border border-border p-3">
-            <Select
-              label={`Item ${idx + 1}`}
-              value={l.resourceId || undefined}
-              options={options}
-              onChange={(v) => {
-                if (!v) return;
-                const r = resources.find((x) => x.id === v);
-                patch(l.key, 'resourceId', v);
-                patch(l.key, 'unit', r?.unit ?? 'no');
-                if (r?.gstRate != null) patch(l.key, 'gstRate', String(r.gstRate));
-                const effective = rateOverrides?.[v];
-                if (effective != null && effective > 0) {
-                  patch(l.key, 'rate', String(effective));
-                } else if (!l.rate && r?.rate != null && Number(r.rate) > 0) {
-                  patch(l.key, 'rate', String(r.rate));
-                }
-              }}
-              placeholder="Select item"
-            />
-            <View className="flex-row gap-2 mt-2">
-              <View className="flex-1">
-                <Input label="Qty" value={l.quantity} onChangeText={(v) => patch(l.key, 'quantity', v)} keyboardType="numeric" />
-              </View>
-              <View className="flex-1">
-                <Input label="Selling ₹" value={l.rate} onChangeText={(v) => patch(l.key, 'rate', v)} keyboardType="numeric" />
-              </View>
-              <View className="w-[80px]">
-                <Input label="GST %" value={l.gstRate} onChangeText={(v) => patch(l.key, 'gstRate', v)} keyboardType="numeric" />
-              </View>
-              <Pressable onPress={() => setLines((prev) => prev.filter((x) => x.key !== l.key))} className="justify-end pb-1">
-                <Text className="text-sm font-semibold text-danger">✕</Text>
-              </Pressable>
-            </View>
-
-            {l.resourceId ? (
-              <View className="flex-row items-center justify-between mt-1 px-0.5">
-                <Text className="text-[11px] text-muted">
-                  {warehouseName ? `${warehouseName} on-hand:` : 'Store on-hand:'} <Text className="font-semibold text-text">{onHand} {l.unit}</Text>
-                </Text>
+      {tableMode ? (
+        <View className="rounded-xl border border-border overflow-hidden bg-card">
+          <View className="flex-row items-center px-3 py-2 bg-surface border-b border-border gap-2">
+            <Text className="flex-[2.2] text-[11px] font-bold text-muted uppercase">Item</Text>
+            <Text className="w-[72px] text-[11px] font-bold text-muted uppercase text-right">Stock</Text>
+            <Text className="w-[84px] text-[11px] font-bold text-muted uppercase">Qty</Text>
+            <Text className="w-[100px] text-[11px] font-bold text-muted uppercase">Selling ₹</Text>
+            <Text className="w-[72px] text-[11px] font-bold text-muted uppercase">GST %</Text>
+            <View className="w-8" />
+          </View>
+          {lines.map((l, idx) => {
+            const onHand = l.resourceId ? (balances.get(l.resourceId) ?? 0) : 0;
+            const isShortage = Boolean(l.resourceId && (Number(l.quantity) || 0) > onHand);
+            return (
+              <View key={l.key} className="border-b border-border/60 last:border-b-0">
+                <View className="flex-row items-start px-3 py-2 gap-2">
+                  <View className="flex-[2.2] min-w-0">
+                    <Select
+                      compact
+                      value={l.resourceId || undefined}
+                      options={options}
+                      onChange={(v) => v && applyItem(l.key, v)}
+                      placeholder={`Item ${idx + 1}`}
+                      searchPlaceholder="Search items"
+                    />
+                  </View>
+                  <Text className={`w-[72px] text-xs text-right pt-3 ${isShortage ? 'text-warning font-semibold' : 'text-muted'}`}>
+                    {l.resourceId ? `${onHand} ${l.unit}` : '—'}
+                  </Text>
+                  <View className="w-[84px]">
+                    <Input
+                      compact
+                      fullWidth
+                      label=""
+                      accessibilityLabel="Quantity"
+                      value={l.quantity}
+                      onChangeText={(v) => patch(l.key, 'quantity', v)}
+                      keyboardType="numeric"
+                      placeholder="0"
+                    />
+                  </View>
+                  <View className="w-[100px]">
+                    <Input
+                      compact
+                      fullWidth
+                      label=""
+                      accessibilityLabel="Selling rate"
+                      value={l.rate}
+                      onChangeText={(v) => patch(l.key, 'rate', v)}
+                      keyboardType="numeric"
+                      placeholder="0"
+                    />
+                  </View>
+                  <View className="w-[72px]">
+                    <Input
+                      compact
+                      fullWidth
+                      label=""
+                      accessibilityLabel="GST percent"
+                      value={l.gstRate}
+                      onChangeText={(v) => patch(l.key, 'gstRate', v)}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <Pressable
+                    onPress={() => setLines((prev) => prev.filter((x) => x.key !== l.key || prev.length === 1))}
+                    className="w-8 h-10 items-center justify-center"
+                    hitSlop={6}
+                  >
+                    <Text className="text-sm font-semibold text-danger">✕</Text>
+                  </Pressable>
+                </View>
                 {isShortage ? (
-                  <Text className="text-[11px] font-semibold text-warning">
-                    ⚠️ Qty exceeds stock on hand ({onHand})
+                  <Text className="text-[11px] font-semibold text-warning px-3 pb-2">
+                    Qty exceeds {warehouseName ? `${warehouseName} ` : ''}stock ({onHand} {l.unit})
                   </Text>
                 ) : null}
+                {showKind ? <View className="px-3 pb-2">{kindRow(l)}</View> : null}
               </View>
-            ) : null}
-
-            {showKind ? (
-              <View className="flex-row gap-2 mt-2">
-                {(['GOOD', 'DAMAGED'] as const).map((k) => {
-                  const active = (l.returnKind ?? 'GOOD') === k;
-                  return (
-                    <Pressable
-                      key={k}
-                      onPress={() => patch(l.key, 'returnKind', k)}
-                      className={`px-3 py-1.5 rounded-lg border ${active ? 'bg-primary border-primary' : 'bg-card border-border'}`}
-                    >
-                      <Text className={`text-xs font-medium ${active ? 'text-white' : 'text-muted'}`}>
-                        {k === 'GOOD' ? 'Good → restock' : 'Damaged → scrap'}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+            );
+          })}
+        </View>
+      ) : (
+        <View className="gap-2">
+          {lines.map((l, idx) => {
+            const onHand = l.resourceId ? (balances.get(l.resourceId) ?? 0) : 0;
+            const isShortage = Boolean(l.resourceId && (Number(l.quantity) || 0) > onHand);
+            return (
+              <View key={l.key} className="bg-surface rounded-xl border border-border p-3">
+                <Select
+                  label={`Item ${idx + 1}`}
+                  value={l.resourceId || undefined}
+                  options={options}
+                  onChange={(v) => v && applyItem(l.key, v)}
+                  placeholder="Select item"
+                  searchPlaceholder="Search items"
+                />
+                <View className="flex-row gap-2 mt-2">
+                  <View className="flex-1">
+                    <Input label="Qty" value={l.quantity} onChangeText={(v) => patch(l.key, 'quantity', v)} keyboardType="numeric" />
+                  </View>
+                  <View className="flex-1">
+                    <Input label="Selling ₹" value={l.rate} onChangeText={(v) => patch(l.key, 'rate', v)} keyboardType="numeric" />
+                  </View>
+                  <View className="w-[80px]">
+                    <Input label="GST %" value={l.gstRate} onChangeText={(v) => patch(l.key, 'gstRate', v)} keyboardType="numeric" />
+                  </View>
+                  <Pressable
+                    onPress={() => setLines((prev) => prev.filter((x) => x.key !== l.key || prev.length === 1))}
+                    className="justify-end pb-1"
+                  >
+                    <Text className="text-sm font-semibold text-danger">✕</Text>
+                  </Pressable>
+                </View>
+                {l.resourceId ? (
+                  <View className="flex-row items-center justify-between mt-1 px-0.5">
+                    <Text className="text-[11px] text-muted">
+                      {warehouseName ? `${warehouseName} on-hand:` : 'Store on-hand:'}{' '}
+                      <Text className="font-semibold text-text">{onHand} {l.unit}</Text>
+                    </Text>
+                    {isShortage ? (
+                      <Text className="text-[11px] font-semibold text-warning">Qty exceeds stock</Text>
+                    ) : null}
+                  </View>
+                ) : null}
+                {kindRow(l)}
               </View>
-            ) : null}
-          </View>
-        );
-      })}
-      <Button
-        label="Add item"
-        variant="secondary"
-        size="sm"
-        onPress={() => setLines((prev) => [...prev, { key: newKey(), resourceId: '', quantity: '', rate: '', gstRate: '18', unit: '', returnKind: 'GOOD' }])}
-      />
+            );
+          })}
+        </View>
+      )}
     </View>
   );
 }
@@ -254,7 +429,8 @@ export function NewSalesOrderModal({
   }) => Promise<void>;
 }) {
   const { isPhone } = useViewport();
-  const { data: customers } = useCustomers();
+  const { data: customersRaw } = useCustomers();
+  const customers = asParties(customersRaw);
   const { data: warehouses } = useWarehouses();
   const [customerId, setCustomerId] = useState('');
   const [locationId, setLocationId] = useState('');
@@ -282,31 +458,17 @@ export function NewSalesOrderModal({
     }
   }, [open, warehouses]);
 
-  // Re-tag line rates when buyer changes (role SKU / price list).
-  useEffect(() => {
-    if (!customerId || !effectiveRates) return;
-    setLines((prev) =>
-      prev.map((l) => {
-        if (!l.resourceId) return l;
-        const override = effectiveRates[l.resourceId];
-        if (override == null || override <= 0) return l;
-        return { ...l, rate: String(override) };
-      }),
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customerId, effectiveRates]);
-
-  const customerOptions = (customers ?? []).map((c: { id: string; name: string }) => ({ title: c.name, value: c.id }));
+  const selectedParty = (customers ?? []).find((c) => c.id === customerId);
+  const buyerRole: BuyerRole = selectedParty?.buyerRole === 'DISTRIBUTOR' ? 'DISTRIBUTOR' : customerId ? 'CUSTOMER' : null;
+  const customerOptions = partyOptions(customers);
   const selectedWarehouse = (warehouses ?? []).find((w: Warehouse) => w.id === locationId);
 
   const submit = async () => {
     setError('');
-    const name = customerId
-      ? customerOptions.find((o: { value: string; title?: string }) => o.value === customerId)?.title ?? customerName
-      : customerName.trim();
+    const name = selectedParty?.name ?? customerName.trim();
     const goodLines = lines.filter((l) => l.resourceId && Number(l.quantity) > 0);
     if (!name || goodLines.length === 0) {
-      setError('Pick a customer and add at least one item with quantity.');
+      setError('Choose or type a customer and add at least one item with quantity.');
       return;
     }
     setSaving(true);
@@ -339,36 +501,71 @@ export function NewSalesOrderModal({
 
   return (
     <Sheet visible={open} title="New sales order" subtitle="Draft → confirm → challan → invoice. Items are dispatched from selected warehouse." saving={saving} onClose={onClose} fullScreen>
-      <Select
-        label="Dispatch From Warehouse / Store"
-        value={locationId || undefined}
-        options={(warehouses ?? []).map((w: Warehouse) => ({
-          title: `${w.name}${w.isDefault ? ' (Default Store)' : ''}${w.code ? ` · ${w.code}` : ''}`,
-          value: w.id,
-        }))}
-        onChange={(v) => v && setLocationId(v)}
-        placeholder="Select Warehouse / Store"
-      />
-      <Select
-        label="Customer"
-        value={customerId || undefined}
-        options={customerOptions}
-        onChange={(v) => {
-          setCustomerId(v ?? '');
-          const c = (customers ?? []).find((x: { id: string; name: string }) => x.id === v);
-          if (c) setCustomerName(c.name);
-        }}
-        placeholder="Pick from customers"
-      />
-      <Input label="Customer name (if not in master)" value={customerName} onChangeText={setCustomerName} />
-      <Input label="Order date" value={orderDate} onChangeText={setOrderDate} />
-      <Input label="Notes (optional)" value={notes} onChangeText={setNotes} multiline />
+      <View className={isPhone ? '' : 'flex-row gap-3'}>
+        <View className="flex-1">
+          <Select
+            label="Dispatch From Warehouse / Store"
+            value={locationId || undefined}
+            options={(warehouses ?? []).map((w: Warehouse) => ({
+              title: `${w.name}${w.isDefault ? ' (Default Store)' : ''}${w.code ? ` · ${w.code}` : ''}`,
+              value: w.id,
+            }))}
+            onChange={(v) => v && setLocationId(v)}
+            placeholder="Select Warehouse / Store"
+          />
+        </View>
+        <View className="flex-1">
+          <Select
+            label="Customer / distributor"
+            value={customerId || undefined}
+            options={customerOptions}
+            clearable
+            onChange={(v) => {
+              setCustomerId(v ?? '');
+              if (!v) return;
+              const c = (customers ?? []).find((x) => x.id === v);
+              if (c) setCustomerName(c.name);
+            }}
+            placeholder="Pick from parties"
+            helper="Clear to type a walk-in name. Prices follow the party's role."
+          />
+        </View>
+      </View>
+      {customerId ? (
+        <Text className="text-[11px] text-muted -mt-1 mb-2">
+          {selectedParty?.buyerRole === 'DISTRIBUTOR'
+            ? `Using distributor prices for ${selectedParty.name}.`
+            : `Using customer prices for ${selectedParty?.name ?? 'this party'}.`}
+        </Text>
+      ) : (
+        <Input
+          label="Customer name"
+          value={customerName}
+          onChangeText={setCustomerName}
+          placeholder="Walk-in / not in master"
+          helper="No party selected — customer prices apply."
+        />
+      )}
+      <View className={isPhone ? '' : 'flex-row gap-3'}>
+        <View className="flex-1">
+          <Input label="Order date" value={orderDate} onChangeText={setOrderDate} />
+        </View>
+        <View className="flex-1">
+          <Input label="Notes (optional)" value={notes} onChangeText={setNotes} />
+        </View>
+      </View>
       <LineEditor
         lines={lines}
         setLines={setLines}
         rateOverrides={effectiveRates}
         locationId={locationId}
         warehouseName={selectedWarehouse?.name}
+        buyerRole={buyerRole}
+        priceHint={
+          buyerRole === 'DISTRIBUTOR'
+            ? `Selling ₹ is the distributor price for ${selectedParty?.name ?? 'this party'}.`
+            : 'Selling ₹ is the customer price. Select a distributor to switch.'
+        }
       />
       {error ? <Text className="text-sm text-danger mt-2">{error}</Text> : null}
       <View className="flex-row flex-wrap gap-2 mt-4 mb-4">
@@ -600,7 +797,8 @@ export function NewQuoteModal({
     lines: Array<{ resourceId: string; quantity: number; unit: string; rate: number; gstRate?: number }>;
   }) => Promise<void>;
 }) {
-  const { data: customers } = useCustomers();
+  const { data: customersRaw } = useCustomers();
+  const customers = asParties(customersRaw);
   const { data: warehouses } = useWarehouses();
   const user = useAuthStore((s) => s.user);
   const eventLightingCopy = usesEventLightingCopy(user?.inventoryProfile, user?.inventoryVertical);
@@ -632,28 +830,14 @@ export function NewQuoteModal({
     }
   }, [open, warehouses]);
 
-  // Re-tag line rates when buyer changes (role SKU / price list).
-  useEffect(() => {
-    if (!customerId || !effectiveRates) return;
-    setLines((prev) =>
-      prev.map((l) => {
-        if (!l.resourceId) return l;
-        const override = effectiveRates[l.resourceId];
-        if (override == null || override <= 0) return l;
-        return { ...l, rate: String(override) };
-      }),
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customerId, effectiveRates]);
-
-  const customerOptions = (customers ?? []).map((c: { id: string; name: string }) => ({ title: c.name, value: c.id }));
+  const selectedParty = (customers ?? []).find((c) => c.id === customerId);
+  const buyerRole: BuyerRole = selectedParty?.buyerRole === 'DISTRIBUTOR' ? 'DISTRIBUTOR' : customerId ? 'CUSTOMER' : null;
+  const customerOptions = partyOptions(customers);
   const selectedWarehouse = (warehouses ?? []).find((w: Warehouse) => w.id === locationId);
 
   const submit = async () => {
     setError('');
-    const name = customerId
-      ? customerOptions.find((o: { value: string }) => o.value === customerId)?.title ?? customerName
-      : customerName.trim();
+    const name = selectedParty?.name ?? customerName.trim();
     const goodLines = lines.filter((l) => l.resourceId && Number(l.quantity) > 0);
     if (!name || goodLines.length === 0) {
       setError('Pick a customer and add at least one item with quantity.');
@@ -711,14 +895,31 @@ export function NewQuoteModal({
         label="Customer / Client"
         value={customerId || undefined}
         options={customerOptions}
+        clearable
         onChange={(v) => {
           setCustomerId(v ?? '');
-          const c = (customers ?? []).find((x: { id: string; name: string }) => x.id === v);
+          if (!v) return;
+          const c = (customers ?? []).find((x) => x.id === v);
           if (c) setCustomerName(c.name);
         }}
-        placeholder="Pick from master customers"
+        placeholder="Pick from parties"
+        helper="Clear to type a walk-in name. Prices follow the party's role."
       />
-      <Input label="Customer / Client name (if not in master)" value={customerName} onChangeText={setCustomerName} />
+      {customerId ? (
+        <Text className="text-[11px] text-muted -mt-1 mb-2">
+          {selectedParty?.buyerRole === 'DISTRIBUTOR'
+            ? `Using distributor prices for ${selectedParty.name}.`
+            : `Using customer prices for ${selectedParty?.name ?? 'this party'}.`}
+        </Text>
+      ) : (
+        <Input
+          label="Customer / Client name"
+          value={customerName}
+          onChangeText={setCustomerName}
+          placeholder="Walk-in / not in master"
+          helper="No party selected — customer prices apply."
+        />
+      )}
       <View className="flex-row gap-2">
         <View className="flex-1">
           <Input label="Quote date" value={quoteDate} onChangeText={setQuoteDate} />
@@ -743,6 +944,12 @@ export function NewQuoteModal({
         rateOverrides={effectiveRates}
         locationId={locationId}
         warehouseName={selectedWarehouse?.name}
+        buyerRole={buyerRole}
+        priceHint={
+          buyerRole === 'DISTRIBUTOR'
+            ? `Selling ₹ is the distributor price for ${selectedParty?.name ?? 'this party'}.`
+            : 'Selling ₹ is the customer price. Select a distributor to switch.'
+        }
       />
       {error ? <Text className="text-sm text-danger mt-2">{error}</Text> : null}
       <View className="flex-row gap-2 mt-4 mb-4">
