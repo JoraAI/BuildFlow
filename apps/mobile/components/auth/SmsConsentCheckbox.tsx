@@ -29,8 +29,7 @@ export function SmsConsentCheckbox({ checked, onCheckedChange }: Props) {
         <View className="flex-1">
           <Text className="text-xs text-text leading-relaxed">
             I agree to receive transactional SMS one-time passcodes from StaffingPros / Jora AI
-            (BuildFlow) for account login and invite verification. Msg frequency varies. Msg & data
-            rates may apply. Reply STOP to opt out; reply HELP for help.
+            (BuildFlow) for account login and invite verification. Reply STOP to opt out; reply HELP for help.
           </Text>
           <Text className="text-xs text-muted leading-relaxed mt-2">
             See{' '}

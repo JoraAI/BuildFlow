@@ -490,7 +490,7 @@ export default function UsersScreen() {
             <TextInput
               value={invitePhone}
               onChangeText={setInvitePhone}
-              placeholder="9876543210 or +919876543210"
+              placeholder="9876543210"
               keyboardType="phone-pad"
               autoCapitalize="none"
               className="border border-border rounded-lg px-3 py-2.5 text-text mb-4 bg-surface"
