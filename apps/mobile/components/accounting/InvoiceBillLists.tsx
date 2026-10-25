@@ -107,7 +107,8 @@ export function ProjectInvoicesList({
   stickyFilters?: boolean;
 }) {
   const router = useRouter();
-  const { isDesktop } = useViewport();
+  const { isTablet, isDesktop } = useViewport();
+  const tableMode = isTablet || isDesktop;
   const canSend = usePermission('invoice.create');
   const { busy, run } = useBusy();
   const { data: invoices, isLoading, isFetching, refetch } = useInvoices(projectId);
@@ -138,7 +139,7 @@ export function ProjectInvoicesList({
     return (
       <View className={`gap-3 ${embedded ? 'p-4' : 'px-4 pt-2'}`}>
         {[1, 2, 3].map((i) => (
-          <LoadingSkeleton key={i} className={`rounded-xl ${isDesktop ? 'h-12' : 'h-24'}`} />
+          <LoadingSkeleton key={i} className={`rounded-xl ${tableMode ? 'h-12' : 'h-24'}`} />
         ))}
       </View>
     );
@@ -160,9 +161,9 @@ export function ProjectInvoicesList({
   };
 
   const listPadding =
-    embedded && !isDesktop
+    embedded && !tableMode
       ? { paddingBottom: mobileListBottomPadding(true) }
-      : embedded || isDesktop
+      : embedded || tableMode
         ? undefined
         : { paddingBottom: mobileListBottomPadding(true) };
 
@@ -173,15 +174,15 @@ export function ProjectInvoicesList({
       className={embedded ? 'flex-1 min-h-0' : undefined}
       data={filtered}
       keyExtractor={(item) => item.id}
-      scrollEnabled={!embedded ? !isDesktop : true}
+      scrollEnabled={!embedded ? !tableMode : true}
       refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
-      contentContainerClassName={embedded ? 'pb-4' : isDesktop ? undefined : 'px-4 pt-2'}
+      contentContainerClassName={embedded ? 'pb-4' : tableMode ? undefined : 'px-4 pt-2'}
       contentContainerStyle={listPadding}
       ItemSeparatorComponent={() =>
-        isDesktop ? <View className="h-px bg-border mx-4" /> : <View className="h-4" />
+        tableMode ? <View className="h-px bg-border mx-4" /> : <View className="h-4" />
       }
       ListEmptyComponent={
-        <View className={embedded || isDesktop ? 'p-8' : undefined}>
+        <View className={embedded || tableMode ? 'p-8' : undefined}>
           <EmptyState
             title="No invoices"
             description={
@@ -197,14 +198,11 @@ export function ProjectInvoicesList({
           {!stickyFilters ? (
             <FilterPills options={INVOICE_FILTERS} value={filter} onChange={setFilter} />
           ) : null}
-          {isDesktop && filtered.length > 0 && (
-            <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
-              <Text className="flex-[1.2] text-xs font-semibold text-muted uppercase">Invoice #</Text>
-              <Text className="flex-[1.4] text-xs font-semibold text-muted uppercase">Client</Text>
-              <Text className="flex-1 text-xs font-semibold text-muted uppercase">Status</Text>
-              <Text className="flex-1 text-xs font-semibold text-muted uppercase text-right">Total</Text>
-              <Text className="flex-1 text-xs font-semibold text-muted uppercase text-right">Due</Text>
-              {canSend && <View className="w-28" />}
+          {tableMode && filtered.length > 0 && (
+            <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border gap-2">
+              <Text className="w-[120px] shrink-0 text-xs font-semibold text-muted uppercase">Invoice #</Text>
+              <Text className="flex-1 min-w-0 text-xs font-semibold text-muted uppercase">Client</Text>
+              <Text className="w-[96px] shrink-0 text-xs font-semibold text-muted uppercase">Status</Text>
             </View>
           )}
         </>
@@ -249,7 +247,8 @@ export function ProjectBillsList({
   const router = useRouter();
   // R10-B2: Replace role check with granular permission.
   const canApprove = usePermission('bill.approve');
-  const { isDesktop } = useViewport();
+  const { isTablet, isDesktop } = useViewport();
+  const tableMode = isTablet || isDesktop;
   const { busy, run } = useBusy();
   const { data: bills, isLoading, isFetching, refetch } = useBills(projectId);
   const approve = useApproveBill();
@@ -280,7 +279,7 @@ export function ProjectBillsList({
     return (
       <View className={`gap-3 ${embedded ? 'p-4' : 'px-4 pt-2'}`}>
         {[1, 2, 3].map((i) => (
-          <LoadingSkeleton key={i} className={`rounded-xl ${isDesktop ? 'h-12' : 'h-24'}`} />
+          <LoadingSkeleton key={i} className={`rounded-xl ${tableMode ? 'h-12' : 'h-24'}`} />
         ))}
       </View>
     );
@@ -316,9 +315,9 @@ export function ProjectBillsList({
   };
 
   const listPadding =
-    embedded && !isDesktop
+    embedded && !tableMode
       ? { paddingBottom: mobileListBottomPadding(true) }
-      : embedded || isDesktop
+      : embedded || tableMode
         ? undefined
         : { paddingBottom: mobileListBottomPadding(true) };
 
@@ -329,15 +328,15 @@ export function ProjectBillsList({
       className={embedded ? 'flex-1 min-h-0' : undefined}
       data={filtered}
       keyExtractor={(item) => item.id}
-      scrollEnabled={!embedded ? !isDesktop : true}
+      scrollEnabled={!embedded ? !tableMode : true}
       refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
-      contentContainerClassName={embedded ? 'pb-4' : isDesktop ? undefined : 'px-4 pt-2'}
+      contentContainerClassName={embedded ? 'pb-4' : tableMode ? undefined : 'px-4 pt-2'}
       contentContainerStyle={listPadding}
       ItemSeparatorComponent={() =>
-        isDesktop ? <View className="h-px bg-border mx-4" /> : <View className="h-4" />
+        tableMode ? <View className="h-px bg-border mx-4" /> : <View className="h-4" />
       }
       ListEmptyComponent={
-        <View className={embedded || isDesktop ? 'p-8' : undefined}>
+        <View className={embedded || tableMode ? 'p-8' : undefined}>
           <EmptyState
             title="No bills"
             description={
@@ -353,14 +352,11 @@ export function ProjectBillsList({
           {!stickyFilters ? (
             <FilterPills options={BILL_FILTERS} value={filter} onChange={setFilter} />
           ) : null}
-          {isDesktop && filtered.length > 0 && (
-            <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
-              <Text className="flex-[1.2] text-xs font-semibold text-muted uppercase">Bill #</Text>
-              <Text className="flex-[1.4] text-xs font-semibold text-muted uppercase">Vendor</Text>
-              <Text className="flex-[0.8] text-xs font-semibold text-muted uppercase">Category</Text>
-              <Text className="flex-1 text-xs font-semibold text-muted uppercase">Status</Text>
-              <Text className="flex-1 text-xs font-semibold text-muted uppercase text-right">Total</Text>
-              {canApprove && <View className="w-36" />}
+          {tableMode && filtered.length > 0 && (
+            <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border gap-2">
+              <Text className="w-[120px] shrink-0 text-xs font-semibold text-muted uppercase">Bill #</Text>
+              <Text className="flex-1 min-w-0 text-xs font-semibold text-muted uppercase">Vendor</Text>
+              <Text className="w-[96px] shrink-0 text-xs font-semibold text-muted uppercase">Status</Text>
             </View>
           )}
         </>
@@ -392,39 +388,46 @@ function InvoiceRow({
   canSend?: boolean;
   onSend?: () => void;
 }) {
-  const { isDesktop } = useViewport();
+  const { isTablet, isDesktop } = useViewport();
+  const tableMode = isTablet || isDesktop;
   const overdueDays =
     item.status === 'OVERDUE' || (item.status === 'SENT' && new Date(item.dueDate) < new Date())
       ? Math.abs(daysBetween(new Date(), item.dueDate))
       : 0;
+  const balance = item.total - item.paidAmount;
+  const actions =
+    canSend && item.status === 'DRAFT' && onSend ? (
+      <Button label="Confirm" size="sm" variant="primary" onPress={onSend} />
+    ) : null;
 
-  if (isDesktop) {
+  if (tableMode) {
     return (
-      <Pressable
-        onPress={onPress}
-        className="flex-row items-center px-4 py-3 bg-card active:bg-surface"
-      >
-        <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.invoiceNumber}</Text>
-        <Text className="flex-[1.4] text-sm text-text" numberOfLines={1}>
-          {item.clientName}
-        </Text>
-        <View className="flex-1">
-          <Badge color={INVOICE_STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
-        </View>
-        <Text className="flex-1 text-sm font-semibold text-text text-right">{formatINR(item.total)}</Text>
-        <View className="flex-1 items-end">
-          <Text className="text-xs text-muted">{formatDate(item.dueDate)}</Text>
-          {overdueDays > 0 && (
-            <Text className="text-xs text-danger font-semibold">{overdueDays}d overdue</Text>
-          )}
-        </View>
-        {canSend && item.status === 'DRAFT' ? (
-          <View className="w-28 items-end">
-            <Button label="Confirm" size="sm" variant="primary" onPress={onSend} />
+      <Pressable onPress={onPress} className="px-4 py-3 bg-card active:bg-surface">
+        <View className="flex-row items-center gap-2">
+          <Text className="w-[120px] shrink-0 text-sm font-mono font-semibold text-text" numberOfLines={1}>
+            {item.invoiceNumber}
+          </Text>
+          <Text className="flex-1 min-w-0 text-sm text-text" numberOfLines={1}>
+            {item.clientName}
+          </Text>
+          <View className="w-[96px] shrink-0 items-start">
+            <Badge color={INVOICE_STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
           </View>
-        ) : canSend ? (
-          <View className="w-28" />
-        ) : null}
+        </View>
+        <View className="flex-row flex-wrap items-center justify-between gap-3 mt-2">
+          <View className="min-w-[140px] flex-1">
+            <Text className="text-base font-bold text-text">{formatINR(item.total)}</Text>
+            <Text className="text-[11px] text-muted mt-0.5">
+              Due {formatDate(item.dueDate)}
+              {item.paidAmount > 0 ? ` · Paid ${formatINR(item.paidAmount)}` : ''}
+              {balance > 0.01 && item.paidAmount > 0 ? ` · Bal ${formatINR(balance)}` : ''}
+            </Text>
+            {overdueDays > 0 ? (
+              <Text className="text-[11px] text-danger font-semibold">{overdueDays}d overdue</Text>
+            ) : null}
+          </View>
+          {actions ? <View className="flex-row flex-wrap justify-end">{actions}</View> : null}
+        </View>
       </Pressable>
     );
   }
@@ -501,40 +504,45 @@ function BillRow({
   onApprove: () => void;
   onReject: () => void;
 }) {
-  const { isDesktop } = useViewport();
+  const { isTablet, isDesktop } = useViewport();
+  const tableMode = isTablet || isDesktop;
+  const showActions = canApprove && (item.status === 'PENDING' || item.status === 'DRAFT');
 
-  if (isDesktop) {
+  if (tableMode) {
     return (
-      <Pressable onPress={onPress} className="flex-row items-center px-4 py-3 bg-card border-b border-border/50">
-        <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.billNumber}</Text>
-        <Text className="flex-[1.4] text-sm text-text" numberOfLines={1}>
-          {item.vendorName}
-        </Text>
-        <View className="flex-[0.8]">
-          <Badge color={BILL_CATEGORY_COLOR[item.category] ?? 'neutral'} label={item.category} />
-        </View>
-        <View className="flex-1">
-          <Badge color={BILL_STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
-        </View>
-        <View className="flex-1 items-end">
-          <Text className="text-sm font-semibold text-text">{formatINR(item.total)}</Text>
-          {item.paidAmount > 0 && (
-            <Text className="text-xs text-success">Paid {formatINR(item.paidAmount)}</Text>
-          )}
-        </View>
-        {canApprove && (item.status === 'PENDING' || item.status === 'DRAFT') ? (
-          <View className="w-36 flex-row gap-1 justify-end">
-            <Button
-              label={item.status === 'DRAFT' ? 'Confirm' : 'Approve'}
-              variant="primary"
-              size="sm"
-              onPress={onApprove}
-            />
-            <Button label="Reject" variant="danger" size="sm" onPress={onReject} />
+      <Pressable onPress={onPress} className="px-4 py-3 bg-card active:bg-surface">
+        <View className="flex-row items-center gap-2">
+          <Text className="w-[120px] shrink-0 text-sm font-mono font-semibold text-text" numberOfLines={1}>
+            {item.billNumber}
+          </Text>
+          <Text className="flex-1 min-w-0 text-sm text-text" numberOfLines={1}>
+            {item.vendorName}
+          </Text>
+          <View className="w-[96px] shrink-0 items-start">
+            <Badge color={BILL_STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
           </View>
-        ) : (
-          <View className="w-36" />
-        )}
+        </View>
+        <View className="flex-row flex-wrap items-center justify-between gap-3 mt-2">
+          <View className="min-w-[140px] flex-1">
+            <Text className="text-base font-bold text-text">{formatINR(item.total)}</Text>
+            <Text className="text-[11px] text-muted mt-0.5">
+              {item.category}
+              {item.paidAmount > 0 ? ` · Paid ${formatINR(item.paidAmount)}` : ''}
+              {` · ${formatDate(item.billDate)}`}
+            </Text>
+          </View>
+          {showActions ? (
+            <View className="flex-row flex-wrap justify-end gap-1">
+              <Button
+                label={item.status === 'DRAFT' ? 'Confirm' : 'Approve'}
+                variant="primary"
+                size="sm"
+                onPress={onApprove}
+              />
+              <Button label="Reject" variant="danger" size="sm" onPress={onReject} />
+            </View>
+          ) : null}
+        </View>
       </Pressable>
     );
   }
