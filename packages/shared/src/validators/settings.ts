@@ -3,6 +3,7 @@
  */
 import { z } from 'zod';
 import { InventoryBusinessProfile } from '../inventory-profile';
+import { gstinSchema, panSchema } from './common';
 import { creditLimitPolicySchema } from './transactions';
 
 const inventoryLanguageEnum = z.enum([
@@ -35,8 +36,8 @@ const inventoryProfileEnum = z.enum([
 
 export const companyUpdateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
-  gstin: z.string().regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/).optional(),
-  pan: z.string().regex(/^[A-Z]{5}[0-9]{4}[A-Z]$/).optional(),
+  gstin: gstinSchema,
+  pan: panSchema,
   address: z.string().max(500).optional(),
   /** HTTPS URL, logical s3:// key, or null to clear the company logo. */
   logoUrl: z.union([z.string().min(1), z.null()]).optional(),
@@ -93,8 +94,8 @@ export const platformLoginSchema = z.object({
 
 export const platformCompanyUpdateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
-  gstin: z.string().regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/).optional(),
-  pan: z.string().regex(/^[A-Z]{5}[0-9]{4}[A-Z]$/).optional(),
+  gstin: gstinSchema,
+  pan: panSchema,
   address: z.string().max(500).optional().nullable(),
   state: z.string().min(2).max(50).optional(),
 });

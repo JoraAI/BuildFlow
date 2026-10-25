@@ -66,6 +66,10 @@ export function errorHandler(
         fail(res, ApiError.conflict('This GRN number is already in use. Choose a different number.'));
         return;
       }
+      if (target.some((field) => field.includes('gstin'))) {
+        fail(res, ApiError.conflict('This GSTIN is already registered to another company.'));
+        return;
+      }
       fail(res, ApiError.conflict(`Duplicate value for: ${target.join(', ') || 'field'}`));
       return;
     }

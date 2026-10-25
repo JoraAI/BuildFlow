@@ -11,6 +11,7 @@ import { useCompany, useUpdateCompany, useCompanyLogoUpload } from '@/services/s
 import { useAuthStore } from '@/stores/auth.store';
 import { alertAsync } from '@/utils/confirm';
 import { pickImage } from '@/utils/pick-image';
+import { gstinSchema, panSchema } from '@buildflow/shared';
 
 export default function CompanyProfileScreen() {
   const { isDesktop } = useViewport();
@@ -44,13 +45,28 @@ export default function CompanyProfileScreen() {
     }
   }, [company]);
 
+  const gstLiveError = form.gstin.trim()
+    ? gstinSchema.safeParse(form.gstin).success
+      ? undefined
+      : 'Enter a valid 15-character GSTIN'
+    : undefined;
+  const panLiveError = form.pan.trim()
+    ? panSchema.safeParse(form.pan).success
+      ? undefined
+      : 'Enter a valid 10-character PAN'
+    : undefined;
+
   const onSave = () => {
     setFormError(null);
+    if (gstLiveError || panLiveError) {
+      setFormError('Fix GSTIN / PAN before saving, or leave them blank.');
+      return;
+    }
     update.mutate(
       {
         name: form.name,
-        gstin: form.gstin,
-        pan: form.pan,
+        gstin: form.gstin.trim().toUpperCase(),
+        pan: form.pan.trim().toUpperCase(),
         address: form.address,
         state: form.state,
         logoUrl: form.logoUrl.trim() || undefined,
@@ -155,7 +171,9 @@ export default function CompanyProfileScreen() {
               value={form.gstin}
               onChangeText={(v) => setForm((f) => ({ ...f, gstin: v.toUpperCase() }))}
               autoCapitalize="characters"
-              helper="15-character GST identification number"
+              maxLength={15}
+              error={gstLiveError}
+              helper="15 characters. Leave blank if you do not have one yet."
             />
           </View>
           <View className={isDesktop ? 'flex-1' : 'mt-4'}>
@@ -164,6 +182,9 @@ export default function CompanyProfileScreen() {
               value={form.pan}
               onChangeText={(v) => setForm((f) => ({ ...f, pan: v.toUpperCase() }))}
               autoCapitalize="characters"
+              maxLength={10}
+              error={panLiveError}
+              helper="10 characters. Leave blank if you do not have one yet."
             />
           </View>
         </View>

@@ -42,7 +42,9 @@ import {
   INVENTORY_PROFILE_LABELS,
   INVENTORY_VERTICAL_VALUES,
   INVENTORY_VERTICAL_LABELS,
+  gstinSchema,
   hasInventoryFeature,
+  panSchema,
   type InventoryBusinessProfile,
   type SubscriptionPlanKey,
 } from '@buildflow/shared';
@@ -91,6 +93,8 @@ export default function InventorySettingsScreen() {
   const [bankIfsc, setBankIfsc] = useState('');
   const [companyPhone, setCompanyPhone] = useState('');
   const [companyEmail, setCompanyEmail] = useState('');
+  const [gstin, setGstin] = useState('');
+  const [pan, setPan] = useState('');
   const [fssaiLicenceNo, setFssaiLicenceNo] = useState('');
   const [distributorDiscountPct, setDistributorDiscountPct] = useState('20');
   const [customerDiscountPct, setCustomerDiscountPct] = useState('10');
@@ -121,6 +125,12 @@ export default function InventorySettingsScreen() {
     if (company?.poAutoApproveBelow != null) setPoAutoApproveBelow(String(company.poAutoApproveBelow));
     if (company?.poOwnerApproveAbove != null) setPoOwnerApproveAbove(String(company.poOwnerApproveAbove));
   }, [company?.poAutoApproveBelow, company?.poOwnerApproveAbove]);
+
+  useEffect(() => {
+    if (!company) return;
+    setGstin(company.gstin ?? '');
+    setPan(company.pan ?? '');
+  }, [company]);
 
   useEffect(() => {
     if (!reportSettings) return;
@@ -185,6 +195,35 @@ export default function InventorySettingsScreen() {
         );
       } catch (e) {
         toast.error(e instanceof Error ? e.message : 'Could not save shop vertical');
+      }
+    });
+  };
+
+  const gstLiveError = gstin.trim()
+    ? gstinSchema.safeParse(gstin).success
+      ? undefined
+      : 'Enter a valid 15-character GSTIN'
+    : undefined;
+  const panLiveError = pan.trim()
+    ? panSchema.safeParse(pan).success
+      ? undefined
+      : 'Enter a valid 10-character PAN'
+    : undefined;
+
+  const saveTaxIds = async () => {
+    if (gstLiveError || panLiveError) {
+      toast.error('Fix GSTIN / PAN before saving');
+      return;
+    }
+    await run(async () => {
+      try {
+        await updateCompany.mutateAsync({
+          gstin: gstin.trim().toUpperCase(),
+          pan: pan.trim().toUpperCase(),
+        });
+        toast.success('GSTIN and PAN saved');
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Could not save GSTIN / PAN');
       }
     });
   };
@@ -539,15 +578,14 @@ export default function InventorySettingsScreen() {
               <Text className="text-sm text-text" numberOfLines={2}>
                 {company?.name ?? user?.companyName}
               </Text>
-              <Text className="text-xs text-muted mt-1">GSTIN: {company?.gstin ?? '-'}</Text>
-              <Text className="text-xs text-muted mt-0.5">State: {company?.state ?? '-'}</Text>
+              <Text className="text-xs text-muted mt-1">State: {company?.state ?? '-'}</Text>
               <Text className="text-[11px] text-muted mt-2">
                 Logo appears on the top-right of Tax Invoice PDFs.
               </Text>
             </View>
           </View>
           {canEditLogo ? (
-            <View className="flex-row flex-wrap gap-2">
+            <View className="flex-row flex-wrap gap-2 mb-4">
               <Button
                 label={company?.logoDisplayUrl ? 'Change logo' : 'Upload logo'}
                 variant="secondary"
@@ -564,6 +602,37 @@ export default function InventorySettingsScreen() {
                   onPress={() => void clearLogo()}
                 />
               ) : null}
+            </View>
+          ) : null}
+          <Input
+            label="GSTIN"
+            value={gstin}
+            onChangeText={(v) => setGstin(v.toUpperCase())}
+            autoCapitalize="characters"
+            maxLength={15}
+            editable={canEditLogo}
+            error={gstLiveError}
+            helper="15 characters. Leave blank if you do not have one yet."
+          />
+          <Input
+            label="PAN"
+            value={pan}
+            onChangeText={(v) => setPan(v.toUpperCase())}
+            autoCapitalize="characters"
+            maxLength={10}
+            editable={canEditLogo}
+            error={panLiveError}
+            helper="10 characters. Leave blank if you do not have one yet."
+          />
+          {canEditLogo ? (
+            <View className="mt-3">
+              <Button
+                label="Save GSTIN & PAN"
+                variant="secondary"
+                size="sm"
+                loading={updateCompany.isPending}
+                onPress={() => void saveTaxIds()}
+              />
             </View>
           ) : null}
         </Card>
