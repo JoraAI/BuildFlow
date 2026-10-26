@@ -22,6 +22,8 @@ export type DateFieldProps = {
   disabled?: boolean;
   /** Stretch to container width on desktop (default: compact). */
   fullWidth?: boolean;
+  /** Drop bottom margin (inline toolbars). */
+  compact?: boolean;
 };
 
 export function DateField({
@@ -35,6 +37,7 @@ export function DateField({
   helper,
   disabled = false,
   fullWidth = false,
+  compact = false,
 }: DateFieldProps) {
   const { isDesktop } = useViewport();
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -55,7 +58,7 @@ export function DateField({
     value && isValidDateOnly(value) ? formatDateOnlyLabel(value) : null;
 
   return (
-    <View className={`mb-4 ${widthClass}`}>
+    <View className={`${compact ? 'mb-0' : 'mb-4'} ${widthClass}`}>
       {label ? <Text className="text-sm font-semibold text-text mb-1.5">{label}</Text> : null}
 
       <Pressable

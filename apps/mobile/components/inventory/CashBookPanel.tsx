@@ -3,8 +3,10 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Platform, View, Text, FlatList, Modal, Pressable, ScrollView } from 'react-native';
-import { Button, Card, EmptyState, Input, LoadingSkeleton, Select, toast, useBusy } from '@/components/ui';
+import { Ionicons } from '@expo/vector-icons';
+import { Button, Card, DateField, EmptyState, Input, LoadingSkeleton, Select, toast, useBusy } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
+import { compareDateOnly, dateOnlyFromDate, parseDateOnlyToLocalDate, todayDateOnly } from '@/utils/date-field';
 import {
   useCashBookCategories,
   useCashBookDay,
@@ -18,8 +20,10 @@ import {
   type CashBookEntry,
 } from '@/services/ice-cream.queries';
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+function shiftDate(dateOnly: string, days: number): string {
+  const next = parseDateOnlyToLocalDate(dateOnly);
+  next.setDate(next.getDate() + days);
+  return dateOnlyFromDate(next);
 }
 
 async function confirmDelete(message: string): Promise<boolean> {
@@ -37,7 +41,8 @@ async function confirmDelete(message: string): Promise<boolean> {
 export function CashBookPanel() {
   const { isPhone } = useViewport();
   const { busy, run } = useBusy();
-  const [date, setDate] = useState(todayIso());
+  const today = todayDateOnly();
+  const [date, setDate] = useState(today);
   const [entryOpen, setEntryOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
@@ -99,17 +104,43 @@ export function CashBookPanel() {
     () => (
       <View className="gap-3 mb-3">
         <View className={isPhone ? 'gap-2' : 'flex-row flex-wrap items-end gap-2'}>
-          <View className={isPhone ? 'w-full' : 'w-44'}>
-            <Input
-              label="Date"
-              value={date}
-              onChangeText={setDate}
-              placeholder="YYYY-MM-DD"
-              compact
-              fullWidth
-            />
+          <View className={isPhone ? 'w-full' : 'min-w-[260px] max-w-sm'}>
+            <View className="flex-row items-end gap-1">
+              <Pressable
+                onPress={() => setDate((d) => shiftDate(d, -1))}
+                accessibilityLabel="Previous day"
+                hitSlop={6}
+                className="w-11 h-[46px] rounded-lg border border-border bg-card items-center justify-center active:bg-surface"
+              >
+                <Ionicons name="chevron-back" size={20} color="#1E3A5F" />
+              </Pressable>
+              <View className="flex-1 min-w-0">
+                <DateField
+                  label="Date"
+                  value={date}
+                  onChange={setDate}
+                  maximumDate={today}
+                  compact
+                  fullWidth
+                />
+              </View>
+              <Pressable
+                onPress={() => setDate((d) => shiftDate(d, 1))}
+                disabled={compareDateOnly(date, today) >= 0}
+                accessibilityLabel="Next day"
+                hitSlop={6}
+                className={`w-11 h-[46px] rounded-lg border border-border bg-card items-center justify-center ${
+                  compareDateOnly(date, today) >= 0 ? 'opacity-40' : 'active:bg-surface'
+                }`}
+              >
+                <Ionicons name="chevron-forward" size={20} color="#1E3A5F" />
+              </Pressable>
+            </View>
           </View>
           <View className="flex-row flex-wrap gap-2">
+            {compareDateOnly(date, today) !== 0 ? (
+              <Button label="Today" size="sm" variant="ghost" onPress={() => setDate(today)} />
+            ) : null}
             <Button label="Add entry" size="sm" variant="accent" onPress={() => setEntryOpen(true)} />
             <Button label="Categories" size="sm" variant="secondary" onPress={() => setCategoriesOpen(true)} />
             <Button label="Daily summary" size="sm" variant="secondary" onPress={() => setSummaryOpen(true)} />
@@ -200,6 +231,7 @@ export function CashBookPanel() {
     ),
     [
       date,
+      today,
       dayQ.data,
       isPhone,
       query,
