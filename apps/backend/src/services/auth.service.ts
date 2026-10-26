@@ -336,8 +336,6 @@ export async function registerCompany(
   return {
     user: publicUser,
     needsOtp: true,
-    destination: otpDestination,
-    phone: ownerPhone,
     otp: {
       destinationMasked: otp.destinationMasked,
       expiresInSec: otp.expiresInSec,
@@ -570,6 +568,9 @@ export async function refresh(refreshToken: string): Promise<AuthTokens> {
   });
   if (!user || !user.isActive) throw ApiError.unauthorized('User no longer active');
 
+  const ttl = getTokenTtlSeconds(refreshToken) || 7 * 24 * 60 * 60;
+  await blacklistToken(decoded.tid, ttl);
+
   return issueTokens({ sub: user.id, companyId: user.companyId, role: user.role });
 }
 
@@ -577,7 +578,17 @@ export async function refresh(refreshToken: string): Promise<AuthTokens> {
 /* logout                                                              */
 /* ------------------------------------------------------------------ */
 
-export async function logout(refreshToken: string | undefined): Promise<void> {
+export async function logout(
+  refreshToken: string | undefined,
+  accessTokenId?: string,
+): Promise<void> {
+  if (accessTokenId) {
+    try {
+      await blacklistToken(accessTokenId, expiresInSeconds(env.JWT_ACCESS_EXPIRES_IN) || 15 * 60);
+    } catch {
+      // Redis unavailable — still clear the refresh token below.
+    }
+  }
   if (!refreshToken) return;
   try {
     const decoded = verifyRefreshToken(refreshToken);

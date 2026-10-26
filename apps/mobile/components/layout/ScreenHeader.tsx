@@ -18,7 +18,7 @@ export function MobileScreenHeader({
   return (
     <View className="px-4 pt-4 pb-2">
       <View className="flex-row items-start justify-between gap-3">
-        <View className="flex-1">
+        <View className="flex-1 min-w-0">
           <Text className="text-2xl font-bold text-text">{title}</Text>
           {subtitle ? <Text className="text-sm text-muted mt-0.5">{subtitle}</Text> : null}
         </View>

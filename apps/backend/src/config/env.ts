@@ -180,13 +180,14 @@ const envSchema = z.object({
   TRIAL_DAYS: z.coerce.number().int().min(1).max(90).default(14),
 
   /**
-   * Hard-coded Jora Trade invite code for Google Play reviewers (reusable).
-   * Empty string disables. Default PLAYREVIEW — document in Play Console App access.
+   * Optional Google Play reviewer invite code. Empty / unset disables the
+   * backdoor (do not ship a default). Production also requires
+   * BUYER_PLAY_REVIEW_COMPANY_ID so the code cannot attach to the first
+   * ICE_CREAM tenant on the box.
    */
   BUYER_PLAY_REVIEW_CODE: z
-    .preprocess((v) => (v === '' ? undefined : v), z.string().min(4).max(32).optional())
-    .default('PLAYREVIEW'),
-  /** Optional: pin review catalog to a company. Else resolves Frosty Cups / ICE_CREAM seed. */
+    .preprocess((v) => (v === '' ? undefined : v), z.string().min(4).max(32).optional()),
+  /** Required in production when BUYER_PLAY_REVIEW_CODE is set. */
   BUYER_PLAY_REVIEW_COMPANY_ID: z
     .preprocess((v) => (v === '' ? undefined : v), z.string().uuid().optional()),
   /** Buyer JWT lifetime after invite-code join (no OTP required later). */

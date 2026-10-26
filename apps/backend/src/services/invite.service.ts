@@ -189,6 +189,16 @@ export async function createInvite(
 
   await assertInvitableRole(companyId, input.role);
 
+  if (input.role === 'OWNER') {
+    const inviter = await prisma.user.findFirst({
+      where: { id: invitedById, companyId },
+      select: { role: true },
+    });
+    if (inviter?.role !== Role.OWNER) {
+      throw ApiError.forbidden('Only an owner can invite another owner');
+    }
+  }
+
   const company = await prisma.company.findUniqueOrThrow({
     where: { id: companyId },
     select: { subscriptionPlan: true },

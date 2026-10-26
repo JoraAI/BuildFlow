@@ -161,11 +161,9 @@ export function ProjectInvoicesList({
   };
 
   const listPadding =
-    embedded && !tableMode
-      ? { paddingBottom: mobileListBottomPadding(true) }
-      : embedded || tableMode
-        ? undefined
-        : { paddingBottom: mobileListBottomPadding(true) };
+    embedded && tableMode && isDesktop
+      ? undefined
+      : { paddingBottom: mobileListBottomPadding(true) };
 
   return (
     <View className={embedded ? 'flex-1 min-h-0' : undefined}>
@@ -315,11 +313,9 @@ export function ProjectBillsList({
   };
 
   const listPadding =
-    embedded && !tableMode
-      ? { paddingBottom: mobileListBottomPadding(true) }
-      : embedded || tableMode
-        ? undefined
-        : { paddingBottom: mobileListBottomPadding(true) };
+    embedded && tableMode && isDesktop
+      ? undefined
+      : { paddingBottom: mobileListBottomPadding(true) };
 
   return (
     <View className={embedded ? 'flex-1 min-h-0' : undefined}>

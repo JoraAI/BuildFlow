@@ -3,6 +3,7 @@
  */
 import { Router } from 'express';
 import { validate } from '../middleware/validate';
+import { authLimiter } from '../middleware/rateLimiter';
 import { authenticatePlatformAdmin } from '../middleware/platform-auth';
 import {
   platformLoginSchema,
@@ -15,7 +16,7 @@ import * as ctrl from '../controllers/platform.controller';
 
 const router = Router();
 
-router.post('/auth/login', validate({ body: platformLoginSchema }), ctrl.login);
+router.post('/auth/login', authLimiter, validate({ body: platformLoginSchema }), ctrl.login);
 router.get('/auth/me', authenticatePlatformAdmin, ctrl.me);
 
 router.get('/companies', authenticatePlatformAdmin, ctrl.listCompanies);

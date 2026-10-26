@@ -14,6 +14,7 @@ import {
   maskProjectBudget,
   maskProjectSummaryMoney,
 } from '../utils/financial-mask';
+import { assertCanViewProject } from '../middleware/project-access.middleware';
 
 function ipOf(req: Request): string | undefined {
   const xfwd = req.headers['x-forwarded-for'];
@@ -39,7 +40,9 @@ export async function listProjects(req: Request, res: Response, next: NextFuncti
 
 export async function getProject(req: Request, res: Response, next: NextFunction) {
   try {
-    const project = await projectService.getProject(req.user!.companyId, req.params.id);
+    const { companyId, id: userId, role } = req.user!;
+    await assertCanViewProject(companyId, userId, role, req.params.id);
+    const project = await projectService.getProject(companyId, req.params.id);
     const canBudget = await canViewBudget(req.user!.companyId, req.user!.role);
     ok(res, maskProjectBudget(project as unknown as Record<string, unknown>, canBudget));
   } catch (err) {
@@ -79,7 +82,9 @@ export async function deleteProject(req: Request, res: Response, next: NextFunct
 
 export async function getProjectSummary(req: Request, res: Response, next: NextFunction) {
   try {
-    const stats = await projectService.getProjectSummary(req.user!.companyId, req.params.id);
+    const { companyId, id: userId, role } = req.user!;
+    await assertCanViewProject(companyId, userId, role, req.params.id);
+    const stats = await projectService.getProjectSummary(companyId, req.params.id);
     const canAmounts = await canViewAmounts(req.user!.companyId, req.user!.role);
     const canBudget = await canViewBudget(req.user!.companyId, req.user!.role);
     ok(
@@ -99,7 +104,9 @@ export async function getProjectSummary(req: Request, res: Response, next: NextF
 
 export async function getMembers(req: Request, res: Response, next: NextFunction) {
   try {
-    const rows = await projectMemberService.listMembers(req.user!.companyId, req.params.id);
+    const { companyId, id: userId, role } = req.user!;
+    await assertCanViewProject(companyId, userId, role, req.params.id);
+    const rows = await projectMemberService.listMembers(companyId, req.params.id);
     ok(res, rows);
   } catch (err) {
     next(err);
@@ -108,8 +115,10 @@ export async function getMembers(req: Request, res: Response, next: NextFunction
 
 export async function setMembers(req: Request, res: Response, next: NextFunction) {
   try {
+    const { companyId, id: userId, role } = req.user!;
+    await assertCanViewProject(companyId, userId, role, req.params.id);
     const rows = await projectMemberService.setMembers(
-      req.user!.companyId,
+      companyId,
       req.params.id,
       req.body.members,
     );

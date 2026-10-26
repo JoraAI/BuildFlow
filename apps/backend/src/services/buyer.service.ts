@@ -4,7 +4,7 @@
  * Join / sign-in: manufacturer invite code only (no email/OTP required for buyers).
  * The same code can be re-entered later to restore a session.
  * Catalog: only items the manufacturer marked b2bPublished.
- * Google Play: env BUYER_PLAY_REVIEW_CODE (default PLAYREVIEW) is a reusable demo code.
+ * Google Play: set BUYER_PLAY_REVIEW_CODE (and COMPANY_ID in production) to enable a demo code.
  */
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
@@ -83,6 +83,10 @@ async function resolvePlayReviewCompanyId(): Promise<string> {
     });
     if (!pinned) throw ApiError.badRequest('Play review company is not configured correctly.');
     return pinned.id;
+  }
+
+  if (env.NODE_ENV === 'production') {
+    throw ApiError.badRequest('Play review company is not configured correctly.');
   }
 
   const byOwner = await prisma.user.findFirst({
@@ -643,8 +647,24 @@ async function findActiveBuyerByIdentifier(identifierRaw: string, companyId?: st
  * Same delivery stack as Construction ERP + Inventory staff login.
  */
 export async function sendBuyerOtp(identifierRaw: string, companyId?: string) {
+  const ident = identifierRaw.trim();
+  const isEmail = ident.includes('@');
+  const digits = ident.replace(/\D/g, '');
+  const fakeMasked = isEmail
+    ? `${ident[0] ?? '*'}***@***`
+    : digits.length >= 4
+      ? `******${digits.slice(-4)}`
+      : '******';
+
   const buyer = await findActiveBuyerByIdentifier(identifierRaw, companyId);
-  if (!buyer) throw ApiError.notFound('Buyer account not found. Ask the manufacturer to invite you.');
+  if (!buyer) {
+    return {
+      sent: true as const,
+      expiresInSec: 600,
+      destinationMasked: fakeMasked,
+      channel: isEmail ? ('email' as const) : ('sms' as const),
+    };
+  }
   await assertInventoryFeature(buyer.companyId, 'b2b_buyer_app');
 
   const useSms = !identifierRaw.trim().includes('@') && Boolean(buyer.phone);

@@ -18,6 +18,7 @@ import { downloadReportPdf } from '@/services/report-download';
 import { generateWhatsAppQuoteShare } from '@/utils/whatsapp-share';
 import { formatINR } from '@/utils/format';
 import { usesEventLightingCopy } from '@buildflow/shared';
+import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 
 const QUOTE_STATUS_TABS = [
   { value: 'ALL' as const, label: 'All' },
@@ -424,7 +425,7 @@ export default function InventoryQuotesScreen() {
               }
             />
           }
-          contentContainerStyle={{ paddingBottom: 24 }}
+          contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
           ListHeaderComponent={
             tableMode && filteredQuotes.length > 0 ? (
               <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">

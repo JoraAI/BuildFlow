@@ -3,6 +3,7 @@
  */
 import { Request, Response } from 'express';
 import * as svc from '../services/pdf-report.service';
+import { assertCanViewProject } from '../middleware/project-access.middleware';
 
 function sendPdf(res: Response, result: svc.PdfResult) {
   res.setHeader('Content-Type', 'application/pdf');
@@ -14,6 +15,7 @@ function sendPdf(res: Response, result: svc.PdfResult) {
 // 1. Project Progress
 export async function getProjectProgressPdf(req: Request, res: Response) {
   const { id } = req.params;
+  await assertCanViewProject(req.user!.companyId, req.user!.id, req.user!.role, id);
   const result = await svc.reportProjectProgress(req.user!.companyId, id);
   return sendPdf(res, result);
 }

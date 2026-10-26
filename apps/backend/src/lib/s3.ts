@@ -46,11 +46,25 @@ async function resolveConfig(companyId: string): Promise<S3Config> {
   return cfg;
 }
 
+/** True when the object key is under this tenant's prefix and has no path traversal. */
+export function isTenantObjectKey(companyId: string, key: string): boolean {
+  const normalized = key.replace(/^\/+/, '').replace(/\\/g, '/');
+  if (!normalized || normalized.includes('..') || normalized.includes('\0')) return false;
+  return normalized === companyId || normalized.startsWith(`${companyId}/`);
+}
+
+function assertTenantObjectKey(companyId: string, key: string): void {
+  if (!isTenantObjectKey(companyId, key)) {
+    throw new Error('S3_KEY_FORBIDDEN');
+  }
+}
+
 export async function getPresignedUploadUrl(opts: {
   companyId: string;
   key: string;
   contentType: string;
 }): Promise<string> {
+  assertTenantObjectKey(opts.companyId, opts.key);
   const config = await resolveConfig(opts.companyId);
   const command = new PutObjectCommand({
     Bucket: config.bucket,
@@ -66,6 +80,7 @@ export async function getPresignedDownloadUrl(opts: {
   companyId: string;
   key: string;
 }): Promise<string> {
+  assertTenantObjectKey(opts.companyId, opts.key);
   const config = await resolveConfig(opts.companyId);
   const command = new GetObjectCommand({
     Bucket: config.bucket,

@@ -13,6 +13,7 @@ import {
   buildS3Key,
   getPresignedUploadUrl,
   getPresignedDownloadUrl,
+  isTenantObjectKey,
   keyToLogicalUrlForCompany,
   logicalUrlToKey,
 } from '../lib/s3';
@@ -178,6 +179,12 @@ export async function updateReportSettings(companyId: string, settings: Record<s
 }
 
 export async function updateCompanyProfile(companyId: string, data: CompanyUpdateInput) {
+  if (data.logoUrl) {
+    const parsed = logicalUrlToKey(data.logoUrl);
+    if (parsed && !isTenantObjectKey(companyId, parsed.key)) {
+      throw ApiError.badRequest('Logo file must belong to this company');
+    }
+  }
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 0/2.5/4.4): inventory-only fields.
   // Construction companies must ignore them (hidden fields) - never write them.
   let write: Record<string, unknown> = { ...data };

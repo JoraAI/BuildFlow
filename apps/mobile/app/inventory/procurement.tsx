@@ -41,6 +41,7 @@ import { matchesText } from '@/utils/inventory-filters';
 import { inventoryBillsHref } from '@/utils/navigation-paths';
 import { useVendors, type PartyRow } from '@/services/party.queries';
 import { DocumentLines, ExpandHint, PartyLabel, type PreviewLine } from '@/components/inventory/DocumentLinePreview';
+import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 
 const APPROVAL_COLOR: Record<string, 'warning' | 'success' | 'danger' | 'neutral'> = {
   DRAFT: 'neutral',
@@ -509,7 +510,7 @@ function IndentsSection({
           />
         )
       }
-      contentContainerStyle={{ paddingBottom: 24 }}
+      contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
     />
   );
 }
@@ -932,7 +933,7 @@ function OrdersSection({
           />
         )
       }
-      contentContainerStyle={{ paddingBottom: 24 }}
+      contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
     />
   );
 }
@@ -1084,7 +1085,7 @@ function GrnsSection({
           />
         )
       }
-      contentContainerStyle={{ paddingBottom: 24 }}
+      contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
     />
   );
 }
@@ -1194,7 +1195,7 @@ function ReorderSection({
           />
         )
       }
-      contentContainerStyle={{ paddingBottom: 24 }}
+      contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
     />
   );
 }

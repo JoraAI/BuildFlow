@@ -85,20 +85,30 @@ export async function authenticateToken(
       throw ApiError.unauthorized('Invalid token payload');
     }
 
-    // Attach to req.
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.sub },
+      select: {
+        isActive: true,
+        role: true,
+        companyId: true,
+        company: { select: { subscriptionStatus: true, trialEndsAt: true } },
+      },
+    });
+    if (!user?.isActive || user.companyId !== decoded.companyId) {
+      throw ApiError.unauthorized('User no longer active');
+    }
+
+    // Prefer live role/company from DB so demotions take effect before JWT expiry.
     req.user = {
       id: decoded.sub,
-      companyId: decoded.companyId,
-      role: decoded.role as Role,
+      companyId: user.companyId,
+      role: user.role as Role,
       tokenId: decoded.tid,
     } as Express.Request['user'];
 
     // Subscription enforcement (skipped in test env + on billing-exempt routes).
     if (env.NODE_ENV !== 'test' && !isBillingExemptPath(req.originalUrl)) {
-      const company = await prisma.company.findUnique({
-        where: { id: decoded.companyId },
-        select: { subscriptionStatus: true, trialEndsAt: true },
-      });
+      const company = user.company;
       if (company && isSubscriptionBlocked(company.subscriptionStatus, company.trialEndsAt)) {
         throw ApiError.paymentRequired(
           'Your subscription has expired. Please renew in Settings > Billing.',
@@ -106,8 +116,7 @@ export async function authenticateToken(
       }
     }
 
-    // Run downstream within company ALS context.
-    companyALS.run({ companyId: decoded.companyId, userId: decoded.sub }, () => next());
+    companyALS.run({ companyId: user.companyId, userId: decoded.sub }, () => next());
   } catch (err) {
     next(err instanceof ApiError ? err : ApiError.unauthorized());
   }

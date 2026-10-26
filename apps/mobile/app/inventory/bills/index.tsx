@@ -61,7 +61,7 @@ export default function InventoryBillsScreen() {
             Draft bills are created automatically when you record a GRN. Confirm them here before payment.
           </Text>
         </View>
-        <View className={`flex-row gap-2 ${isPhone ? 'mt-2 w-full' : ''}`}>
+        <View className={`flex-row flex-wrap gap-2 ${isPhone ? 'mt-2 w-full' : ''}`}>
           <Button
             label="Export to Tally"
             variant="secondary"

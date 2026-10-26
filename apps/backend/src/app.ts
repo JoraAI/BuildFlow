@@ -99,7 +99,10 @@ app.use(
         callback(null, true);
         return;
       }
-      if (corsAllowlist.has(origin) || isLocalDevOrigin(origin)) {
+      if (
+        corsAllowlist.has(origin) ||
+        (env.NODE_ENV !== 'production' && isLocalDevOrigin(origin))
+      ) {
         callback(null, true);
         return;
       }

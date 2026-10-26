@@ -12,6 +12,7 @@ import { View, Text, FlatList } from 'react-native';
 import { Card, Badge, Button, EmptyState, LoadingSkeleton, toast, BusyOverlay, useBusy } from '@/components/ui';
 import { confirmAsync } from '@/utils/confirm';
 import { useViewport } from '@/hooks/useViewport';
+import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 import {
   useWarehouses,
   useCreateWarehouse,
@@ -581,7 +582,7 @@ export default function InventoryWarehouseScreen() {
               />
             )
           }
-          contentContainerStyle={{ paddingBottom: 24 }}
+          contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
         />
       )}
 

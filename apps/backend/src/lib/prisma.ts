@@ -58,6 +58,24 @@ const TENANT_SCOPED_MODELS = new Set([
   'PettyCashEntry',
   'SubcontractWorkOrder',
   'DocumentCounter',
+  'Customer',
+  'CustomerPrice',
+  'Quote',
+  'Vendor',
+  'SalesOrder',
+  'DeliveryChallan',
+  'SalesReturn',
+  'PurchaseReturn',
+  'TransferOrder',
+  'StockCount',
+  'CreditNote',
+  'DebitNote',
+  'InventoryCashBookEntry',
+  'InventoryCashBookCategory',
+  'Recipe',
+  'ProductionBatch',
+  'BuyerInvite',
+  'BuyerUser',
 ]);
 
 // FIX (SEC-C2): include the *OrThrow read variants so they are scoped too.
@@ -108,25 +126,19 @@ function createPrisma(): PrismaClient {
         // row to belong to the authenticated company.
         args.where = { ...args.where, companyId };
       } else if (params.action === 'create') {
-        // Creates: stamp the owning company if not explicitly provided.
+        // Creates: always stamp the authenticated company (never honor caller companyId).
         if (args.data && typeof args.data === 'object') {
-          if (!('companyId' in args.data) || args.data.companyId === undefined) {
-            args.data.companyId = companyId;
-          }
+          args.data.companyId = companyId;
         }
       } else if (params.action === 'createMany') {
-        // createMany uses `data` as an array; stamp each row.
         if (Array.isArray(args.data)) {
           args.data = args.data.map((row: Record<string, unknown>) =>
-            row && (!('companyId' in row) || row.companyId === undefined)
-              ? { ...row, companyId }
-              : row,
+            row ? { ...row, companyId } : row,
           );
         }
       } else if (params.action === 'upsert') {
-        // upsert: scope the where + ensure create carries companyId.
         args.where = { ...args.where, companyId };
-        if (args.create && typeof args.create === 'object' && !('companyId' in args.create)) {
+        if (args.create && typeof args.create === 'object') {
           args.create.companyId = companyId;
         }
       }

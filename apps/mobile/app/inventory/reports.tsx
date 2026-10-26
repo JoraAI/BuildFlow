@@ -224,7 +224,14 @@ export default function InventoryReportsScreen() {
         className="border-b border-border"
         contentContainerClassName="px-4 gap-2 py-2"
       />
-      <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, gap: 12 }}>
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{
+          padding: 16,
+          gap: 12,
+          paddingBottom: isPhone ? mobileListBottomPadding() + 16 : 48,
+        }}
+      >
         {tab === 'health' ? (
           <>
             {/* Filters (Phase 6.2): warehouse + days. */}

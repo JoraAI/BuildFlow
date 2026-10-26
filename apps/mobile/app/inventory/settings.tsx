@@ -54,6 +54,7 @@ import {
 } from '@buildflow/shared';
 import { useSetInventoryVertical } from '@/services/settings.queries';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
+import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 
 export default function InventorySettingsScreen() {
   const { busy, run, clearBusy } = useBusy();
@@ -354,7 +355,10 @@ export default function InventorySettingsScreen() {
   return (
     <View className="flex-1 bg-surface">
       <BusyOverlay visible={busy} title="Saving settings…" onDismiss={clearBusy} />
-      <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ padding: 16, paddingBottom: mobileListBottomPadding() + 16 }}
+      >
         <Text className="text-2xl font-bold text-text mb-1">
           {translate('inventory.tab.settings', 'Settings')}
         </Text>
@@ -890,6 +894,7 @@ export default function InventorySettingsScreen() {
 
       <InviteModal
         open={inviteOpen}
+        canInviteOwner={user?.role === 'OWNER'}
         onClose={() => setInviteOpen(false)}
         onSubmit={async (input) => {
           await run(async () => {
@@ -912,10 +917,12 @@ function digitsIndiaMobile(raw: string): string {
 
 function InviteModal({
   open,
+  canInviteOwner,
   onClose,
   onSubmit,
 }: {
   open: boolean;
+  canInviteOwner: boolean;
   onClose: () => void;
   onSubmit: (input: { name?: string; phone: string; role: string }) => Promise<void>;
 }) {
@@ -938,7 +945,7 @@ function InviteModal({
       await onSubmit({
         name: name.trim() || undefined,
         phone: parsed.data,
-        role,
+        role: canInviteOwner ? role : 'INVENTORY_MANAGER',
       });
       setName('');
       setPhone('');
@@ -964,8 +971,9 @@ function InviteModal({
           </View>
           <View className="p-5">
             <Text className="text-xs text-muted mb-3">
-              Invite an owner or inventory manager by mobile. They Sign in with this number and OTP
-              and join this shop directly — no email.
+              {canInviteOwner
+                ? 'Invite an owner or inventory manager by mobile. They Sign in with this number and OTP and join this shop directly — no email.'
+                : 'Invite an inventory manager by mobile. They Sign in with this number and OTP and join this shop directly — no email.'}
             </Text>
             <Input
               label="Name (optional)"
@@ -991,12 +999,16 @@ function InviteModal({
             <View className="h-3" />
             <Select
               label="Role"
-              value={role}
+              value={canInviteOwner ? role : 'INVENTORY_MANAGER'}
               onChange={(v) => v && setRole(v)}
-              options={[
-                { title: 'Inventory Manager', value: 'INVENTORY_MANAGER' },
-                { title: 'Owner / MD', value: 'OWNER' },
-              ]}
+              options={
+                canInviteOwner
+                  ? [
+                      { title: 'Inventory Manager', value: 'INVENTORY_MANAGER' },
+                      { title: 'Owner / MD', value: 'OWNER' },
+                    ]
+                  : [{ title: 'Inventory Manager', value: 'INVENTORY_MANAGER' }]
+              }
             />
             {error ? <Text className="text-danger text-sm mt-2">{error}</Text> : null}
             <View className="h-4" />

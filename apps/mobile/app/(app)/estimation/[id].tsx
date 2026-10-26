@@ -93,8 +93,8 @@ function SubEstimatesSection({ parentEstimateId }: { parentEstimateId: string })
 
   return (
     <View className="gap-2">
-      <View className="flex-row justify-between items-center">
-        <Text className="text-sm font-bold text-text">Sub-Estimates (Additional Scope)</Text>
+      <View className="flex-row flex-wrap justify-between items-center gap-2">
+        <Text className="text-sm font-bold text-text flex-1 min-w-[140px]">Sub-Estimates (Additional Scope)</Text>
         <Button label="+ Add Sub-Estimate" size="sm" variant="secondary" onPress={() => setShowAdd(!showAdd)} />
       </View>
 

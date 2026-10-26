@@ -148,49 +148,50 @@ export default function AccountingScreen() {
     <SafeAreaView className="flex-1 bg-surface" edges={['bottom']}>
       <OfflineBanner />
       <ScreenContainer scrollable>
-        <View className="flex-row items-center justify-between pb-2">
-          <MobileScreenHeader title="Accounting" subtitle="Invoices, bills, GST & TDS" />
-          {/* R10-B1: Show actions only with permission; bills gate is bill.create. */}
-          {tab === 'INVOICES' && canCreateInvoice && (
-            <Pressable
-              onPress={() =>
-                router.push(
-                  mobileProjectId
-                    ? `/accounting/create-invoice?projectId=${mobileProjectId}`
-                    : '/accounting/create-invoice',
-                )
-              }
-              className="flex-row items-center gap-1 px-3 py-2 rounded-lg bg-primary active:opacity-80"
-            >
-              <Ionicons name="add" size={16} color="#fff" />
-              <Text className="text-xs font-semibold text-white">Invoice</Text>
-            </Pressable>
-          )}
-          {tab === 'BILLS' && canCreateBill && (
-            <View className="flex-row gap-2">
-              <Pressable
-                onPress={() => router.push('/accounting/import-bills')}
-                className="flex-row items-center gap-1 px-3 py-2 rounded-lg border border-border bg-card active:opacity-80"
-              >
-                <Ionicons name="cloud-upload-outline" size={16} color="#1E3A5F" />
-                <Text className="text-xs font-semibold text-primary">Import</Text>
-              </Pressable>
+        <MobileScreenHeader
+          title="Accounting"
+          subtitle="Invoices, bills, GST & TDS"
+          actions={
+            tab === 'INVOICES' && canCreateInvoice ? (
               <Pressable
                 onPress={() =>
                   router.push(
                     mobileProjectId
-                      ? `/accounting/create-bill?projectId=${mobileProjectId}`
-                      : '/accounting/create-bill',
+                      ? `/accounting/create-invoice?projectId=${mobileProjectId}`
+                      : '/accounting/create-invoice',
                   )
                 }
                 className="flex-row items-center gap-1 px-3 py-2 rounded-lg bg-primary active:opacity-80"
               >
                 <Ionicons name="add" size={16} color="#fff" />
-                <Text className="text-xs font-semibold text-white">Bill</Text>
+                <Text className="text-xs font-semibold text-white">Invoice</Text>
               </Pressable>
-            </View>
-          )}
-        </View>
+            ) : tab === 'BILLS' && canCreateBill ? (
+              <View className="flex-row flex-wrap gap-2 justify-end max-w-[180px]">
+                <Pressable
+                  onPress={() => router.push('/accounting/import-bills')}
+                  className="flex-row items-center gap-1 px-3 py-2 rounded-lg border border-border bg-card active:opacity-80"
+                >
+                  <Ionicons name="cloud-upload-outline" size={16} color="#1E3A5F" />
+                  <Text className="text-xs font-semibold text-primary">Import</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() =>
+                    router.push(
+                      mobileProjectId
+                        ? `/accounting/create-bill?projectId=${mobileProjectId}`
+                        : '/accounting/create-bill',
+                    )
+                  }
+                  className="flex-row items-center gap-1 px-3 py-2 rounded-lg bg-primary active:opacity-80"
+                >
+                  <Ionicons name="add" size={16} color="#fff" />
+                  <Text className="text-xs font-semibold text-white">Bill</Text>
+                </Pressable>
+              </View>
+            ) : undefined
+          }
+        />
         {tabChips}
         {(tab === 'INVOICES' || tab === 'BILLS') && (
           <View className="px-4 pt-2">
@@ -351,7 +352,7 @@ function MobileAccountingPane({
     : `/accounting/${mode === 'invoices' ? 'create-invoice' : 'create-bill'}`;
 
   return (
-    <View>
+    <View className="flex-1 min-h-0">
       <View className="px-4 pt-2 pb-1">
         <Text className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">
           Project
@@ -398,7 +399,7 @@ function MobileAccountingPane({
       </View>
 
       {selectedId && selected ? (
-        <View className="px-4">
+        <View className="px-4 flex-1 min-h-0">
           <View className="py-2 mb-1">
             <Text className="text-base font-bold text-text" numberOfLines={1}>
               {selected.name}

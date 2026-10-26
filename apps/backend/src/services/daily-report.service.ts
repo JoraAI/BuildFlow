@@ -428,7 +428,11 @@ export async function resolvePhotoUrls(companyId: string, photos: string[]): Pro
   for (const p of photos) {
     const parsed = logicalUrlToKey(p);
     if (parsed) {
-      urls.push(await getPresignedDownloadUrl({ companyId, key: parsed.key }));
+      try {
+        urls.push(await getPresignedDownloadUrl({ companyId, key: parsed.key }));
+      } catch {
+        // Skip keys that are missing or not owned by this company.
+      }
     }
   }
   return urls;

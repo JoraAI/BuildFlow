@@ -83,7 +83,7 @@ export async function logout(req: Request, res: Response, next: NextFunction): P
   try {
     // FIX (MOB-H6): Read from cookie (web) or body (native), then clear cookie.
     const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME] ?? req.body?.refreshToken;
-    await authService.logout(refreshToken);
+    await authService.logout(refreshToken, req.user?.tokenId);
     clearRefreshCookie(res);
     ok(res, { success: true });
   } catch (err) {

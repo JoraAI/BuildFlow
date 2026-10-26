@@ -30,6 +30,7 @@ import {
 import { downloadReportPdf } from '@/services/report-download';
 import { CashBookPanel } from '@/components/inventory/CashBookPanel';
 import { DocumentLines, ExpandHint, PartyLabel, type PreviewLine } from '@/components/inventory/DocumentLinePreview';
+import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 
 type Tab = 'orders' | 'deliveries' | 'returns' | 'notes' | 'cash';
 
@@ -646,7 +647,11 @@ export default function InventorySalesScreen() {
         </View>
       ) : null}
 
-      {tab === 'cash' ? <CashBookPanel /> : null}
+      {tab === 'cash' ? (
+        <View className="flex-1" style={{ paddingBottom: isPhone ? mobileListBottomPadding() : 24 }}>
+          <CashBookPanel />
+        </View>
+      ) : null}
 
       {tab !== 'cash' ? (
       <InventoryFilterBar
@@ -698,7 +703,7 @@ export default function InventorySalesScreen() {
               />
               )
             }
-            contentContainerStyle={{ paddingBottom: 24 }}
+            contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
             ListHeaderComponent={
               <View>
                 {tableMode && dataForTab.length > 0 ? (

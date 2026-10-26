@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import * as ctrl from '../controllers/ice-cream.controller';
 import { authenticateToken, requireRole } from '../middleware/auth';
+import { authLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { requireInventoryFeature } from '../middleware/module-gate';
 import { authenticateBuyer } from '../middleware/buyer-auth';
@@ -157,15 +158,22 @@ iceCreamStaffRouter.get(
 );
 
 export const buyerPublicRouter = Router();
-buyerPublicRouter.post('/auth/send-otp', validate({ body: buyerSendOtpSchema }), ctrl.buyerSendOtp);
-buyerPublicRouter.post('/auth/login', validate({ body: buyerLoginSchema }), ctrl.buyerLogin);
+buyerPublicRouter.post(
+  '/auth/send-otp',
+  authLimiter,
+  validate({ body: buyerSendOtpSchema }),
+  ctrl.buyerSendOtp,
+);
+buyerPublicRouter.post('/auth/login', authLimiter, validate({ body: buyerLoginSchema }), ctrl.buyerLogin);
 buyerPublicRouter.post(
   '/auth/preview-invite',
+  authLimiter,
   validate({ body: previewBuyerInviteSchema }),
   ctrl.buyerPreviewInvite,
 );
 buyerPublicRouter.post(
   '/auth/claim-invite',
+  authLimiter,
   validate({ body: claimBuyerInviteSchema }),
   ctrl.buyerClaimInvite,
 );

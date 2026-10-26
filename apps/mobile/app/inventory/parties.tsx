@@ -28,6 +28,7 @@ import { PriceListModal } from '@/components/inventory/PriceListModal';
 import { InviteBuyerModal } from '@/components/inventory/InviteBuyerModal';
 import { useViewport } from '@/hooks/useViewport';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
+import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 import { InventoryFilterBar } from '@/components/inventory/InventoryFilterBar';
 import { SegmentedTabsInline } from '@/components/inventory/SegmentedTabs';
 import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
@@ -425,7 +426,7 @@ export default function InventoryPartiesScreen() {
               />
             )
           }
-          contentContainerStyle={{ paddingBottom: 24 }}
+          contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
         />
       )}
 

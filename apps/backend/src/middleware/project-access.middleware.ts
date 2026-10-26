@@ -6,6 +6,24 @@ import type { Role } from '@buildflow/shared';
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
 
+/** View access: same rule as project list (OWNER + ACCOUNTANT see every company project). */
+export async function assertCanViewProject(
+  companyId: string,
+  userId: string,
+  role: Role,
+  projectId: string,
+): Promise<void> {
+  if (role === 'OWNER' || role === 'ACCOUNTANT') {
+    const project = await prisma.project.findFirst({
+      where: { id: projectId, companyId, isDeleted: false },
+      select: { id: true },
+    });
+    if (!project) throw ApiError.notFound('Project not found');
+    return;
+  }
+  await assertProjectAccess(companyId, userId, role, projectId);
+}
+
 export async function assertProjectAccess(
   companyId: string,
   userId: string,
