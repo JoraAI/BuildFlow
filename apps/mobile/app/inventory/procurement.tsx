@@ -534,6 +534,8 @@ function CreateIndentModal({
 }) {
   type DraftIndentLine = { key: string; resourceId: string; quantity: string };
   const newKey = () => `line-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const { isPhone } = useViewport();
+  const tableMode = !isPhone;
 
   const [lines, setLines] = useState<DraftIndentLine[]>([]);
   const [notes, setNotes] = useState('');
@@ -615,59 +617,119 @@ function CreateIndentModal({
         approved instantly - you can raise a purchase order against it right away. Add multiple{' '}
         {indentLabel === 'Indent' ? 'materials' : 'items'} to procure them in one go.
       </Text>
-      {lines.map((line, idx) => {
-        const unit = resources.find((r) => r.id === line.resourceId)?.unit;
-        return (
-          <View key={line.key} className="rounded-xl border border-border p-3 mb-2">
-            <View className="flex-row items-center justify-between mb-1">
-              <Text className="text-xs font-bold text-text">{itemLabel} {idx + 1}</Text>
-              {lines.length > 1 ? (
+      <View className="flex-row items-end justify-between gap-2 mb-2">
+        <View className="flex-1 min-w-0">
+          <Text className="text-sm font-bold text-text">Items</Text>
+          <Text className="text-[11px] text-muted mt-0.5">
+            Add {itemLabel.toLowerCase()}s and quantities to request.
+          </Text>
+        </View>
+        <Button
+          label={`Add ${itemLabel.toLowerCase()}`}
+          variant="secondary"
+          size="sm"
+          disabled={saving || lines.some((l) => !l.resourceId)}
+          onPress={addLine}
+        />
+      </View>
+      {tableMode ? (
+        <View className="rounded-xl border border-border overflow-hidden bg-card mb-3">
+          <View className="flex-row items-center px-3 py-2 bg-surface border-b border-border gap-2">
+            <Text className="flex-[2.4] text-[11px] font-bold text-muted uppercase">{itemLabel}</Text>
+            <Text className="w-[100px] text-[11px] font-bold text-muted uppercase">Qty</Text>
+            <Text className="w-[64px] text-[11px] font-bold text-muted uppercase">Unit</Text>
+            <View className="w-8" />
+          </View>
+          {lines.map((line, idx) => {
+            const unit = resources.find((r) => r.id === line.resourceId)?.unit ?? '';
+            return (
+              <View key={line.key} className="flex-row items-start px-3 py-2 gap-2 border-b border-border/60 last:border-b-0">
+                <View className="flex-[2.4] min-w-0">
+                  <Select
+                    compact
+                    value={line.resourceId || undefined}
+                    onChange={(v) => {
+                      if (!v) return;
+                      if (lines.some((l) => l.key !== line.key && l.resourceId === v)) {
+                        setError(`Each ${itemLabel.toLowerCase()} can appear only once per ${indentLabel.toLowerCase()}.`);
+                        return;
+                      }
+                      setError('');
+                      updateLine(line.key, { resourceId: v });
+                    }}
+                    options={optionsFor(line)}
+                    placeholder={`${itemLabel} ${idx + 1}`}
+                    disabled={saving}
+                  />
+                </View>
+                <View className="w-[100px]">
+                  <Input
+                    compact
+                    fullWidth
+                    label=""
+                    accessibilityLabel="Quantity"
+                    value={line.quantity}
+                    onChangeText={(t) => updateLine(line.key, { quantity: t })}
+                    keyboardType="numeric"
+                    placeholder="0"
+                  />
+                </View>
+                <Text className="w-[64px] text-xs text-muted pt-3">{unit || '—'}</Text>
                 <Pressable
                   disabled={saving}
                   onPress={() => removeLine(line.key)}
-                  className="px-2 py-1"
+                  className="w-8 h-10 items-center justify-center"
+                  hitSlop={6}
                 >
-                  <Text className="text-xs font-semibold text-danger">Remove</Text>
+                  <Text className="text-sm font-semibold text-danger">✕</Text>
                 </Pressable>
-              ) : null}
-            </View>
-            <Select
-              label={itemLabel}
-              value={line.resourceId || undefined}
-              onChange={(v) => {
-                if (!v) return;
-                // Double-guard duplicates (options already exclude them).
-                if (lines.some((l) => l.key !== line.key && l.resourceId === v)) {
-                  setError(`Each ${itemLabel.toLowerCase()} can appear only once per ${indentLabel.toLowerCase()}.`);
-                  return;
-                }
-                setError('');
-                updateLine(line.key, { resourceId: v });
-              }}
-              options={optionsFor(line)}
-              placeholder={`Choose ${itemLabel.toLowerCase()}`}
-              disabled={saving}
-            />
-            <View className="mt-2">
-              <Input
-                label={unit ? `Quantity (${unit})` : 'Quantity'}
-                value={line.quantity}
-                onChangeText={(t) => updateLine(line.key, { quantity: t })}
-                keyboardType="numeric"
-              />
-            </View>
-          </View>
-        );
-      })}
-      <Button
-        label={`+ Add ${itemLabel.toLowerCase()}`}
-        variant="secondary"
-        size="sm"
-        fullWidth
-        disabled={saving || lines.some((l) => !l.resourceId)}
-        onPress={addLine}
-      />
-      <View className="h-3" />
+              </View>
+            );
+          })}
+        </View>
+      ) : (
+        <View className="gap-2 mb-3">
+          {lines.map((line, idx) => {
+            const unit = resources.find((r) => r.id === line.resourceId)?.unit;
+            return (
+              <View key={line.key} className="rounded-xl border border-border p-3">
+                <View className="flex-row items-center justify-between mb-1">
+                  <Text className="text-xs font-bold text-text">{itemLabel} {idx + 1}</Text>
+                  {lines.length > 1 ? (
+                    <Pressable disabled={saving} onPress={() => removeLine(line.key)} className="px-2 py-1">
+                      <Text className="text-xs font-semibold text-danger">Remove</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+                <Select
+                  label={itemLabel}
+                  value={line.resourceId || undefined}
+                  onChange={(v) => {
+                    if (!v) return;
+                    if (lines.some((l) => l.key !== line.key && l.resourceId === v)) {
+                      setError(`Each ${itemLabel.toLowerCase()} can appear only once per ${indentLabel.toLowerCase()}.`);
+                      return;
+                    }
+                    setError('');
+                    updateLine(line.key, { resourceId: v });
+                  }}
+                  options={optionsFor(line)}
+                  placeholder={`Choose ${itemLabel.toLowerCase()}`}
+                  disabled={saving}
+                />
+                <View className="mt-2">
+                  <Input
+                    label={unit ? `Quantity (${unit})` : 'Quantity'}
+                    value={line.quantity}
+                    onChangeText={(t) => updateLine(line.key, { quantity: t })}
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      )}
       <Input label="Notes (optional)" value={notes} onChangeText={setNotes} multiline />
       {error ? <Text className="text-danger text-sm mt-2">{error}</Text> : null}
       <View className="h-4" />
@@ -1229,6 +1291,8 @@ function CreatePOModal({
     lines: Array<{ resourceId: string; quantity: number; unit: string; rate: number }>;
   }) => Promise<void>;
 }) {
+  const { isPhone } = useViewport();
+  const tableMode = !isPhone;
   const approved = requisitions.filter(indentAvailableForNewPo);
   const vendorsQ = useVendors();
   const vendors = ((vendorsQ.data ?? []) as PartyRow[]).filter((v) => v.isActive);
@@ -1376,25 +1440,62 @@ function CreatePOModal({
           )}
           {req ? (
             <View className="mt-3">
-              <Text className="text-sm font-bold text-text mb-2">Cost ₹ (what you pay the vendor)</Text>
-              {req.lines.map((l) => (
-                <View key={l.id} className="flex-row items-center mb-2 gap-2">
-                  <Text className="flex-1 text-xs text-text" numberOfLines={1}>
-                    {l.resource?.name ?? l.resourceId} ({l.quantity} {l.unit})
-                  </Text>
-                  <View className="w-24">
-                    <Input
-                      label=""
-                      placeholder="Cost"
-                      value={rates[l.resourceId ?? ''] ?? ''}
-                      onChangeText={(v) => {
-                        if (l.resourceId) setRates((prev) => ({ ...prev, [l.resourceId]: v }));
-                      }}
-                      keyboardType="numeric"
-                    />
+              <Text className="text-sm font-bold text-text">Items</Text>
+              <Text className="text-[11px] text-muted mb-2">
+                Cost ₹ is what you pay the vendor (not the selling price).
+              </Text>
+              {tableMode ? (
+                <View className="rounded-xl border border-border overflow-hidden bg-card">
+                  <View className="flex-row items-center px-3 py-2 bg-surface border-b border-border gap-2">
+                    <Text className="flex-[2.2] text-[11px] font-bold text-muted uppercase">{itemLabel}</Text>
+                    <Text className="w-[88px] text-[11px] font-bold text-muted uppercase text-right">Qty</Text>
+                    <Text className="w-[56px] text-[11px] font-bold text-muted uppercase">Unit</Text>
+                    <Text className="w-[110px] text-[11px] font-bold text-muted uppercase">Cost ₹</Text>
                   </View>
+                  {req.lines.map((l) => (
+                    <View key={l.id} className="flex-row items-start px-3 py-2 gap-2 border-b border-border/60 last:border-b-0">
+                      <Text className="flex-[2.2] text-sm text-text pt-2.5" numberOfLines={2}>
+                        {l.resource?.name ?? l.resourceId}
+                      </Text>
+                      <Text className="w-[88px] text-sm text-text text-right pt-2.5">{Number(l.quantity)}</Text>
+                      <Text className="w-[56px] text-xs text-muted pt-3">{l.unit}</Text>
+                      <View className="w-[110px]">
+                        <Input
+                          compact
+                          fullWidth
+                          label=""
+                          accessibilityLabel="Vendor cost"
+                          placeholder="0"
+                          value={rates[l.resourceId ?? ''] ?? ''}
+                          onChangeText={(v) => {
+                            if (l.resourceId) setRates((prev) => ({ ...prev, [l.resourceId]: v }));
+                          }}
+                          keyboardType="numeric"
+                        />
+                      </View>
+                    </View>
+                  ))}
                 </View>
-              ))}
+              ) : (
+                req.lines.map((l) => (
+                  <View key={l.id} className="flex-row items-center mb-2 gap-2">
+                    <Text className="flex-1 text-xs text-text" numberOfLines={1}>
+                      {l.resource?.name ?? l.resourceId} ({l.quantity} {l.unit})
+                    </Text>
+                    <View className="w-24">
+                      <Input
+                        label=""
+                        placeholder="Cost"
+                        value={rates[l.resourceId ?? ''] ?? ''}
+                        onChangeText={(v) => {
+                          if (l.resourceId) setRates((prev) => ({ ...prev, [l.resourceId]: v }));
+                        }}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                  </View>
+                ))
+              )}
             </View>
           ) : null}
           {error ? <Text className="text-danger text-sm mt-2">{error}</Text> : null}
@@ -1442,6 +1543,8 @@ function RecordGrnModal({
     locationId?: string;
   }) => Promise<void>;
 }) {
+  const { isPhone } = useViewport();
+  const tableMode = !isPhone;
   // Locked rule: list only non-cancelled POs that are NOT yet fully received.
   const eligiblePos = allPurchaseOrders(requisitions).filter(poAvailableForNewGrn);
   const [poId, setPoId] = useState('');
@@ -1617,57 +1720,131 @@ function RecordGrnModal({
           {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3/9.6): per-line batch codes. */}
           {selectedPo ? (
             <View className="mt-3">
-              <Text className="text-sm font-bold text-text mb-2">Items to receive (remaining)</Text>
-              {selectedPo.lines.map((l) => {
-                const rem = remaining.get(l.resourceId) ?? 0;
-                if (rem <= 0) return null;
-                return (
-                  <View key={l.id} className="mb-2">
-                    <View className="flex-row items-center mb-1 gap-2">
-                      <Text className="flex-1 text-xs text-text" numberOfLines={1}>
-                        {l.resource?.name ?? l.resourceId} (remaining {rem} {l.unit})
-                      </Text>
-                      <View className="w-24">
-                        <Input
-                          label=""
-                          placeholder="Qty"
-                          value={quantities[l.resourceId] ?? String(rem)}
-                          onChangeText={(v) => setQuantities((prev) => ({ ...prev, [l.resourceId]: v }))}
-                          keyboardType="numeric"
-                        />
-                      </View>
-                    </View>
-                    {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3/9.6): per-line batch. */}
-                    <Input
-                      label="Batch / lot code (optional)"
-                      value={batchCodes[l.resourceId] ?? ''}
-                      onChangeText={(v) => setBatchCodes((prev) => ({ ...prev, [l.resourceId]: v }))}
-                      autoCapitalize="characters"
-                      placeholder="e.g. LOT-2026-A"
-                    />
-                    {/* INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): lot dates
-                        (batch-tracked Kirana items use these for FEFO + expiry). */}
-                    <View className="flex-row gap-2 mt-1">
-                      <View className="flex-1">
-                        <Input
-                          label="Mfg date (optional)"
-                          value={batchMfg[l.resourceId] ?? ''}
-                          onChangeText={(v) => setBatchMfg((prev) => ({ ...prev, [l.resourceId]: v }))}
-                          placeholder="YYYY-MM-DD"
-                        />
-                      </View>
-                      <View className="flex-1">
-                        <Input
-                          label="Expiry date (optional)"
-                          value={batchExp[l.resourceId] ?? ''}
-                          onChangeText={(v) => setBatchExp((prev) => ({ ...prev, [l.resourceId]: v }))}
-                          placeholder="YYYY-MM-DD"
-                        />
-                      </View>
-                    </View>
+              <Text className="text-sm font-bold text-text">Items to receive</Text>
+              <Text className="text-[11px] text-muted mb-2">
+                Enter the quantity arriving now. Remaining is what is still open on this PO.
+              </Text>
+              {tableMode ? (
+                <View className="rounded-xl border border-border overflow-hidden bg-card">
+                  <View className="flex-row items-center px-3 py-2 bg-surface border-b border-border gap-1.5">
+                    <Text className="flex-[1.8] text-[11px] font-bold text-muted uppercase">Item</Text>
+                    <Text className="w-[72px] text-[11px] font-bold text-muted uppercase text-right">Left</Text>
+                    <Text className="w-[80px] text-[11px] font-bold text-muted uppercase">Qty</Text>
+                    <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Batch</Text>
+                    <Text className="w-[108px] text-[11px] font-bold text-muted uppercase">Mfg</Text>
+                    <Text className="w-[108px] text-[11px] font-bold text-muted uppercase">Expiry</Text>
                   </View>
-                );
-              })}
+                  {selectedPo.lines.map((l) => {
+                    const rem = remaining.get(l.resourceId) ?? 0;
+                    if (rem <= 0) return null;
+                    return (
+                      <View key={l.id} className="flex-row items-start px-3 py-2 gap-1.5 border-b border-border/60 last:border-b-0">
+                        <View className="flex-[1.8] min-w-0 pt-2">
+                          <Text className="text-sm text-text" numberOfLines={2}>
+                            {l.resource?.name ?? l.resourceId}
+                          </Text>
+                          <Text className="text-[11px] text-muted">{l.unit}</Text>
+                        </View>
+                        <Text className="w-[72px] text-xs text-muted text-right pt-3">{rem}</Text>
+                        <View className="w-[80px]">
+                          <Input
+                            compact
+                            fullWidth
+                            label=""
+                            accessibilityLabel="Receive quantity"
+                            placeholder="Qty"
+                            value={quantities[l.resourceId] ?? String(rem)}
+                            onChangeText={(v) => setQuantities((prev) => ({ ...prev, [l.resourceId]: v }))}
+                            keyboardType="numeric"
+                          />
+                        </View>
+                        <View className="flex-1 min-w-0">
+                          <Input
+                            compact
+                            fullWidth
+                            label=""
+                            accessibilityLabel="Batch code"
+                            value={batchCodes[l.resourceId] ?? ''}
+                            onChangeText={(v) => setBatchCodes((prev) => ({ ...prev, [l.resourceId]: v }))}
+                            autoCapitalize="characters"
+                            placeholder="LOT"
+                          />
+                        </View>
+                        <View className="w-[108px]">
+                          <Input
+                            compact
+                            fullWidth
+                            label=""
+                            accessibilityLabel="Manufacture date"
+                            value={batchMfg[l.resourceId] ?? ''}
+                            onChangeText={(v) => setBatchMfg((prev) => ({ ...prev, [l.resourceId]: v }))}
+                            placeholder="YYYY-MM-DD"
+                          />
+                        </View>
+                        <View className="w-[108px]">
+                          <Input
+                            compact
+                            fullWidth
+                            label=""
+                            accessibilityLabel="Expiry date"
+                            value={batchExp[l.resourceId] ?? ''}
+                            onChangeText={(v) => setBatchExp((prev) => ({ ...prev, [l.resourceId]: v }))}
+                            placeholder="YYYY-MM-DD"
+                          />
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : (
+                selectedPo.lines.map((l) => {
+                  const rem = remaining.get(l.resourceId) ?? 0;
+                  if (rem <= 0) return null;
+                  return (
+                    <View key={l.id} className="mb-2">
+                      <View className="flex-row items-center mb-1 gap-2">
+                        <Text className="flex-1 text-xs text-text" numberOfLines={1}>
+                          {l.resource?.name ?? l.resourceId} (remaining {rem} {l.unit})
+                        </Text>
+                        <View className="w-24">
+                          <Input
+                            label=""
+                            placeholder="Qty"
+                            value={quantities[l.resourceId] ?? String(rem)}
+                            onChangeText={(v) => setQuantities((prev) => ({ ...prev, [l.resourceId]: v }))}
+                            keyboardType="numeric"
+                          />
+                        </View>
+                      </View>
+                      <Input
+                        label="Batch / lot code (optional)"
+                        value={batchCodes[l.resourceId] ?? ''}
+                        onChangeText={(v) => setBatchCodes((prev) => ({ ...prev, [l.resourceId]: v }))}
+                        autoCapitalize="characters"
+                        placeholder="e.g. LOT-2026-A"
+                      />
+                      <View className="flex-row gap-2 mt-1">
+                        <View className="flex-1">
+                          <Input
+                            label="Mfg date (optional)"
+                            value={batchMfg[l.resourceId] ?? ''}
+                            onChangeText={(v) => setBatchMfg((prev) => ({ ...prev, [l.resourceId]: v }))}
+                            placeholder="YYYY-MM-DD"
+                          />
+                        </View>
+                        <View className="flex-1">
+                          <Input
+                            label="Expiry date (optional)"
+                            value={batchExp[l.resourceId] ?? ''}
+                            onChangeText={(v) => setBatchExp((prev) => ({ ...prev, [l.resourceId]: v }))}
+                            placeholder="YYYY-MM-DD"
+                          />
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
             </View>
           ) : null}
           {/* INVENTORY_HORIZONTAL_PLATFORM (Phase 5.1): landed costs. */}
