@@ -40,24 +40,25 @@ function Sheet({
       onRequestClose={saving ? undefined : onClose}
     >
       <Pressable
-        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : fullScreen ? '' : 'items-center justify-center p-4'}`}
+        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : 'items-center justify-center p-4'}`}
         onPress={saving ? undefined : onClose}
       >
         <Pressable
-          className={`bg-card w-full ${
+          className={`bg-card w-full overflow-hidden ${
             fullScreen
               ? isPhone
                 ? 'rounded-t-2xl h-[96%] p-4'
-                : 'h-full'
+                : 'rounded-2xl max-w-3xl max-h-[92%] p-6'
               : isPhone
                 ? 'rounded-t-2xl max-h-[92%] p-4'
                 : 'rounded-2xl max-w-lg max-h-[85%] p-4'
           }`}
           onPress={(e) => e.stopPropagation()}
+          style={isPhone ? undefined : { maxHeight: fullScreen ? '92%' : '85%' }}
         >
           <Text className="text-lg font-bold text-text mb-1">{title}</Text>
           {subtitle ? <Text className="text-sm text-muted mb-3">{subtitle}</Text> : null}
-          <ScrollView keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+          <ScrollView className="flex-1" keyboardShouldPersistTaps="handled" nestedScrollEnabled>
             {children}
           </ScrollView>
         </Pressable>
@@ -190,16 +191,19 @@ export function TransferModal({
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (open) {
-      const def = warehouses.find((w) => w.isDefault);
-      setFromId(def?.id ?? warehouses[0]?.id ?? '');
-      setToId('');
-      setNotes('');
-      setLines([{ key: newKey(), resourceId: '', quantity: '' }]);
-      setError('');
-      setSaving(false);
-    }
-  }, [open, warehouses]);
+    if (!open) return;
+    setFromId('');
+    setToId('');
+    setNotes('');
+    setLines([{ key: newKey(), resourceId: '', quantity: '' }]);
+    setError('');
+    setSaving(false);
+  }, [open]);
+  useEffect(() => {
+    if (!open || fromId) return;
+    const def = warehouses.find((w) => w.isDefault) ?? warehouses[0];
+    if (def) setFromId(def.id);
+  }, [open, warehouses, fromId]);
 
   const srcWh = warehouses.find((w) => w.id === fromId);
   const balanceOf = useMemo(() => {
@@ -388,16 +392,19 @@ export function CountModal({
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (open) {
-      const def = warehouses.find((w) => w.isDefault);
-      setLocationId(def?.id ?? warehouses[0]?.id ?? '');
-      setCountDate(new Date().toISOString().slice(0, 10));
-      setNotes('');
-      setLines([{ key: newKey(), resourceId: '', countedQty: '' }]);
-      setError('');
-      setSaving(false);
-    }
-  }, [open, warehouses]);
+    if (!open) return;
+    setLocationId('');
+    setCountDate(new Date().toISOString().slice(0, 10));
+    setNotes('');
+    setLines([{ key: newKey(), resourceId: '', countedQty: '' }]);
+    setError('');
+    setSaving(false);
+  }, [open]);
+  useEffect(() => {
+    if (!open || locationId) return;
+    const def = warehouses.find((w) => w.isDefault) ?? warehouses[0];
+    if (def) setLocationId(def.id);
+  }, [open, warehouses, locationId]);
 
   if (!open) return null;
 

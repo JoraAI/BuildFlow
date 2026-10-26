@@ -200,22 +200,22 @@ function NewInvoiceModal({
       onRequestClose={onClose}
     >
       <Pressable
-        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : ''}`}
+        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : 'items-center justify-center p-4'}`}
         onPress={onClose}
       >
         <Pressable
           onPress={(e) => e.stopPropagation()}
-          className={`bg-card w-full ${
-            isPhone ? 'rounded-t-2xl h-[96%]' : 'h-full'
+          className={`bg-card w-full overflow-hidden ${
+            isPhone ? 'rounded-t-2xl h-[96%]' : 'rounded-2xl max-w-lg max-h-[85%]'
           }`}
         >
-          <View className="px-5 pt-4 pb-3 border-b border-border flex-row items-center justify-between">
+          <View className="px-5 pt-4 pb-3 border-b border-border flex-row items-center justify-between shrink-0">
             <Text className="text-base font-bold text-text">New sales invoice</Text>
             <Pressable onPress={onClose} className="p-1">
               <Text className="text-muted text-xl">×</Text>
             </Pressable>
           </View>
-          <ScrollView className="p-5">
+          <ScrollView className="flex-1 p-5" keyboardShouldPersistTaps="handled">
             <Select
               label="Customer (optional - from Parties)"
               value={customerId || undefined}

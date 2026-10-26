@@ -19,6 +19,7 @@ import { generateWhatsAppQuoteShare } from '@/utils/whatsapp-share';
 import { formatINR } from '@/utils/format';
 import { usesEventLightingCopy } from '@buildflow/shared';
 import { mobileListBottomPadding } from '@/components/layout/fab-layout';
+import { DocumentLines, ExpandHint, type PreviewLine } from '@/components/inventory/DocumentLinePreview';
 
 const QUOTE_STATUS_TABS = [
   { value: 'ALL' as const, label: 'All' },
@@ -47,7 +48,8 @@ export default function InventoryQuotesScreen() {
 
   const filters = useInventoryListFilters();
   const [quoteModalOpen, setQuoteModalOpen] = useState(false);
-  const [selectedQuoteDetail, setSelectedQuoteDetail] = useState<Quote | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const toggleExpanded = (id: string) => setExpandedId((cur) => (cur === id ? null : id));
 
   const quotes = useQuotes();
   const createQuote = useCreateQuote();
@@ -107,13 +109,29 @@ export default function InventoryQuotesScreen() {
     });
   };
 
+  const quoteLines = (item: Quote): PreviewLine[] =>
+    item.lines.map((l) => ({
+      key: l.id,
+      name: l.itemName,
+      qty: `${Number(l.quantity)} ${l.unit}`,
+      meta: formatINR(Number(l.amount)),
+    }));
+
   const renderQuoteItem = ({ item }: { item: Quote }) => {
     const isAccepted = item.status === 'ACCEPTED';
     const hasSalesOrder = Boolean(item.salesOrderId);
+    const expanded = expandedId === item.id;
+    const linesPreview = (
+      <View className={tableMode ? 'px-4 pb-3' : 'mt-3 pt-2.5 border-t border-border/60'}>
+        <ExpandHint expanded={expanded} count={item.lines.length} onPress={() => toggleExpanded(item.id)} />
+        {expanded ? <DocumentLines lines={quoteLines(item)} /> : null}
+      </View>
+    );
 
     if (tableMode) {
       return (
-        <View className={`flex-row items-center px-4 py-3 bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
+        <View className={`bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
+        <View className="flex-row items-center px-4 py-3">
           <View className="flex-[1.2] min-w-0 mr-2">
             <Text className="text-sm font-mono font-semibold text-text">{item.quoteNumber}</Text>
             <Text className="text-[11px] text-muted">{item.quoteDate}</Text>
@@ -212,6 +230,8 @@ export default function InventoryQuotesScreen() {
             ) : null}
           </View>
         </View>
+        {linesPreview}
+        </View>
       );
     }
 
@@ -241,21 +261,7 @@ export default function InventoryQuotesScreen() {
           </View>
         </View>
 
-        {/* Line Items Preview */}
-        <View className="mt-3 pt-2.5 border-t border-border/60">
-          <Text className="text-[11px] font-bold text-muted uppercase mb-1">Items Breakdown</Text>
-          {item.lines.slice(0, 3).map((li) => (
-            <View key={li.id} className="flex-row items-center justify-between py-0.5">
-              <Text className="text-xs text-text flex-1 mr-2" numberOfLines={1}>
-                • {li.itemName} ({li.quantity} {li.unit})
-              </Text>
-              <Text className="text-xs font-medium text-text">{formatINR(Number(li.amount))}</Text>
-            </View>
-          ))}
-          {item.lines.length > 3 ? (
-            <Text className="text-[11px] text-accent mt-0.5">+{item.lines.length - 3} more items...</Text>
-          ) : null}
-        </View>
+        {linesPreview}
 
         {/* Actions Row */}
         <View className="flex-row flex-wrap items-center gap-2 mt-3 pt-2.5 border-t border-border">

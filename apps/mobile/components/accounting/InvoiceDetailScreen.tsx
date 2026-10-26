@@ -354,12 +354,12 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={isDesktop ? [] : ['bottom']}>
+    <SafeAreaView className="flex-1 bg-surface min-h-0" edges={isDesktop ? [] : ['bottom']}>
       <BusyOverlay visible={busy} title="Updating invoice…" />
       <OfflineBanner />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        className="flex-1"
+        className="flex-1 min-h-0"
       >
         {isDesktop ? (
           <ScrollView className="flex-1 min-h-0" contentContainerClassName="items-center px-8 py-6 pb-32" showsVerticalScrollIndicator>
@@ -381,15 +381,21 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
             </View>
           </ScrollView>
         ) : (
-          <>
+          <View className="flex-1 min-h-0">
             <FormScreenHeader
               title={invoice.invoiceNumber}
               subtitle={invoice.clientName}
               cancelLabel="Back"
               onCancel={goBack}
             />
-            <ScrollView contentContainerClassName="px-4 pb-24 pt-2 gap-4">{mainContent}</ScrollView>
-          </>
+            <ScrollView
+              className="flex-1 min-h-0"
+              contentContainerClassName="px-4 pb-24 pt-2 gap-4"
+              style={Platform.OS === 'web' ? { overflow: 'scroll' } : undefined}
+            >
+              {mainContent}
+            </ScrollView>
+          </View>
         )}
       </KeyboardAvoidingView>
     </SafeAreaView>

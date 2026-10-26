@@ -1148,18 +1148,20 @@ function QuickVendorReceiptModal({
   return (
     <Modal visible={item !== null} transparent animationType={isPhone ? 'slide' : 'fade'} onRequestClose={onClose}>
       <Pressable
-        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : ''}`}
+        className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : 'items-center justify-center p-4'}`}
         onPress={onClose}
       >
         <Pressable
-          className={`bg-card w-full p-4 ${isPhone ? 'rounded-t-2xl h-[96%]' : 'h-full'}`}
+          className={`bg-card w-full overflow-hidden p-4 ${
+            isPhone ? 'rounded-t-2xl h-[96%]' : 'rounded-2xl max-w-lg max-h-[85%]'
+          }`}
           onPress={(e) => e.stopPropagation()}
         >
           <Text className="text-lg font-bold text-text">Receive stock</Text>
           <Text className="text-xs text-muted mb-3">
             {item?.name} · quick receipt without a purchase order
           </Text>
-          <ScrollView keyboardShouldPersistTaps="handled">
+          <ScrollView className="flex-1" keyboardShouldPersistTaps="handled">
             <Select
               label="Existing vendor (optional)"
               value={vendorId || undefined}

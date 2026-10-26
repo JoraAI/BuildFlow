@@ -55,7 +55,7 @@ function Sheet({
           onPress={saving ? undefined : onClose}
         >
           <Pressable
-            className={`bg-card w-full ${
+            className={`bg-card w-full overflow-hidden ${
               isDialog
                 ? fullScreen
                   ? 'max-w-3xl lg:max-w-5xl xl:max-w-6xl max-h-[92vh] rounded-2xl p-6 shadow-2xl border border-border'
@@ -63,8 +63,9 @@ function Sheet({
                 : 'rounded-t-3xl max-h-[94%] p-4 border-t border-border shadow-2xl'
             }`}
             onPress={(e) => e.stopPropagation()}
+            style={{ maxHeight: isDialog ? '92%' : '94%' }}
           >
-            <View className="flex-row items-start justify-between gap-3 mb-2 pb-2 border-b border-border/40">
+            <View className="flex-row items-start justify-between gap-3 mb-2 pb-2 border-b border-border/40 shrink-0">
               <View className="flex-1 pr-2">
                 <Text className="text-lg font-bold text-text">{title}</Text>
                 {subtitle ? (
@@ -81,10 +82,11 @@ function Sheet({
               </Pressable>
             </View>
             <ScrollView
+              className="flex-1"
               keyboardShouldPersistTaps="handled"
               nestedScrollEnabled
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 16 }}
+              contentContainerStyle={{ paddingBottom: 24 }}
             >
               {children}
             </ScrollView>
@@ -115,6 +117,11 @@ type CatalogResource = {
 };
 type BuyerRole = 'DISTRIBUTOR' | 'CUSTOMER' | null;
 const newKey = () => `l-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+function defaultWarehouseId(warehouses: Warehouse[] | undefined): string {
+  if (!warehouses?.length) return '';
+  return (warehouses.find((w) => w.isDefault) ?? warehouses[0]).id;
+}
 
 function customerCatalogRate(r: CatalogResource): number {
   const n = Number(r.customerRate ?? r.rate ?? 0);
@@ -444,19 +451,20 @@ export function NewSalesOrderModal({
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (open) {
-      setCustomerId('');
-      setCustomerName('');
-      setOrderDate(new Date().toISOString().slice(0, 10));
-      setNotes('');
-      setLines([{ key: newKey(), resourceId: '', quantity: '', rate: '', gstRate: '18', unit: '', returnKind: 'GOOD' }]);
-      setError('');
-      if (warehouses && warehouses.length > 0) {
-        const def = warehouses.find((w: Warehouse) => w.isDefault) ?? warehouses[0];
-        if (def) setLocationId(def.id);
-      }
-    }
-  }, [open, warehouses]);
+    if (!open) return;
+    setCustomerId('');
+    setCustomerName('');
+    setOrderDate(new Date().toISOString().slice(0, 10));
+    setNotes('');
+    setLines([{ key: newKey(), resourceId: '', quantity: '', rate: '', gstRate: '18', unit: '', returnKind: 'GOOD' }]);
+    setError('');
+    setLocationId('');
+  }, [open]);
+  useEffect(() => {
+    if (!open || locationId) return;
+    const id = defaultWarehouseId(warehouses);
+    if (id) setLocationId(id);
+  }, [open, warehouses, locationId]);
 
   const selectedParty = (customers ?? []).find((c) => c.id === customerId);
   const buyerRole: BuyerRole = selectedParty?.buyerRole === 'DISTRIBUTOR' ? 'DISTRIBUTOR' : customerId ? 'CUSTOMER' : null;
@@ -608,18 +616,19 @@ export function NewChallanModal({
   const balances = useProjectStockBalances(locationId);
 
   useEffect(() => {
-    if (open) {
-      setSalesOrderId('');
-      setNotes('');
-      setQtyByLine({});
-      setBatchByLine({});
-      setError('');
-      if (warehouses && warehouses.length > 0) {
-        const def = warehouses.find((w: Warehouse) => w.isDefault) ?? warehouses[0];
-        if (def) setLocationId(def.id);
-      }
-    }
-  }, [open, warehouses]);
+    if (!open) return;
+    setSalesOrderId('');
+    setNotes('');
+    setQtyByLine({});
+    setBatchByLine({});
+    setError('');
+    setLocationId('');
+  }, [open]);
+  useEffect(() => {
+    if (!open || locationId) return;
+    const id = defaultWarehouseId(warehouses);
+    if (id) setLocationId(id);
+  }, [open, warehouses, locationId]);
 
   const eligible = useMemo(
     () =>
@@ -815,20 +824,21 @@ export function NewQuoteModal({
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (open) {
-      setCustomerId('');
-      setCustomerName('');
-      setQuoteDate(new Date().toISOString().slice(0, 10));
-      setValidUntil('');
-      setNotes('');
-      setLines([{ key: newKey(), resourceId: '', quantity: '', rate: '', gstRate: '18', unit: '', returnKind: 'GOOD' }]);
-      setError('');
-      if (warehouses && warehouses.length > 0) {
-        const def = warehouses.find((w: Warehouse) => w.isDefault) ?? warehouses[0];
-        if (def) setLocationId(def.id);
-      }
-    }
-  }, [open, warehouses]);
+    if (!open) return;
+    setCustomerId('');
+    setCustomerName('');
+    setQuoteDate(new Date().toISOString().slice(0, 10));
+    setValidUntil('');
+    setNotes('');
+    setLines([{ key: newKey(), resourceId: '', quantity: '', rate: '', gstRate: '18', unit: '', returnKind: 'GOOD' }]);
+    setError('');
+    setLocationId('');
+  }, [open]);
+  useEffect(() => {
+    if (!open || locationId) return;
+    const id = defaultWarehouseId(warehouses);
+    if (id) setLocationId(id);
+  }, [open, warehouses, locationId]);
 
   const selectedParty = (customers ?? []).find((c) => c.id === customerId);
   const buyerRole: BuyerRole = selectedParty?.buyerRole === 'DISTRIBUTOR' ? 'DISTRIBUTOR' : customerId ? 'CUSTOMER' : null;
@@ -985,17 +995,16 @@ export function DispatchChallanSheet({
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (open) {
-      if (warehouses && warehouses.length > 0) {
-        const def = warehouses.find((w: Warehouse) => w.isDefault) ?? warehouses[0];
-        if (def) setLocationId(def.id);
-      } else {
-        setLocationId('');
-      }
-      setError('');
-      setSaving(false);
-    }
-  }, [open, warehouses]);
+    if (!open) return;
+    setLocationId('');
+    setError('');
+    setSaving(false);
+  }, [open]);
+  useEffect(() => {
+    if (!open || locationId) return;
+    const id = defaultWarehouseId(warehouses);
+    if (id) setLocationId(id);
+  }, [open, warehouses, locationId]);
 
   if (!open) return null;
 

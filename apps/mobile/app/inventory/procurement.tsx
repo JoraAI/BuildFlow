@@ -713,15 +713,16 @@ function ModalShell({
       >
         <Pressable
           onPress={(e) => e.stopPropagation()}
-          className={`bg-card w-full ${
+          className={`bg-card w-full overflow-hidden ${
             isDialog
               ? fullScreen
                 ? 'max-w-2xl lg:max-w-3xl xl:max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl border border-border'
                 : 'max-w-lg max-h-[85vh] rounded-2xl shadow-2xl border border-border'
               : 'rounded-t-3xl max-h-[94%] border-t border-border shadow-2xl'
           }`}
+          style={{ maxHeight: isDialog ? '90%' : '94%' }}
         >
-          <View className="px-5 pt-4 pb-3 border-b border-border flex-row items-center justify-between">
+          <View className="px-5 pt-4 pb-3 border-b border-border flex-row items-center justify-between shrink-0">
             <Text className="text-base font-bold text-text">{title}</Text>
             {!closeDisabled ? (
               <Pressable onPress={dismiss} className="p-1">
@@ -731,7 +732,9 @@ function ModalShell({
               <ActivityIndicator size="small" />
             )}
           </View>
-          <ScrollView className="p-5">{children}</ScrollView>
+          <ScrollView className="flex-1 p-5" keyboardShouldPersistTaps="handled">
+            {children}
+          </ScrollView>
         </Pressable>
       </Pressable>
     </Modal>

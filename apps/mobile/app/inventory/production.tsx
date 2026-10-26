@@ -5,6 +5,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, RefreshControl, Pressable } from 'react-native';
 import { Card, Button, Input, EmptyState, LoadingSkeleton, Select, toast } from '@/components/ui';
 import { InventoryPageHeader } from '@/components/inventory/InventoryPageHeader';
+import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 import { SegmentedTabs } from '@/components/inventory/SegmentedTabs';
 import { useAuthStore } from '@/stores/auth.store';
 import { usesIceCreamManufacturerCopy } from '@buildflow/shared';
@@ -251,6 +252,7 @@ export default function IceCreamProductionScreen() {
       {tab === 'recipes' ? (
         <ScrollView
           className="flex-1 px-4"
+          contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
           refreshControl={<RefreshControl refreshing={!!recipesQ.isFetching} onRefresh={refresh} />}
         >
           <Card className="p-4 mt-3 mb-3">
@@ -366,13 +368,13 @@ export default function IceCreamProductionScreen() {
               </Card>
             ))
           )}
-          <View className="h-8" />
         </ScrollView>
       ) : null}
 
       {tab === 'production' ? (
         <ScrollView
           className="flex-1 px-4"
+          contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
           refreshControl={<RefreshControl refreshing={!!productionQ.isFetching} onRefresh={refresh} />}
         >
           <Card className="p-4 mt-3 mb-3">
@@ -456,13 +458,13 @@ export default function IceCreamProductionScreen() {
               </Card>
             ))
           )}
-          <View className="h-8" />
         </ScrollView>
       ) : null}
 
       {tab === 'sales' ? (
         <ScrollView
           className="flex-1 px-4"
+          contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
           refreshControl={<RefreshControl refreshing={!!salesQ.isFetching} onRefresh={refresh} />}
         >
           {salesQ.isLoading ? (
@@ -505,7 +507,6 @@ export default function IceCreamProductionScreen() {
               ))}
             </>
           )}
-          <View className="h-8" />
         </ScrollView>
       ) : null}
     </View>
