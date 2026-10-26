@@ -32,7 +32,7 @@ export async function createRequisition(req: Request, res: Response) {
     action: 'CREATE',
     entityType: 'MaterialRequisition',
     entityId: data.id,
-    newValue: { reqNumber: data.reqNumber },
+    newValue: { reqNumber: data.reqNumber, summary: `created purchase request ${data.reqNumber}` },
     ipAddress: req.ip,
   });
   return created(res, data);
@@ -47,6 +47,15 @@ export async function deleteRequisition(req: Request, res: Response) {
     req.params.id,
     req.params.requisitionId,
   );
+  await recordAudit({
+    companyId,
+    userId,
+    action: 'DELETE',
+    entityType: 'MaterialRequisition',
+    entityId: req.params.requisitionId,
+    newValue: { summary: 'deleted purchase request' },
+    ipAddress: req.ip,
+  });
   return ok(res, data);
 }
 
@@ -59,6 +68,15 @@ export async function submitRequisition(req: Request, res: Response) {
     req.params.id,
     req.params.requisitionId,
   );
+  await recordAudit({
+    companyId,
+    userId,
+    action: 'SUBMIT',
+    entityType: 'MaterialRequisition',
+    entityId: data.id,
+    newValue: { reqNumber: data.reqNumber, summary: `submitted purchase request ${data.reqNumber}` },
+    ipAddress: req.ip,
+  });
   return ok(res, data);
 }
 
@@ -71,6 +89,15 @@ export async function approveRequisition(req: Request, res: Response) {
     req.params.id,
     req.params.requisitionId,
   );
+  await recordAudit({
+    companyId,
+    userId,
+    action: 'APPROVE',
+    entityType: 'MaterialRequisition',
+    entityId: data.id,
+    newValue: { reqNumber: data.reqNumber, summary: `approved purchase request ${data.reqNumber}` },
+    ipAddress: req.ip,
+  });
   return ok(res, data);
 }
 
@@ -83,7 +110,11 @@ export async function createPO(req: Request, res: Response) {
     action: 'CREATE',
     entityType: 'PurchaseOrder',
     entityId: data.id,
-    newValue: { poNumber: data.poNumber, totalAmount: data.totalAmount },
+    newValue: {
+      poNumber: data.poNumber,
+      totalAmount: data.totalAmount,
+      summary: `created purchase order ${data.poNumber}`,
+    },
     ipAddress: req.ip,
   });
   return created(res, data);
@@ -105,7 +136,7 @@ export async function approvePO(req: Request, res: Response) {
     action: 'APPROVE',
     entityType: 'PurchaseOrder',
     entityId: data.id,
-    newValue: { poNumber: data.poNumber },
+    newValue: { poNumber: data.poNumber, summary: `approved purchase order ${data.poNumber}` },
     ipAddress: req.ip,
   });
   return ok(res, data);
@@ -131,7 +162,7 @@ export async function createGRN(req: Request, res: Response) {
     action: 'CREATE',
     entityType: 'GoodsReceiptNote',
     entityId: data.id,
-    newValue: { grnNumber: data.grnNumber },
+    newValue: { grnNumber: data.grnNumber, summary: `recorded GRN ${data.grnNumber}` },
     ipAddress: req.ip,
   });
   return created(res, data);
@@ -190,6 +221,7 @@ export async function issueStock(req: Request, res: Response) {
       resourceId: data.resourceId,
       quantity: data.quantityIssued,
       notes: data.notes,
+      summary: `issued stock (${data.quantityIssued})`,
     },
     ipAddress: req.ip,
   });
@@ -216,7 +248,12 @@ export async function generateIndentsFromBoq(req: Request, res: Response) {
     action: 'CREATE',
     entityType: 'MaterialRequisition',
     entityId: req.params.id,
-    newValue: { source: 'BOQ_UPDATE', created: data.created, reqNumbers: data.reqNumbers },
+    newValue: {
+      source: 'BOQ_UPDATE',
+      created: data.created,
+      reqNumbers: data.reqNumbers,
+      summary: `generated ${data.created} purchase request(s) from BOQ`,
+    },
     ipAddress: req.ip,
   });
   return created(res, data);

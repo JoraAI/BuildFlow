@@ -13,7 +13,7 @@ export const cashBookEntryTypeSchema = z.enum([
 ]);
 export const cashBookPaymentModeSchema = z.enum(['CASH', 'UPI', 'BANK', 'OTHER']);
 
-/** Preset expense categories for reporting (free-text still allowed via OTHER). */
+/** Preset expense categories seeded per company (shops can add / rename / hide). */
 export const CASH_EXPENSE_CATEGORIES = [
   'RENT',
   'SALARY',
@@ -30,6 +30,26 @@ export const CASH_EXPENSE_CATEGORIES = [
 export type CashExpenseCategory = (typeof CASH_EXPENSE_CATEGORIES)[number];
 export const cashExpenseCategorySchema = z.enum(CASH_EXPENSE_CATEGORIES);
 
+export function slugifyCashCategory(name: string): string {
+  const slug = name
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 40);
+  return slug || 'OTHER';
+}
+
+export const cashBookCategoryNameSchema = z.string().trim().min(1).max(60);
+export const createCashBookCategorySchema = z.object({
+  name: cashBookCategoryNameSchema,
+});
+export type CreateCashBookCategoryInput = z.infer<typeof createCashBookCategorySchema>;
+export const updateCashBookCategorySchema = z.object({
+  name: cashBookCategoryNameSchema,
+});
+export type UpdateCashBookCategoryInput = z.infer<typeof updateCashBookCategorySchema>;
+
 export const createCashBookEntrySchema = z.object({
   entryDate: z.coerce.date(),
   direction: cashBookDirectionSchema,
@@ -38,8 +58,8 @@ export const createCashBookEntrySchema = z.object({
   amount: z.coerce.number().positive(),
   description: z.string().min(1).max(500),
   reference: z.string().max(100).optional(),
-  /** Expense category (used when entryType === EXPENSE). */
-  category: cashExpenseCategorySchema.optional(),
+  /** Expense category slug (used when entryType === EXPENSE). */
+  category: z.string().trim().min(1).max(40).optional(),
   invoiceId: z.string().uuid().optional(),
   customerId: z.string().uuid().optional(),
 });
@@ -49,6 +69,10 @@ export const cashBookDayQuerySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD'),
 });
 export type CashBookDayQuery = z.infer<typeof cashBookDayQuerySchema>;
+
+export const cashBookIdParamsSchema = z.object({
+  id: z.string().uuid(),
+});
 
 export const profitLossQuerySchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),

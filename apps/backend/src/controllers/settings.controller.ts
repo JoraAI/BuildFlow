@@ -182,12 +182,16 @@ export async function listAudit(req: Request, res: Response) {
   const limit = Math.min(Number(req.query.limit ?? 50), 200);
   const userId = req.query.userId ? String(req.query.userId) : undefined;
   const entityType = req.query.entityType ? String(req.query.entityType) : undefined;
+  const action = req.query.action ? String(req.query.action) : undefined;
+  const q = req.query.q ? String(req.query.q) : undefined;
 
   const { rows, total } = await settingsService.listAuditLogs(req.user!.companyId, {
     page,
     limit,
     userId,
     entityType,
+    action,
+    q,
   });
 
   return okList(res, rows, { page, limit, total, totalPages: Math.ceil(total / limit) });

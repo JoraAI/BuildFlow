@@ -6,7 +6,14 @@ import { Router, NextFunction, Request, Response } from 'express';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { requireInventoryFeature } from '../middleware/module-gate';
-import { Role, createCashBookEntrySchema, cashBookDayQuerySchema } from '@buildflow/shared';
+import {
+  Role,
+  createCashBookEntrySchema,
+  cashBookDayQuerySchema,
+  createCashBookCategorySchema,
+  updateCashBookCategorySchema,
+  cashBookIdParamsSchema,
+} from '@buildflow/shared';
 import * as cashBookSvc from '../services/cash-book.service';
 
 export const cashBookRouter = Router();
@@ -45,6 +52,70 @@ cashBookRouter.get(
   },
 );
 
+cashBookRouter.get('/categories', async (req, res, next) => {
+  try {
+    res.json({
+      success: true,
+      data: await cashBookSvc.listCashBookCategories(companyId(req), userId(req)),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+cashBookRouter.post(
+  '/categories',
+  requireRole(Role.OWNER, Role.INVENTORY_MANAGER),
+  validate({ body: createCashBookCategorySchema }),
+  async (req, res, next) => {
+    try {
+      res.status(201).json({
+        success: true,
+        data: await cashBookSvc.createCashBookCategory(companyId(req), userId(req), req.body),
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+cashBookRouter.put(
+  '/categories/:id',
+  requireRole(Role.OWNER, Role.INVENTORY_MANAGER),
+  validate({ params: cashBookIdParamsSchema, body: updateCashBookCategorySchema }),
+  async (req, res, next) => {
+    try {
+      res.json({
+        success: true,
+        data: await cashBookSvc.updateCashBookCategory(
+          companyId(req),
+          userId(req),
+          req.params.id,
+          req.body,
+        ),
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+cashBookRouter.delete(
+  '/categories/:id',
+  requireRole(Role.OWNER, Role.INVENTORY_MANAGER),
+  validate({ params: cashBookIdParamsSchema }),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json({
+        success: true,
+        data: await cashBookSvc.deleteCashBookCategory(companyId(req), userId(req), req.params.id),
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 cashBookRouter.post(
   '/',
   requireRole(Role.OWNER, Role.INVENTORY_MANAGER),
@@ -68,7 +139,7 @@ cashBookRouter.delete(
     try {
       res.json({
         success: true,
-        data: await cashBookSvc.deleteCashBookEntry(companyId(req), req.params.id),
+        data: await cashBookSvc.deleteCashBookEntry(companyId(req), userId(req), req.params.id),
       });
     } catch (err) {
       next(err);

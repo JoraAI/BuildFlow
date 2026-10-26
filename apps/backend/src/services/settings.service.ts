@@ -410,13 +410,32 @@ export interface AuditLogRow {
 
 export async function listAuditLogs(
   companyId: string,
-  opts: { page: number; limit: number; userId?: string; entityType?: string },
+  opts: {
+    page: number;
+    limit: number;
+    userId?: string;
+    entityType?: string;
+    action?: string;
+    q?: string;
+  },
 ): Promise<{ rows: AuditLogRow[]; total: number }> {
-  const { page, limit, userId, entityType } = opts;
+  const { page, limit, userId, entityType, action, q } = opts;
+  const query = q?.trim();
   const where = {
     companyId,
     ...(userId ? { userId } : {}),
     ...(entityType ? { entityType } : {}),
+    ...(action ? { action } : {}),
+    ...(query
+      ? {
+          OR: [
+            { entityType: { contains: query, mode: 'insensitive' as const } },
+            { action: { contains: query, mode: 'insensitive' as const } },
+            { entityId: { contains: query, mode: 'insensitive' as const } },
+            { user: { name: { contains: query, mode: 'insensitive' as const } } },
+          ],
+        }
+      : {}),
   };
   const [rows, total] = await Promise.all([
     prisma.auditLog.findMany({

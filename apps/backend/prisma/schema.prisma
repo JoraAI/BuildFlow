@@ -445,6 +445,7 @@ model Company {
   buyerUsers          BuyerUser[]
   buyerInvites        BuyerInvite[]
   cashBookEntries     InventoryCashBookEntry[]
+  cashBookCategories  InventoryCashBookCategory[]
 
   @@map("companies")
 }
@@ -650,6 +651,7 @@ id           String   @id @default(uuid()) @db.Uuid
   subcontractMaterialIssues SubcontractorMaterialIssue[] @relation("SubcontractMaterialIssuedBy")
   pettyCashEntries     PettyCashEntry[] @relation("PettyCashRecordedBy")
   cashBookEntries      InventoryCashBookEntry[] @relation("CashBookRecordedBy")
+  cashBookCategoriesCreated InventoryCashBookCategory[] @relation("CashBookCategoryCreatedBy")
   punchItemsAssigned   PunchItem[] @relation("PunchItemAssignedTo")
   punchItemsClosed     PunchItem[] @relation("PunchItemClosedBy")
   punchItemsCreated    PunchItem[] @relation("PunchItemCreatedBy")
@@ -2828,6 +2830,26 @@ model InventoryCashBookEntry {
   @@index([invoiceId])
   @@index([billId])
   @@map("inventory_cash_book_entries")
+}
+
+/// Company-defined expense categories for the inventory cash book.
+model InventoryCashBookCategory {
+  id         String    @id @default(uuid()) @db.Uuid
+  companyId  String    @map("company_id") @db.Uuid
+  name       String
+  slug       String
+  isPreset   Boolean   @default(false) @map("is_preset")
+  archivedAt DateTime? @map("archived_at")
+  createdBy  String    @map("created_by") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator User    @relation("CashBookCategoryCreatedBy", fields: [createdBy], references: [id])
+
+  @@unique([companyId, slug])
+  @@index([companyId])
+  @@map("inventory_cash_book_categories")
 }
 
 // ------------------------------------------------------------------

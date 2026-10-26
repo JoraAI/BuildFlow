@@ -36,8 +36,25 @@ export interface AuditEntry {
   ipAddress?: string;
 }
 
+function withActorName(newValue: unknown, actorName: string): Prisma.InputJsonValue {
+  if (newValue && typeof newValue === 'object' && !Array.isArray(newValue)) {
+    const obj = newValue as Record<string, unknown>;
+    if (typeof obj.actorName === 'string' && obj.actorName.trim()) {
+      return newValue as Prisma.InputJsonValue;
+    }
+    return { actorName, ...obj } as Prisma.InputJsonValue;
+  }
+  if (newValue == null) return { actorName };
+  return { actorName, value: newValue } as Prisma.InputJsonValue;
+}
+
 export async function recordAudit(entry: AuditEntry): Promise<void> {
   try {
+    const user = await prisma.user.findFirst({
+      where: { id: entry.userId },
+      select: { name: true },
+    });
+    const actorName = user?.name?.trim() || 'Team member';
     await prisma.auditLog.create({
       data: {
         companyId: entry.companyId,
@@ -46,7 +63,7 @@ export async function recordAudit(entry: AuditEntry): Promise<void> {
         entityType: entry.entityType,
         entityId: entry.entityId,
         oldValue: (entry.oldValue ?? null) as Prisma.InputJsonValue,
-        newValue: (entry.newValue ?? null) as Prisma.InputJsonValue,
+        newValue: withActorName(entry.newValue, actorName),
         ipAddress: entry.ipAddress ?? null,
       },
     });

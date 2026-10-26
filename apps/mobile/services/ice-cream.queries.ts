@@ -342,11 +342,21 @@ export type CashBookEntry = {
   description: string;
   reference?: string | null;
   category?: string | null;
+  categoryName?: string | null;
   invoiceId?: string | null;
   customerId?: string | null;
   billId?: string | null;
   vendorId?: string | null;
+  recordedByName?: string | null;
   createdAt: string;
+};
+
+export type CashBookCategory = {
+  id: string;
+  name: string;
+  slug: string;
+  isPreset: boolean;
+  archivedAt?: string | null;
 };
 
 export type CashBookDay = {
@@ -405,6 +415,55 @@ export function useDailySalesSummary(date: string, enabled = true) {
         `/inventory/cash-book/daily-sales-summary?date=${encodeURIComponent(date)}`,
       ),
     ...inventoryLiveQueryOptions(INVENTORY_STOCK_POLL_MS),
+  });
+}
+
+export function useCashBookCategories() {
+  return useQuery<CashBookCategory[]>({
+    queryKey: [...keys.cashBook, 'categories'] as const,
+    queryFn: () => apiFetch<CashBookCategory[]>('/inventory/cash-book/categories'),
+  });
+}
+
+export function useCreateCashBookCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { name: string }) =>
+      apiFetch<CashBookCategory>('/inventory/cash-book/categories', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.cashBook });
+    },
+  });
+}
+
+export function useUpdateCashBookCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      apiFetch<CashBookCategory>(`/inventory/cash-book/categories/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.cashBook });
+    },
+  });
+}
+
+export function useDeleteCashBookCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<{ deleted: boolean; archived: boolean; used: number }>(
+        `/inventory/cash-book/categories/${id}`,
+        { method: 'DELETE' },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.cashBook });
+    },
   });
 }
 

@@ -83,6 +83,49 @@ export interface AuditLogRow {
   createdAt: string;
 }
 
+export type AuditLogFilters = {
+  q?: string;
+  action?: string;
+  entityType?: string;
+  userId?: string;
+};
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+export function auditActorName(row: AuditLogRow): string {
+  const n = asRecord(row.newValue)?.actorName;
+  return typeof n === 'string' && n.trim() ? n.trim() : row.userName || 'Unknown';
+}
+
+export function auditSummary(row: AuditLogRow): string {
+  const s = asRecord(row.newValue)?.summary;
+  if (typeof s === 'string' && s.trim()) return s.trim();
+  return `${row.action} ${prettyEntityType(row.entityType)}`;
+}
+
+export function prettyEntityType(type: string): string {
+  const labels: Record<string, string> = {
+    cash_book_entry: 'Cash book entry',
+    cash_book_category: 'Cash book category',
+    Invoice: 'Invoice',
+    Bill: 'Bill',
+    Company: 'Company',
+    User: 'User',
+    UserProfile: 'Profile',
+    MaterialRequisition: 'Purchase request',
+    PurchaseOrder: 'Purchase order',
+    GoodsReceiptNote: 'GRN',
+    StockMovement: 'Stock movement',
+    quick_vendor_receipt: 'Vendor receipt',
+    stock_batch_metadata: 'Stock batch',
+  };
+  return labels[type] ?? type.replace(/_/g, ' ');
+}
+
 // ---------------------------------------------------------------------------
 // Query keys
 // ---------------------------------------------------------------------------
@@ -90,7 +133,8 @@ export const settingsKeys = {
   company: ['settings', 'company'] as const,
   users: ['settings', 'users'] as const,
   invites: ['settings', 'invites'] as const,
-  audit: (page: number, limit: number) => ['settings', 'audit', page, limit] as const,
+  audit: (page: number, limit: number, filters?: AuditLogFilters) =>
+    ['settings', 'audit', page, limit, filters ?? {}] as const,
   me: ['settings', 'me'] as const,
   myTickets: ['settings', 'tickets', 'mine'] as const,
   ticketInbox: ['settings', 'tickets', 'inbox'] as const,
@@ -291,10 +335,36 @@ export function useDeleteUser() {
 // ---------------------------------------------------------------------------
 // Audit Log
 // ---------------------------------------------------------------------------
-export function useAuditLog(page = 1, limit = 50) {
+function auditQueryString(page: number, limit: number, filters: AuditLogFilters): string {
+  const params = new URLSearchParams();
+  params.set('page', String(page));
+  params.set('limit', String(limit));
+  if (filters.q?.trim()) params.set('q', filters.q.trim());
+  if (filters.action) params.set('action', filters.action);
+  if (filters.entityType) params.set('entityType', filters.entityType);
+  if (filters.userId) params.set('userId', filters.userId);
+  return params.toString();
+}
+
+export function useAuditLog(page = 1, limit = 50, filters: AuditLogFilters = {}) {
   return useQuery({
-    queryKey: settingsKeys.audit(page, limit),
-    queryFn: () => apiFetchList<AuditLogRow>(`/settings/audit?page=${page}&limit=${limit}`),
+    queryKey: settingsKeys.audit(page, limit, filters),
+    queryFn: () => apiFetchList<AuditLogRow>(`/settings/audit?${auditQueryString(page, limit, filters)}`),
+  });
+}
+
+export function useInventoryActivity(page = 1, limit = 50, filters: AuditLogFilters = {}) {
+  return useQuery({
+    queryKey: ['inventory', 'activity', page, limit, filters] as const,
+    queryFn: () =>
+      apiFetchList<AuditLogRow>(`/inventory/activity?${auditQueryString(page, limit, filters)}`),
+  });
+}
+
+export function useInventoryActivityPeople() {
+  return useQuery<{ id: string; name: string }[]>({
+    queryKey: ['inventory', 'activity', 'people'] as const,
+    queryFn: () => apiFetch<{ id: string; name: string }[]>('/inventory/activity/people'),
   });
 }
 

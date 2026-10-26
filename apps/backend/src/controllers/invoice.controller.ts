@@ -86,7 +86,11 @@ export async function recordPayment(req: Request, res: Response) {
     action: 'CUSTOM',
     entityType: 'Invoice',
     entityId: data.id,
-    newValue: { status: data.status, paidAmount: data.paidAmount },
+    newValue: {
+      status: data.status,
+      paidAmount: data.paidAmount,
+      summary: `recorded invoice payment (status ${data.status})`,
+    },
     ipAddress: req.ip,
   });
   return ok(res, data);

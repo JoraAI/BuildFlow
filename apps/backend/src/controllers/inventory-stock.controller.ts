@@ -19,7 +19,14 @@ export async function adjust(req: Request, res: Response, next: NextFunction) {
       action: 'CREATE',
       entityType: 'StockMovement',
       entityId: data.movementId,
-      newValue: { type: 'ADJUST', resourceId: data.resourceId, delta: data.delta, reason: data.reason, notes: data.notes },
+      newValue: {
+        type: 'ADJUST',
+        resourceId: data.resourceId,
+        delta: data.delta,
+        reason: data.reason,
+        notes: data.notes,
+        summary: `adjusted stock ${data.delta >= 0 ? '+' : ''}${data.delta}${data.reason ? ` (${data.reason})` : ''}`,
+      },
       ipAddress: req.ip,
     });
     created(res, data);
@@ -38,7 +45,11 @@ export async function importOpening(req: Request, res: Response, next: NextFunct
       action: 'CREATE',
       entityType: 'StockMovement',
       entityId: `opening-${Date.now()}`,
-      newValue: { applied: data.applied, missed: data.missed },
+      newValue: {
+        applied: data.applied,
+        missed: data.missed,
+        summary: `imported opening stock (${data.applied} applied, ${data.missed} missed)`,
+      },
       ipAddress: req.ip,
     });
     created(res, data);
@@ -61,6 +72,7 @@ export async function receiveQuick(req: Request, res: Response, next: NextFuncti
         vendorName: data.vendorName,
         invoiceNumber: data.invoiceNumber,
         lines: data.received,
+        summary: `recorded vendor receipt${data.vendorName ? ` from ${data.vendorName}` : ''}${data.invoiceNumber ? ` (${data.invoiceNumber})` : ''}`,
       },
       ipAddress: req.ip,
     });
@@ -109,6 +121,7 @@ export async function updateBatch(req: Request, res: Response, next: NextFunctio
       newValue: {
         manufacturedAt: updated.manufacturedAt,
         expiresAt: updated.expiresAt,
+        summary: 'updated stock batch dates',
       },
       ipAddress: req.ip,
     });

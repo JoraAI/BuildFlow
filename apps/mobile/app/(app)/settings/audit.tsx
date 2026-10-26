@@ -1,12 +1,20 @@
 /**
  * BuildFlow - Audit Log screen.
  */
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { Card, Badge, Button, LoadingSkeleton, EmptyState } from '@/components/ui';
+import { Card, Badge, Button, Input, LoadingSkeleton, EmptyState, Select } from '@/components/ui';
 import { SettingsPageLayout } from '@/components/layout/SettingsPageLayout';
 import { ResponsiveGrid } from '@/components/layout/ResponsiveGrid';
-import { useAuditLog, type AuditLogRow } from '@/services/settings.queries';
+import {
+  useAuditLog,
+  useUsers,
+  auditActorName,
+  auditSummary,
+  prettyEntityType,
+  type AuditLogFilters,
+  type AuditLogRow,
+} from '@/services/settings.queries';
 
 const ACTION_COLOR: Record<string, 'success' | 'warning' | 'danger' | 'primary' | 'accent' | 'neutral'> = {
   CREATE: 'success',
@@ -30,13 +38,113 @@ function formatDate(iso: string): string {
 
 export default function AuditLogScreen() {
   const [page, setPage] = useState(1);
+  const [query, setQuery] = useState('');
+  const [action, setAction] = useState('');
+  const [entityType, setEntityType] = useState('');
+  const [userId, setUserId] = useState('');
   const limit = 50;
-  const { data, isLoading, isError, refetch, isFetching } = useAuditLog(page, limit);
+  const filters = useMemo<AuditLogFilters>(
+    () => ({
+      q: query.trim() || undefined,
+      action: action || undefined,
+      entityType: entityType || undefined,
+      userId: userId || undefined,
+    }),
+    [query, action, entityType, userId],
+  );
+  const { data, isLoading, isError, refetch, isFetching } = useAuditLog(page, limit, filters);
+  const { data: users } = useUsers();
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const rows = data?.data ?? [];
   const total = data?.meta.total ?? 0;
   const totalPages = data?.meta.totalPages ?? 1;
+  const filtersActive = Boolean(filters.q || filters.action || filters.entityType || filters.userId);
+  const personOptions = [
+    { title: 'Anyone', value: '' },
+    ...(users ?? []).map((u: { id: string; name: string }) => ({ title: u.name, value: u.id })),
+  ];
+
+  const filterBar = (
+    <View className="gap-2 mb-4">
+      <Input
+        label="Search"
+        value={query}
+        onChangeText={(v) => {
+          setQuery(v);
+          setPage(1);
+        }}
+        placeholder="Person, type, or id…"
+      />
+      <View className="flex-row flex-wrap gap-2">
+        <View className="w-40">
+          <Select
+            label="Action"
+            value={action}
+            onChange={(v) => {
+              setAction(v ?? '');
+              setPage(1);
+            }}
+            options={[
+              { title: 'All actions', value: '' },
+              { title: 'Create', value: 'CREATE' },
+              { title: 'Update', value: 'UPDATE' },
+              { title: 'Delete', value: 'DELETE' },
+              { title: 'Approve', value: 'APPROVE' },
+              { title: 'Send', value: 'SEND' },
+              { title: 'Other', value: 'CUSTOM' },
+            ]}
+          />
+        </View>
+        <View className="w-52">
+          <Select
+            label="Type"
+            value={entityType}
+            onChange={(v) => {
+              setEntityType(v ?? '');
+              setPage(1);
+            }}
+            options={[
+              { title: 'All types', value: '' },
+              { title: 'Cash book entry', value: 'cash_book_entry' },
+              { title: 'Cash book category', value: 'cash_book_category' },
+              { title: 'Invoice', value: 'Invoice' },
+              { title: 'Bill', value: 'Bill' },
+              { title: 'Company', value: 'Company' },
+              { title: 'User', value: 'User' },
+            ]}
+          />
+        </View>
+        {personOptions.length > 1 ? (
+          <View className="w-52">
+            <Select
+              label="Changed by"
+              value={userId}
+              onChange={(v) => {
+                setUserId(v ?? '');
+                setPage(1);
+              }}
+              options={personOptions}
+            />
+          </View>
+        ) : null}
+      </View>
+      {filtersActive ? (
+        <Button
+          label="Clear filters"
+          size="sm"
+          variant="ghost"
+          onPress={() => {
+            setQuery('');
+            setAction('');
+            setEntityType('');
+            setUserId('');
+            setPage(1);
+          }}
+        />
+      ) : null}
+    </View>
+  );
 
   const content = isLoading ? (
     <View className="gap-3">
@@ -51,7 +159,10 @@ export default function AuditLogScreen() {
       action={<Button label="Retry" onPress={() => refetch()} />}
     />
   ) : rows.length === 0 ? (
-    <EmptyState title="No activity yet" description="Mutations will appear here." />
+    <EmptyState
+      title={filtersActive ? 'No matching activity' : 'No activity yet'}
+      description={filtersActive ? 'Try a different person, type, or search.' : 'Mutations will appear here.'}
+    />
   ) : (
     <>
       <ResponsiveGrid gap={12}>
@@ -64,13 +175,13 @@ export default function AuditLogScreen() {
               <View className="flex-1">
                 <View className="flex-row items-center mb-1 flex-wrap gap-2">
                   <Badge label={r.action} color={ACTION_COLOR[r.action] ?? 'neutral'} />
-                  <Text className="text-xs text-muted">{r.entityType}</Text>
+                  <Text className="text-xs text-muted">{prettyEntityType(r.entityType)}</Text>
                 </View>
-                <Text className="text-sm text-text">
-                  {r.userName} · {formatDate(r.createdAt)}
+                <Text className="text-sm text-text" numberOfLines={2}>
+                  {auditSummary(r)}
                 </Text>
-                <Text className="text-xs text-muted font-mono mt-0.5" numberOfLines={1}>
-                  {r.entityId}
+                <Text className="text-sm text-muted mt-0.5">
+                  Changed by {auditActorName(r)} · {formatDate(r.createdAt)}
                 </Text>
               </View>
               <Text className="text-primary text-2xl ml-2">
@@ -132,6 +243,7 @@ export default function AuditLogScreen() {
       refreshing={isFetching}
       onRefresh={refetch}
     >
+      {filterBar}
       {content}
     </SettingsPageLayout>
   );

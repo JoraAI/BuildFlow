@@ -97,7 +97,11 @@ export async function pay(req: Request, res: Response) {
     action: 'CUSTOM',
     entityType: 'Bill',
     entityId: data.id,
-    newValue: { status: data.status, paidAmount: data.paidAmount },
+    newValue: {
+      status: data.status,
+      paidAmount: data.paidAmount,
+      summary: `marked vendor bill paid (status ${data.status})`,
+    },
     ipAddress: req.ip,
   });
   return ok(res, data);
@@ -112,7 +116,11 @@ export async function recordPayment(req: Request, res: Response) {
     action: 'CUSTOM',
     entityType: 'Bill',
     entityId: data.id,
-    newValue: { status: data.status, paidAmount: data.paidAmount },
+    newValue: {
+      status: data.status,
+      paidAmount: data.paidAmount,
+      summary: `recorded vendor bill payment (status ${data.status})`,
+    },
     ipAddress: req.ip,
   });
   return ok(res, data);

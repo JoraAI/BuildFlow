@@ -1113,7 +1113,7 @@ export async function recordPayment(
   id: string,
   input: RecordPaymentInput,
 ) {
-  return prisma.$transaction(async (tx) => {
+  const paid = await prisma.$transaction(async (tx) => {
     // NR-11: Read inside the transaction so the overpay guard is race-safe.
     const inv = await tx.invoice.findFirst({ where: { id, companyId } });
     if (!inv) throw ApiError.notFound('Invoice');
@@ -1172,7 +1172,7 @@ export async function recordPayment(
     });
 
     const { postAutoInventoryCashBook } = await import('./cash-book.service');
-    await postAutoInventoryCashBook(tx, {
+    const cashBook = await postAutoInventoryCashBook(tx, {
       companyId,
       recordedBy: userId,
       entryDate: input.paymentDate ?? new Date(),
@@ -1186,8 +1186,14 @@ export async function recordPayment(
       customerId: inv.customerId,
     });
 
-    return tx.invoice.findUniqueOrThrow({ where: { id } });
+    const invoice = await tx.invoice.findUniqueOrThrow({ where: { id } });
+    return { invoice, cashBook };
   });
+  if (paid.cashBook) {
+    const { auditAutoCashBookPost } = await import('./cash-book.service');
+    await auditAutoCashBookPost(companyId, userId, paid.cashBook);
+  }
+  return paid.invoice;
 }
 
 export async function deleteInvoice(companyId: string, id: string) {

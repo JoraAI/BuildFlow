@@ -337,5 +337,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'settings.material_prices',
     // Company logo + profile (logo prints top-right on inventory Tax Invoices).
     'settings.company',
+    // Activity trail + person filter on cash book / user activity.
+    'settings.audit',
+    'settings.users',
   ],
 };

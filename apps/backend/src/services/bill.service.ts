@@ -468,7 +468,7 @@ export async function recordBillPayment(
     });
 
     const { postAutoInventoryCashBook } = await import('./cash-book.service');
-    await postAutoInventoryCashBook(tx, {
+    const cashBook = await postAutoInventoryCashBook(tx, {
       companyId,
       recordedBy: userId,
       entryDate: input.paymentDate ?? new Date(),
@@ -483,11 +483,16 @@ export async function recordBillPayment(
       vendorId: bill.vendorId,
     });
 
-    return result;
+    return { result, cashBook };
   });
 
+  if (updated.cashBook) {
+    const { auditAutoCashBookPost } = await import('./cash-book.service');
+    await auditAutoCashBookPost(companyId, userId, updated.cashBook);
+  }
+
   await invalidateBillSummaryCache(companyId, bill.projectId);
-  return serializeBill(updated);
+  return serializeBill(updated.result);
 }
 
 export async function payBill(companyId: string, userId: string, id: string) {

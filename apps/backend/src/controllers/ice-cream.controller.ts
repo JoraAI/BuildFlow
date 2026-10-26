@@ -221,7 +221,7 @@ export async function deleteCashBookEntry(req: Request, res: Response, next: Nex
   try {
     res.json({
       success: true,
-      data: await cashBookSvc.deleteCashBookEntry(companyId(req), req.params.id),
+      data: await cashBookSvc.deleteCashBookEntry(companyId(req), userId(req), req.params.id),
     });
   } catch (e) {
     next(e);

@@ -16,7 +16,7 @@
 import request from 'supertest';
 import { app } from '../../app';
 import { prisma } from '../../lib/prisma';
-import { authPost, authGet, authPut, loginAs, registerInventoryAndLogin } from './test-helpers';
+import { authPost, authGet, authPut, authDelete, loginAs, registerInventoryAndLogin } from './test-helpers';
 import { istToday } from '../../services/inventory-analytics.service';
 import { PLAN_PRICES_INR, PLAN_ANNUAL_INR, PLAN_LIMITS } from '@buildflow/shared';
 import { resolveAssistantIdentity, executeAssistantTool } from '../../services/assistant-tools.service';
@@ -63,6 +63,7 @@ describe('INVENTORY_PRODUCT (integration)', () => {
       // Stock locations cascade stock balances + movements.
       await prisma.stockLocation.deleteMany({ where: { companyId } });
       await prisma.inventoryCashBookEntry.deleteMany({ where: { companyId } });
+      await prisma.inventoryCashBookCategory.deleteMany({ where: { companyId } });
       await prisma.invoice.deleteMany({ where: { companyId } });
       await prisma.bill.deleteMany({ where: { companyId } });
       await prisma.journalEntry.deleteMany({ where: { companyId } });
@@ -459,6 +460,60 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     expect(PLAN_ANNUAL_INR.STARTER).toBe(19990);
     expect(PLAN_ANNUAL_INR.PROFESSIONAL).toBe(49990);
     expect(PLAN_LIMITS.INVENTORY).toEqual({ maxProjects: 1, maxUsers: 10 });
+  });
+
+  it('CRUDs cash book categories, records who changed them, and filters activity', async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const cats = await authGet(invToken, '/api/inventory/cash-book/categories');
+    expect(cats.status).toBe(200);
+    const seeded = cats.body.data as Array<{ id: string; name: string; slug: string }>;
+    expect(seeded.some((c) => c.slug === 'RENT')).toBe(true);
+
+    const created = await authPost(invToken, '/api/inventory/cash-book/categories', {
+      name: `Shop rent ${suffix}`,
+    });
+    expect(created.status).toBe(201);
+    const catId = created.body.data.id as string;
+    expect(created.body.data.slug).toBe(`SHOP_RENT_${suffix}`.slice(0, 40));
+
+    const renamed = await authPut(invToken, `/api/inventory/cash-book/categories/${catId}`, {
+      name: `Front rent ${suffix}`,
+    });
+    expect(renamed.status).toBe(200);
+    expect(renamed.body.data.name).toBe(`Front rent ${suffix}`);
+
+    const expense = await authPost(invToken, '/api/inventory/cash-book', {
+      entryDate: today,
+      direction: 'OUT',
+      entryType: 'EXPENSE',
+      paymentMode: 'CASH',
+      amount: 125,
+      description: `Category verify ${suffix}`,
+      category: created.body.data.slug,
+    });
+    expect(expense.status).toBe(201);
+    expect(expense.body.data.recordedByName).toBeTruthy();
+    expect(expense.body.data.category).toBe(created.body.data.slug);
+
+    const hid = await authDelete(invToken, `/api/inventory/cash-book/categories/${catId}`);
+    expect(hid.status).toBe(200);
+    expect(hid.body.data.archived).toBe(true);
+
+    const activity = await authGet(
+      invToken,
+      '/api/inventory/activity?entityType=cash_book_category&limit=20',
+    );
+    expect(activity.status).toBe(200);
+    const rows = activity.body.data as Array<{
+      userName: string;
+      newValue?: { actorName?: string; summary?: string };
+    }>;
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.some((r) => r.userName && r.newValue?.actorName && r.newValue?.summary)).toBe(true);
+
+    const people = await authGet(invToken, '/api/inventory/activity/people');
+    expect(people.status).toBe(200);
+    expect((people.body.data as Array<{ id: string }>).some((p) => p.id === invUserId)).toBe(true);
   });
 
   /* ── INVENTORY_HORIZONTAL_PLATFORM (Phase 0): inventoryProfile ────── */

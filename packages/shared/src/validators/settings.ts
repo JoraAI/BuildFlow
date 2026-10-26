@@ -141,7 +141,9 @@ export const auditQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   userId: z.string().uuid().optional(),
-  entityType: z.string().optional(),
+  entityType: z.string().trim().min(1).max(80).optional(),
+  action: z.string().trim().min(1).max(40).optional(),
+  q: z.string().trim().max(80).optional(),
 });
 
 export const integrationProviderSchema = z.enum([
