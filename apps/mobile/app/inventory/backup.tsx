@@ -1,32 +1,46 @@
 /**
- * Backup & export hub — Phase C cloud restore is stubbed; Excel/PDF exports work.
+ * Backup shop data + jump to report Excel downloads.
  */
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, ScrollView } from 'react-native';
 import { Button, toast } from '@/components/ui';
-import { INVENTORY_ACCENT, INVENTORY_ACCENT_SOFT } from '@/components/navigation/InventoryTabBar';
+import { InventoryHubCard } from '@/components/inventory/InventoryHubCard';
+import { INVENTORY_REPORT_LINKS } from '@/components/inventory/inventory-report-links';
 import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 import { downloadInventoryExcel } from '@/services/inventory-analytics.queries';
+import { useInventoryBackupJson, useInventoryBackupZip } from '@/services/settings.queries';
 import { useRouter } from 'expo-router';
 import { useViewport } from '@/hooks/useViewport';
 
 export default function InventoryBackupScreen() {
   const router = useRouter();
   const { isPhone, isDesktop } = useViewport();
-  const [busy, setBusy] = useState<string | null>(null);
+  const [excelBusy, setExcelBusy] = useState<string | null>(null);
+  const backupZip = useInventoryBackupZip();
+  const backupJson = useInventoryBackupJson();
+  const backingUp = backupZip.isPending || backupJson.isPending;
+
+  const runBackup = (kind: 'zip' | 'json') => {
+    const mut = kind === 'zip' ? backupZip : backupJson;
+    mut.mutate(undefined, {
+      onSuccess: (filename) => toast.success(`${filename} ready`),
+      onError: (e: Error) => toast.error(e.message),
+    });
+  };
 
   const exportReport = async (report: 'pnl' | 'margin' | 'stock-health' | 'expenses') => {
-    setBusy(report);
+    setExcelBusy(report);
     try {
       await downloadInventoryExcel(report);
       toast.success('Excel downloaded');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Export failed');
     } finally {
-      setBusy(null);
+      setExcelBusy(null);
     }
   };
+
+  const col = isDesktop ? 'w-[48%]' : 'w-full';
 
   return (
     <ScrollView
@@ -34,60 +48,98 @@ export default function InventoryBackupScreen() {
       contentContainerStyle={{
         padding: isDesktop ? 24 : 16,
         paddingBottom: isPhone ? mobileListBottomPadding() + 24 : 48,
-        maxWidth: isDesktop ? 720 : undefined,
+        maxWidth: isDesktop ? 960 : undefined,
         width: '100%',
         alignSelf: 'center',
+        gap: 12,
       }}
     >
-      <Text className="text-2xl font-bold text-text mb-1">Backup & export</Text>
-      <Text className="text-sm text-muted mb-4">
-        Download Excel snapshots now. Full cloud backup/restore ships in a later release.
+      <Text className="text-2xl font-bold text-text">Backup</Text>
+      <Text className="text-sm text-muted">
+        Download a snapshot of this shop. Passwords are left out. Keep the file somewhere safe.
       </Text>
 
-      <View className="rounded-2xl border border-border bg-card overflow-hidden mb-4">
-        {(
-          [
-            { key: 'pnl' as const, title: 'Profit & loss', subtitle: 'Sales − COGS − expenses' },
-            { key: 'margin' as const, title: 'Margins', subtitle: 'Per-item revenue and margin' },
-            { key: 'stock-health' as const, title: 'Stock health', subtitle: 'Active / slow / dead stock' },
-            { key: 'expenses' as const, title: 'Expenses', subtitle: 'Cash book expenses by category' },
-          ] as const
-        ).map((item, i) => (
-          <Pressable
-            key={item.key}
-            onPress={() => void exportReport(item.key)}
-            disabled={busy != null}
-            className={`flex-row items-center gap-3 px-4 py-3.5 ${i > 0 ? 'border-t border-border/70' : ''}`}
-          >
-            <View
-              className="w-10 h-10 rounded-xl items-center justify-center"
-              style={{ backgroundColor: INVENTORY_ACCENT_SOFT }}
-            >
-              <Ionicons name="download-outline" size={20} color={INVENTORY_ACCENT} />
-            </View>
-            <View className="flex-1 min-w-0">
-              <Text className="text-sm font-semibold text-text">{item.title}</Text>
-              <Text className="text-xs text-muted">{item.subtitle}</Text>
-            </View>
-            <Text className="text-xs font-semibold" style={{ color: INVENTORY_ACCENT }}>
-              {busy === item.key ? '…' : 'XLSX'}
-            </Text>
-          </Pressable>
-        ))}
+      <View className={`flex-row flex-wrap ${isDesktop ? 'gap-3' : 'gap-2'}`}>
+        <View className={col}>
+          <InventoryHubCard
+            icon="archive-outline"
+            title="Full ZIP backup"
+            subtitle="Separate files for items, parties, invoices, bills, cash book, and orders"
+            meta={backupZip.isPending ? 'Preparing…' : 'Recommended'}
+            disabled={backingUp}
+            onPress={() => runBackup('zip')}
+          />
+        </View>
+        <View className={col}>
+          <InventoryHubCard
+            icon="code-slash-outline"
+            title="JSON snapshot"
+            subtitle="Single file for scripts or a quick copy"
+            meta={backupJson.isPending ? 'Preparing…' : 'Download'}
+            disabled={backingUp}
+            onPress={() => runBackup('json')}
+          />
+        </View>
       </View>
 
-      <View className="rounded-2xl border border-dashed border-border bg-card p-4 mb-4">
-        <Text className="text-sm font-semibold text-text mb-1">Cloud backup</Text>
-        <Text className="text-xs text-muted mb-3">
-          Automatic company snapshots and one-tap restore are planned for Phase C. Your data already
-          lives on BuildFlow servers with the rest of your inventory.
-        </Text>
-        <Button
-          label="Open reports"
-          variant="secondary"
-          size="sm"
-          onPress={() => router.push('/inventory/reports' as never)}
-        />
+      <View className="rounded-2xl border border-border bg-card p-4">
+        <Text className="text-sm font-semibold text-text mb-2">Included in the backup</Text>
+        <View className={isDesktop ? 'flex-row flex-wrap' : ''}>
+          {[
+            'Company and team (passwords redacted)',
+            'Items, warehouses, and parties',
+            'Invoices, bills, and cash book',
+            'Sales orders, POs, and GRNs',
+          ].map((item) => (
+            <Text
+              key={item}
+              className={`text-xs text-muted py-0.5 ${isDesktop ? 'w-1/2 pr-3' : ''}`}
+            >
+              • {item}
+            </Text>
+          ))}
+        </View>
+      </View>
+
+      <Text className="text-sm font-semibold text-text mt-2">Report Excel</Text>
+      <Text className="text-xs text-muted">
+        Open the live report, or download a spreadsheet from here.
+      </Text>
+      <View className={`flex-row flex-wrap ${isDesktop ? 'gap-3' : 'gap-2'}`}>
+        {INVENTORY_REPORT_LINKS.map((link) => (
+          <View key={link.view} className={col}>
+            <InventoryHubCard
+              icon={link.icon}
+              title={link.title}
+              subtitle={link.subtitle}
+              meta="Open report"
+              onPress={() => router.push(`/inventory/reports?view=${link.view}` as never)}
+            />
+          </View>
+        ))}
+        <View className={col}>
+          <InventoryHubCard
+            icon="download-outline"
+            title="Expenses Excel"
+            subtitle="Cash book expenses by category"
+            meta={excelBusy === 'expenses' ? '…' : 'XLSX'}
+            disabled={excelBusy != null}
+            onPress={() => void exportReport('expenses')}
+          />
+        </View>
+      </View>
+
+      <View className={`flex-row flex-wrap gap-2 ${isDesktop ? '' : ''}`}>
+        {INVENTORY_REPORT_LINKS.filter((link) => link.excel).map((link) => (
+          <Button
+            key={link.excel}
+            label={excelBusy === link.excel ? '…' : `${link.title} XLSX`}
+            size="sm"
+            variant="secondary"
+            disabled={excelBusy != null}
+            onPress={() => link.excel && void exportReport(link.excel)}
+          />
+        ))}
       </View>
     </ScrollView>
   );

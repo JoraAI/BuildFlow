@@ -122,6 +122,7 @@ export function prettyEntityType(type: string): string {
     StockMovement: 'Stock movement',
     quick_vendor_receipt: 'Vendor receipt',
     stock_batch_metadata: 'Stock batch',
+    inventory_backup: 'Shop backup',
   };
   return labels[type] ?? type.replace(/_/g, ' ');
 }
@@ -411,6 +412,31 @@ export function useExportZip() {
         'application/zip',
       );
       await shareDownloadedFile(fileUri, 'application/zip', 'BuildFlow Data Export');
+      return filename;
+    },
+  });
+}
+
+export function useInventoryBackupJson() {
+  return useMutation({
+    mutationFn: async () => {
+      const data = await apiFetch<unknown>('/inventory/backup');
+      const stamp = new Date().toISOString().slice(0, 10);
+      const filename = `shop-backup-${stamp}.json`;
+      const fileUri = await downloadJsonObject(data, filename);
+      await shareDownloadedFile(fileUri, 'application/json', 'Shop backup');
+      return filename;
+    },
+  });
+}
+
+export function useInventoryBackupZip() {
+  return useMutation({
+    mutationFn: async () => {
+      const stamp = new Date().toISOString().slice(0, 10);
+      const filename = `shop-backup-${stamp}.zip`;
+      const fileUri = await apiDownload('/inventory/backup/zip', filename, 'application/zip');
+      await shareDownloadedFile(fileUri, 'application/zip', 'Shop backup');
       return filename;
     },
   });

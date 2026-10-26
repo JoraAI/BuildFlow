@@ -514,6 +514,12 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     const people = await authGet(invToken, '/api/inventory/activity/people');
     expect(people.status).toBe(200);
     expect((people.body.data as Array<{ id: string }>).some((p) => p.id === invUserId)).toBe(true);
+
+    const backup = await authGet(invToken, '/api/inventory/backup');
+    expect(backup.status).toBe(200);
+    expect(backup.body.data.exportedAt).toBeTruthy();
+    expect(Array.isArray(backup.body.data.cashBookEntries)).toBe(true);
+    expect(Array.isArray(backup.body.data.customers)).toBe(true);
   });
 
   /* ── INVENTORY_HORIZONTAL_PLATFORM (Phase 0): inventoryProfile ────── */

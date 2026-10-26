@@ -340,5 +340,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     // Activity trail + person filter on cash book / user activity.
     'settings.audit',
     'settings.users',
+    'settings.export',
   ],
 };

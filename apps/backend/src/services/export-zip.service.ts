@@ -74,6 +74,32 @@ export async function gatherCompanyData(companyId: string) {
     prisma.chatMessage.findMany({ where: { companyId } }),
   ]);
 
+  const [
+    customers,
+    vendors,
+    cashBookEntries,
+    cashBookCategories,
+    salesOrders,
+    salesOrderLines,
+    purchaseOrders,
+    purchaseOrderLines,
+    goodsReceipts,
+    goodsReceiptLines,
+    stockLocations,
+  ] = await Promise.all([
+    prisma.customer.findMany({ where: { companyId } }),
+    prisma.vendor.findMany({ where: { companyId } }),
+    prisma.inventoryCashBookEntry.findMany({ where: { companyId } }),
+    prisma.inventoryCashBookCategory.findMany({ where: { companyId } }),
+    prisma.salesOrder.findMany({ where: { companyId } }),
+    prisma.salesOrderLine.findMany({ where: { salesOrder: { companyId } } }),
+    prisma.purchaseOrder.findMany({ where: { companyId } }),
+    prisma.purchaseOrderLine.findMany({ where: { purchaseOrder: { companyId } } }),
+    prisma.goodsReceiptNote.findMany({ where: { companyId } }),
+    prisma.goodsReceiptLine.findMany({ where: { grn: { companyId } } }),
+    prisma.stockLocation.findMany({ where: { companyId } }),
+  ]);
+
   const redactedUsers = users.map((u) => ({ ...u, passwordHash: '[REDACTED]' }));
 
   return {
@@ -99,6 +125,17 @@ export async function gatherCompanyData(companyId: string) {
     'notifications.json': notifications,
     'audit-logs.json': auditLogs,
     'chat-messages.json': chatMessages,
+    'customers.json': customers,
+    'vendors.json': vendors,
+    'cash-book-entries.json': cashBookEntries,
+    'cash-book-categories.json': cashBookCategories,
+    'sales-orders.json': salesOrders,
+    'sales-order-lines.json': salesOrderLines,
+    'purchase-orders.json': purchaseOrders,
+    'purchase-order-lines.json': purchaseOrderLines,
+    'goods-receipts.json': goodsReceipts,
+    'goods-receipt-lines.json': goodsReceiptLines,
+    'stock-locations.json': stockLocations,
   } as Record<string, unknown>;
 }
 

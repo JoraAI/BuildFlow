@@ -11,9 +11,9 @@
  *
  * Responsive: cards flex-wrap / min-w, phone-stacked (no desktop-only tables).
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card, Badge, Button, Select, EmptyState, LoadingSkeleton, toast } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
@@ -33,6 +33,13 @@ import {
 import { formatINR, formatINRCompact, formatDate } from '@/utils/format';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 import { SegmentedTabs } from '@/components/inventory/SegmentedTabs';
+import { InventoryHubCard } from '@/components/inventory/InventoryHubCard';
+import {
+  INVENTORY_REPORT_LINKS,
+  isInventoryReportView,
+  type InventoryReportView,
+} from '@/components/inventory/inventory-report-links';
+import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 
 type Tab = 'health' | 'warehouse' | 'margin' | 'purchase' | 'pnl';
 
@@ -65,8 +72,20 @@ export default function InventoryReportsScreen() {
   const { translate } = useInventoryLanguage();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { isDesktop } = useViewport();
-  const [tab, setTab] = useState<Tab>('health');
+  const { isDesktop, isPhone } = useViewport();
+  const params = useLocalSearchParams<{ view?: string | string[] }>();
+  const viewParam = Array.isArray(params.view) ? params.view[0] : params.view;
+  const selectedView = isInventoryReportView(viewParam) ? viewParam : undefined;
+  const [tab, setTab] = useState<Tab>(selectedView ?? 'health');
+
+  useEffect(() => {
+    if (selectedView) setTab(selectedView);
+  }, [selectedView]);
+
+  const openReport = (view: InventoryReportView) => {
+    router.setParams({ view });
+    setTab(view);
+  };
   /** Stock-health filters (Phase 6.2). */
   const [days, setDays] = useState(90);
   const [locationId, setLocationId] = useState<string | undefined>(undefined);
@@ -89,17 +108,92 @@ export default function InventoryReportsScreen() {
     <View className="flex-1 bg-surface" style={{ paddingTop: insets.top }}>
       {/* Back header */}
       <View className="px-6 py-4 border-b border-border flex-row items-center gap-3 shrink-0">
-        <Button label="← Back" variant="ghost" size="sm" onPress={() => router.back()} />
+        <Button
+          label="← Back"
+          variant="ghost"
+          size="sm"
+          onPress={() => (selectedView ? router.replace('/inventory/reports' as never) : router.back())}
+        />
         <Text className="text-xl font-bold text-text flex-1" numberOfLines={1}>
           {translate('inventory.page.reports', 'Reports & analytics')}
         </Text>
       </View>
 
-      {/* Sub-tabs (horizontal scroll keeps the shell's 9-tab bar untouched). */}
+      {!selectedView ? (
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{
+            padding: isDesktop ? 24 : 16,
+            paddingBottom: isPhone ? mobileListBottomPadding() + 24 : 48,
+            gap: 12,
+            maxWidth: isDesktop ? 960 : undefined,
+            width: '100%',
+            alignSelf: 'center',
+          }}
+        >
+          <Text className="text-sm text-muted">
+            Open a report to review numbers on screen, or download Excel from Backup.
+          </Text>
+          <View className={`flex-row flex-wrap ${isDesktop ? 'gap-3' : 'gap-2'}`}>
+            {INVENTORY_REPORT_LINKS.map((link) => (
+              <View key={link.view} className={isDesktop ? 'w-[48%]' : 'w-full'}>
+                <InventoryHubCard
+                  icon={link.icon}
+                  title={link.title}
+                  subtitle={link.subtitle}
+                  meta={link.excel ? 'View · Excel in Backup' : 'View'}
+                  onPress={() => openReport(link.view)}
+                />
+              </View>
+            ))}
+          </View>
+          <Text className="text-sm font-semibold text-text mt-2">Related</Text>
+          <View className={`flex-row flex-wrap ${isDesktop ? 'gap-3' : 'gap-2'}`}>
+            <View className={isDesktop ? 'w-[48%]' : 'w-full'}>
+              <InventoryHubCard
+                icon="wallet-outline"
+                title="Cash book"
+                subtitle="Daily in, out, and expenses"
+                onPress={() => router.push('/inventory/cash' as never)}
+              />
+            </View>
+            <View className={isDesktop ? 'w-[48%]' : 'w-full'}>
+              <InventoryHubCard
+                icon="document-text-outline"
+                title="Invoices"
+                subtitle="Sales invoices and collections"
+                onPress={() => router.push('/inventory/invoices' as never)}
+              />
+            </View>
+            <View className={isDesktop ? 'w-[48%]' : 'w-full'}>
+              <InventoryHubCard
+                icon="newspaper-outline"
+                title="Bills"
+                subtitle="Vendor bills and payments"
+                onPress={() => router.push('/inventory/bills' as never)}
+              />
+            </View>
+            <View className={isDesktop ? 'w-[48%]' : 'w-full'}>
+              <InventoryHubCard
+                icon="cloud-upload-outline"
+                title="Backup"
+                subtitle="Download a shop snapshot"
+                onPress={() => router.push('/inventory/backup' as never)}
+              />
+            </View>
+          </View>
+        </ScrollView>
+      ) : null}
+
+      {selectedView ? (
+        <>
       <SegmentedTabs
         tabs={TABS}
         value={tab}
-        onChange={setTab}
+        onChange={(next) => {
+          setTab(next);
+          router.setParams({ view: next });
+        }}
         className="border-b border-border"
         contentContainerClassName="px-4 gap-2 py-2"
       />
@@ -308,7 +402,7 @@ export default function InventoryReportsScreen() {
                   {Object.entries(pnl.data.expensesByCategory).map(([cat, amt]) => (
                     <View key={cat} className="flex-row justify-between py-1">
                       <Text className="text-xs text-muted">{cat.replace(/_/g, ' ')}</Text>
-                      <Text className="text-sm font-semibold text-text">{formatINR(amt)}</Text>
+                      <Text className="text-sm font-semibold text-text">{formatINR(Number(amt))}</Text>
                     </View>
                   ))}
                 </Card>
@@ -326,6 +420,8 @@ export default function InventoryReportsScreen() {
           )
         ) : null}
       </ScrollView>
+        </>
+      ) : null}
     </View>
   );
 }

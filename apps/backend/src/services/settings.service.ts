@@ -468,21 +468,46 @@ export async function listAuditLogs(
 // Data Export (company-wide snapshot)
 // ---------------------------------------------------------------------------
 export async function exportCompanyData(companyId: string) {
-  const [company, users, projects, resources, rateAnalyses, estimates, invoices, bills, reports] =
-    await Promise.all([
-      prisma.company.findUniqueOrThrow({ where: { id: companyId } }),
-      prisma.user.findMany({ where: { companyId } }),
-      prisma.project.findMany({ where: { companyId } }),
-      prisma.resource.findMany({ where: { companyId } }),
-      prisma.rateAnalysis.findMany({ where: { companyId }, include: { components: true } }),
-      prisma.estimate.findMany({ where: { companyId }, include: { sections: true, items: true } }),
-      prisma.invoice.findMany({ where: { companyId }, include: { lineItems: true } }),
-      prisma.bill.findMany({ where: { companyId } }),
-      prisma.dailyReport.findMany({
-        where: { project: { companyId } },
-        include: { materialUsages: true },
-      }),
-    ]);
+  const [
+    company,
+    users,
+    projects,
+    resources,
+    rateAnalyses,
+    estimates,
+    invoices,
+    bills,
+    reports,
+    customers,
+    vendors,
+    cashBookEntries,
+    cashBookCategories,
+    salesOrders,
+    purchaseOrders,
+    goodsReceipts,
+    stockLocations,
+  ] = await Promise.all([
+    prisma.company.findUniqueOrThrow({ where: { id: companyId } }),
+    prisma.user.findMany({ where: { companyId } }),
+    prisma.project.findMany({ where: { companyId } }),
+    prisma.resource.findMany({ where: { companyId } }),
+    prisma.rateAnalysis.findMany({ where: { companyId }, include: { components: true } }),
+    prisma.estimate.findMany({ where: { companyId }, include: { sections: true, items: true } }),
+    prisma.invoice.findMany({ where: { companyId }, include: { lineItems: true } }),
+    prisma.bill.findMany({ where: { companyId } }),
+    prisma.dailyReport.findMany({
+      where: { project: { companyId } },
+      include: { materialUsages: true },
+    }),
+    prisma.customer.findMany({ where: { companyId } }),
+    prisma.vendor.findMany({ where: { companyId } }),
+    prisma.inventoryCashBookEntry.findMany({ where: { companyId } }),
+    prisma.inventoryCashBookCategory.findMany({ where: { companyId } }),
+    prisma.salesOrder.findMany({ where: { companyId }, include: { lines: true } }),
+    prisma.purchaseOrder.findMany({ where: { companyId }, include: { lines: true } }),
+    prisma.goodsReceiptNote.findMany({ where: { companyId }, include: { lines: true } }),
+    prisma.stockLocation.findMany({ where: { companyId } }),
+  ]);
   return {
     exportedAt: new Date().toISOString(),
     company,
@@ -494,5 +519,13 @@ export async function exportCompanyData(companyId: string) {
     invoices,
     bills,
     reports,
+    customers,
+    vendors,
+    cashBookEntries,
+    cashBookCategories,
+    salesOrders,
+    purchaseOrders,
+    goodsReceipts,
+    stockLocations,
   };
 }
