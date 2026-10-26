@@ -37,6 +37,7 @@ import { InventoryHubCard } from '@/components/inventory/InventoryHubCard';
 import {
   INVENTORY_REPORT_LINKS,
   isInventoryReportView,
+  type InventoryExcelReport,
   type InventoryReportView,
 } from '@/components/inventory/inventory-report-links';
 import { mobileListBottomPadding } from '@/components/layout/fab-layout';
@@ -87,8 +88,21 @@ export default function InventoryReportsScreen() {
     setTab(view);
   };
   /** Stock-health filters (Phase 6.2). */
+  const [excelBusy, setExcelBusy] = useState<string | null>(null);
   const [days, setDays] = useState(90);
   const [locationId, setLocationId] = useState<string | undefined>(undefined);
+
+  const exportExcel = async (report: InventoryExcelReport, opts?: { from?: string; to?: string }) => {
+    setExcelBusy(report);
+    try {
+      await downloadInventoryExcel(report, opts);
+      toast.success('Excel ready');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Export failed');
+    } finally {
+      setExcelBusy(null);
+    }
+  };
 
   const { data: warehouses } = useWarehouses();
   const stockHealth = useStockHealthReport(days, locationId);
@@ -132,7 +146,7 @@ export default function InventoryReportsScreen() {
           }}
         >
           <Text className="text-sm text-muted">
-            Open a report to review numbers on screen, or download Excel from Backup.
+            Open a report on screen, or download Excel from the same card.
           </Text>
           <View className={`flex-row flex-wrap ${isDesktop ? 'gap-3' : 'gap-2'}`}>
             {INVENTORY_REPORT_LINKS.map((link) => (
@@ -141,11 +155,24 @@ export default function InventoryReportsScreen() {
                   icon={link.icon}
                   title={link.title}
                   subtitle={link.subtitle}
-                  meta={link.excel ? 'View · Excel in Backup' : 'View'}
+                  meta="Open"
                   onPress={() => openReport(link.view)}
+                  onDownload={link.excel ? () => void exportExcel(link.excel!) : undefined}
+                  downloadBusy={excelBusy === link.excel}
                 />
               </View>
             ))}
+            <View className={isDesktop ? 'w-[48%]' : 'w-full'}>
+              <InventoryHubCard
+                icon="download-outline"
+                title="Expenses"
+                subtitle="Cash book expenses by category"
+                meta="Excel"
+                onPress={() => void exportExcel('expenses')}
+                onDownload={() => void exportExcel('expenses')}
+                downloadBusy={excelBusy === 'expenses'}
+              />
+            </View>
           </View>
           <Text className="text-sm font-semibold text-text mt-2">Related</Text>
           <View className={`flex-row flex-wrap ${isDesktop ? 'gap-3' : 'gap-2'}`}>
@@ -221,10 +248,17 @@ export default function InventoryReportsScreen() {
                     { title: '180 days', value: '180' },
                     { title: '365 days', value: '365' },
                   ]}
-                  onChange={(v) => v && setDays(Number(v))}
+                    onChange={(v) => v && setDays(Number(v))}
                 />
               </View>
             </View>
+            <Button
+              label={excelBusy === 'stock-health' ? 'Preparing…' : 'Download Excel'}
+              variant="secondary"
+              size="sm"
+              disabled={excelBusy != null}
+              onPress={() => void exportExcel('stock-health')}
+            />
 
             {stockHealth.isLoading ? (
               <LoadingSkeleton className="rounded-xl h-20" />
@@ -287,7 +321,15 @@ export default function InventoryReportsScreen() {
         ) : null}
 
         {tab === 'margin' ? (
-          margin.isLoading ? (
+          <>
+            <Button
+              label={excelBusy === 'margin' ? 'Preparing…' : 'Download Excel'}
+              variant="secondary"
+              size="sm"
+              disabled={excelBusy != null}
+              onPress={() => void exportExcel('margin')}
+            />
+          {margin.isLoading ? (
             <LoadingSkeleton className="rounded-xl h-20" />
           ) : (margin.data ?? []).length === 0 ? (
             <EmptyState
@@ -319,7 +361,8 @@ export default function InventoryReportsScreen() {
                 </View>
               </Card>
             ))
-          )
+          )}
+          </>
         ) : null}
 
         {tab === 'purchase' ? (
@@ -407,15 +450,20 @@ export default function InventoryReportsScreen() {
                   ))}
                 </Card>
               ) : null}
-              <Button
-                label="Export Excel"
-                variant="accent"
-                onPress={() => {
-                  void downloadInventoryExcel('pnl', { from: pnlFrom, to: pnlTo })
-                    .then(() => toast.success('Excel ready'))
-                    .catch((e) => toast.error(e instanceof Error ? e.message : 'Export failed'));
-                }}
-              />
+              <View className={`flex-row flex-wrap gap-2`}>
+                <Button
+                  label={excelBusy === 'pnl' ? 'Preparing…' : 'Download P&L Excel'}
+                  variant="accent"
+                  disabled={excelBusy != null}
+                  onPress={() => void exportExcel('pnl', { from: pnlFrom, to: pnlTo })}
+                />
+                <Button
+                  label={excelBusy === 'expenses' ? 'Preparing…' : 'Download expenses Excel'}
+                  variant="secondary"
+                  disabled={excelBusy != null}
+                  onPress={() => void exportExcel('expenses', { from: pnlFrom, to: pnlTo })}
+                />
+              </View>
             </>
           )
         ) : null}
