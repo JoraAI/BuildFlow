@@ -98,13 +98,22 @@ export function CashBookPanel() {
   const header = useMemo(
     () => (
       <View className="gap-3 mb-3">
-        <View className={`flex-row flex-wrap gap-2 ${isPhone ? '' : 'items-end'}`}>
+        <View className={isPhone ? 'gap-2' : 'flex-row flex-wrap items-end gap-2'}>
           <View className={isPhone ? 'w-full' : 'w-44'}>
-            <Input label="Date" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" />
+            <Input
+              label="Date"
+              value={date}
+              onChangeText={setDate}
+              placeholder="YYYY-MM-DD"
+              compact
+              fullWidth
+            />
           </View>
-          <Button label="Add entry" size="sm" variant="accent" onPress={() => setEntryOpen(true)} />
-          <Button label="Categories" size="sm" variant="secondary" onPress={() => setCategoriesOpen(true)} />
-          <Button label="Daily summary" size="sm" variant="secondary" onPress={() => setSummaryOpen(true)} />
+          <View className="flex-row flex-wrap gap-2">
+            <Button label="Add entry" size="sm" variant="accent" onPress={() => setEntryOpen(true)} />
+            <Button label="Categories" size="sm" variant="secondary" onPress={() => setCategoriesOpen(true)} />
+            <Button label="Daily summary" size="sm" variant="secondary" onPress={() => setSummaryOpen(true)} />
+          </View>
         </View>
         <View className="flex-row flex-wrap gap-2">
           <Stat label="Opening" value={dayQ.data?.opening} />
@@ -117,13 +126,16 @@ export function CashBookPanel() {
           value={query}
           onChangeText={setQuery}
           placeholder="Description, person, category…"
+          compact
+          fullWidth
         />
-        <View className={`flex-row flex-wrap gap-2 ${isPhone ? '' : ''}`}>
+        <View className={isPhone ? 'gap-2' : 'flex-row flex-wrap items-end gap-2'}>
           <View className={isPhone ? 'w-full' : 'w-40'}>
             <Select
               label="Direction"
               value={direction}
               onChange={(v) => setDirection(v ?? '')}
+              compact={!isPhone}
               options={[
                 { title: 'All', value: '' },
                 { title: 'Money in', value: 'IN' },
@@ -136,6 +148,7 @@ export function CashBookPanel() {
               label="Type"
               value={entryType}
               onChange={(v) => setEntryType(v ?? '')}
+              compact={!isPhone}
               options={typeOptions}
             />
           </View>
@@ -144,6 +157,7 @@ export function CashBookPanel() {
               label="Category"
               value={category}
               onChange={(v) => setCategory(v ?? '')}
+              compact={!isPhone}
               options={categoryOptions}
             />
           </View>
@@ -152,6 +166,7 @@ export function CashBookPanel() {
               label="Mode"
               value={paymentMode}
               onChange={(v) => setPaymentMode(v ?? '')}
+              compact={!isPhone}
               options={[
                 { title: 'All modes', value: '' },
                 { title: 'Cash', value: 'CASH' },
@@ -376,33 +391,38 @@ function CategoriesModal({ open, onClose }: { open: boolean; onClose: () => void
           <Text className="text-xs text-muted mb-3">
             Add shop-specific labels. Hidden categories stay on older entries.
           </Text>
-          <View className="flex-row gap-2 mb-3">
-            <View className="flex-1">
-              <Input label="New category" value={name} onChangeText={setName} placeholder="e.g. Shop rent" />
-            </View>
-            <View className="justify-end mb-1">
-              <Button
-                label="Add"
-                size="sm"
-                variant="accent"
-                loading={busy}
-                onPress={() =>
-                  void run(async () => {
-                    if (!name.trim()) {
-                      toast.error('Enter a category name');
-                      return;
-                    }
-                    try {
-                      await createCat.mutateAsync({ name: name.trim() });
-                      setName('');
-                      toast.success('Category added');
-                    } catch (e) {
-                      toast.error(e instanceof Error ? e.message : 'Could not add');
-                    }
-                  })
-                }
+          <View className="flex-row items-end gap-2 mb-3">
+            <View className="flex-1 min-w-0">
+              <Input
+                label="New category"
+                value={name}
+                onChangeText={setName}
+                placeholder="e.g. Shop rent"
+                compact
+                fullWidth
               />
             </View>
+            <Button
+              label="Add"
+              size="sm"
+              variant="accent"
+              loading={busy}
+              onPress={() =>
+                void run(async () => {
+                  if (!name.trim()) {
+                    toast.error('Enter a category name');
+                    return;
+                  }
+                  try {
+                    await createCat.mutateAsync({ name: name.trim() });
+                    setName('');
+                    toast.success('Category added');
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : 'Could not add');
+                  }
+                })
+              }
+            />
           </View>
           <ScrollView className={isPhone ? 'max-h-[60%]' : 'max-h-96'}>
             {categoriesQ.isLoading ? (

@@ -117,8 +117,10 @@ export default function InventoryActivityScreen() {
             setPage(1);
           }}
           placeholder="Person, type, or id…"
+          compact
+          fullWidth
         />
-        <View className={isPhone ? 'gap-2' : 'flex-row flex-wrap gap-2'}>
+        <View className={isPhone ? 'gap-2' : 'flex-row flex-wrap items-end gap-2'}>
           <View className={isPhone ? 'w-full' : 'w-40'}>
             <Select
               label="Action"
@@ -127,6 +129,7 @@ export default function InventoryActivityScreen() {
                 setAction(v ?? '');
                 setPage(1);
               }}
+              compact={!isPhone}
               options={ACTION_OPTIONS}
             />
           </View>
@@ -138,6 +141,7 @@ export default function InventoryActivityScreen() {
                 setEntityType(v ?? '');
                 setPage(1);
               }}
+              compact={!isPhone}
               options={ENTITY_OPTIONS}
             />
           </View>
@@ -150,6 +154,7 @@ export default function InventoryActivityScreen() {
                   setUserId(v ?? '');
                   setPage(1);
                 }}
+                compact={!isPhone}
                 options={personOptions}
               />
             </View>

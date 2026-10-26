@@ -20,7 +20,7 @@ export default function InventoryCashScreen() {
         alignSelf: 'center',
       }}
     >
-      <View className={`pt-4 pb-2 ${isDesktop ? 'px-6' : 'px-4'}`}>
+      <View className="pt-4 pb-2 px-4">
         <Text className="text-2xl font-bold text-text">Cash book</Text>
         <Text className="text-sm text-muted">Daily income, expenses, and closing balance</Text>
       </View>
