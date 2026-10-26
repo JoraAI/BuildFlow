@@ -28,11 +28,7 @@ const FIELDS: Array<{ key: keyof ImportMappingPreview['mapping']; label: string;
 ];
 
 /** Headers match the server synonym map so mapping is automatic. */
-const ITEMS_TEMPLATE_CSV = [
-  'Item name,SKU,Item code,Barcode,Unit,Rate,GST %,HSN,Reorder point,Opening qty',
-  'Vanilla cup,VAN-CUP,,890123456001,nos,25,5,21050010,20,',
-  'Chocolate scoop,CHC-SCP,,890123456002,nos,30,5,21050010,15,',
-].join('\n');
+const ITEMS_TEMPLATE_CSV = 'Item name,SKU,Item code,Barcode,Unit,Rate,GST %,HSN,Reorder point,Opening qty';
 
 function readFileAsBase64(asset: { uri: string; name?: string; mimeType?: string }) {
   return new Promise<{ fileContent: string; filename: string; contentType: string }>(async (resolve, reject) => {
