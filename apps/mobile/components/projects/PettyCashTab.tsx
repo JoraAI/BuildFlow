@@ -13,8 +13,8 @@ import {
   TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import { Card, Button, Badge, LoadingSkeleton, EmptyState, Input } from '@/components/ui';
+import { pickImage } from '@/utils/pick-image';
 import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
 import { useViewport } from '@/hooks/useViewport';
 import { usePermission } from '@/hooks/usePermission';
@@ -122,30 +122,21 @@ export function PettyCashTab({ projectId }: PettyCashTabProps) {
   const floatAllocated: number | null = null;
   const floatRemaining = floatAllocated != null ? Math.max(0, floatAllocated - reconciledAmount) : null;
 
-  const pickImage = async (useCamera: boolean) => {
+  const captureReceipt = async (useCamera: boolean) => {
     try {
       setUploadingReceipt(true);
-      const perm = useCamera
-        ? await ImagePicker.requestCameraPermissionsAsync()
-        : await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-      if (!perm.granted) {
-        setUploadingReceipt(false);
-        await alertAsync('Permission required', 'Please enable camera/photo library access in device settings.');
-        return;
-      }
-
-      const res = useCamera
-        ? await ImagePicker.launchCameraAsync({ quality: 0.7, base64: true })
-        : await ImagePicker.launchImageLibraryAsync({ quality: 0.7, base64: true });
+      const res = await pickImage({ fromCamera: useCamera, quality: 0.7, base64: true });
 
       if (res.canceled) {
         setUploadingReceipt(false);
         return;
       }
 
-      if (res.assets && res.assets[0]?.base64) {
-        const dataUrl = `data:image/jpeg;base64,${res.assets[0].base64}`;
+      const asset = res.assets?.[0];
+      if (asset) {
+        const dataUrl = asset.base64
+          ? `data:image/jpeg;base64,${asset.base64}`
+          : asset.uri;
         setReceiptUrl(dataUrl);
       }
     } catch {
@@ -594,7 +585,7 @@ export function PettyCashTab({ projectId }: PettyCashTabProps) {
                   size="sm"
                   variant="secondary"
                   icon={<Ionicons name="camera-outline" size={14} color="#1E3A5F" />}
-                  onPress={() => pickImage(true)}
+                  onPress={() => captureReceipt(true)}
                   loading={uploadingReceipt}
                 />
                 <Button
@@ -602,7 +593,7 @@ export function PettyCashTab({ projectId }: PettyCashTabProps) {
                   size="sm"
                   variant="secondary"
                   icon={<Ionicons name="image-outline" size={14} color="#1E3A5F" />}
-                  onPress={() => pickImage(false)}
+                  onPress={() => captureReceipt(false)}
                   loading={uploadingReceipt}
                 />
               </View>

@@ -845,10 +845,15 @@ export function useExportEstimate(estimateId: string) {
 
       const fileUri = await apiDownload(path, filename, mime);
       if (fileUri && (await Sharing.isAvailableAsync())) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: mime,
-          dialogTitle: `Estimate ${format.toUpperCase()}`,
-        });
+        try {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: mime,
+            dialogTitle: `Estimate ${format.toUpperCase()}`,
+          });
+        } catch (shareErr) {
+          const msg = shareErr instanceof Error ? shareErr.message : '';
+          if (!/cancel|dismiss/i.test(msg)) throw shareErr;
+        }
       } else if (fileUri) {
         Alert.alert('Exported', `File saved to ${fileUri}`);
       }

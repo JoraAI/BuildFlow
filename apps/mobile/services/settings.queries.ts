@@ -382,7 +382,12 @@ async function shareDownloadedFile(
     throw new Error('Export file was not saved');
   }
   if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(fileUri, { mimeType, dialogTitle });
+    try {
+      await Sharing.shareAsync(fileUri, { mimeType, dialogTitle });
+    } catch (shareErr) {
+      const msg = shareErr instanceof Error ? shareErr.message : '';
+      if (!/cancel|dismiss/i.test(msg)) throw shareErr;
+    }
     return;
   }
   Alert.alert('Exported', `File saved to ${fileUri}`);

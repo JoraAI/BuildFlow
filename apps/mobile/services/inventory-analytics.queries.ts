@@ -155,9 +155,14 @@ export async function downloadInventoryExcel(
     mime,
   );
   if (uri && (await Sharing.isAvailableAsync())) {
-    await Sharing.shareAsync(uri, {
-      mimeType: mime,
-      UTI: 'org.openxmlformats.spreadsheetml.sheet',
-    });
+    try {
+      await Sharing.shareAsync(uri, {
+        mimeType: mime,
+        UTI: 'org.openxmlformats.spreadsheetml.sheet',
+      });
+    } catch (shareErr) {
+      const msg = shareErr instanceof Error ? shareErr.message : '';
+      if (!/cancel|dismiss/i.test(msg)) throw shareErr;
+    }
   }
 }

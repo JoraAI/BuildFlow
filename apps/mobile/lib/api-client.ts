@@ -3,6 +3,7 @@ import { API_BASE_URL, SECURE_STORE_KEYS } from '@/constants';
 import * as SecureStore from 'expo-secure-store';
 import * as FileSystem from 'expo-file-system';
 import { useAuthStore } from '@/stores/auth.store';
+import { isIOSWeb } from '@/utils/web-platform';
 
 export type DownloadMimeType =
   | 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -346,8 +347,40 @@ async function parseDownloadError(res: Response): Promise<never> {
   throw new ApiError('DOWNLOAD_FAILED', `Download failed (${res.status})`, res.status);
 }
 
-function triggerBrowserDownload(blob: Blob, filename: string): void {
+async function shareBlobOnWeb(blob: Blob, filename: string): Promise<boolean> {
+  if (typeof navigator === 'undefined' || typeof File === 'undefined') return false;
+  const file = new File([blob], filename, { type: blob.type || 'application/octet-stream' });
+  const nav = navigator as Navigator & {
+    canShare?: (data: { files?: File[] }) => boolean;
+    share?: (data: { files?: File[]; title?: string }) => Promise<void>;
+  };
+  if (typeof nav.share !== 'function' || !nav.canShare?.({ files: [file] })) return false;
+  try {
+    await nav.share({ files: [file], title: filename });
+    return true;
+  } catch (err) {
+    const name = err instanceof Error ? err.name : '';
+    const msg = err instanceof Error ? err.message : '';
+    // User dismissed the share sheet — treat as handled, not a download failure.
+    if (name === 'AbortError' || /cancel|dismiss/i.test(msg)) return true;
+    return false;
+  }
+}
+
+async function triggerBrowserDownload(blob: Blob, filename: string): Promise<void> {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  // iOS Safari / iPadOS ignore <a download> for blob: URLs. Prefer the native
+  // share sheet (Save to Files / Files app) when the browser supports it.
+  if (isIOSWeb()) {
+    if (await shareBlobOnWeb(blob, filename)) return;
+    const url = window.URL.createObjectURL(blob);
+    const opened = window.open(url, '_blank', 'noopener');
+    if (!opened) {
+      window.location.assign(url);
+    }
+    window.setTimeout(() => window.URL.revokeObjectURL(url), 60_000);
+    return;
+  }
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -367,7 +400,7 @@ function triggerBrowserDownload(blob: Blob, filename: string): void {
  */
 export async function saveDownloadBlob(blob: Blob, filename: string): Promise<string | null> {
   if (Platform.OS === 'web') {
-    triggerBrowserDownload(blob, filename);
+    await triggerBrowserDownload(blob, filename);
     return null;
   }
   const base64 = await blobToBase64(blob);

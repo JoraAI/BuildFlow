@@ -15,6 +15,7 @@ import { useProjects, type ProjectListItem } from '@/services/project.queries';
 import { dismissTo, DISMISS } from '@/utils/navigation';
 import { alertAsync } from '@/utils/confirm';
 import { formatINR } from '@/utils/format';
+import { pickImage } from '@/utils/pick-image';
 
 // R9-B3: File picker - uses expo-document-picker
 async function pickInvoiceFiles(): Promise<Array<{ fileContent: string; filename: string; contentType: string }>> {
@@ -49,6 +50,31 @@ async function pickInvoiceFiles(): Promise<Array<{ fileContent: string; filename
   return files;
 }
 
+async function pickInvoicePhoto(): Promise<Array<{ fileContent: string; filename: string; contentType: string }>> {
+  const result = await pickImage({ fromCamera: true, quality: 0.8 });
+  if (result.canceled || !result.assets?.[0]) return [];
+  const asset = result.assets[0];
+  const res = await fetch(asset.uri);
+  const blob = await res.blob();
+  const reader = new FileReader();
+  const base64: string = await new Promise((resolve, reject) => {
+    reader.onloadend = () => {
+      const str = reader.result as string;
+      const comma = str.indexOf(',');
+      resolve(comma >= 0 ? str.slice(comma + 1) : str);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+  return [
+    {
+      fileContent: base64,
+      filename: asset.fileName || 'invoice.jpg',
+      contentType: asset.mimeType || 'image/jpeg',
+    },
+  ];
+}
+
 interface ReviewRow {
   draft: BillExtractDraft;
   include: boolean;
@@ -81,14 +107,16 @@ export default function ImportBillsScreen() {
     );
   }
 
-  const onPickFiles = async () => {
+  const extractPickedFiles = async (
+    picker: () => Promise<Array<{ fileContent: string; filename: string; contentType: string }>>,
+  ) => {
     if (!projectId) {
       void alertAsync('Select project', 'Pick a project first.');
       return;
     }
     setExtracting(true);
     try {
-      const files = await pickInvoiceFiles();
+      const files = await picker();
       if (files.length === 0) return;
       const result = await extractBatch.mutateAsync(files);
       const rows: ReviewRow[] = result.drafts.map((draft) => ({
@@ -110,6 +138,9 @@ export default function ImportBillsScreen() {
       setExtracting(false);
     }
   };
+
+  const onPickFiles = () => extractPickedFiles(pickInvoiceFiles);
+  const onTakePhoto = () => extractPickedFiles(pickInvoicePhoto);
 
   const onBulkCreate = () => {
     const included = reviewRows.filter((r) => r.include);
@@ -161,12 +192,25 @@ export default function ImportBillsScreen() {
       </ScrollView>
 
       {/* Upload button */}
-      <Button
-        label="📎 Select invoice files (PDF/Image)"
-        onPress={() => void onPickFiles()}
-        loading={extracting}
-        fullWidth
-      />
+      <View className="flex-row flex-wrap gap-2">
+        <View className="flex-1 min-w-[140px]">
+          <Button
+            label="Take photo"
+            onPress={() => void onTakePhoto()}
+            loading={extracting}
+            fullWidth
+          />
+        </View>
+        <View className="flex-1 min-w-[140px]">
+          <Button
+            label="Upload PDF / images"
+            variant="secondary"
+            onPress={() => void onPickFiles()}
+            loading={extracting}
+            fullWidth
+          />
+        </View>
+      </View>
 
       {/* AI notes */}
       {reviewRows.length > 0 && (

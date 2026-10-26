@@ -12,6 +12,7 @@ import { Button, Badge, toast } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
 import { useExtractInvoiceBill, useCreateBillFromDraft, type InventoryBillDraft } from '@/services/inventory-ai.queries';
 import { formatINR } from '@/utils/format';
+import { pickImage } from '@/utils/pick-image';
 
 function readFileAsBase64(asset: { uri: string; name?: string; mimeType?: string }) {
   return new Promise<{ fileContent: string; filename: string; contentType: string }>(async (resolve, reject) => {
@@ -59,15 +60,11 @@ export function ScanInvoiceModal({
     }
   }, [open]);
 
-  const pickAndExtract = async () => {
+  const extractFromAsset = async (asset: { uri: string; name?: string; mimeType?: string }) => {
     setError(null);
     setWorking(true);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { getDocumentAsync } = require('expo-document-picker');
-      const result = await getDocumentAsync({ multiple: false, type: ['application/pdf', 'image/*'] });
-      if (result.canceled || !result.assets?.length) return;
-      const file = await readFileAsBase64(result.assets[0]);
+      const file = await readFileAsBase64(asset);
       const res = await extractBill.mutateAsync(file);
       setNotes(res.notes);
       setDraft(res.draft);
@@ -75,6 +72,29 @@ export function ScanInvoiceModal({
       setError(e instanceof Error ? e.message : 'Could not read the uploaded file.');
     } finally {
       setWorking(false);
+    }
+  };
+
+  const pickPhoto = async () => {
+    const result = await pickImage({ fromCamera: true, quality: 0.8 });
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+    await extractFromAsset({
+      uri: asset.uri,
+      name: asset.fileName ?? 'invoice.jpg',
+      mimeType: asset.mimeType ?? 'image/jpeg',
+    });
+  };
+
+  const pickAndExtract = async () => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { getDocumentAsync } = require('expo-document-picker');
+      const result = await getDocumentAsync({ multiple: false, type: ['application/pdf', 'image/*'] });
+      if (result.canceled || !result.assets?.length) return;
+      await extractFromAsset(result.assets[0]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not read the uploaded file.');
     }
   };
 
@@ -117,19 +137,31 @@ export function ScanInvoiceModal({
           </View>
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text className="text-sm text-muted mb-3">
-              Upload a supplier tax invoice (PDF, Excel, text or a photo of a scan) - AI extracts the vendor
-              bill and matches it against your POs, GRNs and catalog. Scanned images are read server-side by OCR
-              (Tesseract) before the same extraction pipeline.
+              Take a photo of the supplier invoice or upload a PDF. AI extracts the vendor bill and
+              matches it against your POs, GRNs and catalog.
             </Text>
 
             {!draft ? (
-              <Button
-                label={working ? 'Extracting…' : 'Upload invoice'}
-                variant="accent"
-                onPress={() => void pickAndExtract()}
-                loading={working}
-                fullWidth
-              />
+              <View className="flex-row flex-wrap gap-2">
+                <View className="flex-1 min-w-[140px]">
+                  <Button
+                    label={working ? 'Extracting…' : 'Take photo'}
+                    variant="accent"
+                    onPress={() => void pickPhoto()}
+                    loading={working}
+                    fullWidth
+                  />
+                </View>
+                <View className="flex-1 min-w-[140px]">
+                  <Button
+                    label="Upload PDF / image"
+                    variant="secondary"
+                    onPress={() => void pickAndExtract()}
+                    disabled={working}
+                    fullWidth
+                  />
+                </View>
+              </View>
             ) : null}
 
             {notes && !draft ? <Text className="text-sm text-muted mt-3">{notes}</Text> : null}
@@ -193,14 +225,14 @@ export function ScanInvoiceModal({
 
                 <View className="flex-row gap-2 mt-1">
                   <Button
-                    label="Re-upload"
+                    label="Choose another"
                     variant="secondary"
                     className="flex-1"
                     disabled={working}
                     onPress={() => {
                       setDraft(null);
                       setNotes(null);
-                      void pickAndExtract();
+                      setError(null);
                     }}
                   />
                   <Button

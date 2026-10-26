@@ -30,6 +30,7 @@ import { useProjects, type ProjectListItem } from '@/services/project.queries';
 import { useRequisitions, type PurchaseOrderSummary } from '@/services/expansion.queries';
 import { usePermission } from '@/hooks/usePermission';
 import { formatINR } from '@/utils/format';
+import { pickImage } from '@/utils/pick-image';
 
 const CATEGORIES = ['MATERIAL', 'LABOUR', 'EQUIPMENT', 'SUBCONTRACTOR', 'OTHER'] as const;
 type Category = (typeof CATEGORIES)[number];
@@ -145,14 +146,9 @@ export default function CreateBillScreen() {
     );
   }
 
-  const onExtractWithAI = async () => {
+  const extractFromAsset = async (asset: { uri: string; name?: string; mimeType?: string }) => {
     setExtracting(true);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { getDocumentAsync } = require('expo-document-picker');
-      const result = await getDocumentAsync({ multiple: false, type: ['application/pdf', 'image/*'] });
-      if (result.canceled || !result.assets?.length) return;
-      const asset = result.assets[0];
       const res = await fetch(asset.uri);
       const blob = await res.blob();
       const reader = new FileReader();
@@ -189,6 +185,33 @@ export default function CreateBillScreen() {
       void alertAsync('Error', (e as Error).message);
     } finally {
       setExtracting(false);
+    }
+  };
+
+  const onExtractWithAI = async () => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { getDocumentAsync } = require('expo-document-picker');
+      const result = await getDocumentAsync({ multiple: false, type: ['application/pdf', 'image/*'] });
+      if (result.canceled || !result.assets?.length) return;
+      await extractFromAsset(result.assets[0]);
+    } catch (e) {
+      void alertAsync('Error', (e as Error).message);
+    }
+  };
+
+  const onExtractFromCamera = async () => {
+    try {
+      const result = await pickImage({ fromCamera: true, quality: 0.8 });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      await extractFromAsset({
+        uri: asset.uri,
+        name: asset.fileName ?? 'invoice.jpg',
+        mimeType: asset.mimeType ?? 'image/jpeg',
+      });
+    } catch (e) {
+      void alertAsync('Error', (e as Error).message);
     }
   };
 
@@ -320,18 +343,31 @@ export default function CreateBillScreen() {
       {/* R9-B2: Upload + Extract with AI */}
       {canCreateBill && (
         <Card>
-          <View className="flex-row items-center justify-between">
-            <View className="flex-1 pr-2">
-              <Text className="text-sm font-bold text-text">Upload Invoice</Text>
-              <Text className="text-xs text-muted">Upload supplier invoice PDF/image. Use AI to auto-extract fields.</Text>
+          <Text className="text-sm font-bold text-text">Upload Invoice</Text>
+          <Text className="text-xs text-muted mb-2">
+            Take a photo of the supplier invoice or upload a PDF. AI fills the fields for review.
+          </Text>
+          <View className="flex-row flex-wrap gap-2">
+            <View className="flex-1 min-w-[140px]">
+              <Button
+                label="Take photo"
+                size="sm"
+                variant="accent"
+                loading={extracting}
+                onPress={() => void onExtractFromCamera()}
+                fullWidth
+              />
             </View>
-            <Button
-              label="🤖 Extract with AI"
-              size="sm"
-              variant="secondary"
-              loading={extracting}
-              onPress={() => void onExtractWithAI()}
-            />
+            <View className="flex-1 min-w-[140px]">
+              <Button
+                label="Upload PDF / image"
+                size="sm"
+                variant="secondary"
+                loading={extracting}
+                onPress={() => void onExtractWithAI()}
+                fullWidth
+              />
+            </View>
           </View>
         </Card>
       )}

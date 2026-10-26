@@ -14,6 +14,7 @@ export type PickImageOptions = {
   allowsEditing?: boolean;
   aspect?: [number, number];
   quality?: number;
+  base64?: boolean;
 };
 
 const CANCELED: ImagePicker.ImagePickerResult = { canceled: true, assets: null };
@@ -26,6 +27,7 @@ export async function pickImage(
     allowsEditing = false,
     aspect,
     quality = 0.85,
+    base64 = false,
   } = options;
 
   if (Platform.OS === 'web') {
@@ -45,12 +47,14 @@ export async function pickImage(
         quality,
         allowsEditing,
         aspect,
+        base64,
       })
     : ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality,
         allowsEditing,
         aspect,
+        base64,
       });
 }
 
@@ -92,6 +96,13 @@ function pickImageWeb(opts: { fromCamera: boolean }): Promise<ImagePicker.ImageP
     const onCancel = () => finish(CANCELED);
 
     const onChange = () => {
+      // A file was chosen — do not treat the following window-focus as cancel
+      // (iOS Safari fires focus before FileReader finishes a camera photo).
+      if (focusTimer) {
+        clearTimeout(focusTimer);
+        focusTimer = null;
+      }
+      window.removeEventListener('focus', onWindowFocus);
       const file = input.files?.[0];
       if (!file) {
         finish(CANCELED);
@@ -106,6 +117,8 @@ function pickImageWeb(opts: { fromCamera: boolean }): Promise<ImagePicker.ImageP
           return;
         }
         const image = new Image();
+        const comma = uri.indexOf(',');
+        const base64 = comma >= 0 ? uri.slice(comma + 1) : uri;
         image.onload = () => {
           finish({
             canceled: false,
@@ -116,6 +129,7 @@ function pickImageWeb(opts: { fromCamera: boolean }): Promise<ImagePicker.ImageP
                 height: image.naturalHeight || image.height || 0,
                 mimeType: file.type || 'image/jpeg',
                 fileName: file.name,
+                base64,
               },
             ],
           });
@@ -130,6 +144,7 @@ function pickImageWeb(opts: { fromCamera: boolean }): Promise<ImagePicker.ImageP
                 height: 0,
                 mimeType: file.type || 'image/jpeg',
                 fileName: file.name,
+                base64,
               },
             ],
           });
@@ -144,7 +159,7 @@ function pickImageWeb(opts: { fromCamera: boolean }): Promise<ImagePicker.ImageP
       if (focusTimer) clearTimeout(focusTimer);
       focusTimer = setTimeout(() => {
         if (!settled) finish(CANCELED);
-      }, 500);
+      }, opts.fromCamera ? 2500 : 800);
     };
 
     input.addEventListener('change', onChange);

@@ -15,6 +15,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, Modal, Pressable, Platform } from 'react-native';
 import { Button } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
+import { isIOSWeb } from '@/utils/web-platform';
 
 /** Minimal typing for the native `BarcodeDetector` API (Chrome/Android/newer Safari). */
 type WebBarcodeDetector = new (opts?: { formats?: string[] }) => {
@@ -40,6 +41,10 @@ export function BarcodeScannerOverlay({
   // M1: web phone/tablet (incl. iPad Safari/Chrome) gets the camera; desktop web
   // stays keyboard/paste-only.
   const isWebMobile = Platform.OS === 'web' && (isPhone || isTablet);
+  // iOS Safari only allows getUserMedia inside a tap. Auto-start works on Android Chrome.
+  const needsWebGesture = isWebMobile && isIOSWeb();
+  const [webArmed, setWebArmed] = useState(false);
+  const [webSession, setWebSession] = useState(0);
 
   // M1 web scanner state.
   const webContainerRef = useRef<View | null>(null);
@@ -95,9 +100,14 @@ export function BarcodeScannerOverlay({
     };
   }, [open, isNative]);
 
+  useEffect(() => {
+    if (!open) setWebArmed(false);
+  }, [open]);
+
   // M1: web mobile camera - rear camera + BarcodeDetector / @zxing/browser.
   useEffect(() => {
     if (!open || !isWebMobile || typeof window === 'undefined') return;
+    if (needsWebGesture && !webArmed) return;
     let cancelled = false;
     let stream: MediaStream | null = null;
     let raf = 0;
@@ -212,7 +222,7 @@ export function BarcodeScannerOverlay({
       cancelled = true;
       stop();
     };
-  }, [open, isWebMobile, cameraType, handleScan]);
+  }, [open, isWebMobile, cameraType, handleScan, needsWebGesture, webArmed, webSession]);
 
   return (
     <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
@@ -252,6 +262,14 @@ export function BarcodeScannerOverlay({
                   <Button label="Close" variant="secondary" onPress={onClose} />
                 </View>
               )
+            ) : isWebMobile && needsWebGesture && !webArmed ? (
+              <View className="p-6 items-center">
+                <Text className="text-sm text-text text-center mb-1">Ready to scan</Text>
+                <Text className="text-xs text-muted text-center mb-4">
+                  Safari only starts the camera after you tap. Point at the barcode once it opens.
+                </Text>
+                <Button label="Start camera" variant="accent" onPress={() => setWebArmed(true)} />
+              </View>
             ) : isWebMobile ? (
               <View
                 style={{
@@ -294,12 +312,27 @@ export function BarcodeScannerOverlay({
                       {webError ?? 'Allow camera access to scan barcodes, or use the barcode input below.'}
                     </Text>
                     {webError ? (
-                      <Button label="Close" variant="secondary" onPress={onClose} />
+                      <View className="flex-row flex-wrap gap-2 justify-center">
+                        <Button
+                          label="Try again"
+                          variant="secondary"
+                          onPress={() => {
+                            setWebError(null);
+                            setPermissionGranted(null);
+                            setWebSession((n) => n + 1);
+                            if (needsWebGesture) setWebArmed(true);
+                          }}
+                        />
+                        <Button label="Close" variant="secondary" onPress={onClose} />
+                      </View>
                     ) : (
                       <Button
                         label="Try again"
                         variant="secondary"
-                        onPress={() => setPermissionGranted(null)}
+                        onPress={() => {
+                          setPermissionGranted(null);
+                          setWebSession((n) => n + 1);
+                        }}
                       />
                     )}
                   </View>

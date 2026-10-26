@@ -18,8 +18,17 @@ export async function downloadReportPdf(apiPath: string, filename: string): Prom
     toast.info('Preparing PDF…');
     const uri = await apiDownload(apiPath, filename, 'application/pdf');
     if (uri && (await Sharing.isAvailableAsync())) {
-      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
-      toast.success('PDF ready to share');
+      try {
+        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+        toast.success('PDF ready to share');
+      } catch (shareErr) {
+        const msg = shareErr instanceof Error ? shareErr.message : '';
+        if (/cancel|dismiss/i.test(msg)) {
+          toast.success('PDF saved on this device');
+          return;
+        }
+        throw shareErr;
+      }
       return;
     }
     // Web: apiDownload already triggered the browser download (uri is null).
@@ -48,8 +57,17 @@ export async function downloadTallyXml(projectId: string): Promise<void> {
       'application/xml',
     );
     if (uri && (await Sharing.isAvailableAsync())) {
-      await Sharing.shareAsync(uri, { mimeType: 'application/xml', UTI: 'public.xml' });
-      toast.success('Tally XML exported - import it in Tally Prime.');
+      try {
+        await Sharing.shareAsync(uri, { mimeType: 'application/xml', UTI: 'public.xml' });
+        toast.success('Tally XML exported - import it in Tally Prime.');
+      } catch (shareErr) {
+        const msg = shareErr instanceof Error ? shareErr.message : '';
+        if (/cancel|dismiss/i.test(msg)) {
+          toast.success('Tally XML saved on this device');
+          return;
+        }
+        throw shareErr;
+      }
     } else {
       toast.success('Tally XML downloaded to device - import it in Tally Prime.');
     }

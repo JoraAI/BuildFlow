@@ -11,8 +11,8 @@ import {
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import { Card, Button, Badge, LoadingSkeleton, EmptyState, Input } from '@/components/ui';
+import { pickImage } from '@/utils/pick-image';
 import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
 import { useViewport } from '@/hooks/useViewport';
 import { usePermission } from '@/hooks/usePermission';
@@ -98,31 +98,22 @@ export function SnagsTab({ projectId }: SnagsTabProps) {
   const handlePickPhoto = async (useCamera: boolean) => {
     try {
       setUploading(true);
-      const perm = useCamera
-        ? await ImagePicker.requestCameraPermissionsAsync()
-        : await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-      if (!perm.granted) {
-        setUploading(false);
-        await alertAsync('Permission required', 'Please allow camera/photos access in device settings.');
-        return;
-      }
-
-      const res = useCamera
-        ? await ImagePicker.launchCameraAsync({ quality: 0.45, base64: true })
-        : await ImagePicker.launchImageLibraryAsync({ quality: 0.45, base64: true });
+      const res = await pickImage({ fromCamera: useCamera, quality: 0.45, base64: true });
 
       if (res.canceled) {
         setUploading(false);
         return;
       }
 
-      if (res.assets && res.assets[0]?.base64) {
+      const asset = res.assets?.[0];
+      if (asset) {
         if (photos.length >= 5) {
           await alertAsync('Limit', 'Maximum 5 evidence photos per snag.');
           return;
         }
-        const dataUrl = `data:image/jpeg;base64,${res.assets[0].base64}`;
+        const dataUrl = asset.base64
+          ? `data:image/jpeg;base64,${asset.base64}`
+          : asset.uri;
         setPhotos((prev) => [...prev, dataUrl]);
       }
     } catch {

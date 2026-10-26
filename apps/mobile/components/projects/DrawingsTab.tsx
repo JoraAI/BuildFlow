@@ -8,7 +8,7 @@ import {
   Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
+import { pickImage } from '@/utils/pick-image';
 import { Card, Button, Badge, LoadingSkeleton, EmptyState, Input } from '@/components/ui';
 import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
 import { useViewport } from '@/hooks/useViewport';
@@ -133,20 +133,20 @@ export function DrawingsTab({ projectId }: DrawingsTabProps) {
     }
   };
 
-  const pickPlanImage = async (setter: (url: string) => void) => {
+  const pickPlanImage = async (setter: (url: string) => void, fromCamera = false) => {
     try {
       setPickingImage(true);
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        await alertAsync('Permission required', 'Allow photo library access to attach a plan sheet.');
+      const res = await pickImage({ fromCamera, quality: 0.55, base64: true });
+      if (res.canceled || !res.assets?.[0]) return;
+      const asset = res.assets[0];
+      const dataUrl = asset.base64
+        ? `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}`
+        : asset.uri;
+      if (!dataUrl) {
+        await alertAsync('Error', 'Could not load plan image.');
         return;
       }
-      const res = await ImagePicker.launchImageLibraryAsync({
-        quality: 0.55,
-        base64: true,
-      });
-      if (res.canceled || !res.assets?.[0]?.base64) return;
-      setter(`data:image/jpeg;base64,${res.assets[0].base64}`);
+      setter(dataUrl);
     } catch {
       await alertAsync('Error', 'Could not load plan image.');
     } finally {
@@ -325,13 +325,28 @@ export function DrawingsTab({ projectId }: DrawingsTabProps) {
               value={versionFileUrl}
               onChangeText={setVersionFileUrl}
             />
-            <Button
-              label="Pick plan from gallery"
-              size="sm"
-              variant="secondary"
-              loading={pickingImage}
-              onPress={() => pickPlanImage(setVersionFileUrl)}
-            />
+            <View className="flex-row flex-wrap gap-2">
+              <View className="flex-1 min-w-[140px]">
+                <Button
+                  label="Take photo"
+                  size="sm"
+                  variant="secondary"
+                  loading={pickingImage}
+                  onPress={() => void pickPlanImage(setVersionFileUrl, true)}
+                  fullWidth
+                />
+              </View>
+              <View className="flex-1 min-w-[140px]">
+                <Button
+                  label="Pick from gallery"
+                  size="sm"
+                  variant="secondary"
+                  loading={pickingImage}
+                  onPress={() => void pickPlanImage(setVersionFileUrl)}
+                  fullWidth
+                />
+              </View>
+            </View>
             <Input
               label="Revision Notes"
               placeholder="e.g. Revised beam reinforcement as per consultant"
@@ -503,13 +518,28 @@ export function DrawingsTab({ projectId }: DrawingsTabProps) {
             value={fileUrl}
             onChangeText={setFileUrl}
           />
-          <Button
-            label="Pick plan from gallery"
-            size="sm"
-            variant="secondary"
-            loading={pickingImage}
-            onPress={() => pickPlanImage(setFileUrl)}
-          />
+          <View className="flex-row flex-wrap gap-2">
+            <View className="flex-1 min-w-[140px]">
+              <Button
+                label="Take photo"
+                size="sm"
+                variant="secondary"
+                loading={pickingImage}
+                onPress={() => void pickPlanImage(setFileUrl, true)}
+                fullWidth
+              />
+            </View>
+            <View className="flex-1 min-w-[140px]">
+              <Button
+                label="Pick from gallery"
+                size="sm"
+                variant="secondary"
+                loading={pickingImage}
+                onPress={() => void pickPlanImage(setFileUrl)}
+                fullWidth
+              />
+            </View>
+          </View>
         </View>
       </AdaptiveSheet>
     </View>

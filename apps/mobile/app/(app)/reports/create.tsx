@@ -24,6 +24,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { pickImage } from '@/utils/pick-image';
 import { Ionicons } from '@expo/vector-icons';
 import {
   Card,
@@ -412,6 +413,23 @@ export default function CreateReportScreen() {
   };
 
   const pickPhotos = async () => {
+    if (Platform.OS === 'web') {
+      const result = await pickImage({ quality: 0.7 });
+      if (!result.canceled && result.assets?.[0]) {
+        const a = result.assets[0];
+        setPhotos((prev) =>
+          [
+            ...prev,
+            {
+              uri: a.uri,
+              filename: a.fileName ?? `photo-${Date.now()}.jpg`,
+              contentType: (a.mimeType as PhotoItem['contentType']) ?? 'image/jpeg',
+            },
+          ].slice(0, 10),
+        );
+      }
+      return;
+    }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       await alertAsync('Permission needed', 'Please grant photo library access.');
@@ -436,15 +454,7 @@ export default function CreateReportScreen() {
   };
 
   const takePhoto = async () => {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) {
-      await alertAsync('Permission needed', 'Please grant camera access.');
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.7,
-    });
+    const result = await pickImage({ fromCamera: true, quality: 0.7 });
     if (!result.canceled && result.assets[0]) {
       const a = result.assets[0];
       setPhotos((prev) => [
