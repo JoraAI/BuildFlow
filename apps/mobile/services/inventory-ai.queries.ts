@@ -47,6 +47,8 @@ export interface ImportMappingPreview {
   headers: string[];
   mapping: Record<string, string>;
   sampleRows: Array<Record<string, string>>;
+  /** All parsed data rows (capped server-side). Confirm must send these, not just the preview. */
+  rows?: Array<Record<string, string>>;
   rowCount: number;
   purpose: 'CATALOG' | 'OPENING';
   notes: string;

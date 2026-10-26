@@ -2,14 +2,16 @@
  * BuildFlow - "Import CSV / Excel" mapping modal (INVENTORY_HORIZONTAL_PLATFORM Phase 7.2).
  *
  * Uploads a catalog or opening-stock CSV/XLSX, previews the AI/heuristic column
- * mapping (Product Name → item name, HSN → HSN, Qty → opening qty, ...), lets the
- * user fix the mapping, then confirms the import. CATALOG mode creates resources;
- * OPENING mode reuses the Phase 1 opening-stock import (name/SKU matching + WAC).
+ * mapping, lets the user fix the mapping, then confirms the import. CATALOG mode
+ * creates resources and skips name / SKU / barcode / item-code duplicates.
+ * OPENING mode reuses the Phase 1 opening-stock import.
  */
 import React, { useEffect, useState } from 'react';
 import { View, Text, Modal, Pressable, ScrollView } from 'react-native';
+import * as Sharing from 'expo-sharing';
 import { Button, Select, Badge, toast } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
+import { saveDownloadBlob } from '@/lib/api-client';
 import { useImportPreview, useImportConfirm, type ImportMappingPreview } from '@/services/inventory-ai.queries';
 
 const FIELDS: Array<{ key: keyof ImportMappingPreview['mapping']; label: string; hint: string; required?: boolean }> = [
@@ -24,6 +26,13 @@ const FIELDS: Array<{ key: keyof ImportMappingPreview['mapping']; label: string;
   { key: 'barcode', label: 'Barcode', hint: 'Optional' },
   { key: 'reorderPoint', label: 'Reorder point', hint: 'Low-stock threshold' },
 ];
+
+/** Headers match the server synonym map so mapping is automatic. */
+const ITEMS_TEMPLATE_CSV = [
+  'Item name,SKU,Item code,Barcode,Unit,Rate,GST %,HSN,Reorder point,Opening qty',
+  'Vanilla cup,VAN-CUP,,890123456001,nos,25,5,21050010,20,',
+  'Chocolate scoop,CHC-SCP,,890123456002,nos,30,5,21050010,15,',
+].join('\n');
 
 function readFileAsBase64(asset: { uri: string; name?: string; mimeType?: string }) {
   return new Promise<{ fileContent: string; filename: string; contentType: string }>(async (resolve, reject) => {
@@ -51,7 +60,7 @@ function readFileAsBase64(asset: { uri: string; name?: string; mimeType?: string
 export function ImportMappingModal({
   open,
   onClose,
-  defaultPurpose = 'OPENING',
+  defaultPurpose = 'CATALOG',
 }: {
   open: boolean;
   onClose: () => void;
@@ -74,6 +83,25 @@ export function ImportMappingModal({
       setError(null);
     }
   }, [open, defaultPurpose]);
+
+  const downloadTemplate = async () => {
+    setError(null);
+    try {
+      const blob = new Blob([`${ITEMS_TEMPLATE_CSV}\n`], { type: 'text/csv;charset=utf-8' });
+      const uri = await saveDownloadBlob(blob, 'buildflow-items-template.csv');
+      if (uri && (await Sharing.isAvailableAsync())) {
+        try {
+          await Sharing.shareAsync(uri, { mimeType: 'text/csv', dialogTitle: 'Items CSV template' });
+        } catch (shareErr) {
+          const msg = shareErr instanceof Error ? shareErr.message : '';
+          if (!/cancel|dismiss/i.test(msg)) throw shareErr;
+        }
+      }
+      toast.success('Template ready — fill it and upload.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not download the template.');
+    }
+  };
 
   const pickAndPreview = async () => {
     setError(null);
@@ -104,16 +132,21 @@ export function ImportMappingModal({
       setError('Map the item-name column before confirming.');
       return;
     }
+    const rows = preview.rows?.length ? preview.rows : preview.sampleRows;
+    if (!rows.length) {
+      setError('No data rows found in the file.');
+      return;
+    }
     setWorking(true);
     try {
       const res = await importConfirm.mutateAsync({
         mode: purpose,
         mapping,
-        rows: preview.sampleRows,
+        rows,
       });
       toast.success(
         purpose === 'CATALOG'
-          ? `Imported ${res.created ?? 0} item(s)${res.skipped ? `, skipped ${res.skipped}` : ''}.`
+          ? `Added ${res.created ?? 0} new item(s). Skipped ${res.skipped ?? 0} duplicate or empty row(s).`
           : `Opening stock applied for ${res.applied ?? 0} item(s).`,
       );
       onClose();
@@ -138,19 +171,20 @@ export function ImportMappingModal({
         <Pressable
           onPress={(e) => e.stopPropagation()}
           className={`bg-card w-full ${
-            isPhone ? 'rounded-t-2xl max-h-[92%] p-4' : 'rounded-2xl max-w-lg max-h-[85%] p-4'
+            isPhone ? 'rounded-t-2xl max-h-[92%] p-4' : 'rounded-2xl max-w-xl max-h-[85%] p-4'
           }`}
         >
           <View className="flex-row items-center justify-between mb-2">
-            <Text className="text-lg font-bold text-text">Import CSV / Excel</Text>
+            <Text className="text-lg font-bold text-text">Import items</Text>
             <Pressable onPress={working ? undefined : onClose} className="p-1">
               <Text className="text-muted text-xl">×</Text>
             </Pressable>
           </View>
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text className="text-sm text-muted mb-3">
-              Upload a CSV/Excel file with column headers. AI maps the columns (Product Name, HSN, Qty,
-              Rate, ...) - review the mapping below, then confirm.
+              Download the template, fill your items, then upload the CSV or Excel file. New items
+              are added to your list. Rows that match an existing name, SKU, barcode, or item code
+              are skipped.
             </Text>
 
             {!preview ? (
@@ -160,18 +194,30 @@ export function ImportMappingModal({
                   value={purpose}
                   onChange={(v) => v && setPurpose(v as 'CATALOG' | 'OPENING')}
                   options={[
-                    { title: 'Opening stock', value: 'OPENING' },
-                    { title: 'Catalog (new items)', value: 'CATALOG' },
+                    { title: 'Add items to catalog', value: 'CATALOG' },
+                    { title: 'Opening stock only', value: 'OPENING' },
                   ]}
                 />
-                <View className="h-3" />
-                <Button
-                  label={working ? 'Reading file…' : 'Upload file'}
-                  variant="accent"
-                  onPress={() => void pickAndPreview()}
-                  loading={working}
-                  fullWidth
-                />
+                <View className="flex-row flex-wrap gap-2 mt-3">
+                  <View className="flex-1 min-w-[140px]">
+                    <Button
+                      label="Download template"
+                      variant="secondary"
+                      onPress={() => void downloadTemplate()}
+                      disabled={working}
+                      fullWidth
+                    />
+                  </View>
+                  <View className="flex-1 min-w-[140px]">
+                    <Button
+                      label={working ? 'Reading file…' : 'Upload file'}
+                      variant="accent"
+                      onPress={() => void pickAndPreview()}
+                      loading={working}
+                      fullWidth
+                    />
+                  </View>
+                </View>
               </>
             ) : null}
 
@@ -179,12 +225,13 @@ export function ImportMappingModal({
 
             {preview && preview.headers.length > 0 ? (
               <View className="mt-3 gap-3">
+                {preview.notes ? <Text className="text-xs text-muted">{preview.notes}</Text> : null}
                 <View className="flex-row flex-wrap gap-1.5">
                   <Badge color="neutral" label={`${preview.headers.length} columns`} />
                   <Badge color="neutral" label={`${preview.rowCount} data rows`} />
                   <Badge
                     color={preview.mapping.name ? 'success' : 'warning'}
-                    label={purpose === 'CATALOG' ? 'Catalog import' : 'Opening stock'}
+                    label={purpose === 'CATALOG' ? 'Add to catalog' : 'Opening stock'}
                   />
                 </View>
 
@@ -220,24 +267,28 @@ export function ImportMappingModal({
                   ))}
                 </View>
 
-                <View className="flex-row gap-2 mt-1">
-                  <Button
-                    label="Re-upload"
-                    variant="secondary"
-                    className="flex-1"
-                    disabled={working}
-                    onPress={() => {
-                      setPreview(null);
-                      void pickAndPreview();
-                    }}
-                  />
-                  <Button
-                    label={working ? 'Importing…' : 'Confirm import'}
-                    variant="accent"
-                    className="flex-1"
-                    loading={working}
-                    onPress={() => void confirm()}
-                  />
+                <View className="flex-row flex-wrap gap-2 mt-1">
+                  <View className="flex-1 min-w-[120px]">
+                    <Button
+                      label="Choose another"
+                      variant="secondary"
+                      disabled={working}
+                      fullWidth
+                      onPress={() => {
+                        setPreview(null);
+                        setError(null);
+                      }}
+                    />
+                  </View>
+                  <View className="flex-1 min-w-[120px]">
+                    <Button
+                      label={working ? 'Importing…' : 'Confirm import'}
+                      variant="accent"
+                      loading={working}
+                      fullWidth
+                      onPress={() => void confirm()}
+                    />
+                  </View>
                 </View>
               </View>
             ) : null}
@@ -247,4 +298,3 @@ export function ImportMappingModal({
     </Modal>
   );
 }
-

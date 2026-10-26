@@ -228,6 +228,7 @@ describe('inventory AI service (Phase 7)', () => {
     });
     expect(result.rowCount).toBe(2);
     expect(result.sampleRows).toHaveLength(2);
+    expect(result.rows).toHaveLength(2);
     expect(result.sampleRows[0]).toMatchObject({ 'Product Name': 'Cement', HSN: '2523' });
   });
 
@@ -247,6 +248,31 @@ describe('inventory AI service (Phase 7)', () => {
     expect((prisma.resource.create as jest.Mock).mock.calls).toHaveLength(2);
     const first = (prisma.resource.create as jest.Mock).mock.calls[0]![0] as { data: Record<string, unknown> };
     expect(first.data).toMatchObject({ name: 'Cement', type: 'MATERIAL', unit: 'bags', rate: 350 });
+  });
+
+  it('7.2 CATALOG confirm skips name / SKU / barcode duplicates and still adds new rows', async () => {
+    (prisma.resource.create as jest.Mock).mockClear();
+    (prisma.resource.findMany as jest.Mock).mockResolvedValueOnce([
+      { name: 'Cement', sku: 'CEM-1', barcode: null, itemCode: null },
+      { name: 'Other', sku: null, barcode: '890123', itemCode: null },
+    ]);
+    const result = (await confirmImport(COMPANY, 'u1', 'OWNER', {
+      mode: 'CATALOG',
+      mapping: { name: 'Product Name', sku: 'SKU', barcode: 'Barcode' },
+      rows: [
+        { 'Product Name': 'cement', SKU: '', Barcode: '' },
+        { 'Product Name': 'New Sand', SKU: 'CEM-1', Barcode: '' },
+        { 'Product Name': 'New Oil', SKU: '', Barcode: '890123' },
+        { 'Product Name': 'Fresh Cream', SKU: 'CRM-1', Barcode: '' },
+      ],
+    })) as { mode: string; created: number; skipped: number };
+
+    expect(result.created).toBe(1);
+    expect(result.skipped).toBe(3);
+    expect((prisma.resource.create as jest.Mock).mock.calls).toHaveLength(1);
+    expect((prisma.resource.create as jest.Mock).mock.calls[0]![0]).toMatchObject({
+      data: { name: 'Fresh Cream', sku: 'CRM-1' },
+    });
   });
 
   it('7.3 flags a PO rate far above WAC/last buy as an anomaly', async () => {

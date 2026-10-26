@@ -45,6 +45,10 @@ function str(v: unknown): string | null {
   return s.length > 0 ? s : null;
 }
 
+function catalogKey(v: string | null | undefined): string {
+  return (v ?? '').trim().toLowerCase();
+}
+
 function round4(n: number) {
   return Math.round(n * 10000) / 10000;
 }
@@ -496,6 +500,7 @@ export async function previewImportMapping(companyId: string, input: ImportPrevi
       headers: [],
       mapping: {},
       sampleRows: [],
+      rows: [],
       rowCount: 0,
       purpose: input.purpose,
       notes: 'No header row detected - the first row must contain column names.',
@@ -517,18 +522,25 @@ export async function previewImportMapping(companyId: string, input: ImportPrevi
   }
   await llmRefineMapping(companyId, headers, mapping);
 
-  const sampleRows = dataRows.slice(0, 3).map((r) =>
+  const MAX_IMPORT_ROWS = 2000;
+  const limited = dataRows.slice(0, MAX_IMPORT_ROWS);
+  const mappedRows = limited.map((r) =>
     Object.fromEntries(positions.map((p) => [p.h, r[p.i] ?? ''])),
   );
+  const sampleRows = mappedRows.slice(0, 5);
+  const truncated = dataRows.length > MAX_IMPORT_ROWS;
 
   return {
     headers,
     mapping,
     sampleRows,
+    rows: mappedRows,
     rowCount: dataRows.length,
     purpose: input.purpose,
     notes: mapping.name
-      ? `Mapped ${Object.keys(mapping).length} column(s). Review and confirm to import ${dataRows.length} row(s).`
+      ? `Mapped ${Object.keys(mapping).length} column(s). Review and confirm to import ${limited.length} row(s).${
+          truncated ? ` Only the first ${MAX_IMPORT_ROWS} of ${dataRows.length} rows will be imported.` : ''
+        }`
       : 'Could not find an item-name column automatically. Fix the mapping below before confirming.',
   };
 }
@@ -542,21 +554,31 @@ export async function confirmImport(
   const nameKey = input.mapping.name ?? '';
 
   if (input.mode === 'CATALOG') {
-    const names = input.rows.map((r) => str(r[nameKey]) ?? '').filter(Boolean);
     const existing = await prisma.resource.findMany({
-      where: { companyId, name: { in: names }, isDeleted: false },
-      select: { name: true },
+      where: { companyId, isDeleted: false },
+      select: { name: true, sku: true, barcode: true, itemCode: true },
     });
-    const existingSet = new Set(existing.map((e) => e.name));
+    const names = new Set(existing.map((e) => catalogKey(e.name)).filter(Boolean));
+    const skus = new Set(existing.map((e) => catalogKey(e.sku)).filter(Boolean));
+    const barcodes = new Set(existing.map((e) => catalogKey(e.barcode)).filter(Boolean));
+    const itemCodes = new Set(existing.map((e) => catalogKey(e.itemCode)).filter(Boolean));
     let created = 0;
     let skipped = 0;
     for (const row of input.rows) {
       const name = str(row[nameKey]);
+      const sku = str(row[input.mapping.sku ?? '']);
+      const barcode = str(row[input.mapping.barcode ?? '']);
+      const itemCode = str(row[input.mapping.itemCode ?? '']);
       if (!name) {
         skipped += 1;
         continue;
       }
-      if (existingSet.has(name)) {
+      const isDup =
+        names.has(catalogKey(name)) ||
+        (sku != null && skus.has(catalogKey(sku))) ||
+        (barcode != null && barcodes.has(catalogKey(barcode))) ||
+        (itemCode != null && itemCodes.has(catalogKey(itemCode)));
+      if (isDup) {
         skipped += 1;
         continue;
       }
@@ -570,14 +592,17 @@ export async function confirmImport(
           rate,
           gstRate: num(row[input.mapping.gstRate ?? '']),
           hsnSacCode: str(row[input.mapping.hsn ?? '']),
-          sku: str(row[input.mapping.sku ?? '']),
-          itemCode: str(row[input.mapping.itemCode ?? '']),
-          barcode: str(row[input.mapping.barcode ?? '']),
+          sku,
+          itemCode,
+          barcode,
           reorderPoint: num(row[input.mapping.reorderPoint ?? '']) || null,
           lastRateUpdatedAt: rate > 0 ? new Date() : null,
         },
       });
-      existingSet.add(name);
+      names.add(catalogKey(name));
+      if (sku) skus.add(catalogKey(sku));
+      if (barcode) barcodes.add(catalogKey(barcode));
+      if (itemCode) itemCodes.add(catalogKey(itemCode));
       created += 1;
     }
     return { mode: 'CATALOG', created, skipped };
