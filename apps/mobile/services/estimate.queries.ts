@@ -7,6 +7,7 @@ import { invalidateConvertToBoqImpact } from '@/lib/project-query-invalidation';
 import type { CreateResourceInput, UpdateResourceInput } from '@buildflow/shared';
 import * as Sharing from 'expo-sharing';
 import { Alert } from 'react-native';
+import { itemImageUploadBody, normalizeItemImageType, type ItemImageType } from '@/utils/item-image-upload';
 
 // ---------------------------------------------------------------------------
 // Types (mirror backend shapes)
@@ -285,21 +286,24 @@ export function useResources() {
   });
 }
 
+async function readItemImage(uri: string, hintedType?: string): Promise<{ contentType: ItemImageType; dataBase64: string }> {
+  const fromDataUrl = itemImageUploadBody(uri, hintedType);
+  if (fromDataUrl) return fromDataUrl;
+  const ext = uri.split('?')[0]?.split('.').pop()?.toLowerCase();
+  const fromExt =
+    ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : ext === 'heic' || ext === 'heif' ? 'image/heic' : hintedType;
+  const FileSystem = await import('expo-file-system');
+  const dataBase64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+  return { contentType: normalizeItemImageType(fromExt), dataBase64 };
+}
+
 export function useUploadMaterialImage() {
   return useMutation({
     mutationFn: async (input: { uri: string; filename: string; contentType: string }) => {
-      const { uploadUrl, imageUrl } = await apiFetch<{ uploadUrl: string; imageUrl: string }>(
-        '/resources/image/upload-url',
-        {
-          method: 'POST',
-          body: JSON.stringify({ filename: input.filename, contentType: input.contentType }),
-        },
-      );
-      const blob = await fetch(input.uri).then((r) => r.blob());
-      await fetch(uploadUrl, {
-        method: 'PUT',
-        body: blob,
-        headers: { 'Content-Type': input.contentType },
+      const file = await readItemImage(input.uri, input.contentType);
+      const { imageUrl } = await apiFetch<{ imageUrl: string }>('/resources/image/upload', {
+        method: 'POST',
+        body: JSON.stringify({ contentType: file.contentType, dataBase64: file.dataBase64 }),
       });
       return imageUrl;
     },

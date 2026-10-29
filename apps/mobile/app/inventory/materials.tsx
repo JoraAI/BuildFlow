@@ -8,6 +8,7 @@ import { View, Text, FlatList, Modal, ScrollView, RefreshControl, Pressable } fr
 import { Ionicons } from '@expo/vector-icons';
 import { Card, Button, Input, EmptyState, LoadingSkeleton, Select, toast, BusyOverlay, useBusy } from '@/components/ui';
 import { pickImage } from '@/utils/pick-image';
+import { ApiError } from '@/lib/api-client';
 import {
   useResources,
   useCreateResource,
@@ -1020,8 +1021,12 @@ function MaterialFormModal({
                           contentType,
                         });
                         imagePatch = { imageUrl };
-                      } catch {
-                        setError('Photo upload failed. Check S3 in Integrations or save without a photo.');
+                      } catch (err) {
+                        setError(
+                          err instanceof ApiError && err.message
+                            ? err.message
+                            : 'Photo upload failed. Check S3 in Integrations or save without a photo.',
+                        );
                         setUploadingPhoto(false);
                         return;
                       }

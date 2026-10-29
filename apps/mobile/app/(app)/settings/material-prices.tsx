@@ -161,7 +161,8 @@ export default function MaterialPriceTrackerScreen() {
         filename: `material.${ext}`,
         contentType,
       });
-    } catch {
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
       throw new ApiError('UPLOAD_FAILED', 'Photo upload failed. Check S3 in Integrations or save without a photo.', 0);
     }
   }

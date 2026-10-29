@@ -127,9 +127,9 @@ app.use('/api/webhooks/razorpay', express.raw({ type: '*/*', limit: '1mb' }));
 app.use('/api/webhooks/saas', express.raw({ type: '*/*', limit: '1mb' }));
 app.use('/api/webhooks/stripe', express.raw({ type: '*/*', limit: '1mb' }));
 
-// Field photos (snags / drawings / petty cash) may be data:image… payloads.
-app.use(express.json({ limit: '6mb' }));
-app.use(express.urlencoded({ extended: true, limit: '6mb' }));
+// Item photos are posted as base64 JSON (about 4/3 of the file). A 5 MB image needs headroom.
+app.use(express.json({ limit: '12mb' }));
+app.use(express.urlencoded({ extended: true, limit: '12mb' }));
 
 // HTTP request logging (morgan -> winston stream)
 const stream = { write: (msg: string) => logger.info(msg.trim()) };

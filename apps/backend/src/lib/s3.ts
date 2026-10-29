@@ -76,6 +76,25 @@ export async function getPresignedUploadUrl(opts: {
   });
 }
 
+/** Write bytes with the same tenant client used for presigned URLs. */
+export async function putTenantObject(opts: {
+  companyId: string;
+  key: string;
+  body: Buffer;
+  contentType: string;
+}): Promise<void> {
+  assertTenantObjectKey(opts.companyId, opts.key);
+  const config = await resolveConfig(opts.companyId);
+  await clientFor(config).send(
+    new PutObjectCommand({
+      Bucket: config.bucket,
+      Key: opts.key,
+      Body: opts.body,
+      ContentType: opts.contentType,
+    }),
+  );
+}
+
 export async function getPresignedDownloadUrl(opts: {
   companyId: string;
   key: string;

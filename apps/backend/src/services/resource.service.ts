@@ -13,6 +13,8 @@ import {
   getPresignedDownloadUrl,
   keyToLogicalUrlForCompany,
   logicalUrlToKey,
+  putTenantObject,
+  MAX_IMAGE_SIZE_BYTES,
 } from '../lib/s3';
 import type {
   CreateResourceInput,
@@ -20,6 +22,7 @@ import type {
   ResourceQueryInput,
   CreatePriceHistoryInput,
   ResourceImageUploadInput,
+  ResourceImageDataUploadInput,
   BulkUpsertResourcesInput,
   BulkPriceUpdateInput,
 } from '@buildflow/shared';
@@ -125,6 +128,35 @@ export async function createResourceImageUploadUrl(
   });
   const imageUrl = await keyToLogicalUrlForCompany(companyId, key);
   return { uploadUrl, imageUrl };
+}
+
+export async function uploadResourceImage(companyId: string, input: ResourceImageDataUploadInput) {
+  const body = Buffer.from(input.dataBase64, 'base64');
+  if (body.length === 0) throw ApiError.unprocessable('Photo data is empty.');
+  if (body.length > MAX_IMAGE_SIZE_BYTES) {
+    throw ApiError.unprocessable('Photo must be 5 MB or smaller.');
+  }
+  const ext =
+    input.contentType === 'image/png'
+      ? 'png'
+      : input.contentType === 'image/webp'
+        ? 'webp'
+        : input.contentType === 'image/heic'
+          ? 'heic'
+          : 'jpg';
+  const key = buildS3Key({ companyId, entityType: 'resources', filename: `${randomUUID()}.${ext}` });
+  try {
+    await putTenantObject({ companyId, key, body, contentType: input.contentType });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg === 'S3_NOT_CONFIGURED' || msg.includes('credentials')) {
+      throw ApiError.unprocessable('Image storage is not configured on the server.');
+    }
+    const safe = msg.replace(/[\r\n]/g, ' ').slice(0, 180);
+    throw ApiError.unprocessable(`Image storage rejected the photo: ${safe}`);
+  }
+  const imageUrl = await keyToLogicalUrlForCompany(companyId, key);
+  return { imageUrl };
 }
 
 /* ------------------------------------------------------------------ */
