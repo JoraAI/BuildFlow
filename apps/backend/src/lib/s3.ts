@@ -31,6 +31,7 @@ function clientFor(config: S3Config): S3Client {
     buildS3ClientConfig({
       region: config.region,
       endpoint: config.endpoint,
+      forcePathStyle: config.forcePathStyle,
       accessKeyId: config.accessKeyId,
       secretAccessKey: config.secretAccessKey,
     }),
