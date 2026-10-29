@@ -15,6 +15,7 @@ import {
   bulkUpsertResourcesSchema,
   bulkPriceUpdateSchema,
   resourceImageUploadSchema,
+  resourceImageDataUploadSchema,
 } from '@buildflow/shared';
 import { Role } from '@buildflow/shared';
 
@@ -31,6 +32,12 @@ resourceRouter.post(
   canManageResources,
   validate({ body: resourceImageUploadSchema }),
   resourceController.createResourceImageUploadUrl,
+);
+resourceRouter.post(
+  '/image/upload',
+  canManageResources,
+  validate({ body: resourceImageDataUploadSchema }),
+  resourceController.uploadResourceImage,
 );
 resourceRouter.post('/import', canManageResources, validate({ body: importResourcesSchema }), resourceController.importResources);
 resourceRouter.post(

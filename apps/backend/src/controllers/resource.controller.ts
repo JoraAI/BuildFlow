@@ -51,6 +51,15 @@ export async function createResourceImageUploadUrl(req: Request, res: Response, 
   }
 }
 
+export async function uploadResourceImage(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await resourceService.uploadResourceImage(req.user!.companyId, req.body);
+    ok(res, result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function updateResource(req: Request, res: Response, next: NextFunction) {
   try {
     const { companyId, id: userId } = req.user!;

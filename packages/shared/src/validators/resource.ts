@@ -69,6 +69,13 @@ export const resourceImageUploadSchema = z.object({
 });
 export type ResourceImageUploadInput = z.infer<typeof resourceImageUploadSchema>;
 
+/** Browser uploads send the file bytes to the API. Presigned browser PUTs need bucket CORS. */
+export const resourceImageDataUploadSchema = z.object({
+  contentType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/heic']),
+  dataBase64: z.string().min(1).max(8_000_000),
+});
+export type ResourceImageDataUploadInput = z.infer<typeof resourceImageDataUploadSchema>;
+
 export const resourceQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(500).default(50),
