@@ -58,6 +58,10 @@ export interface S3Config {
   bucket: string;
   accessKeyId: string;
   secretAccessKey: string;
+  /** Set for S3-compatible stores (Neon, Cloudflare R2). Omitted for real AWS. */
+  endpoint?: string;
+  /** Neon requires path-style addressing. Unset lets the client infer it. */
+  forcePathStyle?: boolean;
 }
 
 const SECRET_KEYS = new Set([
@@ -445,6 +449,12 @@ export async function resolveS3Config(companyId: string): Promise<S3Config | nul
       bucket: env.AWS_S3_BUCKET,
       accessKeyId: env.AWS_ACCESS_KEY_ID!,
       secretAccessKey: env.AWS_SECRET_ACCESS_KEY!,
+      // Company BYOK buckets stay on AWS. The platform endpoint is only for
+      // this deployment's own bucket (R2, MinIO, or similar).
+      ...(env.AWS_S3_ENDPOINT ? { endpoint: env.AWS_S3_ENDPOINT } : {}),
+      ...(env.AWS_S3_FORCE_PATH_STYLE !== undefined
+        ? { forcePathStyle: env.AWS_S3_FORCE_PATH_STYLE }
+        : {}),
     };
   }
   return null;

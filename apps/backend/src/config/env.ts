@@ -58,11 +58,21 @@ const envSchema = z.object({
 
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug', 'verbose']).default('info'),
 
-  // AWS S3 (file storage)
+  // AWS S3 (file storage). AWS_S3_ENDPOINT is for S3-compatible stores
+  // such as Cloudflare R2. Leave it empty for real AWS S3.
   AWS_REGION: z.string().default('ap-south-1'),
   AWS_S3_BUCKET: z.string().default('buildflow-dev'),
-  AWS_ACCESS_KEY_ID: z.string().optional(),
-  AWS_SECRET_ACCESS_KEY: z.string().optional(),
+  AWS_ACCESS_KEY_ID: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  AWS_SECRET_ACCESS_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  AWS_S3_ENDPOINT: z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()),
+  // Neon Object Storage requires path-style URLs. Leave unset to turn that on
+  // automatically when AWS_S3_ENDPOINT is a *.neon.tech host.
+  AWS_S3_FORCE_PATH_STYLE: z.preprocess((v) => {
+    if (v === '' || v == null) return undefined;
+    if (v === true || v === 'true' || v === '1') return true;
+    if (v === false || v === 'false' || v === '0') return false;
+    return v;
+  }, z.boolean().optional()),
   S3_PRESIGN_EXPIRY_SECONDS: z.coerce.number().int().min(60).max(3600).default(900), // 15 min
 
   // ── Encrypted File Storage abstraction ───────────────────────────

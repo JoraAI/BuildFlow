@@ -116,18 +116,73 @@ LOG_LEVEL=info
 
 ### File storage (pick one)
 
-**Option A - Cloudflare R2 (recommended for free testing)**
+**Option A - Neon Object Storage for images only**
+
+Use this when Postgres stays on the database you already have. Do not change `DATABASE_URL`. Leave `FILE_STORAGE_PROVIDER=local` so bill and tender files stay on disk.
+
+The Neon project must be in Singapore (`ap-southeast-1`), Frankfurt (`eu-central-1`), or US East (`us-east-1` or `us-east-2`). Create a private bucket named `buildflow-images` on the default branch, then a storage credential with read and write. The access key is the credential `token_id`. The secret is `s3_secret_access_key`. The endpoint is that branch's storage URL.
+
+```env
+FILE_STORAGE_PROVIDER=local
+AWS_REGION=ap-southeast-1
+AWS_S3_BUCKET=buildflow-images
+AWS_ACCESS_KEY_ID=<token_id>
+AWS_SECRET_ACCESS_KEY=<s3_secret_access_key>
+AWS_S3_ENDPOINT=https://<branch-id>.storage.c-N.ap-southeast-1.aws.neon.tech
+```
+
+Path-style addressing turns on by itself when the endpoint host ends in `neon.tech`. The free allowance is 5 GB of files per Neon project, shared by every bucket in it.
+
+Browser uploads need a CORS rule on that bucket. With the AWS CLI pointed at the same endpoint:
+
+```bash
+aws s3api put-bucket-cors --bucket buildflow-images --endpoint-url "$AWS_S3_ENDPOINT" --cors-configuration '{
+  "CORSRules": [{
+    "AllowedOrigins": ["http://localhost:8081", "http://localhost:19006", "https://your-app.vercel.app"],
+    "AllowedMethods": ["GET", "PUT", "HEAD"],
+    "AllowedHeaders": ["*"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }]
+}'
+```
+
+Leave the in-app Settings → Integrations S3 form empty. That form is for a customer's own AWS bucket and does not send a custom endpoint.
+
+**Option B - Cloudflare R2**
+
+R2's free allocation is 10 GB of storage, 1 million write operations, and 10 million read operations per month. Cloudflare still asks for a payment method on the account; you are billed only after that allocation.
+
+These variables cover both photo/logo presigned uploads and, when `FILE_STORAGE_PROVIDER=s3`, encrypted bill and tender files. Leave the in-app Settings → Integrations S3 form empty. That form is for a customer's own AWS bucket and does not send a custom endpoint.
 
 ```env
 FILE_STORAGE_PROVIDER=s3
 AWS_REGION=auto
-AWS_S3_BUCKET=buildflow-test
+AWS_S3_BUCKET=buildflow-images
 AWS_ACCESS_KEY_ID=<r2 access key>
 AWS_SECRET_ACCESS_KEY=<r2 secret>
-# Set S3 endpoint in storage config if your code supports R2 endpoint env - otherwise use AWS S3.
+AWS_S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
 ```
 
-**Option B - Google Drive**
+On the bucket, add a CORS policy so the browser can PUT and GET the presigned URLs. Include your Vercel origin and local Expo origins:
+
+```json
+[
+  {
+    "AllowedOrigins": [
+      "http://localhost:8081",
+      "http://localhost:19006",
+      "https://your-app.vercel.app"
+    ],
+    "AllowedMethods": ["GET", "PUT", "HEAD"],
+    "AllowedHeaders": ["*"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+**Option C - Google Drive**
 
 ```env
 FILE_STORAGE_PROVIDER=drive
