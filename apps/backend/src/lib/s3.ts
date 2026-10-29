@@ -5,12 +5,14 @@
  *   s3://{bucket}/{company_id}/{entity_type}/{project_id}/{filename}
  *
  * Credentials resolve per company via integration.service (BYOK) with platform fallback.
+ * Platform fallback honours AWS_S3_ENDPOINT for Cloudflare R2 and other compatible stores.
  */
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
 import { resolveS3Config, type S3Config } from '../services/integration.service';
+import { buildS3ClientConfig } from './s3-client';
 
 export function buildS3Key(parts: {
   companyId: string;
@@ -25,17 +27,14 @@ export function buildS3Key(parts: {
 }
 
 function clientFor(config: S3Config): S3Client {
-  return new S3Client({
-    region: config.region,
-    ...(config.accessKeyId && config.secretAccessKey
-      ? {
-          credentials: {
-            accessKeyId: config.accessKeyId,
-            secretAccessKey: config.secretAccessKey,
-          },
-        }
-      : {}),
-  });
+  return new S3Client(
+    buildS3ClientConfig({
+      region: config.region,
+      endpoint: config.endpoint,
+      accessKeyId: config.accessKeyId,
+      secretAccessKey: config.secretAccessKey,
+    }),
+  );
 }
 
 async function resolveConfig(companyId: string): Promise<S3Config> {

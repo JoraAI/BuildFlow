@@ -25,6 +25,7 @@ import { join, dirname } from 'path';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
 import { decryptForCompany, encryptForCompany } from './crypto';
+import { buildS3ClientConfig } from './s3-client';
 
 // ────────────────────────────────────────────────────────────────────
 // Types
@@ -144,17 +145,14 @@ class S3FileStore implements FileStore {
     // importing the SDK here for non-S3 builds.
     this.clientPromise = import('@aws-sdk/client-s3').then(
       ({ S3Client }) =>
-        new S3Client({
-          region: env.AWS_REGION,
-          ...(env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY
-            ? {
-                credentials: {
-                  accessKeyId: env.AWS_ACCESS_KEY_ID,
-                  secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
-                },
-              }
-            : {}),
-        }),
+        new S3Client(
+          buildS3ClientConfig({
+            region: env.AWS_REGION,
+            endpoint: env.AWS_S3_ENDPOINT,
+            accessKeyId: env.AWS_ACCESS_KEY_ID,
+            secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+          }),
+        ),
     );
   }
 

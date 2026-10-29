@@ -118,13 +118,35 @@ LOG_LEVEL=info
 
 **Option A - Cloudflare R2 (recommended for free testing)**
 
+R2's free allocation is 10 GB of storage, 1 million write operations, and 10 million read operations per month. Cloudflare still asks for a payment method on the account; you are billed only after that allocation.
+
+These variables cover both photo/logo presigned uploads and, when `FILE_STORAGE_PROVIDER=s3`, encrypted bill and tender files. Leave the in-app Settings → Integrations S3 form empty. That form is for a customer's own AWS bucket and does not send a custom endpoint.
+
 ```env
 FILE_STORAGE_PROVIDER=s3
 AWS_REGION=auto
-AWS_S3_BUCKET=buildflow-test
+AWS_S3_BUCKET=buildflow-images
 AWS_ACCESS_KEY_ID=<r2 access key>
 AWS_SECRET_ACCESS_KEY=<r2 secret>
-# Set S3 endpoint in storage config if your code supports R2 endpoint env - otherwise use AWS S3.
+AWS_S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+```
+
+On the bucket, add a CORS policy so the browser can PUT and GET the presigned URLs. Include your Vercel origin and local Expo origins:
+
+```json
+[
+  {
+    "AllowedOrigins": [
+      "http://localhost:8081",
+      "http://localhost:19006",
+      "https://your-app.vercel.app"
+    ],
+    "AllowedMethods": ["GET", "PUT", "HEAD"],
+    "AllowedHeaders": ["*"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
 ```
 
 **Option B - Google Drive**
