@@ -27,7 +27,7 @@ export function InventoryPageHeader({
 
   return (
     <View
-      className={`px-4 pt-4 pb-2 shrink-0 ${
+      className={`px-4 pt-4 pb-2 ${isPhone ? '' : 'shrink-0'} ${
         isDesktop ? 'flex-row items-end justify-between gap-4' : 'gap-2'
       }`}
     >

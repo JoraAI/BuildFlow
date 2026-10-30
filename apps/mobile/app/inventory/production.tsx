@@ -5,8 +5,12 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, RefreshControl, Pressable } from 'react-native';
 import { Card, Button, Input, EmptyState, LoadingSkeleton, Select, toast } from '@/components/ui';
 import { InventoryPageHeader } from '@/components/inventory/InventoryPageHeader';
-import { mobileListBottomPadding } from '@/components/layout/fab-layout';
+import {
+  InventoryScrollChrome,
+  inventoryPageListPadding,
+} from '@/components/inventory/InventoryScreenList';
 import { SegmentedTabs } from '@/components/inventory/SegmentedTabs';
+import { useViewport } from '@/hooks/useViewport';
 import { useAuthStore } from '@/stores/auth.store';
 import { usesIceCreamManufacturerCopy } from '@buildflow/shared';
 import { useResources, type Resource } from '@/services/estimate.queries';
@@ -38,6 +42,7 @@ type DraftLine = {
 
 export default function IceCreamProductionScreen() {
   const user = useAuthStore((s) => s.user);
+  const { isPhone } = useViewport();
   const enabled = usesIceCreamManufacturerCopy(user?.inventoryVertical);
   const [tab, setTab] = useState<Tab>('recipes');
   const router = useRouter();
@@ -231,8 +236,8 @@ export default function IceCreamProductionScreen() {
 
   const recipeSaving = createRecipe.isPending || updateRecipe.isPending;
 
-  return (
-    <View className="flex-1 bg-surface">
+  const pageChrome = (
+    <>
       <InventoryPageHeader
         title="Production"
         subtitle="Recipes, batches, and B2B sales overview"
@@ -248,13 +253,30 @@ export default function IceCreamProductionScreen() {
           ]}
         />
       </View>
+    </>
+  );
+
+  const scrollingChrome = (
+    <InventoryScrollChrome slot="scroll">
+      <View className="-mx-4">{pageChrome}</View>
+    </InventoryScrollChrome>
+  );
+
+  return (
+    <View className="flex-1 min-h-0 bg-surface">
+      <InventoryScrollChrome slot="sticky">{pageChrome}</InventoryScrollChrome>
 
       {tab === 'recipes' ? (
         <ScrollView
-          className="flex-1 px-4"
-          contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
+          className="flex-1"
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            paddingBottom: isPhone ? inventoryPageListPadding() : 24,
+          }}
           refreshControl={<RefreshControl refreshing={!!recipesQ.isFetching} onRefresh={refresh} />}
         >
+          {scrollingChrome}
           <Card className="p-4 mt-3 mb-3">
             <Text className="text-sm font-bold text-text mb-2">
               {editingRecipeId ? 'Edit recipe' : 'New recipe'}
@@ -373,10 +395,15 @@ export default function IceCreamProductionScreen() {
 
       {tab === 'production' ? (
         <ScrollView
-          className="flex-1 px-4"
-          contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
+          className="flex-1"
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            paddingBottom: isPhone ? inventoryPageListPadding() : 24,
+          }}
           refreshControl={<RefreshControl refreshing={!!productionQ.isFetching} onRefresh={refresh} />}
         >
+          {scrollingChrome}
           <Card className="p-4 mt-3 mb-3">
             <Text className="text-sm font-bold text-text mb-2">New production batch</Text>
             <Select
@@ -463,10 +490,15 @@ export default function IceCreamProductionScreen() {
 
       {tab === 'sales' ? (
         <ScrollView
-          className="flex-1 px-4"
-          contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
+          className="flex-1"
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            paddingBottom: isPhone ? inventoryPageListPadding() : 24,
+          }}
           refreshControl={<RefreshControl refreshing={!!salesQ.isFetching} onRefresh={refresh} />}
         >
+          {scrollingChrome}
           {salesQ.isLoading ? (
             <LoadingSkeleton />
           ) : (

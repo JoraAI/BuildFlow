@@ -13,7 +13,7 @@ import {
   type AuditLogFilters,
   type AuditLogRow,
 } from '@/services/settings.queries';
-import { mobileListBottomPadding } from '@/components/layout/fab-layout';
+import { inventoryPageListPadding } from '@/components/inventory/InventoryScreenList';
 import { useViewport } from '@/hooks/useViewport';
 
 const ACTION_COLOR: Record<string, 'success' | 'warning' | 'danger' | 'primary' | 'accent' | 'neutral'> = {
@@ -98,7 +98,7 @@ export default function InventoryActivityScreen() {
       className="flex-1 bg-surface"
       contentContainerStyle={{
         padding: isDesktop ? 24 : 16,
-        paddingBottom: isPhone ? mobileListBottomPadding() + 24 : 48,
+        paddingBottom: isPhone ? inventoryPageListPadding() + 24 : 48,
         maxWidth: isDesktop ? 900 : undefined,
         width: '100%',
         alignSelf: 'center',

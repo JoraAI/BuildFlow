@@ -19,6 +19,7 @@ import { useInventoryLanguage } from '@/components/inventory/InventoryLanguagePr
 import { ScanInvoiceModal } from '@/components/inventory/ScanInvoiceModal';
 import { InventoryFilterBar } from '@/components/inventory/InventoryFilterBar';
 import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
+import { InventoryScrollChrome } from '@/components/inventory/InventoryScreenList';
 
 const BILL_CATEGORIES = [
   { title: 'Material', value: 'MATERIAL' },
@@ -48,12 +49,11 @@ export default function InventoryBillsScreen() {
   const createBill = useCreateBill();
   const filters = useInventoryListFilters({ defaultStatus: 'ALL' });
 
-  return (
-    <View className="flex-1 bg-surface">
-      <BusyOverlay visible={busy} title={translate('inventory.page.bills', 'Vendor bills')} />
+  const pageChrome = (
+    <>
       <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between">
         <View className="flex-1 mr-2 min-w-[160px]">
-          <Text className="text-2xl font-bold text-text">
+          <Text className={`font-bold text-text ${isPhone ? 'text-xl' : 'text-2xl'}`}>
             {translate('inventory.page.bills', 'Vendor bills')}
           </Text>
           <Text className="text-sm text-muted mt-0.5">Supplier bills (AP) · {user?.companyName}</Text>
@@ -90,7 +90,13 @@ export default function InventoryBillsScreen() {
         isFiltered={filters.isFiltered}
         onClear={filters.clearAll}
       />
+    </>
+  );
 
+  return (
+    <View className="flex-1 min-h-0 bg-surface">
+      <BusyOverlay visible={busy} title={translate('inventory.page.bills', 'Vendor bills')} />
+      <InventoryScrollChrome slot="sticky">{pageChrome}</InventoryScrollChrome>
       <ProjectBillsList
         projectId={projectId}
         embedded
@@ -101,6 +107,7 @@ export default function InventoryBillsScreen() {
         query={filters.debouncedQuery}
         focusId={filters.focusId}
         stickyFilters
+        listChrome={<InventoryScrollChrome slot="scroll">{pageChrome}</InventoryScrollChrome>}
       />
 
       <NewBillModal

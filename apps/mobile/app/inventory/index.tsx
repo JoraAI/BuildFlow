@@ -17,7 +17,7 @@ import { useDailySalesSummary } from '@/services/ice-cream.queries';
 import { formatINR } from '@/utils/format';
 import { INVENTORY_ACCENT, INVENTORY_ACCENT_SOFT } from '@/components/navigation/InventoryTabBar';
 import { CompanyLogo } from '@/components/ui/Avatar';
-import { mobileListBottomPadding } from '@/components/layout/fab-layout';
+import { inventoryPageListPadding } from '@/components/inventory/InventoryScreenList';
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -73,7 +73,7 @@ export default function InventoryHomeScreen() {
       className="flex-1 bg-surface"
       contentContainerStyle={{
         padding: isDesktop ? 24 : 16,
-        paddingBottom: isPhone ? mobileListBottomPadding() + 24 : 48,
+        paddingBottom: isPhone ? inventoryPageListPadding() + 24 : 48,
         maxWidth: isDesktop ? 1100 : undefined,
         width: '100%',
         alignSelf: 'center',
@@ -175,7 +175,7 @@ export default function InventoryHomeScreen() {
         </View>
       ) : (
         <View className="rounded-2xl border border-border bg-card overflow-hidden mb-4">
-          {lowStock.map((row, i) => (
+          {lowStock.map((row: StockSummaryRow, i: number) => (
             <Pressable
               key={row.resourceId}
               onPress={() => router.push(`/inventory/stock/${row.resourceId}` as never)}

@@ -5,7 +5,7 @@ import React from 'react';
 import { View, Text, ScrollView } from 'react-native';
 import { toast } from '@/components/ui';
 import { InventoryHubCard } from '@/components/inventory/InventoryHubCard';
-import { mobileListBottomPadding } from '@/components/layout/fab-layout';
+import { inventoryPageListPadding } from '@/components/inventory/InventoryScreenList';
 import { useInventoryBackupJson, useInventoryBackupZip } from '@/services/settings.queries';
 import { useViewport } from '@/hooks/useViewport';
 
@@ -30,7 +30,7 @@ export default function InventoryBackupScreen() {
       className="flex-1 bg-surface"
       contentContainerStyle={{
         padding: isDesktop ? 24 : 16,
-        paddingBottom: isPhone ? mobileListBottomPadding() + 24 : 48,
+        paddingBottom: isPhone ? inventoryPageListPadding() + 24 : 48,
         maxWidth: isDesktop ? 960 : undefined,
         width: '100%',
         alignSelf: 'center',

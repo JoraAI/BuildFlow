@@ -34,14 +34,17 @@ import { downloadReportPdf } from '@/services/report-download';
 import { useReorderSuggestions, useOrderReorderItems, type ReorderSuggestion } from '@/services/reorder.queries';
 import { confirmAsync } from '@/utils/confirm';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
-import { SegmentedTabsInline, type SegmentedTab } from '@/components/inventory/SegmentedTabs';
+import { SegmentedTabs, SegmentedTabsInline, type SegmentedTab } from '@/components/inventory/SegmentedTabs';
 import { InventoryFilterBar } from '@/components/inventory/InventoryFilterBar';
 import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
 import { matchesText } from '@/utils/inventory-filters';
 import { inventoryBillsHref } from '@/utils/navigation-paths';
 import { useVendors, type PartyRow } from '@/services/party.queries';
 import { DocumentLines, ExpandHint, PartyLabel, type PreviewLine } from '@/components/inventory/DocumentLinePreview';
-import { mobileListBottomPadding } from '@/components/layout/fab-layout';
+import {
+  InventoryScrollChrome,
+  inventoryPageListPadding,
+} from '@/components/inventory/InventoryScreenList';
 
 const APPROVAL_COLOR: Record<string, 'warning' | 'success' | 'danger' | 'neutral'> = {
   DRAFT: 'neutral',
@@ -81,6 +84,7 @@ async function bufferUntilVisible(
 
 export default function InventoryProcurementScreen() {
   const { translate } = useInventoryLanguage();
+  const { isPhone } = useViewport();
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const projectId = user?.defaultProjectId ?? '';
@@ -153,10 +157,10 @@ export default function InventoryProcurementScreen() {
     [indentLabelPlural],
   );
 
-  return (
-    <View className="flex-1 bg-surface">
+  const pageChrome = (
+    <>
       <View className="px-4 pt-4 pb-2">
-        <Text className="text-2xl font-bold text-text">
+        <Text className={`font-bold text-text ${isPhone ? 'text-xl' : 'text-2xl'}`}>
           {translate('inventory.page.procurement', 'Procurement')}
         </Text>
         <Text className="text-sm text-muted mt-0.5">{indentLabel} → Create PO → Record GRN</Text>
@@ -167,7 +171,11 @@ export default function InventoryProcurementScreen() {
           pointerEvents={buffering ? 'none' : 'auto'}
           className={buffering ? 'opacity-50' : ''}
         >
-          <SegmentedTabsInline tabs={sectionTabs} value={section} onChange={setSection} />
+          {isPhone ? (
+            <SegmentedTabs tabs={sectionTabs} value={section} onChange={setSection} className="" contentContainerClassName="gap-2 pr-1" />
+          ) : (
+            <SegmentedTabsInline tabs={sectionTabs} value={section} onChange={setSection} />
+          )}
         </View>
         <View className="flex-1" />
         {section === 'indents' && (
@@ -205,12 +213,6 @@ export default function InventoryProcurementScreen() {
         )}
       </View>
 
-      <BusyOverlay
-        visible={buffering}
-        title={translate('inventory.page.procurement', 'Procurement')}
-        subtitle="Please wait until the list refreshes. Do not tap again."
-      />
-
       <InventoryFilterBar
         query={filters.query}
         onQueryChange={filters.setQuery}
@@ -218,9 +220,28 @@ export default function InventoryProcurementScreen() {
         isFiltered={filters.isFiltered}
         onClear={filters.clearAll}
       />
+    </>
+  );
+
+  const scrollingChrome = (
+    <InventoryScrollChrome slot="scroll">
+      <View className="-mx-4">{pageChrome}</View>
+    </InventoryScrollChrome>
+  );
+
+  return (
+    <View className="flex-1 min-h-0 bg-surface">
+      <InventoryScrollChrome slot="sticky">{pageChrome}</InventoryScrollChrome>
+
+      <BusyOverlay
+        visible={buffering}
+        title={translate('inventory.page.procurement', 'Procurement')}
+        subtitle="Please wait until the list refreshes. Do not tap again."
+      />
 
       {section === 'indents' && (
         <IndentsSection
+          listChrome={scrollingChrome}
           isLoading={reqLoading}
           requisitions={requisitions ?? []}
           query={filters.debouncedQuery}
@@ -232,6 +253,7 @@ export default function InventoryProcurementScreen() {
 
       {section === 'orders' && (
         <OrdersSection
+          listChrome={scrollingChrome}
           requisitions={requisitions ?? []}
           query={filters.debouncedQuery}
           isLoading={reqLoading}
@@ -259,6 +281,7 @@ export default function InventoryProcurementScreen() {
 
       {section === 'grns' && (
         <GrnsSection
+          listChrome={scrollingChrome}
           requisitions={requisitions ?? []}
           query={filters.debouncedQuery}
           isLoading={reqLoading}
@@ -268,6 +291,7 @@ export default function InventoryProcurementScreen() {
 
       {section === 'reorder' && (
         <ReorderSection
+          listChrome={scrollingChrome}
           suggestions={suggestions ?? []}
           query={filters.debouncedQuery}
           isLoading={reorderLoading}
@@ -384,6 +408,7 @@ export default function InventoryProcurementScreen() {
 }
 
 function IndentsSection({
+  listChrome,
   isLoading,
   requisitions,
   query,
@@ -391,6 +416,7 @@ function IndentsSection({
   indentLabelPlural,
   onCreatePo,
 }: {
+  listChrome?: React.ReactNode;
   isLoading: boolean;
   requisitions: Requisition[];
   query: string;
@@ -418,20 +444,25 @@ function IndentsSection({
   const toggle = (id: string) => setExpandedId((cur) => (cur === id ? null : id));
   return (
     <FlatList
-      className="flex-1 px-4"
+      className="flex-1"
       data={rows}
       keyExtractor={(r) => r.id}
+      keyboardShouldPersistTaps="handled"
+      nestedScrollEnabled
       ListHeaderComponent={
-        tableMode && rows.length > 0 ? (
-          <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
-            <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Requisition</Text>
-            <Text className="flex-[2] text-[11px] font-bold text-muted uppercase">Notes</Text>
-            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Lines</Text>
-            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Date</Text>
-            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Status</Text>
-            <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase text-right">Action</Text>
-          </View>
-        ) : null
+        <View>
+          {listChrome}
+          {tableMode && rows.length > 0 ? (
+            <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+              <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Requisition</Text>
+              <Text className="flex-[2] text-[11px] font-bold text-muted uppercase">Notes</Text>
+              <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Lines</Text>
+              <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Date</Text>
+              <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Status</Text>
+              <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase text-right">Action</Text>
+            </View>
+          ) : null}
+        </View>
       }
       renderItem={({ item }) => {
         const canCreatePo = indentAvailableForNewPo(item);
@@ -510,7 +541,7 @@ function IndentsSection({
           />
         )
       }
-      contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
+      contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: inventoryPageListPadding(), flexGrow: 1 }}
     />
   );
 }
@@ -809,6 +840,7 @@ function allPurchaseOrders(requisitions: Requisition[]) {
 }
 
 function OrdersSection({
+  listChrome,
   requisitions,
   query,
   isLoading,
@@ -819,6 +851,7 @@ function OrdersSection({
   indentLabelPlural,
   itemLabel,
 }: {
+  listChrome?: React.ReactNode;
   requisitions: Requisition[];
   query: string;
   isLoading?: boolean;
@@ -851,20 +884,25 @@ function OrdersSection({
     }));
   return (
     <FlatList
-      className="flex-1 px-4"
+      className="flex-1"
       data={pos}
       keyExtractor={(po) => po.id}
+      keyboardShouldPersistTaps="handled"
+      nestedScrollEnabled
       ListHeaderComponent={
-        tableMode && pos.length > 0 ? (
-          <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
-            <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">PO</Text>
-            <Text className="flex-[1.8] text-[11px] font-bold text-muted uppercase">Vendor</Text>
-            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Amount</Text>
-            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">GRNs</Text>
-            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Status</Text>
-            <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
-          </View>
-        ) : null
+        <View>
+          {listChrome}
+          {tableMode && pos.length > 0 ? (
+            <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+              <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">PO</Text>
+              <Text className="flex-[1.8] text-[11px] font-bold text-muted uppercase">Vendor</Text>
+              <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Amount</Text>
+              <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">GRNs</Text>
+              <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Status</Text>
+              <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+            </View>
+          ) : null}
+        </View>
       }
       renderItem={({ item }) => {
         const draftBills = (item.bills ?? []).filter((b) => b.status === 'DRAFT');
@@ -998,17 +1036,19 @@ function OrdersSection({
           />
         )
       }
-      contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
+      contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: inventoryPageListPadding(), flexGrow: 1 }}
     />
   );
 }
 
 function GrnsSection({
+  listChrome,
   requisitions,
   query,
   isLoading,
   onGoToOrders,
 }: {
+  listChrome?: React.ReactNode;
   requisitions: Requisition[];
   query: string;
   isLoading?: boolean;
@@ -1045,20 +1085,25 @@ function GrnsSection({
     });
   return (
     <FlatList
-      className="flex-1 px-4"
+      className="flex-1"
       data={grns}
       keyExtractor={(g) => g.id}
+      keyboardShouldPersistTaps="handled"
+      nestedScrollEnabled
       ListHeaderComponent={
-        tableMode && grns.length > 0 ? (
-          <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
-            <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">GRN</Text>
+        <View>
+          {listChrome}
+          {tableMode && grns.length > 0 ? (
+            <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+              <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">GRN</Text>
             <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Vendor</Text>
             <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">PO</Text>
             <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Lines</Text>
             <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Date</Text>
-            <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
-          </View>
-        ) : null
+              <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+            </View>
+          ) : null}
+        </View>
       }
       renderItem={({ item }) => {
         const expanded = expandedId === item.id;
@@ -1150,13 +1195,14 @@ function GrnsSection({
           />
         )
       }
-      contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
+      contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: inventoryPageListPadding(), flexGrow: 1 }}
     />
   );
 }
 
 /** INVENTORY_HORIZONTAL_PLATFORM (Phase 4.2/4.3): low-stock reorder queue. */
 function ReorderSection({
+  listChrome,
   suggestions: allSuggestions,
   query,
   isLoading,
@@ -1164,6 +1210,7 @@ function ReorderSection({
   itemLabel,
   onOrder,
 }: {
+  listChrome?: React.ReactNode;
   suggestions: ReorderSuggestion[];
   query: string;
   isLoading?: boolean;
@@ -1178,11 +1225,14 @@ function ReorderSection({
   );
   return (
     <FlatList
-      className="flex-1 px-4"
+      className="flex-1"
       data={suggestions}
       keyExtractor={(s) => s.resourceId}
+      keyboardShouldPersistTaps="handled"
+      nestedScrollEnabled
       ListHeaderComponent={
         <View className="pb-2">
+          {listChrome}
           <Text className="text-xs text-muted">
             Items below their reorder point. Tap items, then “Order selected” to create an
             auto-approved purchase request + PO (preferred vendor, reorder qty).
@@ -1260,7 +1310,7 @@ function ReorderSection({
           />
         )
       }
-      contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
+      contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: inventoryPageListPadding(), flexGrow: 1 }}
     />
   );
 }

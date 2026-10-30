@@ -54,7 +54,7 @@ import {
 } from '@buildflow/shared';
 import { useSetInventoryVertical } from '@/services/settings.queries';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
-import { mobileListBottomPadding } from '@/components/layout/fab-layout';
+import { inventoryPageListPadding } from '@/components/inventory/InventoryScreenList';
 
 export default function InventorySettingsScreen() {
   const { busy, run, clearBusy } = useBusy();
@@ -357,7 +357,7 @@ export default function InventorySettingsScreen() {
       <BusyOverlay visible={busy} title="Saving settings…" onDismiss={clearBusy} />
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ padding: 16, paddingBottom: mobileListBottomPadding() + 16 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: inventoryPageListPadding() + 16 }}
       >
         <Text className="text-2xl font-bold text-text mb-1">
           {translate('inventory.tab.settings', 'Settings')}

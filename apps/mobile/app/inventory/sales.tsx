@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, FlatList } from 'react-native';
+import { View, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, Badge, Button, EmptyState, LoadingSkeleton, toast, BusyOverlay, useBusy } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
@@ -30,7 +30,10 @@ import {
 import { downloadReportPdf } from '@/services/report-download';
 import { CashBookPanel } from '@/components/inventory/CashBookPanel';
 import { DocumentLines, ExpandHint, PartyLabel, type PreviewLine } from '@/components/inventory/DocumentLinePreview';
-import { mobileListBottomPadding } from '@/components/layout/fab-layout';
+import {
+  InventoryScreenList,
+  InventoryScrollChrome,
+} from '@/components/inventory/InventoryScreenList';
 
 type Tab = 'orders' | 'deliveries' | 'returns' | 'notes' | 'cash';
 
@@ -614,12 +617,13 @@ export default function InventorySalesScreen() {
     return renderNote({ item });
   };
 
-  return (
-    <View className="flex-1 bg-surface">
-      <BusyOverlay visible={busy} title={translate('inventory.page.sales', 'Sales')} />
+  const pageChrome = (
+    <>
       <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between gap-2">
         <View className="flex-1 min-w-[180px] mr-2">
-          <Text className="text-2xl font-bold text-text">{translate('inventory.page.sales', 'Sales')}</Text>
+          <Text className={`font-bold text-text ${isPhone ? 'text-xl' : 'text-2xl'}`}>
+            {translate('inventory.page.sales', 'Sales')}
+          </Text>
           <Text className="text-sm text-muted mt-0.5">
             Sales order → delivery challan → invoice. Stock issues also appear here as invoiced counter sales.
           </Text>
@@ -627,7 +631,6 @@ export default function InventorySalesScreen() {
         {headerLabel ? <Button label={headerLabel} variant="accent" size="sm" disabled={busy} onPress={headerAction} /> : null}
       </View>
 
-      {/* Desktop: wrap pills (avoids RN-web ScrollView height stretch). Phone: horizontal scroll. */}
       {isPhone ? (
         <SegmentedTabs tabs={[...TABS]} value={tab} onChange={setTab} />
       ) : (
@@ -638,55 +641,102 @@ export default function InventorySalesScreen() {
           className="px-4 pb-2 gap-2"
         />
       )}
+    </>
+  );
+
+  return (
+    <View className="flex-1 min-h-0 bg-surface">
+      <BusyOverlay visible={busy} title={translate('inventory.page.sales', 'Sales')} />
 
       {tab === 'cash' ? (
-        <View className="px-4 pb-2">
-          <Text className="text-xs text-muted">
-            Cash in/out for today plus daily sales summary (collections by Cash / UPI / Bank).
-          </Text>
+        <View className="flex-1 min-h-0">
+          <InventoryScrollChrome slot="sticky">
+            {pageChrome}
+            <View className="px-4 pb-2">
+              <Text className="text-xs text-muted">
+                Cash in/out for today plus daily sales summary (collections by Cash / UPI / Bank).
+              </Text>
+            </View>
+          </InventoryScrollChrome>
+          <CashBookPanel
+            leadingChrome={
+              <InventoryScrollChrome slot="scroll">
+                {pageChrome}
+                <View className="px-4 pb-2">
+                  <Text className="text-xs text-muted">
+                    Cash in/out for today plus daily sales summary (collections by Cash / UPI / Bank).
+                  </Text>
+                </View>
+              </InventoryScrollChrome>
+            }
+          />
         </View>
-      ) : null}
-
-      {tab === 'cash' ? (
-        <View className="flex-1" style={{ paddingBottom: isPhone ? mobileListBottomPadding() : 24 }}>
-          <CashBookPanel />
-        </View>
-      ) : null}
-
-      {tab !== 'cash' ? (
-      <InventoryFilterBar
-        query={filters.query}
-        onQueryChange={filters.setQuery}
-        placeholder={SEARCH_PLACEHOLDER[tab as Exclude<Tab, 'cash'>]}
-        statusTabs={STATUS_TABS[tab as Exclude<Tab, 'cash'>]}
-        status={filters.status}
-        onStatusChange={filters.setStatus}
-        resultCount={{ shown: dataForTab.length, total: allDataForTab.length }}
-        isFiltered={filters.isFiltered}
-        onClear={filters.clearAll}
-      />
-      ) : null}
-
-      {tab !== 'cash' ? (
-        loading ? (
-          <View className="px-4 gap-3">
-            {[1, 2, 3].map((i) => <LoadingSkeleton key={i} className="rounded-xl h-16" />)}
-          </View>
-        ) : (
-          <FlatList
-            ref={listRef}
-            className="flex-1 px-4"
-            data={dataForTab}
-            keyExtractor={(item) => item.id}
-            renderItem={renderRow}
-            onScrollToIndexFailed={() => undefined}
-            ListEmptyComponent={
-              filters.isFiltered ? (
-                <EmptyState
-                  title="No matching records"
-                  description="Try a different search term or clear the filters."
-                />
-              ) : (
+      ) : (
+        <InventoryScreenList
+          listRef={listRef}
+          className="flex-1"
+          chrome={
+            <>
+              {pageChrome}
+              <InventoryFilterBar
+                query={filters.query}
+                onQueryChange={filters.setQuery}
+                placeholder={SEARCH_PLACEHOLDER[tab as Exclude<Tab, 'cash'>]}
+                statusTabs={STATUS_TABS[tab as Exclude<Tab, 'cash'>]}
+                status={filters.status}
+                onStatusChange={filters.setStatus}
+                resultCount={{ shown: dataForTab.length, total: allDataForTab.length }}
+                isFiltered={filters.isFiltered}
+                onClear={filters.clearAll}
+              />
+            </>
+          }
+          data={loading ? [] : dataForTab}
+          keyExtractor={(item) => item.id}
+          renderItem={renderRow}
+          onScrollToIndexFailed={() => undefined}
+          listHeader={
+            <View>
+              {tableMode && dataForTab.length > 0 ? (
+                <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+                  <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Number</Text>
+                  <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Party</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Status</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Total</Text>
+                  <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+                </View>
+              ) : null}
+              {tab === 'returns' ? (
+                <View className="flex-row flex-wrap gap-2 pb-2">
+                  <Button
+                    label="+ New sales return"
+                    size="sm"
+                    variant="accent"
+                    onPress={() => setSalesReturnOpen(true)}
+                  />
+                  <Button
+                    label="+ New purchase return"
+                    size="sm"
+                    variant="secondary"
+                    onPress={() => setPurchaseReturnOpen(true)}
+                  />
+                </View>
+              ) : null}
+            </View>
+          }
+          ListEmptyComponent={
+            loading ? (
+              <View className="gap-3">
+                {[1, 2, 3].map((i) => (
+                  <LoadingSkeleton key={i} className="rounded-xl h-16" />
+                ))}
+              </View>
+            ) : filters.isFiltered ? (
+              <EmptyState
+                title="No matching records"
+                description="Try a different search term or clear the filters."
+              />
+            ) : (
               <EmptyState
                 title={
                   tab === 'orders' ? 'No sales orders yet'
@@ -701,41 +751,10 @@ export default function InventorySalesScreen() {
                   : 'Notes are created automatically from returns.'
                 }
               />
-              )
-            }
-            contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
-            ListHeaderComponent={
-              <View>
-                {tableMode && dataForTab.length > 0 ? (
-                  <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
-                    <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Number</Text>
-                    <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Party</Text>
-                    <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Status</Text>
-                    <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Total</Text>
-                    <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
-                  </View>
-                ) : null}
-                {tab === 'returns' ? (
-                  <View className="flex-row flex-wrap gap-2 pb-2">
-                    <Button
-                      label="+ New sales return"
-                      size="sm"
-                      variant="accent"
-                      onPress={() => setSalesReturnOpen(true)}
-                    />
-                    <Button
-                      label="+ New purchase return"
-                      size="sm"
-                      variant="secondary"
-                      onPress={() => setPurchaseReturnOpen(true)}
-                    />
-                  </View>
-                ) : null}
-              </View>
-            }
-          />
-        )
-      ) : null}
+            )
+          }
+        />
+      )}
 
       {soOpen ? (
         <NewSalesOrderModal

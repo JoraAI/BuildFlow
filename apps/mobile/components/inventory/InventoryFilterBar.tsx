@@ -72,7 +72,7 @@ export function InventoryFilterBar<S extends string>({
     ) : null;
 
   return (
-    <View className="px-4 pb-2 shrink-0 gap-2">
+    <View className={`px-4 pb-2 gap-2 ${isPhone ? '' : 'shrink-0'}`}>
       {isPhone ? (
         <>
           {searchRow}

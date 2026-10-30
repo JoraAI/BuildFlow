@@ -8,7 +8,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
-  FlatList,
   RefreshControl,
   Pressable,
   type ViewStyle,
@@ -35,7 +34,7 @@ import { useInventoryLanguage } from '@/components/inventory/InventoryLanguagePr
 import { InventoryPageHeader } from '@/components/inventory/InventoryPageHeader';
 import { StockHero, formatHeroMoney } from '@/components/inventory/StockHero';
 import { StockRow } from '@/components/inventory/StockRow';
-import { mobileListBottomPadding } from '@/components/layout/fab-layout';
+import { InventoryScreenList } from '@/components/inventory/InventoryScreenList';
 import { useInventoryDashboard } from '@/services/inventory-analytics.queries';
 import { useExpirySummary } from '@/services/expansion.queries';
 import {
@@ -384,14 +383,8 @@ export default function InventoryStockScreen() {
     </View>
   );
 
-  return (
-    <View className="flex-1 bg-surface min-h-0">
-      <BusyOverlay
-        visible={buffering}
-        title={translate('inventory.stock.title', 'Stock')}
-        subtitle="Please wait until stock and the sale refresh. Do not tap again."
-      />
-
+  const pageChrome = (
+    <>
       <InventoryPageHeader
         title={translate('inventory.stock.title', 'Stock')}
         subtitle={
@@ -436,8 +429,7 @@ export default function InventoryStockScreen() {
         <View className="px-4 pb-3 shrink-0">{filtersBlock}</View>
       ) : null}
 
-      <View className="px-4 pb-2 shrink-0">
-        {/* One sticky row: live search + Scan (inline). Typing filters the list; Scan looks up barcode. */}
+      <View className="px-4 pb-2">
         <View className="flex-row items-center gap-2">
           <View className="flex-1 min-w-0">
             <Input
@@ -487,27 +479,31 @@ export default function InventoryStockScreen() {
           </View>
         ) : null}
       </View>
+    </>
+  );
 
-      {isLoading ? (
-        <View className="px-4 gap-3 flex-1 min-h-0">
-          {[1, 2, 3].map((i) => (
-            <LoadingSkeleton key={i} className="rounded-xl h-16" />
-          ))}
-        </View>
-      ) : (
-        <FlatList
-          className="flex-1"
-          style={{ flex: 1, minHeight: 0 }}
-          data={filteredSummary}
-          keyExtractor={(item) => item.resourceId}
-          refreshControl={
-            <RefreshControl
-              refreshing={isFetching && !buffering}
-              onRefresh={onRefresh}
-              tintColor="#1E3A5F"
-            />
-          }
-          ListHeaderComponent={listHeader}
+  return (
+    <View className="flex-1 bg-surface min-h-0">
+      <BusyOverlay
+        visible={buffering}
+        title={translate('inventory.stock.title', 'Stock')}
+        subtitle="Please wait until stock and the sale refresh. Do not tap again."
+      />
+
+      <InventoryScreenList
+        className="flex-1"
+        style={{ flex: 1, minHeight: 0 }}
+        chrome={pageChrome}
+        data={isLoading ? [] : filteredSummary}
+        keyExtractor={(item) => item.resourceId}
+        refreshControl={
+          <RefreshControl
+            refreshing={isFetching && !buffering}
+            onRefresh={onRefresh}
+            tintColor="#1E3A5F"
+          />
+        }
+        listHeader={listHeader}
           renderItem={({ item }) => {
             const isLowStock =
               item.reorderPoint != null && Number(item.reorderPoint) > 0 && Number(item.balance) < Number(item.reorderPoint);
@@ -602,7 +598,13 @@ export default function InventoryStockScreen() {
             );
           }}
           ListEmptyComponent={
-            isError ? (
+            isLoading ? (
+              <View className="gap-3">
+                {[1, 2, 3].map((i) => (
+                  <LoadingSkeleton key={i} className="rounded-xl h-16" />
+                ))}
+              </View>
+            ) : isError ? (
               <EmptyState
                 title="Could not load stock"
                 description={error instanceof Error ? error.message : 'Check your connection and try again.'}
@@ -620,14 +622,12 @@ export default function InventoryStockScreen() {
             )
           }
           contentContainerStyle={{
-            // Match Items list horizontal rhythm across all inventory verticals.
             paddingHorizontal: isDesktop ? 24 : 16,
-            paddingBottom: isPhone ? mobileListBottomPadding(false) : isDesktop ? 48 : 32,
+            paddingBottom: isPhone ? undefined : isDesktop ? 48 : 32,
             paddingTop: isDesktop ? 8 : 0,
             flexGrow: 1,
           }}
         />
-      )}
 
       {posCheckoutEnabled ? (
         <CheckoutCart

@@ -4,7 +4,7 @@
  * Create, edit, and delete materials (resources) for indents, POs, GRNs, and stock.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, FlatList, Modal, ScrollView, RefreshControl, Pressable } from 'react-native';
+import { View, Text, Modal, ScrollView, RefreshControl, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, Button, Input, EmptyState, LoadingSkeleton, Select, toast, BusyOverlay, useBusy } from '@/components/ui';
 import { pickImage } from '@/utils/pick-image';
@@ -40,6 +40,7 @@ import { inventoryProcurementHref } from '@/utils/navigation-paths';
 import { useIceCreamVertical } from '@/hooks/useIceCreamVertical';
 import { MaterialThumbnail } from '@/components/materials/MaterialThumbnail';
 import { INVENTORY_ACCENT } from '@/components/navigation/InventoryTabBar';
+import { InventoryScreenList, inventoryPageListPadding } from '@/components/inventory/InventoryScreenList';
 import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 
 const MATERIAL_STATUS_TABS = [
@@ -165,16 +166,11 @@ export default function InventoryMaterialsScreen() {
     });
   };
 
-  return (
-    <View className="flex-1 bg-surface">
-      <BusyOverlay
-        visible={busy}
-        title={`Updating ${itemPluralLabel.toLowerCase()}…`}
-        onDismiss={clearBusy}
-      />
+  const pageChrome = (
+    <>
       <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between">
         <View className="flex-1 mr-2 min-w-[160px]">
-          <Text className="text-2xl font-bold text-text">
+          <Text className={`font-bold text-text ${isPhone ? 'text-xl' : 'text-2xl'}`}>
             {translatedItemsTitle(itemPluralLabel, translate)}
           </Text>
           <Text className="text-sm text-muted mt-0.5">
@@ -211,60 +207,72 @@ export default function InventoryMaterialsScreen() {
         isFiltered={filters.isFiltered}
         onClear={filters.clearAll}
       />
+    </>
+  );
 
-      {isLoading ? (
-        <View className="px-4 gap-3">
-          {[1, 2, 3].map((i) => (
-            <LoadingSkeleton key={i} className="rounded-xl h-16" />
-          ))}
-        </View>
-      ) : (
-        <FlatList
-          className="flex-1"
-          data={rows}
-          keyExtractor={(row: MaterialRow) => row.key}
-          refreshControl={
-            <RefreshControl refreshing={isFetching} onRefresh={() => void refetch()} tintColor="#1E3A5F" />
-          }
-          contentContainerStyle={{
-            paddingHorizontal: tableMode ? 24 : 16,
-            paddingBottom: mobileListBottomPadding(true) + (tableMode ? 48 : 72),
-            paddingTop: tableMode ? 8 : 0,
-          }}
-          ListHeaderComponent={
-            tableMode && rows.length > 0 ? (
-              <View className="flex-row items-center px-4 py-3 mb-2 rounded-xl bg-surface border border-border">
-                <Text className="flex-[2.2] text-[11px] font-bold text-muted uppercase">Item</Text>
-                <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Category</Text>
-                <Text className="flex-1 text-[11px] font-bold text-muted uppercase">HSN</Text>
-                <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Stock</Text>
-                <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">MRP</Text>
-                <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Cost</Text>
-                {isIceCream ? (
-                  <>
-                    <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Dist</Text>
-                    <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Cust</Text>
-                  </>
-                ) : (
-                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Sell</Text>
-                )}
-                <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
-              </View>
-            ) : null
-          }
-          ListEmptyComponent={
-            filters.isFiltered ? (
-              <EmptyState
-                title={`No matching ${itemPluralLabel.toLowerCase()}`}
-                description="Try a different search term or clear the filters."
-              />
-            ) : (
-              <EmptyState
-                title={`No ${itemPluralLabel.toLowerCase()} yet`}
-                description={`Add ${itemPluralLabel.toLowerCase()} to your catalog, then create a ${indentLabel.toLowerCase()} and receive stock via GRN.`}
-              />
-            )
-          }
+  return (
+    <View className="flex-1 min-h-0 bg-surface">
+      <BusyOverlay
+        visible={busy}
+        title={`Updating ${itemPluralLabel.toLowerCase()}…`}
+        onDismiss={clearBusy}
+      />
+      <InventoryScreenList
+        className="flex-1"
+        hasScreenFab={isPhone}
+        chrome={pageChrome}
+        data={isLoading ? [] : rows}
+        keyExtractor={(row: MaterialRow) => row.key}
+        refreshControl={
+          <RefreshControl refreshing={isFetching} onRefresh={() => void refetch()} tintColor="#1E3A5F" />
+        }
+        contentContainerStyle={{
+          paddingHorizontal: tableMode ? 24 : 16,
+          paddingBottom: isPhone
+            ? inventoryPageListPadding(true) + 72
+            : mobileListBottomPadding(true) + (tableMode ? 48 : 72),
+          paddingTop: tableMode ? 8 : 0,
+        }}
+        listHeader={
+          tableMode && rows.length > 0 ? (
+            <View className="flex-row items-center px-4 py-3 mb-2 rounded-xl bg-surface border border-border">
+              <Text className="flex-[2.2] text-[11px] font-bold text-muted uppercase">Item</Text>
+              <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Category</Text>
+              <Text className="flex-1 text-[11px] font-bold text-muted uppercase">HSN</Text>
+              <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Stock</Text>
+              <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">MRP</Text>
+              <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Cost</Text>
+              {isIceCream ? (
+                <>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Dist</Text>
+                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Cust</Text>
+                </>
+              ) : (
+                <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Sell</Text>
+              )}
+              <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+            </View>
+          ) : null
+        }
+        ListEmptyComponent={
+          isLoading ? (
+            <View className="gap-3">
+              {[1, 2, 3].map((i) => (
+                <LoadingSkeleton key={i} className="rounded-xl h-16" />
+              ))}
+            </View>
+          ) : filters.isFiltered ? (
+            <EmptyState
+              title={`No matching ${itemPluralLabel.toLowerCase()}`}
+              description="Try a different search term or clear the filters."
+            />
+          ) : (
+            <EmptyState
+              title={`No ${itemPluralLabel.toLowerCase()} yet`}
+              description={`Add ${itemPluralLabel.toLowerCase()} to your catalog, then create a ${indentLabel.toLowerCase()} and receive stock via GRN.`}
+            />
+          )
+        }
           renderItem={({ item: row }: { item: MaterialRow }) => {
             // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop materials
             // table row (phones keep the card below).
@@ -465,14 +473,13 @@ export default function InventoryMaterialsScreen() {
           );
           }}
         />
-      )}
 
       {isPhone ? (
         <Pressable
           onPress={() => (isKirana ? setSkuLibraryOpen(true) : setCreateOpen(true))}
           className="absolute right-4 w-14 h-14 rounded-full items-center justify-center shadow-lg"
           style={{
-            bottom: mobileListBottomPadding(true) + 8,
+            bottom: inventoryPageListPadding(true) + 8,
             backgroundColor: INVENTORY_ACCENT,
           }}
           accessibilityLabel={`Add ${itemLabel.toLowerCase()}`}

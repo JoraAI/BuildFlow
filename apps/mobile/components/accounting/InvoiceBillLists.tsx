@@ -12,6 +12,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Card, Badge, EmptyState, LoadingSkeleton, Button, BusyOverlay, useBusy } from '@/components/ui';
 import { mobileListBottomPadding } from '@/components/layout/fab-layout';
+import { inventoryPageListPadding } from '@/components/inventory/InventoryScreenList';
 import { useViewport } from '@/hooks/useViewport';
 import { usePermission } from '@/hooks/usePermission';
 import {
@@ -90,6 +91,7 @@ export function ProjectInvoicesList({
   query = '',
   focusId = null,
   stickyFilters = false,
+  listChrome,
 }: {
   projectId: string;
   embedded?: boolean;
@@ -105,6 +107,8 @@ export function ProjectInvoicesList({
   focusId?: string | null;
   /** When true, filter pills are not rendered inside the list (parent owns sticky bar). */
   stickyFilters?: boolean;
+  /** Optional page chrome to scroll with the list (inventory phone). */
+  listChrome?: React.ReactNode;
 }) {
   const router = useRouter();
   const { isTablet, isDesktop } = useViewport();
@@ -137,10 +141,13 @@ export function ProjectInvoicesList({
 
   if (isLoading) {
     return (
-      <View className={`gap-3 ${embedded ? 'p-4' : 'px-4 pt-2'}`}>
-        {[1, 2, 3].map((i) => (
-          <LoadingSkeleton key={i} className={`rounded-xl ${tableMode ? 'h-12' : 'h-24'}`} />
-        ))}
+      <View className={embedded ? 'flex-1 min-h-0' : undefined}>
+        {listChrome}
+        <View className={`gap-3 ${embedded ? 'p-4' : 'px-4 pt-2'}`}>
+          {[1, 2, 3].map((i) => (
+            <LoadingSkeleton key={i} className={`rounded-xl ${tableMode ? 'h-12' : 'h-24'}`} />
+          ))}
+        </View>
       </View>
     );
   }
@@ -163,7 +170,11 @@ export function ProjectInvoicesList({
   const listPadding =
     embedded && tableMode && isDesktop
       ? undefined
-      : { paddingBottom: mobileListBottomPadding(true) };
+      : {
+          paddingBottom: listChrome
+            ? inventoryPageListPadding(true)
+            : mobileListBottomPadding(true),
+        };
 
   return (
     <View className={embedded ? 'flex-1 min-h-0' : undefined}>
@@ -193,6 +204,7 @@ export function ProjectInvoicesList({
       }
       ListHeaderComponent={
         <>
+          {listChrome}
           {!stickyFilters ? (
             <FilterPills options={INVOICE_FILTERS} value={filter} onChange={setFilter} />
           ) : null}
@@ -230,6 +242,7 @@ export function ProjectBillsList({
   query = '',
   focusId = null,
   stickyFilters = false,
+  listChrome,
 }: {
   projectId: string;
   embedded?: boolean;
@@ -241,6 +254,7 @@ export function ProjectBillsList({
   query?: string;
   focusId?: string | null;
   stickyFilters?: boolean;
+  listChrome?: React.ReactNode;
 }) {
   const router = useRouter();
   // R10-B2: Replace role check with granular permission.
@@ -275,10 +289,13 @@ export function ProjectBillsList({
 
   if (isLoading) {
     return (
-      <View className={`gap-3 ${embedded ? 'p-4' : 'px-4 pt-2'}`}>
-        {[1, 2, 3].map((i) => (
-          <LoadingSkeleton key={i} className={`rounded-xl ${tableMode ? 'h-12' : 'h-24'}`} />
-        ))}
+      <View className={embedded ? 'flex-1 min-h-0' : undefined}>
+        {listChrome}
+        <View className={`gap-3 ${embedded ? 'p-4' : 'px-4 pt-2'}`}>
+          {[1, 2, 3].map((i) => (
+            <LoadingSkeleton key={i} className={`rounded-xl ${tableMode ? 'h-12' : 'h-24'}`} />
+          ))}
+        </View>
       </View>
     );
   }
@@ -315,7 +332,11 @@ export function ProjectBillsList({
   const listPadding =
     embedded && tableMode && isDesktop
       ? undefined
-      : { paddingBottom: mobileListBottomPadding(true) };
+      : {
+          paddingBottom: listChrome
+            ? inventoryPageListPadding(true)
+            : mobileListBottomPadding(true),
+        };
 
   return (
     <View className={embedded ? 'flex-1 min-h-0' : undefined}>
@@ -345,6 +366,7 @@ export function ProjectBillsList({
       }
       ListHeaderComponent={
         <>
+          {listChrome}
           {!stickyFilters ? (
             <FilterPills options={BILL_FILTERS} value={filter} onChange={setFilter} />
           ) : null}

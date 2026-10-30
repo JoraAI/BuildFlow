@@ -8,11 +8,11 @@
  * Responsive: useViewport modals (phone bottom sheet, desktop max-w-lg).
  */
 import React, { useMemo, useState } from 'react';
-import { View, Text, FlatList } from 'react-native';
+import { View, Text } from 'react-native';
 import { Card, Badge, Button, EmptyState, LoadingSkeleton, toast, BusyOverlay, useBusy } from '@/components/ui';
 import { confirmAsync } from '@/utils/confirm';
 import { useViewport } from '@/hooks/useViewport';
-import { mobileListBottomPadding } from '@/components/layout/fab-layout';
+import { InventoryScreenList } from '@/components/inventory/InventoryScreenList';
 import {
   useWarehouses,
   useCreateWarehouse,
@@ -83,7 +83,7 @@ export default function InventoryWarehouseScreen() {
   const { translate } = useInventoryLanguage();
   const { busy, run } = useBusy();
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop/tablet tables.
-  const { isTablet, isDesktop } = useViewport();
+  const { isPhone, isTablet, isDesktop } = useViewport();
   const tableMode = isTablet || isDesktop;
   const filters = useInventoryListFilters({ defaultTab: 'locations' });
   const tab = (TABS.some((t) => t.value === filters.tab) ? filters.tab : 'locations') as Tab;
@@ -486,12 +486,11 @@ export default function InventoryWarehouseScreen() {
     return renderCount({ item: item as StockCount });
   };
 
-  return (
-    <View className="flex-1 bg-surface">
-      <BusyOverlay visible={busy} title={translate('inventory.page.warehouse', 'Warehouse')} />
+  const pageChrome = (
+    <>
       <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between gap-2">
         <View className="flex-1 min-w-[180px] mr-2">
-          <Text className="text-2xl font-bold text-text">
+          <Text className={`font-bold text-text ${isPhone ? 'text-xl' : 'text-2xl'}`}>
             {translate('inventory.page.warehouse', 'Warehouse')}
           </Text>
           <Text className="text-sm text-muted mt-0.5">
@@ -519,20 +518,21 @@ export default function InventoryWarehouseScreen() {
         isFiltered={filters.isFiltered}
         onClear={filters.clearAll}
       />
+    </>
+  );
 
-      {loading ? (
-        <View className="px-4 gap-3">
-          {[1, 2, 3].map((i) => <LoadingSkeleton key={i} className="rounded-xl h-16" />)}
-        </View>
-      ) : (
-        <FlatList
-          ref={listRef}
-          className="flex-1 px-4"
-          data={dataForTab}
-          keyExtractor={(item) => item.id}
-          renderItem={renderRow}
-          onScrollToIndexFailed={() => undefined}
-          ListHeaderComponent={
+  return (
+    <View className="flex-1 min-h-0 bg-surface">
+      <BusyOverlay visible={busy} title={translate('inventory.page.warehouse', 'Warehouse')} />
+      <InventoryScreenList
+        listRef={listRef}
+        className="flex-1"
+        chrome={pageChrome}
+        data={loading ? [] : dataForTab}
+        keyExtractor={(item) => item.id}
+        renderItem={renderRow}
+        onScrollToIndexFailed={() => undefined}
+        listHeader={
             tableMode && dataForTab.length > 0 ? (
               tab === 'locations' ? (
                 <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
@@ -562,7 +562,11 @@ export default function InventoryWarehouseScreen() {
             ) : null
           }
           ListEmptyComponent={
-            filters.isFiltered ? (
+            loading ? (
+              <View className="gap-3">
+                {[1, 2, 3].map((i) => <LoadingSkeleton key={i} className="rounded-xl h-16" />)}
+              </View>
+            ) : filters.isFiltered ? (
               <EmptyState
                 title="No matching records"
                 description="Try a different search term or clear the filters."
@@ -582,9 +586,7 @@ export default function InventoryWarehouseScreen() {
               />
             )
           }
-          contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
         />
-      )}
 
       {whOpen || editingWh ? (
         <WarehouseModal

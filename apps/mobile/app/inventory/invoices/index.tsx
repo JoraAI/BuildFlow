@@ -18,6 +18,7 @@ import { inventoryInvoiceDetailHref } from '@/utils/navigation';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 import { InventoryFilterBar } from '@/components/inventory/InventoryFilterBar';
 import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
+import { InventoryScrollChrome } from '@/components/inventory/InventoryScreenList';
 
 const INVOICE_STATUS_TABS = [
   { value: 'ALL' as const, label: 'All' },
@@ -37,12 +38,11 @@ export default function InventoryInvoicesScreen() {
   const createInvoice = useCreateInvoice();
   const filters = useInventoryListFilters({ defaultStatus: 'ALL' });
 
-  return (
-    <View className="flex-1 bg-surface">
-      <BusyOverlay visible={busy} title={translate('inventory.page.invoices', 'Sales invoices')} />
+  const pageChrome = (
+    <>
       <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between">
         <View className="flex-1 mr-2 min-w-[160px]">
-          <Text className="text-2xl font-bold text-text">
+          <Text className={`font-bold text-text ${isPhone ? 'text-xl' : 'text-2xl'}`}>
             {translate('inventory.page.invoices', 'Sales invoices')}
           </Text>
           <Text className="text-sm text-muted mt-0.5">Client invoices (AR) · {user?.companyName}</Text>
@@ -73,7 +73,13 @@ export default function InventoryInvoicesScreen() {
         isFiltered={filters.isFiltered}
         onClear={filters.clearAll}
       />
+    </>
+  );
 
+  return (
+    <View className="flex-1 min-h-0 bg-surface">
+      <BusyOverlay visible={busy} title={translate('inventory.page.invoices', 'Sales invoices')} />
+      <InventoryScrollChrome slot="sticky">{pageChrome}</InventoryScrollChrome>
       <ProjectInvoicesList
         projectId={projectId}
         embedded
@@ -84,6 +90,7 @@ export default function InventoryInvoicesScreen() {
         query={filters.debouncedQuery}
         focusId={filters.focusId}
         stickyFilters
+        listChrome={<InventoryScrollChrome slot="scroll">{pageChrome}</InventoryScrollChrome>}
       />
 
       <NewInvoiceModal

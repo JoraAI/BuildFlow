@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, FlatList } from 'react-native';
+import { View, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, Badge, Button, EmptyState, LoadingSkeleton, toast, BusyOverlay, useBusy } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
@@ -18,7 +18,7 @@ import { downloadReportPdf } from '@/services/report-download';
 import { generateWhatsAppQuoteShare } from '@/utils/whatsapp-share';
 import { formatINR } from '@/utils/format';
 import { usesEventLightingCopy } from '@buildflow/shared';
-import { mobileListBottomPadding } from '@/components/layout/fab-layout';
+import { InventoryScreenList } from '@/components/inventory/InventoryScreenList';
 import { DocumentLines, ExpandHint, type PreviewLine } from '@/components/inventory/DocumentLinePreview';
 
 const QUOTE_STATUS_TABS = [
@@ -41,7 +41,7 @@ export default function InventoryQuotesScreen() {
   const { translate } = useInventoryLanguage();
   const router = useRouter();
   const { busy, run } = useBusy();
-  const { isTablet, isDesktop } = useViewport();
+  const { isPhone, isTablet, isDesktop } = useViewport();
   const tableMode = isTablet || isDesktop;
   const user = useAuthStore((s) => s.user);
   const eventLightingCopy = usesEventLightingCopy(user?.inventoryProfile, user?.inventoryVertical);
@@ -346,14 +346,11 @@ export default function InventoryQuotesScreen() {
     );
   };
 
-  return (
-    <View className="flex-1 bg-surface">
-      <BusyOverlay visible={busy} title={eventLightingCopy ? 'Quotes & Event Estimates' : 'Quotes'} />
-
-      {/* Header */}
+  const pageChrome = (
+    <>
       <View className="px-4 pt-4 pb-2 flex-row flex-wrap items-center justify-between gap-2">
         <View className="flex-1 min-w-[200px] mr-2">
-          <Text className="text-2xl font-bold text-text">
+          <Text className={`font-bold text-text ${isPhone ? 'text-xl' : 'text-2xl'}`}>
             {eventLightingCopy ? 'Quotes & Event Estimates' : 'Quotes'}
           </Text>
           <Text className="text-sm text-muted mt-0.5">
@@ -371,7 +368,6 @@ export default function InventoryQuotesScreen() {
         />
       </View>
 
-      {/* KPI Cards Strip */}
       <View className="px-4 py-2 flex-row flex-wrap gap-2">
         <Card className="flex-1 min-w-[140px] p-3">
           <Text className="text-xs text-muted">Total Quotes</Text>
@@ -405,21 +401,27 @@ export default function InventoryQuotesScreen() {
         isFiltered={filters.isFiltered}
         onClear={filters.clearAll}
       />
+    </>
+  );
 
-      {/* Main List */}
-      {quotes.isLoading ? (
-        <View className="px-4 gap-3 mt-2">
-          {[1, 2, 3].map((i) => <LoadingSkeleton key={i} className="rounded-xl h-24" />)}
-        </View>
-      ) : (
-        <FlatList
-          ref={listRef}
-          className="flex-1 px-4 mt-2"
-          data={filteredQuotes}
-          keyExtractor={(item) => item.id}
-          renderItem={renderQuoteItem}
-          onScrollToIndexFailed={() => undefined}
-          ListEmptyComponent={
+  return (
+    <View className="flex-1 min-h-0 bg-surface">
+      <BusyOverlay visible={busy} title={eventLightingCopy ? 'Quotes & Event Estimates' : 'Quotes'} />
+
+      <InventoryScreenList
+        listRef={listRef}
+        className="flex-1"
+        chrome={pageChrome}
+        data={quotes.isLoading ? [] : filteredQuotes}
+        keyExtractor={(item) => item.id}
+        renderItem={renderQuoteItem}
+        onScrollToIndexFailed={() => undefined}
+        ListEmptyComponent={
+          quotes.isLoading ? (
+            <View className="gap-3 mt-2">
+              {[1, 2, 3].map((i) => <LoadingSkeleton key={i} className="rounded-xl h-24" />)}
+            </View>
+          ) : (
             <EmptyState
               title={filters.isFiltered ? 'No matching quotes found' : 'No quotes yet'}
               description={
@@ -430,23 +432,22 @@ export default function InventoryQuotesScreen() {
                     : 'Create a quote for your customer, share it on WhatsApp, and convert it to a Sales Order when accepted.'
               }
             />
-          }
-          contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
-          ListHeaderComponent={
-            tableMode && filteredQuotes.length > 0 ? (
-              <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
-                <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Quote #</Text>
-                <Text className="flex-[1.8] text-[11px] font-bold text-muted uppercase">
-                  {eventLightingCopy ? 'Client / Event' : 'Customer'}
-                </Text>
-                <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Status</Text>
-                <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Total</Text>
-                <Text className="flex-[2] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
-              </View>
-            ) : null
-          }
-        />
-      )}
+          )
+        }
+        listHeader={
+          tableMode && filteredQuotes.length > 0 ? (
+            <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+              <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Quote #</Text>
+              <Text className="flex-[1.8] text-[11px] font-bold text-muted uppercase">
+                {eventLightingCopy ? 'Client / Event' : 'Customer'}
+              </Text>
+              <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Status</Text>
+              <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Total</Text>
+              <Text className="flex-[2] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+            </View>
+          ) : null
+        }
+      />
 
       {/* New Event Quote Modal */}
       {quoteModalOpen ? (

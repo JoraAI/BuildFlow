@@ -3,7 +3,7 @@
  * Customer (AR) + Vendor (AP) master. Responsive: phone bottom sheets, desktop centered.
  */
 import React, { useMemo, useState } from 'react';
-import { View, Text, FlatList, Pressable, Modal, ScrollView, Platform, Share, Alert } from 'react-native';
+import { View, Text, Pressable, Modal, ScrollView, Platform, Share, Alert } from 'react-native';
 import {
   Card,
   Badge,
@@ -28,7 +28,7 @@ import { PriceListModal } from '@/components/inventory/PriceListModal';
 import { InviteBuyerModal } from '@/components/inventory/InviteBuyerModal';
 import { useViewport } from '@/hooks/useViewport';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
-import { mobileListBottomPadding } from '@/components/layout/fab-layout';
+import { InventoryScreenList } from '@/components/inventory/InventoryScreenList';
 import { InventoryFilterBar } from '@/components/inventory/InventoryFilterBar';
 import { SegmentedTabsInline } from '@/components/inventory/SegmentedTabs';
 import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
@@ -237,12 +237,11 @@ export default function InventoryPartiesScreen() {
     });
   };
 
-  return (
-    <View className="flex-1 bg-surface">
-      <BusyOverlay visible={busy} title={translate('inventory.page.parties', 'Parties')} />
+  const pageChrome = (
+    <>
       <View className="px-4 pt-4 pb-2 flex-row items-center justify-between gap-3">
         <View className="flex-1 min-w-0">
-          <Text className="text-2xl font-bold text-text" numberOfLines={1}>
+          <Text className={`font-bold text-text ${isPhone ? 'text-xl' : 'text-2xl'}`} numberOfLines={1}>
             {translate('inventory.page.parties', 'Parties')}
           </Text>
           <Text className="text-sm text-muted mt-0.5" numberOfLines={isPhone ? 1 : 2}>
@@ -322,18 +321,19 @@ export default function InventoryPartiesScreen() {
         isFiltered={filters.isFiltered}
         onClear={filters.clearAll}
       />
+    </>
+  );
 
-      {loading ? (
-        <View className="px-4 gap-3">
-          {[1, 2, 3].map((i) => <LoadingSkeleton key={i} className="rounded-xl h-16" />)}
-        </View>
-      ) : (
-        <FlatList
-          ref={listRef}
-          className="flex-1 px-4"
-          data={rows}
-          keyExtractor={(p) => p.id}
-          onScrollToIndexFailed={() => undefined}
+  return (
+    <View className="flex-1 min-h-0 bg-surface">
+      <BusyOverlay visible={busy} title={translate('inventory.page.parties', 'Parties')} />
+      <InventoryScreenList
+        listRef={listRef}
+        className="flex-1"
+        chrome={pageChrome}
+        data={loading ? [] : rows}
+        keyExtractor={(p) => p.id}
+        onScrollToIndexFailed={() => undefined}
           renderItem={({ item }) => {
             // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop row.
             const accessLabel =
@@ -402,7 +402,7 @@ export default function InventoryPartiesScreen() {
             </Card>
           );
           }}
-          ListHeaderComponent={
+          listHeader={
             tableMode && rows.length > 0 ? (
               <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
                 <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase">Party</Text>
@@ -414,7 +414,11 @@ export default function InventoryPartiesScreen() {
             ) : null
           }
           ListEmptyComponent={
-            filters.isFiltered ? (
+            loading ? (
+              <View className="gap-3">
+                {[1, 2, 3].map((i) => <LoadingSkeleton key={i} className="rounded-xl h-16" />)}
+              </View>
+            ) : filters.isFiltered ? (
               <EmptyState
                 title={`No matching ${kind}s`}
                 description="Try a different search term or clear the filters."
@@ -426,9 +430,7 @@ export default function InventoryPartiesScreen() {
               />
             )
           }
-          contentContainerStyle={{ paddingBottom: mobileListBottomPadding() }}
         />
-      )}
 
       {modal ? (
         <PartyModal

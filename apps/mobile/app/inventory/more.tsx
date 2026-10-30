@@ -13,7 +13,7 @@ import {
   INVENTORY_ACCENT_SOFT,
   INVENTORY_SECONDARY_NAV,
 } from '@/components/navigation/InventoryTabBar';
-import { mobileListBottomPadding } from '@/components/layout/fab-layout';
+import { inventoryPageListPadding } from '@/components/inventory/InventoryScreenList';
 import { getInventoryLabel, getInventoryLabelMode } from '@buildflow/shared';
 import { useAuthStore } from '@/stores/auth.store';
 
@@ -52,7 +52,7 @@ export default function InventoryMoreScreen() {
       className="flex-1 bg-surface"
       contentContainerStyle={{
         padding: 16,
-        paddingBottom: isPhone ? mobileListBottomPadding() + 24 : 48,
+        paddingBottom: isPhone ? inventoryPageListPadding() + 24 : 48,
         width: '100%',
         alignSelf: 'center',
         maxWidth: 640,

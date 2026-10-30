@@ -8,13 +8,14 @@ import React, { useMemo } from 'react';
 import {
   View,
   Text,
-  FlatList,
   Pressable,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Badge, EmptyState } from '@/components/ui';
+import { useViewport } from '@/hooks/useViewport';
+import { InventoryScreenList } from '@/components/inventory/InventoryScreenList';
 import {
   useNotifications,
   useMarkAllNotificationsRead,
@@ -67,6 +68,7 @@ function deepLink(n: AppNotification): string | null {
 
 export default function InventoryNotificationsScreen() {
   const { translate } = useInventoryLanguage();
+  const { isPhone } = useViewport();
   const router = useRouter();
   const { data, isLoading, isFetching, refetch } = useNotifications();
   const markAll = useMarkAllNotificationsRead();
@@ -93,34 +95,36 @@ export default function InventoryNotificationsScreen() {
     );
   }
 
-  return (
-    <View className="flex-1 bg-surface">
-      <View className="px-4 pt-4 pb-2 flex-row items-center justify-between">
-        <View className="flex-1 mr-2">
-          <Text className="text-2xl font-bold text-text">
-            {translate('inventory.page.notifications', 'Notifications')}
-          </Text>
-          <Text className="text-sm text-muted mt-0.5">
-            Low stock, B2B buyer orders, price anomalies and count variances.
-          </Text>
-        </View>
-        {(data?.items?.length ?? 0) > 0 ? (
-          <Pressable onPress={() => void markAll.mutate()}>
-            <Text className="text-xs font-semibold text-primary">
-              {translate('inventory.notifications.markAllRead', 'Mark all read')}
-            </Text>
-          </Pressable>
-        ) : null}
+  const pageChrome = (
+    <View className="px-4 pt-4 pb-2 flex-row items-center justify-between">
+      <View className="flex-1 mr-2">
+        <Text className={`font-bold text-text ${isPhone ? 'text-xl' : 'text-2xl'}`}>
+          {translate('inventory.page.notifications', 'Notifications')}
+        </Text>
+        <Text className="text-sm text-muted mt-0.5">
+          Low stock, B2B buyer orders, price anomalies and count variances.
+        </Text>
       </View>
+      {(data?.items?.length ?? 0) > 0 ? (
+        <Pressable onPress={() => void markAll.mutate()}>
+          <Text className="text-xs font-semibold text-primary">
+            {translate('inventory.notifications.markAllRead', 'Mark all read')}
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
 
-      <FlatList
+  return (
+    <View className="flex-1 min-h-0 bg-surface">
+      <InventoryScreenList<[string, AppNotification[]]>
         className="flex-1"
+        chrome={pageChrome}
         data={grouped}
         keyExtractor={([key]) => key}
         refreshControl={
           <RefreshControl refreshing={isFetching} onRefresh={() => void refetch()} tintColor="#1E3A5F" />
         }
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
         renderItem={({ item: [bucket, items] }) => (
           <View className="mb-4">
             <Text className="text-xs font-semibold text-muted uppercase tracking-wide mb-1.5">{bucket}</Text>

@@ -6,6 +6,7 @@ import { Alert, Platform, View, Text, FlatList, Modal, Pressable, ScrollView } f
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, DateField, EmptyState, Input, LoadingSkeleton, Select, toast, useBusy } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
+import { inventoryPageListPadding } from '@/components/inventory/InventoryScreenList';
 import { compareDateOnly, dateOnlyFromDate, parseDateOnlyToLocalDate, todayDateOnly } from '@/utils/date-field';
 import {
   useCashBookCategories,
@@ -38,7 +39,7 @@ async function confirmDelete(message: string): Promise<boolean> {
   });
 }
 
-export function CashBookPanel() {
+export function CashBookPanel({ leadingChrome }: { leadingChrome?: React.ReactNode } = {}) {
   const { isPhone } = useViewport();
   const { busy, run } = useBusy();
   const today = todayDateOnly();
@@ -103,6 +104,7 @@ export function CashBookPanel() {
   const header = useMemo(
     () => (
       <View className="gap-3 mb-3">
+        {leadingChrome ? <View className="-mx-4">{leadingChrome}</View> : null}
         <View className={isPhone ? 'gap-2' : 'flex-row flex-wrap items-end gap-2'}>
           <View className={isPhone ? 'w-full' : 'min-w-[260px] max-w-sm'}>
             <View className="flex-row items-end gap-1">
@@ -244,21 +246,26 @@ export function CashBookPanel() {
       filtersActive,
       filtered.length,
       entries.length,
+      leadingChrome,
     ],
   );
 
   return (
-    <View className="flex-1 px-4">
+    <View className="flex-1 min-h-0 px-4">
       {dayQ.isLoading ? (
         <View className="gap-2 mt-2">
+          {leadingChrome ? <View className="-mx-4">{leadingChrome}</View> : null}
           {[1, 2, 3].map((i) => (
             <LoadingSkeleton key={i} className="h-14 rounded-xl" />
           ))}
         </View>
       ) : (
         <FlatList
+          className="flex-1"
           data={filtered}
           keyExtractor={(e) => e.id}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
           ListHeaderComponent={header}
           ListEmptyComponent={
             <EmptyState
@@ -270,7 +277,7 @@ export function CashBookPanel() {
               }
             />
           }
-          contentContainerStyle={{ paddingBottom: 32 }}
+          contentContainerStyle={{ paddingBottom: inventoryPageListPadding(), flexGrow: 1 }}
           renderItem={({ item }) => (
             <Card className="mb-2 p-3">
               <View className="flex-row justify-between gap-2">

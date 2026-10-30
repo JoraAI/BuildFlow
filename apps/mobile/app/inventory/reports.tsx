@@ -40,7 +40,7 @@ import {
   type InventoryExcelReport,
   type InventoryReportView,
 } from '@/components/inventory/inventory-report-links';
-import { mobileListBottomPadding } from '@/components/layout/fab-layout';
+import { inventoryPageListPadding } from '@/components/inventory/InventoryScreenList';
 
 type Tab = 'health' | 'warehouse' | 'margin' | 'purchase' | 'pnl';
 
@@ -138,7 +138,7 @@ export default function InventoryReportsScreen() {
           className="flex-1"
           contentContainerStyle={{
             padding: isDesktop ? 24 : 16,
-            paddingBottom: isPhone ? mobileListBottomPadding() + 24 : 48,
+            paddingBottom: isPhone ? inventoryPageListPadding() + 24 : 48,
             gap: 12,
             maxWidth: isDesktop ? 960 : undefined,
             width: '100%',
@@ -229,7 +229,7 @@ export default function InventoryReportsScreen() {
         contentContainerStyle={{
           padding: 16,
           gap: 12,
-          paddingBottom: isPhone ? mobileListBottomPadding() + 16 : 48,
+          paddingBottom: isPhone ? inventoryPageListPadding() + 16 : 48,
         }}
       >
         {tab === 'health' ? (
