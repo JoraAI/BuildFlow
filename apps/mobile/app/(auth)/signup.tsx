@@ -1,5 +1,6 @@
 /**
  * Sign up hub - Construction ERP trial, Inventory trial, or join with invite.
+ * Native locked builds only offer the matching product trial (web still offers both).
  */
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
@@ -10,94 +11,108 @@ import { Card } from '@/components/ui';
 import { FreeTrialBadge } from '@/components/marketing/FreeTrialBadge';
 import { StartFreeTrialButton } from '@/components/marketing/StartFreeTrialButton';
 import { TRIAL_BENEFITS, INVENTORY_TRIAL_BENEFITS, TRIAL_CTA } from '@/constants/marketing';
+import { appDisplayName, getAppVariant } from '@/constants/app-variant';
 
 export default function SignupHubScreen() {
   const router = useRouter();
+  const variant = getAppVariant();
+  const showErp = variant !== 'inventory';
+  const showInventory = variant !== 'construction';
+  const heroSubline =
+    variant === 'inventory'
+      ? 'Start an Inventory trial or join your team with an invite.'
+      : variant === 'construction'
+        ? 'Start a Construction ERP trial or join your team with an invite.'
+        : 'Choose Construction ERP or exclusive Inventory, or join your team with an invite.';
 
   return (
     <AuthScreenShell
-      heroHeadline="Get started with BuildFlow"
-      heroSubline="Choose Construction ERP or exclusive Inventory, or join your team with an invite."
+      heroHeadline={`Get started with ${appDisplayName()}`}
+      heroSubline={heroSubline}
       backHref="/"
       formTitle="Sign up"
-      formSubtitle="How do you want to join BuildFlow?"
+      formSubtitle="How do you want to join?"
     >
-      <Card className="border-2 border-accent overflow-hidden p-0 mb-4">
-        <View className="flex-row items-center justify-between px-4 py-2.5 bg-accent/10 border-b border-accent/20">
-          <View className="flex-row items-center gap-2">
-            <Ionicons name="construct" size={14} color="#B45309" />
-            <Text className="text-xs font-bold text-primary uppercase tracking-wide">
-              Construction ERP + accounting
-            </Text>
-          </View>
-          <FreeTrialBadge compact />
-        </View>
-        <View className="p-4">
-          <View className="flex-row items-start gap-3 mb-4">
-            <View className="w-12 h-12 rounded-xl bg-primary items-center justify-center">
-              <Ionicons name="business" size={24} color="#F59E0B" />
-            </View>
-            <View className="flex-1 min-w-0">
-              <Text className="text-lg font-bold text-text mb-1">{TRIAL_CTA.erp.hoverTitle}</Text>
-              <Text className="text-sm text-muted leading-relaxed">{TRIAL_CTA.erp.hoverBody}</Text>
-            </View>
-          </View>
-          {TRIAL_BENEFITS.map((benefit) => (
-            <View key={benefit} className="flex-row items-center gap-2 mb-1.5 ml-1">
-              <Ionicons name="checkmark-circle" size={15} color="#10B981" />
-              <Text className="text-sm text-text flex-1">{benefit}</Text>
-            </View>
-          ))}
-          <View className="mt-5">
-            <StartFreeTrialButton
-              fullWidth
-              size="md"
-              label={TRIAL_CTA.erp.label}
-              onPress={() => router.push(TRIAL_CTA.erp.href as never)}
-            />
-          </View>
-        </View>
-      </Card>
-
-      <Card className="border-2 border-primary/25 overflow-hidden p-0 mb-4">
-        <View className="flex-row items-center justify-between px-4 py-2.5 bg-primary/5 border-b border-primary/15">
-          <View className="flex-row items-center gap-2">
-            <Ionicons name="cube" size={14} color="#1E3A5F" />
-            <Text className="text-xs font-bold text-primary uppercase tracking-wide">
-              Exclusive Inventory + accounting
-            </Text>
-          </View>
-          <FreeTrialBadge compact />
-        </View>
-        <View className="p-4">
-          <View className="flex-row items-start gap-3 mb-4">
-            <View className="w-12 h-12 rounded-xl bg-primary items-center justify-center">
-              <Ionicons name="cube" size={24} color="#F59E0B" />
-            </View>
-            <View className="flex-1 min-w-0">
-              <Text className="text-lg font-bold text-text mb-1">{TRIAL_CTA.inventory.hoverTitle}</Text>
-              <Text className="text-sm text-muted leading-relaxed">
-                {TRIAL_CTA.inventory.hoverBody}
+      {showErp ? (
+        <Card className="border-2 border-accent overflow-hidden p-0 mb-4">
+          <View className="flex-row items-center justify-between px-4 py-2.5 bg-accent/10 border-b border-accent/20">
+            <View className="flex-row items-center gap-2">
+              <Ionicons name="construct" size={14} color="#B45309" />
+              <Text className="text-xs font-bold text-primary uppercase tracking-wide">
+                Construction ERP + accounting
               </Text>
             </View>
+            <FreeTrialBadge compact />
           </View>
-          {INVENTORY_TRIAL_BENEFITS.map((benefit) => (
-            <View key={benefit} className="flex-row items-center gap-2 mb-1.5 ml-1">
-              <Ionicons name="checkmark-circle" size={15} color="#10B981" />
-              <Text className="text-sm text-text flex-1">{benefit}</Text>
+          <View className="p-4">
+            <View className="flex-row items-start gap-3 mb-4">
+              <View className="w-12 h-12 rounded-xl bg-primary items-center justify-center">
+                <Ionicons name="business" size={24} color="#F59E0B" />
+              </View>
+              <View className="flex-1 min-w-0">
+                <Text className="text-lg font-bold text-text mb-1">{TRIAL_CTA.erp.hoverTitle}</Text>
+                <Text className="text-sm text-muted leading-relaxed">{TRIAL_CTA.erp.hoverBody}</Text>
+              </View>
             </View>
-          ))}
-          <View className="mt-5">
-            <StartFreeTrialButton
-              fullWidth
-              size="md"
-              variant="primary"
-              label={TRIAL_CTA.inventory.label}
-              onPress={() => router.push(TRIAL_CTA.inventory.href as never)}
-            />
+            {TRIAL_BENEFITS.map((benefit) => (
+              <View key={benefit} className="flex-row items-center gap-2 mb-1.5 ml-1">
+                <Ionicons name="checkmark-circle" size={15} color="#10B981" />
+                <Text className="text-sm text-text flex-1">{benefit}</Text>
+              </View>
+            ))}
+            <View className="mt-5">
+              <StartFreeTrialButton
+                fullWidth
+                size="md"
+                label={TRIAL_CTA.erp.label}
+                onPress={() => router.push(TRIAL_CTA.erp.href as never)}
+              />
+            </View>
           </View>
-        </View>
-      </Card>
+        </Card>
+      ) : null}
+
+      {showInventory ? (
+        <Card className="border-2 border-primary/25 overflow-hidden p-0 mb-4">
+          <View className="flex-row items-center justify-between px-4 py-2.5 bg-primary/5 border-b border-primary/15">
+            <View className="flex-row items-center gap-2">
+              <Ionicons name="cube" size={14} color="#1E3A5F" />
+              <Text className="text-xs font-bold text-primary uppercase tracking-wide">
+                Exclusive Inventory + accounting
+              </Text>
+            </View>
+            <FreeTrialBadge compact />
+          </View>
+          <View className="p-4">
+            <View className="flex-row items-start gap-3 mb-4">
+              <View className="w-12 h-12 rounded-xl bg-primary items-center justify-center">
+                <Ionicons name="cube" size={24} color="#F59E0B" />
+              </View>
+              <View className="flex-1 min-w-0">
+                <Text className="text-lg font-bold text-text mb-1">{TRIAL_CTA.inventory.hoverTitle}</Text>
+                <Text className="text-sm text-muted leading-relaxed">
+                  {TRIAL_CTA.inventory.hoverBody}
+                </Text>
+              </View>
+            </View>
+            {INVENTORY_TRIAL_BENEFITS.map((benefit) => (
+              <View key={benefit} className="flex-row items-center gap-2 mb-1.5 ml-1">
+                <Ionicons name="checkmark-circle" size={15} color="#10B981" />
+                <Text className="text-sm text-text flex-1">{benefit}</Text>
+              </View>
+            ))}
+            <View className="mt-5">
+              <StartFreeTrialButton
+                fullWidth
+                size="md"
+                variant="primary"
+                label={TRIAL_CTA.inventory.label}
+                onPress={() => router.push(TRIAL_CTA.inventory.href as never)}
+              />
+            </View>
+          </View>
+        </Card>
+      ) : null}
 
       <SignupOption
         icon="mail-outline"

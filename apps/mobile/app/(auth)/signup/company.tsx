@@ -5,7 +5,7 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Redirect, useRouter, useLocalSearchParams } from 'expo-router';
 import {
   emailSchema,
   gstinSchema,
@@ -35,6 +35,8 @@ import {
   formatValidationSummary,
   validationFieldErrors,
 } from '@/utils/validation-errors';
+import { homeHrefForProduct, isProductMismatch } from '@/utils/product-home';
+import { getAppVariant } from '@/constants/app-variant';
 
 function digitsIndiaMobile(raw: string): string {
   let digits = raw.replace(/\D/g, '');
@@ -57,9 +59,11 @@ type FormKey =
 export default function SignupCompanyScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ product?: string }>();
+  const appVariant = getAppVariant();
   // INVENTORY_PRODUCT: ?product=inventory → inventory signup path.
+  // Native Inventory APK always registers inventory (even without the query).
   const product: 'inventory' | 'construction' =
-    params.product === 'inventory' ? 'inventory' : 'construction';
+    appVariant === 'inventory' || params.product === 'inventory' ? 'inventory' : 'construction';
   const isInventorySignup = product === 'inventory';
   const registerCompany = useAuthStore((s) => s.registerCompany);
   const login = useAuthStore((s) => s.login);
@@ -149,6 +153,11 @@ export default function SignupCompanyScreen() {
     const consentOk = !usesPhoneSignup || smsConsent;
     return companyOk && ownerOk && contactOk && gstOk && panOk && verticalOk && consentOk;
   }, [form, isInventorySignup, contactMethod, smsConsent, usesPhoneSignup]);
+
+  // Construction APK must not create inventory tenants via deep link.
+  if (appVariant === 'construction' && params.product === 'inventory') {
+    return <Redirect href="/signup" />;
+  }
 
   const applyZodIssues = (issues: { path: (string | number)[]; message: string }[]) => {
     const details = issues.map((i) => ({
@@ -253,7 +262,8 @@ export default function SignupCompanyScreen() {
     setLoading(true);
     try {
       await login(otpDestination.trim(), otp.trim());
-      router.replace(isInventorySignup ? '/inventory' : '/dashboard');
+      const productMode = useAuthStore.getState().user?.productMode;
+      router.replace(isProductMismatch(productMode) ? '/' : homeHrefForProduct(productMode));
     } catch (err) {
       setError((err as ApiError).message || 'Invalid OTP');
     } finally {

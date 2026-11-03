@@ -12,6 +12,8 @@ export interface InvitePreview {
   companyName: string;
   expiresAt: string;
   inviteChannel: 'email' | 'phone';
+  /** Present on current API; used to block wrong native app before accept. */
+  productMode?: 'inventory' | 'construction';
 }
 
 export function fetchAuthConfig() {

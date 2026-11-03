@@ -5,12 +5,17 @@ import { Redirect, Stack } from 'expo-router';
 import { View } from 'react-native';
 import { useAuthStore } from '@/stores/auth.store';
 import { MarketingAssistantFab } from '@/components/marketing/MarketingAssistantFab';
+import { homeHrefForProduct, isProductMismatch } from '@/utils/product-home';
 
 export default function AuthLayout() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const productMode = useAuthStore((s) => s.user?.productMode);
 
   if (isAuthenticated) {
-    return <Redirect href="/dashboard" />;
+    // Wrong native product → root WrongProductScreen; else product home.
+    return (
+      <Redirect href={isProductMismatch(productMode) ? '/' : homeHrefForProduct(productMode)} />
+    );
   }
 
   return (

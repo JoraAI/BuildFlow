@@ -5,11 +5,13 @@ import { MarketingContent } from '@/components/marketing/MarketingContent';
 import { FreeTrialBadge } from '@/components/marketing/FreeTrialBadge';
 import { StartFreeTrialButton } from '@/components/marketing/StartFreeTrialButton';
 import { useViewport } from '@/hooks/useViewport';
-import { TRIAL_CTA } from '@/constants/marketing';
+import { landingCtaCopy, visibleTrialCtas } from '@/utils/marketing-variant';
 
 export function FullBleedCta() {
   const router = useRouter();
   const { isMarketingDesktop } = useViewport();
+  const copy = landingCtaCopy();
+  const trials = visibleTrialCtas();
 
   return (
     <View className="w-full bg-primary">
@@ -22,30 +24,26 @@ export function FullBleedCta() {
           <Text
             className={`text-white font-bold mb-2 ${isMarketingDesktop ? 'text-3xl' : 'text-2xl'}`}
           >
-            Ready for ERP or exclusive Inventory?
+            {copy.title}
           </Text>
           <Text className={`text-white/70 ${isMarketingDesktop ? 'text-lg max-w-xl' : 'text-base'}`}>
-            14-day free trial for Construction ERP or Inventory (retail through equipment profiles). No
-            credit card.
+            {copy.body}
           </Text>
           <View className={`mt-4 ${isMarketingDesktop ? 'max-w-md' : ''}`}>
             <FreeTrialBadge onDark />
           </View>
         </View>
         <View className={`${isMarketingDesktop ? 'shrink-0 items-stretch gap-3' : 'w-full gap-3'}`}>
-          <StartFreeTrialButton
-            label={TRIAL_CTA.erp.label}
-            onPress={() => router.push(TRIAL_CTA.erp.href as never)}
-            fullWidth={!isMarketingDesktop}
-            size={isMarketingDesktop ? 'lg' : 'md'}
-          />
-          <StartFreeTrialButton
-            variant="outline"
-            label={TRIAL_CTA.inventory.label}
-            onPress={() => router.push(TRIAL_CTA.inventory.href as never)}
-            fullWidth={!isMarketingDesktop}
-            size={isMarketingDesktop ? 'lg' : 'md'}
-          />
+          {trials.map((cta, i) => (
+            <StartFreeTrialButton
+              key={cta.href}
+              variant={i === 0 ? 'accent' : 'outline'}
+              label={cta.label}
+              onPress={() => router.push(cta.href as never)}
+              fullWidth={!isMarketingDesktop}
+              size={isMarketingDesktop ? 'lg' : 'md'}
+            />
+          ))}
           <Pressable
             onPress={() => router.push('/login')}
             className={`px-5 py-3 rounded-lg border border-white/40 active:opacity-80 ${

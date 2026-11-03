@@ -5,16 +5,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { Card, Button } from '@/components/ui';
 import { StartFreeTrialCardButton } from '@/components/marketing/StartFreeTrialButton';
 import { useViewport } from '@/hooks/useViewport';
-import { MARKETING_PRICING, GST_PRICING_NOTE } from '@/constants/marketing';
+import { GST_PRICING_NOTE } from '@/constants/marketing';
+import { filteredPricingPlans } from '@/utils/marketing-variant';
 
 /** Equal-width pricing tier cards - same layout on mobile (stack) and desktop (row). */
 export function PricingCardsGrid() {
   const router = useRouter();
   const { isMarketingDesktop } = useViewport();
+  const plans = filteredPricingPlans();
 
   return (
     <View className={`w-full gap-4 ${isMarketingDesktop ? 'flex-row items-stretch' : ''}`}>
-      {MARKETING_PRICING.map((p) => {
+      {plans.map((p) => {
         const isInventory = p.name === 'Inventory';
         return (
           <View

@@ -12,6 +12,12 @@ import { useViewport } from '@/hooks/useViewport';
 import { ApiError } from '@/lib/api-client';
 import { fetchInvitePreview, sendInviteOtpRequest } from '@/services/auth.queries';
 import { ROLE_LABELS, type Role } from '@buildflow/shared';
+import { homeHrefForProduct, isProductMismatch } from '@/utils/product-home';
+import {
+  appDisplayName,
+  otherProductAppName,
+} from '@/constants/app-variant';
+import type { InvitePreview } from '@/services/auth.queries';
 
 export default function SignupInviteScreen() {
   const router = useRouter();
@@ -26,16 +32,12 @@ export default function SignupInviteScreen() {
   const [otpHint, setOtpHint] = useState<string | null>(null);
   const [smsConsent, setSmsConsent] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
-  const [preview, setPreview] = useState<{
-    email: string | null;
-    phone: string | null;
-    role: string;
-    companyName: string;
-    inviteChannel: 'email' | 'phone';
-  } | null>(null);
+  const [preview, setPreview] = useState<InvitePreview | null>(null);
   const [previewError, setPreviewError] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const wrongApp =
+    preview?.productMode != null && isProductMismatch(preview.productMode);
 
   useEffect(() => {
     if (!token.trim()) return;
@@ -55,6 +57,10 @@ export default function SignupInviteScreen() {
 
   const onSendOtp = async () => {
     setError('');
+    if (wrongApp) {
+      setError(`This invite is for ${otherProductAppName()}. Use that app instead.`);
+      return;
+    }
     if (!token.trim()) {
       setError('Invite token is required');
       return;
@@ -81,6 +87,10 @@ export default function SignupInviteScreen() {
 
   const onSubmit = async () => {
     setError('');
+    if (wrongApp) {
+      setError(`This invite is for ${otherProductAppName()}. Use that app instead.`);
+      return;
+    }
     if (!token.trim()) {
       setError('Please enter your invite token or use the link from your invite');
       return;
@@ -106,7 +116,7 @@ export default function SignupInviteScreen() {
         otp: otp.trim(),
       });
       const productMode = useAuthStore.getState().user?.productMode;
-      router.replace(productMode === 'inventory' ? '/inventory' : '/dashboard');
+      router.replace(isProductMismatch(productMode) ? '/' : homeHrefForProduct(productMode));
     } catch (err) {
       setError((err as ApiError).message || 'Could not accept invite');
     } finally {
@@ -119,7 +129,7 @@ export default function SignupInviteScreen() {
       label="Join company"
       onPress={onSubmit}
       loading={loading}
-      disabled={!preview}
+      disabled={!preview || wrongApp}
       fullWidth
     />
   );
@@ -167,6 +177,16 @@ export default function SignupInviteScreen() {
         <Text className="text-sm text-muted mb-4">Validating invite…</Text>
       ) : null}
 
+      {wrongApp ? (
+        <View className="bg-danger/10 rounded-lg px-3 py-3 mb-4 border border-danger/20">
+          <Text className="text-danger text-sm font-semibold mb-1">Wrong app</Text>
+          <Text className="text-danger text-sm leading-relaxed">
+            This invite is for {otherProductAppName()}. This install is {appDisplayName()}.
+            Install the matching app, then open your invite link there.
+          </Text>
+        </View>
+      ) : null}
+
       {preview?.inviteChannel === 'email' && preview.email ? (
         <>
           <Input label="Email" value={preview.email} onChangeText={() => undefined} editable={false} />
@@ -195,7 +215,7 @@ export default function SignupInviteScreen() {
         variant="secondary"
         onPress={onSendOtp}
         loading={sendingOtp}
-        disabled={!preview}
+        disabled={!preview || wrongApp}
         fullWidth
       />
       {otpHint ? <Text className="text-xs text-muted mt-2 mb-1">{otpHint}</Text> : null}

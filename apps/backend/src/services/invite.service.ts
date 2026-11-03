@@ -413,11 +413,13 @@ export async function getInvitePreview(token: string) {
   const tokenHash = hashInviteToken(token);
   const invite = await prisma.userInvite.findUnique({
     where: { tokenHash },
-    include: { company: { select: { name: true, logoUrl: true } } },
+    include: { company: { select: { name: true, logoUrl: true, subscriptionPlan: true } } },
   });
 
   if (!invite || invite.acceptedAt) throw ApiError.notFound('Invite not found or already used');
   if (invite.expiresAt < new Date()) throw ApiError.badRequest('Invite has expired');
+
+  const { getProductMode } = await import('@buildflow/shared');
 
   return {
     name: invite.name,
@@ -428,6 +430,7 @@ export async function getInvitePreview(token: string) {
     expiresAt: invite.expiresAt,
     /** Contact locked on invite; join verifies via OTP. */
     inviteChannel: invite.email ? 'email' : 'phone',
+    productMode: getProductMode(invite.company.subscriptionPlan),
   };
 }
 

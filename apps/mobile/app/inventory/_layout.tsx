@@ -22,6 +22,8 @@ import { InventoryLanguageProvider, useInventoryLanguage } from '@/components/in
 import { useRouter } from 'expo-router';
 import { useKeyboardOpen } from '@/hooks/useKeyboardOpen';
 import { useInventoryLiveSync } from '@/hooks/useInventoryLiveSync';
+import { WrongProductScreen } from '@/components/auth/WrongProductScreen';
+import { isProductMismatch } from '@/utils/product-home';
 
 export default function InventoryLayout() {
   return (
@@ -45,7 +47,11 @@ function InventoryLayoutBody() {
   if (!isAuthenticated) return <Redirect href="/login" />;
   if (!user) return null;
 
-  // INVENTORY_PRODUCT: only inventory tenants see the shell.
+  if (isProductMismatch(user.productMode)) {
+    return <WrongProductScreen />;
+  }
+
+  // Web / matching native: construction tenants leave the inventory shell.
   if (user.productMode !== 'inventory') {
     return <Redirect href="/dashboard" />;
   }

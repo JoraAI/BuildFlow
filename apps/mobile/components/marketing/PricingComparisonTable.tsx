@@ -1,14 +1,16 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import { useViewport } from '@/hooks/useViewport';
-import { PRICING_COMPARISON, TRUST_PILLS } from '@/constants/marketing';
+import { PRICING_COMPARISON } from '@/constants/marketing';
+import { comparisonColumns, filteredTrustPills } from '@/utils/marketing-variant';
 
 export function PricingComparisonTable() {
   const { isMarketingDesktop } = useViewport();
   if (!isMarketingDesktop) return null;
 
-  const cols = ['inventory', 'starter', 'professional', 'enterprise'] as const;
-  const headers = ['Inventory', 'Starter', 'Professional', 'Enterprise'];
+  const { keys: cols, headers } = comparisonColumns();
+  // Single-plan Inventory install: comparison table adds little value.
+  if (cols.length <= 1) return null;
 
   return (
     <View className="mt-12">
@@ -46,10 +48,11 @@ export function PricingComparisonTable() {
 
 export function TrustStrip() {
   const { isMarketingDesktop } = useViewport();
+  const pills = filteredTrustPills();
 
   return (
     <View className={`flex-row flex-wrap gap-2 ${isMarketingDesktop ? 'mt-8' : 'mt-6'}`}>
-      {TRUST_PILLS.map((pill) => (
+      {pills.map((pill) => (
         <View key={pill} className="px-4 py-2 rounded-full bg-primary/8 border border-primary/15">
           <Text className="text-sm font-medium text-primary">{pill}</Text>
         </View>

@@ -2,14 +2,15 @@ import React from 'react';
 import { View, Text } from 'react-native';
 import { Card } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
-import { MARKETING_TESTIMONIALS } from '@/constants/marketing';
+import { filteredTestimonials } from '@/utils/marketing-variant';
 
 export function TestimonialRow() {
   const { isMarketingDesktop } = useViewport();
+  const testimonials = filteredTestimonials();
 
   return (
     <View className={`w-full gap-4 ${isMarketingDesktop ? 'flex-row items-stretch' : ''}`}>
-      {MARKETING_TESTIMONIALS.map((t) => (
+      {testimonials.map((t) => (
         <View key={t.name} className={isMarketingDesktop ? 'flex-1 min-w-0' : 'w-full'}>
           <Card className="h-full">
             <Text className="text-4xl text-accent/30 font-serif leading-none mb-2">"</Text>

@@ -1,5 +1,6 @@
 /**
  * BuildFlow public landing page.
+ * Native locked builds show product-specific sections; web keeps both products.
  */
 import React from 'react';
 import { MarketingPageShell } from '@/components/marketing/MarketingPageShell';
@@ -10,25 +11,24 @@ import { TestimonialRow } from '@/components/marketing/TestimonialRow';
 import { PricingTeaser } from '@/components/marketing/PricingTeaser';
 import { FaqGrid } from '@/components/marketing/FaqGrid';
 import { FullBleedCta } from '@/components/marketing/FullBleedCta';
+import {
+  landingFeaturesSection,
+  landingTrustSection,
+} from '@/utils/marketing-variant';
 
 export default function LandingPage() {
+  const features = landingFeaturesSection();
+  const trust = landingTrustSection();
+
   return (
     <MarketingPageShell>
       <DesktopHero />
 
-      <MarketingSection
-        id="features"
-        title="ERP for sites. Inventory for stores."
-        subtitle="Construction project suite plus Inventory with business profiles, warehouses, and GST accounting"
-      >
+      <MarketingSection id="features" title={features.title} subtitle={features.subtitle}>
         <FeatureGrid />
       </MarketingSection>
 
-      <MarketingSection
-        title="Trusted across construction and stock"
-        subtitle="What teams say about BuildFlow"
-        className="bg-card"
-      >
+      <MarketingSection title={trust.title} subtitle={trust.subtitle} className="bg-card">
         <TestimonialRow />
       </MarketingSection>
 

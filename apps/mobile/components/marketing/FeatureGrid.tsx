@@ -3,14 +3,15 @@ import { View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
-import { MARKETING_FEATURES } from '@/constants/marketing';
+import { filteredFeatures } from '@/utils/marketing-variant';
 
 export function FeatureGrid() {
   const { isMarketingDesktop } = useViewport();
+  const features = filteredFeatures();
 
   return (
     <View className={`w-full gap-4 ${isMarketingDesktop ? 'flex-row flex-wrap' : ''}`}>
-      {MARKETING_FEATURES.map((f) => (
+      {features.map((f) => (
         <View
           key={f.title}
           className={isMarketingDesktop ? 'w-[31%] min-w-[240px] flex-1' : 'w-full'}

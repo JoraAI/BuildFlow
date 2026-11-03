@@ -13,6 +13,8 @@ import { AppDesktopFooter } from '@/components/layout/AppDesktopFooter';
 import { AppMobileHeader } from '@/components/layout/AppMobileHeader';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
+import { WrongProductScreen } from '@/components/auth/WrongProductScreen';
+import { isProductMismatch } from '@/utils/product-home';
 import { AssistantFab } from '@/components/navigation/AssistantFab';
 import { AssistantOverlay } from '@/components/assistant/AssistantOverlay';
 import { useAssistantStore } from '@/stores/assistant.store';
@@ -69,8 +71,11 @@ export default function AppLayout() {
     );
   }
 
-  // INVENTORY_PRODUCT: inventory tenants live in the inventory shell - never
-  // show the construction sidebar / tab bar or let them land on construction tabs.
+  if (isProductMismatch(user.productMode)) {
+    return <WrongProductScreen />;
+  }
+
+  // Web / matching native: inventory tenants use the inventory shell.
   if (user.productMode === 'inventory') {
     return <Redirect href="/inventory" />;
   }

@@ -6,30 +6,33 @@ import { MarketingContent } from '@/components/marketing/MarketingContent';
 import { FreeTrialBadge } from '@/components/marketing/FreeTrialBadge';
 import { StartFreeTrialButton } from '@/components/marketing/StartFreeTrialButton';
 import { useViewport } from '@/hooks/useViewport';
-import { HERO_STATS, TRIAL_CTA } from '@/constants/marketing';
 import { BRAND_IMAGES } from '@/constants/navigation';
+import {
+  filteredHeroStats,
+  landingHeroCopy,
+  visibleTrialCtas,
+} from '@/utils/marketing-variant';
 
 export function DesktopHero() {
   const router = useRouter();
   const { isMarketingDesktop } = useViewport();
+  const copy = landingHeroCopy();
+  const trials = visibleTrialCtas();
+  const stats = filteredHeroStats();
 
   const ctaRow = (size: 'md' | 'lg') => (
     <View className="flex-row flex-wrap items-center gap-3 mt-8" style={{ zIndex: 30, elevation: 30 }}>
-      <StartFreeTrialButton
-        size={size}
-        label={TRIAL_CTA.erp.label}
-        hoverTitle={TRIAL_CTA.erp.hoverTitle}
-        hoverBody={TRIAL_CTA.erp.hoverBody}
-        onPress={() => router.push(TRIAL_CTA.erp.href as never)}
-      />
-      <StartFreeTrialButton
-        size={size}
-        variant="outline"
-        label={TRIAL_CTA.inventory.label}
-        hoverTitle={TRIAL_CTA.inventory.hoverTitle}
-        hoverBody={TRIAL_CTA.inventory.hoverBody}
-        onPress={() => router.push(TRIAL_CTA.inventory.href as never)}
-      />
+      {trials.map((cta, i) => (
+        <StartFreeTrialButton
+          key={cta.href}
+          size={size}
+          variant={i === 0 ? 'accent' : 'outline'}
+          label={cta.label}
+          hoverTitle={cta.hoverTitle}
+          hoverBody={cta.hoverBody}
+          onPress={() => router.push(cta.href as never)}
+        />
+      ))}
       <Pressable
         onPress={() => router.push('/login')}
         className={`${size === 'lg' ? 'px-6' : 'px-5'} py-3 rounded-lg border border-white/40 active:opacity-80`}
@@ -44,15 +47,10 @@ export function DesktopHero() {
       <ImageBackground source={{ uri: BRAND_IMAGES.loginHero }} resizeMode="cover" style={{ zIndex: 20 }}>
         <View className="bg-primary/85 px-4 py-14" style={{ zIndex: 20, overflow: 'visible' as const }}>
           <Text className="text-accent text-xs font-bold uppercase tracking-wider mb-3">
-            BuildFlow · ERP + Inventory
+            {copy.eyebrow}
           </Text>
-          <Text className="font-bold text-white leading-tight text-3xl">
-            Construction ERP and exclusive inventory.
-          </Text>
-          <Text className="text-white/75 mt-4 leading-relaxed text-base">
-            Run projects with GST accounting, or stock with Inventory profiles - retail, wholesale,
-            trading, materials, equipment - plus warehouses, SO→challan, invoices & Tally.
-          </Text>
+          <Text className="font-bold text-white leading-tight text-3xl">{copy.titleMobile}</Text>
+          <Text className="text-white/75 mt-4 leading-relaxed text-base">{copy.bodyMobile}</Text>
           {ctaRow('md')}
           <View className="mt-4 self-start">
             <FreeTrialBadge onDark />
@@ -68,22 +66,16 @@ export function DesktopHero() {
         <View className="flex-row items-center gap-12" style={{ overflow: 'visible' as const }}>
           <View className="flex-1 min-w-0" style={{ zIndex: 25, overflow: 'visible' as const }}>
             <Text className="text-accent text-sm font-bold uppercase tracking-wider mb-4">
-              BuildFlow · Construction ERP + Exclusive Inventory
+              {copy.eyebrow}
             </Text>
-            <Text className="font-bold text-white leading-tight text-5xl">
-              One platform for sites and stores.
-            </Text>
-            <Text className="text-white/75 mt-5 leading-relaxed text-xl max-w-xl">
-              Construction firms get full ERP and GST accounting. Stock businesses get Inventory with
-              profiles (retail through equipment), multi-warehouse, sales orders & challans, parties,
-              procurement, invoices, bills, and Tally.
-            </Text>
+            <Text className="font-bold text-white leading-tight text-5xl">{copy.titleDesktop}</Text>
+            <Text className="text-white/75 mt-5 leading-relaxed text-xl max-w-xl">{copy.bodyDesktop}</Text>
             {ctaRow('lg')}
             <View className="mt-5 max-w-md">
               <FreeTrialBadge onDark />
             </View>
             <View className="flex-row gap-6 mt-10">
-              {HERO_STATS.map((s) => (
+              {stats.map((s) => (
                 <View key={s.label}>
                   <Text className="text-accent text-2xl font-bold">{s.value}</Text>
                   <Text className="text-white/60 text-sm mt-0.5">{s.label}</Text>

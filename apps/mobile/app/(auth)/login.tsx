@@ -12,6 +12,12 @@ import { useViewport } from '@/hooks/useViewport';
 import { ApiError } from '@/lib/api-client';
 import { OTP_DIGITS } from '@buildflow/shared';
 import { sendLoginOtpRequest } from '@/services/auth.queries';
+import { homeHrefForProduct, isProductMismatch } from '@/utils/product-home';
+import {
+  appDisplayName,
+  getAppVariant,
+  otherProductAppName,
+} from '@/constants/app-variant';
 
 function looksLikePhone(value: string): boolean {
   const digits = value.replace(/\D/g, '');
@@ -28,6 +34,19 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const login = useAuthStore((s) => s.login);
   const { isDesktop } = useViewport();
+  const variant = getAppVariant();
+  const heroSubline =
+    variant === 'inventory'
+      ? 'Sign in with your Inventory workspace account.'
+      : variant === 'construction'
+        ? 'Sign in with your Construction ERP account.'
+        : 'Sign in to Construction ERP or Inventory - stock profiles, warehouses, sales & GST.';
+  const productsBlurb =
+    variant === 'inventory'
+      ? `This install is ${appDisplayName()}. Construction ERP accounts need the ${otherProductAppName()} app.`
+      : variant === 'construction'
+        ? `This install is ${appDisplayName()}. Inventory accounts need the ${otherProductAppName()} app.`
+        : 'Construction ERP for projects & estimates. Inventory for stock businesses - retail, wholesale, distribution, trading, material supply, equipment, or general - with warehouses, sales, and GST.';
 
   const handleSendOtp = async () => {
     setError('');
@@ -68,7 +87,7 @@ export default function LoginScreen() {
     try {
       await login(email.trim(), otp.trim());
       const productMode = useAuthStore.getState().user?.productMode;
-      router.replace(productMode === 'inventory' ? '/inventory' : '/dashboard');
+      router.replace(isProductMismatch(productMode) ? '/' : homeHrefForProduct(productMode));
     } catch (err) {
       const apiErr = err as ApiError;
       setError(apiErr.message || 'Login failed. Check your credentials.');
@@ -90,7 +109,7 @@ export default function LoginScreen() {
   return (
     <AuthScreenShell
       heroHeadline="Welcome back"
-      heroSubline="Sign in to Construction ERP or Inventory - stock profiles, warehouses, sales & GST."
+      heroSubline={heroSubline}
       backHref="/"
       formTitle="Sign in"
       formSubtitle="Enter your email or mobile and the OTP we send you. Invited to a shop? Use that mobile to join it."
@@ -161,10 +180,11 @@ export default function LoginScreen() {
       </TouchableOpacity>
 
       <View className="mt-6 rounded-lg border border-border bg-surface px-3 py-3">
-        <Text className="text-[11px] font-semibold text-text mb-1">Products</Text>
+        <Text className="text-[11px] font-semibold text-text mb-1">
+          {variant === 'web' ? 'Products' : 'This app'}
+        </Text>
         <Text className="text-[11px] text-muted leading-relaxed">
-          Construction ERP for projects & estimates. Inventory for stock businesses - retail, wholesale,
-          distribution, trading, material supply, equipment, or general - with warehouses, sales, and GST.
+          {productsBlurb}
         </Text>
         {__DEV__ ? (
           <Text className="text-[11px] text-muted leading-relaxed mt-2">

@@ -5,11 +5,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useViewport } from '@/hooks/useViewport';
 import { StartFreeTrialButton } from '@/components/marketing/StartFreeTrialButton';
 import { BuildFlowMark } from '@/components/brand/BuildFlowMark';
+import { marketingBrandName } from '@/utils/marketing-variant';
 
 export function MarketingNav() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isDesktop } = useViewport();
+  const brand = marketingBrandName();
 
   return (
     <View
@@ -26,7 +28,9 @@ export function MarketingNav() {
           className="flex-row items-center gap-2 active:opacity-80"
         >
           <BuildFlowMark size={36} />
-          <Text className="text-white text-lg font-bold">BuildFlow</Text>
+          <Text className="text-white text-lg font-bold" numberOfLines={1}>
+            {brand}
+          </Text>
         </Pressable>
 
         <View className="flex-row items-center gap-2">
