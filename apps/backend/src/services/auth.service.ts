@@ -150,7 +150,7 @@ export async function registerCompany(
     throw ApiError.forbidden('Public company registration is disabled. Contact sales to get started.');
   }
 
-  const { normalizePhone } = await import('@buildflow/shared');
+  const { normalizePhone, phoneLookupVariants } = await import('@buildflow/shared');
   const ownerPhone = input.ownerPhone ? normalizePhone(input.ownerPhone) : null;
   let ownerEmail = input.ownerEmail?.toLowerCase() || null;
 
@@ -172,17 +172,7 @@ export async function registerCompany(
   }
 
   if (ownerPhone) {
-    const digits = ownerPhone.replace(/\D/g, '');
-    const variants = Array.from(
-      new Set(
-        [
-          ownerPhone,
-          digits,
-          `+${digits}`,
-          digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : '',
-        ].filter(Boolean),
-      ),
-    );
+    const variants = phoneLookupVariants(ownerPhone);
     const existingPhone = await prisma.user.findFirst({
       where: { phone: { in: variants }, isActive: true },
       select: { id: true },
@@ -369,20 +359,8 @@ export async function login(
         include: { company: { select: companySelect } },
       })
     : await (async () => {
-        const { normalizePhone } = await import('@buildflow/shared');
-        const normalized = normalizePhone(identifier);
-        const digits = normalized.replace(/\D/g, '');
-        const variants = Array.from(
-          new Set(
-            [
-              normalized,
-              identifier,
-              digits,
-              `+${digits}`,
-              digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : '',
-            ].filter(Boolean),
-          ),
-        );
+        const { phoneLookupVariants } = await import('@buildflow/shared');
+        const variants = phoneLookupVariants(identifier);
         const active = await prisma.user.findFirst({
           where: { phone: { in: variants }, isActive: true },
           include: { company: { select: companySelect } },
@@ -494,19 +472,10 @@ export async function sendLoginOtp(identifierRaw: string): Promise<{
     };
   }
 
-  const { normalizePhone } = await import('@buildflow/shared');
+  const { normalizePhone, phoneLookupVariants } = await import('@buildflow/shared');
   const phone = normalizePhone(identifier);
   const digits = phone.replace(/\D/g, '');
-  const variants = Array.from(
-    new Set(
-      [
-        phone,
-        digits,
-        `+${digits}`,
-        digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : '',
-      ].filter(Boolean),
-    ),
-  );
+  const variants = phoneLookupVariants(phone);
   const fakeMasked = digits.length >= 4 ? `******${digits.slice(-4)}` : '******';
 
   const user = await prisma.user.findFirst({

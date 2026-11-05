@@ -618,20 +618,8 @@ async function findActiveBuyerByIdentifier(identifierRaw: string, companyId?: st
     });
   }
 
-  const { normalizePhone } = await import('@buildflow/shared');
-  const phone = normalizePhone(identifier);
-  const digits = phone.replace(/\D/g, '');
-  const variants = Array.from(
-    new Set(
-      [
-        phone,
-        digits,
-        `+${digits}`,
-        digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : '',
-        digits.length === 10 ? `+91${digits}` : '',
-      ].filter(Boolean),
-    ),
-  );
+  const { phoneLookupVariants } = await import('@buildflow/shared');
+  const variants = phoneLookupVariants(identifier);
 
   return prisma.buyerUser.findFirst({
     where: {

@@ -8,7 +8,13 @@ import { generateInviteToken, hashInviteToken } from '../utils/invite-token';
 import { recordAudit } from '../utils/audit';
 import { signAccessToken, signRefreshToken, expiresInSeconds } from '../utils/jwt';
 import { env } from '../config/env';
-import { Role, INVITABLE_ROLES_BY_PRODUCT, ROLE_LABELS, normalizePhone } from '@buildflow/shared';
+import {
+  Role,
+  INVITABLE_ROLES_BY_PRODUCT,
+  ROLE_LABELS,
+  normalizePhone,
+  phoneLookupVariants,
+} from '@buildflow/shared';
 import type {
   AcceptInviteInput,
   CreateTeamUserInput,
@@ -24,21 +30,6 @@ function issueTokens(payload: { sub: string; companyId: string; role: Role }) {
   const accessToken = signAccessToken(payload);
   const refreshToken = signRefreshToken(payload);
   return { accessToken, refreshToken, expiresIn: ACCESS_EXPIRES_SECONDS };
-}
-
-function phoneLookupVariants(phone: string): string[] {
-  const normalized = normalizePhone(phone);
-  const digits = normalized.replace(/\D/g, '');
-  const variants = new Set<string>([normalized, phone.trim()]);
-  if (digits) {
-    variants.add(digits);
-    variants.add(`+${digits}`);
-    if (digits.startsWith('91') && digits.length === 12) {
-      variants.add(digits.slice(2));
-      variants.add(`+91${digits.slice(2)}`);
-    }
-  }
-  return [...variants];
 }
 
 async function findUserByPhone(phone: string, opts?: { activeOnly?: boolean }) {

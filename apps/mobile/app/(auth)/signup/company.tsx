@@ -41,6 +41,7 @@ import { getAppVariant } from '@/constants/app-variant';
 function digitsIndiaMobile(raw: string): string {
   let digits = raw.replace(/\D/g, '');
   if (digits.startsWith('91') && digits.length > 10) digits = digits.slice(2);
+  if (digits.startsWith('0')) digits = digits.replace(/^0+/, '');
   return digits.slice(0, 10);
 }
 

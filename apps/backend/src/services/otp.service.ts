@@ -91,21 +91,33 @@ export async function issueOtp(opts: {
   }
 
   // When delivery is not configured / failed, expose code outside production.
-  const exposeDevCode = env.NODE_ENV !== 'production' && !delivered;
-  if (exposeDevCode) {
-    logger.info('OTP (dev/test — not delivered)', {
-      purpose: opts.purpose,
-      channel: opts.channel,
-      destination: opts.destination,
-      code,
-    });
+  // Production must not tell the user the SMS was sent if the provider rejected it.
+  if (!delivered) {
+    if (env.NODE_ENV !== 'production') {
+      logger.info('OTP (dev/test — not delivered)', {
+        purpose: opts.purpose,
+        channel: opts.channel,
+        destination: opts.destination,
+        code,
+      });
+      return {
+        sent: true,
+        expiresInSec: OTP_TTL_SEC,
+        destinationMasked: maskDestination(opts.channel, opts.destination),
+        devCode: code,
+      };
+    }
+    throw ApiError.badRequest(
+      opts.channel === 'sms'
+        ? 'Could not send the OTP SMS. Check the mobile number and try again.'
+        : 'Could not send the OTP email. Check the address and try again.',
+    );
   }
 
   return {
     sent: true,
     expiresInSec: OTP_TTL_SEC,
     destinationMasked: maskDestination(opts.channel, opts.destination),
-    ...(exposeDevCode ? { devCode: code } : {}),
   };
 }
 

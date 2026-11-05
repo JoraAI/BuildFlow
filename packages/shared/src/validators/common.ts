@@ -75,16 +75,37 @@ export const dateSchema = z
 
 /**
  * Normalize mobile numbers for storage/lookup.
- * 10-digit Indian mobiles become +91…; other inputs keep digits with a leading +.
+ * 10-digit Indian mobiles (and 0-prefixed STD form) become +91…;
+ * other inputs keep digits with a leading +.
  */
 export function normalizePhone(raw: string): string {
   const trimmed = raw.trim();
-  const digits = trimmed.replace(/\D/g, '');
+  let digits = trimmed.replace(/\D/g, '');
   if (!digits) return '';
+  // 09876543210 → 9876543210 (common keypad entry)
+  if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
   if (digits.length === 10) return `+91${digits}`;
   if (digits.length === 12 && digits.startsWith('91')) return `+${digits}`;
   if (trimmed.startsWith('+')) return `+${digits}`;
   return `+${digits}`;
+}
+
+/** Forms of a mobile that may already be stored (E.164, digits, 10-digit local). */
+export function phoneLookupVariants(phone: string): string[] {
+  const normalized = normalizePhone(phone);
+  const digits = normalized.replace(/\D/g, '');
+  const variants = new Set<string>([normalized, phone.trim()]);
+  if (digits) {
+    variants.add(digits);
+    variants.add(`+${digits}`);
+    if (digits.startsWith('91') && digits.length === 12) {
+      const local = digits.slice(2);
+      variants.add(local);
+      variants.add(`+91${local}`);
+      variants.add(`0${local}`);
+    }
+  }
+  return [...variants].filter(Boolean);
 }
 
 /** E.164-ish phone (8–15 digits after country code). */
