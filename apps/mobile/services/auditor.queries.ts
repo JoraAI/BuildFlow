@@ -211,7 +211,11 @@ async function shareDownloadedFile(uri: string | null, filename: string, mimeTyp
   toast.success(Platform.OS === 'web' ? `${filename} download started` : `${filename} saved to device`);
 }
 
-/** Download GSTR-1 offline JSON or companion CSV for portal / Tally prep. */
+/**
+ * Download GSTR-1 for GST Returns Offline Tool:
+ * - gstr1-json → portal/offline JSON
+ * - csv → zip of section-wise CSVs (b2b, b2cs, cdnr, hsn…)
+ */
 export async function downloadGstPackExport(
   packId: string,
   format: 'gstr1-json' | 'csv',
@@ -220,10 +224,10 @@ export async function downloadGstPackExport(
   const base = opts?.asOwner
     ? `/inventory/auditor/packs/${packId}/export`
     : `/inventory/auditor/inbox/${packId}/export`;
-  const ext = format === 'csv' ? 'csv' : 'json';
-  const mime = format === 'csv' ? 'text/csv' : 'application/json';
-  const filename = format === 'csv' ? `gst-pack-${packId}.csv` : `gstr1-${packId}.json`;
-  toast.info(format === 'csv' ? 'Preparing CSV…' : 'Preparing GSTR-1 JSON…');
+  const mime = format === 'csv' ? 'application/zip' : 'application/json';
+  const filename =
+    format === 'csv' ? `gstr1-offline-${packId}.zip` : `gstr1-${packId}.json`;
+  toast.info(format === 'csv' ? 'Preparing GST Offline CSV zip…' : 'Preparing GSTR-1 JSON…');
   try {
     const uri = await apiDownload(`${base}?format=${format}`, filename, mime);
     await shareDownloadedFile(uri, filename, mime);

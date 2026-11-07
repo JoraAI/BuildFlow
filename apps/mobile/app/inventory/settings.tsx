@@ -925,7 +925,7 @@ export default function InventorySettingsScreen() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        label="CSV"
+                        label="Offline zip"
                         onPress={() => void downloadGstPackExport(p.id, 'csv', { asOwner: true })}
                       />
                       <Badge label={p.status} />

@@ -223,7 +223,7 @@ export default function AuditorPackScreen() {
               onPress={() => void downloadGstPackExport(packId!, 'gstr1-json')}
             />
             <Button
-              label="CSV"
+              label="Offline CSV zip"
               variant="secondary"
               size="sm"
               onPress={() => void downloadGstPackExport(packId!, 'csv')}

@@ -78,7 +78,7 @@ export const TOOL_CAPABILITIES: ToolCapability[] = [
   { id: 'get_gst_pack_purchases', description: 'List purchase bills (and debit notes) in a GST pack', requires: 'auditor.view_packs', module: 'Auditor' },
   { id: 'add_auditor_note', description: 'Add a filing note on a GST pack for the shop owner', requires: 'auditor.manual_entry', module: 'Auditor' },
   { id: 'update_pack_status', description: 'Mark a GST pack IN_PROGRESS or FILED', requires: 'auditor.file_pack', module: 'Auditor' },
-  { id: 'export_gst_pack', description: 'Describe how to download GSTR-1 JSON or CSV for a sent GST pack (portal upload files)', requires: 'auditor.view_packs', module: 'Auditor' },
+  { id: 'export_gst_pack', description: 'Describe how to download GSTR-1 JSON or GST Offline Tool section-wise CSV zip for a sent GST pack', requires: 'auditor.view_packs', module: 'Auditor' },
 ];
 
 /**

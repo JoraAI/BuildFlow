@@ -12,6 +12,12 @@ import {
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
 import { recordAudit } from '../utils/audit';
+import {
+  buildGstr1OfflineJson,
+  buildGstr1OfflineSectionFiles,
+  resolveStateCode,
+  zipSectionFiles,
+} from './gstr1-offline.service';
 
 export async function countAuditorsForCompany(companyId: string): Promise<number> {
   const [users, pending] = await Promise.all([
@@ -819,144 +825,12 @@ export async function getGstHandoffPackDetail(
   };
 }
 
-function fpFromPeriod(periodEnd: string): string {
-  const [y, m] = periodEnd.split('-');
-  return `${m}${y}`;
-}
-
-function buildGstr1Json(opts: {
-  gstin: string;
-  periodEnd: string;
-  gst: PackGstSlice;
-}) {
-  const { gstin, periodEnd, gst } = opts;
-  const b2bMap = new Map<string, Array<Record<string, unknown>>>();
-  const b2cs: Array<Record<string, unknown>> = [];
-  const b2cl: Array<Record<string, unknown>> = [];
-
-  for (const inv of gst.invoices) {
-    if (inv.bucket === 'B2B' && inv.clientGstin) {
-      const rows = b2bMap.get(inv.clientGstin) ?? [];
-      rows.push({
-        inum: inv.number,
-        idt: inv.date.split('-').reverse().join('-'),
-        val: inv.total,
-        pos: (inv.clientState ?? '').slice(0, 2) || '00',
-        rchrg: 'N',
-        inv_typ: 'R',
-        itms: [
-          {
-            num: 1,
-            itm_det: {
-              txval: inv.taxable,
-              rt: inv.gstRate,
-              camt: inv.cgst,
-              samt: inv.sgst,
-              iamt: inv.igst,
-              csamt: 0,
-            },
-          },
-        ],
-      });
-      b2bMap.set(inv.clientGstin, rows);
-    } else if (inv.igst > 0 && inv.total >= 250000) {
-      b2cl.push({
-        inum: inv.number,
-        idt: inv.date.split('-').reverse().join('-'),
-        val: inv.total,
-        pos: (inv.clientState ?? '').slice(0, 2) || '00',
-        itms: [
-          {
-            num: 1,
-            itm_det: { txval: inv.taxable, rt: inv.gstRate, iamt: inv.igst, csamt: 0 },
-          },
-        ],
-      });
-    } else {
-      b2cs.push({
-        sply_ty: inv.igst > 0 ? 'INTER' : 'INTRA',
-        pos: (inv.clientState ?? '').slice(0, 2) || '00',
-        typ: 'OE',
-        txval: inv.taxable,
-        rt: inv.gstRate,
-        camt: inv.cgst,
-        samt: inv.sgst,
-        iamt: inv.igst,
-        csamt: 0,
-      });
-    }
-  }
-
-  const cdnrMap = new Map<string, Array<Record<string, unknown>>>();
-  for (const cn of gst.creditNotes) {
-    const ctin = cn.partyGstin?.trim();
-    if (!ctin) continue;
-    const rows = cdnrMap.get(ctin) ?? [];
-    rows.push({
-      ntty: 'C',
-      nt_num: cn.number,
-      nt_dt: cn.date.split('-').reverse().join('-'),
-      val: cn.total,
-      rsn: '01',
-      p_gst: 'N',
-      itms: [
-        {
-          num: 1,
-          itm_det: {
-            txval: cn.taxable,
-            rt: cn.lines?.[0]?.gstRate ?? 0,
-            camt: cn.cgst,
-            samt: cn.sgst,
-            iamt: cn.igst,
-            csamt: 0,
-          },
-        },
-      ],
-    });
-    cdnrMap.set(ctin, rows);
-  }
-
-  return {
-    gstin,
-    fp: fpFromPeriod(periodEnd),
-    b2b: [...b2bMap.entries()].map(([ctin, inv]) => ({ ctin, inv })),
-    b2cl,
-    b2cs,
-    cdnr: [...cdnrMap.entries()].map(([ctin, nt]) => ({ ctin, nt })),
-    hsn: {
-      data: gst.hsnSummary
-        .filter((h) => h.hsn !== '(missing)')
-        .map((h, i) => ({
-          num: i + 1,
-          hsnsac: h.hsn,
-          qty: h.qty,
-          rt: 0,
-          txval: Number(h.taxable.toFixed(2)),
-          iamt: 0,
-          camt: 0,
-          samt: 0,
-          csamt: 0,
-        })),
-    },
-  };
-}
-
-function csvEscape(v: unknown): string {
-  const s = v == null ? '' : String(v);
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}
-
-function toCsv(headers: string[], rows: unknown[][]): string {
-  return [headers.join(','), ...rows.map((r) => r.map(csvEscape).join(','))].join('\n');
-}
-
-/** Export pack as GSTR-1 JSON or CSV sheets for portal / Excel upload. */
+/** Export pack as GST Offline Tool JSON or section-wise CSV zip. */
 export async function exportGstHandoffPack(
   companyId: string,
   packId: string,
   opts: { auditorUserId?: string; format: 'gstr1-json' | 'csv' },
-): Promise<{ filename: string; contentType: string; body: string }> {
+): Promise<{ filename: string; contentType: string; body: string | Buffer }> {
   const detail = await getGstHandoffPackDetail(companyId, packId, {
     auditorUserId: opts.auditorUserId,
   });
@@ -965,16 +839,18 @@ export async function exportGstHandoffPack(
   }
   const company = await prisma.company.findUniqueOrThrow({
     where: { id: companyId },
-    select: { gstin: true, name: true },
+    select: { gstin: true, name: true, state: true },
   });
   const gst = normalizePackGst(detail.gst);
   const label = detail.label.replace(/[^\w.-]+/g, '_');
+  const supplierStateCode = resolveStateCode(company.state, company.gstin);
 
   if (opts.format === 'gstr1-json') {
-    const json = buildGstr1Json({
+    const json = buildGstr1OfflineJson({
       gstin: company.gstin,
       periodEnd: detail.periodEnd,
       gst,
+      supplierStateCode,
     });
     return {
       filename: `gstr1-${label}.json`,
@@ -983,78 +859,16 @@ export async function exportGstHandoffPack(
     };
   }
 
-  const salesCsv = toCsv(
-    ['number', 'date', 'party', 'gstin', 'bucket', 'taxable', 'cgst', 'sgst', 'igst', 'total'],
-    gst.invoices.map((i) => [
-      i.number,
-      i.date,
-      i.clientName,
-      i.clientGstin,
-      i.bucket,
-      i.taxable,
-      i.cgst,
-      i.sgst,
-      i.igst,
-      i.total,
-    ]),
-  );
-  const purchasesCsv = toCsv(
-    ['number', 'date', 'vendor', 'gstin', 'taxable', 'gst', 'total'],
-    gst.bills.map((b) => [b.number, b.date, b.vendorName, b.vendorGstin, b.taxable, b.gst, b.total]),
-  );
-  const cdnrCsv = toCsv(
-    ['type', 'number', 'date', 'party', 'gstin', 'taxable', 'cgst', 'sgst', 'igst', 'total'],
-    [
-      ...gst.creditNotes.map((c) => [
-        'CREDIT',
-        c.number,
-        c.date,
-        c.partyName,
-        c.partyGstin,
-        c.taxable,
-        c.cgst,
-        c.sgst,
-        c.igst,
-        c.total,
-      ]),
-      ...gst.debitNotes.map((d) => [
-        'DEBIT',
-        d.number,
-        d.date,
-        d.partyName,
-        d.partyGstin,
-        d.taxable,
-        d.cgst,
-        d.sgst,
-        d.igst,
-        d.total,
-      ]),
-    ],
-  );
-  const hsnCsv = toCsv(
-    ['hsn', 'lines', 'qty', 'taxable', 'tax'],
-    gst.hsnSummary.map((h) => [h.hsn, h.lineCount, h.qty, h.taxable, h.tax]),
-  );
-
-  const body = [
-    '=== SALES ===',
-    salesCsv,
-    '',
-    '=== PURCHASES ===',
-    purchasesCsv,
-    '',
-    '=== CREDIT_DEBIT_NOTES ===',
-    cdnrCsv,
-    '',
-    '=== HSN ===',
-    hsnCsv,
-    '',
-  ].join('\n');
-
+  const files = buildGstr1OfflineSectionFiles({
+    gst,
+    periodEnd: detail.periodEnd,
+    supplierStateCode,
+  });
+  const zip = await zipSectionFiles(files);
   return {
-    filename: `gst-pack-${label}.csv`,
-    contentType: 'text/csv; charset=utf-8',
-    body,
+    filename: `gstr1-offline-${label}.zip`,
+    contentType: 'application/zip',
+    body: zip,
   };
 }
 

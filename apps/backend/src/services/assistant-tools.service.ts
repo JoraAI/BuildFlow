@@ -718,9 +718,13 @@ export async function executeAssistantTool(
       const fmt = format === 'csv' ? 'csv' : 'gstr1-json';
       return serialize({
         message:
-          'Download the file from the Auditor pack screen (Download GSTR-1 / Download CSV), or use the API path below while signed in.',
+          fmt === 'csv'
+            ? 'Download the GST Offline Tool section-wise CSV zip from the Auditor pack screen (Offline CSV zip), then Import CSV in the official GST Returns Offline Tool.'
+            : 'Download GSTR-1 JSON from the Auditor pack screen, then open/generate in the GST Returns Offline Tool or upload on the GST portal.',
         format: fmt,
         path: `/api/inventory/auditor/inbox/${packId}/export?format=${fmt}`,
+        offlineToolHint:
+          'Zip contains b2b,sez,de.csv, b2cl.csv, b2cs.csv, cdnr.csv, cdnur.csv, hsn(b2b).csv, hsn(b2c).csv, docs.csv — same headers as gst_offline_tool.zip.',
       });
     }
     default:
