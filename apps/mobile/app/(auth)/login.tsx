@@ -1,5 +1,6 @@
 /**
  * Login screen - email/mobile + OTP only.
+ * Inventory: Indian mobile (+91) only. Construction / web: mobile or email.
  */
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
@@ -18,17 +19,18 @@ import {
   otherProductAppName,
 } from '@/constants/app-variant';
 
-/** Email-shaped once @ or a letter appears; otherwise treat as mobile. */
-function isEmailMode(value: string): boolean {
-  return value.includes('@') || /[a-zA-Z]/.test(value);
+type ContactMethod = 'email' | 'phone';
+
+/** 10-digit Indian mobile, stripping pasted +91 / leading 0. */
+function digitsIndiaMobile(raw: string): string {
+  let digits = raw.replace(/\D/g, '');
+  if (digits.startsWith('91') && digits.length > 10) digits = digits.slice(2);
+  if (digits.startsWith('0')) digits = digits.replace(/^0+/, '');
+  return digits.slice(0, 10);
 }
 
-/** Phone: digits and common phone punctuation. Email: typical address chars. */
-function sanitizeIdentifier(raw: string): string {
-  if (isEmailMode(raw)) {
-    return raw.replace(/[^a-zA-Z0-9.@_+-]/g, '');
-  }
-  return raw.replace(/[^\d+()\s-]/g, '');
+function sanitizeEmail(raw: string): string {
+  return raw.replace(/[^a-zA-Z0-9.@_+-]/g, '');
 }
 
 function sanitizeOtp(raw: string): string {
@@ -46,13 +48,21 @@ export default function LoginScreen() {
   const login = useAuthStore((s) => s.login);
   const { isDesktop } = useViewport();
   const variant = getAppVariant();
-  const emailMode = isEmailMode(email);
+  const phoneOnly = variant === 'inventory';
+  const [contactMethod, setContactMethod] = useState<ContactMethod>(
+    phoneOnly ? 'phone' : 'email',
+  );
+  const emailMode = !phoneOnly && contactMethod === 'email';
+  const canSendOtp = emailMode ? Boolean(email.trim()) : email.length === 10;
   const heroSubline =
     variant === 'inventory'
       ? 'Sign in with your Inventory workspace account.'
       : variant === 'construction'
         ? 'Sign in with your Construction ERP account.'
         : 'Sign in to Construction ERP or Inventory - stock profiles, warehouses, sales & GST.';
+  const formSubtitle = phoneOnly
+    ? "Enter your mobile number — we'll send a one-time code."
+    : "Mobile number or email — we'll send a one-time code.";
   const productsBlurb =
     variant === 'inventory'
       ? `This install is ${appDisplayName()}. Construction ERP accounts need the ${otherProductAppName()} app.`
@@ -62,8 +72,13 @@ export default function LoginScreen() {
 
   const handleSendOtp = async () => {
     setError('');
-    if (!email.trim()) {
-      setError(emailMode ? 'Enter your email to receive an OTP' : 'Enter your mobile to receive an OTP');
+    if (emailMode) {
+      if (!email.trim()) {
+        setError('Enter your email to receive an OTP');
+        return;
+      }
+    } else if (email.length !== 10) {
+      setError('Enter a valid 10-digit mobile number');
       return;
     }
     setSendingOtp(true);
@@ -83,8 +98,7 @@ export default function LoginScreen() {
     }
   };
 
-  const onIdentifierChange = (value: string) => {
-    setEmail(sanitizeIdentifier(value));
+  const clearOtpStep = () => {
     if (otpSent || otp || otpHint) {
       setOtp('');
       setOtpHint(null);
@@ -92,10 +106,28 @@ export default function LoginScreen() {
     }
   };
 
+  const onIdentifierChange = (value: string) => {
+    setEmail(emailMode ? sanitizeEmail(value) : digitsIndiaMobile(value));
+    clearOtpStep();
+  };
+
+  const switchContactMethod = (method: ContactMethod) => {
+    if (method === contactMethod) return;
+    setContactMethod(method);
+    setEmail('');
+    setError('');
+    clearOtpStep();
+  };
+
   const handleLogin = async () => {
     setError('');
-    if (!email.trim()) {
-      setError('Please enter email or mobile');
+    if (emailMode) {
+      if (!email.trim()) {
+        setError('Please enter your email');
+        return;
+      }
+    } else if (email.length !== 10) {
+      setError('Please enter a valid 10-digit mobile number');
       return;
     }
     if (!otp.trim()) {
@@ -131,7 +163,7 @@ export default function LoginScreen() {
       heroSubline={heroSubline}
       backHref="/"
       formTitle="Sign in"
-      formSubtitle="Mobile number or email — we'll send a one-time code."
+      formSubtitle={formSubtitle}
       footer={
         isDesktop ? (
           <>
@@ -143,15 +175,55 @@ export default function LoginScreen() {
         ) : undefined
       }
     >
-      <Input
-        label={emailMode ? 'Email' : 'Mobile number'}
-        value={email}
-        onChangeText={onIdentifierChange}
-        placeholder={emailMode ? 'you@company.com' : '9876543210'}
-        keyboardType={emailMode ? 'email-address' : 'phone-pad'}
-        autoCapitalize="none"
-        autoComplete={emailMode ? 'email' : 'tel'}
-      />
+      {!phoneOnly ? (
+        <View className="flex-row gap-2 mb-3">
+          {(['email', 'phone'] as const).map((m) => (
+            <TouchableOpacity
+              key={m}
+              onPress={() => switchContactMethod(m)}
+              className={`flex-1 py-2.5 rounded-lg items-center ${
+                contactMethod === m ? 'bg-primary' : 'bg-surface'
+              }`}
+            >
+              <Text
+                className={`text-sm font-semibold ${
+                  contactMethod === m ? 'text-white' : 'text-text'
+                }`}
+              >
+                {m === 'email' ? 'Email' : 'Mobile'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : null}
+
+      {emailMode ? (
+        <Input
+          label="Email"
+          value={email}
+          onChangeText={onIdentifierChange}
+          placeholder="you@company.com"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoComplete="email"
+        />
+      ) : (
+        <Input
+          label="Mobile number"
+          value={email}
+          onChangeText={onIdentifierChange}
+          placeholder="9876543210"
+          keyboardType="phone-pad"
+          autoCapitalize="none"
+          autoComplete="tel"
+          maxLength={10}
+          leftIcon={
+            <Text className="text-sm font-semibold text-text pr-2 mr-2 border-r border-border">
+              +91
+            </Text>
+          }
+        />
+      )}
 
       <View className="h-3" />
 
@@ -160,7 +232,7 @@ export default function LoginScreen() {
         variant="secondary"
         onPress={handleSendOtp}
         loading={sendingOtp}
-        disabled={!email.trim()}
+        disabled={!canSendOtp}
         fullWidth
       />
 
