@@ -6,7 +6,6 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Button, Input } from '@/components/ui';
 import { AuthScreenShell } from '@/components/auth/AuthScreenShell';
-import { SmsConsentCheckbox } from '@/components/auth/SmsConsentCheckbox';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
 import { ApiError } from '@/lib/api-client';
@@ -19,9 +18,21 @@ import {
   otherProductAppName,
 } from '@/constants/app-variant';
 
-function looksLikePhone(value: string): boolean {
-  const digits = value.replace(/\D/g, '');
-  return digits.length >= 10 && !value.includes('@');
+/** Email-shaped once @ or a letter appears; otherwise treat as mobile. */
+function isEmailMode(value: string): boolean {
+  return value.includes('@') || /[a-zA-Z]/.test(value);
+}
+
+/** Phone: digits and common phone punctuation. Email: typical address chars. */
+function sanitizeIdentifier(raw: string): string {
+  if (isEmailMode(raw)) {
+    return raw.replace(/[^a-zA-Z0-9.@_+-]/g, '');
+  }
+  return raw.replace(/[^\d+()\s-]/g, '');
+}
+
+function sanitizeOtp(raw: string): string {
+  return raw.replace(/\D/g, '').slice(0, OTP_DIGITS);
 }
 
 export default function LoginScreen() {
@@ -29,13 +40,13 @@ export default function LoginScreen() {
   const [otp, setOtp] = useState('');
   const [otpHint, setOtpHint] = useState<string | null>(null);
   const [otpSent, setOtpSent] = useState(false);
-  const [smsConsent, setSmsConsent] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const login = useAuthStore((s) => s.login);
   const { isDesktop } = useViewport();
   const variant = getAppVariant();
+  const emailMode = isEmailMode(email);
   const heroSubline =
     variant === 'inventory'
       ? 'Sign in with your Inventory workspace account.'
@@ -52,11 +63,7 @@ export default function LoginScreen() {
   const handleSendOtp = async () => {
     setError('');
     if (!email.trim()) {
-      setError('Enter email or mobile to receive an OTP');
-      return;
-    }
-    if (looksLikePhone(email) && !smsConsent) {
-      setError('Please agree to receive SMS authentication codes before sending OTP');
+      setError(emailMode ? 'Enter your email to receive an OTP' : 'Enter your mobile to receive an OTP');
       return;
     }
     setSendingOtp(true);
@@ -77,7 +84,7 @@ export default function LoginScreen() {
   };
 
   const onIdentifierChange = (value: string) => {
-    setEmail(value);
+    setEmail(sanitizeIdentifier(value));
     if (otpSent || otp || otpHint) {
       setOtp('');
       setOtpHint(null);
@@ -137,23 +144,19 @@ export default function LoginScreen() {
       }
     >
       <Input
-        label="Mobile number"
+        label={emailMode ? 'Email' : 'Mobile number'}
         value={email}
         onChangeText={onIdentifierChange}
-        placeholder="9876543210"
-        keyboardType="default"
+        placeholder={emailMode ? 'you@company.com' : '9876543210'}
+        keyboardType={emailMode ? 'email-address' : 'phone-pad'}
         autoCapitalize="none"
-        autoComplete="off"
+        autoComplete={emailMode ? 'email' : 'tel'}
         helper={
-          email.includes('@')
-            ? 'This will email a code. If you signed in on the phone with a mobile number, type that same 10-digit number here to get an SMS.'
-            : 'Same number you used on the phone. Tick the SMS box, then send the code.'
+          emailMode
+            ? 'We will email a login code. For phone-signup accounts, clear this and enter the 10-digit mobile instead.'
+            : 'Same number you used on the phone. Digits and + only — then send the code.'
         }
       />
-
-      {looksLikePhone(email) ? (
-        <SmsConsentCheckbox checked={smsConsent} onCheckedChange={setSmsConsent} />
-      ) : null}
 
       <View className="h-3" />
 
@@ -172,7 +175,7 @@ export default function LoginScreen() {
           <Input
             label="OTP"
             value={otp}
-            onChangeText={setOtp}
+            onChangeText={(v) => setOtp(sanitizeOtp(v))}
             placeholder="6-digit code"
             keyboardType="number-pad"
             maxLength={6}
