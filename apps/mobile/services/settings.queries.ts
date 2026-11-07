@@ -29,6 +29,9 @@ export interface CompanyProfile {
   /** INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.1): vertical / catalog template; null until applied. */
   inventoryVertical?: string | null;
   catalogSeededAt?: string | null;
+  /** Auditor GST pack cadence (inventory-only). */
+  auditorPackCadence?: 'MONTHLY' | 'QUARTERLY' | null;
+  auditorPackDay?: number | null;
 }
 export interface MyProfile {
   id: string;

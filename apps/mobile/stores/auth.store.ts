@@ -43,7 +43,9 @@ export interface AuthUser {
     companyId: string;
     companyName: string;
     inventoryVertical: string | null;
+    inventoryProfile: string | null;
     subscriptionPlan: string;
+    openPackCount: number;
   }>;
 }
 

@@ -26,6 +26,14 @@ export async function sendPack(req: Request, res: Response, next: NextFunction) 
   }
 }
 
+export async function deletePack(req: Request, res: Response, next: NextFunction) {
+  try {
+    ok(res, await svc.deleteDraftPack(req.user!.companyId, req.params.packId, req.user!.id));
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function ownerPackDetail(req: Request, res: Response, next: NextFunction) {
   try {
     ok(res, await svc.getGstHandoffPackDetail(req.user!.companyId, req.params.packId, {}));

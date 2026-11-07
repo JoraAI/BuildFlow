@@ -112,28 +112,27 @@ export async function getCompanyProfile(companyId: string) {
       creditLimitPolicy: true,
       poAutoApproveBelow: true,
       poOwnerApproveAbove: true,
+      auditorPackCadence: true,
+      auditorPackDay: true,
     },
   });
   const logoDisplayUrl = await resolveLogoDisplayUrl(companyId, company.logoUrl);
+  const isInventory = company.subscriptionPlan === 'INVENTORY';
   return {
     ...company,
     logoDisplayUrl,
     // INVENTORY_HORIZONTAL_PLATFORM (Phase 0): hidden on construction plans.
-    inventoryProfile:
-      company.subscriptionPlan === 'INVENTORY'
-        ? (company.inventoryProfile ?? 'GENERAL')
-        : null,
+    inventoryProfile: isInventory ? (company.inventoryProfile ?? 'GENERAL') : null,
     // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.1): inventory-only vertical.
-    inventoryVertical: company.subscriptionPlan === 'INVENTORY' ? company.inventoryVertical : null,
-    catalogSeededAt: company.subscriptionPlan === 'INVENTORY' ? company.catalogSeededAt : null,
+    inventoryVertical: isInventory ? company.inventoryVertical : null,
+    catalogSeededAt: isInventory ? company.catalogSeededAt : null,
     // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): inventory-only policy.
-    creditLimitPolicy:
-      company.subscriptionPlan === 'INVENTORY' ? company.creditLimitPolicy : null,
+    creditLimitPolicy: isInventory ? company.creditLimitPolicy : null,
     // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.4): inventory-only PO thresholds.
-    poAutoApproveBelow:
-      company.subscriptionPlan === 'INVENTORY' ? Number(company.poAutoApproveBelow) : null,
-    poOwnerApproveAbove:
-      company.subscriptionPlan === 'INVENTORY' ? Number(company.poOwnerApproveAbove) : null,
+    poAutoApproveBelow: isInventory ? Number(company.poAutoApproveBelow) : null,
+    poOwnerApproveAbove: isInventory ? Number(company.poOwnerApproveAbove) : null,
+    auditorPackCadence: isInventory ? company.auditorPackCadence : null,
+    auditorPackDay: isInventory ? company.auditorPackDay : null,
   };
 }
 
@@ -151,6 +150,8 @@ export interface CompanyUpdateInput {
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.4): PO approval thresholds (₹).
   poAutoApproveBelow?: number;
   poOwnerApproveAbove?: number;
+  auditorPackCadence?: 'MONTHLY' | 'QUARTERLY';
+  auditorPackDay?: number;
 }
 
 // RPT-C2a: Report settings API
@@ -192,17 +193,21 @@ export async function updateCompanyProfile(companyId: string, data: CompanyUpdat
     data.inventoryProfile !== undefined ||
     data.creditLimitPolicy !== undefined ||
     data.poAutoApproveBelow !== undefined ||
-    data.poOwnerApproveAbove !== undefined
+    data.poOwnerApproveAbove !== undefined ||
+    data.auditorPackCadence !== undefined ||
+    data.auditorPackDay !== undefined
   ) {
     const current = await prisma.company.findUnique({
       where: { id: companyId },
       select: { subscriptionPlan: true },
     });
     if (current?.subscriptionPlan !== 'INVENTORY') {
-      delete (write as { inventoryProfile?: unknown; creditLimitPolicy?: unknown; poAutoApproveBelow?: unknown; poOwnerApproveAbove?: unknown }).inventoryProfile;
-      delete (write as { inventoryProfile?: unknown; creditLimitPolicy?: unknown; poAutoApproveBelow?: unknown; poOwnerApproveAbove?: unknown }).creditLimitPolicy;
-      delete (write as { inventoryProfile?: unknown; creditLimitPolicy?: unknown; poAutoApproveBelow?: unknown; poOwnerApproveAbove?: unknown }).poAutoApproveBelow;
-      delete (write as { inventoryProfile?: unknown; creditLimitPolicy?: unknown; poAutoApproveBelow?: unknown; poOwnerApproveAbove?: unknown }).poOwnerApproveAbove;
+      delete write.inventoryProfile;
+      delete write.creditLimitPolicy;
+      delete write.poAutoApproveBelow;
+      delete write.poOwnerApproveAbove;
+      delete write.auditorPackCadence;
+      delete write.auditorPackDay;
     }
   }
   const company = await prisma.company.update({
@@ -221,22 +226,21 @@ export async function updateCompanyProfile(companyId: string, data: CompanyUpdat
       creditLimitPolicy: true,
       poAutoApproveBelow: true,
       poOwnerApproveAbove: true,
+      auditorPackCadence: true,
+      auditorPackDay: true,
     },
   });
   const logoDisplayUrl = await resolveLogoDisplayUrl(companyId, company.logoUrl);
+  const isInventory = company.subscriptionPlan === 'INVENTORY';
   return {
     ...company,
     logoDisplayUrl,
-    inventoryProfile:
-      company.subscriptionPlan === 'INVENTORY'
-        ? (company.inventoryProfile ?? 'GENERAL')
-        : null,
-    creditLimitPolicy:
-      company.subscriptionPlan === 'INVENTORY' ? company.creditLimitPolicy : null,
-    poAutoApproveBelow:
-      company.subscriptionPlan === 'INVENTORY' ? Number(company.poAutoApproveBelow) : null,
-    poOwnerApproveAbove:
-      company.subscriptionPlan === 'INVENTORY' ? Number(company.poOwnerApproveAbove) : null,
+    inventoryProfile: isInventory ? (company.inventoryProfile ?? 'GENERAL') : null,
+    creditLimitPolicy: isInventory ? company.creditLimitPolicy : null,
+    poAutoApproveBelow: isInventory ? Number(company.poAutoApproveBelow) : null,
+    poOwnerApproveAbove: isInventory ? Number(company.poOwnerApproveAbove) : null,
+    auditorPackCadence: isInventory ? company.auditorPackCadence : null,
+    auditorPackDay: isInventory ? company.auditorPackDay : null,
   };
 }
 

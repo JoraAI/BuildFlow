@@ -79,6 +79,46 @@ export function usesIceCreamManufacturerCopy(vertical?: string | null): boolean 
   return vertical === 'ICE_CREAM';
 }
 
+/**
+ * GST classification code wording by shop type.
+ * Stored field stays `hsnSacCode`; labels adapt for goods (HSN) vs services (SAC).
+ */
+export type GstTaxCodeLabels = {
+  /** Short chip/tab: HSN | SAC | HSN/SAC */
+  short: string;
+  /** Form field label */
+  field: string;
+  /** Empty / missing callouts */
+  missing: string;
+};
+
+export function getGstTaxCodeLabels(
+  vertical?: string | null,
+  profile?: string | null,
+): GstTaxCodeLabels {
+  // Event / equipment rental leans service (SAC) but lines may still be goods.
+  if (usesEventLightingCopy(profile, vertical)) {
+    return {
+      short: 'HSN/SAC',
+      field: 'HSN/SAC code',
+      missing: 'Missing HSN/SAC',
+    };
+  }
+  // Packaged goods verticals (ice cream, general retail/wholesale).
+  if (vertical === 'ICE_CREAM' || profile === 'RETAIL' || profile === 'WHOLESALE' || profile === 'DISTRIBUTION' || profile === 'TRADING' || profile === 'MATERIAL_SUPPLIER') {
+    return {
+      short: 'HSN',
+      field: 'HSN code',
+      missing: 'Missing HSN',
+    };
+  }
+  return {
+    short: 'HSN/SAC',
+    field: 'HSN/SAC code',
+    missing: 'Missing HSN/SAC',
+  };
+}
+
 /** Plural of the indent label for section titles ("Indents" / "Purchase requests"). */
 export function getIndentPlural(mode: InventoryLabelMode): string {
   const label = getInventoryLabel('indent', mode);

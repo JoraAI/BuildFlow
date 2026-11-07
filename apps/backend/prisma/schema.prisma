@@ -41,6 +41,11 @@ enum GstHandoffStatus {
   FILED
 }
 
+enum AuditorPackCadence {
+  MONTHLY
+  QUARTERLY
+}
+
 enum AuditorManualEntryType {
   JOURNAL
   BANK_NOTE
@@ -411,6 +416,10 @@ model Company {
   poAutoApproveBelow Decimal @default(0) @map("po_auto_approve_below") @db.Decimal(14, 2)
   poOwnerApproveAbove Decimal @default(0) @map("po_owner_approve_above") @db.Decimal(14, 2)
 
+  /// Inventory auditor GST pack cadence (owner-configured; send stays manual).
+  auditorPackCadence AuditorPackCadence @default(MONTHLY) @map("auditor_pack_cadence")
+  auditorPackDay     Int                @default(5) @map("auditor_pack_day")
+
   users               User[]
   userInvites         UserInvite[]
   projects            Project[]
@@ -716,6 +725,8 @@ model GstHandoffPack {
   label       String
   status      GstHandoffStatus @default(DRAFT)
   notes       String?
+  /// Immutable slice payload captured when the pack is sent.
+  snapshot    Json?
   sentAt      DateTime?        @map("sent_at")
   sentById    String?          @map("sent_by_id") @db.Uuid
   filedAt     DateTime?        @map("filed_at")

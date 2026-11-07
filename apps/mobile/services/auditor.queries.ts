@@ -12,9 +12,11 @@ export type GstPackSummary = {
   sentAt: string | null;
   filedAt: string | null;
   createdAt: string;
+  hasSnapshot?: boolean;
 };
 
 export type GstPackDetail = GstPackSummary & {
+  taxCode?: { short: string; field: string; missing: string };
   bank: Array<{
     id: string;
     entryDate: string;
@@ -50,18 +52,53 @@ export type GstPackDetail = GstPackSummary & {
     invoiceIgst: number;
     invoiceGst: number;
     billGst: number;
+    billTaxable?: number;
     billTotal: number;
+    b2bCount?: number;
+    b2cCount?: number;
+    missingHsnLines?: number;
+    rateWise?: Array<{ rate: number; taxable: number; tax: number; count: number }>;
+    hsnSummary?: Array<{
+      hsn: string;
+      taxable: number;
+      tax: number;
+      qty: number;
+      lineCount: number;
+    }>;
     invoices: Array<{
       id: string;
       number: string;
       date: string;
+      clientName?: string;
+      clientGstin?: string | null;
+      clientState?: string | null;
+      gstRate?: number;
       total: number;
       taxable: number;
       cgst: number;
       sgst: number;
       igst: number;
+      bucket?: 'B2B' | 'B2C';
+      lines?: Array<{
+        id: string;
+        description: string;
+        qty: number;
+        rate: number;
+        taxable: number;
+        gstRate: number;
+        hsn: string | null;
+      }>;
     }>;
-    bills: Array<{ id: string; number: string; date: string; total: number; gst: number }>;
+    bills: Array<{
+      id: string;
+      number: string;
+      date: string;
+      total: number;
+      gst: number;
+      vendorName?: string;
+      vendorGstin?: string | null;
+      taxable?: number;
+    }>;
   };
   manualEntries: Array<{
     id: string;
@@ -119,6 +156,15 @@ export function useSendGstPack() {
       qc.invalidateQueries({ queryKey: ['auditor', 'owner-packs'] });
       qc.invalidateQueries({ queryKey: ['auditor', 'inbox'] });
     },
+  });
+}
+
+export function useDeleteGstPack() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (packId: string) =>
+      apiFetch<{ deleted: true }>(`/inventory/auditor/packs/${packId}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['auditor', 'owner-packs'] }),
   });
 }
 

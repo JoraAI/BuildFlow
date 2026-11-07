@@ -55,6 +55,7 @@ import {
 import { useSetInventoryVertical } from '@/services/settings.queries';
 import {
   useCreateGstPack,
+  useDeleteGstPack,
   useOwnerGstPacks,
   useRevokeAuditor,
   useSendGstPack,
@@ -84,8 +85,12 @@ export default function InventorySettingsScreen() {
   const { data: gstPacks } = useOwnerGstPacks(canManageGstPacks);
   const createGstPack = useCreateGstPack();
   const sendGstPack = useSendGstPack();
+  const deleteGstPack = useDeleteGstPack();
   const [packStart, setPackStart] = useState('');
   const [packEnd, setPackEnd] = useState('');
+  const [packLabel, setPackLabel] = useState('');
+  const [packCadence, setPackCadence] = useState<'MONTHLY' | 'QUARTERLY'>('MONTHLY');
+  const [packDay, setPackDay] = useState('5');
   const updateCompany = useUpdateCompany();
   const uploadLogo = useCompanyLogoUpload();
   const updateReportSettings = useUpdateReportSettings();
@@ -123,6 +128,11 @@ export default function InventorySettingsScreen() {
   useEffect(() => {
     if (company?.inventoryProfile) setProfile(company.inventoryProfile);
   }, [company?.inventoryProfile]);
+
+  useEffect(() => {
+    if (company?.auditorPackCadence) setPackCadence(company.auditorPackCadence);
+    if (company?.auditorPackDay != null) setPackDay(String(company.auditorPackDay));
+  }, [company?.auditorPackCadence, company?.auditorPackDay]);
 
   useEffect(() => {
     // K2 (11.1.5b): sync the vertical picker with the company state.
@@ -698,20 +708,137 @@ export default function InventorySettingsScreen() {
           <Card className="p-5 mb-4">
             <Text className="text-base font-bold text-text mb-1">GST packs for auditor</Text>
             <Text className="text-xs text-muted mb-3">
-              Pick a period, create a pack, then send it. Auditors only see packs after you send.
+              Set how often you hand off books. Create a pack for the period, then send — auditors only see sent packs.
             </Text>
+            {(() => {
+              const now = new Date();
+              const start =
+                packCadence === 'QUARTERLY'
+                  ? new Date(Date.UTC(now.getUTCFullYear(), Math.floor((now.getUTCMonth() - 1) / 3) * 3, 1))
+                  : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+              const end =
+                packCadence === 'QUARTERLY'
+                  ? new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 3, 0))
+                  : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0));
+              const ps = start.toISOString().slice(0, 10);
+              const pe = end.toISOString().slice(0, 10);
+              const covered = (gstPacks ?? []).some(
+                (p: { periodStart: string; periodEnd: string; status: string }) =>
+                  p.periodStart === ps &&
+                  p.periodEnd === pe &&
+                  (p.status === 'SENT' || p.status === 'IN_PROGRESS' || p.status === 'FILED'),
+              );
+              if (covered || now.getUTCDate() < Number(packDay || 5)) return null;
+              return (
+                <View className="mb-3 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2">
+                  <Text className="text-xs text-text font-semibold">
+                    Pack due for {ps} → {pe}
+                  </Text>
+                  <Text className="text-[11px] text-muted mt-0.5 mb-2">
+                    Cadence day has passed and no sent pack covers the last period.
+                  </Text>
+                  <Button
+                    size="sm"
+                    label="Fill last period"
+                    variant="secondary"
+                    onPress={() => {
+                      setPackStart(ps);
+                      setPackEnd(pe);
+                    }}
+                  />
+                </View>
+              );
+            })()}
+            {user?.role === 'OWNER' ? (
+              <>
+                <Select
+                  label="Send cadence"
+                  value={packCadence}
+                  onChange={(v) => v && setPackCadence(v as 'MONTHLY' | 'QUARTERLY')}
+                  options={[
+                    { title: 'Monthly', value: 'MONTHLY' },
+                    { title: 'Quarterly', value: 'QUARTERLY' },
+                  ]}
+                />
+                <View className="h-2" />
+                <Input
+                  label="Preferred send day (1–28)"
+                  value={packDay}
+                  onChangeText={setPackDay}
+                  keyboardType="number-pad"
+                  placeholder="5"
+                />
+                <View className="h-2" />
+                <Button
+                  label="Save cadence"
+                  size="sm"
+                  variant="secondary"
+                  loading={updateCompany.isPending}
+                  onPress={() =>
+                    void run(async () => {
+                      const day = Math.min(28, Math.max(1, Number(packDay) || 5));
+                      try {
+                        await updateCompany.mutateAsync({
+                          auditorPackCadence: packCadence,
+                          auditorPackDay: day,
+                        });
+                        setPackDay(String(day));
+                        toast.success('Auditor pack cadence saved');
+                      } catch (e) {
+                        toast.error(e instanceof Error ? e.message : 'Could not save cadence');
+                      }
+                    })
+                  }
+                />
+                <View className="h-4" />
+              </>
+            ) : null}
+            <View className="flex-row flex-wrap gap-2 mb-3">
+              <Button
+                size="sm"
+                variant="secondary"
+                label="Last month"
+                onPress={() => {
+                  const now = new Date();
+                  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+                  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0));
+                  setPackStart(start.toISOString().slice(0, 10));
+                  setPackEnd(end.toISOString().slice(0, 10));
+                }}
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                label="This quarter"
+                onPress={() => {
+                  const now = new Date();
+                  const q = Math.floor(now.getUTCMonth() / 3) * 3;
+                  const start = new Date(Date.UTC(now.getUTCFullYear(), q, 1));
+                  const end = new Date(Date.UTC(now.getUTCFullYear(), q + 3, 0));
+                  setPackStart(start.toISOString().slice(0, 10));
+                  setPackEnd(end.toISOString().slice(0, 10));
+                }}
+              />
+            </View>
             <Input
-              label="Period start (YYYY-MM-DD)"
+              label="Period start"
               value={packStart}
               onChangeText={setPackStart}
               placeholder="2026-10-01"
             />
             <View className="h-2" />
             <Input
-              label="Period end (YYYY-MM-DD)"
+              label="Period end"
               value={packEnd}
               onChangeText={setPackEnd}
               placeholder="2026-10-31"
+            />
+            <View className="h-2" />
+            <Input
+              label="Label (optional)"
+              value={packLabel}
+              onChangeText={setPackLabel}
+              placeholder="Oct 2026 GST"
             />
             <View className="h-3" />
             <Button
@@ -720,10 +847,15 @@ export default function InventorySettingsScreen() {
               onPress={() =>
                 void run(async () => {
                   try {
-                    await createGstPack.mutateAsync({ periodStart: packStart.trim(), periodEnd: packEnd.trim() });
+                    await createGstPack.mutateAsync({
+                      periodStart: packStart.trim(),
+                      periodEnd: packEnd.trim(),
+                      label: packLabel.trim() || undefined,
+                    });
                     toast.success('Draft pack created');
                     setPackStart('');
                     setPackEnd('');
+                    setPackLabel('');
                   } catch (e) {
                     toast.error(e instanceof Error ? e.message : 'Could not create pack');
                   }
@@ -731,37 +863,58 @@ export default function InventorySettingsScreen() {
               }
             />
             <View className="h-3" />
-            {(gstPacks ?? []).map((p: { id: string; label: string; periodStart: string; periodEnd: string; status: string }) => (
-              <View
-                key={p.id}
-                className="flex-row items-center justify-between py-2 border-b border-border/60"
-              >
-                <View className="flex-1 min-w-0 mr-2">
-                  <Text className="text-sm font-semibold text-text">{p.label}</Text>
-                  <Text className="text-xs text-muted">
-                    {p.periodStart} → {p.periodEnd} · {p.status}
-                  </Text>
-                </View>
-                {p.status === 'DRAFT' ? (
-                  <Button
-                    size="sm"
-                    label="Send"
-                    onPress={() =>
-                      void run(async () => {
-                        try {
-                          await sendGstPack.mutateAsync(p.id);
-                          toast.success('Pack sent to auditors');
-                        } catch (e) {
-                          toast.error(e instanceof Error ? e.message : 'Could not send pack');
+            {(gstPacks ?? []).length === 0 ? (
+              <Text className="text-xs text-muted">No packs yet. Create one for last month to get started.</Text>
+            ) : (
+              (gstPacks ?? []).map((p: { id: string; label: string; periodStart: string; periodEnd: string; status: string }) => (
+                <View
+                  key={p.id}
+                  className="flex-row items-center justify-between py-2 border-b border-border/60"
+                >
+                  <View className="flex-1 min-w-0 mr-2">
+                    <Text className="text-sm font-semibold text-text">{p.label}</Text>
+                    <Text className="text-xs text-muted">
+                      {p.periodStart} → {p.periodEnd} · {p.status}
+                    </Text>
+                  </View>
+                  {p.status === 'DRAFT' ? (
+                    <View className="flex-row gap-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        label="Delete"
+                        onPress={() =>
+                          void run(async () => {
+                            try {
+                              await deleteGstPack.mutateAsync(p.id);
+                              toast.success('Draft deleted');
+                            } catch (e) {
+                              toast.error(e instanceof Error ? e.message : 'Could not delete');
+                            }
+                          })
                         }
-                      })
-                    }
-                  />
-                ) : (
-                  <Badge label={p.status} />
-                )}
-              </View>
-            ))}
+                      />
+                      <Button
+                        size="sm"
+                        label="Send"
+                        onPress={() =>
+                          void run(async () => {
+                            try {
+                              await sendGstPack.mutateAsync(p.id);
+                              toast.success('Pack sent to auditors');
+                            } catch (e) {
+                              toast.error(e instanceof Error ? e.message : 'Could not send pack');
+                            }
+                          })
+                        }
+                      />
+                    </View>
+                  ) : (
+                    <Badge label={p.status} />
+                  )}
+                </View>
+              ))
+            )}
           </Card>
         )}
 

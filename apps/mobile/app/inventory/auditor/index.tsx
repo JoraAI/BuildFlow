@@ -1,5 +1,5 @@
 /**
- * Auditor desk — inbox of GST packs sent by the current shop.
+ * Auditor desk — inbox of GST packs for the active shop (+ multi-shop switcher).
  */
 import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView, RefreshControl } from 'react-native';
@@ -16,6 +16,19 @@ function statusColor(status: string) {
   return 'text-muted';
 }
 
+function shopMeta(m: {
+  inventoryVertical: string | null;
+  inventoryProfile: string | null;
+  openPackCount?: number;
+}) {
+  const bits = [
+    m.inventoryVertical?.replace(/_/g, ' '),
+    m.inventoryProfile,
+    m.openPackCount ? `${m.openPackCount} open` : null,
+  ].filter(Boolean);
+  return bits.join(' · ');
+}
+
 export default function AuditorInboxScreen() {
   const user = useAuthStore((s) => s.user);
   const switchCompany = useAuthStore((s) => s.switchCompany);
@@ -30,6 +43,7 @@ export default function AuditorInboxScreen() {
     try {
       await switchCompany(companyId);
       toast.success('Switched shop');
+      await inbox.refetch();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not switch shop');
     } finally {
@@ -44,14 +58,17 @@ export default function AuditorInboxScreen() {
       refreshControl={<RefreshControl refreshing={inbox.isFetching} onRefresh={() => inbox.refetch()} />}
     >
       <Text className="text-2xl font-bold text-text">Auditor desk</Text>
-      <Text className="text-sm text-muted mt-1 mb-4">
-        GST packs sent by {user?.companyName ?? 'this shop'}. Switch shops above when you work for more than one.
+      <Text className="text-sm text-muted mt-1 mb-3">
+        Active shop: {user?.companyName ?? '—'}
+        {user?.inventoryVertical ? ` · ${user.inventoryVertical.replace(/_/g, ' ')}` : ''}
       </Text>
 
-      {memberships.length > 1 ? (
+      {memberships.length > 0 ? (
         <View className="mb-5">
-          <Text className="text-xs font-semibold text-muted mb-2">Your shops</Text>
-          <View className={`flex-row flex-wrap gap-2 ${isDesktop ? '' : ''}`}>
+          <Text className="text-xs font-semibold text-muted mb-2">
+            {memberships.length > 1 ? 'Your shops — tap to switch' : 'Your shop'}
+          </Text>
+          <View className="flex-row flex-wrap gap-2">
             {memberships.map((m) => {
               const active = m.companyId === user?.companyId;
               return (
@@ -66,9 +83,9 @@ export default function AuditorInboxScreen() {
                   <Text className={`text-sm font-semibold ${active ? 'text-white' : 'text-text'}`}>
                     {m.companyName}
                   </Text>
-                  {m.inventoryVertical ? (
+                  {shopMeta(m) ? (
                     <Text className={`text-[10px] ${active ? 'text-white/80' : 'text-muted'}`}>
-                      {m.inventoryVertical.replace(/_/g, ' ')}
+                      {shopMeta(m)}
                     </Text>
                   ) : null}
                 </Pressable>
@@ -81,7 +98,7 @@ export default function AuditorInboxScreen() {
       {(inbox.data ?? []).length === 0 ? (
         <View className="bg-card border border-border rounded-2xl p-5">
           <Text className="text-sm text-muted">
-            No packs yet. When the owner sends a GST period, it will show up here.
+            No packs yet for this shop. When the owner sends a GST period, it will show up here.
           </Text>
         </View>
       ) : (

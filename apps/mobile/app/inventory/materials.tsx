@@ -27,7 +27,7 @@ import { formatINR } from '@/utils/format';
 import { confirmAsync } from '@/utils/confirm';
 import { useViewport } from '@/hooks/useViewport';
 import { useAuthStore } from '@/stores/auth.store';
-import { getInventoryLabel, getInventoryLabelMode } from '@buildflow/shared';
+import { getGstTaxCodeLabels, getInventoryLabel, getInventoryLabelMode } from '@buildflow/shared';
 import { useVendors, type PartyRow } from '@/services/party.queries';
 import { ImportMappingModal } from '@/components/inventory/ImportMappingModal';
 import { KiranaSkuPicker } from '@/components/inventory/KiranaSkuPicker';
@@ -77,6 +77,7 @@ export default function InventoryMaterialsScreen() {
   const { busy, run, clearBusy } = useBusy();
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
+  const taxCode = getGstTaxCodeLabels(user?.inventoryVertical, user?.inventoryProfile);
   const { data, isLoading, isFetching, refetch } = useResources();
   const { isPhone, isTablet, isDesktop } = useViewport();
   const tableMode = isTablet || isDesktop;
@@ -198,7 +199,7 @@ export default function InventoryMaterialsScreen() {
         onQueryChange={filters.setQuery}
         placeholder={translate(
           'inventory.materials.searchLabel',
-          `Search ${itemPluralLabel.toLowerCase()} - name, SKU, barcode, HSN`,
+          `Search ${itemPluralLabel.toLowerCase()} - name, SKU, barcode, ${taxCode.short}`,
         )}
         statusTabs={MATERIAL_STATUS_TABS}
         status={filters.status as MaterialStatus}
@@ -238,7 +239,7 @@ export default function InventoryMaterialsScreen() {
             <View className="flex-row items-center px-4 py-3 mb-2 rounded-xl bg-surface border border-border">
               <Text className="flex-[2.2] text-[11px] font-bold text-muted uppercase">Item</Text>
               <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Category</Text>
-              <Text className="flex-1 text-[11px] font-bold text-muted uppercase">HSN</Text>
+              <Text className="flex-1 text-[11px] font-bold text-muted uppercase">{taxCode.short}</Text>
               <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Stock</Text>
               <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">MRP</Text>
               <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Cost</Text>
@@ -374,7 +375,7 @@ export default function InventoryMaterialsScreen() {
                     {row.unit}
                     {row.resource.brandOrSpec ? ` · ${row.resource.brandOrSpec}` : ''}
                     {row.category ? ` · ${row.category}` : ''}
-                    {row.resource.hsnSacCode ? ` · HSN ${row.resource.hsnSacCode}` : ''}
+                    {row.resource.hsnSacCode ? ` · ${taxCode.short} ${row.resource.hsnSacCode}` : ''}
                     {isIceCream && isB2bPublished(row.resource) ? ' · On B2B catalog' : ''}
                   </Text>
                   <Text className="text-xs text-muted mt-0.5">
@@ -493,6 +494,9 @@ export default function InventoryMaterialsScreen() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         itemLabel={itemLabel}
+        taxCodeField={taxCode.field}
+        taxCodeShort={taxCode.short}
+        taxCodeMissing={taxCode.missing}
         showRoleRates={isIceCream}
         submitting={createResource.isPending}
         onSubmit={async (input) => {
@@ -515,6 +519,9 @@ export default function InventoryMaterialsScreen() {
         initial={editing ?? undefined}
         onClose={() => setEditing(null)}
         itemLabel={itemLabel}
+        taxCodeField={taxCode.field}
+        taxCodeShort={taxCode.short}
+        taxCodeMissing={taxCode.missing}
         showRoleRates={isIceCream}
         submitting={editing !== null && updateResource.isPending}
         onSubmit={async (input) => {
@@ -568,6 +575,9 @@ function MaterialFormModal({
   onClose,
   initial,
   itemLabel,
+  taxCodeField = 'HSN/SAC code',
+  taxCodeShort = 'HSN/SAC',
+  taxCodeMissing = 'Missing HSN/SAC',
   showRoleRates = false,
   onSubmit,
   submitting,
@@ -577,6 +587,9 @@ function MaterialFormModal({
   onClose: () => void;
   initial?: Resource;
   itemLabel: string;
+  taxCodeField?: string;
+  taxCodeShort?: string;
+  taxCodeMissing?: string;
   /** ICE_CREAM: show distributor / customer B2B sell prices. */
   showRoleRates?: boolean;
   onSubmit: (input: {
@@ -854,7 +867,7 @@ function MaterialFormModal({
               placeholder="18"
             />
             <Input
-              label="HSN code (optional)"
+              label={`${taxCodeField} (optional)`}
               value={hsnSacCode}
               onChangeText={setHsnSacCode}
               keyboardType="numeric"
@@ -1038,6 +1051,11 @@ function MaterialFormModal({
                         return;
                       }
                       setUploadingPhoto(false);
+                    }
+                    if (!hsnSacCode.trim()) {
+                      toast.info(
+                        `No ${taxCodeShort} — auditors will flag ${taxCodeMissing.toLowerCase()} on GST packs.`,
+                      );
                     }
                     await onSubmit({
                       name: name.trim(),

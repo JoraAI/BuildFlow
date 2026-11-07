@@ -51,6 +51,9 @@ export const companyUpdateSchema = z.object({
   // inventory-only. 0 disables the banding (POs auto-approve like today).
   poAutoApproveBelow: z.number().nonnegative().optional(),
   poOwnerApproveAbove: z.number().nonnegative().optional(),
+  // Auditor GST pack cadence (inventory-only; send stays manual).
+  auditorPackCadence: z.enum(['MONTHLY', 'QUARTERLY']).optional(),
+  auditorPackDay: z.number().int().min(1).max(28).optional(),
 });
 
 export const myProfileUpdateSchema = z.object({

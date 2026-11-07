@@ -36,6 +36,11 @@ auditorRouter.post(
   requireRole(Role.OWNER, Role.INVENTORY_MANAGER),
   ctrl.sendPack,
 );
+auditorRouter.delete(
+  '/packs/:packId',
+  requireRole(Role.OWNER, Role.INVENTORY_MANAGER),
+  ctrl.deletePack,
+);
 auditorRouter.post(
   '/auditors/:userId/revoke',
   requireRole(Role.OWNER),
