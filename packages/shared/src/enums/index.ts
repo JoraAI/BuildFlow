@@ -19,6 +19,8 @@ export const Role = {
   ACCOUNTANT: 'ACCOUNTANT',
   /** Inventory product role - hidden from construction companies. */
   INVENTORY_MANAGER: 'INVENTORY_MANAGER',
+  /** Inventory GST auditor — pack inbox only; can belong to multiple shops. */
+  AUDITOR: 'AUDITOR',
 } as const;
 export type Role = (typeof Role)[keyof typeof Role];
 
@@ -34,6 +36,7 @@ export const ALL_ROLES: Role[] = [
   Role.SITE_SUPERVISOR,
   Role.ACCOUNTANT,
   Role.INVENTORY_MANAGER,
+  Role.AUDITOR,
 ];
 
 /** Roles that can access the Accounting module (default permissions). */
@@ -54,6 +57,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   SUPERVISOR: 'Site Supervisor (legacy)',
   ACCOUNTANT: 'Accountant',
   INVENTORY_MANAGER: 'Inventory Manager',
+  AUDITOR: 'Auditor',
 };
 
 /**
@@ -77,9 +81,12 @@ export const INVITABLE_ROLES: Role[] = [
  *   Construction: existing roles except INVENTORY_MANAGER.
  */
 export const INVITABLE_ROLES_BY_PRODUCT: Record<'inventory' | 'construction', Role[]> = {
-  inventory: [Role.OWNER, Role.INVENTORY_MANAGER],
+  inventory: [Role.OWNER, Role.INVENTORY_MANAGER, Role.AUDITOR],
   construction: INVITABLE_ROLES,
 };
+
+/** Max active auditors (accepted + pending) an inventory shop may have. */
+export const MAX_INVENTORY_AUDITORS = 2;
 
 export const ProjectType = {
   HEAVY: 'HEAVY',

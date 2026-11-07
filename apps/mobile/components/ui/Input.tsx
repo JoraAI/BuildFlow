@@ -29,6 +29,8 @@ interface InputProps {
   onFocus?: () => void;
   onBlur?: () => void;
   onSubmitEditing?: () => void;
+  /** Browser autofill hint. Use `off` when the field accepts a mobile or an email. */
+  autoComplete?: 'off' | 'tel' | 'email' | 'username';
 }
 
 export function Input({
@@ -53,6 +55,7 @@ export function Input({
   onFocus,
   onBlur,
   onSubmitEditing,
+  autoComplete,
 }: InputProps) {
   const { isDesktop } = useViewport();
   const [revealed, setRevealed] = useState(false);
@@ -83,6 +86,7 @@ export function Input({
           secureTextEntry={hideSecret}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
+          autoComplete={autoComplete}
           autoCorrect={false}
           multiline={multiline}
           editable={editable}

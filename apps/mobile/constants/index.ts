@@ -30,6 +30,7 @@ export const ROLE_TABS: Record<Role, readonly string[]> = {
   ACCOUNTANT: ['dashboard', 'projects', 'accounting', 'reports'],
   // INVENTORY_PRODUCT: inventory shell tabs are rendered by inventory/_layout.
   INVENTORY_MANAGER: ['dashboard', 'accounting', 'reports'],
+  AUDITOR: ['dashboard', 'accounting', 'reports'],
 } as const;
 
 export const SCREEN_PADDING = 16;

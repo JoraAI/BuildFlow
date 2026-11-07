@@ -254,23 +254,66 @@ export interface UserRow {
 }
 
 export async function listUsers(companyId: string): Promise<UserRow[]> {
-  const users = await prisma.user.findMany({
-    where: {
-      companyId,
-      NOT: { email: { endsWith: '@deleted.buildflow.local' } },
-    },
-    orderBy: { createdAt: 'asc' },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      role: true,
-      isActive: true,
-      createdAt: true,
-    },
-  });
-  return users.map((u) => ({ ...u, role: u.role as string, createdAt: u.createdAt.toISOString() }));
+  const [users, auditorLinks] = await Promise.all([
+    prisma.user.findMany({
+      where: {
+        companyId,
+        NOT: { email: { endsWith: '@deleted.buildflow.local' } },
+      },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+      },
+    }),
+    // Multi-shop auditors may have companyId set to another shop; still list them here.
+    prisma.auditorMembership.findMany({
+      where: { companyId, isActive: true },
+      select: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            role: true,
+            isActive: true,
+            createdAt: true,
+          },
+        },
+      },
+    }),
+  ]);
+
+  const byId = new Map<string, UserRow>();
+  for (const u of users) {
+    byId.set(u.id, {
+      ...u,
+      role: u.role as string,
+      createdAt: u.createdAt.toISOString(),
+    });
+  }
+  for (const link of auditorLinks) {
+    const u = link.user;
+    if (u.email.endsWith('@deleted.buildflow.local')) continue;
+    if (!byId.has(u.id)) {
+      byId.set(u.id, {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        phone: u.phone,
+        role: 'AUDITOR',
+        isActive: u.isActive,
+        createdAt: u.createdAt.toISOString(),
+      });
+    }
+  }
+  return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
 export async function getUserAuditStats(userId: string, companyId: string) {
@@ -316,7 +359,7 @@ export async function updateUser(
       throw new ApiError(
         'FORBIDDEN',
         productMode === 'inventory'
-          ? 'Inventory accounts can only have OWNER or INVENTORY_MANAGER roles.'
+          ? 'Inventory accounts can only have OWNER, INVENTORY_MANAGER, or AUDITOR roles.'
           : 'This role is not available for construction accounts.',
       );
     }
@@ -348,6 +391,30 @@ export async function updateUser(
   if (data.isActive === false && callerUserId === targetUserId) {
     throw new ApiError('FORBIDDEN', 'You cannot deactivate your own account');
   }
+
+  if (existing.role === 'AUDITOR' && data.role && data.role !== 'AUDITOR') {
+    throw new ApiError(
+      'FORBIDDEN',
+      'Remove the auditor from this shop instead of changing their role',
+    );
+  }
+
+  if (data.role === 'AUDITOR' && existing.role !== 'AUDITOR') {
+    const { assertAuditorSlotAvailable, ensureAuditorMembership } = await import('./auditor.service');
+    await assertAuditorSlotAvailable(companyId);
+    const updated = await prisma.user.update({
+      where: { id: targetUserId },
+      data: { ...data, role: data.role as never },
+      select: { id: true, name: true, email: true, phone: true, role: true, isActive: true },
+    });
+    await ensureAuditorMembership({
+      userId: targetUserId,
+      companyId,
+      invitedById: callerUserId ?? null,
+    });
+    return updated;
+  }
+
   return prisma.user.update({
     where: { id: targetUserId },
     data: { ...data, role: data.role as never },
@@ -365,22 +432,34 @@ export async function deleteTeamUser(
   callerUserId: string,
 ): Promise<{ deleted: true }> {
   const existing = await prisma.user.findFirst({ where: { id: targetUserId, companyId } });
-  if (!existing) throw ApiError.notFound('User not found');
-  if (existing.role === 'OWNER') {
+  const auditorLink = existing
+    ? null
+    : await prisma.auditorMembership.findUnique({
+        where: { userId_companyId: { userId: targetUserId, companyId } },
+        select: { isActive: true, user: true },
+      });
+  const target = existing ?? (auditorLink?.isActive ? auditorLink.user : null);
+  if (!target) throw ApiError.notFound('User not found');
+  if (target.role === 'OWNER') {
     throw new ApiError('FORBIDDEN', 'Cannot delete the OWNER account');
   }
   if (callerUserId === targetUserId) {
     throw new ApiError('FORBIDDEN', 'You cannot delete your own account');
   }
 
-  await prisma.user.update({
-    where: { id: targetUserId },
-    data: {
-      isActive: false,
-      email: `deleted.${targetUserId.replace(/-/g, '')}@deleted.buildflow.local`,
-      phone: null,
-    },
-  });
+  if (target.role === 'AUDITOR') {
+    const { revokeAuditorMembership } = await import('./auditor.service');
+    await revokeAuditorMembership(companyId, targetUserId, callerUserId);
+  } else {
+    await prisma.user.update({
+      where: { id: targetUserId },
+      data: {
+        isActive: false,
+        email: `deleted.${targetUserId.replace(/-/g, '')}@deleted.buildflow.local`,
+        phone: null,
+      },
+    });
+  }
 
   await recordAudit({
     companyId,
@@ -389,10 +468,10 @@ export async function deleteTeamUser(
     entityType: 'user',
     entityId: targetUserId,
     oldValue: {
-      email: existing.email,
-      phone: existing.phone,
-      role: existing.role,
-      name: existing.name,
+      email: target.email,
+      phone: target.phone,
+      role: target.role,
+      name: target.name,
     },
   });
 

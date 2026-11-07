@@ -53,6 +53,12 @@ import {
   type SubscriptionPlanKey,
 } from '@buildflow/shared';
 import { useSetInventoryVertical } from '@/services/settings.queries';
+import {
+  useCreateGstPack,
+  useOwnerGstPacks,
+  useRevokeAuditor,
+  useSendGstPack,
+} from '@/services/auditor.queries';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 import { inventoryPageListPadding } from '@/components/inventory/InventoryScreenList';
 
@@ -73,6 +79,13 @@ export default function InventorySettingsScreen() {
   const { data: invites } = usePendingInvites();
   const createInvite = useCreateInvite();
   const revokeInvite = useRevokeInvite();
+  const revokeAuditor = useRevokeAuditor();
+  const canManageGstPacks = user?.role === 'OWNER' || user?.role === 'INVENTORY_MANAGER';
+  const { data: gstPacks } = useOwnerGstPacks(canManageGstPacks);
+  const createGstPack = useCreateGstPack();
+  const sendGstPack = useSendGstPack();
+  const [packStart, setPackStart] = useState('');
+  const [packEnd, setPackEnd] = useState('');
   const updateCompany = useUpdateCompany();
   const uploadLogo = useCompanyLogoUpload();
   const updateReportSettings = useUpdateReportSettings();
@@ -653,13 +666,104 @@ export default function InventorySettingsScreen() {
                   </Text>
                   <Text className="text-xs text-muted">{u.phone || u.email}</Text>
                 </View>
-                <Badge label={String(u.role)} />
+                <View className="flex-row items-center gap-2">
+                  <Badge label={String(u.role)} />
+                  {u.role === 'AUDITOR' && user?.role === 'OWNER' ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      label="Remove"
+                      onPress={() =>
+                        void run(async () => {
+                          try {
+                            await revokeAuditor.mutateAsync(u.id);
+                            toast.success('Auditor removed from this shop');
+                          } catch (e) {
+                            toast.error(e instanceof Error ? e.message : 'Could not remove auditor');
+                          }
+                        })
+                      }
+                    />
+                  ) : null}
+                </View>
               </View>
             ))
           ) : (
             <LoadingSkeleton className="rounded-lg h-10" />
           )}
         </Card>
+
+        {/* GST handoff packs for auditors */}
+        {canManageGstPacks && (
+          <Card className="p-5 mb-4">
+            <Text className="text-base font-bold text-text mb-1">GST packs for auditor</Text>
+            <Text className="text-xs text-muted mb-3">
+              Pick a period, create a pack, then send it. Auditors only see packs after you send.
+            </Text>
+            <Input
+              label="Period start (YYYY-MM-DD)"
+              value={packStart}
+              onChangeText={setPackStart}
+              placeholder="2026-10-01"
+            />
+            <View className="h-2" />
+            <Input
+              label="Period end (YYYY-MM-DD)"
+              value={packEnd}
+              onChangeText={setPackEnd}
+              placeholder="2026-10-31"
+            />
+            <View className="h-3" />
+            <Button
+              label="Create draft pack"
+              size="sm"
+              onPress={() =>
+                void run(async () => {
+                  try {
+                    await createGstPack.mutateAsync({ periodStart: packStart.trim(), periodEnd: packEnd.trim() });
+                    toast.success('Draft pack created');
+                    setPackStart('');
+                    setPackEnd('');
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : 'Could not create pack');
+                  }
+                })
+              }
+            />
+            <View className="h-3" />
+            {(gstPacks ?? []).map((p: { id: string; label: string; periodStart: string; periodEnd: string; status: string }) => (
+              <View
+                key={p.id}
+                className="flex-row items-center justify-between py-2 border-b border-border/60"
+              >
+                <View className="flex-1 min-w-0 mr-2">
+                  <Text className="text-sm font-semibold text-text">{p.label}</Text>
+                  <Text className="text-xs text-muted">
+                    {p.periodStart} → {p.periodEnd} · {p.status}
+                  </Text>
+                </View>
+                {p.status === 'DRAFT' ? (
+                  <Button
+                    size="sm"
+                    label="Send"
+                    onPress={() =>
+                      void run(async () => {
+                        try {
+                          await sendGstPack.mutateAsync(p.id);
+                          toast.success('Pack sent to auditors');
+                        } catch (e) {
+                          toast.error(e instanceof Error ? e.message : 'Could not send pack');
+                        }
+                      })
+                    }
+                  />
+                ) : (
+                  <Badge label={p.status} />
+                )}
+              </View>
+            ))}
+          </Card>
+        )}
 
         {/* Pending invites */}
         <Card className="p-5 mb-4">
@@ -946,16 +1050,32 @@ function InviteModal({
       await onSubmit({
         name: name.trim() || undefined,
         phone: parsed.data,
-        role: canInviteOwner ? role : 'INVENTORY_MANAGER',
+        role: canInviteOwner
+          ? role
+          : role === 'AUDITOR'
+            ? 'AUDITOR'
+            : 'INVENTORY_MANAGER',
       });
       setName('');
       setPhone('');
+      setRole('INVENTORY_MANAGER');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to send invite');
     } finally {
       setSaving(false);
     }
   };
+
+  const roleOptions = canInviteOwner
+    ? [
+        { title: 'Inventory Manager', value: 'INVENTORY_MANAGER' },
+        { title: 'Auditor', value: 'AUDITOR' },
+        { title: 'Owner / MD', value: 'OWNER' },
+      ]
+    : [
+        { title: 'Inventory Manager', value: 'INVENTORY_MANAGER' },
+        { title: 'Auditor', value: 'AUDITOR' },
+      ];
 
   return (
     <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
@@ -973,8 +1093,8 @@ function InviteModal({
           <View className="p-5">
             <Text className="text-xs text-muted mb-3">
               {canInviteOwner
-                ? 'Invite an owner or inventory manager by mobile. They Sign in with this number and OTP and join this shop directly — no email.'
-                : 'Invite an inventory manager by mobile. They Sign in with this number and OTP and join this shop directly — no email.'}
+                ? 'Invite an owner, inventory manager, or auditor by mobile. They Sign in with this number and OTP and join this shop directly — no email.'
+                : 'Invite an inventory manager or auditor by mobile. They Sign in with this number and OTP and join this shop directly — no email.'}
             </Text>
             <Input
               label="Name (optional)"
@@ -1000,16 +1120,9 @@ function InviteModal({
             <View className="h-3" />
             <Select
               label="Role"
-              value={canInviteOwner ? role : 'INVENTORY_MANAGER'}
+              value={role}
               onChange={(v) => v && setRole(v)}
-              options={
-                canInviteOwner
-                  ? [
-                      { title: 'Inventory Manager', value: 'INVENTORY_MANAGER' },
-                      { title: 'Owner / MD', value: 'OWNER' },
-                    ]
-                  : [{ title: 'Inventory Manager', value: 'INVENTORY_MANAGER' }]
-              }
+              options={roleOptions}
             />
             {error ? <Text className="text-danger text-sm mt-2">{error}</Text> : null}
             <View className="h-4" />

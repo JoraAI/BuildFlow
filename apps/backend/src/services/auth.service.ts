@@ -52,6 +52,12 @@ export interface AuthResponse {
     // INVENTORY_HORIZONTAL_PLATFORM (Phase 0): null on construction plans.
     inventoryProfile: InventoryBusinessProfile | null;
     inventoryVertical?: string | null;
+    auditorMemberships?: Array<{
+      companyId: string;
+      companyName: string;
+      inventoryVertical: string | null;
+      subscriptionPlan: string;
+    }>;
   };
   accessToken: string;
   refreshToken: string;
@@ -127,6 +133,10 @@ async function toPublicUser(
     // so mobile can gate batch/expiry surfaces without an extra settings call.
     inventoryVertical:
       productMode === 'inventory' ? (user.company.inventoryVertical ?? null) : null,
+    auditorMemberships:
+      user.role === 'AUDITOR'
+        ? await (await import('./auditor.service')).listAuditorMemberships(user.id)
+        : undefined,
   };
 }
 
@@ -386,11 +396,13 @@ export async function login(
   const { consumeOtp } = await import('./otp.service');
   if (identifier.includes('@')) {
     const email = identifier.toLowerCase();
+    const { normalizePhone } = await import('@buildflow/shared');
+    const phoneOnly = email.endsWith('@phone.buildflow.local') && user.phone;
     await consumeOtp({
       purpose: 'login',
       key: email,
       code: input.otp,
-      expectedDestination: email,
+      expectedDestination: phoneOnly ? normalizePhone(user.phone!) : email,
     });
   } else {
     const { normalizePhone } = await import('@buildflow/shared');
@@ -405,20 +417,35 @@ export async function login(
 
   if (!user.isActive) throw ApiError.forbidden('Account is deactivated');
 
-  const payload = { sub: user.id, companyId: user.companyId, role: user.role };
+  // Multi-shop auditor: attaching a pending invite for this phone (Sign in path).
+  let sessionCompanyId = user.companyId;
+  let sessionUser = user;
+  if (!identifier.includes('@') && user.role === 'AUDITOR') {
+    const { attachPendingAuditorInviteOnLogin } = await import('./invite.service');
+    const attachedCompanyId = await attachPendingAuditorInviteOnLogin(user.id, identifier);
+    if (attachedCompanyId) {
+      sessionCompanyId = attachedCompanyId;
+      sessionUser = await prisma.user.findUniqueOrThrow({
+        where: { id: user.id },
+        include: { company: { select: companySelect } },
+      });
+    }
+  }
+
+  const payload = { sub: sessionUser.id, companyId: sessionCompanyId, role: sessionUser.role };
   const tokens = issueTokens(payload);
 
   await recordAudit({
-    companyId: user.companyId,
-    userId: user.id,
+    companyId: sessionCompanyId,
+    userId: sessionUser.id,
     action: 'LOGIN',
     entityType: 'user',
-    entityId: user.id,
+    entityId: sessionUser.id,
     ipAddress,
   });
 
   return {
-    user: await toPublicUser(user),
+    user: await toPublicUser(sessionUser),
     ...tokens,
   };
 }
@@ -590,4 +617,43 @@ export async function me(userId: string) {
   });
   if (!user) throw ApiError.notFound('User not found');
   return toPublicUser(user);
+}
+
+/** Auditor multi-shop switch — re-homes JWT companyId to a linked membership. */
+export async function switchCompany(userId: string, companyId: string): Promise<AuthResponse> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, role: true, isActive: true },
+  });
+  if (!user?.isActive) throw ApiError.unauthorized('User no longer active');
+  if (user.role !== 'AUDITOR') throw ApiError.forbidden('Only auditors can switch companies');
+
+  const membership = await prisma.auditorMembership.findUnique({
+    where: { userId_companyId: { userId, companyId } },
+  });
+  if (!membership?.isActive) throw ApiError.forbidden('No auditor access to this shop');
+
+  await prisma.user.update({ where: { id: userId }, data: { companyId } });
+  const refreshed = await prisma.user.findUniqueOrThrow({
+    where: { id: userId },
+    include: {
+      company: {
+        select: {
+          name: true,
+          logoUrl: true,
+          subscriptionPlan: true,
+          defaultProjectId: true,
+          inventoryProfile: true,
+          inventoryVertical: true,
+        },
+      },
+    },
+  });
+  const publicUser = await toPublicUser(refreshed);
+  const tokens = issueTokens({
+    sub: refreshed.id,
+    companyId: refreshed.companyId,
+    role: refreshed.role,
+  });
+  return { user: publicUser, ...tokens };
 }

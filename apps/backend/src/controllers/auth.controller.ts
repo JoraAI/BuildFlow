@@ -100,6 +100,16 @@ export async function me(req: Request, res: Response, next: NextFunction): Promi
   }
 }
 
+export async function switchCompany(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const result = await authService.switchCompany(req.user!.id, req.body.companyId);
+    attachRefreshSession(req, res, result.refreshToken);
+    ok(res, result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function config(_req: Request, res: Response): Promise<void> {
   ok(res, { allowPublicCompanyRegistration: env.ALLOW_PUBLIC_COMPANY_REGISTRATION });
 }

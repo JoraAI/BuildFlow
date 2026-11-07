@@ -341,5 +341,19 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'settings.audit',
     'settings.users',
     'settings.export',
+    'auditor.manage_packs',
+  ],
+
+  // ── Auditor (inventory GST handoff) ───────────────────────────────
+  AUDITOR: [
+    'auditor.view_packs',
+    'auditor.manual_entry',
+    'auditor.file_pack',
+    'financials.view_amounts',
+    'reports.view',
+    'reports.download',
+    'tally.export',
+    'invoice.view',
+    'bill.view',
   ],
 };

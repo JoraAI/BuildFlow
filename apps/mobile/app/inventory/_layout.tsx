@@ -56,6 +56,11 @@ function InventoryLayoutBody() {
     return <Redirect href="/dashboard" />;
   }
 
+  const isAuditor = user.role === 'AUDITOR';
+  if (isAuditor && !pathname.startsWith('/inventory/auditor')) {
+    return <Redirect href="/inventory/auditor" />;
+  }
+
   // Detail routes (invoices/[id], bills/[id]) render their own back-header -
   // hide the shell top bar so headers don't double-pad. Bottom nav stays.
   // Reports (/inventory/reports) renders its own back-header too.
@@ -63,13 +68,14 @@ function InventoryLayoutBody() {
     pathname.startsWith('/inventory/invoices/') ||
     pathname.startsWith('/inventory/bills/') ||
     pathname.startsWith('/inventory/stock/') ||
+    pathname.startsWith('/inventory/auditor') ||
     pathname === '/inventory/reports';
 
   return (
     <View className="flex-1 bg-surface min-h-0">
       <OfflineBanner />
       <View className="flex-1 flex-row min-h-0">
-        {isDesktop && <InventorySidebar />}
+        {isDesktop && !isAuditor ? <InventorySidebar /> : null}
 
         <View className="flex-1 flex-col min-w-0 min-h-0 relative">
           {/* Top bar (hidden on detail routes which render their own header) */}
@@ -145,12 +151,14 @@ function InventoryLayoutBody() {
               <Stack.Screen name="reports" />
               <Stack.Screen name="notifications" />
               <Stack.Screen name="settings" />
+              <Stack.Screen name="auditor/index" />
+              <Stack.Screen name="auditor/[id]" />
             </Stack>
           </View>
 
-          {!isDesktop && !keyboardOpen ? <InventoryMobileTabBar /> : null}
-          <AssistantFab />
-          <AssistantOverlay />
+          {!isDesktop && !keyboardOpen && !isAuditor ? <InventoryMobileTabBar /> : null}
+          {!isAuditor ? <AssistantFab /> : null}
+          {!isAuditor ? <AssistantOverlay /> : null}
         </View>
       </View>
     </View>

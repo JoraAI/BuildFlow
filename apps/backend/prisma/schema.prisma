@@ -30,6 +30,21 @@ enum Role {
   ACCOUNTANT
   /// Inventory product role - hidden from construction companies
   INVENTORY_MANAGER
+  /// Inventory GST auditor — pack inbox; multi-shop via AuditorMembership
+  AUDITOR
+}
+
+enum GstHandoffStatus {
+  DRAFT
+  SENT
+  IN_PROGRESS
+  FILED
+}
+
+enum AuditorManualEntryType {
+  JOURNAL
+  BANK_NOTE
+  GST_NOTE
 }
 
 enum ProjectType {
@@ -446,6 +461,9 @@ model Company {
   buyerInvites        BuyerInvite[]
   cashBookEntries     InventoryCashBookEntry[]
   cashBookCategories  InventoryCashBookCategory[]
+  auditorMemberships  AuditorMembership[]
+  gstHandoffPacks     GstHandoffPack[]
+  auditorManualEntries AuditorManualEntry[]
 
   @@map("companies")
 }
@@ -661,9 +679,77 @@ id           String   @id @default(uuid()) @db.Uuid
   rfisAnswered         RFI[] @relation("RFIAnsweredBy")
   submittalsSubmitted  Submittal[] @relation("SubmittalSubmittedBy")
   submittalsReviewed   Submittal[] @relation("SubmittalReviewedBy")
+  auditorMemberships   AuditorMembership[]
+  gstHandoffPacksSent  GstHandoffPack[] @relation("GstHandoffSentBy")
+  auditorManualEntries AuditorManualEntry[] @relation("AuditorManualCreatedBy")
 
   @@index([companyId])
   @@map("users")
+}
+
+// ------------------------------------------------------------------
+// Inventory auditor multi-shop membership + GST handoff packs
+// ------------------------------------------------------------------
+
+model AuditorMembership {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  isActive    Boolean  @default(true) @map("is_active")
+  invitedById String?  @map("invited_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companyId])
+  @@index([companyId, isActive])
+  @@map("auditor_memberships")
+}
+
+model GstHandoffPack {
+  id          String           @id @default(uuid()) @db.Uuid
+  companyId   String           @map("company_id") @db.Uuid
+  periodStart DateTime         @map("period_start") @db.Date
+  periodEnd   DateTime         @map("period_end") @db.Date
+  label       String
+  status      GstHandoffStatus @default(DRAFT)
+  notes       String?
+  sentAt      DateTime?        @map("sent_at")
+  sentById    String?          @map("sent_by_id") @db.Uuid
+  filedAt     DateTime?        @map("filed_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  company       Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sentBy        User?                @relation("GstHandoffSentBy", fields: [sentById], references: [id], onDelete: SetNull)
+  manualEntries AuditorManualEntry[]
+
+  @@index([companyId, status])
+  @@index([companyId, periodStart, periodEnd])
+  @@map("gst_handoff_packs")
+}
+
+model AuditorManualEntry {
+  id          String                  @id @default(uuid()) @db.Uuid
+  packId      String                  @map("pack_id") @db.Uuid
+  companyId   String                  @map("company_id") @db.Uuid
+  createdById String                  @map("created_by_id") @db.Uuid
+  entryType   AuditorManualEntryType  @map("entry_type")
+  entryDate   DateTime                @map("entry_date") @db.Date
+  amount      Decimal?                @db.Decimal(14, 2)
+  narration   String
+  createdAt   DateTime                @default(now()) @map("created_at")
+  updatedAt   DateTime                @updatedAt @map("updated_at")
+
+  pack      GstHandoffPack @relation(fields: [packId], references: [id], onDelete: Cascade)
+  company   Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User           @relation("AuditorManualCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([packId])
+  @@index([companyId])
+  @@map("auditor_manual_entries")
 }
 
 // ------------------------------------------------------------------

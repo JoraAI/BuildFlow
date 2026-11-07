@@ -61,6 +61,7 @@ import { buyerPublicRouter, iceCreamStaffRouter } from './routes/ice-cream.route
 import { cashBookRouter } from './routes/cash-book.routes';
 import { inventoryActivityRouter } from './routes/inventory-activity.routes';
 import { inventoryBackupRouter } from './routes/inventory-backup.routes';
+import { auditorRouter } from './routes/auditor.routes';
 
 const app = express();
 
@@ -169,6 +170,7 @@ app.use('/api/inventory/transactions', transactionRouter); // Phase 2 SO/DC/retu
 app.use('/api/inventory', warehouseRouter); // Phase 3 warehouses/transfers/stock-counts/barcode (INVENTORY only)
 app.use('/api/inventory', inventoryGtmRouter); // Phase 9 price lists, quotes, PDFs, reminders (INVENTORY only)
 app.use('/api/inventory', inventoryCatalogRouter); // Phase 11.1 vertical starter catalog (INVENTORY only)
+app.use('/api/inventory/auditor', auditorRouter); // GST auditor packs + inbox
 app.use('/api/inventory/activity', inventoryActivityRouter); // Company audit trail for inventory roles
 app.use('/api/inventory/backup', inventoryBackupRouter); // Shop JSON / ZIP snapshot
 app.use('/api/inventory/cash-book', cashBookRouter); // Cash book — all inventory verticals

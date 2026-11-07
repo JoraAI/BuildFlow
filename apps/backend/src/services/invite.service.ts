@@ -39,7 +39,7 @@ async function findUserByPhone(phone: string, opts?: { activeOnly?: boolean }) {
       phone: { in: variants },
       ...(opts?.activeOnly ? { isActive: true } : {}),
     },
-    select: { id: true, email: true, phone: true, isActive: true, companyId: true },
+    select: { id: true, email: true, phone: true, isActive: true, companyId: true, role: true },
   });
 }
 
@@ -64,6 +64,42 @@ export async function findPendingInviteByPhone(phone: string) {
     include: { company: { select: PENDING_INVITE_COMPANY_SELECT } },
     orderBy: { createdAt: 'desc' },
   });
+}
+
+/**
+ * Existing auditors signing in with OTP never hit acceptPendingPhoneInvite
+ * (user row already exists). Attach any pending AUDITOR invite for this phone.
+ * Returns the companyId to use for this session (invite shop, or null if none).
+ */
+export async function attachPendingAuditorInviteOnLogin(
+  userId: string,
+  phoneRaw: string,
+): Promise<string | null> {
+  const phone = normalizePhone(phoneRaw);
+  const invite = await findPendingInviteByPhone(phone);
+  if (!invite || invite.role !== Role.AUDITOR) return null;
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, role: true, isActive: true },
+  });
+  if (!user?.isActive || user.role !== Role.AUDITOR) return null;
+
+  const { ensureAuditorMembership } = await import('./auditor.service');
+  await ensureAuditorMembership({
+    userId,
+    companyId: invite.companyId,
+    invitedById: invite.invitedById,
+  });
+  await prisma.user.update({
+    where: { id: userId },
+    data: { companyId: invite.companyId, role: Role.AUDITOR },
+  });
+  await prisma.userInvite.update({
+    where: { id: invite.id },
+    data: { acceptedAt: new Date() },
+  });
+  return invite.companyId;
 }
 
 function inviteJoinName(
@@ -146,8 +182,8 @@ async function assertContactAvailableForActiveUser(opts: {
 
 /**
  * INVENTORY_PRODUCT: enforce role allow-list per plan family.
- *   INVENTORY → OWNER + INVENTORY_MANAGER only.
- *   Construction → existing roles except INVENTORY_MANAGER.
+ *   INVENTORY → OWNER + INVENTORY_MANAGER + AUDITOR.
+ *   Construction → existing roles except INVENTORY_MANAGER / AUDITOR.
  */
 async function assertInvitableRole(companyId: string, role: string): Promise<void> {
   const company = await prisma.company.findUniqueOrThrow({
@@ -159,7 +195,7 @@ async function assertInvitableRole(companyId: string, role: string): Promise<voi
   if (!allowed.includes(role as Role)) {
     throw ApiError.badRequest(
       productMode === 'inventory'
-        ? 'Inventory accounts can only invite OWNER or INVENTORY_MANAGER roles.'
+        ? 'Inventory accounts can only invite OWNER, INVENTORY_MANAGER, or AUDITOR roles.'
         : 'This role is not available for construction accounts.',
     );
   }
@@ -198,8 +234,38 @@ export async function createInvite(
     throw ApiError.badRequest('Mobile number is required to invite a team member');
   }
 
+  const invitingAuditor = input.role === Role.AUDITOR;
+  if (invitingAuditor) {
+    const { assertAuditorSlotAvailable } = await import('./auditor.service');
+    await assertAuditorSlotAvailable(companyId);
+  }
+
   if (email || phone) {
-    await assertContactAvailableForActiveUser({ email, phone });
+    if (invitingAuditor && phone) {
+      const existingPhone = await findUserByPhone(phone, { activeOnly: true });
+      if (existingPhone && existingPhone.role !== Role.AUDITOR) {
+        throw ApiError.conflict('A user with this mobile number already exists');
+      }
+      if (existingPhone?.role === Role.AUDITOR) {
+        const linked = await prisma.auditorMembership.findUnique({
+          where: { userId_companyId: { userId: existingPhone.id, companyId } },
+        });
+        if (linked?.isActive) {
+          throw ApiError.conflict('This auditor is already on this shop');
+        }
+      }
+      if (email) {
+        const existingEmail = await prisma.user.findUnique({
+          where: { email: email.toLowerCase() },
+          select: { id: true, isActive: true, role: true },
+        });
+        if (existingEmail?.isActive && existingEmail.role !== Role.AUDITOR) {
+          throw ApiError.conflict('A user with this email already exists');
+        }
+      }
+    } else {
+      await assertContactAvailableForActiveUser({ email, phone });
+    }
   }
 
   if (email) {
@@ -221,8 +287,10 @@ export async function createInvite(
     if (pendingPhone) throw ApiError.conflict('A pending invite already exists for this mobile number');
   }
 
-  // SUB-PLAN1: Enforce plan user limit before creating invite
-  await assertPlanAllowsUser(companyId);
+  // Auditors use a separate seat cap (max 2) and do not consume maxUsers.
+  if (!invitingAuditor) {
+    await assertPlanAllowsUser(companyId);
+  }
 
   const { token, tokenHash } = generateInviteToken();
   const expiresAt = new Date();
@@ -275,7 +343,13 @@ export async function createTeamUser(
   }
 
   await assertInvitableRole(companyId, input.role);
-  await assertPlanAllowsUser(companyId);
+  const creatingAuditor = input.role === Role.AUDITOR;
+  if (creatingAuditor) {
+    const { assertAuditorSlotAvailable } = await import('./auditor.service');
+    await assertAuditorSlotAvailable(companyId);
+  } else {
+    await assertPlanAllowsUser(companyId);
+  }
 
   const phone = input.phone ? normalizePhone(input.phone) : null;
   let email = input.email?.toLowerCase() || null;
@@ -321,6 +395,15 @@ export async function createTeamUser(
 
     return created;
   });
+
+  if (creatingAuditor) {
+    const { ensureAuditorMembership } = await import('./auditor.service');
+    await ensureAuditorMembership({
+      userId: user.id,
+      companyId,
+      invitedById: createdById,
+    });
+  }
 
   await recordAudit({
     companyId,
@@ -571,7 +654,37 @@ export async function acceptPendingPhoneInvite(
     expectedDestination: phone,
   });
 
-  const user = await completeInviteAsUser(invite, inviteJoinName(invite));
+  let user;
+  if (invite.role === Role.AUDITOR) {
+    const existing = await findUserByPhone(phone, { activeOnly: true });
+    if (existing?.role === Role.AUDITOR) {
+      const { ensureAuditorMembership } = await import('./auditor.service');
+      await ensureAuditorMembership({
+        userId: existing.id,
+        companyId: invite.companyId,
+        invitedById: invite.invitedById,
+      });
+      await prisma.user.update({
+        where: { id: existing.id },
+        data: { companyId: invite.companyId, role: Role.AUDITOR },
+      });
+      await prisma.userInvite.update({
+        where: { id: invite.id },
+        data: { acceptedAt: new Date() },
+      });
+      user = await prisma.user.findUniqueOrThrow({ where: { id: existing.id } });
+    } else {
+      user = await completeInviteAsUser(invite, inviteJoinName(invite));
+      const { ensureAuditorMembership } = await import('./auditor.service');
+      await ensureAuditorMembership({
+        userId: user.id,
+        companyId: invite.companyId,
+        invitedById: invite.invitedById,
+      });
+    }
+  } else {
+    user = await completeInviteAsUser(invite, inviteJoinName(invite));
+  }
 
   await recordAudit({
     companyId: invite.companyId,
@@ -588,15 +701,19 @@ export async function acceptPendingPhoneInvite(
     ipAddress,
   });
 
-  const tokens = issueTokens({ sub: user.id, companyId: user.companyId, role: user.role });
+  const tokens = issueTokens({ sub: user.id, companyId: invite.companyId, role: user.role });
   const { resolveLogoDisplayUrl } = await import('./settings.service');
   const { getRolePermissions } = await import('../lib/permissions');
   const { getProductMode, PLAN_MODULES, InventoryBusinessProfile } = await import('@buildflow/shared');
   const [companyLogoUrl, permissions] = await Promise.all([
-    resolveLogoDisplayUrl(user.companyId, invite.company.logoUrl),
-    getRolePermissions(user.companyId, user.role),
+    resolveLogoDisplayUrl(invite.companyId, invite.company.logoUrl),
+    getRolePermissions(invite.companyId, user.role),
   ]);
   const planKey = invite.company.subscriptionPlan as keyof typeof PLAN_MODULES;
+  const memberships =
+    user.role === Role.AUDITOR
+      ? await (await import('./auditor.service')).listAuditorMemberships(user.id)
+      : undefined;
 
   return {
     user: {
@@ -604,7 +721,7 @@ export async function acceptPendingPhoneInvite(
       name: user.name,
       email: user.email,
       role: user.role,
-      companyId: user.companyId,
+      companyId: invite.companyId,
       companyName: invite.company.name,
       phone: user.phone,
       companyLogoUrl,
@@ -618,6 +735,7 @@ export async function acceptPendingPhoneInvite(
           ? (invite.company.inventoryProfile ?? InventoryBusinessProfile.GENERAL)
           : null,
       inventoryVertical: invite.company.inventoryVertical,
+      auditorMemberships: memberships,
     },
     ...tokens,
   };
@@ -642,6 +760,7 @@ export async function acceptInvite(
           subscriptionPlan: true,
           defaultProjectId: true,
           inventoryProfile: true,
+          inventoryVertical: true,
         },
       },
     },
@@ -666,7 +785,49 @@ export async function acceptInvite(
     expectedDestination,
   });
 
-  const user = await completeInviteAsUser(invite, inviteJoinName(invite, input.name));
+  let user;
+  if (invite.role === Role.AUDITOR && phone) {
+    const existing = await findUserByPhone(phone, { activeOnly: true });
+    if (existing?.role === Role.AUDITOR) {
+      const { ensureAuditorMembership } = await import('./auditor.service');
+      await ensureAuditorMembership({
+        userId: existing.id,
+        companyId: invite.companyId,
+        invitedById: invite.invitedById,
+      });
+      await prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          companyId: invite.companyId,
+          role: Role.AUDITOR,
+          name: inviteJoinName(invite, input.name),
+        },
+      });
+      await prisma.userInvite.update({
+        where: { id: invite.id },
+        data: { acceptedAt: new Date() },
+      });
+      user = await prisma.user.findUniqueOrThrow({ where: { id: existing.id } });
+    } else {
+      user = await completeInviteAsUser(invite, inviteJoinName(invite, input.name));
+      const { ensureAuditorMembership } = await import('./auditor.service');
+      await ensureAuditorMembership({
+        userId: user.id,
+        companyId: invite.companyId,
+        invitedById: invite.invitedById,
+      });
+    }
+  } else {
+    user = await completeInviteAsUser(invite, inviteJoinName(invite, input.name));
+    if (invite.role === Role.AUDITOR) {
+      const { ensureAuditorMembership } = await import('./auditor.service');
+      await ensureAuditorMembership({
+        userId: user.id,
+        companyId: invite.companyId,
+        invitedById: invite.invitedById,
+      });
+    }
+  }
 
   await recordAudit({
     companyId: invite.companyId,
@@ -683,22 +844,27 @@ export async function acceptInvite(
     ipAddress,
   });
 
-  const tokens = issueTokens({ sub: user.id, companyId: user.companyId, role: user.role });
+  const tokens = issueTokens({ sub: user.id, companyId: invite.companyId, role: user.role });
   const companyMeta = invite.company as {
     name: string;
     logoUrl: string | null;
     subscriptionPlan: string;
     defaultProjectId: string | null;
     inventoryProfile: InventoryBusinessProfile | null;
+    inventoryVertical: string | null;
   };
   const { resolveLogoDisplayUrl } = await import('./settings.service');
   const { getRolePermissions } = await import('../lib/permissions');
   const { getProductMode, PLAN_MODULES, InventoryBusinessProfile } = await import('@buildflow/shared');
   const [companyLogoUrl, permissions] = await Promise.all([
-    resolveLogoDisplayUrl(user.companyId, companyMeta.logoUrl),
-    getRolePermissions(user.companyId, user.role),
+    resolveLogoDisplayUrl(invite.companyId, companyMeta.logoUrl),
+    getRolePermissions(invite.companyId, user.role),
   ]);
   const planKey = companyMeta.subscriptionPlan as keyof typeof PLAN_MODULES;
+  const memberships =
+    user.role === Role.AUDITOR
+      ? await (await import('./auditor.service')).listAuditorMemberships(user.id)
+      : undefined;
 
   return {
     user: {
@@ -706,7 +872,7 @@ export async function acceptInvite(
       name: user.name,
       email: user.email,
       role: user.role,
-      companyId: user.companyId,
+      companyId: invite.companyId,
       companyName: companyMeta.name,
       phone: user.phone,
       companyLogoUrl,
@@ -719,6 +885,11 @@ export async function acceptInvite(
         getProductMode(companyMeta.subscriptionPlan) === 'inventory'
           ? (companyMeta.inventoryProfile ?? InventoryBusinessProfile.GENERAL)
           : null,
+      inventoryVertical:
+        getProductMode(companyMeta.subscriptionPlan) === 'inventory'
+          ? companyMeta.inventoryVertical
+          : null,
+      auditorMemberships: memberships,
     },
     ...tokens,
   };

@@ -153,7 +153,13 @@ export const inviteRoleSchema = z.enum([
   'SITE_SUPERVISOR',
   'ACCOUNTANT',
   'INVENTORY_MANAGER',
+  'AUDITOR',
 ]);
+
+export const switchCompanySchema = z.object({
+  companyId: z.string().uuid(),
+});
+export type SwitchCompanyInput = z.infer<typeof switchCompanySchema>;
 
 export const createUserInviteSchema = z
   .object({

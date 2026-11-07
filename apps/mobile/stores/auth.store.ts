@@ -38,6 +38,13 @@ export interface AuthUser {
   inventoryProfile?: InventoryBusinessProfile | null;
   /** INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.1/11.2): Kirana vertical (null otherwise). */
   inventoryVertical?: string | null;
+  /** Auditor multi-shop links (AUDITOR role only). */
+  auditorMemberships?: Array<{
+    companyId: string;
+    companyName: string;
+    inventoryVertical: string | null;
+    subscriptionPlan: string;
+  }>;
 }
 
 interface AuthState {
@@ -51,6 +58,7 @@ interface AuthState {
   logout: () => Promise<void>;
   hydrate: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  switchCompany: (companyId: string) => Promise<void>;
 }
 
 async function persistSession(data: AuthResponsePayload) {
@@ -182,5 +190,15 @@ export const useAuthStore = create<AuthState>((set) => ({
     const user = await apiFetch<AuthUser>('/auth/me');
     await SecureStore.setItemAsync(SECURE_STORE_KEYS.USER, JSON.stringify(user));
     set({ user });
+  },
+
+  switchCompany: async (companyId: string) => {
+    const data = await apiFetch<AuthResponsePayload>('/auth/switch-company', {
+      method: 'POST',
+      body: JSON.stringify({ companyId }),
+    });
+    await persistSession(data);
+    queryClient.clear();
+    set({ user: data.user as AuthUser, accessToken: data.accessToken, isAuthenticated: true });
   },
 }));

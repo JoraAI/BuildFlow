@@ -71,7 +71,8 @@ export async function getSubscriptionSummary(companyId: string): Promise<Subscri
 
   const [projectCount, userCount] = await Promise.all([
     prisma.project.count({ where: { companyId, isDeleted: false } }),
-    prisma.user.count({ where: { companyId, isActive: true } }),
+    // Auditors have a separate seat cap and are excluded from plan maxUsers usage.
+    prisma.user.count({ where: { companyId, isActive: true, role: { not: 'AUDITOR' } } }),
   ]);
 
   return {

@@ -19,6 +19,7 @@ import {
   acceptInviteSchema,
   sendInviteOtpSchema,
   sendLoginOtpSchema,
+  switchCompanySchema,
 } from '@buildflow/shared';
 
 export const authRouter = Router();
@@ -48,3 +49,9 @@ authRouter.post(
 authRouter.post('/refresh', authLimiter, validate({ body: refreshSchema }), authController.refresh);
 authRouter.post('/logout', authenticateToken, authController.logout);
 authRouter.get('/me', authenticateToken, authController.me);
+authRouter.post(
+  '/switch-company',
+  authenticateToken,
+  validate({ body: switchCompanySchema }),
+  authController.switchCompany,
+);

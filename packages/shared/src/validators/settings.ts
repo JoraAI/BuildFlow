@@ -133,6 +133,7 @@ export const userRoleUpdateSchema = z.object({
     'SUPERVISOR',
     'ACCOUNTANT',
     'INVENTORY_MANAGER',
+    'AUDITOR',
   ]).optional(),
   isActive: z.boolean().optional(),
 });

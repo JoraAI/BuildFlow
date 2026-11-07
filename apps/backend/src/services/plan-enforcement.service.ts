@@ -59,8 +59,9 @@ export async function assertPlanAllowsUser(companyId: string): Promise<void> {
   const limit = getPlanLimit(planKey);
   if (limit.maxUsers === null) return; // unlimited
 
+  // Auditors use a separate max-2 cap and must not consume plan maxUsers seats.
   const userCount = await prisma.user.count({
-    where: { companyId, isActive: true },
+    where: { companyId, isActive: true, role: { not: 'AUDITOR' } },
   });
 
   if (userCount >= limit.maxUsers) {

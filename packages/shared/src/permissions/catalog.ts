@@ -131,6 +131,12 @@ export const PERMISSIONS = {
   // ── Reports ────────────────────────────────────────────────────────
   'reports.view': 'View reports hub',
   'reports.download': 'Download PDF / Excel reports',
+
+  // ── Auditor GST handoff (inventory) ────────────────────────────────
+  'auditor.view_packs': 'View GST packs sent by shop owners',
+  'auditor.manage_packs': 'Create / send GST packs to auditors (owner)',
+  'auditor.manual_entry': 'Add auditor manual entries on a GST pack',
+  'auditor.file_pack': 'Mark a GST pack in progress or filed',
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -258,5 +264,14 @@ export const PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] =
   {
     label: 'Reports',
     permissions: ['reports.view', 'reports.download'],
+  },
+  {
+    label: 'Auditor GST handoff',
+    permissions: [
+      'auditor.view_packs',
+      'auditor.manage_packs',
+      'auditor.manual_entry',
+      'auditor.file_pack',
+    ],
   },
 ];

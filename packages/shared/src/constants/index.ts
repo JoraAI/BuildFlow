@@ -77,6 +77,12 @@ export const ROLE_META: Record<
     color: '#059669',
     description: 'Stock, procurement, sales invoices, vendor bills, Tally (Inventory product)',
   },
+  AUDITOR: {
+    label: 'Auditor',
+    short: 'Auditor',
+    color: '#0F766E',
+    description: 'GST packs, bank, quotes, journals — multi-shop auditor desk',
+  },
 };
 
 /* ------------------------------------------------------------------ */
@@ -96,6 +102,7 @@ export const ROLE_TABS: Record<Role, string[]> = {
   ACCOUNTANT: ['dashboard', 'accounting', 'reports'],
   // INVENTORY_PRODUCT: inventory shell tabs are rendered by (inventory)/_layout.
   INVENTORY_MANAGER: ['dashboard', 'accounting', 'reports'],
+  AUDITOR: ['dashboard', 'accounting', 'reports'],
 };
 
 export type TabKey =

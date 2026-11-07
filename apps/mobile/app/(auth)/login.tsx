@@ -28,6 +28,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [otpHint, setOtpHint] = useState<string | null>(null);
+  const [otpSent, setOtpSent] = useState(false);
   const [smsConsent, setSmsConsent] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
   const [error, setError] = useState('');
@@ -61,6 +62,8 @@ export default function LoginScreen() {
     setSendingOtp(true);
     try {
       const res = await sendLoginOtpRequest(email.trim());
+      setOtp('');
+      setOtpSent(true);
       setOtpHint(
         res.devCode
           ? `Code sent (dev): ${res.devCode}`
@@ -70,6 +73,15 @@ export default function LoginScreen() {
       setError((err as ApiError).message || 'Could not send OTP');
     } finally {
       setSendingOtp(false);
+    }
+  };
+
+  const onIdentifierChange = (value: string) => {
+    setEmail(value);
+    if (otpSent || otp || otpHint) {
+      setOtp('');
+      setOtpHint(null);
+      setOtpSent(false);
     }
   };
 
@@ -112,11 +124,11 @@ export default function LoginScreen() {
       heroSubline={heroSubline}
       backHref="/"
       formTitle="Sign in"
-      formSubtitle="Enter your email or mobile and the OTP we send you. Invited to a shop? Use that mobile to join it."
+      formSubtitle="Phone and laptop use the same mobile number. We text the OTP to that number. Construction accounts that signed up with email can enter that email instead."
       footer={
         isDesktop ? (
           <>
-            {signInButton}
+            {otpSent ? signInButton : null}
             <Text className="text-center text-xs text-muted mt-4">
               BuildFlow v2.0 - Built for the field, designed for the boardroom.
             </Text>
@@ -125,12 +137,18 @@ export default function LoginScreen() {
       }
     >
       <Input
-        label="Email or mobile"
+        label="Mobile number"
         value={email}
-        onChangeText={setEmail}
-        placeholder="you@company.com or 9876543210"
+        onChangeText={onIdentifierChange}
+        placeholder="9876543210"
         keyboardType="default"
         autoCapitalize="none"
+        autoComplete="off"
+        helper={
+          email.includes('@')
+            ? 'This will email a code. If you signed in on the phone with a mobile number, type that same 10-digit number here to get an SMS.'
+            : 'Same number you used on the phone. Tick the SMS box, then send the code.'
+        }
       />
 
       {looksLikePhone(email) ? (
@@ -146,18 +164,21 @@ export default function LoginScreen() {
         loading={sendingOtp}
         fullWidth
       />
-      {otpHint ? <Text className="text-xs text-muted mt-2">{otpHint}</Text> : null}
 
-      <View className="h-3" />
-
-      <Input
-        label="OTP"
-        value={otp}
-        onChangeText={setOtp}
-        placeholder="6-digit code"
-        keyboardType="number-pad"
-        maxLength={6}
-      />
+      {otpSent ? (
+        <>
+          {otpHint ? <Text className="text-xs text-muted mt-2">{otpHint}</Text> : null}
+          <View className="h-3" />
+          <Input
+            label="OTP"
+            value={otp}
+            onChangeText={setOtp}
+            placeholder="6-digit code"
+            keyboardType="number-pad"
+            maxLength={6}
+          />
+        </>
+      ) : null}
 
       {error ? (
         <View className="bg-danger/10 rounded-lg px-3 py-2 mt-4 border border-danger/20">
@@ -165,12 +186,12 @@ export default function LoginScreen() {
         </View>
       ) : null}
 
-      {!isDesktop && (
+      {otpSent && !isDesktop ? (
         <>
           <View className="h-4" />
           {signInButton}
         </>
-      )}
+      ) : null}
 
       <TouchableOpacity onPress={() => router.push('/signup')} className="mt-6 self-center">
         <Text className="text-muted text-sm">
