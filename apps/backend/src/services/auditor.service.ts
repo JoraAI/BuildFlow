@@ -713,6 +713,38 @@ async function buildPackSlices(
   };
 }
 
+type PackGstSlice = Awaited<ReturnType<typeof buildPackSlices>>['gst'];
+
+/** Fill missing arrays on older snapshots (pre-CN/DN / pre-HSN rollup). */
+function normalizePackGst(raw: unknown): PackGstSlice {
+  const g = (raw && typeof raw === 'object' ? raw : {}) as Partial<PackGstSlice>;
+  return {
+    invoiceCount: Number(g.invoiceCount ?? 0),
+    billCount: Number(g.billCount ?? 0),
+    creditNoteCount: Number(g.creditNoteCount ?? (Array.isArray(g.creditNotes) ? g.creditNotes.length : 0)),
+    debitNoteCount: Number(g.debitNoteCount ?? (Array.isArray(g.debitNotes) ? g.debitNotes.length : 0)),
+    invoiceTaxable: Number(g.invoiceTaxable ?? 0),
+    invoiceCgst: Number(g.invoiceCgst ?? 0),
+    invoiceSgst: Number(g.invoiceSgst ?? 0),
+    invoiceIgst: Number(g.invoiceIgst ?? 0),
+    invoiceGst: Number(g.invoiceGst ?? 0),
+    billGst: Number(g.billGst ?? 0),
+    billTaxable: Number(g.billTaxable ?? 0),
+    billTotal: Number(g.billTotal ?? 0),
+    creditNoteGst: Number(g.creditNoteGst ?? 0),
+    debitNoteGst: Number(g.debitNoteGst ?? 0),
+    b2bCount: Number(g.b2bCount ?? 0),
+    b2cCount: Number(g.b2cCount ?? 0),
+    missingHsnLines: Number(g.missingHsnLines ?? 0),
+    rateWise: Array.isArray(g.rateWise) ? g.rateWise : [],
+    hsnSummary: Array.isArray(g.hsnSummary) ? g.hsnSummary : [],
+    invoices: Array.isArray(g.invoices) ? g.invoices : [],
+    bills: Array.isArray(g.bills) ? g.bills : [],
+    creditNotes: Array.isArray(g.creditNotes) ? g.creditNotes : [],
+    debitNotes: Array.isArray(g.debitNotes) ? g.debitNotes : [],
+  };
+}
+
 export async function getGstHandoffPackDetail(
   companyId: string,
   packId: string,
@@ -756,36 +788,11 @@ export async function getGstHandoffPackDetail(
       },
     });
     const snapTax = snap.taxCode ?? taxCode;
-    const emptyGst: PackSlices['gst'] = {
-      invoiceCount: 0,
-      billCount: 0,
-      creditNoteCount: 0,
-      debitNoteCount: 0,
-      invoiceTaxable: 0,
-      invoiceCgst: 0,
-      invoiceSgst: 0,
-      invoiceIgst: 0,
-      invoiceGst: 0,
-      billGst: 0,
-      billTaxable: 0,
-      billTotal: 0,
-      creditNoteGst: 0,
-      debitNoteGst: 0,
-      b2bCount: 0,
-      b2cCount: 0,
-      missingHsnLines: 0,
-      rateWise: [],
-      hsnSummary: [],
-      invoices: [],
-      bills: [],
-      creditNotes: [],
-      debitNotes: [],
-    };
     return {
       ...serializePack(pack),
       bank: snap.bank ?? [],
       journals: snap.journals ?? [],
-      gst: snap.gst ?? emptyGst,
+      gst: normalizePackGst(snap.gst),
       bankTotal: snap.bankTotal ?? 0,
       taxCode: snapTax,
       manualEntries: manualEntries.map((m) => ({
@@ -811,8 +818,6 @@ export async function getGstHandoffPackDetail(
     taxCode,
   };
 }
-
-type PackGstSlice = Awaited<ReturnType<typeof buildPackSlices>>['gst'];
 
 function fpFromPeriod(periodEnd: string): string {
   const [y, m] = periodEnd.split('-');
@@ -899,7 +904,7 @@ function buildGstr1Json(opts: {
           num: 1,
           itm_det: {
             txval: cn.taxable,
-            rt: cn.lines[0]?.gstRate ?? 0,
+            rt: cn.lines?.[0]?.gstRate ?? 0,
             camt: cn.cgst,
             samt: cn.sgst,
             iamt: cn.igst,
@@ -962,7 +967,7 @@ export async function exportGstHandoffPack(
     where: { id: companyId },
     select: { gstin: true, name: true },
   });
-  const gst = detail.gst as PackGstSlice;
+  const gst = normalizePackGst(detail.gst);
   const label = detail.label.replace(/[^\w.-]+/g, '_');
 
   if (opts.format === 'gstr1-json') {
