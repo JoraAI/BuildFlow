@@ -131,7 +131,7 @@ export default function LoginScreen() {
       heroSubline={heroSubline}
       backHref="/"
       formTitle="Sign in"
-      formSubtitle="Phone and laptop use the same mobile number. We text the OTP to that number. Construction accounts that signed up with email can enter that email instead."
+      formSubtitle="Mobile number or email — we'll send a one-time code."
       footer={
         isDesktop ? (
           <>
@@ -151,20 +151,16 @@ export default function LoginScreen() {
         keyboardType={emailMode ? 'email-address' : 'phone-pad'}
         autoCapitalize="none"
         autoComplete={emailMode ? 'email' : 'tel'}
-        helper={
-          emailMode
-            ? 'We will email a login code. For phone-signup accounts, clear this and enter the 10-digit mobile instead.'
-            : 'Same number you used on the phone. Digits and + only — then send the code.'
-        }
       />
 
       <View className="h-3" />
 
       <Button
-        label={sendingOtp ? 'Sending…' : 'Send OTP'}
+        label={sendingOtp ? 'Sending…' : otpSent ? 'Resend OTP' : 'Send OTP'}
         variant="secondary"
         onPress={handleSendOtp}
         loading={sendingOtp}
+        disabled={!email.trim()}
         fullWidth
       />
 
