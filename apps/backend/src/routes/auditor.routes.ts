@@ -36,6 +36,11 @@ auditorRouter.post(
   requireRole(Role.OWNER, Role.INVENTORY_MANAGER),
   ctrl.sendPack,
 );
+auditorRouter.get(
+  '/packs/:packId/export',
+  requireRole(Role.OWNER, Role.INVENTORY_MANAGER),
+  ctrl.exportOwnerPack,
+);
 auditorRouter.delete(
   '/packs/:packId',
   requireRole(Role.OWNER, Role.INVENTORY_MANAGER),
@@ -57,6 +62,11 @@ auditorRouter.get(
   '/inbox/:packId',
   requirePermission('auditor.view_packs'),
   ctrl.auditorPackDetail,
+);
+auditorRouter.get(
+  '/inbox/:packId/export',
+  requirePermission('auditor.view_packs'),
+  ctrl.exportAuditorPack,
 );
 auditorRouter.patch(
   '/inbox/:packId/status',

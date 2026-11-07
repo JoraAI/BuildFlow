@@ -54,6 +54,7 @@ import {
 } from '@buildflow/shared';
 import { useSetInventoryVertical } from '@/services/settings.queries';
 import {
+  downloadGstPackExport,
   useCreateGstPack,
   useDeleteGstPack,
   useOwnerGstPacks,
@@ -900,8 +901,12 @@ export default function InventorySettingsScreen() {
                         onPress={() =>
                           void run(async () => {
                             try {
-                              await sendGstPack.mutateAsync(p.id);
-                              toast.success('Pack sent to auditors');
+                              const sent = await sendGstPack.mutateAsync(p.id);
+                              if (sent.hsnWarning) {
+                                toast.warning(sent.hsnWarning);
+                              } else {
+                                toast.success('Pack sent to auditors');
+                              }
                             } catch (e) {
                               toast.error(e instanceof Error ? e.message : 'Could not send pack');
                             }
@@ -910,7 +915,21 @@ export default function InventorySettingsScreen() {
                       />
                     </View>
                   ) : (
-                    <Badge label={p.status} />
+                    <View className="flex-row flex-wrap items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        label="GSTR-1"
+                        onPress={() => void downloadGstPackExport(p.id, 'gstr1-json', { asOwner: true })}
+                      />
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        label="CSV"
+                        onPress={() => void downloadGstPackExport(p.id, 'csv', { asOwner: true })}
+                      />
+                      <Badge label={p.status} />
+                    </View>
                   )}
                 </View>
               ))

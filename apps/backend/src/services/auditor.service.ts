@@ -218,7 +218,6 @@ export async function sendGstHandoffPack(companyId: string, packId: string, acto
   const taxCode = getGstTaxCodeLabels(companyMeta?.inventoryVertical, companyMeta?.inventoryProfile);
   const snapshot = {
     bank: detail.bank,
-    quotes: detail.quotes,
     journals: detail.journals,
     gst: detail.gst,
     bankTotal: detail.bankTotal,
@@ -241,7 +240,14 @@ export async function sendGstHandoffPack(companyId: string, packId: string, acto
     entityType: 'gst_handoff_pack',
     entityId: packId,
   });
-  return serializePack(updated);
+  return {
+    ...serializePack(updated),
+    missingHsnLines: detail.gst.missingHsnLines,
+    hsnWarning:
+      detail.gst.missingHsnLines > 0
+        ? `${detail.gst.missingHsnLines} sales lines missing HSN/SAC — auditors will flag this.`
+        : null,
+  };
 }
 
 export async function listOwnerPacks(companyId: string) {
@@ -282,6 +288,52 @@ type PackRow = {
   createdAt: Date;
 };
 
+function addHsn(
+  hsnMap: Map<string, { hsn: string; taxable: number; tax: number; qty: number; lineCount: number }>,
+  hsnRaw: string | null | undefined,
+  taxable: number,
+  rate: number,
+  qty: number,
+): boolean {
+  const hsn = hsnRaw?.trim() || '';
+  const missing = !hsn;
+  const key = hsn || '(missing)';
+  const cur = hsnMap.get(key) ?? { hsn: key, taxable: 0, tax: 0, qty: 0, lineCount: 0 };
+  cur.taxable += taxable;
+  cur.tax += (taxable * rate) / 100;
+  cur.qty += qty;
+  cur.lineCount += 1;
+  hsnMap.set(key, cur);
+  return missing;
+}
+
+function parseBillSnapshotLines(snapshot: Prisma.JsonValue | null): Array<{
+  description: string;
+  qty: number;
+  taxable: number;
+  gstRate: number;
+  hsn: string | null;
+}> {
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return [];
+  const lines = (snapshot as { lines?: unknown }).lines;
+  if (!Array.isArray(lines)) return [];
+  return lines.map((raw, idx) => {
+    const l = (raw ?? {}) as Record<string, unknown>;
+    const qty = Number(l.quantity ?? l.qty ?? 0) || 0;
+    const rate = Number(l.rate ?? l.unitRate ?? 0) || 0;
+    const amount = Number(l.amount ?? qty * rate) || 0;
+    const gstRate = Number(l.gstRate ?? l.gst ?? 0) || 0;
+    const hsn = typeof l.hsn === 'string' ? l.hsn : typeof l.hsnSacCode === 'string' ? l.hsnSacCode : null;
+    return {
+      description: String(l.description ?? `Line ${idx + 1}`),
+      qty,
+      taxable: amount,
+      gstRate,
+      hsn: hsn?.trim() || null,
+    };
+  });
+}
+
 async function buildPackSlices(
   companyId: string,
   packId: string,
@@ -292,7 +344,7 @@ async function buildPackSlices(
   const endExclusive = new Date(periodEnd);
   endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
 
-  const [bank, quotes, journals, invoices, bills, manualEntries] = await Promise.all([
+  const [bank, journals, invoices, bills, creditNotes, debitNotes, manualEntries] = await Promise.all([
     prisma.inventoryCashBookEntry.findMany({
       where: { companyId, entryDate: { gte: start, lt: endExclusive } },
       orderBy: { entryDate: 'asc' },
@@ -304,18 +356,6 @@ async function buildPackSlices(
         description: true,
         entryType: true,
         direction: true,
-      },
-    }),
-    prisma.quote.findMany({
-      where: { companyId, quoteDate: { gte: start, lt: endExclusive } },
-      orderBy: { quoteDate: 'desc' },
-      select: {
-        id: true,
-        quoteNumber: true,
-        status: true,
-        total: true,
-        customerName: true,
-        quoteDate: true,
       },
     }),
     prisma.journalEntry.findMany({
@@ -371,6 +411,63 @@ async function buildPackSlices(
         subtotal: true,
         total: true,
         gstAmount: true,
+        billSnapshot: true,
+      },
+    }),
+    prisma.creditNote.findMany({
+      where: { companyId, status: 'ISSUED', creditDate: { gte: start, lt: endExclusive } },
+      select: {
+        id: true,
+        creditNoteNumber: true,
+        creditDate: true,
+        customerName: true,
+        subtotal: true,
+        total: true,
+        gstAmount: true,
+        cgstAmount: true,
+        sgstAmount: true,
+        igstAmount: true,
+        customer: { select: { gstin: true } },
+        invoice: { select: { clientGstin: true, clientState: true, invoiceNumber: true } },
+        lines: {
+          select: {
+            id: true,
+            description: true,
+            quantity: true,
+            rate: true,
+            amount: true,
+            gstRate: true,
+            resourceId: true,
+          },
+        },
+      },
+    }),
+    prisma.debitNote.findMany({
+      where: { companyId, status: 'ISSUED', debitDate: { gte: start, lt: endExclusive } },
+      select: {
+        id: true,
+        debitNoteNumber: true,
+        debitDate: true,
+        vendorName: true,
+        subtotal: true,
+        total: true,
+        gstAmount: true,
+        cgstAmount: true,
+        sgstAmount: true,
+        igstAmount: true,
+        vendor: { select: { gstin: true } },
+        bill: { select: { vendorGstin: true, billNumber: true } },
+        lines: {
+          select: {
+            id: true,
+            description: true,
+            quantity: true,
+            rate: true,
+            amount: true,
+            gstRate: true,
+            resourceId: true,
+          },
+        },
       },
     }),
     prisma.auditorManualEntry.findMany({
@@ -388,6 +485,25 @@ async function buildPackSlices(
     }),
   ]);
 
+  // Credit/Debit note lines store resourceId without a Prisma relation — resolve HSN in one query.
+  const noteResourceIds = [
+    ...new Set(
+      [...creditNotes, ...debitNotes]
+        .flatMap((n) => n.lines.map((li) => li.resourceId))
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const noteResources =
+    noteResourceIds.length === 0
+      ? []
+      : await prisma.resource.findMany({
+          where: { id: { in: noteResourceIds }, companyId },
+          select: { id: true, hsnSacCode: true },
+        });
+  const hsnByResourceId = new Map(
+    noteResources.map((r) => [r.id, r.hsnSacCode?.trim() || null] as const),
+  );
+
   const hsnMap = new Map<
     string,
     { hsn: string; taxable: number; tax: number; qty: number; lineCount: number }
@@ -404,16 +520,7 @@ async function buildPackSlices(
     const lines = i.lineItems.map((li) => {
       const taxable = Number(li.amount);
       const rate = Number(li.gstRate);
-      const tax = (taxable * rate) / 100;
-      const hsn = li.hsnSacCode?.trim() || '';
-      if (!hsn) missingHsnLines += 1;
-      const key = hsn || '(missing)';
-      const cur = hsnMap.get(key) ?? { hsn: key, taxable: 0, tax: 0, qty: 0, lineCount: 0 };
-      cur.taxable += taxable;
-      cur.tax += tax;
-      cur.qty += Number(li.quantity);
-      cur.lineCount += 1;
-      hsnMap.set(key, cur);
+      if (addHsn(hsnMap, li.hsnSacCode, taxable, rate, Number(li.quantity))) missingHsnLines += 1;
       return {
         id: li.id,
         description: li.description,
@@ -421,7 +528,7 @@ async function buildPackSlices(
         rate: Number(li.rate),
         taxable,
         gstRate: rate,
-        hsn: hsn || null,
+        hsn: li.hsnSacCode?.trim() || null,
       };
     });
 
@@ -443,6 +550,92 @@ async function buildPackSlices(
     };
   });
 
+  const creditNoteRows = creditNotes.map((cn) => {
+    const gstin = cn.customer?.gstin ?? cn.invoice?.clientGstin ?? null;
+    const lines = cn.lines.map((li) => {
+      const taxable = Number(li.amount);
+      const rate = Number(li.gstRate);
+      const hsn = li.resourceId ? hsnByResourceId.get(li.resourceId) ?? null : null;
+      if (addHsn(hsnMap, hsn, taxable, rate, Number(li.quantity))) missingHsnLines += 1;
+      return {
+        id: li.id,
+        description: li.description,
+        qty: Number(li.quantity),
+        rate: Number(li.rate),
+        taxable,
+        gstRate: rate,
+        hsn,
+      };
+    });
+    return {
+      id: cn.id,
+      number: cn.creditNoteNumber,
+      date: cn.creditDate.toISOString().slice(0, 10),
+      partyName: cn.customerName,
+      partyGstin: gstin,
+      againstInvoice: cn.invoice?.invoiceNumber ?? null,
+      taxable: Number(cn.subtotal),
+      total: Number(cn.total),
+      gst: Number(cn.gstAmount),
+      cgst: Number(cn.cgstAmount),
+      sgst: Number(cn.sgstAmount),
+      igst: Number(cn.igstAmount),
+      lines,
+    };
+  });
+
+  const debitNoteRows = debitNotes.map((dn) => {
+    const gstin = dn.vendor?.gstin ?? dn.bill?.vendorGstin ?? null;
+    const lines = dn.lines.map((li) => {
+      const taxable = Number(li.amount);
+      const rate = Number(li.gstRate);
+      const hsn = li.resourceId ? hsnByResourceId.get(li.resourceId) ?? null : null;
+      addHsn(hsnMap, hsn, taxable, rate, Number(li.quantity));
+      return {
+        id: li.id,
+        description: li.description,
+        qty: Number(li.quantity),
+        rate: Number(li.rate),
+        taxable,
+        gstRate: rate,
+        hsn,
+      };
+    });
+    return {
+      id: dn.id,
+      number: dn.debitNoteNumber,
+      date: dn.debitDate.toISOString().slice(0, 10),
+      partyName: dn.vendorName,
+      partyGstin: gstin,
+      againstBill: dn.bill?.billNumber ?? null,
+      taxable: Number(dn.subtotal),
+      total: Number(dn.total),
+      gst: Number(dn.gstAmount),
+      cgst: Number(dn.cgstAmount),
+      sgst: Number(dn.sgstAmount),
+      igst: Number(dn.igstAmount),
+      lines,
+    };
+  });
+
+  const billRows = bills.map((b) => {
+    const lines = parseBillSnapshotLines(b.billSnapshot);
+    for (const li of lines) {
+      addHsn(hsnMap, li.hsn, li.taxable, li.gstRate, li.qty);
+    }
+    return {
+      id: b.id,
+      number: b.billNumber,
+      date: b.billDate.toISOString().slice(0, 10),
+      vendorName: b.vendorName,
+      vendorGstin: b.vendorGstin,
+      taxable: Number(b.subtotal ?? 0),
+      total: Number(b.total),
+      gst: Number(b.gstAmount ?? 0),
+      lines,
+    };
+  });
+
   const rateMap = new Map<string, { rate: number; taxable: number; tax: number; count: number }>();
   for (const inv of invoiceRows) {
     for (const line of inv.lines) {
@@ -458,6 +651,8 @@ async function buildPackSlices(
   const gstSummary = {
     invoiceCount: invoices.length,
     billCount: bills.length,
+    creditNoteCount: creditNotes.length,
+    debitNoteCount: debitNotes.length,
     invoiceTaxable: invoices.reduce((a, i) => a + Number(i.subtotal ?? 0), 0),
     invoiceCgst: invoices.reduce((a, i) => a + Number(i.cgstAmount ?? 0), 0),
     invoiceSgst: invoices.reduce((a, i) => a + Number(i.sgstAmount ?? 0), 0),
@@ -466,6 +661,8 @@ async function buildPackSlices(
     billGst: bills.reduce((a, b) => a + Number(b.gstAmount ?? 0), 0),
     billTaxable: bills.reduce((a, b) => a + Number(b.subtotal ?? 0), 0),
     billTotal: bills.reduce((a, b) => a + Number(b.total ?? 0), 0),
+    creditNoteGst: creditNotes.reduce((a, c) => a + Number(c.gstAmount ?? 0), 0),
+    debitNoteGst: debitNotes.reduce((a, d) => a + Number(d.gstAmount ?? 0), 0),
     b2bCount,
     b2cCount,
     missingHsnLines,
@@ -487,14 +684,6 @@ async function buildPackSlices(
       amount: Number(b.amount),
       entryDate: b.entryDate.toISOString().slice(0, 10),
     })),
-    quotes: quotes.map((q) => ({
-      id: q.id,
-      quoteNumber: q.quoteNumber,
-      status: q.status,
-      total: Number(q.total),
-      customerName: q.customerName,
-      quoteDate: q.quoteDate.toISOString().slice(0, 10),
-    })),
     journals: journals.map((j) => ({
       id: j.id,
       entryDate: j.entryDate.toISOString().slice(0, 10),
@@ -507,16 +696,9 @@ async function buildPackSlices(
     gst: {
       ...gstSummary,
       invoices: invoiceRows,
-      bills: bills.map((b) => ({
-        id: b.id,
-        number: b.billNumber,
-        date: b.billDate.toISOString().slice(0, 10),
-        vendorName: b.vendorName,
-        vendorGstin: b.vendorGstin,
-        taxable: Number(b.subtotal ?? 0),
-        total: Number(b.total),
-        gst: Number(b.gstAmount ?? 0),
-      })),
+      bills: billRows,
+      creditNotes: creditNoteRows,
+      debitNotes: debitNoteRows,
     },
     manualEntries: manualEntries.map((m) => ({
       id: m.id,
@@ -553,9 +735,13 @@ export async function getGstHandoffPackDetail(
   });
   const taxCode = getGstTaxCodeLabels(company?.inventoryVertical, company?.inventoryProfile);
 
+  type PackSlices = Awaited<ReturnType<typeof buildPackSlices>>;
+
   // Prefer immutable snapshot after send; always refresh manual entries.
   if (pack.snapshot && pack.status !== GstHandoffStatus.DRAFT) {
-    const snap = pack.snapshot as Record<string, unknown>;
+    const snap = pack.snapshot as Partial<PackSlices> & {
+      taxCode?: { short: string; field: string; missing: string };
+    };
     const manualEntries = await prisma.auditorManualEntry.findMany({
       where: { packId },
       orderBy: { entryDate: 'asc' },
@@ -569,13 +755,38 @@ export async function getGstHandoffPackDetail(
         createdAt: true,
       },
     });
-    const snapTax =
-      snap.taxCode && typeof snap.taxCode === 'object'
-        ? (snap.taxCode as { short: string; field: string; missing: string })
-        : taxCode;
+    const snapTax = snap.taxCode ?? taxCode;
+    const emptyGst: PackSlices['gst'] = {
+      invoiceCount: 0,
+      billCount: 0,
+      creditNoteCount: 0,
+      debitNoteCount: 0,
+      invoiceTaxable: 0,
+      invoiceCgst: 0,
+      invoiceSgst: 0,
+      invoiceIgst: 0,
+      invoiceGst: 0,
+      billGst: 0,
+      billTaxable: 0,
+      billTotal: 0,
+      creditNoteGst: 0,
+      debitNoteGst: 0,
+      b2bCount: 0,
+      b2cCount: 0,
+      missingHsnLines: 0,
+      rateWise: [],
+      hsnSummary: [],
+      invoices: [],
+      bills: [],
+      creditNotes: [],
+      debitNotes: [],
+    };
     return {
       ...serializePack(pack),
-      ...snap,
+      bank: snap.bank ?? [],
+      journals: snap.journals ?? [],
+      gst: snap.gst ?? emptyGst,
+      bankTotal: snap.bankTotal ?? 0,
       taxCode: snapTax,
       manualEntries: manualEntries.map((m) => ({
         id: m.id,
@@ -593,12 +804,252 @@ export async function getGstHandoffPackDetail(
   return {
     ...serializePack(pack),
     bank: slices.bank,
-    quotes: slices.quotes,
     journals: slices.journals,
     gst: slices.gst,
     manualEntries: slices.manualEntries,
     bankTotal: slices.bankTotal,
     taxCode,
+  };
+}
+
+type PackGstSlice = Awaited<ReturnType<typeof buildPackSlices>>['gst'];
+
+function fpFromPeriod(periodEnd: string): string {
+  const [y, m] = periodEnd.split('-');
+  return `${m}${y}`;
+}
+
+function buildGstr1Json(opts: {
+  gstin: string;
+  periodEnd: string;
+  gst: PackGstSlice;
+}) {
+  const { gstin, periodEnd, gst } = opts;
+  const b2bMap = new Map<string, Array<Record<string, unknown>>>();
+  const b2cs: Array<Record<string, unknown>> = [];
+  const b2cl: Array<Record<string, unknown>> = [];
+
+  for (const inv of gst.invoices) {
+    if (inv.bucket === 'B2B' && inv.clientGstin) {
+      const rows = b2bMap.get(inv.clientGstin) ?? [];
+      rows.push({
+        inum: inv.number,
+        idt: inv.date.split('-').reverse().join('-'),
+        val: inv.total,
+        pos: (inv.clientState ?? '').slice(0, 2) || '00',
+        rchrg: 'N',
+        inv_typ: 'R',
+        itms: [
+          {
+            num: 1,
+            itm_det: {
+              txval: inv.taxable,
+              rt: inv.gstRate,
+              camt: inv.cgst,
+              samt: inv.sgst,
+              iamt: inv.igst,
+              csamt: 0,
+            },
+          },
+        ],
+      });
+      b2bMap.set(inv.clientGstin, rows);
+    } else if (inv.igst > 0 && inv.total >= 250000) {
+      b2cl.push({
+        inum: inv.number,
+        idt: inv.date.split('-').reverse().join('-'),
+        val: inv.total,
+        pos: (inv.clientState ?? '').slice(0, 2) || '00',
+        itms: [
+          {
+            num: 1,
+            itm_det: { txval: inv.taxable, rt: inv.gstRate, iamt: inv.igst, csamt: 0 },
+          },
+        ],
+      });
+    } else {
+      b2cs.push({
+        sply_ty: inv.igst > 0 ? 'INTER' : 'INTRA',
+        pos: (inv.clientState ?? '').slice(0, 2) || '00',
+        typ: 'OE',
+        txval: inv.taxable,
+        rt: inv.gstRate,
+        camt: inv.cgst,
+        samt: inv.sgst,
+        iamt: inv.igst,
+        csamt: 0,
+      });
+    }
+  }
+
+  const cdnrMap = new Map<string, Array<Record<string, unknown>>>();
+  for (const cn of gst.creditNotes) {
+    const ctin = cn.partyGstin?.trim();
+    if (!ctin) continue;
+    const rows = cdnrMap.get(ctin) ?? [];
+    rows.push({
+      ntty: 'C',
+      nt_num: cn.number,
+      nt_dt: cn.date.split('-').reverse().join('-'),
+      val: cn.total,
+      rsn: '01',
+      p_gst: 'N',
+      itms: [
+        {
+          num: 1,
+          itm_det: {
+            txval: cn.taxable,
+            rt: cn.lines[0]?.gstRate ?? 0,
+            camt: cn.cgst,
+            samt: cn.sgst,
+            iamt: cn.igst,
+            csamt: 0,
+          },
+        },
+      ],
+    });
+    cdnrMap.set(ctin, rows);
+  }
+
+  return {
+    gstin,
+    fp: fpFromPeriod(periodEnd),
+    b2b: [...b2bMap.entries()].map(([ctin, inv]) => ({ ctin, inv })),
+    b2cl,
+    b2cs,
+    cdnr: [...cdnrMap.entries()].map(([ctin, nt]) => ({ ctin, nt })),
+    hsn: {
+      data: gst.hsnSummary
+        .filter((h) => h.hsn !== '(missing)')
+        .map((h, i) => ({
+          num: i + 1,
+          hsnsac: h.hsn,
+          qty: h.qty,
+          rt: 0,
+          txval: Number(h.taxable.toFixed(2)),
+          iamt: 0,
+          camt: 0,
+          samt: 0,
+          csamt: 0,
+        })),
+    },
+  };
+}
+
+function csvEscape(v: unknown): string {
+  const s = v == null ? '' : String(v);
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+function toCsv(headers: string[], rows: unknown[][]): string {
+  return [headers.join(','), ...rows.map((r) => r.map(csvEscape).join(','))].join('\n');
+}
+
+/** Export pack as GSTR-1 JSON or CSV sheets for portal / Excel upload. */
+export async function exportGstHandoffPack(
+  companyId: string,
+  packId: string,
+  opts: { auditorUserId?: string; format: 'gstr1-json' | 'csv' },
+): Promise<{ filename: string; contentType: string; body: string }> {
+  const detail = await getGstHandoffPackDetail(companyId, packId, {
+    auditorUserId: opts.auditorUserId,
+  });
+  if (detail.status === 'DRAFT') {
+    throw ApiError.badRequest('Send the pack before exporting');
+  }
+  const company = await prisma.company.findUniqueOrThrow({
+    where: { id: companyId },
+    select: { gstin: true, name: true },
+  });
+  const gst = detail.gst as PackGstSlice;
+  const label = detail.label.replace(/[^\w.-]+/g, '_');
+
+  if (opts.format === 'gstr1-json') {
+    const json = buildGstr1Json({
+      gstin: company.gstin,
+      periodEnd: detail.periodEnd,
+      gst,
+    });
+    return {
+      filename: `gstr1-${label}.json`,
+      contentType: 'application/json',
+      body: JSON.stringify(json, null, 2),
+    };
+  }
+
+  const salesCsv = toCsv(
+    ['number', 'date', 'party', 'gstin', 'bucket', 'taxable', 'cgst', 'sgst', 'igst', 'total'],
+    gst.invoices.map((i) => [
+      i.number,
+      i.date,
+      i.clientName,
+      i.clientGstin,
+      i.bucket,
+      i.taxable,
+      i.cgst,
+      i.sgst,
+      i.igst,
+      i.total,
+    ]),
+  );
+  const purchasesCsv = toCsv(
+    ['number', 'date', 'vendor', 'gstin', 'taxable', 'gst', 'total'],
+    gst.bills.map((b) => [b.number, b.date, b.vendorName, b.vendorGstin, b.taxable, b.gst, b.total]),
+  );
+  const cdnrCsv = toCsv(
+    ['type', 'number', 'date', 'party', 'gstin', 'taxable', 'cgst', 'sgst', 'igst', 'total'],
+    [
+      ...gst.creditNotes.map((c) => [
+        'CREDIT',
+        c.number,
+        c.date,
+        c.partyName,
+        c.partyGstin,
+        c.taxable,
+        c.cgst,
+        c.sgst,
+        c.igst,
+        c.total,
+      ]),
+      ...gst.debitNotes.map((d) => [
+        'DEBIT',
+        d.number,
+        d.date,
+        d.partyName,
+        d.partyGstin,
+        d.taxable,
+        d.cgst,
+        d.sgst,
+        d.igst,
+        d.total,
+      ]),
+    ],
+  );
+  const hsnCsv = toCsv(
+    ['hsn', 'lines', 'qty', 'taxable', 'tax'],
+    gst.hsnSummary.map((h) => [h.hsn, h.lineCount, h.qty, h.taxable, h.tax]),
+  );
+
+  const body = [
+    '=== SALES ===',
+    salesCsv,
+    '',
+    '=== PURCHASES ===',
+    purchasesCsv,
+    '',
+    '=== CREDIT_DEBIT_NOTES ===',
+    cdnrCsv,
+    '',
+    '=== HSN ===',
+    hsnCsv,
+    '',
+  ].join('\n');
+
+  return {
+    filename: `gst-pack-${label}.csv`,
+    contentType: 'text/csv; charset=utf-8',
+    body,
   };
 }
 

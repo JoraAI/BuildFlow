@@ -1,5 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api-client';
+import { apiDownload, apiFetch } from '@/lib/api-client';
+import { toast } from '@/components/ui';
+import * as Sharing from 'expo-sharing';
+import { Platform } from 'react-native';
 
 export type GstPackSummary = {
   id: string;
@@ -26,14 +29,6 @@ export type GstPackDetail = GstPackSummary & {
     description: string;
     amount: number;
   }>;
-  quotes: Array<{
-    id: string;
-    quoteNumber: string;
-    status: string;
-    total: number;
-    customerName: string;
-    quoteDate: string;
-  }>;
   journals: Array<{
     id: string;
     entryDate: string;
@@ -46,6 +41,10 @@ export type GstPackDetail = GstPackSummary & {
   gst: {
     invoiceCount: number;
     billCount: number;
+    creditNoteCount?: number;
+    debitNoteCount?: number;
+    creditNoteGst?: number;
+    debitNoteGst?: number;
     invoiceTaxable: number;
     invoiceCgst: number;
     invoiceSgst: number;
@@ -98,6 +97,36 @@ export type GstPackDetail = GstPackSummary & {
       vendorName?: string;
       vendorGstin?: string | null;
       taxable?: number;
+      lines?: Array<{
+        description: string;
+        qty: number;
+        taxable: number;
+        gstRate: number;
+        hsn: string | null;
+      }>;
+    }>;
+    creditNotes?: Array<{
+      id: string;
+      number: string;
+      date: string;
+      partyName: string;
+      partyGstin: string | null;
+      taxable: number;
+      total: number;
+      gst: number;
+      cgst: number;
+      sgst: number;
+      igst: number;
+    }>;
+    debitNotes?: Array<{
+      id: string;
+      number: string;
+      date: string;
+      partyName: string;
+      partyGstin: string | null;
+      taxable: number;
+      total: number;
+      gst: number;
     }>;
   };
   manualEntries: Array<{
@@ -147,16 +176,60 @@ export function useCreateGstPack() {
   });
 }
 
+export type SendGstPackResult = GstPackSummary & {
+  missingHsnLines?: number;
+  hsnWarning?: string | null;
+};
+
 export function useSendGstPack() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (packId: string) =>
-      apiFetch<GstPackSummary>(`/inventory/auditor/packs/${packId}/send`, { method: 'POST' }),
+      apiFetch<SendGstPackResult>(`/inventory/auditor/packs/${packId}/send`, { method: 'POST' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['auditor', 'owner-packs'] });
       qc.invalidateQueries({ queryKey: ['auditor', 'inbox'] });
     },
   });
+}
+
+async function shareDownloadedFile(uri: string | null, filename: string, mimeType: string) {
+  if (uri && (await Sharing.isAvailableAsync())) {
+    try {
+      await Sharing.shareAsync(uri, { mimeType });
+      toast.success(`${filename} ready to share`);
+      return;
+    } catch (shareErr) {
+      const msg = shareErr instanceof Error ? shareErr.message : '';
+      if (/cancel|dismiss/i.test(msg)) {
+        toast.success(`${filename} saved on this device`);
+        return;
+      }
+      throw shareErr;
+    }
+  }
+  toast.success(Platform.OS === 'web' ? `${filename} download started` : `${filename} saved to device`);
+}
+
+/** Download GSTR-1 offline JSON or companion CSV for portal / Tally prep. */
+export async function downloadGstPackExport(
+  packId: string,
+  format: 'gstr1-json' | 'csv',
+  opts?: { asOwner?: boolean },
+): Promise<void> {
+  const base = opts?.asOwner
+    ? `/inventory/auditor/packs/${packId}/export`
+    : `/inventory/auditor/inbox/${packId}/export`;
+  const ext = format === 'csv' ? 'csv' : 'json';
+  const mime = format === 'csv' ? 'text/csv' : 'application/json';
+  const filename = format === 'csv' ? `gst-pack-${packId}.csv` : `gstr1-${packId}.json`;
+  toast.info(format === 'csv' ? 'Preparing CSV…' : 'Preparing GSTR-1 JSON…');
+  try {
+    const uri = await apiDownload(`${base}?format=${format}`, filename, mime);
+    await shareDownloadedFile(uri, filename, mime);
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'Could not download export');
+  }
 }
 
 export function useDeleteGstPack() {

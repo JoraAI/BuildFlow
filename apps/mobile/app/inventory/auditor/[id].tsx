@@ -5,6 +5,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import {
+  downloadGstPackExport,
   useAddAuditorManualEntry,
   useAuditorPack,
   useUpdateAuditorPackStatus,
@@ -143,10 +144,13 @@ export default function AuditorPackScreen() {
 
   const gst = data.gst;
   const taxCode = data.taxCode ?? { short: 'HSN/SAC', field: 'HSN/SAC code', missing: 'Missing HSN/SAC' };
+  const creditNotes = gst.creditNotes ?? [];
+  const debitNotes = gst.debitNotes ?? [];
   const tabItems = [
     { value: 'Summary', label: 'Summary' },
     { value: 'Sales', label: 'Sales' },
     { value: 'Purchases', label: 'Purchases' },
+    { value: 'CN/DN', label: 'CN/DN' },
     { value: taxCode.short, label: taxCode.short },
     { value: 'Bank', label: 'Bank' },
     { value: 'Journals', label: 'Journals' },
@@ -211,29 +215,48 @@ export default function AuditorPackScreen() {
             </Text>
             {data.notes ? <Text className="text-sm text-text mt-2">{data.notes}</Text> : null}
           </View>
-          {data.status !== 'FILED' ? (
-            <View className={`flex-row flex-wrap gap-2 ${isPhone ? 'mt-3' : ''}`}>
-              <Button
-                label="In progress"
-                variant="secondary"
-                size="sm"
-                onPress={() => onMark('IN_PROGRESS')}
-                loading={updateStatus.isPending}
-              />
-              <Button
-                label="Mark filed"
-                size="sm"
-                onPress={() => onMark('FILED')}
-                loading={updateStatus.isPending}
-              />
-            </View>
-          ) : null}
+          <View className={`flex-row flex-wrap gap-2 ${isPhone ? 'mt-3' : ''}`}>
+            <Button
+              label="GSTR-1 JSON"
+              variant="secondary"
+              size="sm"
+              onPress={() => void downloadGstPackExport(packId!, 'gstr1-json')}
+            />
+            <Button
+              label="CSV"
+              variant="secondary"
+              size="sm"
+              onPress={() => void downloadGstPackExport(packId!, 'csv')}
+            />
+            {data.status !== 'FILED' ? (
+              <>
+                <Button
+                  label="In progress"
+                  variant="secondary"
+                  size="sm"
+                  onPress={() => onMark('IN_PROGRESS')}
+                  loading={updateStatus.isPending}
+                />
+                <Button
+                  label="Mark filed"
+                  size="sm"
+                  onPress={() => onMark('FILED')}
+                  loading={updateStatus.isPending}
+                />
+              </>
+            ) : null}
+          </View>
         </View>
 
         {/* KPI strip */}
         <View className={`gap-3 mb-4 ${isDesktop ? 'flex-row' : 'flex-row flex-wrap'}`}>
           <Kpi label="Outward GST" value={inr(gst.invoiceGst)} hint={`${gst.invoiceCount} invoices`} />
           <Kpi label="Inward GST" value={inr(gst.billGst)} hint={`${gst.billCount} bills`} />
+          <Kpi
+            label="CN / DN"
+            value={`${gst.creditNoteCount ?? creditNotes.length} / ${gst.debitNoteCount ?? debitNotes.length}`}
+            hint={`GST ${inr(gst.creditNoteGst ?? 0)} / ${inr(gst.debitNoteGst ?? 0)}`}
+          />
           <Kpi
             label="B2B / B2C"
             value={`${gst.b2bCount ?? 0} / ${gst.b2cCount ?? 0}`}
@@ -329,15 +352,55 @@ export default function AuditorPackScreen() {
             {gst.bills.length === 0 ? (
               <Text className="text-sm text-muted py-6 text-center">No purchase bills in this period.</Text>
             ) : (
-              gst.bills.map((b: GstPackDetail['gst']['bills'][number]) => (
-                <RowCard
-                  key={b.id}
-                  title={`${b.number} · ${inr(b.total)}`}
-                  subtitle={`${b.date}${b.vendorName ? ` · ${b.vendorName}` : ''}${b.vendorGstin ? ` · ${b.vendorGstin}` : ''}`}
-                  meta={`Taxable ${inr(b.taxable ?? 0)} · GST ${inr(b.gst)}`}
-                />
-              ))
+              gst.bills.map((b: GstPackDetail['gst']['bills'][number]) => {
+                const missingPurchaseHsn = (b.lines ?? []).filter((l) => !l.hsn?.trim()).length;
+                return (
+                  <RowCard
+                    key={b.id}
+                    title={`${b.number} · ${inr(b.total)}`}
+                    subtitle={`${b.date}${b.vendorName ? ` · ${b.vendorName}` : ''}${b.vendorGstin ? ` · ${b.vendorGstin}` : ''}`}
+                    meta={`Taxable ${inr(b.taxable ?? 0)} · GST ${inr(b.gst)}${
+                      missingPurchaseHsn > 0 ? ` · ${missingPurchaseHsn} lines missing ${taxCode.short}` : ''
+                    }`}
+                  />
+                );
+              })
             )}
+          </View>
+        ) : null}
+
+        {tab === 'CN/DN' ? (
+          <View className="gap-4">
+            <View className="gap-2">
+              <Text className="text-sm font-bold text-text">Credit notes</Text>
+              {creditNotes.length === 0 ? (
+                <Text className="text-sm text-muted py-2">No credit notes in this period.</Text>
+              ) : (
+                creditNotes.map((n) => (
+                  <RowCard
+                    key={n.id}
+                    title={`${n.number} · ${inr(n.total)}`}
+                    subtitle={`${n.date} · ${n.partyName}${n.partyGstin ? ` · ${n.partyGstin}` : ''}`}
+                    meta={`Taxable ${inr(n.taxable)} · C/S/I ${inr(n.cgst)}/${inr(n.sgst)}/${inr(n.igst)}`}
+                  />
+                ))
+              )}
+            </View>
+            <View className="gap-2">
+              <Text className="text-sm font-bold text-text">Debit notes</Text>
+              {debitNotes.length === 0 ? (
+                <Text className="text-sm text-muted py-2">No debit notes in this period.</Text>
+              ) : (
+                debitNotes.map((n) => (
+                  <RowCard
+                    key={n.id}
+                    title={`${n.number} · ${inr(n.total)}`}
+                    subtitle={`${n.date} · ${n.partyName}${n.partyGstin ? ` · ${n.partyGstin}` : ''}`}
+                    meta={`Taxable ${inr(n.taxable)} · GST ${inr(n.gst)}`}
+                  />
+                ))
+              )}
+            </View>
           </View>
         ) : null}
 

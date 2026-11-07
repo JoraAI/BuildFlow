@@ -157,8 +157,8 @@ function InventoryLayoutBody() {
           </View>
 
           {!isDesktop && !keyboardOpen && !isAuditor ? <InventoryMobileTabBar /> : null}
-          {!isAuditor ? <AssistantFab /> : null}
-          {!isAuditor ? <AssistantOverlay /> : null}
+          <AssistantFab />
+          <AssistantOverlay />
         </View>
       </View>
     </View>

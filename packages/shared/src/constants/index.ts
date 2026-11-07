@@ -81,7 +81,7 @@ export const ROLE_META: Record<
     label: 'Auditor',
     short: 'Auditor',
     color: '#0F766E',
-    description: 'GST packs, bank, quotes, journals — multi-shop auditor desk',
+    description: 'GST packs, bank, CN/DN, journals — multi-shop auditor desk',
   },
 };
 

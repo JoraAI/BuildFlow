@@ -69,6 +69,16 @@ export const TOOL_CAPABILITIES: ToolCapability[] = [
   { id: 'get_low_stock', description: 'List items with on-hand below their reorder point, grouped by warehouse', requires: 'stock.view', module: 'Stock' },
   { id: 'get_stock_health', description: 'Classify inventory items as ACTIVE/SLOW/DEAD by last outward movement and show on-hand value per warehouse', requires: 'stock.view', module: 'Stock' },
   { id: 'get_vendor_purchases', description: 'Show vendor bills and GRN receipts from a vendor in a given month', requires: 'procurement.view', module: 'Procurement' },
+
+  // Inventory AUDITOR GST handoff desk.
+  { id: 'list_gst_packs', description: 'List GST handoff packs sent to the auditor for the active shop', requires: 'auditor.view_packs', module: 'Auditor' },
+  { id: 'get_gst_pack_summary', description: 'Summarise a GST pack: outward/inward tax, B2B/B2C, missing HSN, rate-wise', requires: 'auditor.view_packs', module: 'Auditor' },
+  { id: 'get_gst_pack_hsn', description: 'HSN/SAC rollup for a GST pack including missing codes', requires: 'auditor.view_packs', module: 'Auditor' },
+  { id: 'get_gst_pack_sales', description: 'List sales invoices (and credit notes) in a GST pack', requires: 'auditor.view_packs', module: 'Auditor' },
+  { id: 'get_gst_pack_purchases', description: 'List purchase bills (and debit notes) in a GST pack', requires: 'auditor.view_packs', module: 'Auditor' },
+  { id: 'add_auditor_note', description: 'Add a filing note on a GST pack for the shop owner', requires: 'auditor.manual_entry', module: 'Auditor' },
+  { id: 'update_pack_status', description: 'Mark a GST pack IN_PROGRESS or FILED', requires: 'auditor.file_pack', module: 'Auditor' },
+  { id: 'export_gst_pack', description: 'Describe how to download GSTR-1 JSON or CSV for a sent GST pack (portal upload files)', requires: 'auditor.view_packs', module: 'Auditor' },
 ];
 
 /**
@@ -96,6 +106,14 @@ const INVENTORY_ONLY_TOOL_IDS = new Set<string>([
   'get_low_stock',
   'get_stock_health',
   'get_vendor_purchases',
+  'list_gst_packs',
+  'get_gst_pack_summary',
+  'get_gst_pack_hsn',
+  'get_gst_pack_sales',
+  'get_gst_pack_purchases',
+  'add_auditor_note',
+  'update_pack_status',
+  'export_gst_pack',
 ]);
 
 /**
@@ -187,7 +205,10 @@ export function buildPermissionAwarePrompt(
       : '_(None - this user has access to all tools.)_';
 
   const isInventory = productMode === 'inventory';
-  const persona = isInventory
+  const isAuditor = roleName === 'AUDITOR' || roleName === 'Auditor';
+  const persona = isInventory && isAuditor
+    ? `You are BuildFlow Auditor Assistant for Indian GST inventory shops. You help CAs review GST handoff packs: outward/inward tax, B2B/B2C, HSN/SAC gaps, credit/debit notes, and filing status. You do NOT edit item masters or stock — ask the shop owner to fix HSN/SAC. You can guide downloading GSTR-1 JSON / CSV for GST portal upload.\n\nYou are assisting an **AUDITOR** at **${companyName}** (active shop). Multi-shop auditors switch shops in the app; your tools always use the current shop.`
+    : isInventory
     ? `You are BuildFlow AI Assistant, an expert inventory & stock management copilot for Indian trading, wholesale, and retail businesses. You help with stock, purchase orders (POs), goods receipts (GRNs), sales invoices, vendor bills, payments, and Tally export.\n\nYou are assisting a **${roleName}** at **${companyName}** (an INVENTORY account on the BuildFlow Inventory product). Construction modules (estimates, BOQ, planning, subcontracting, proposals) do NOT exist for this account - never recommend them.`
     : `You are BuildFlow AI Assistant, an expert civil-engineering project & finance copilot for Indian construction firms.\n\nYou are assisting a **${roleName}** at **${companyName}**. Your capabilities are bounded by their role permissions. You MUST respect these boundaries strictly.`;
 

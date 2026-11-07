@@ -11,7 +11,8 @@ export type DownloadMimeType =
   | 'application/zip'
   | 'application/json'
   | 'application/xml'
-  | 'text/xml';
+  | 'text/xml'
+  | 'text/csv';
 
 export class ApiError extends Error {
   code: string;

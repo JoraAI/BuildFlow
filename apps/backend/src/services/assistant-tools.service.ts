@@ -152,6 +152,54 @@ export const ASSISTANT_TOOL_SCHEMAS: Record<
     },
     required: ['vendorName'],
   },
+  list_gst_packs: { type: 'object', properties: {} },
+  get_gst_pack_summary: {
+    type: 'object',
+    properties: { packId: { type: 'string' } },
+    required: ['packId'],
+  },
+  get_gst_pack_hsn: {
+    type: 'object',
+    properties: { packId: { type: 'string' } },
+    required: ['packId'],
+  },
+  get_gst_pack_sales: {
+    type: 'object',
+    properties: { packId: { type: 'string' }, limit: { type: 'number' } },
+    required: ['packId'],
+  },
+  get_gst_pack_purchases: {
+    type: 'object',
+    properties: { packId: { type: 'string' }, limit: { type: 'number' } },
+    required: ['packId'],
+  },
+  add_auditor_note: {
+    type: 'object',
+    properties: {
+      packId: { type: 'string' },
+      narration: { type: 'string' },
+      entryType: { type: 'string', enum: ['JOURNAL', 'BANK_NOTE', 'GST_NOTE'] },
+      amount: { type: 'number' },
+      entryDate: { type: 'string', description: 'YYYY-MM-DD' },
+    },
+    required: ['packId', 'narration'],
+  },
+  update_pack_status: {
+    type: 'object',
+    properties: {
+      packId: { type: 'string' },
+      status: { type: 'string', enum: ['IN_PROGRESS', 'FILED'] },
+    },
+    required: ['packId', 'status'],
+  },
+  export_gst_pack: {
+    type: 'object',
+    properties: {
+      packId: { type: 'string' },
+      format: { type: 'string', enum: ['gstr1-json', 'csv'] },
+    },
+    required: ['packId'],
+  },
 };
 
 export function buildOpenAiTools(permissions: Permission[], productMode: 'inventory' | 'construction' = 'construction') {
@@ -546,6 +594,133 @@ export async function executeAssistantTool(
         bills,
         grnCount: grns.length,
         grns,
+      });
+    }
+    case 'list_gst_packs': {
+      guard(identity, 'auditor.view_packs');
+      const { listAuditorInbox } = await import('./auditor.service');
+      return serialize(await listAuditorInbox(identity.userId, identity.companyId));
+    }
+    case 'get_gst_pack_summary': {
+      guard(identity, 'auditor.view_packs');
+      const { packId } = args as { packId: string };
+      const { getGstHandoffPackDetail } = await import('./auditor.service');
+      const d = await getGstHandoffPackDetail(identity.companyId, packId, {
+        auditorUserId: identity.userId,
+      });
+      const gst = d.gst as {
+        invoiceCount: number;
+        billCount: number;
+        creditNoteCount?: number;
+        invoiceGst: number;
+        billGst: number;
+        b2bCount?: number;
+        b2cCount?: number;
+        missingHsnLines?: number;
+        rateWise?: unknown[];
+      };
+      return serialize({
+        id: d.id,
+        label: d.label,
+        status: d.status,
+        periodStart: d.periodStart,
+        periodEnd: d.periodEnd,
+        bankTotal: d.bankTotal,
+        invoiceCount: gst.invoiceCount,
+        billCount: gst.billCount,
+        creditNoteCount: gst.creditNoteCount ?? 0,
+        invoiceGst: gst.invoiceGst,
+        billGst: gst.billGst,
+        b2bCount: gst.b2bCount ?? 0,
+        b2cCount: gst.b2cCount ?? 0,
+        missingHsnLines: gst.missingHsnLines ?? 0,
+        rateWise: gst.rateWise ?? [],
+        taxCode: d.taxCode,
+        exportHint: {
+          gstr1Json: `/api/inventory/auditor/inbox/${packId}/export?format=gstr1-json`,
+          csv: `/api/inventory/auditor/inbox/${packId}/export?format=csv`,
+        },
+      });
+    }
+    case 'get_gst_pack_hsn': {
+      guard(identity, 'auditor.view_packs');
+      const { packId } = args as { packId: string };
+      const { getGstHandoffPackDetail } = await import('./auditor.service');
+      const d = await getGstHandoffPackDetail(identity.companyId, packId, {
+        auditorUserId: identity.userId,
+      });
+      const gst = d.gst as { hsnSummary?: unknown[]; missingHsnLines?: number };
+      return serialize({
+        missingHsnLines: gst.missingHsnLines ?? 0,
+        hsnSummary: gst.hsnSummary ?? [],
+        taxCode: d.taxCode,
+      });
+    }
+    case 'get_gst_pack_sales': {
+      guard(identity, 'auditor.view_packs');
+      const { packId, limit } = args as { packId: string; limit?: number };
+      const { getGstHandoffPackDetail } = await import('./auditor.service');
+      const d = await getGstHandoffPackDetail(identity.companyId, packId, {
+        auditorUserId: identity.userId,
+      });
+      const gst = d.gst as { invoices: unknown[]; creditNotes?: unknown[] };
+      const n = Math.min(Number(limit) || 30, 100);
+      return serialize({
+        invoices: (gst.invoices ?? []).slice(0, n),
+        creditNotes: (gst.creditNotes ?? []).slice(0, n),
+      });
+    }
+    case 'get_gst_pack_purchases': {
+      guard(identity, 'auditor.view_packs');
+      const { packId, limit } = args as { packId: string; limit?: number };
+      const { getGstHandoffPackDetail } = await import('./auditor.service');
+      const d = await getGstHandoffPackDetail(identity.companyId, packId, {
+        auditorUserId: identity.userId,
+      });
+      const gst = d.gst as { bills: unknown[]; debitNotes?: unknown[] };
+      const n = Math.min(Number(limit) || 30, 100);
+      return serialize({
+        bills: (gst.bills ?? []).slice(0, n),
+        debitNotes: (gst.debitNotes ?? []).slice(0, n),
+      });
+    }
+    case 'add_auditor_note': {
+      guard(identity, 'auditor.manual_entry');
+      const { packId, narration, entryType, amount, entryDate } = args as {
+        packId: string;
+        narration: string;
+        entryType?: 'JOURNAL' | 'BANK_NOTE' | 'GST_NOTE';
+        amount?: number;
+        entryDate?: string;
+      };
+      const { addManualEntry } = await import('./auditor.service');
+      return serialize(
+        await addManualEntry(identity.companyId, packId, identity.userId, {
+          entryType: entryType ?? 'GST_NOTE',
+          entryDate: entryDate ?? new Date().toISOString().slice(0, 10),
+          amount: amount ?? null,
+          narration,
+        }),
+      );
+    }
+    case 'update_pack_status': {
+      guard(identity, 'auditor.file_pack');
+      const { packId, status } = args as { packId: string; status: 'IN_PROGRESS' | 'FILED' };
+      const { updatePackStatus } = await import('./auditor.service');
+      return serialize(
+        await updatePackStatus(identity.companyId, packId, identity.userId, { status }),
+      );
+    }
+    case 'export_gst_pack': {
+      guard(identity, 'auditor.view_packs');
+      const { packId, format } = args as { packId?: string; format?: string };
+      if (!packId) throw new Error('packId is required');
+      const fmt = format === 'csv' ? 'csv' : 'gstr1-json';
+      return serialize({
+        message:
+          'Download the file from the Auditor pack screen (Download GSTR-1 / Download CSV), or use the API path below while signed in.',
+        format: fmt,
+        path: `/api/inventory/auditor/inbox/${packId}/export?format=${fmt}`,
       });
     }
     default:

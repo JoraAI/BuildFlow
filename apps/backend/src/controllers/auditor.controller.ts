@@ -94,3 +94,30 @@ export async function revokeAuditor(req: Request, res: Response, next: NextFunct
     next(err);
   }
 }
+
+export async function exportOwnerPack(req: Request, res: Response, next: NextFunction) {
+  try {
+    const format = req.query.format === 'csv' ? 'csv' : 'gstr1-json';
+    const file = await svc.exportGstHandoffPack(req.user!.companyId, req.params.packId, { format });
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+    res.status(200).send(file.body);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function exportAuditorPack(req: Request, res: Response, next: NextFunction) {
+  try {
+    const format = req.query.format === 'csv' ? 'csv' : 'gstr1-json';
+    const file = await svc.exportGstHandoffPack(req.user!.companyId, req.params.packId, {
+      format,
+      auditorUserId: req.user!.id,
+    });
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+    res.status(200).send(file.body);
+  } catch (err) {
+    next(err);
+  }
+}
