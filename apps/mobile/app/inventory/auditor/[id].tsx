@@ -311,7 +311,7 @@ export default function AuditorPackScreen() {
             </View>
             {(gst.rateWise ?? []).length > 0 ? (
               <View className={isDesktop ? 'flex-row flex-wrap gap-3' : 'gap-3'}>
-                {(gst.rateWise ?? []).map((r) => (
+                {(gst.rateWise ?? []).map((r: NonNullable<GstPackDetail['gst']['rateWise']>[number]) => (
                   <View
                     key={r.rate}
                     className={`bg-card border border-border rounded-2xl px-4 py-3 ${
@@ -376,7 +376,7 @@ export default function AuditorPackScreen() {
               {creditNotes.length === 0 ? (
                 <Text className="text-sm text-muted py-2">No credit notes in this period.</Text>
               ) : (
-                creditNotes.map((n) => (
+                creditNotes.map((n: NonNullable<GstPackDetail['gst']['creditNotes']>[number]) => (
                   <RowCard
                     key={n.id}
                     title={`${n.number} · ${inr(n.total)}`}
@@ -391,7 +391,7 @@ export default function AuditorPackScreen() {
               {debitNotes.length === 0 ? (
                 <Text className="text-sm text-muted py-2">No debit notes in this period.</Text>
               ) : (
-                debitNotes.map((n) => (
+                debitNotes.map((n: NonNullable<GstPackDetail['gst']['debitNotes']>[number]) => (
                   <RowCard
                     key={n.id}
                     title={`${n.number} · ${inr(n.total)}`}
@@ -411,7 +411,7 @@ export default function AuditorPackScreen() {
                 No {taxCode.short} lines in this period.
               </Text>
             ) : (
-              (gst.hsnSummary ?? []).map((h) => (
+              (gst.hsnSummary ?? []).map((h: NonNullable<GstPackDetail['gst']['hsnSummary']>[number]) => (
                 <RowCard
                   key={h.hsn}
                   title={`${h.hsn === '(missing)' ? taxCode.missing : h.hsn} · ${h.lineCount} lines`}
@@ -427,7 +427,7 @@ export default function AuditorPackScreen() {
             {data.bank.length === 0 ? (
               <Text className="text-sm text-muted py-6 text-center">No cash-book rows in this period.</Text>
             ) : (
-              data.bank.map((row) => (
+              data.bank.map((row: GstPackDetail['bank'][number]) => (
                 <RowCard
                   key={row.id}
                   title={`${row.paymentMode} · ${inr(row.amount)}`}
@@ -444,7 +444,7 @@ export default function AuditorPackScreen() {
             {data.journals.length === 0 ? (
               <Text className="text-sm text-muted py-6 text-center">No journal entries in this period.</Text>
             ) : (
-              data.journals.map((j) => (
+              data.journals.map((j: GstPackDetail['journals'][number]) => (
                 <RowCard
                   key={j.id}
                   title={inr(j.amount)}
@@ -496,7 +496,7 @@ export default function AuditorPackScreen() {
                 No notes yet. Use notes for filing comments or missing {taxCode.short} follow-ups.
               </Text>
             ) : (
-              data.manualEntries.map((m) => (
+              data.manualEntries.map((m: GstPackDetail['manualEntries'][number]) => (
                 <RowCard
                   key={m.id}
                   title={`${m.entryType.replace('_', ' ')}${m.amount != null ? ` · ${inr(m.amount)}` : ''}`}
