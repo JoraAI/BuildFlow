@@ -7,6 +7,7 @@ import {
   getGstTaxCodeLabels,
   type AuditorManualEntryInput,
   type CreateGstHandoffPackInput,
+  type UpdateGstHandoffPackDraftInput,
   type UpdateGstHandoffPackStatusInput,
 } from '@buildflow/shared';
 import { prisma } from '../lib/prisma';
@@ -209,14 +210,56 @@ export async function deleteDraftPack(companyId: string, packId: string, actorId
   return { deleted: true as const };
 }
 
+export async function updateGstHandoffPackDraft(
+  companyId: string,
+  packId: string,
+  actorId: string,
+  input: UpdateGstHandoffPackDraftInput,
+) {
+  const pack = await prisma.gstHandoffPack.findFirst({ where: { id: packId, companyId } });
+  if (!pack) throw ApiError.notFound('Pack not found');
+  if (pack.status !== GstHandoffStatus.DRAFT) {
+    throw ApiError.badRequest('Only draft packs can be edited');
+  }
+  const updated = await prisma.gstHandoffPack.update({
+    where: { id: packId },
+    data: {
+      ...(input.label !== undefined ? { label: input.label.trim() } : {}),
+      ...(input.notes !== undefined ? { notes: input.notes } : {}),
+      ...(input.openingCashBalance !== undefined
+        ? { openingCashBalance: input.openingCashBalance }
+        : {}),
+    },
+  });
+  await recordAudit({
+    companyId,
+    userId: actorId,
+    action: 'UPDATE',
+    entityType: 'gst_handoff_pack',
+    entityId: packId,
+    newValue: {
+      label: updated.label,
+      notes: updated.notes,
+      openingCashBalance:
+        updated.openingCashBalance == null ? null : Number(updated.openingCashBalance),
+    },
+  });
+  return serializePack(updated);
+}
+
 export async function sendGstHandoffPack(companyId: string, packId: string, actorId: string) {
   const pack = await prisma.gstHandoffPack.findFirst({ where: { id: packId, companyId } });
   if (!pack) throw ApiError.notFound('Pack not found');
   if (pack.status !== GstHandoffStatus.DRAFT) {
     throw ApiError.badRequest('Only draft packs can be sent');
   }
+  if (pack.openingCashBalance == null) {
+    throw ApiError.badRequest('Enter opening cash/bank for the period start before sending');
+  }
 
   const detail = await buildPackSlices(companyId, packId, pack.periodStart, pack.periodEnd);
+  const opening = Number(pack.openingCashBalance);
+  const bankClosing = opening + detail.bankIn - detail.bankOut;
   const companyMeta = await prisma.company.findUnique({
     where: { id: companyId },
     select: { inventoryVertical: true, inventoryProfile: true },
@@ -226,7 +269,13 @@ export async function sendGstHandoffPack(companyId: string, packId: string, acto
     bank: detail.bank,
     journals: detail.journals,
     gst: detail.gst,
-    bankTotal: detail.bankTotal,
+    openingCashBalance: opening,
+    bankIn: detail.bankIn,
+    bankOut: detail.bankOut,
+    bankNet: detail.bankNet,
+    bankClosing,
+    // legacy key kept for older clients
+    bankTotal: bankClosing,
     taxCode,
   };
 
@@ -288,6 +337,7 @@ type PackRow = {
   label: string;
   status: GstHandoffStatus;
   notes: string | null;
+  openingCashBalance: Prisma.Decimal | number | null;
   snapshot: Prisma.JsonValue | null;
   sentAt: Date | null;
   filedAt: Date | null;
@@ -715,8 +765,43 @@ async function buildPackSlices(
       createdByName: m.createdBy.name,
       createdAt: m.createdAt.toISOString(),
     })),
-    bankTotal: bank.reduce((a, b) => a + Number(b.amount), 0),
+    ...summarizeBankMovement(bank),
   };
+}
+
+function summarizeBankMovement(
+  bank: Array<{ amount: unknown; direction: string; entryType: string }>,
+) {
+  let bankIn = 0;
+  let bankOut = 0;
+  for (const b of bank) {
+    if (b.entryType === 'OPENING') continue;
+    const amt = Number(b.amount);
+    if (b.direction === 'IN') bankIn += amt;
+    else bankOut += amt;
+  }
+  return {
+    bankIn: Number(bankIn.toFixed(2)),
+    bankOut: Number(bankOut.toFixed(2)),
+    bankNet: Number((bankIn - bankOut).toFixed(2)),
+    /** @deprecated use bankClosing with owner opening; kept as net for drafts without opening */
+    bankTotal: Number((bankIn - bankOut).toFixed(2)),
+  };
+}
+
+/** Prefill hint: signed OPENING cash-book rows on or before period start. */
+async function suggestOpeningCashBalance(companyId: string, periodStart: Date): Promise<number | null> {
+  const rows = await prisma.inventoryCashBookEntry.findMany({
+    where: { companyId, entryType: 'OPENING', entryDate: { lte: periodStart } },
+    select: { amount: true, direction: true },
+  });
+  if (rows.length === 0) return null;
+  let sum = 0;
+  for (const r of rows) {
+    const amt = Number(r.amount);
+    sum += r.direction === 'IN' ? amt : -amt;
+  }
+  return Number(sum.toFixed(2));
 }
 
 type PackGstSlice = Awaited<ReturnType<typeof buildPackSlices>>['gst'];
@@ -779,6 +864,8 @@ export async function getGstHandoffPackDetail(
   if (pack.snapshot && pack.status !== GstHandoffStatus.DRAFT) {
     const snap = pack.snapshot as Partial<PackSlices> & {
       taxCode?: { short: string; field: string; missing: string };
+      openingCashBalance?: number;
+      bankClosing?: number;
     };
     const manualEntries = await prisma.auditorManualEntry.findMany({
       where: { packId },
@@ -794,12 +881,33 @@ export async function getGstHandoffPackDetail(
       },
     });
     const snapTax = snap.taxCode ?? taxCode;
+    const opening =
+      snap.openingCashBalance != null
+        ? Number(snap.openingCashBalance)
+        : pack.openingCashBalance == null
+          ? null
+          : Number(pack.openingCashBalance);
+    const bankIn = Number(snap.bankIn ?? 0);
+    const bankOut = Number(snap.bankOut ?? 0);
+    const bankNet = Number(snap.bankNet ?? bankIn - bankOut);
+    const bankClosing =
+      snap.bankClosing != null
+        ? Number(snap.bankClosing)
+        : opening == null
+          ? bankNet
+          : Number((opening + bankIn - bankOut).toFixed(2));
     return {
       ...serializePack(pack),
       bank: snap.bank ?? [],
       journals: snap.journals ?? [],
       gst: normalizePackGst(snap.gst),
-      bankTotal: snap.bankTotal ?? 0,
+      openingCashBalance: opening,
+      bankIn,
+      bankOut,
+      bankNet,
+      bankClosing,
+      bankTotal: bankClosing,
+      suggestedOpeningCashBalance: null,
       taxCode: snapTax,
       manualEntries: manualEntries.map((m) => ({
         id: m.id,
@@ -814,13 +922,29 @@ export async function getGstHandoffPackDetail(
   }
 
   const slices = await buildPackSlices(companyId, packId, pack.periodStart, pack.periodEnd);
+  const opening =
+    pack.openingCashBalance == null ? null : Number(pack.openingCashBalance);
+  const suggested =
+    pack.status === GstHandoffStatus.DRAFT
+      ? await suggestOpeningCashBalance(companyId, pack.periodStart)
+      : null;
+  const bankClosing =
+    opening == null
+      ? slices.bankNet
+      : Number((opening + slices.bankIn - slices.bankOut).toFixed(2));
   return {
     ...serializePack(pack),
     bank: slices.bank,
     journals: slices.journals,
     gst: slices.gst,
     manualEntries: slices.manualEntries,
-    bankTotal: slices.bankTotal,
+    openingCashBalance: opening,
+    bankIn: slices.bankIn,
+    bankOut: slices.bankOut,
+    bankNet: slices.bankNet,
+    bankClosing,
+    bankTotal: bankClosing,
+    suggestedOpeningCashBalance: suggested,
     taxCode,
   };
 }
@@ -939,6 +1063,8 @@ function serializePack(pack: PackRow | Omit<PackRow, 'snapshot'>) {
     label: pack.label,
     status: pack.status,
     notes: pack.notes,
+    openingCashBalance:
+      pack.openingCashBalance == null ? null : Number(pack.openingCashBalance),
     sentAt: pack.sentAt?.toISOString() ?? null,
     filedAt: pack.filedAt?.toISOString() ?? null,
     createdAt: pack.createdAt.toISOString(),

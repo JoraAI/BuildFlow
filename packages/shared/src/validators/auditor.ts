@@ -10,6 +10,13 @@ export const createGstHandoffPackSchema = z.object({
 });
 export type CreateGstHandoffPackInput = z.infer<typeof createGstHandoffPackSchema>;
 
+export const updateGstHandoffPackDraftSchema = z.object({
+  label: z.string().trim().min(2).max(120).optional(),
+  notes: z.string().trim().max(2000).optional().nullable(),
+  openingCashBalance: z.number().finite().optional().nullable(),
+});
+export type UpdateGstHandoffPackDraftInput = z.infer<typeof updateGstHandoffPackDraftSchema>;
+
 export const updateGstHandoffPackStatusSchema = z.object({
   status: z.enum(['IN_PROGRESS', 'FILED']),
 });

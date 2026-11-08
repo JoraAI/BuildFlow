@@ -26,6 +26,22 @@ export async function sendPack(req: Request, res: Response, next: NextFunction) 
   }
 }
 
+export async function updateDraftPack(req: Request, res: Response, next: NextFunction) {
+  try {
+    ok(
+      res,
+      await svc.updateGstHandoffPackDraft(
+        req.user!.companyId,
+        req.params.packId,
+        req.user!.id,
+        req.body,
+      ),
+    );
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function deletePack(req: Request, res: Response, next: NextFunction) {
   try {
     ok(res, await svc.deleteDraftPack(req.user!.companyId, req.params.packId, req.user!.id));

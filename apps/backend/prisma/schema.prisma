@@ -725,6 +725,8 @@ model GstHandoffPack {
   label       String
   status      GstHandoffStatus @default(DRAFT)
   notes       String?
+  /// Owner-declared cash/bank opening for period start (required before send).
+  openingCashBalance Decimal? @map("opening_cash_balance") @db.Decimal(14, 2)
   /// Immutable slice payload captured when the pack is sent.
   snapshot    Json?
   sentAt      DateTime?        @map("sent_at")

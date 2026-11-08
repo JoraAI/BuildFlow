@@ -12,6 +12,7 @@ export type GstPackSummary = {
   label: string;
   status: 'DRAFT' | 'SENT' | 'IN_PROGRESS' | 'FILED';
   notes: string | null;
+  openingCashBalance?: number | null;
   sentAt: string | null;
   filedAt: string | null;
   createdAt: string;
@@ -20,6 +21,11 @@ export type GstPackSummary = {
 
 export type GstPackDetail = GstPackSummary & {
   taxCode?: { short: string; field: string; missing: string };
+  bankIn?: number;
+  bankOut?: number;
+  bankNet?: number;
+  bankClosing?: number;
+  suggestedOpeningCashBalance?: number | null;
   bank: Array<{
     id: string;
     entryDate: string;
@@ -148,11 +154,15 @@ export function useAuditorInbox() {
   });
 }
 
-export function useAuditorPack(packId: string | undefined) {
+export function useAuditorPack(packId: string | undefined, opts?: { asOwner?: boolean }) {
+  const asOwner = Boolean(opts?.asOwner);
   return useQuery({
-    queryKey: ['auditor', 'pack', packId],
+    queryKey: ['auditor', 'pack', packId, asOwner ? 'owner' : 'inbox'],
     enabled: Boolean(packId),
-    queryFn: () => apiFetch<GstPackDetail>(`/inventory/auditor/inbox/${packId}`),
+    queryFn: () =>
+      apiFetch<GstPackDetail>(
+        asOwner ? `/inventory/auditor/packs/${packId}` : `/inventory/auditor/inbox/${packId}`,
+      ),
   });
 }
 
@@ -161,6 +171,21 @@ export function useOwnerGstPacks(enabled = true) {
     queryKey: ['auditor', 'owner-packs'],
     enabled,
     queryFn: () => apiFetch<GstPackSummary[]>('/inventory/auditor/packs'),
+  });
+}
+
+export function useUpdateGstPackDraft(packId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { label?: string; notes?: string | null; openingCashBalance?: number | null }) =>
+      apiFetch<GstPackSummary>(`/inventory/auditor/packs/${packId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['auditor', 'owner-packs'] });
+      qc.invalidateQueries({ queryKey: ['auditor', 'pack', packId] });
+    },
   });
 }
 

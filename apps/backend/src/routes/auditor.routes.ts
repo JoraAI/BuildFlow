@@ -3,6 +3,7 @@ import { Role } from '@prisma/client';
 import {
   auditorManualEntrySchema,
   createGstHandoffPackSchema,
+  updateGstHandoffPackDraftSchema,
   updateGstHandoffPackStatusSchema,
 } from '@buildflow/shared';
 import { authenticateToken, requireRole } from '../middleware/auth';
@@ -30,6 +31,12 @@ auditorRouter.get(
   '/packs/:packId',
   requireRole(Role.OWNER, Role.INVENTORY_MANAGER),
   ctrl.ownerPackDetail,
+);
+auditorRouter.patch(
+  '/packs/:packId',
+  requireRole(Role.OWNER, Role.INVENTORY_MANAGER),
+  validate({ body: updateGstHandoffPackDraftSchema }),
+  ctrl.updateDraftPack,
 );
 auditorRouter.post(
   '/packs/:packId/send',

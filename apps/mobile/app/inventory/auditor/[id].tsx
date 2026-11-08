@@ -1,19 +1,22 @@
 /**
- * Auditor pack workspace — responsive GST review desk.
+ * GST pack desk — auditor inbox + owner draft review (?mode=owner).
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import {
   downloadGstPackExport,
   useAddAuditorManualEntry,
   useAuditorPack,
+  useDeleteGstPack,
+  useSendGstPack,
   useUpdateAuditorPackStatus,
+  useUpdateGstPackDraft,
   type GstPackDetail,
 } from '@/services/auditor.queries';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
-import { Badge, Button, toast } from '@/components/ui';
+import { Badge, Button, Input, toast } from '@/components/ui';
 import { SegmentedTabs } from '@/components/inventory/SegmentedTabs';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -69,11 +72,15 @@ function RowCard({
 }
 
 export default function AuditorPackScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, mode } = useLocalSearchParams<{ id: string; mode?: string }>();
   const packId = typeof id === 'string' ? id : id?.[0];
-  const { data, isLoading, refetch } = useAuditorPack(packId);
+  const isOwnerMode = mode === 'owner';
+  const { data, isLoading, refetch } = useAuditorPack(packId, { asOwner: isOwnerMode });
   const updateStatus = useUpdateAuditorPackStatus(packId ?? '');
   const addEntry = useAddAuditorManualEntry(packId ?? '');
+  const updateDraft = useUpdateGstPackDraft(packId ?? '');
+  const sendPack = useSendGstPack();
+  const deletePack = useDeleteGstPack();
   const user = useAuthStore((s) => s.user);
   const switchCompany = useAuthStore((s) => s.switchCompany);
   const memberships = user?.auditorMemberships ?? [];
@@ -83,8 +90,23 @@ export default function AuditorPackScreen() {
   const [amount, setAmount] = useState('');
   const [entryType, setEntryType] = useState<'JOURNAL' | 'BANK_NOTE' | 'GST_NOTE'>('GST_NOTE');
   const [switching, setSwitching] = useState(false);
+  const [openingInput, setOpeningInput] = useState('');
+  const [notesInput, setNotesInput] = useState('');
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const pad = isDesktop ? 28 : 16;
+  const backHref = isOwnerMode ? '/inventory/settings' : '/inventory/auditor';
+
+  useEffect(() => {
+    if (!data || !isOwnerMode) return;
+    const opening =
+      data.openingCashBalance != null
+        ? data.openingCashBalance
+        : data.suggestedOpeningCashBalance != null
+          ? data.suggestedOpeningCashBalance
+          : null;
+    setOpeningInput(opening == null ? '' : String(opening));
+    setNotesInput(data.notes ?? '');
+  }, [data?.id, data?.openingCashBalance, data?.suggestedOpeningCashBalance, data?.notes, isOwnerMode]);
 
   const onSwitchShop = async (companyId: string) => {
     if (companyId === user?.companyId) return;
@@ -104,8 +126,10 @@ export default function AuditorPackScreen() {
     return (
       <SafeAreaView className="flex-1 bg-bg items-center justify-center p-6">
         <Text className="text-muted">{isLoading ? 'Loading pack…' : 'Pack not found'}</Text>
-        <Pressable onPress={() => router.replace('/inventory/auditor')} className="mt-4">
-          <Text className="text-primary font-semibold">Back to inbox</Text>
+        <Pressable onPress={() => router.replace(backHref)} className="mt-4">
+          <Text className="text-primary font-semibold">
+            {isOwnerMode ? 'Back to settings' : 'Back to inbox'}
+          </Text>
         </Pressable>
       </SafeAreaView>
     );
@@ -142,10 +166,72 @@ export default function AuditorPackScreen() {
     }
   };
 
+  const saveDraftMeta = async () => {
+    const openingRaw = openingInput.trim();
+    const openingCashBalance =
+      openingRaw === '' ? null : Number(openingRaw.replace(/,/g, ''));
+    if (openingRaw !== '' && !Number.isFinite(openingCashBalance)) {
+      toast.error('Opening cash/bank must be a number');
+      return false;
+    }
+    try {
+      await updateDraft.mutateAsync({
+        notes: notesInput.trim() || null,
+        openingCashBalance,
+      });
+      await refetch();
+      return true;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not save draft');
+      return false;
+    }
+  };
+
+  const onSendDraft = async () => {
+    if (openingInput.trim() === '') {
+      toast.error('Enter opening cash/bank for the period start');
+      return;
+    }
+    const okSave = await saveDraftMeta();
+    if (!okSave) return;
+    try {
+      const sent = await sendPack.mutateAsync(packId!);
+      if (sent.hsnWarning) toast.warning(sent.hsnWarning);
+      else toast.success('Pack sent to auditors');
+      router.replace('/inventory/settings');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not send pack');
+    }
+  };
+
+  const onDeleteDraft = async () => {
+    try {
+      await deletePack.mutateAsync(packId!);
+      toast.success('Draft deleted');
+      router.replace('/inventory/settings');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not delete');
+    }
+  };
+
   const gst = data.gst;
   const taxCode = data.taxCode ?? { short: 'HSN/SAC', field: 'HSN/SAC code', missing: 'Missing HSN/SAC' };
   const creditNotes = gst.creditNotes ?? [];
   const debitNotes = gst.debitNotes ?? [];
+  const bankIn = data.bankIn ?? 0;
+  const bankOut = data.bankOut ?? 0;
+  const openingShown =
+    data.openingCashBalance != null
+      ? data.openingCashBalance
+      : isOwnerMode && openingInput.trim() !== '' && Number.isFinite(Number(openingInput))
+        ? Number(openingInput)
+        : null;
+  const bankClosing =
+    data.bankClosing != null
+      ? data.bankClosing
+      : openingShown == null
+        ? data.bankNet ?? data.bankTotal ?? 0
+        : openingShown + bankIn - bankOut;
   const tabItems = [
     { value: 'Summary', label: 'Summary' },
     { value: 'Sales', label: 'Sales' },
@@ -154,7 +240,7 @@ export default function AuditorPackScreen() {
     { value: taxCode.short, label: taxCode.short },
     { value: 'Bank', label: 'Bank' },
     { value: 'Journals', label: 'Journals' },
-    { value: 'Notes', label: 'Notes' },
+    ...(isOwnerMode ? [] : [{ value: 'Notes', label: 'Notes' }]),
   ] as const;
 
   return (
@@ -169,11 +255,13 @@ export default function AuditorPackScreen() {
           alignSelf: 'center',
         }}
       >
-        <Pressable onPress={() => router.replace('/inventory/auditor')} className="self-start mb-4">
-          <Text className="text-primary text-sm font-semibold">← Inbox</Text>
+        <Pressable onPress={() => router.replace(backHref)} className="self-start mb-4">
+          <Text className="text-primary text-sm font-semibold">
+            {isOwnerMode ? '← Settings' : '← Inbox'}
+          </Text>
         </Pressable>
 
-        {memberships.length > 1 ? (
+        {!isOwnerMode && memberships.length > 1 ? (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -213,56 +301,108 @@ export default function AuditorPackScreen() {
             <Text className="text-sm text-muted">
               {data.periodStart} → {data.periodEnd}
             </Text>
-            {data.notes ? <Text className="text-sm text-text mt-2">{data.notes}</Text> : null}
+            {!isOwnerMode && data.notes ? (
+              <Text className="text-sm text-text mt-2">{data.notes}</Text>
+            ) : null}
           </View>
           <View className={`flex-row flex-wrap gap-2 ${isPhone ? 'mt-3' : ''}`}>
-            <Button
-              label="GSTR-1 JSON"
-              variant="secondary"
-              size="sm"
-              onPress={() => void downloadGstPackExport(packId!, 'gstr1-json')}
-            />
-            <Button
-              label="Offline CSV zip"
-              variant="secondary"
-              size="sm"
-              onPress={() => void downloadGstPackExport(packId!, 'csv')}
-            />
-            {data.status !== 'FILED' ? (
+            {!isOwnerMode ? (
               <>
                 <Button
-                  label="In progress"
+                  label="GSTR-1 JSON"
                   variant="secondary"
                   size="sm"
-                  onPress={() => onMark('IN_PROGRESS')}
-                  loading={updateStatus.isPending}
+                  onPress={() => void downloadGstPackExport(packId!, 'gstr1-json')}
                 />
                 <Button
-                  label="Mark filed"
+                  label="Offline CSV zip"
+                  variant="secondary"
                   size="sm"
-                  onPress={() => onMark('FILED')}
-                  loading={updateStatus.isPending}
+                  onPress={() => void downloadGstPackExport(packId!, 'csv')}
+                />
+                {data.status !== 'FILED' ? (
+                  <>
+                    <Button
+                      label="In progress"
+                      variant="secondary"
+                      size="sm"
+                      onPress={() => onMark('IN_PROGRESS')}
+                      loading={updateStatus.isPending}
+                    />
+                    <Button
+                      label="Mark filed"
+                      size="sm"
+                      onPress={() => onMark('FILED')}
+                      loading={updateStatus.isPending}
+                    />
+                  </>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <Button
+                  label="Delete"
+                  variant="secondary"
+                  size="sm"
+                  onPress={() => void onDeleteDraft()}
+                  loading={deletePack.isPending}
+                />
+                <Button
+                  label="Send to auditor"
+                  size="sm"
+                  onPress={() => void onSendDraft()}
+                  loading={sendPack.isPending || updateDraft.isPending}
+                  fullWidth={isPhone}
                 />
               </>
-            ) : null}
+            )}
           </View>
         </View>
 
+        {isOwnerMode && data.status === 'DRAFT' ? (
+          <View className="mb-4 rounded-2xl border border-border bg-card px-4 py-4 gap-3">
+            <Text className="text-sm text-muted">
+              Set opening cash/bank for period start, check figures, then send.
+            </Text>
+            <Input
+              label="Opening cash/bank (₹)"
+              value={openingInput}
+              onChangeText={setOpeningInput}
+              onBlur={() => void saveDraftMeta()}
+              keyboardType="decimal-pad"
+              placeholder={
+                data.suggestedOpeningCashBalance != null
+                  ? `Suggested ${data.suggestedOpeningCashBalance}`
+                  : '0'
+              }
+              compact
+              fullWidth
+            />
+            <Input
+              label="Notes for auditor (optional)"
+              value={notesInput}
+              onChangeText={setNotesInput}
+              onBlur={() => void saveDraftMeta()}
+              placeholder="Anything the CA should know…"
+              compact
+              fullWidth
+            />
+          </View>
+        ) : null}
+
         {/* KPI strip */}
-        <View className={`gap-3 mb-4 ${isDesktop ? 'flex-row' : 'flex-row flex-wrap'}`}>
+        <View className={`gap-3 mb-4 ${isDesktop ? 'flex-row flex-wrap' : 'flex-row flex-wrap'}`}>
           <Kpi label="Outward GST" value={inr(gst.invoiceGst)} hint={`${gst.invoiceCount} invoices`} />
           <Kpi label="Inward GST" value={inr(gst.billGst)} hint={`${gst.billCount} bills`} />
           <Kpi
-            label="CN / DN"
-            value={`${gst.creditNoteCount ?? creditNotes.length} / ${gst.debitNoteCount ?? debitNotes.length}`}
-            hint={`GST ${inr(gst.creditNoteGst ?? 0)} / ${inr(gst.debitNoteGst ?? 0)}`}
+            label="Opening"
+            value={openingShown == null ? '—' : inr(openingShown)}
+            hint="Period start"
+            warn={isOwnerMode && openingShown == null}
           />
-          <Kpi
-            label="B2B / B2C"
-            value={`${gst.b2bCount ?? 0} / ${gst.b2cCount ?? 0}`}
-            hint="Sales split"
-          />
-          <Kpi label="Bank total" value={inr(data.bankTotal)} />
+          <Kpi label="Cash in" value={inr(bankIn)} />
+          <Kpi label="Cash out" value={inr(bankOut)} />
+          <Kpi label="Closing" value={inr(bankClosing)} hint="Opening + in − out" />
         </View>
 
         {(gst.missingHsnLines ?? 0) > 0 ? (
@@ -272,7 +412,9 @@ export default function AuditorPackScreen() {
               {taxCode.missing.toLowerCase()}
             </Text>
             <Text className="text-xs text-muted mt-0.5">
-              Ask the shop owner to fill {taxCode.short} on catalog items or invoice lines, then note it under Notes.
+              {isOwnerMode
+                ? `Fill ${taxCode.short} on catalog items or invoice lines, then refresh this review.`
+                : `Ask the shop owner to fill ${taxCode.short} on catalog items or invoice lines, then note it under Notes.`}
             </Text>
           </View>
         ) : null}
@@ -456,7 +598,7 @@ export default function AuditorPackScreen() {
           </View>
         ) : null}
 
-        {tab === 'Notes' ? (
+        {!isOwnerMode && tab === 'Notes' ? (
           <View className="gap-4">
             <View className="bg-card border border-border rounded-2xl p-4">
               <Text className="text-base font-bold text-text mb-3">Add note for the owner</Text>

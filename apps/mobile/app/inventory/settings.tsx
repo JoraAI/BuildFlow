@@ -59,7 +59,6 @@ import {
   useDeleteGstPack,
   useOwnerGstPacks,
   useRevokeAuditor,
-  useSendGstPack,
 } from '@/services/auditor.queries';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 import { inventoryPageListPadding } from '@/components/inventory/InventoryScreenList';
@@ -85,7 +84,6 @@ export default function InventorySettingsScreen() {
   const canManageGstPacks = user?.role === 'OWNER' || user?.role === 'INVENTORY_MANAGER';
   const { data: gstPacks } = useOwnerGstPacks(canManageGstPacks);
   const createGstPack = useCreateGstPack();
-  const sendGstPack = useSendGstPack();
   const deleteGstPack = useDeleteGstPack();
   const [packStart, setPackStart] = useState('');
   const [packEnd, setPackEnd] = useState('');
@@ -709,7 +707,7 @@ export default function InventorySettingsScreen() {
           <Card className="p-5 mb-4">
             <Text className="text-base font-bold text-text mb-1">GST packs for auditor</Text>
             <Text className="text-xs text-muted mb-3">
-              Set how often you hand off books. Create a pack for the period, then send — auditors only see sent packs.
+              Review draft → set opening cash/bank → send. Auditors only see sent packs.
             </Text>
             {(() => {
               const now = new Date();
@@ -848,15 +846,16 @@ export default function InventorySettingsScreen() {
               onPress={() =>
                 void run(async () => {
                   try {
-                    await createGstPack.mutateAsync({
+                    const created = await createGstPack.mutateAsync({
                       periodStart: packStart.trim(),
                       periodEnd: packEnd.trim(),
                       label: packLabel.trim() || undefined,
                     });
-                    toast.success('Draft pack created');
+                    toast.success('Draft pack created — review before sending');
                     setPackStart('');
                     setPackEnd('');
                     setPackLabel('');
+                    router.push(`/inventory/auditor/${created.id}?mode=owner`);
                   } catch (e) {
                     toast.error(e instanceof Error ? e.message : 'Could not create pack');
                   }
@@ -897,21 +896,8 @@ export default function InventorySettingsScreen() {
                       />
                       <Button
                         size="sm"
-                        label="Send"
-                        onPress={() =>
-                          void run(async () => {
-                            try {
-                              const sent = await sendGstPack.mutateAsync(p.id);
-                              if (sent.hsnWarning) {
-                                toast.warning(sent.hsnWarning);
-                              } else {
-                                toast.success('Pack sent to auditors');
-                              }
-                            } catch (e) {
-                              toast.error(e instanceof Error ? e.message : 'Could not send pack');
-                            }
-                          })
-                        }
+                        label="Review"
+                        onPress={() => router.push(`/inventory/auditor/${p.id}?mode=owner`)}
                       />
                     </View>
                   ) : (
