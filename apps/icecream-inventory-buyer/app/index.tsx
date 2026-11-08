@@ -16,7 +16,7 @@ import {
   Image,
   Modal,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { buyerFetch, getBuyerToken, setBuyerToken } from '../lib/api';
 
 type Buyer = {
@@ -165,6 +165,7 @@ function QtyStepper({
 }
 
 export default function BuyerHome() {
+  const insets = useSafeAreaInsets();
   const [token, setToken] = useState<string | null>(null);
   const [buyer, setBuyer] = useState<Buyer | null>(null);
   const [inviteCode, setInviteCode] = useState('');
@@ -520,7 +521,12 @@ export default function BuyerHome() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.pad, cartCount > 0 ? styles.padWithFooter : null]}
+        contentContainerStyle={[
+          styles.pad,
+          cartCount > 0
+            ? { paddingBottom: 100 + Math.max(insets.bottom, 0) }
+            : null,
+        ]}
         keyboardShouldPersistTaps="handled"
       >
         {error ? <Text style={styles.err}>{error}</Text> : null}
@@ -710,7 +716,11 @@ export default function BuyerHome() {
       </ScrollView>
 
       {cartCount > 0 ? (
-        <Pressable style={styles.stickyFooter} onPress={placeOrder} disabled={busy}>
+        <Pressable
+          style={[styles.stickyFooter, { bottom: 12 + Math.max(insets.bottom, 0) }]}
+          onPress={placeOrder}
+          disabled={busy}
+        >
           <Text style={styles.stickyLeft}>
             Cart · {cartCount} item{cartCount === 1 ? '' : 's'}
           </Text>
@@ -818,7 +828,6 @@ const styles = StyleSheet.create({
   safeNavy: { flex: 1, backgroundColor: NAVY },
   mainBody: { flex: 1, backgroundColor: BG },
   pad: { paddingHorizontal: 16, paddingBottom: 32 },
-  padWithFooter: { paddingBottom: 100 },
 
   brandMark: {
     backgroundColor: AMBER,
