@@ -34,7 +34,7 @@ import { downloadReportPdf } from '@/services/report-download';
 import { useReorderSuggestions, useOrderReorderItems, type ReorderSuggestion } from '@/services/reorder.queries';
 import { confirmAsync } from '@/utils/confirm';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
-import { SegmentedTabs, SegmentedTabsInline, type SegmentedTab } from '@/components/inventory/SegmentedTabs';
+import { SegmentedTabsInline, type SegmentedTab } from '@/components/inventory/SegmentedTabs';
 import { InventoryFilterBar } from '@/components/inventory/InventoryFilterBar';
 import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
 import { matchesText } from '@/utils/inventory-filters';
@@ -148,13 +148,21 @@ export default function InventoryProcurementScreen() {
   };
 
   const sectionTabs = useMemo<readonly SegmentedTab<Section>[]>(
-    () => [
-      { value: 'indents', label: indentLabelPlural },
-      { value: 'orders', label: 'Purchase orders' },
-      { value: 'grns', label: 'Goods receipts' },
-      { value: 'reorder', label: 'Reorder' },
-    ],
-    [indentLabelPlural],
+    () =>
+      isPhone
+        ? [
+            { value: 'indents', label: indentLabelPlural },
+            { value: 'orders', label: 'Orders' },
+            { value: 'grns', label: 'GRNs' },
+            { value: 'reorder', label: 'Reorder' },
+          ]
+        : [
+            { value: 'indents', label: indentLabelPlural },
+            { value: 'orders', label: 'Purchase orders' },
+            { value: 'grns', label: 'Goods receipts' },
+            { value: 'reorder', label: 'Reorder' },
+          ],
+    [indentLabelPlural, isPhone],
   );
 
   const pageChrome = (
@@ -166,18 +174,18 @@ export default function InventoryProcurementScreen() {
         <Text className="text-sm text-muted mt-0.5">{indentLabel} → Create PO → Record GRN</Text>
       </View>
 
-      <View className="flex-row flex-wrap px-4 pb-2 gap-2 items-center">
-        <View
-          pointerEvents={buffering ? 'none' : 'auto'}
-          className={buffering ? 'opacity-50' : ''}
-        >
-          {isPhone ? (
-            <SegmentedTabs tabs={sectionTabs} value={section} onChange={setSection} className="" contentContainerClassName="gap-2 pr-1" />
-          ) : (
-            <SegmentedTabsInline tabs={sectionTabs} value={section} onChange={setSection} />
-          )}
-        </View>
-        <View className="flex-1" />
+      <View
+        pointerEvents={buffering ? 'none' : 'auto'}
+        className={buffering ? 'opacity-50' : ''}
+      >
+        <SegmentedTabsInline
+          tabs={sectionTabs}
+          value={section}
+          onChange={setSection}
+          className="px-4 pb-2 gap-2"
+        />
+      </View>
+      <View className="flex-row flex-wrap px-4 pb-2 gap-2 items-center justify-end">
         {section === 'indents' && (
           <Button
             label={`New ${indentLabel}`}

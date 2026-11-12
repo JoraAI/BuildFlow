@@ -1,13 +1,13 @@
 /**
  * Sticky search + optional status chips for inventory list screens.
- * Phone: search full-width, chips on second row (scroll).
+ * Phone: search full-width, chips wrap on second row (no horizontal scroll).
  * Desktop: search + chips on one row.
  */
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { Input, Button } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
-import { SegmentedTabs, SegmentedTabsInline, type SegmentedTab } from '@/components/inventory/SegmentedTabs';
+import { SegmentedTabsInline, type SegmentedTab } from '@/components/inventory/SegmentedTabs';
 
 export function InventoryFilterBar<S extends string>({
   query,
@@ -58,17 +58,7 @@ export function InventoryFilterBar<S extends string>({
 
   const statusRow =
     showStatus && statusTabs && status != null && onStatusChange ? (
-      isPhone ? (
-        <SegmentedTabs
-          tabs={statusTabs}
-          value={status}
-          onChange={onStatusChange}
-          className=""
-          contentContainerClassName="gap-2 pr-1"
-        />
-      ) : (
-        <SegmentedTabsInline tabs={statusTabs} value={status} onChange={onStatusChange} className="gap-2" />
-      )
+      <SegmentedTabsInline tabs={statusTabs} value={status} onChange={onStatusChange} className="gap-2" />
     ) : null;
 
   return (

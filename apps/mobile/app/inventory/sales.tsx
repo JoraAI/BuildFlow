@@ -16,7 +16,7 @@ import {
   NewSalesOrderModal, NewChallanModal, SalesReturnModal, PurchaseReturnModal, DispatchChallanSheet, ChallanReturnModal,
 } from '@/components/inventory/TransactionModals';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
-import { SegmentedTabs, SegmentedTabsInline, type SegmentedTab } from '@/components/inventory/SegmentedTabs';
+import { SegmentedTabsInline, type SegmentedTab } from '@/components/inventory/SegmentedTabs';
 import { InventoryFilterBar } from '@/components/inventory/InventoryFilterBar';
 import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
 import { useFocusedRow } from '@/hooks/useFocusedRow';
@@ -128,10 +128,18 @@ export default function InventorySalesScreen() {
   const { isPhone, isTablet, isDesktop } = useViewport();
   const tableMode = isTablet || isDesktop;
   const projectId = useAuthStore((s) => s.user?.defaultProjectId ?? '');
-  const TABS = useMemo(
-    () => [...BASE_TABS, { value: 'cash' as const, label: 'Cash book' }] as const,
-    [],
-  );
+  const TABS = useMemo(() => {
+    const cash = { value: 'cash' as const, label: isPhone ? 'Cash' : 'Cash book' };
+    if (!isPhone) return [...BASE_TABS, cash] as const;
+    // Shorter labels so phone pills wrap cleanly without horizontal scroll.
+    return [
+      { value: 'orders' as const, label: 'Orders' },
+      { value: 'deliveries' as const, label: 'Deliveries' },
+      { value: 'returns' as const, label: 'Returns' },
+      { value: 'notes' as const, label: 'Notes' },
+      cash,
+    ] as const;
+  }, [isPhone]);
   const filters = useInventoryListFilters({ defaultTab: 'orders' });
   const tab = (TABS.some((t) => t.value === filters.tab) ? filters.tab : 'orders') as Tab;
   const setTab = filters.setTab;
@@ -631,16 +639,12 @@ export default function InventorySalesScreen() {
         {headerLabel ? <Button label={headerLabel} variant="accent" size="sm" disabled={busy} onPress={headerAction} /> : null}
       </View>
 
-      {isPhone ? (
-        <SegmentedTabs tabs={[...TABS]} value={tab} onChange={setTab} />
-      ) : (
-        <SegmentedTabsInline
-          tabs={[...TABS]}
-          value={tab}
-          onChange={setTab}
-          className="px-4 pb-2 gap-2"
-        />
-      )}
+      <SegmentedTabsInline
+        tabs={[...TABS]}
+        value={tab}
+        onChange={setTab}
+        className="px-4 pb-2 gap-2"
+      />
     </>
   );
 
