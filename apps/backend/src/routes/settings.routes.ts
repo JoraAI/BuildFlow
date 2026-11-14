@@ -33,6 +33,7 @@ import {
   exportDataZip,
   getMyProfile,
   updateMyProfile,
+  sendProfileContactOtp,
   createLogoUploadUrl,
   createTicket,
   listMyTickets,
@@ -55,6 +56,7 @@ import {
   createUserInviteSchema,
   createTeamUserSchema,
   myProfileUpdateSchema,
+  profileContactOtpSchema,
   logoUploadSchema,
   createTicketSchema,
   updateTicketSchema,
@@ -77,13 +79,19 @@ import {
 const router = Router();
 
 // My profile (all authenticated users)
-router.get('/me', authenticateToken, getMyProfile);
+router.get('/me', authenticateToken, asyncHandler(getMyProfile));
 router.patch(
   '/me',
   authenticateToken,
   validate({ body: myProfileUpdateSchema }),
   auditLog('UPDATE', 'UserProfile'),
-  updateMyProfile,
+  asyncHandler(updateMyProfile),
+);
+router.post(
+  '/me/contact-otp',
+  authenticateToken,
+  validate({ body: profileContactOtpSchema }),
+  asyncHandler(sendProfileContactOtp),
 );
 
 // Company profile

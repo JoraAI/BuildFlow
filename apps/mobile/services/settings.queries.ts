@@ -177,11 +177,28 @@ export function useMyProfile() {
 export function useUpdateMyProfile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { name?: string; phone?: string | null }) =>
-      apiFetch<MyProfile>('/settings/me', { method: 'PATCH', body: JSON.stringify(data) }),
+    mutationFn: (data: {
+      name?: string;
+      email?: string | null;
+      phone?: string | null;
+      emailOtp?: string;
+      phoneOtp?: string;
+    }) => apiFetch<MyProfile>('/settings/me', { method: 'PATCH', body: JSON.stringify(data) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: settingsKeys.me });
     },
+  });
+}
+
+export function useSendProfileContactOtp() {
+  return useMutation({
+    mutationFn: (data: { channel: 'email' | 'sms'; destination: string }) =>
+      apiFetch<{
+        sent: true;
+        expiresInSec: number;
+        destinationMasked: string;
+        devCode?: string;
+      }>('/settings/me/contact-otp', { method: 'POST', body: JSON.stringify(data) }),
   });
 }
 

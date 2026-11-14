@@ -1,103 +1,19 @@
 /**
- * BuildFlow - My Profile (self-service name + phone).
+ * BuildFlow - My Profile (Construction ERP).
+ * Name, email, and phone — contact changes require OTP.
  */
-import React, { useState, useEffect } from 'react';
-import { View, Text } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Card, Input, Button, LoadingSkeleton, Badge } from '@/components/ui';
-import { Avatar, CompanyLogo } from '@/components/ui/Avatar';
+import React from 'react';
+import { LoadingSkeleton } from '@/components/ui';
 import { SettingsPageLayout } from '@/components/layout/SettingsPageLayout';
-import { useMyProfile, useUpdateMyProfile } from '@/services/settings.queries';
-import { useAuthStore } from '@/stores/auth.store';
-import { alertAsync } from '@/utils/confirm';
+import { ProfileContactForm } from '@/components/settings/ProfileContactForm';
+import { useMyProfile } from '@/services/settings.queries';
 
 export default function MyProfileScreen() {
-  const router = useRouter();
-  const refreshUser = useAuthStore((s) => s.refreshUser);
   const { data, isLoading } = useMyProfile();
-  const update = useUpdateMyProfile();
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [formError, setFormError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (data) {
-      setName(data.name);
-      setPhone(data.phone ?? '');
-    }
-  }, [data]);
-
-  const onSave = () => {
-    setFormError(null);
-    update.mutate(
-      { name: name.trim(), phone: phone.trim() || null },
-      {
-        onSuccess: async () => {
-          await refreshUser();
-          await alertAsync('Saved', 'Profile updated.');
-        },
-        onError: async (e: Error) => {
-          setFormError(e.message);
-          await alertAsync('Error', e.message);
-        },
-      },
-    );
-  };
-
-  const content = isLoading || !data ? (
-    <LoadingSkeleton className="h-48" />
-  ) : (
-    <>
-      <Card className="mb-4">
-        <View className="flex-row items-center gap-4 mb-4">
-          <CompanyLogo name={data.companyName} logoUrl={data.companyLogoUrl} size={56} />
-          <View className="flex-1">
-            <Text className="text-sm font-semibold text-text">{data.companyName}</Text>
-            <Text className="text-xs text-muted">Company</Text>
-          </View>
-          <Avatar name={data.name} size={48} imageUrl={null} />
-        </View>
-        <Input label="Full name" value={name} onChangeText={setName} />
-        <View className="h-4" />
-        <Input
-          label="Phone"
-          value={phone}
-          onChangeText={setPhone}
-          keyboardType="phone-pad"
-          placeholder="+91..."
-        />
-        <View className="h-4" />
-        <Text className="text-sm font-medium text-text mb-1">Email</Text>
-        <Text className="text-base text-muted mb-1">{data.email}</Text>
-        <Text className="text-xs text-muted mb-2">Contact owner to change email</Text>
-        <View className="mt-2">
-          <Badge label={data.role} color="primary" />
-        </View>
-      </Card>
-      {formError ? (
-        <View className="mb-3 px-3 py-2 rounded-lg bg-danger/10 border border-danger/30">
-          <Text className="text-sm text-danger">{formError}</Text>
-        </View>
-      ) : null}
-      <Button
-        label={update.isPending ? 'Saving...' : 'Save changes'}
-        onPress={onSave}
-        disabled={update.isPending}
-        loading={update.isPending}
-        fullWidth
-      />
-      <Button
-        label="Request a change (role / email)"
-        variant="secondary"
-        onPress={() => router.push('/(app)/settings/tickets/create?category=PROFILE_CHANGE' as never)}
-        fullWidth
-      />
-    </>
-  );
 
   return (
-    <SettingsPageLayout title="My Profile" subtitle="Your personal details">
-      {content}
+    <SettingsPageLayout title="My Profile" subtitle="Name, email, and mobile for sign-in">
+      {isLoading || !data ? <LoadingSkeleton className="h-48" /> : <ProfileContactForm profile={data} />}
     </SettingsPageLayout>
   );
 }

@@ -38,7 +38,7 @@ const SETTINGS_GROUPS: SettingsGroup[] = [
       {
         id: 'profile',
         label: 'My Profile',
-        description: 'Name, phone & personal details',
+        description: 'Name, email & mobile for sign-in',
         href: '/(app)/settings/profile',
         icon: 'person-outline',
       },

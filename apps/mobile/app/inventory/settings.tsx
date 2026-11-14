@@ -386,6 +386,25 @@ export default function InventorySettingsScreen() {
         </Text>
         <Text className="text-sm text-muted mb-4">Inventory account · {user?.companyName}</Text>
 
+        <Card className="p-5 mb-4">
+          <Text className="text-base font-bold text-text mb-1">My account</Text>
+          <Text className="text-xs text-muted mb-3">
+            Login email and mobile for this user. Add the missing contact anytime.
+          </Text>
+          <Text className="text-sm text-text mb-1">{user?.name}</Text>
+          <Text className="text-xs text-muted mb-3">
+            {[user?.phone, user?.email && !user.email.endsWith('@phone.buildflow.local') ? user.email : null]
+              .filter(Boolean)
+              .join(' · ') || 'Phone or email not set'}
+          </Text>
+          <Button
+            label="Edit login contacts"
+            variant="secondary"
+            size="sm"
+            onPress={() => router.push('/inventory/profile' as never)}
+          />
+        </Card>
+
         {/* Plan card */}
         <Card className="p-5 mb-4">
           <View className="flex-row items-center justify-between">

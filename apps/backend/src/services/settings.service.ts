@@ -8,7 +8,16 @@ import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
 import { recordAudit } from '../utils/audit';
 import { randomUUID } from 'crypto';
-import { INVITABLE_ROLES_BY_PRODUCT, type Role, type InventoryBusinessProfile } from '@buildflow/shared';
+import {
+  INVITABLE_ROLES_BY_PRODUCT,
+  isSyntheticPhoneEmail,
+  normalizePhone,
+  phoneLookupVariants,
+  type Role,
+  type InventoryBusinessProfile,
+  type MyProfileUpdateInput,
+  type ProfileContactOtpInput,
+} from '@buildflow/shared';
 import {
   buildS3Key,
   getPresignedUploadUrl,
@@ -17,6 +26,7 @@ import {
   keyToLogicalUrlForCompany,
   logicalUrlToKey,
 } from '../lib/s3';
+import { consumeOtp, issueOtp } from './otp.service';
 
 export async function resolveLogoDisplayUrl(companyId: string, logoUrl: string | null): Promise<string | null> {
   if (!logoUrl) return null;
@@ -51,21 +61,18 @@ export async function getMyProfile(userId: string, companyId: string) {
   };
 }
 
-export async function updateMyProfile(
-  userId: string,
-  companyId: string,
-  data: { name?: string; phone?: string | null },
+function serializeMyProfile(
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string | null;
+    role: string;
+    companyId: string;
+    company: { name: string; logoUrl: string | null };
+  },
+  companyLogoUrl: string | null,
 ) {
-  const user = await prisma.user.update({
-    where: { id: userId },
-    data: {
-      ...(data.name !== undefined ? { name: data.name } : {}),
-      ...(data.phone !== undefined ? { phone: data.phone } : {}),
-    },
-    include: { company: { select: { name: true, logoUrl: true } } },
-  });
-  if (user.companyId !== companyId) throw ApiError.forbidden();
-  const companyLogoUrl = await resolveLogoDisplayUrl(user.companyId, user.company.logoUrl);
   return {
     id: user.id,
     name: user.name,
@@ -76,6 +83,156 @@ export async function updateMyProfile(
     companyName: user.company.name,
     companyLogoUrl,
   };
+}
+
+export async function sendProfileContactOtp(
+  userId: string,
+  companyId: string,
+  input: ProfileContactOtpInput,
+) {
+  const user = await prisma.user.findFirstOrThrow({ where: { id: userId, companyId } });
+  let destination: string;
+  let channel: 'email' | 'sms';
+  if (input.channel === 'email') {
+    destination = input.destination.trim().toLowerCase();
+    if (!destination.includes('@') || isSyntheticPhoneEmail(destination)) {
+      throw ApiError.badRequest('Enter a valid email address');
+    }
+    if (destination === user.email.toLowerCase()) {
+      throw ApiError.badRequest('That email is already on your account');
+    }
+    channel = 'email';
+  } else {
+    destination = normalizePhone(input.destination);
+    if (user.phone && phoneLookupVariants(user.phone).includes(destination)) {
+      throw ApiError.badRequest('That mobile number is already on your account');
+    }
+    channel = 'sms';
+  }
+
+  return issueOtp({
+    purpose: 'profile_contact',
+    key: `${userId}:${channel}:${destination}`,
+    channel,
+    destination,
+    companyId,
+    messagePrefix:
+      channel === 'sms'
+        ? 'StaffingPros: Your BuildFlow verification code is'
+        : 'Your BuildFlow verification code is',
+    emailSubject: 'Verify your BuildFlow email',
+  });
+}
+
+export async function updateMyProfile(
+  userId: string,
+  companyId: string,
+  data: MyProfileUpdateInput,
+) {
+  const existing = await prisma.user.findFirstOrThrow({
+    where: { id: userId, companyId },
+    include: { company: { select: { name: true, logoUrl: true } } },
+  });
+
+  const nextName = data.name !== undefined ? data.name.trim() : existing.name;
+
+  let nextEmail = existing.email;
+  let emailChanged = false;
+  if (data.email !== undefined) {
+    if (data.email === null || data.email === '') {
+      throw ApiError.badRequest('Email cannot be cleared. Add a mobile number first, or keep your email.');
+    }
+    const normalized = data.email.trim().toLowerCase();
+    if (isSyntheticPhoneEmail(normalized)) {
+      throw ApiError.badRequest('Enter a real email address');
+    }
+    if (normalized !== existing.email.toLowerCase()) {
+      emailChanged = true;
+      nextEmail = normalized;
+    }
+  }
+
+  let nextPhone: string | null = existing.phone;
+  let phoneChanged = false;
+  if (data.phone !== undefined) {
+    if (data.phone === null || data.phone.trim() === '') {
+      nextPhone = null;
+      phoneChanged = Boolean(existing.phone);
+    } else {
+      const normalized = normalizePhone(data.phone);
+      const same =
+        existing.phone != null && phoneLookupVariants(existing.phone).includes(normalized);
+      if (!same) {
+        phoneChanged = true;
+        nextPhone = normalized;
+      }
+    }
+  }
+
+  // Must keep at least one real login identifier.
+  const hasRealEmail = !isSyntheticPhoneEmail(nextEmail);
+  if (!hasRealEmail && !nextPhone) {
+    throw ApiError.badRequest('Keep a mobile number or add a real email so you can sign in.');
+  }
+  if (phoneChanged && nextPhone === null && !hasRealEmail) {
+    throw ApiError.badRequest('Add a real email before removing your mobile number.');
+  }
+
+  if (emailChanged) {
+    if (!data.emailOtp?.trim()) {
+      throw ApiError.badRequest('Enter the OTP sent to your new email');
+    }
+    await consumeOtp({
+      purpose: 'profile_contact',
+      key: `${userId}:email:${nextEmail}`,
+      code: data.emailOtp.trim(),
+      expectedDestination: nextEmail,
+    });
+    const taken = await prisma.user.findFirst({
+      where: {
+        email: nextEmail,
+        isActive: true,
+        NOT: { id: userId },
+      },
+      select: { id: true },
+    });
+    if (taken) throw ApiError.conflict('Email already registered');
+  }
+
+  if (phoneChanged && nextPhone) {
+    if (!data.phoneOtp?.trim()) {
+      throw ApiError.badRequest('Enter the OTP sent to your new mobile number');
+    }
+    await consumeOtp({
+      purpose: 'profile_contact',
+      key: `${userId}:sms:${nextPhone}`,
+      code: data.phoneOtp.trim(),
+      expectedDestination: nextPhone,
+    });
+    const variants = phoneLookupVariants(nextPhone);
+    const taken = await prisma.user.findFirst({
+      where: {
+        phone: { in: variants },
+        isActive: true,
+        NOT: { id: userId },
+      },
+      select: { id: true },
+    });
+    if (taken) throw ApiError.conflict('Mobile number already registered');
+  }
+
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      name: nextName,
+      ...(emailChanged ? { email: nextEmail } : {}),
+      ...(data.phone !== undefined ? { phone: nextPhone } : {}),
+    },
+    include: { company: { select: { name: true, logoUrl: true } } },
+  });
+  if (user.companyId !== companyId) throw ApiError.forbidden();
+  const companyLogoUrl = await resolveLogoDisplayUrl(user.companyId, user.company.logoUrl);
+  return serializeMyProfile(user, companyLogoUrl);
 }
 
 export async function createCompanyLogoUploadUrl(

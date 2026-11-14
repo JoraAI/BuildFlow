@@ -56,10 +56,40 @@ export const companyUpdateSchema = z.object({
   auditorPackDay: z.number().int().min(1).max(28).optional(),
 });
 
-export const myProfileUpdateSchema = z.object({
-  name: z.string().min(1).max(200).optional(),
-  phone: z.string().max(20).optional().nullable(),
+const SYNTHETIC_PHONE_EMAIL_SUFFIX = '@phone.buildflow.local';
+
+export function isSyntheticPhoneEmail(email: string | null | undefined): boolean {
+  return Boolean(email?.toLowerCase().endsWith(SYNTHETIC_PHONE_EMAIL_SUFFIX));
+}
+
+export const profileContactOtpSchema = z.object({
+  channel: z.enum(['email', 'sms']),
+  destination: z.string().trim().min(3).max(254),
 });
+
+export const myProfileUpdateSchema = z
+  .object({
+    name: z.string().min(1).max(200).optional(),
+    email: z.string().trim().toLowerCase().email('Invalid email').max(254).optional().nullable(),
+    phone: z.string().max(20).optional().nullable(),
+    /** OTP required when email is added/changed. */
+    emailOtp: z.string().trim().min(4).max(12).optional(),
+    /** OTP required when phone is added/changed. */
+    phoneOtp: z.string().trim().min(4).max(12).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.email === null) {
+      // Clearing email is only OK when a phone remains — enforced in service with current user state.
+      return;
+    }
+    if (data.email !== undefined && data.email.endsWith(SYNTHETIC_PHONE_EMAIL_SUFFIX)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['email'],
+        message: 'Enter a real email address',
+      });
+    }
+  });
 
 export const logoUploadSchema = z.object({
   filename: z.string().min(1).max(200),
@@ -221,6 +251,8 @@ export const saasIntervalSchema = z.object({
 
 export type CompanyUpdateInput = z.infer<typeof companyUpdateSchema>;
 export type UserRoleUpdateInput = z.infer<typeof userRoleUpdateSchema>;
+export type MyProfileUpdateInput = z.infer<typeof myProfileUpdateSchema>;
+export type ProfileContactOtpInput = z.infer<typeof profileContactOtpSchema>;
 
 // RPT-C2c: Zod validator for report settings PATCH
 export const updateReportSettingsSchema = z.object({
@@ -245,7 +277,6 @@ export const updateReportSettingsSchema = z.object({
   /** ICE_CREAM: default trade discount % off MRP for customer parties. */
   customerDiscountPct: z.coerce.number().min(0).max(100).optional().nullable(),
 });
-export type MyProfileUpdateInput = z.infer<typeof myProfileUpdateSchema>;
 export type CreateTicketInput = z.infer<typeof createTicketSchema>;
 export type UpdateTicketInput = z.infer<typeof updateTicketSchema>;
 export type PlatformLoginInput = z.infer<typeof platformLoginSchema>;

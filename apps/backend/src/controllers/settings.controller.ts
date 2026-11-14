@@ -34,6 +34,15 @@ export async function updateMyProfile(req: Request, res: Response) {
   return ok(res, profile);
 }
 
+export async function sendProfileContactOtp(req: Request, res: Response) {
+  const result = await settingsService.sendProfileContactOtp(
+    req.user!.id,
+    req.user!.companyId,
+    req.body,
+  );
+  return ok(res, result);
+}
+
 export async function createLogoUploadUrl(req: Request, res: Response) {
   const result = await settingsService.createCompanyLogoUploadUrl(
     req.user!.companyId,

@@ -63,6 +63,27 @@ export default function InventoryMoreScreen() {
         {isIceCream ? 'Ice cream manufacture tools' : 'Inventory tools'}
         {user?.companyName ? ` · ${user.companyName}` : ''}
       </Text>
+      <View className="rounded-2xl border border-border bg-card overflow-hidden mb-3">
+        <Pressable
+          onPress={() => router.push('/inventory/profile' as never)}
+          className="flex-row items-center gap-3 px-4 py-3.5 active:bg-surface"
+        >
+          <View
+            className="w-10 h-10 rounded-xl items-center justify-center"
+            style={{ backgroundColor: INVENTORY_ACCENT_SOFT }}
+          >
+            <Ionicons name="person-outline" size={20} color={INVENTORY_ACCENT} />
+          </View>
+          <View className="flex-1 min-w-0">
+            <Text className="text-sm font-semibold text-text">My account</Text>
+            <Text className="text-xs text-muted" numberOfLines={1}>
+              Login email and mobile
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+        </Pressable>
+      </View>
+
       <View className="rounded-2xl border border-border bg-card overflow-hidden">
         {INVENTORY_SECONDARY_NAV.map((item, i) => {
           const subtitle =

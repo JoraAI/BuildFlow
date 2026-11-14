@@ -68,6 +68,11 @@ export function authPut(token: string, path: string, body?: object) {
   return body !== undefined ? req.send(body) : req.send({});
 }
 
+export function authPatch(token: string, path: string, body?: object) {
+  const req = request(app).patch(path).set('Authorization', `Bearer ${token}`);
+  return body !== undefined ? req.send(body) : req.send({});
+}
+
 export function authDelete(token: string, path: string) {
   return request(app).delete(path).set('Authorization', `Bearer ${token}`);
 }

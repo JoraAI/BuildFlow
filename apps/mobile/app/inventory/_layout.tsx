@@ -151,6 +151,7 @@ function InventoryLayoutBody() {
               <Stack.Screen name="reports" />
               <Stack.Screen name="notifications" />
               <Stack.Screen name="settings" />
+              <Stack.Screen name="profile" />
               <Stack.Screen name="auditor/index" />
               <Stack.Screen name="auditor/[id]" />
             </Stack>

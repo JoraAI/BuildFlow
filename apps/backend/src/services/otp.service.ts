@@ -41,8 +41,10 @@ export function isMasterOtpCode(code: string): boolean {
   return isMasterOtpEnabled() && Boolean(env.OTP_MASTER_CODE) && code === env.OTP_MASTER_CODE;
 }
 
+export type OtpPurpose = 'invite' | 'login' | 'profile_contact';
+
 export async function issueOtp(opts: {
-  purpose: 'invite' | 'login';
+  purpose: OtpPurpose;
   key: string;
   channel: 'sms' | 'email';
   /** Destination stored for verification (normalized phone or lowercase email). */
@@ -122,7 +124,7 @@ export async function issueOtp(opts: {
 }
 
 export async function consumeOtp(opts: {
-  purpose: 'invite' | 'login';
+  purpose: OtpPurpose;
   key: string;
   code: string;
   expectedDestination?: string;

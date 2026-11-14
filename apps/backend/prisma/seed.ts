@@ -1213,8 +1213,10 @@ async function main(): Promise<void> {
     address: string;
     ownerName: string;
     ownerEmail: string;
+    ownerPhone?: string;
     managerName?: string;
     managerEmail?: string;
+    managerPhone?: string;
     storeCode: string;
     catalog: InvCatalogItem[];
     openingQtys: number[];
@@ -1257,7 +1259,7 @@ async function main(): Promise<void> {
         name: opts.ownerName,
         email: opts.ownerEmail,
         role: Role.OWNER,
-        phone: '+919900000001',
+        phone: opts.ownerPhone ?? '+919900000001',
         passwordHash,
       },
     });
@@ -1270,7 +1272,7 @@ async function main(): Promise<void> {
           name: opts.managerName,
           email: opts.managerEmail,
           role: Role.INVENTORY_MANAGER,
-          phone: '+919900000002',
+          phone: opts.managerPhone ?? '+919900000002',
           passwordHash,
         },
       });
@@ -2051,8 +2053,10 @@ async function main(): Promise<void> {
     address: 'Plot 42, Hitec City Main Road, Madhapur, Hyderabad, Telangana 500081',
     ownerName: 'Ananya Sharma',
     ownerEmail: 'owner@luminalighting.com',
+    ownerPhone: '+919900000011',
     managerName: 'Karthik Rao',
     managerEmail: 'manager@luminalighting.com',
+    managerPhone: '+919900000012',
     storeCode: 'LUMINA',
     rich: true,
     catalog: [
@@ -2134,8 +2138,10 @@ async function main(): Promise<void> {
     address: 'IDA Jeedimetla, Hyderabad',
     ownerName: 'Suresh Frosty',
     ownerEmail: 'owner@frostycups.com',
+    ownerPhone: '+919900000001',
     managerName: 'Priya Plant',
     managerEmail: 'manager@frostycups.com',
+    managerPhone: '+919900000002',
     storeCode: 'FROSTY',
     rich: true,
     // Cold store instead of event-staging default from rich tenants.

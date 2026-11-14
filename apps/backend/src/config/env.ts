@@ -10,6 +10,10 @@ import { z } from 'zod';
 // apps/backend (which may have its own empty .env). Load root first, then
 // closer files so local overrides still work.
 function loadEnvFiles(): void {
+  // Jest setup loads `.env.test` first; do not let monorepo `.env` (Neon) override it.
+  if (process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined) {
+    return;
+  }
   const paths: string[] = [];
   let dir = process.cwd();
   for (let i = 0; i < 6; i += 1) {
