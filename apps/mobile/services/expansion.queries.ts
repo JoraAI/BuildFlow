@@ -15,6 +15,7 @@ import {
   invalidateProcurementLists,
   invalidateProcurementStock,
   invalidateAnalyticsDashboard,
+  invalidateBillPaymentImpact,
 } from '@/lib/project-query-invalidation';
 import type {
   CreateChangeOrderInput,
@@ -622,11 +623,11 @@ export function useCreateGRN(projectId: string) {
         method: 'POST',
         body: JSON.stringify(input),
       }),
-    // PROCUREMENT_PICKER_PERF: GRN changes the requisition list (PO receipt
-    // status) + stock summary/locations - not BOQ/shortfalls.
+    // GRN updates PO receipt status, stock, and BOQ procuredQty (construction).
     onSuccess: () => {
       void invalidateProcurementLists(qc, projectId);
       void invalidateProcurementStock(qc, projectId);
+      void invalidateProjectBoq(qc, projectId);
       // Inventory auto-draft bills appear on GRN - refresh AP lists.
       void qc.invalidateQueries({ queryKey: ['bills', 'list', projectId] });
       void qc.invalidateQueries({ queryKey: ['bills', 'summary', projectId] });
@@ -1099,8 +1100,7 @@ export function useRecordSubcontractBillPayment(projectId: string) {
         body: JSON.stringify({ amount }),
       }),
     onSuccess: () => {
-      invalidateProjectSubcontract(qc, projectId);
-      invalidateProjectAccounting(qc, projectId);
+      invalidateBillPaymentImpact(qc, projectId);
     },
   });
 }

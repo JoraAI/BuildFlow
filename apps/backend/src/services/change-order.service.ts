@@ -348,22 +348,27 @@ export async function convertChangeOrderToBoq(
 
     for (const line of co.lines) {
       if (line.boqItemId) {
-        const boq = await tx.bOQItem.findFirst({ where: { id: line.boqItemId, projectId: co.projectId } });
-        if (boq) {
-          const rawNewQty = Number(boq.quantity) + Number(line.qtyDelta);
-          const executedQty = Number(boq.executedQty);
-          if (rawNewQty < executedQty) {
-            throw ApiError.badRequest(
-              `Variation would reduce BOQ qty to ${rawNewQty} but ${executedQty} has already been executed. Adjust the qty delta to at least ${executedQty}.`,
-            );
-          }
-          const newQty = Math.max(0, rawNewQty);
-          const newAmount = round2(newQty * Number(boq.rate));
-          await tx.bOQItem.update({
-            where: { id: boq.id },
-            data: { quantity: newQty, amount: newAmount },
-          });
+        const boq = await tx.bOQItem.findFirst({
+          where: { id: line.boqItemId, projectId: co.projectId, isSuperseded: false },
+        });
+        if (!boq) {
+          throw ApiError.badRequest(
+            `Variation line "${line.description}" links to a missing or superseded BOQ item. Fix the link before converting.`,
+          );
         }
+        const rawNewQty = Number(boq.quantity) + Number(line.qtyDelta);
+        const executedQty = Number(boq.executedQty);
+        if (rawNewQty < executedQty) {
+          throw ApiError.badRequest(
+            `Variation would reduce BOQ qty to ${rawNewQty} but ${executedQty} has already been executed. Adjust the qty delta to at least ${executedQty}.`,
+          );
+        }
+        const newQty = Math.max(0, rawNewQty);
+        const newAmount = round2(newQty * Number(boq.rate));
+        await tx.bOQItem.update({
+          where: { id: boq.id },
+          data: { quantity: newQty, amount: newAmount },
+        });
       } else if (Number(line.qtyDelta) > 0) {
         await tx.bOQItem.create({
           data: {
@@ -700,8 +705,8 @@ export async function updateChangeOrderLine(
   });
   if (!co) throw ApiError.notFound('Change order not found');
   await assertProjectAccess(companyId, userId, role as never, co.projectId, ['OWNER', 'PM', 'DPM']);
-  if (co.status !== 'DRAFT') {
-    throw ApiError.badRequest('Only DRAFT change orders can have their lines edited');
+  if (co.status !== 'DRAFT' && co.status !== 'REJECTED') {
+    throw ApiError.badRequest('Only DRAFT or REJECTED change orders can have their lines edited');
   }
 
   const line = co.lines.find((l) => l.id === lineId);

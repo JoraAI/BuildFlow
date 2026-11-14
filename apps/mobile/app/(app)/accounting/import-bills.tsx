@@ -9,6 +9,7 @@ import { View, Text, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { Card, Badge, Button, Input, EmptyState } from '@/components/ui';
+import { ChipWrap } from '@/components/ui/ChipWrap';
 import { usePermission } from '@/hooks/usePermission';
 import { useExtractBillBatch, useBulkCreateBills, type BillExtractDraft } from '@/services/accounting.queries';
 import { useProjects, type ProjectListItem } from '@/services/project.queries';
@@ -177,7 +178,7 @@ export default function ImportBillsScreen() {
       <ScrollView contentContainerClassName="px-4 pb-8 pt-2 gap-3">
       {/* Project picker */}
       <Text className="text-sm font-semibold text-text mb-1">Project</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-2 mb-3">
+      <ChipWrap className="mb-3">
         {projects.map((p: ProjectListItem) => (
           <Pressable
             key={p.id}
@@ -189,7 +190,7 @@ export default function ImportBillsScreen() {
             </Text>
           </Pressable>
         ))}
-      </ScrollView>
+      </ChipWrap>
 
       {/* Upload button */}
       <View className="flex-row flex-wrap gap-2">

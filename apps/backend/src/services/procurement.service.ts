@@ -901,18 +901,15 @@ export async function issueStockForDailyReport(
   const strict = opts?.strict ?? false;
   const location = await getOrCreateProjectStockLocation(companyId, projectId, tx);
 
-  const resourceMeta = strict
-    ? new Map(
-        (
-          await prisma.resource.findMany({
-            where: { id: { in: lines.map((l) => l.resourceId) } },
-            select: { id: true, name: true, unit: true },
-          })
-        ).map((r) => [r.id, r]),
-      )
-    : null;
+  // Only MATERIAL resources deplete site stock; labour/equipment usages are tracked only.
+  const resources = await prisma.resource.findMany({
+    where: { id: { in: lines.map((l) => l.resourceId) }, companyId },
+    select: { id: true, name: true, unit: true, type: true },
+  });
+  const resourceMeta = new Map(resources.map((r) => [r.id, r]));
+  const materialLines = lines.filter((l) => resourceMeta.get(l.resourceId)?.type === 'MATERIAL');
 
-  for (const line of lines) {
+  for (const line of materialLines) {
     const balance = await tx.stockBalance.findUnique({
       where: {
         locationId_resourceId: { locationId: location.id, resourceId: line.resourceId },
@@ -921,7 +918,7 @@ export async function issueStockForDailyReport(
     const onHand = balance ? Number(balance.quantity) : 0;
     if (!balance || onHand < line.quantityUsed) {
       if (strict) {
-        const meta = resourceMeta!.get(line.resourceId);
+        const meta = resourceMeta.get(line.resourceId);
         const name = meta?.name ?? 'Material';
         const unit = meta?.unit ?? '';
         if (!balance || onHand === 0) {

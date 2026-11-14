@@ -10,6 +10,7 @@ import { Card, Badge, FAB, LoadingSkeleton, EmptyState, Button } from '@/compone
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { mobileListBottomPadding } from '@/components/layout/fab-layout';
+import { ChipWrap } from '@/components/ui/ChipWrap';
 import { dismissTo, navigateAppBack, DISMISS } from '@/utils/navigation';
 import {
   useRateAnalyses,
@@ -139,7 +140,7 @@ export default function RateAnalysisLibraryScreen() {
           />
         </View>
         {/* Filter chips */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-2">
+        <ChipWrap>
           {(['all', 'material', 'labour', 'equipment'] as const).map((f) => (
             <Pressable
               key={f}
@@ -151,7 +152,7 @@ export default function RateAnalysisLibraryScreen() {
               </Text>
             </Pressable>
           ))}
-        </ScrollView>
+        </ChipWrap>
       </View>
 
       <ScrollView

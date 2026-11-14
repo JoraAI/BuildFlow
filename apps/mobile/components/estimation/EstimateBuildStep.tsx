@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Button, Card, Badge } from '@/components/ui';
+import { ChipWrap } from '@/components/ui/ChipWrap';
 import { ActionBar } from '@/components/layout/ActionBar';
 import { useViewport } from '@/hooks/useViewport';
 import {
@@ -617,7 +618,7 @@ function AddItemRow({
         </View>
       </View>
       <View className="flex-row items-center justify-between">
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-1">
+        <ChipWrap className="flex-1">
           {(['MATERIAL', 'LABOUR', 'EQUIPMENT', 'SUBCONTRACTOR', 'MISC'] as const).map((t) => (
             <Pressable
               key={t}
@@ -635,7 +636,7 @@ function AddItemRow({
               <Text className={`text-[10px] ${type === t ? 'text-white' : 'text-text'}`}>{t}</Text>
             </Pressable>
           ))}
-        </ScrollView>
+        </ChipWrap>
         <Text className="text-xs font-semibold text-text">
           = {formatINR((parseFloat(qty) || 0) * (parseFloat(rate) || 0))}
         </Text>

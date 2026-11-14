@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ScrollView } from 'react-native';
+import { View } from 'react-native';
 import { useViewport } from '@/hooks/useViewport';
 
 interface ActionBarProps {
@@ -7,12 +7,9 @@ interface ActionBarProps {
 }
 
 /**
- * FIX (UI-H4): Sticky footer for screen actions.
+ * Sticky footer for screen actions.
  * - Desktop: horizontal toolbar, right-aligned, wrapping.
- * - Phone: horizontally scrollable row instead of stacking 7 full-width buttons.
- *   The first child is rendered full-width as the primary action; remaining
- *   children scroll horizontally so users don't have to scroll past multiple
- *   buttons to find the one they need.
+ * - Phone: primary action full-width; remaining actions wrap (no horizontal scroll).
  */
 export function ActionBar({ children }: ActionBarProps) {
   const { isPhone } = useViewport();
@@ -26,13 +23,7 @@ export function ActionBar({ children }: ActionBarProps) {
       <View className="border-t border-border bg-card p-4 gap-2 shrink-0">
         {primary}
         {rest.length > 0 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerClassName="gap-2 py-1"
-          >
-            {rest}
-          </ScrollView>
+          <View className="flex-row flex-wrap gap-2 py-1">{rest}</View>
         ) : null}
       </View>
     );

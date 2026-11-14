@@ -137,6 +137,18 @@ export async function updatePettyCashEntry(
     assertStatusTransition(existing.status, input.status, PETTY_CASH_STATUS_TRANSITIONS, 'Petty cash entry');
   }
 
+  const fieldPatch =
+    input.description !== undefined ||
+    input.category !== undefined ||
+    input.amount !== undefined ||
+    input.expenseDate !== undefined ||
+    input.paidTo !== undefined ||
+    input.receiptUrl !== undefined ||
+    input.notes !== undefined;
+  if (fieldPatch && existing.status !== 'PENDING') {
+    throw ApiError.badRequest('Only PENDING petty cash entries can be edited');
+  }
+
   const updated = await prisma.pettyCashEntry.update({
     where: { id },
     data: {
@@ -204,8 +216,10 @@ export async function getPettyCashSummary(companyId: string, projectId?: string)
 
   for (const e of entries) {
     const amt = Number(e.amount);
-    total += amt;
     if (e.status in byStatus) (byStatus as Record<string, number>)[e.status] += amt;
+    // Site-expenses total excludes REJECTED so rejected vouchers do not inflate spend.
+    if (e.status === 'REJECTED') continue;
+    total += amt;
     byCategory[e.category] = (byCategory[e.category] ?? 0) + amt;
   }
 

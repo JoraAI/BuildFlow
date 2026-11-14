@@ -13,7 +13,7 @@
  * VAR-C9b: BOQ dedupe - each BOQ chip usable on at most one draft line
  */
 import React, { useMemo, useState } from 'react';
-import { View, Text, Alert, Pressable, ScrollView } from 'react-native';
+import { View, Text, Alert, Pressable } from 'react-native';
 import { alertAsync, confirmAsync } from '@/utils/confirm';
 import { FlowHintCard } from '@/components/ui/FlowHintCard';
 import { AdaptiveSheet } from '@/components/layout/AdaptiveSheet';
@@ -26,6 +26,7 @@ import {
   LoadingSkeleton,
   Input,
 } from '@/components/ui';
+import { ChipWrap } from '@/components/ui/ChipWrap';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
 import { formatINR, formatDate } from '@/utils/format';
@@ -339,19 +340,19 @@ export function VariationsTab({ projectId, highlightChangeOrderId }: { projectId
         {taskList.length > 0 ? (
           <View className="gap-1">
             <Text className="text-sm font-semibold text-text">Linked task (schedule)</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-2">
+            <ChipWrap>
               <Pressable onPress={() => setLinkedTaskId('')} className={`px-3 py-1.5 rounded-full border ${!linkedTaskId ? 'bg-primary border-primary' : 'border-border'}`}><Text className={`text-xs ${!linkedTaskId ? 'text-white' : 'text-muted'}`}>None</Text></Pressable>
               {taskList.map((t: TaskRow) => (<Pressable key={t.id} onPress={() => setLinkedTaskId(t.id)} className={`px-3 py-1.5 rounded-full border ${linkedTaskId === t.id ? 'bg-primary border-primary' : 'border-border'}`}><Text className={`text-xs ${linkedTaskId === t.id ? 'text-white' : 'text-muted'}`} numberOfLines={1}>{t.name}</Text></Pressable>))}
-            </ScrollView>
+            </ChipWrap>
           </View>
         ) : null}
         {woList.length > 0 ? (
           <View className="gap-1">
             <Text className="text-sm font-semibold text-text">Linked subcontract WO</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-2">
+            <ChipWrap>
               <Pressable onPress={() => setLinkedWorkOrderId('')} className={`px-3 py-1.5 rounded-full border ${!linkedWorkOrderId ? 'bg-primary border-primary' : 'border-border'}`}><Text className={`text-xs ${!linkedWorkOrderId ? 'text-white' : 'text-muted'}`}>None</Text></Pressable>
               {woList.map((wo: WorkOrder) => (<Pressable key={wo.id} onPress={() => setLinkedWorkOrderId(wo.id)} className={`px-3 py-1.5 rounded-full border ${linkedWorkOrderId === wo.id ? 'bg-primary border-primary' : 'border-border'}`}><Text className={`text-xs ${linkedWorkOrderId === wo.id ? 'text-white' : 'text-muted'}`}>{wo.woNumber}</Text></Pressable>))}
-            </ScrollView>
+            </ChipWrap>
           </View>
         ) : null}
         {/* VAR-C9c: Section copy - single line per BOQ/RA */}
@@ -380,7 +381,7 @@ export function VariationsTab({ projectId, highlightChangeOrderId }: { projectId
               {boqItems.length > 0 ? (
                 <View className="gap-1">
                   <Text className="text-xs text-muted">Link to BOQ line (optional)</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-1">
+                  <ChipWrap>
                     <Pressable onPress={() => setLines((prev) => prev.map((l) => (l.id === line.id ? applyBoqLinkToLine(l, null) : l)))} className={`px-2 py-1 rounded border ${!line.boqItemId ? 'bg-accent border-accent' : 'border-border'}`}><Text className={`text-[10px] ${!line.boqItemId ? 'text-white' : 'text-muted'}`}>New</Text></Pressable>
                     {boqItems.map((b: BoqItem) => {
                       // VAR-C9b: Disable BOQ chips already used on other lines
@@ -396,7 +397,7 @@ export function VariationsTab({ projectId, highlightChangeOrderId }: { projectId
                         </Pressable>
                       );
                     })}
-                  </ScrollView>
+                  </ChipWrap>
                   {usedBoqIds.size > 0 && (
                     <Text className="text-[10px] text-muted">Greyed chips are already used on another line.</Text>
                   )}
@@ -419,7 +420,7 @@ export function VariationsTab({ projectId, highlightChangeOrderId }: { projectId
               {isNewScope && (
                 <View className="gap-1">
                   <Text className="text-xs text-muted">Line type</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-1">
+                  <ChipWrap>
                     {LINE_TYPES.map((t) => (
                       <Pressable
                         key={t}
@@ -443,7 +444,7 @@ export function VariationsTab({ projectId, highlightChangeOrderId }: { projectId
                         <Text className={`text-[10px] font-semibold ${line.type === t ? 'text-white' : 'text-muted'}`}>{t}</Text>
                       </Pressable>
                     ))}
-                  </ScrollView>
+                  </ChipWrap>
                 </View>
               )}
               {/* Procurement links only apply to MATERIAL (BOQ / indent explosion). */}
@@ -483,7 +484,7 @@ export function VariationsTab({ projectId, highlightChangeOrderId }: { projectId
               )}
               {/* VAR-C9: New scope helper */}
               {isNewScope && (
-                <Text className="text-[10px] text-muted italic">New scope - creates a BOQ line on approve. RA materials explode in Procurement → Shortfalls.</Text>
+                <Text className="text-[10px] text-muted italic">New scope - creates a BOQ line after Convert to BOQ. RA materials explode in Procurement → Shortfalls.</Text>
               )}
               <View className="flex-row gap-2">
                 <View className="flex-1"><Input label="Qty Δ" value={line.qtyDelta} onChangeText={(v: string) => setLines((prev) => prev.map((l) => (l.id === line.id ? { ...l, qtyDelta: v } : l)))} keyboardType="decimal-pad" fullWidth /></View>

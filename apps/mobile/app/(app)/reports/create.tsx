@@ -343,10 +343,13 @@ export default function CreateReportScreen() {
 
     if (deductStock && usageLines.length > 0 && stockSummary) {
       for (const line of usageLines) {
+        const mat = materials.find((m) => m.resourceId === line.resourceId);
+        // Labour/equipment are logged on the report but do not deplete site stock.
+        if (mat && mat.type !== 'MATERIAL') continue;
         const row = stockSummary.find((s: { resourceId: string; balance: number }) => s.resourceId === line.resourceId);
         const onHand = row?.balance ?? 0;
-        const name = materials.find((m) => m.resourceId === line.resourceId)?.resourceName ?? 'Material';
-        const unit = materials.find((m) => m.resourceId === line.resourceId)?.unit ?? '';
+        const name = mat?.resourceName ?? 'Material';
+        const unit = mat?.unit ?? '';
         if (onHand === 0) {
           const msg = `${name}: no site stock on this project - receive via GRN first.`;
           setFormError(msg);

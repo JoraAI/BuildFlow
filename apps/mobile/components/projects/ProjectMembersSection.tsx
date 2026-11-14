@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { Card, Button, LoadingSkeleton, EmptyState, Badge } from '@/components/ui';
+import { ChipWrap } from '@/components/ui/ChipWrap';
 import { useViewport } from '@/hooks/useViewport';
 import { useAuthStore } from '@/stores/auth.store';
 import { useProjectMembers, useSetProjectMembers, type ProjectMemberRow } from '@/services/project.queries';
@@ -119,8 +120,7 @@ export function ProjectMembersSection({ projectId }: { projectId: string }) {
                   />
                 </Pressable>
                 {assigned && canEdit && (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-2">
-                    <View className="flex-row gap-1">
+                  <ChipWrap className="mt-2">
                       {ASSIGNABLE_ROLES.map((role) => (
                         <Pressable
                           key={role}
@@ -138,8 +138,7 @@ export function ProjectMembersSection({ projectId }: { projectId: string }) {
                           </Text>
                         </Pressable>
                       ))}
-                    </View>
-                  </ScrollView>
+                  </ChipWrap>
                 )}
               </View>
             );

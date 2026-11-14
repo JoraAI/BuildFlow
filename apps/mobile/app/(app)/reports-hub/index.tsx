@@ -9,6 +9,7 @@ import { Card, Button, LoadingSkeleton, EmptyState, Input, Badge } from '@/compo
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { ResponsiveGrid } from '@/components/layout/ResponsiveGrid';
+import { ChipWrap } from '@/components/ui/ChipWrap';
 import { useViewport } from '@/hooks/useViewport';
 import { dismissTo, DISMISS } from '@/utils/navigation';
 import { alertAsync } from '@/utils/confirm';
@@ -119,35 +120,33 @@ export default function ReportsHubScreen() {
           Measurement book and abstract sheet are available on the project's BOQ tab.
         </Text>
 
-        {/* Project selector - status dots + names */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3">
-          <View className="flex-row gap-2">
-            {(projects ?? []).map((p: ProjectListItem) => {
-              const selected = selectedProject === p.id;
-              const status = projectStatusColor(p.status);
-              return (
-                <Pressable
-                  key={p.id}
-                  onPress={() => setSelectedProject(p.id)}
-                  className={`px-3 py-2 rounded-lg border flex-row items-center gap-2 ${
-                    selected ? 'bg-primary/10 border-primary' : 'border-border'
-                  }`}
+        {/* Project selector - status dots + names (wrap, no horizontal scroll) */}
+        <ChipWrap className="mb-3">
+          {(projects ?? []).map((p: ProjectListItem) => {
+            const selected = selectedProject === p.id;
+            const status = projectStatusColor(p.status);
+            return (
+              <Pressable
+                key={p.id}
+                onPress={() => setSelectedProject(p.id)}
+                className={`px-3 py-2 rounded-lg border flex-row items-center gap-2 ${
+                  selected ? 'bg-primary/10 border-primary' : 'border-border'
+                }`}
+              >
+                <View
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: status.dot }}
+                />
+                <Text
+                  className={`text-sm ${selected ? 'text-primary font-semibold' : 'text-text'}`}
+                  numberOfLines={1}
                 >
-                  <View
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: status.dot }}
-                  />
-                  <Text
-                    className={`text-sm ${selected ? 'text-primary font-semibold' : 'text-text'}`}
-                    numberOfLines={1}
-                  >
-                    {p.name}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </ScrollView>
+                  {p.name}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ChipWrap>
 
         {selectedProject ? (
           <View className="gap-3">

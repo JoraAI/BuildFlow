@@ -51,6 +51,7 @@ import { alertAsync, confirmAsync } from '@/utils/confirm';
 import { downloadReportPdf, reportPaths } from '@/services/report-download';
 import { FlowHintCard } from '@/components/ui/FlowHintCard';
 import { TermHint } from '@/components/ui/TermHint';
+import { ChipWrap } from '@/components/ui/ChipWrap';
 
 function downloadSubcontractReportPdf(
   projectId: string,
@@ -1299,10 +1300,10 @@ function MaterialsPanel({
                   <Text className="text-xs font-semibold text-text mb-1">
                     Link to BOQ line (optional)
                   </Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <ChipWrap>
                     <Pressable
                       onPress={() => setSelectedBoqItemId(null)}
-                      className={`px-3 py-1.5 rounded-lg border mr-1 ${
+                      className={`px-3 py-1.5 rounded-lg border ${
                         selectedBoqItemId === null ? 'border-primary bg-primary/5' : 'border-border'
                       }`}
                     >
@@ -1312,7 +1313,7 @@ function MaterialsPanel({
                       <Pressable
                         key={b.id}
                         onPress={() => setSelectedBoqItemId(b.id)}
-                        className={`px-3 py-1.5 rounded-lg border mr-1 ${
+                        className={`px-3 py-1.5 rounded-lg border ${
                           selectedBoqItemId === b.id ? 'border-primary bg-primary/5' : 'border-border'
                         }`}
                       >
@@ -1321,7 +1322,7 @@ function MaterialsPanel({
                         </Text>
                       </Pressable>
                     ))}
-                  </ScrollView>
+                  </ChipWrap>
                 </View>
               );
             })()}

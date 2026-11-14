@@ -2,9 +2,10 @@
  * BuildFlow - Submit support request.
  */
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Card, Input, Button } from '@/components/ui';
+import { ChipWrap } from '@/components/ui/ChipWrap';
 import { SettingsPageLayout } from '@/components/layout/SettingsPageLayout';
 import { useCreateTicket } from '@/services/settings.queries';
 import { useAuthStore } from '@/stores/auth.store';
@@ -115,21 +116,19 @@ export default function CreateTicketScreen() {
     >
       <Card className="mb-4">
         <Text className="text-sm font-semibold text-text mb-2">Category</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
-          <View className="flex-row gap-2">
-            {CATEGORIES.map((c) => (
-              <Pressable
-                key={c.id}
-                onPress={() => setCategory(c.id)}
-                className={`px-3 py-2 rounded-lg border ${category === c.id ? 'bg-primary border-primary' : 'bg-card border-border'}`}
-              >
-                <Text className={`text-xs font-medium ${category === c.id ? 'text-white' : 'text-text'}`}>
-                  {c.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </ScrollView>
+        <ChipWrap className="mb-4">
+          {CATEGORIES.map((c) => (
+            <Pressable
+              key={c.id}
+              onPress={() => setCategory(c.id)}
+              className={`px-3 py-2 rounded-lg border ${category === c.id ? 'bg-primary border-primary' : 'bg-card border-border'}`}
+            >
+              <Text className={`text-xs font-medium ${category === c.id ? 'text-white' : 'text-text'}`}>
+                {c.label}
+              </Text>
+            </Pressable>
+          ))}
+        </ChipWrap>
         <Input label="Subject" value={subject} onChangeText={setSubject} />
         <Input
           label="Description"

@@ -97,11 +97,13 @@ async function assertRaLinesWithinBillable(
   if (boqIds.length === 0) return;
 
   const items = await prisma.bOQItem.findMany({
-    where: { id: { in: boqIds }, projectId },
+    where: { id: { in: boqIds }, projectId, isSuperseded: false },
     select: { id: true, executedQty: true, itemCode: true },
   });
   if (items.length !== boqIds.length) {
-    throw ApiError.badRequest('One or more RA lines reference a BOQ item outside this project.');
+    throw ApiError.badRequest(
+      'One or more RA lines reference a missing or superseded BOQ item. Use live BOQ lines only.',
+    );
   }
   const byId = new Map(items.map((i) => [i.id, i]));
   const billedByBoq = await getRaBilledQtyByBoq(companyId, projectId, boqIds, excludeInvoiceId);

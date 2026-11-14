@@ -33,12 +33,12 @@ import { ProjectMembersSection } from '@/components/projects/ProjectMembersSecti
 import { ProjectMaterialRatesSection } from '@/components/projects/ProjectMaterialRatesSection';
 import { ProjectStatusSection } from '@/components/projects/ProjectStatusSection';
 import { ProjectSetupChecklist } from '@/components/projects/ProjectSetupChecklist';
+import { ProjectModulePicker } from '@/components/projects/ProjectModulePicker';
 import { TermHint } from '@/components/ui/TermHint';
 import { AmountGate, BudgetGate } from '@/components/common/PermissionGate';
-import { PROJECT_TAB_HINTS } from '@/constants/project-workflow';
+import { PROJECT_TAB_HINTS, type ProjectTabId } from '@/constants/project-workflow';
 import { useCreatePortalAccess } from '@/services/expansion.queries';
 import { useAuthStore } from '@/stores/auth.store';
-import { useTranslation } from '@/hooks/useTranslation';
 import { formatINR, formatINRCompact, formatDate, daysBetween } from '@/utils/format';
 
 type Tab =
@@ -94,7 +94,6 @@ export default function ProjectDetailScreen() {
   const { isDesktop } = useViewport();
   const perms = useAuthStore((s) => s.user?.permissions);
   const isOwner = useAuthStore((s) => s.user?.role === 'OWNER');
-  const { t: translate } = useTranslation();
 
   const visibleTabs = useMemo(() => {
     return TABS.filter((t) => {
@@ -224,31 +223,14 @@ export default function ProjectDetailScreen() {
   );
 
   const tabBar = (
-    <View className="bg-surface border-b border-border">
-      <View className={isDesktop ? 'px-8 max-w-6xl w-full self-center' : undefined}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerClassName={isDesktop ? 'py-2 gap-2' : 'px-4 py-2 gap-2'}
-        >
-          {visibleTabs.map((tabItem: { label: string; value: Tab }) => (
-            <Pressable
-              key={tabItem.value}
-              onPress={() => setTab(tabItem.value)}
-              className={`px-4 py-2 rounded-full ${
-                tab === tabItem.value ? 'bg-primary' : 'bg-card border border-border'
-              }`}
-            >
-              <Text className={`text-sm font-semibold ${tab === tabItem.value ? 'text-white' : 'text-muted'}`}>
-                {translate(tabItem.label)}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-        <View className={`px-4 py-1.5 ${isDesktop ? 'px-8 max-w-6xl w-full self-center' : ''}`}>
-          <Text className="text-xs text-muted">{PROJECT_TAB_HINTS[tab]}</Text>
-        </View>
-      </View>
+    <View className={isDesktop ? 'px-8 max-w-6xl w-full self-center' : undefined}>
+      <ProjectModulePicker
+        tabs={visibleTabs as { label: string; value: ProjectTabId }[]}
+        value={tab as ProjectTabId}
+        onChange={(next) => setTab(next as Tab)}
+        hint={PROJECT_TAB_HINTS[tab]}
+        padded={!isDesktop}
+      />
     </View>
   );
 

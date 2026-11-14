@@ -117,6 +117,7 @@ export function PettyCashTab({ projectId }: PettyCashTabProps) {
   const entries = listData?.data ?? [];
   const pendingAmount = summaryData?.byStatus?.PENDING ?? 0;
   const reconciledAmount = summaryData?.byStatus?.RECONCILED ?? 0;
+  // total excludes REJECTED on the API; PENDING + RECONCILED = site expenses.
   const totalSpend = summaryData?.total ?? summaryData?.totalAmount ?? 0;
   // Float allocation is not modeled yet — show reconciled spend only (no fake balance).
   const floatAllocated: number | null = null;
@@ -427,7 +428,7 @@ export function PettyCashTab({ projectId }: PettyCashTabProps) {
         <View className="flex-1 min-w-[180px]">
           <Text className="text-xl font-bold text-text">{t('Site Petty Cash & Expenses')}</Text>
           <Text className="text-xs text-muted mt-0.5">
-            Log site cash float, snap receipts, and 1-tap reconcile with approvals
+            Site float vouchers (not BOQ/procurement lines). Snap receipts and 1-tap reconcile.
           </Text>
         </View>
         {canCreate ? (

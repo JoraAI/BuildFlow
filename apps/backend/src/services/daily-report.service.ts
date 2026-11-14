@@ -148,6 +148,39 @@ export async function createReport(
 
   const { materialUsages, taskUpdates, deductStock, ...reportFields } = input;
 
+  // Validate BOQ/task links and unit matches before writing so a failed
+  // post-commit BOQ measurement cannot leave a report + stock deduct orphaned.
+  if (materialUsages?.length) {
+    for (const m of materialUsages) {
+      if (m.boqItemId) {
+        const boq = await prisma.bOQItem.findFirst({
+          where: { id: m.boqItemId, projectId, isSuperseded: false },
+          select: { id: true },
+        });
+        if (!boq) {
+          throw ApiError.badRequest('Material usage links to a BOQ item outside this project (or superseded).');
+        }
+        if (m.postToBoqMeasurement) {
+          const canPost = await assertMaterialUsageUnitsMatchBoq(companyId, m.resourceId, m.boqItemId);
+          if (!canPost) {
+            throw ApiError.badRequest(
+              'Cannot post material quantity as BOQ measurement: material unit and BOQ unit differ. Record measurement on the BOQ tab instead, or clear "post to BOQ" for this line.',
+            );
+          }
+        }
+      }
+      if (m.taskId) {
+        const task = await prisma.task.findFirst({
+          where: { id: m.taskId, projectId },
+          select: { id: true },
+        });
+        if (!task) {
+          throw ApiError.badRequest('Material usage links to a task outside this project.');
+        }
+      }
+    }
+  }
+
   let report = await prisma.$transaction(async (tx) => {
     const created = await tx.dailyReport.create({
       data: {

@@ -38,6 +38,15 @@ export const PROJECT_TAB_HINTS: Record<ProjectTabId, string> = {
   settings: 'Team, rates, and portal access',
 };
 
+/** Grouped module picker sections (permission-filtered at render time). */
+export const PROJECT_MODULE_GROUPS: { title: string; tabs: ProjectTabId[] }[] = [
+  { title: 'Plan', tabs: ['overview', 'estimate', 'schedule', 'boq', 'variations'] },
+  { title: 'Site', tabs: ['reports', 'drawings', 'snags', 'rfis', 'laborWages', 'resources', 'pettyCash'] },
+  { title: 'Buy & subcontract', tabs: ['procurement', 'subcontracts'] },
+  { title: 'Finance', tabs: ['invoices', 'bills'] },
+  { title: 'Admin', tabs: ['settings'] },
+];
+
 export interface SetupChecklistStep {
   id: string;
   label: string;
