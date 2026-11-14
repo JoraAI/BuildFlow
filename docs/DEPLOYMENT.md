@@ -272,21 +272,15 @@ Company: **Reddy Constructions Pvt Ltd** - password **`Test@1234`** for all:
 | Site Supervisor | `site@reddyconst.com` |
 | Accountant | `accounts@reddyconst.com` |
 
-### Inventory tenants (`/` → Login → `/inventory`)
+### Inventory vertical demos (`/` → Login → `/inventory`)
 
-Password **`Test@1234`** for all. One demo company per business profile (+ vertical demos):
+Password **`Test@1234`** for all:
 
-| Profile / vertical | Owner email |
-|---------|-------------|
-| MATERIAL_SUPPLIER (rich) | `owner@hydmaterials.com` (+ `manager@hydmaterials.com`) |
-| RETAIL | `owner@cityhardware.com` |
-| WHOLESALE | `owner@deccanwholesale.com` |
-| DISTRIBUTION | `owner@southdistro.com` |
-| TRADING | `owner@apextrading.com` |
-| EQUIPMENT | `owner@forgeequip.com` |
-| GENERAL (profile) | `owner@generalstore.com` |
-| RETAIL + vertical GENERAL (library + FEFO) | `owner@kirana-demo.com` |
-| WHOLESALE + vertical EVENTS | `owner@luminalighting.com` (+ `manager@luminalighting.com`) |
+| Vertical | Owner email |
+|----------|-------------|
+| GENERAL (RETAIL + library / FEFO) | `owner@kirana-demo.com` |
+| EVENTS (WHOLESALE) | `owner@luminalighting.com` (+ `manager@luminalighting.com`) |
+| ICE_CREAM (WHOLESALE) | `owner@frostycups.com` (+ `manager@frostycups.com`) |
 
 Full copy-paste list: [`DEMO_CREDENTIALS.txt`](./DEMO_CREDENTIALS.txt).
 

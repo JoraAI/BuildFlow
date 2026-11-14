@@ -781,25 +781,17 @@ pnpm dev               # turbo run dev (backend + mobile concurrently)
 
 Login: main app `/login` → construction dashboard / projects.
 
-#### Inventory demos (INVENTORY plan) - all profiles
+#### Inventory vertical demos (INVENTORY plan)
 
 Password **`Test@1234`**. Login → **`/inventory`**.
 
-| Profile / vertical | Company | Owner email |
-|---------|---------|-------------|
-| MATERIAL_SUPPLIER (rich: 2 warehouses, parties, price override) | Hyderabad Building Materials | `owner@hydmaterials.com` |
-| (manager) | same | `manager@hydmaterials.com` |
-| RETAIL | City Hardware Retail | `owner@cityhardware.com` |
-| WHOLESALE | Deccan Wholesale Mart | `owner@deccanwholesale.com` |
-| DISTRIBUTION | South Distro Spares | `owner@southdistro.com` |
-| TRADING | Apex Trading Co | `owner@apextrading.com` |
-| EQUIPMENT | Forge Equipment Dealers | `owner@forgeequip.com` |
-| GENERAL (profile) | General Goods Store | `owner@generalstore.com` |
-| RETAIL + vertical **GENERAL** (library + FEFO) | Shri Ganesh Kirana & General Store | `owner@kirana-demo.com` |
-| WHOLESALE + vertical **EVENTS** | Lumina Lighting & Event Electricals | `owner@luminalighting.com` |
-| (manager) | same | `manager@luminalighting.com` |
+| Vertical | Company | Owner email |
+|----------|---------|-------------|
+| **GENERAL** (RETAIL + library / FEFO) | Shri Ganesh Kirana & General Store | `owner@kirana-demo.com` |
+| **EVENTS** (WHOLESALE) | Lumina Lighting & Event Electricals | `owner@luminalighting.com` (+ `manager@luminalighting.com`) |
+| **ICE_CREAM** (WHOLESALE) | Frosty Cups Ice Creams | `owner@frostycups.com` (+ `manager@frostycups.com`) |
 
-Rich materials demo also seeds SKUs, reorder points, customer/vendor, and opening stock across Main Store + Branch - Uppal. Full list: [`DEMO_CREDENTIALS.txt`](./DEMO_CREDENTIALS.txt).
+Full list: [`DEMO_CREDENTIALS.txt`](./DEMO_CREDENTIALS.txt).
 
 #### Platform admin
 

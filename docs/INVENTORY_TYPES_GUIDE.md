@@ -23,45 +23,40 @@ All seven inventory types run on the **same** stock, purchase, and sales engines
 - **Best for:** Counter / shop sales in small quantities (hardware, electrical, finishing).
 - **Typical catalog:** PVC fittings, bulbs, wall putty.
 - **How they usually sell:** Stock → **Issue** (walk-in). Formal sales order when a contractor wants a billed order.
-- **Demo:** `owner@cityhardware.com` · City Hardware Retail
+- **Seeded vertical demo:** GENERAL (`owner@kirana-demo.com`)
 
 ### 2. Wholesale / cash & carry (`WHOLESALE`)
 - **Best for:** Bulk boxes and rims sold to shops and offices, often same-day pickup.
 - **Typical catalog:** Cartons, rims, packing tape - higher opening quantities.
 - **How they usually sell:** Mix of **Issue** (cash counter) and **Sales order + dispatch** for billed lots.
-- **Demo:** `owner@deccanwholesale.com` · Deccan Wholesale Mart
+- **Seeded vertical demos that use WHOLESALE:** EVENTS (`owner@luminalighting.com`), ICE_CREAM (`owner@frostycups.com`)
 
 ### 3. Distributor / stockist (`DISTRIBUTION`)
 - **Best for:** Brand or spare-parts stockist supplying dealers; often more than one warehouse later.
 - **Typical catalog:** Auto / spare SKUs (belts, filters, pad sets).
 - **How they usually sell:** Prefer **Sales order → challan → dispatch** so each dealer shipment has a DC and draft invoice.
-- **Demo:** `owner@southdistro.com` · South Distro Spares
 
 ### 4. Trader / trading company (`TRADING`)
 - **Best for:** Buy-and-sell of commodities (steel, pipes, sheets) by weight or metre.
 - **Typical catalog:** MS angle, GI pipe, CR sheet.
 - **How they usually sell:** Purchase (indent → PO → GRN) then sell via Sales order or Issue depending on whether goods leave today.
-- **Demo:** `owner@apextrading.com` · Apex Trading Co
 
 ### 5. Material supplier - construction (`MATERIAL_SUPPLIER`)
 - **Best for:** Cement, steel, sand, bricks sold to sites. Closest to construction store language.
-- **Typical catalog:** OPC cement, TMT, sand, bricks, aggregate. Richest demo: 2 warehouses, parties, price list.
+- **Typical catalog:** OPC cement, TMT, sand, bricks, aggregate.
 - **Wording:** **Materials** / **Indent** (not Items / Purchase request).
 - **How they usually sell:** Site pickup → **Issue**. Site delivery → **Sales order + dispatch + challan PDF**.
-- **Demo:** `owner@hydmaterials.com` (also `manager@hydmaterials.com`)
 
 ### 6. Equipment dealer / rental (`EQUIPMENT`)
 - **Best for:** Stocking plant and access equipment rather than consumable bags.
 - **Typical catalog:** Mixer, vibrator, scaffold - catalog type EQUIPMENT, high unit rates, low qty.
 - **Note:** Status machines are still the same. This is not a rental calendar / hire module.
 - **How they usually sell:** Usually **Sales order + dispatch** (high value). Issue is available for walk-in cash sale.
-- **Demo:** `owner@forgeequip.com` · Forge Equipment Dealers
 
 ### 7. General business (`GENERAL`)
 - **Best for:** Default when the business does not fit the others. Same full inventory product.
 - **Typical catalog:** Mixed SKUs (fasteners, PPE). Safe starting profile.
 - **How they usually sell:** Use Issue if they take goods now, or a sales order if you ship later.
-- **Demo:** `owner@generalstore.com` · General Goods Store
 
 ### What is the same for every type
 - Stock, Procurement, Sales, Warehouse, Parties, Invoices, Bills, Settings, Tally export
@@ -228,11 +223,11 @@ Purchase returns (to a vendor) reduce stock and open a draft debit note.
 
 ## Suggested walkthrough
 
-1. Log in as `owner@hydmaterials.com` (material supplier, richest demo) with `Test@1234`
+1. Log in as `owner@kirana-demo.com` (GENERAL vertical) or `owner@luminalighting.com` (EVENTS) with `Test@1234`
 2. Stock: open an item screen, then **Issue** a small qty - confirm the draft invoice, see the counter sale on Sales
 3. Sales: New order → Confirm → New challan → **Dispatch** - confirm the new draft invoice
 4. Procurement: purchase request → PO → GRN → Vendor bills
-5. Settings: switch profile to Retail and refresh - tab says **Items** instead of **Materials**; statuses unchanged
-6. Optionally log into `owner@forgeequip.com` or `owner@cityhardware.com` to see catalog flavour only
+5. Settings: switch business profile / shop vertical as needed (OWNER)
 
 Change the profile any time under **Inventory → Settings → Business profile** (OWNER).
+Seeded inventory logins: [`DEMO_CREDENTIALS.txt`](./DEMO_CREDENTIALS.txt).

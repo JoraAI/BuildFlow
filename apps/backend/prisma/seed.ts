@@ -3,15 +3,8 @@
  *
  * Creates:
  *  - Construction: "Reddy Constructions Pvt Ltd" + 9 users (all roles) + NH-45 lifecycle
- *  - Inventory demos (all business profiles) - password Test@1234:
+ *  - Inventory vertical demos only - password Test@1234:
  *      EVENTS vertical    owner@luminalighting.com (WHOLESALE + event quotes)
- *      MATERIAL_SUPPLIER  owner@hydmaterials.com   (rich demo: parties, 2 warehouses, SKUs)
- *      RETAIL             owner@cityhardware.com
- *      WHOLESALE          owner@deccanwholesale.com
- *      DISTRIBUTION       owner@southdistro.com
- *      TRADING            owner@apextrading.com
- *      EQUIPMENT          owner@forgeequip.com
- *      GENERAL            owner@generalstore.com
  *      GENERAL vertical   owner@kirana-demo.com   (RETAIL + product library / FEFO)
  *      ICE_CREAM vertical owner@frostycups.com    (recipes / production / Icecream-inventory-buyer)
  *  - Platform admin: admin@buildflow.com
@@ -2120,171 +2113,6 @@ async function main(): Promise<void> {
     ],
   });
 
-  await seedInventoryTenant({
-    companyName: 'Hyderabad Building Materials',
-    profile: InventoryBusinessProfile.MATERIAL_SUPPLIER,
-    gstin: '36AABCH5678B1Z9',
-    pan: 'AABCH5678B',
-    state: 'Telangana',
-    address: 'Kukatpally, Hyderabad, Telangana 500072',
-    ownerName: 'Lakshmi Traders',
-    ownerEmail: 'owner@hydmaterials.com',
-    managerName: 'Ramesh Store',
-    managerEmail: 'manager@hydmaterials.com',
-    storeCode: 'STORE',
-    rich: true,
-    catalog: [
-      { name: 'OPC Cement 53 Grade', unit: 'bag', rate: 380, costPrice: 320, mrp: 410, category: 'Cement', sku: 'CEM-53', reorderPoint: 40 },
-      { name: 'TMT Bar 12mm Fe500', unit: 'kg', rate: 68, costPrice: 58, mrp: 75, category: 'Steel', sku: 'TMT-12', reorderPoint: 200 },
-      { name: 'River Sand', unit: 'cum', rate: 2200, costPrice: 1800, mrp: 2400, category: 'Aggregates', sku: 'SAND-R', reorderPoint: 5 },
-      { name: 'Red Bricks (Class A)', unit: 'nos', rate: 9, costPrice: 7.5, mrp: 11, category: 'Masonry', sku: 'BRK-A', reorderPoint: 500 },
-      { name: '20mm Aggregate', unit: 'cum', rate: 1850, costPrice: 1500, mrp: 2100, category: 'Aggregates', sku: 'AGG-20', reorderPoint: 8 },
-      { name: '50W Site Flood Light', unit: 'nos', rate: 1250, costPrice: 750, mrp: 1500, category: 'Electrical', sku: 'FLD-50W', reorderPoint: 10 },
-      { name: 'LED Bulb 9W (B22)', unit: 'nos', rate: 95, costPrice: 60, mrp: 130, category: 'Electrical', sku: 'LED-9W', reorderPoint: 30 },
-    ],
-    openingQtys: [80, 500, 12, 2000, 15, 30, 100],
-  });
-
-  await seedInventoryTenant({
-    companyName: 'City Hardware Retail',
-    profile: InventoryBusinessProfile.RETAIL,
-    gstin: '36AABCR1111R1Z1',
-    pan: 'AABCR1111R',
-    state: 'Telangana',
-    address: 'Ameerpet, Hyderabad',
-    ownerName: 'Anil Retail',
-    ownerEmail: 'owner@cityhardware.com',
-    storeCode: 'RETAIL',
-    catalog: [
-      { name: 'PVC Elbow 1"', unit: 'nos', rate: 18, costPrice: 11, mrp: 25, category: 'Plumbing', sku: 'PVC-EL1', reorderPoint: 50 },
-      { name: 'LED Bulb 9W Warm White', unit: 'nos', rate: 95, costPrice: 60, mrp: 130, category: 'Electrical', sku: 'LED-9W', reorderPoint: 30 },
-      { name: 'LED Bulb 12W Cool White', unit: 'nos', rate: 135, costPrice: 85, mrp: 170, category: 'Electrical', sku: 'LED-12W', reorderPoint: 25 },
-      { name: 'Vintage Edison Bulb 40W', unit: 'nos', rate: 260, costPrice: 150, mrp: 320, category: 'Electrical', sku: 'ED-40W', reorderPoint: 15 },
-      { name: '5m RGB LED Strip', unit: 'roll', rate: 450, costPrice: 260, mrp: 600, category: 'Electrical', sku: 'STRIP-5M', reorderPoint: 20 },
-      { name: 'Wall Putty 20kg', unit: 'bag', rate: 420, costPrice: 340, mrp: 480, category: 'Finishing', sku: 'PUT-20', reorderPoint: 15 },
-    ],
-    openingQtys: [120, 80, 60, 30, 40, 25],
-  });
-
-  await seedInventoryTenant({
-    companyName: 'Deccan Wholesale Mart',
-    profile: InventoryBusinessProfile.WHOLESALE,
-    gstin: '36AABCW2222W1Z2',
-    pan: 'AABCW2222W',
-    state: 'Telangana',
-    address: 'Jeedimetla, Hyderabad',
-    ownerName: 'Kiran Wholesale',
-    ownerEmail: 'owner@deccanwholesale.com',
-    storeCode: 'WHOLE',
-    catalog: [
-      { name: 'Warm White LED Bulb Pack (10x9W)', unit: 'pack', rate: 850, costPrice: 550, mrp: 1200, category: 'Lighting Wholesale', sku: 'LED-PK-9W', reorderPoint: 40 },
-      { name: '50W Flood Light Carton (5x50W)', unit: 'box', rate: 5200, costPrice: 3400, mrp: 7000, category: 'Lighting Wholesale', sku: 'FLD-BX-50W', reorderPoint: 15 },
-      { name: 'Binder Clips Box', unit: 'box', rate: 85, costPrice: 50, mrp: 110, category: 'Stationery', sku: 'BC-BX', reorderPoint: 40 },
-      { name: 'A4 Copier Paper Rim', unit: 'rim', rate: 240, costPrice: 170, mrp: 300, category: 'Stationery', sku: 'A4-RIM', reorderPoint: 60 },
-      { name: 'Packing Tape 48mm', unit: 'roll', rate: 35, costPrice: 20, mrp: 50, category: 'Packaging', sku: 'TAPE-48', reorderPoint: 100 },
-    ],
-    openingQtys: [150, 40, 200, 150, 400],
-  });
-
-  await seedInventoryTenant({
-    companyName: 'South Distro Spares',
-    profile: InventoryBusinessProfile.DISTRIBUTION,
-    gstin: '36AABCD3333D1Z3',
-    pan: 'AABCD3333D',
-    state: 'Telangana',
-    address: 'Nacharam, Hyderabad',
-    ownerName: 'Deepa Distro',
-    ownerEmail: 'owner@southdistro.com',
-    storeCode: 'DIST',
-    catalog: [
-      { name: 'Alternator Belt', unit: 'nos', rate: 450, gstRate: 18, category: 'Auto spares', sku: 'ALT-BELT', reorderPoint: 20 },
-      { name: 'Oil Filter Compact', unit: 'nos', rate: 180, gstRate: 18, category: 'Auto spares', sku: 'OF-C', reorderPoint: 40 },
-      { name: 'Brake Pad Set', unit: 'set', rate: 1200, gstRate: 18, category: 'Auto spares', sku: 'BP-SET', reorderPoint: 15 },
-    ],
-    openingQtys: [45, 90, 30],
-  });
-
-  await seedInventoryTenant({
-    companyName: 'Apex Trading Co',
-    profile: InventoryBusinessProfile.TRADING,
-    gstin: '36AABCT4444T1Z4',
-    pan: 'AABCT4444T',
-    state: 'Telangana',
-    address: 'Begumpet, Hyderabad',
-    ownerName: 'Imran Trader',
-    ownerEmail: 'owner@apextrading.com',
-    storeCode: 'TRADE',
-    catalog: [
-      { name: 'MS Angle 40x40', unit: 'kg', rate: 62, gstRate: 18, category: 'Steel trade', sku: 'MS-A40', reorderPoint: 300 },
-      { name: 'GI Pipe 1.5"', unit: 'm', rate: 210, gstRate: 18, category: 'Pipes', sku: 'GI-15', reorderPoint: 80 },
-      { name: 'CR Sheet 1.2mm', unit: 'kg', rate: 78, gstRate: 18, category: 'Sheets', sku: 'CR-12', reorderPoint: 250 },
-    ],
-    openingQtys: [800, 200, 500],
-  });
-
-  await seedInventoryTenant({
-    companyName: 'Forge Equipment Dealers',
-    profile: InventoryBusinessProfile.EQUIPMENT,
-    gstin: '36AABCE5555E1Z5',
-    pan: 'AABCE5555E',
-    state: 'Telangana',
-    address: 'Balanagar, Hyderabad',
-    ownerName: 'Vikram Equipment',
-    ownerEmail: 'owner@forgeequip.com',
-    storeCode: 'EQUIP',
-    catalog: [
-      {
-        name: 'Concrete Mixer 10/7',
-        unit: 'nos',
-        rate: 85000,
-        gstRate: 18,
-        category: 'Site equipment',
-        sku: 'MIX-107',
-        reorderPoint: 2,
-        type: ResourceType.EQUIPMENT,
-      },
-      {
-        name: 'Needle Vibrator',
-        unit: 'nos',
-        rate: 12000,
-        gstRate: 18,
-        category: 'Site equipment',
-        sku: 'VIB-N',
-        reorderPoint: 3,
-        type: ResourceType.EQUIPMENT,
-      },
-      {
-        name: 'Scaffold Frame Set',
-        unit: 'set',
-        rate: 4500,
-        gstRate: 18,
-        category: 'Access',
-        sku: 'SCF-SET',
-        reorderPoint: 10,
-        type: ResourceType.EQUIPMENT,
-      },
-    ],
-    openingQtys: [4, 8, 20],
-  });
-
-  await seedInventoryTenant({
-    companyName: 'General Goods Store',
-    profile: InventoryBusinessProfile.GENERAL,
-    gstin: '36AABCG6666G1Z6',
-    pan: 'AABCG6666G',
-    state: 'Telangana',
-    address: 'Secunderabad',
-    ownerName: 'Meena General',
-    ownerEmail: 'owner@generalstore.com',
-    storeCode: 'GEN',
-    catalog: [
-      { name: 'Assorted Fasteners Kit', unit: 'kit', rate: 350, gstRate: 18, category: 'General', sku: 'FST-KIT', reorderPoint: 25 },
-      { name: 'Safety Helmet', unit: 'nos', rate: 220, gstRate: 12, category: 'PPE', sku: 'HLM-W', reorderPoint: 40 },
-      { name: 'Work Gloves Pair', unit: 'pair', rate: 90, gstRate: 12, category: 'PPE', sku: 'GLV-P', reorderPoint: 60 },
-    ],
-    openingQtys: [40, 70, 100],
-  });
-
   await seedKiranaTenant({
     companyName: 'Shri Ganesh Kirana & General Store',
     gstin: '36AABCK7777K1Z7',
@@ -2789,31 +2617,17 @@ async function main(): Promise<void> {
   // eslint-disable-next-line no-console
   console.log('   accounts@reddyconst.com (ACCOUNTANT)');
   // eslint-disable-next-line no-console
-  console.log('── Inventory demos - password', PASSWORD);
+  console.log('── Inventory vertical demos - password', PASSWORD);
   // eslint-disable-next-line no-console
-  console.log('   owner@luminalighting.com (EVENTS vertical · WHOLESALE, multi-warehouse + event quotes) → /inventory');
+  console.log('   owner@luminalighting.com (EVENTS vertical · WHOLESALE) → /inventory');
   // eslint-disable-next-line no-console
   console.log('   manager@luminalighting.com (INVENTORY_MANAGER)');
   // eslint-disable-next-line no-console
-  console.log('   owner@hydmaterials.com (MATERIAL_SUPPLIER, rich) → /inventory');
-  // eslint-disable-next-line no-console
-  console.log('   manager@hydmaterials.com (INVENTORY_MANAGER)');
-  // eslint-disable-next-line no-console
-  console.log('   owner@cityhardware.com (RETAIL)');
-  // eslint-disable-next-line no-console
-  console.log('   owner@deccanwholesale.com (WHOLESALE)');
-  // eslint-disable-next-line no-console
-  console.log('   owner@southdistro.com (DISTRIBUTION)');
-  // eslint-disable-next-line no-console
-  console.log('   owner@apextrading.com (TRADING)');
-  // eslint-disable-next-line no-console
-  console.log('   owner@forgeequip.com (EQUIPMENT)');
-  // eslint-disable-next-line no-console
-  console.log('   owner@generalstore.com (GENERAL profile)');
-  // eslint-disable-next-line no-console
-  console.log('   owner@kirana-demo.com (GENERAL vertical - RETAIL + product library / FEFO)');
+  console.log('   owner@kirana-demo.com (GENERAL vertical · RETAIL + product library / FEFO)');
   // eslint-disable-next-line no-console
   console.log('   owner@frostycups.com (ICE_CREAM vertical · WHOLESALE, recipes + B2B) → /inventory');
+  // eslint-disable-next-line no-console
+  console.log('   manager@frostycups.com (INVENTORY_MANAGER)');
   // eslint-disable-next-line no-console
   console.log('   buyer@cityscoop.com (Icecream-inventory-buyer OTP 111111) → /api/buyer');
   // eslint-disable-next-line no-console
