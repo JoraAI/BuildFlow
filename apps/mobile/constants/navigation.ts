@@ -31,12 +31,13 @@ export const UNIVERSAL_TABS = ['notifications'] as const;
 /** Primary bottom-bar tabs on mobile (overflow goes in Menu). */
 export const MOBILE_PRIMARY_TABS = ['dashboard', 'projects', 'planning', 'reports'] as const;
 
-/** Nested / detail routes - must be hidden from the tab navigator. */
+/**
+ * Nested / detail routes - must be hidden from the tab navigator.
+ * Project & proposal detail/create live under their folder Stack layouts
+ * (`projects/_layout`, `proposals/_layout`) — do not list them here or Tabs
+ * will look for non-existent sibling screens and break back navigation.
+ */
 export const HIDDEN_TAB_SCREENS = [
-  'projects/[id]',
-  'projects/create',
-  'proposals/create',
-  'proposals/[id]',
   'estimation',
   'estimation/[id]',
   'estimation/create',

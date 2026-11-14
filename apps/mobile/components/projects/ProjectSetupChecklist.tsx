@@ -13,30 +13,65 @@ import { useSnagItems } from '@/services/snag.queries';
 import { useRfis } from '@/services/rfi.queries';
 import { usePettyCashEntries } from '@/services/petty-cash.queries';
 import { useOnboardingStore } from '@/stores/onboarding.store';
+import { usePermissions } from '@/hooks/usePermission';
 import { PROJECT_SETUP_STEPS, type ProjectTabId } from '@/constants/project-workflow';
 
 interface ProjectSetupChecklistProps {
   projectId: string;
   onGoToTab: (tab: ProjectTabId) => void;
+  /** Tabs the current role may open — steps for other tabs are hidden. */
+  allowedTabs?: ProjectTabId[];
 }
 
-export function ProjectSetupChecklist({ projectId, onGoToTab }: ProjectSetupChecklistProps) {
+const TAB_PERMISSION: Partial<Record<ProjectTabId, string>> = {
+  estimate: 'estimate.view',
+  schedule: 'planning.view',
+  boq: 'boq.view',
+  invoices: 'invoice.view',
+  bills: 'bill.view',
+  procurement: 'procurement.view',
+  subcontracts: 'subcontract.view',
+  pettyCash: 'petty_cash.view',
+  drawings: 'drawing.view',
+  snags: 'snag.view',
+  rfis: 'rfi.view',
+  reports: 'report.view',
+};
+
+export function ProjectSetupChecklist({
+  projectId,
+  onGoToTab,
+  allowedTabs,
+}: ProjectSetupChecklistProps) {
   const dismissKey = `project-setup-${projectId}`;
   const loaded = useOnboardingStore((s) => s.loaded);
   const dismissed = useOnboardingStore((s) => s.isDismissed(dismissKey));
   const dismiss = useOnboardingStore((s) => s.dismiss);
+  const { hasPermission } = usePermissions();
 
-  const estimatesQ = useProjectEstimates(projectId);
-  const boqQ = useBoq(projectId);
-  const woQ = useWorkOrders(projectId);
-  const reqQ = useRequisitions(projectId);
-  const invQ = useInvoices(projectId);
-  const tasksQ = useTasks(projectId);
-  const reportsQ = useReports(projectId);
-  const drawingsQ = useDrawings({ projectId, limit: 5 });
-  const snagsQ = useSnagItems({ projectId, limit: 5 });
-  const rfisQ = useRfis({ projectId });
-  const pettyQ = usePettyCashEntries({ projectId, limit: 5 });
+  const canEstimate = hasPermission('estimate.view');
+  const canBoq = hasPermission('boq.view');
+  const canSchedule = hasPermission('planning.view');
+  const canReports = hasPermission('report.view');
+  const canProcurement = hasPermission('procurement.view');
+  const canSubcontracts = hasPermission('subcontract.view');
+  const canInvoices = hasPermission('invoice.view');
+  const canDrawings = hasPermission('drawing.view');
+  const canSnags = hasPermission('snag.view');
+  const canRfis = hasPermission('rfi.view');
+  const canPetty = hasPermission('petty_cash.view');
+
+  const estimatesQ = useProjectEstimates(canEstimate ? projectId : '');
+  const boqQ = useBoq(canBoq ? projectId : '');
+  const woQ = useWorkOrders(canSubcontracts ? projectId : '');
+  const reqQ = useRequisitions(canProcurement ? projectId : '');
+  const invQ = useInvoices(canInvoices ? projectId : '');
+  const tasksQ = useTasks(canSchedule ? projectId : '');
+  const reportsQ = useReports(canReports ? projectId : '');
+  const drawingsQ = useDrawings({ projectId, limit: 5, enabled: canDrawings });
+  const snagsQ = useSnagItems({ projectId, limit: 5, enabled: canSnags });
+  const rfisQ = useRfis({ projectId, enabled: canRfis });
+  const pettyQ = usePettyCashEntries({ projectId, limit: 5, enabled: canPetty });
 
   const completed = useMemo(() => {
     const estimates = estimatesQ.data ?? [];
@@ -79,15 +114,22 @@ export function ProjectSetupChecklist({ projectId, onGoToTab }: ProjectSetupChec
     pettyQ.data,
   ]);
 
-  const steps = PROJECT_SETUP_STEPS.map((s) => ({
+  const allowedSet = allowedTabs ? new Set(allowedTabs) : null;
+
+  const steps = PROJECT_SETUP_STEPS.filter((s) => {
+    if (allowedSet && !allowedSet.has(s.tab)) return false;
+    const perm = TAB_PERMISSION[s.tab];
+    if (perm && !hasPermission(perm as never)) return false;
+    return true;
+  }).map((s) => ({
     ...s,
     done: completed[s.id as keyof typeof completed] ?? false,
   }));
 
   const doneCount = steps.filter((s) => s.done).length;
-  const allDone = doneCount === steps.length;
+  const allDone = steps.length > 0 && doneCount === steps.length;
 
-  if (!loaded || dismissed || allDone) return null;
+  if (!loaded || dismissed || steps.length === 0 || allDone) return null;
 
   return (
     <Card className="border-primary/20 bg-primary/5">

@@ -65,6 +65,7 @@ export function useSnagItems(params?: {
   priority?: string;
   page?: number;
   limit?: number;
+  enabled?: boolean;
 }) {
   const query = new URLSearchParams();
   if (params?.projectId) query.set('projectId', params.projectId);
@@ -76,6 +77,7 @@ export function useSnagItems(params?: {
   return useQuery({
     queryKey: snagKeys.list(params?.projectId, params?.status, params?.priority),
     queryFn: () => apiFetchList<SnagItem>(`/punch-list?${query.toString()}`),
+    enabled: params?.enabled ?? true,
   });
 }
 

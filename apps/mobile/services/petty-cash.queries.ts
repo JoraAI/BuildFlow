@@ -66,6 +66,7 @@ export function usePettyCashEntries(params?: {
   status?: string;
   page?: number;
   limit?: number;
+  enabled?: boolean;
 }) {
   const query = new URLSearchParams();
   if (params?.projectId) query.set('projectId', params.projectId);
@@ -78,6 +79,7 @@ export function usePettyCashEntries(params?: {
     queryKey: pettyCashKeys.list(params?.projectId, params?.category, params?.status),
     queryFn: () =>
       apiFetchList<PettyCashEntry>(`/petty-cash?${query.toString()}`),
+    enabled: params?.enabled ?? true,
   });
 }
 

@@ -79,6 +79,7 @@ export function useDrawings(params?: {
   status?: string;
   page?: number;
   limit?: number;
+  enabled?: boolean;
 }) {
   const query = new URLSearchParams();
   if (params?.projectId) query.set('projectId', params.projectId);
@@ -90,6 +91,7 @@ export function useDrawings(params?: {
   return useQuery({
     queryKey: drawingKeys.list(params?.projectId, params?.discipline, params?.status),
     queryFn: () => apiFetchList<Drawing>(`/drawings?${query.toString()}`),
+    enabled: params?.enabled ?? true,
   });
 }
 

@@ -98,7 +98,9 @@ export default function ProjectDetailScreen() {
 
   const visibleTabs = useMemo(() => {
     return TABS.filter((t) => {
-      if (isOwner || !perms) return true;
+      // While permissions load, only show overview to avoid mounting gated tabs/APIs.
+      if (!perms) return t.value === 'overview';
+      if (isOwner) return true;
       switch (t.value) {
         case 'overview':
           return true;
@@ -166,10 +168,11 @@ export default function ProjectDetailScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabFromUrl, visibleTabs]);
 
-  // Wrapper that updates both state AND the URL
+  // Wrapper that updates both state AND the URL — never open a tab the role cannot see.
   const setTab = (next: Tab) => {
-    setTabState(next);
-    router.setParams({ tab: next });
+    const allowed = isVisibleTab(next) ? next : 'overview';
+    setTabState(allowed);
+    router.setParams({ tab: allowed });
   };
 
   if (isLoading) {
@@ -258,6 +261,7 @@ export default function ProjectDetailScreen() {
           summaryLoading={summaryQ.isLoading}
           project={project}
           onGoToTab={setTab}
+          allowedTabs={visibleTabs.map((t) => t.value)}
         />
       )}
       {tab === 'estimate' && <EstimateTab projectId={id} />}
@@ -370,18 +374,24 @@ function OverviewTab({
   summaryLoading,
   project,
   onGoToTab,
+  allowedTabs,
 }: {
   projectId: string;
   summary?: import('@/services/project.queries').ProjectSummary;
   summaryLoading: boolean;
   project: import('@/services/project.queries').ProjectDetail;
   onGoToTab: (tab: Tab) => void;
+  allowedTabs: Tab[];
 }) {
   const budget = parseFloat(project.budget ?? '0');
 
   return (
     <View className="gap-4">
-      <ProjectSetupChecklist projectId={projectId} onGoToTab={onGoToTab} />
+      <ProjectSetupChecklist
+        projectId={projectId}
+        onGoToTab={onGoToTab}
+        allowedTabs={allowedTabs}
+      />
 
       {/* KPI Row */}
       <ResponsiveGrid gap={12} columns={2}>
@@ -393,13 +403,17 @@ function OverviewTab({
           <KpiCard
             label="Budget"
             value={formatINRCompact(budget)}
-            sub={summary ? `${summary.budgetUtilizationPct.toFixed(0)}% committed` : '-'}
+            sub={
+              summary && summary.budgetUtilizationPct != null
+                ? `${Number(summary.budgetUtilizationPct).toFixed(0)}% committed`
+                : '-'
+            }
           />
         </BudgetGate>
         <AmountGate
           fallback={null}
         >
-          {summary && summary.committedSpend > 0 ? (
+          {summary && summary.committedSpend != null && Number(summary.committedSpend) > 0 ? (
             <>
               <KpiCard
                 label="Committed"
@@ -416,8 +430,16 @@ function OverviewTab({
         </AmountGate>
         <KpiCard
           label="Progress"
-          value={summary ? `${summary.actualProgressPct.toFixed(0)}%` : '-'}
-          sub={summary ? `Planned ${summary.plannedProgressPct.toFixed(0)}%` : '-'}
+          value={
+            summary && summary.actualProgressPct != null
+              ? `${Number(summary.actualProgressPct).toFixed(0)}%`
+              : '-'
+          }
+          sub={
+            summary && summary.plannedProgressPct != null
+              ? `Planned ${Number(summary.plannedProgressPct).toFixed(0)}%`
+              : '-'
+          }
         />
         <KpiCard
           label="Days Left"
@@ -426,40 +448,42 @@ function OverviewTab({
         />
         <KpiCard
           label="Overdue"
-          value={summary ? `${summary.tasksOverdueCount}` : '-'}
+          value={summary && summary.tasksOverdueCount != null ? `${summary.tasksOverdueCount}` : '-'}
           sub="tasks"
-          color={summary && summary.tasksOverdueCount > 0 ? '#EF4444' : undefined}
+          color={summary && Number(summary.tasksOverdueCount) > 0 ? '#EF4444' : undefined}
         />
       </ResponsiveGrid>
 
       {/* Schedule Variance */}
-      {summary && (
+      {summary && summary.scheduleVarianceDays != null && (
         <Card>
           <Text className="text-sm font-bold text-text mb-2">Schedule Health</Text>
           <View className="flex-row justify-between items-center mb-2">
             <Text className="text-sm text-muted">Variance</Text>
             <Text
               className={`text-sm font-semibold ${
-                summary.scheduleVarianceDays > 0 ? 'text-danger' : 'text-success'
+                Number(summary.scheduleVarianceDays) > 0 ? 'text-danger' : 'text-success'
               }`}
             >
-              {summary.scheduleVarianceDays === 0
+              {Number(summary.scheduleVarianceDays) === 0
                 ? 'On schedule'
-                : summary.scheduleVarianceDays > 0
+                : Number(summary.scheduleVarianceDays) > 0
                 ? `${summary.scheduleVarianceDays} days behind`
-                : `${Math.abs(summary.scheduleVarianceDays)} days ahead`}
+                : `${Math.abs(Number(summary.scheduleVarianceDays))} days ahead`}
             </Text>
           </View>
           <ProgressBar
-            value={summary.actualProgressPct}
-            color={summary.scheduleVarianceDays > 0 ? '#EF4444' : '#10B981'}
+            value={Number(summary.actualProgressPct ?? 0)}
+            color={Number(summary.scheduleVarianceDays) > 0 ? '#EF4444' : '#10B981'}
           />
         </Card>
       )}
 
       {/* Estimate vs Actual — money-sensitive */}
       <AmountGate fallback={null}>
-        {summary && summary.approvedEstimateTotal > 0 && (
+        {summary &&
+          summary.approvedEstimateTotal != null &&
+          Number(summary.approvedEstimateTotal) > 0 && (
           <Card>
             <View className="flex-row items-center gap-2 mb-3">
               <Text className="text-sm font-bold text-text">Estimate vs Actual</Text>
@@ -481,13 +505,17 @@ function OverviewTab({
               <Text className="text-sm font-bold">Variance</Text>
               <Text
                 className={`text-sm font-bold ${
-                  summary.estimateVsActualVariance > 0 ? 'text-danger' : 'text-success'
+                  Number(summary.estimateVsActualVariance) > 0 ? 'text-danger' : 'text-success'
                 }`}
               >
-                {summary.estimateVsActualVariance > 0 ? '+' : ''}
-                {formatINR(Math.abs(summary.estimateVsActualVariance))} (
-                {summary.approvedEstimateTotal > 0
-                  ? ((summary.estimateVsActualVariance / summary.approvedEstimateTotal) * 100).toFixed(1)
+                {Number(summary.estimateVsActualVariance) > 0 ? '+' : ''}
+                {formatINR(Math.abs(Number(summary.estimateVsActualVariance ?? 0)))} (
+                {Number(summary.approvedEstimateTotal) > 0
+                  ? (
+                      (Number(summary.estimateVsActualVariance ?? 0) /
+                        Number(summary.approvedEstimateTotal)) *
+                      100
+                    ).toFixed(1)
                   : '0'}
                 %)
               </Text>

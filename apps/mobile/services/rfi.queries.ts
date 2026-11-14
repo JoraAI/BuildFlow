@@ -68,7 +68,7 @@ export const submittalKeys = {
     [...submittalKeys.all, 'list', { projectId, status }] as const,
 };
 
-export function useRfis(params?: { projectId?: string; status?: string }) {
+export function useRfis(params?: { projectId?: string; status?: string; enabled?: boolean }) {
   const query = new URLSearchParams();
   if (params?.projectId) query.set('projectId', params.projectId);
   if (params?.status) query.set('status', params.status);
@@ -78,6 +78,7 @@ export function useRfis(params?: { projectId?: string; status?: string }) {
   return useQuery({
     queryKey: rfiKeys.list(params?.projectId, params?.status),
     queryFn: () => apiFetchList<RfiItem>(`/rfis?${query.toString()}`),
+    enabled: params?.enabled ?? true,
   });
 }
 
