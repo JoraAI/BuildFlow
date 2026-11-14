@@ -572,7 +572,7 @@ export default function InventorySettingsScreen() {
               Leave as None to manage your own item list.
             </Text>
             <Select
-              label="Vertical"
+              label="Shop type"
               value={vertical}
               onChange={(v) => v != null && setVertical(v)}
               options={[
@@ -585,7 +585,7 @@ export default function InventorySettingsScreen() {
             />
             <View className="mt-3">
               <Button
-                label="Save vertical"
+                label="Save shop type"
                 variant="secondary"
                 size="sm"
                 loading={setInventoryVertical.isPending}

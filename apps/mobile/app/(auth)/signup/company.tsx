@@ -493,11 +493,11 @@ export default function SignupCompanyScreen() {
           <>
             <View className="h-3" />
             <Select
-              label="Inventory vertical"
+              label="Shop type"
               value={form.inventoryVertical || undefined}
               onChange={(v) => set('inventoryVertical', (v ?? '') as InventoryVertical | '')}
-              placeholder="Select your inventory type"
-              title="Inventory vertical"
+              placeholder="Retailer, wholesaler, or manufacturer"
+              title="Shop type"
               options={INVENTORY_VERTICAL_VALUES.map((value) => ({
                 value,
                 title: INVENTORY_VERTICAL_LABELS[value],
