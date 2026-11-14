@@ -41,18 +41,14 @@ import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/constants/i18n';
 import {
   PLAN_ANNUAL_INR,
   PLAN_PRICES_INR,
-  INVENTORY_PROFILE_OPTIONS,
-  INVENTORY_PROFILE_LABELS,
-  INVENTORY_VERTICAL_VALUES,
   INVENTORY_VERTICAL_LABELS,
   gstinSchema,
   hasInventoryFeature,
   panSchema,
   phoneSchema,
-  type InventoryBusinessProfile,
+  type InventoryVertical,
   type SubscriptionPlanKey,
 } from '@buildflow/shared';
-import { useSetInventoryVertical } from '@/services/settings.queries';
 import {
   downloadGstPackExport,
   useCreateGstPack,
@@ -99,12 +95,7 @@ export default function InventorySettingsScreen() {
     (user?.subscriptionPlan ?? 'INVENTORY') as SubscriptionPlanKey,
     'kirana_catalog',
   );
-  const setInventoryVertical = useSetInventoryVertical();
   const [inviteOpen, setInviteOpen] = useState(false);
-  /** INVENTORY_HORIZONTAL_PLATFORM (Phase 0): business profile picker (OWNER). */
-  const [profile, setProfile] = useState<string>('GENERAL');
-  /** INVENTORY_KIRANA_RETAIL_WHOLESALE (11.1.5b K2): shop vertical picker (OWNER). */
-  const [vertical, setVertical] = useState<string>('');
   const [inventoryLanguage, setInventoryLanguage] = useState<SupportedLanguage>('en');
   /** INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): credit-limit policy (OWNER). */
   const [creditPolicy, setCreditPolicy] = useState<'ALLOW' | 'WARN' | 'BLOCK'>('WARN');
@@ -125,18 +116,9 @@ export default function InventorySettingsScreen() {
   const [customerDiscountPct, setCustomerDiscountPct] = useState('10');
 
   useEffect(() => {
-    if (company?.inventoryProfile) setProfile(company.inventoryProfile);
-  }, [company?.inventoryProfile]);
-
-  useEffect(() => {
     if (company?.auditorPackCadence) setPackCadence(company.auditorPackCadence);
     if (company?.auditorPackDay != null) setPackDay(String(company.auditorPackDay));
   }, [company?.auditorPackCadence, company?.auditorPackDay]);
-
-  useEffect(() => {
-    // K2 (11.1.5b): sync the vertical picker with the company state.
-    if (company) setVertical(company.inventoryVertical ?? '');
-  }, [company?.inventoryVertical]);
 
   useEffect(() => {
     if (company?.creditLimitPolicy) setCreditPolicy(company.creditLimitPolicy);
@@ -204,37 +186,10 @@ export default function InventorySettingsScreen() {
     });
   };
 
-  const saveProfile = async () => {
-    await run(async () => {
-      try {
-        await updateCompany.mutateAsync({ inventoryProfile: profile });
-        await refreshUser();
-        toast.success('Business profile saved');
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : 'Could not save profile');
-      }
-    });
-  };
-
-  /** OWNER vertical picker; GENERAL unlocks product library + batch/expiry. */
-  const saveVertical = async () => {
-    await run(async () => {
-      try {
-        const next = vertical || null;
-        await setInventoryVertical.mutateAsync(next);
-        await refreshUser();
-        toast.success(
-          next === 'GENERAL'
-            ? 'General retail enabled — product library unlocked'
-            : next
-              ? `${INVENTORY_VERTICAL_LABELS[next as keyof typeof INVENTORY_VERTICAL_LABELS]} saved`
-              : 'Shop vertical cleared',
-        );
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : 'Could not save shop vertical');
-      }
-    });
-  };
+  const shopTypeLabel = company?.inventoryVertical
+    ? INVENTORY_VERTICAL_LABELS[company.inventoryVertical as InventoryVertical] ??
+      company.inventoryVertical
+    : 'Not set';
 
   const gstLiveError = gstin.trim()
     ? gstinSchema.safeParse(gstin).success
@@ -501,7 +456,6 @@ export default function InventorySettingsScreen() {
             </View>
           ) : null}
         </Card>
-        {/* Business profile (INVENTORY_HORIZONTAL_PLATFORM Phase 0) */}
         <Card className="p-5 mb-4">
           <Text className="text-base font-bold text-text mb-1">
             {translate('inventory.settings.language.title', 'Language')}
@@ -535,65 +489,14 @@ export default function InventorySettingsScreen() {
           ) : null}
         </Card>
         <Card className="p-5 mb-4">
-          <Text className="text-base font-bold text-text mb-1">Business profile</Text>
+          <Text className="text-base font-bold text-text mb-1">Shop type</Text>
           <Text className="text-xs text-muted mb-3">
-            Tells BuildFlow how to label your items and which features to surface as they roll out.
-            Material suppliers keep construction-style wording (“Materials” / “Indent”).
+            Chosen at signup and cannot be changed. Retailer: product library plus batch/expiry.
+            Wholesaler: distributor and customer sell prices. Manufacturer: recipes, production, and
+            buyer orders.
           </Text>
-          <Select
-            label="Profile"
-            value={profile}
-            onChange={(v) => v && setProfile(v)}
-            options={INVENTORY_PROFILE_OPTIONS.map((o) => ({ title: o.label, value: o.value }))}
-            disabled={user?.role !== 'OWNER'}
-          />
-          <Text className="text-[11px] text-muted mt-1">
-            {INVENTORY_PROFILE_LABELS[profile as InventoryBusinessProfile] ?? 'General business'}
-          </Text>
-          {user?.role === 'OWNER' ? (
-            <View className="mt-3">
-              <Button
-                label="Save profile"
-                variant="secondary"
-                size="sm"
-                loading={updateCompany.isPending}
-                onPress={saveProfile}
-              />
-            </View>
-          ) : null}
+          <Text className="text-sm font-semibold text-text">{shopTypeLabel}</Text>
         </Card>
-        {/* Shop vertical — Retailer / Wholesaler / Manufacturer */}
-        {user?.role === 'OWNER' && kiranaEnabled ? (
-          <Card className="p-5 mb-4">
-            <Text className="text-base font-bold text-text mb-1">Shop vertical</Text>
-            <Text className="text-xs text-muted mb-3">
-              Retailer: product library plus batch/expiry. Wholesaler: distributor and customer sell
-              prices. Manufacturer (ice cream): recipes, production, and Jora Trade buyer orders.
-              Leave as None to manage your own item list.
-            </Text>
-            <Select
-              label="Shop type"
-              value={vertical}
-              onChange={(v) => v != null && setVertical(v)}
-              options={[
-                { title: 'None', value: '' },
-                ...INVENTORY_VERTICAL_VALUES.map((value) => ({
-                  title: INVENTORY_VERTICAL_LABELS[value],
-                  value,
-                })),
-              ]}
-            />
-            <View className="mt-3">
-              <Button
-                label="Save shop type"
-                variant="secondary"
-                size="sm"
-                loading={setInventoryVertical.isPending}
-                onPress={saveVertical}
-              />
-            </View>
-          </Card>
-        ) : null}
         {/* Phase 11.5: selective SKU library replaces copying the full pack. */}
         {kiranaEnabled && (company?.inventoryVertical === 'RETAILER') ? (
           <Card className="p-5 mb-4">

@@ -39,15 +39,10 @@ const TEMPLATES: Partial<Record<InventoryVertical, TemplateDef>> = {
   },
 };
 
-/**
- * K2 (11.1.5b): which business profiles may OPT INTO a vertical via the OWNER
- * picker. Once `inventoryVertical` is set, preview/apply are gated on the
- * vertical alone (RETAIL/WHOLESALE without GENERAL never see the pack).
- */
-const VERTICAL_OPT_IN_PROFILES: readonly InventoryBusinessProfile[] = [
-  InventoryBusinessProfile.RETAIL,
-  InventoryBusinessProfile.WHOLESALE,
-];
+function profileForVertical(vertical: InventoryVertical): InventoryBusinessProfile {
+  if (vertical === InventoryVertical.RETAILER) return InventoryBusinessProfile.RETAIL;
+  return InventoryBusinessProfile.WHOLESALE;
+}
 
 export interface CatalogPreview {
   template: InventoryVertical;
@@ -472,11 +467,9 @@ function eligibilityReason(
   if (company.subscriptionPlan !== 'INVENTORY') {
     return 'Catalog templates are available on the Inventory plan.';
   }
-  // K2 (11.1.5b): the pack is Kirana-VERTICAL-only. A mere RETAIL / WHOLESALE
-  // profile is NOT enough - the OWNER must first opt into the vertical via the
-  // Settings picker (hardware retail / stationery wholesale stay excluded).
+  // K2: pack is RETAILER-vertical-only (shop type fixed at signup).
   if (company.inventoryVertical !== template) {
-    return `The ${template} starter catalog is only available after you enable the ${template} vertical (Settings → Shop vertical).`;
+    return `The ${template} starter catalog is only available for companies with the ${template} shop type (chosen at signup).`;
   }
   return null;
 }
@@ -605,14 +598,11 @@ export async function applyCatalogTemplate(
 }
 
 /**
- * OWNER-only selection of a shop vertical.
+ * Shop vertical is chosen at inventory signup and is immutable afterward.
  *
- * Only RETAIL / WHOLESALE profiles may enable a vertical. GENERAL unlocks the
- * starter product library; EVENTS unlocks event-quote wording; ICE_CREAM unlocks
- * recipes / production / B2B buyer app.
- *
- * Clearing the vertical (null) hides the pack but keeps the copied rows - they
- * are tenant-owned once applied (K3); re-opt-in shows them as already applied.
+ * - Idempotent when the same vertical is sent again.
+ * - Allows one-time `null → value` for rare legacy inventory companies.
+ * - Rejects clear/change once a vertical is already set.
  */
 export async function setInventoryVertical(
   companyId: string,
@@ -622,7 +612,6 @@ export async function setInventoryVertical(
     where: { id: companyId },
     select: {
       subscriptionPlan: true,
-      inventoryProfile: true,
       inventoryVertical: true,
       catalogSeededAt: true,
     },
@@ -630,16 +619,31 @@ export async function setInventoryVertical(
   if (company.subscriptionPlan !== 'INVENTORY') {
     throw ApiError.unprocessable('Shop verticals are available on the Inventory plan.');
   }
-  if (vertical !== null) {
-    if (!company.inventoryProfile || !VERTICAL_OPT_IN_PROFILES.includes(company.inventoryProfile)) {
-      throw ApiError.unprocessable(
-        `The ${vertical} vertical is only available to RETAIL / WHOLESALE tenants. Change your business profile first (Settings → Business profile).`,
-      );
+
+  if (company.inventoryVertical != null) {
+    if (vertical === company.inventoryVertical) {
+      return {
+        inventoryVertical: company.inventoryVertical,
+        catalogSeededAt: company.catalogSeededAt,
+      };
     }
+    throw ApiError.unprocessable('Shop type was set at signup and cannot be changed.');
   }
+
+  // Legacy: vertical never set — allow one-time assignment (or no-op clear).
+  if (vertical === null) {
+    return {
+      inventoryVertical: null,
+      catalogSeededAt: company.catalogSeededAt,
+    };
+  }
+
   const updated = await prisma.company.update({
     where: { id: companyId },
-    data: { inventoryVertical: vertical },
+    data: {
+      inventoryVertical: vertical,
+      inventoryProfile: profileForVertical(vertical),
+    },
     select: { inventoryVertical: true, catalogSeededAt: true },
   });
   return updated;

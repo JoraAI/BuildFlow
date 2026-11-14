@@ -87,9 +87,9 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     expect(me.body.data.productMode).toBe('inventory');
     expect(me.body.data.subscriptionPlan).toBe('INVENTORY');
     expect(me.body.data.defaultProjectId).toBe(defaultProjectId);
-    // INVENTORY_HORIZONTAL_PLATFORM (Phase 0): inventory tenants surface their
-    // business profile (DB default GENERAL) in the auth payload.
-    expect(me.body.data.inventoryProfile).toBe('GENERAL');
+    // Shop type is fixed at signup; profile is derived (RETAILER → RETAIL).
+    expect(me.body.data.inventoryVertical).toBe('RETAILER');
+    expect(me.body.data.inventoryProfile).toBe('RETAIL');
     expect(me.body.data.enabledModules).toEqual(
       expect.arrayContaining(['inventory_shell', 'stock', 'procurement', 'invoices', 'bills', 'tally']),
     );
@@ -98,7 +98,8 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId } });
     expect(company.subscriptionPlan).toBe('INVENTORY');
     expect(company.defaultProjectId).toBe(defaultProjectId);
-    expect(company.inventoryProfile).toBe('GENERAL');
+    expect(company.inventoryVertical).toBe('RETAILER');
+    expect(company.inventoryProfile).toBe('RETAIL');
 
     const store = await prisma.project.findUniqueOrThrow({ where: { id: defaultProjectId } });
     expect(store.code).toBe('STORE');
@@ -522,18 +523,20 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     expect(Array.isArray(backup.body.data.customers)).toBe(true);
   });
 
-  /* ── INVENTORY_HORIZONTAL_PLATFORM (Phase 0): inventoryProfile ────── */
-  it('OWNER updates the inventory business profile (Phase 0)', async () => {
+  /* ── Business profile is derived at signup; owner writes are ignored ── */
+  it('OWNER cannot change inventory business profile via settings', async () => {
     const putRes = await request(app)
       .put('/api/settings/company')
       .set('Authorization', `Bearer ${invToken}`)
       .send({ inventoryProfile: 'WHOLESALE' });
     expect(putRes.status).toBe(200);
-    expect(putRes.body.data.inventoryProfile).toBe('WHOLESALE');
+    // Profile stays derived from signup vertical (RETAILER → RETAIL).
+    expect(putRes.body.data.inventoryProfile).toBe('RETAIL');
 
     const getRes = await authGet(invToken, '/api/settings/company');
     expect(getRes.status).toBe(200);
-    expect(getRes.body.data.inventoryProfile).toBe('WHOLESALE');
+    expect(getRes.body.data.inventoryProfile).toBe('RETAIL');
+    expect(getRes.body.data.inventoryVertical).toBe('RETAILER');
   });
 
   /* ── INVENTORY_HORIZONTAL_PLATFORM Phase 1.1: party master ────────── */
@@ -2763,31 +2766,43 @@ describe('INVENTORY_PRODUCT (integration)', () => {
   describe('KIRANA_VERTICAL (Phase 11.1) - starter catalog', () => {
     let kiranaTotalItems = 0;
 
-    it('RETAIL/WHOLESALE without the KIRANA vertical: preview ineligible (200) + apply 422s (K2)', async () => {
-      // K2 (11.1.5b): the VERTICAL (not the profile) gates the pack. Pin RETAIL
-      // and clear any stale vertical so this is exactly "retail, no vertical" -
-      // a hardware retail shop must NOT get the grocery pack.
-      const pin = await authPut(invToken, '/api/settings/company', { inventoryProfile: 'RETAIL' });
-      expect(pin.status).toBe(200);
-      const clear = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical: null });
-      expect(clear.status).toBe(200);
+    it('non-RETAILER shop type: preview ineligible (200) + apply 422s (K2)', async () => {
+      // Simulate a non-retailer vertical (API lock cannot change it; DB stub for eligibility).
+      await prisma.company.update({
+        where: { id: companyId },
+        data: { inventoryVertical: 'WHOLESALER', inventoryProfile: 'WHOLESALE' },
+      });
+      try {
+        const prev = await authGet(invToken, '/api/inventory/catalog/preview?template=RETAILER');
+        expect(prev.status).toBe(200);
+        expect(prev.body.data.eligible).toBe(false);
+        expect(prev.body.data.ineligibilityReason).toMatch(/shop type|vertical/i);
+        expect(prev.body.data.totalItems).toBeGreaterThanOrEqual(100);
+        expect(prev.body.data.categories.length).toBeGreaterThanOrEqual(6);
 
-      const prev = await authGet(invToken, '/api/inventory/catalog/preview?template=RETAILER');
-      expect(prev.status).toBe(200);
-      expect(prev.body.data.eligible).toBe(false);
-      expect(prev.body.data.ineligibilityReason).toMatch(/vertical/i);
-      expect(prev.body.data.totalItems).toBeGreaterThanOrEqual(100);
-      expect(prev.body.data.categories.length).toBeGreaterThanOrEqual(6);
-
-      const apply = await authPost(invToken, '/api/inventory/catalog/apply', { template: 'RETAILER' });
-      expect(apply.status).toBe(422);
-      expect(apply.body.error?.message ?? apply.body.message).toMatch(/vertical/i);
+        const apply = await authPost(invToken, '/api/inventory/catalog/apply', { template: 'RETAILER' });
+        expect(apply.status).toBe(422);
+        expect(apply.body.error?.message ?? apply.body.message).toMatch(/shop type|vertical/i);
+      } finally {
+        await prisma.company.update({
+          where: { id: companyId },
+          data: { inventoryVertical: 'RETAILER', inventoryProfile: 'RETAIL' },
+        });
+      }
     });
 
-    it('OWNER opts into the KIRANA vertical (RETAIL), previews, applies, stamps vertical', async () => {
+    it('RETAILER signup can preview and apply catalog; vertical is immutable', async () => {
+      // Idempotent same-vertical save (already set at signup).
       const setV = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical: 'RETAILER' });
       expect(setV.status).toBe(200);
       expect(setV.body.data.inventoryVertical).toBe('RETAILER');
+
+      const change = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical: 'WHOLESALER' });
+      expect(change.status).toBe(422);
+      expect(change.body.error?.message ?? change.body.message).toMatch(/cannot be changed/i);
+
+      const clear = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical: null });
+      expect(clear.status).toBe(422);
 
       const prev = await authGet(invToken, '/api/inventory/catalog/preview?template=RETAILER');
       expect(prev.status).toBe(200);
@@ -2883,52 +2898,38 @@ describe('INVENTORY_PRODUCT (integration)', () => {
       expect(byBarcode.body.data.map((r: { name: string }) => r.name)).toContain('Wheat Atta 5 kg');
     });
 
-    it('vertical picker: retail shop types save without catalogs; supplier + manager cannot', async () => {
-      // WHOLESALE is just as eligible as RETAIL to opt into the vertical.
-      const toWs = await authPut(invToken, '/api/settings/company', { inventoryProfile: 'WHOLESALE' });
-      expect(toWs.status).toBe(200);
-      const wsSet = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical: 'RETAILER' });
-      expect(wsSet.status).toBe(200);
-      expect(wsSet.body.data.inventoryVertical).toBe('RETAILER');
-      // Back to RETAIL so the later apply assertions keep exercising RETAIL.
-      const back = await authPut(invToken, '/api/settings/company', { inventoryProfile: 'RETAIL' });
-      expect(back.status).toBe(200);
+    it('vertical is locked after signup; WHOLESALER has no retailer catalog; manager denied', async () => {
+      // Same vertical is idempotent; changing shop type is rejected.
+      const same = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical: 'RETAILER' });
+      expect(same.status).toBe(200);
+      expect(same.body.data.inventoryVertical).toBe('RETAILER');
 
-      // LIGHTING is quote-copy only (no starter catalog template).
-      for (const vertical of ['WHOLESALER']) {
-        const set = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical });
-        expect(set.status).toBe(200);
-        expect(set.body.data.inventoryVertical).toBe(vertical);
-      }
-      const noLightingPack = await authPost(invToken, '/api/inventory/catalog/apply', {
+      const locked = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical: 'WHOLESALER' });
+      expect(locked.status).toBe(422);
+      expect(locked.body.error?.message ?? locked.body.message).toMatch(/cannot be changed/i);
+
+      // WHOLESALER template is not a catalog pack.
+      const noWsPack = await authPost(invToken, '/api/inventory/catalog/apply', {
         template: 'WHOLESALER',
       });
-      expect(noLightingPack.status).toBe(422);
+      expect(noWsPack.status).toBe(422);
 
-      // Restore Kirana for the batch/expiry tests that follow this section.
-      const restore = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical: 'RETAILER' });
-      expect(restore.status).toBe(200);
+      // Manager on this company (if invited) cannot set vertical — use invitee role via prisma.
+      const manager = await prisma.user.findFirst({
+        where: { companyId, role: 'INVENTORY_MANAGER', isActive: true },
+      });
+      if (manager) {
+        const managerToken = await loginAs(manager.email);
+        expect(
+          (await authPut(managerToken, '/api/inventory/catalog/vertical', { vertical: 'RETAILER' })).status,
+        ).toBe(403);
+      }
 
-      // Manager (non-OWNER) is denied the vertical picker.
-      const managerToken = await loginAs('manager@hydmaterials.com');
+      // Construction owner cannot use inventory catalog vertical routes.
+      const constToken = await loginAs(CONSTRUCTION_OWNER);
       expect(
-        (await authPut(managerToken, '/api/inventory/catalog/vertical', { vertical: 'RETAILER' })).status,
+        (await authPut(constToken, '/api/inventory/catalog/vertical', { vertical: 'RETAILER' })).status,
       ).toBe(403);
-
-      // Real MATERIAL_SUPPLIER tenant cannot opt into KIRANA (profile gate, K2).
-      const supplierToken = await loginAs('owner@hydmaterials.com');
-      const supplierSet = await authPut(supplierToken, '/api/inventory/catalog/vertical', {
-        vertical: 'RETAILER',
-      });
-      expect(supplierSet.status).toBe(422);
-      expect(supplierSet.body.error?.message ?? supplierSet.body.message).toMatch(/RETAIL \/ WHOLESALE/i);
-
-      // And the supplier can never apply the pack (vertical gate).
-      const supplierApply = await authPost(supplierToken, '/api/inventory/catalog/apply', {
-        template: 'RETAILER',
-      });
-      expect(supplierApply.status).toBe(422);
-      expect(supplierApply.body.error?.message ?? supplierApply.body.message).toMatch(/vertical/i);
     });
 
     it('non-OWNER roles cannot preview/apply (403)', async () => {

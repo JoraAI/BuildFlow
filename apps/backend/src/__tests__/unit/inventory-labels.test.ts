@@ -10,6 +10,8 @@ import {
   InventoryBusinessProfile,
   INVENTORY_LABELS,
   INVENTORY_PROFILE_LABELS,
+  usesManufacturerFeatures,
+  usesRoleBasedPricing,
 } from '@buildflow/shared';
 
 describe('getInventoryLabel (terminology map)', () => {
@@ -68,6 +70,17 @@ describe('InventoryBusinessProfile enum', () => {
     expect(InventoryBusinessProfile.GENERAL).toBe('GENERAL');
     expect(INVENTORY_PROFILE_LABELS[InventoryBusinessProfile.RETAIL]).toBe('Retail store');
     expect(INVENTORY_PROFILE_LABELS[InventoryBusinessProfile.MATERIAL_SUPPLIER]).toContain('Material');
+  });
+});
+
+describe('manufacturer / role pricing gates (vertical, not profile)', () => {
+  it('MANUFACTURER vertical keeps manufacturer + role pricing regardless of profile label', () => {
+    expect(usesManufacturerFeatures('MANUFACTURER')).toBe(true);
+    expect(usesRoleBasedPricing('MANUFACTURER')).toBe(true);
+    expect(usesManufacturerFeatures('WHOLESALER')).toBe(false);
+    expect(usesRoleBasedPricing('WHOLESALER')).toBe(true);
+    expect(usesManufacturerFeatures('RETAILER')).toBe(false);
+    expect(usesRoleBasedPricing('RETAILER')).toBe(false);
   });
 });
 

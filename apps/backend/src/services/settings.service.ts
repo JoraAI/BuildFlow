@@ -346,8 +346,9 @@ export async function updateCompanyProfile(companyId: string, data: CompanyUpdat
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 0/2.5/4.4): inventory-only fields.
   // Construction companies must ignore them (hidden fields) - never write them.
   let write: Record<string, unknown> = { ...data };
+  // Shop type (vertical) is fixed at signup; business profile is derived and not owner-editable.
+  delete write.inventoryProfile;
   if (
-    data.inventoryProfile !== undefined ||
     data.creditLimitPolicy !== undefined ||
     data.poAutoApproveBelow !== undefined ||
     data.poOwnerApproveAbove !== undefined ||
@@ -359,7 +360,6 @@ export async function updateCompanyProfile(companyId: string, data: CompanyUpdat
       select: { subscriptionPlan: true },
     });
     if (current?.subscriptionPlan !== 'INVENTORY') {
-      delete write.inventoryProfile;
       delete write.creditLimitPolicy;
       delete write.poAutoApproveBelow;
       delete write.poOwnerApproveAbove;
