@@ -80,9 +80,9 @@ export type RegisterCompanyResult = {
 } & Partial<AuthTokens>;
 
 function profileForVertical(vertical: InventoryVertical): InventoryBusinessProfile {
-  if (vertical === 'ICE_CREAM') return InventoryBusinessProfile.WHOLESALE;
-  if (vertical === 'EVENTS') return InventoryBusinessProfile.RETAIL;
-  return InventoryBusinessProfile.RETAIL;
+  if (vertical === 'RETAILER') return InventoryBusinessProfile.RETAIL;
+  // Wholesaler + manufacturer default to wholesale profile.
+  return InventoryBusinessProfile.WHOLESALE;
 }
 
 async function toPublicUser(

@@ -17,7 +17,7 @@ async function registerWholesaleCompany(suffix: string) {
     suffix,
     companyName: `Bright Lights Co ${suffix}`,
     ownerName: 'Lighting Owner',
-    vertical: 'EVENTS',
+    vertical: 'WHOLESALER',
   });
 }
 
@@ -29,7 +29,7 @@ describe('POS Barcode Scan-and-Return & Approval Workflow', () => {
   let defaultLocationId: string;
   let siteBLocationId: string;
   let invoiceId: string;
-  const suffix = Date.now().toString();
+  const suffix = `sr${Date.now().toString().slice(-8)}`;
 
   beforeAll(async () => {
     const res = await registerWholesaleCompany(suffix);
@@ -40,7 +40,7 @@ describe('POS Barcode Scan-and-Return & Approval Workflow', () => {
     // Set WHOLESALE inventory profile & EVENTS vertical
     await authPut(token, '/api/settings/company', {
       inventoryProfile: 'WHOLESALE',
-      inventoryVertical: 'EVENTS',
+      inventoryVertical: 'WHOLESALER',
     });
 
     // Create a Lighting Fixture material with barcode & SKU
@@ -50,6 +50,9 @@ describe('POS Barcode Scan-and-Return & Approval Workflow', () => {
       unit: 'NOS',
       rate: 1200,
       costPrice: 800,
+      mrp: 1500,
+      distributorRate: 1100,
+      customerRate: 1200,
       sku: `LTG-${suffix.slice(-4)}`,
       barcode: `8901234${suffix.slice(-6)}`,
       itemCode: `PANEL-36W`,

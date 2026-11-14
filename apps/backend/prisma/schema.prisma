@@ -297,13 +297,11 @@ enum InventoryBusinessProfile {
   GENERAL
 }
 
-/// INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.1): vertical / catalog template.
-/// K1: KIRANA is a VERTICAL (starter catalog), NOT another business profile.
-/// ICE_CREAM: light manufacturing + B2B buyer app.
+/// Shop mode: Retailer (catalog/FEFO) | Wholesaler (dual prices) | Manufacturer (recipes/buyer).
 enum InventoryVertical {
-  GENERAL
-  EVENTS
-  ICE_CREAM
+  RETAILER
+  WHOLESALER
+  MANUFACTURER
 }
 
 enum ProductionBatchStatus {

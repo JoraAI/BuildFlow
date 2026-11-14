@@ -37,7 +37,7 @@ import { InventoryFilterBar } from '@/components/inventory/InventoryFilterBar';
 import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
 import { matchesStatus, matchesText } from '@/utils/inventory-filters';
 import { inventoryProcurementHref } from '@/utils/navigation-paths';
-import { useIceCreamVertical } from '@/hooks/useIceCreamVertical';
+import { useIceCreamVertical, useRoleBasedPricing } from '@/hooks/useIceCreamVertical';
 import { MaterialThumbnail } from '@/components/materials/MaterialThumbnail';
 import { INVENTORY_ACCENT } from '@/components/navigation/InventoryTabBar';
 import { InventoryScreenList, inventoryPageListPadding } from '@/components/inventory/InventoryScreenList';
@@ -97,8 +97,9 @@ export default function InventoryMaterialsScreen() {
   const updateResource = useUpdateResource(editing?.id ?? '');
   const deleteResource = useDeleteResource();
 
-  const isKirana = user?.inventoryVertical === 'GENERAL';
+  const isKirana = user?.inventoryVertical === 'RETAILER';
   const isIceCream = useIceCreamVertical();
+  const rolePricing = useRoleBasedPricing();
   const setB2bPublished = useSetB2bPublished();
   /** Survives stale React Query / Redis list cache after Publish B2B. */
   const [b2bLocal, setB2bLocal] = useState<Record<string, boolean>>({});
@@ -243,7 +244,7 @@ export default function InventoryMaterialsScreen() {
               <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Stock</Text>
               <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">MRP</Text>
               <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Cost</Text>
-              {isIceCream ? (
+              {rolePricing ? (
                 <>
                   <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Dist</Text>
                   <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Cust</Text>
@@ -302,7 +303,7 @@ export default function InventoryMaterialsScreen() {
                   <Text className="flex-1 text-xs text-muted text-right">
                     {row.resource.costPrice != null ? `₹${Number(row.resource.costPrice).toFixed(2)}` : '-'}
                   </Text>
-                  {isIceCream ? (
+                  {rolePricing ? (
                     <>
                       <Text className="flex-1 text-sm font-bold text-primary text-right">
                         {row.resource.distributorRate != null &&
@@ -397,7 +398,7 @@ export default function InventoryMaterialsScreen() {
                   ) : null}
                 </View>
                 <View className="items-end">
-                  {isIceCream ? (
+                  {rolePricing ? (
                     <>
                       <Text className="text-sm font-bold text-primary">
                         Dist{' '}
@@ -421,7 +422,7 @@ export default function InventoryMaterialsScreen() {
                   {row.resource.costPrice != null ? (
                     <Text className="text-[11px] text-muted">
                       Cost ₹{Number(row.resource.costPrice).toFixed(2)}
-                      {!isIceCream ? ` · Sell ₹${Number(row.resource.rate).toFixed(2)}` : ''}
+                      {!rolePricing ? ` · Sell ₹${Number(row.resource.rate).toFixed(2)}` : ''}
                     </Text>
                   ) : null}
                   {row.resource.mrp != null ? (
@@ -497,7 +498,7 @@ export default function InventoryMaterialsScreen() {
         taxCodeField={taxCode.field}
         taxCodeShort={taxCode.short}
         taxCodeMissing={taxCode.missing}
-        showRoleRates={isIceCream}
+        showRoleRates={rolePricing}
         submitting={createResource.isPending}
         onSubmit={async (input) => {
           await run(async () => {
@@ -522,7 +523,7 @@ export default function InventoryMaterialsScreen() {
         taxCodeField={taxCode.field}
         taxCodeShort={taxCode.short}
         taxCodeMissing={taxCode.missing}
-        showRoleRates={isIceCream}
+        showRoleRates={rolePricing}
         submitting={editing !== null && updateResource.isPending}
         onSubmit={async (input) => {
           if (!editing) return;

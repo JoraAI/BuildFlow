@@ -4,9 +4,9 @@
  * Creates:
  *  - Construction: "Reddy Constructions Pvt Ltd" + 9 users (all roles) + NH-45 lifecycle
  *  - Inventory vertical demos only - password Test@1234:
- *      EVENTS vertical    owner@luminalighting.com (WHOLESALE + event quotes)
- *      GENERAL vertical   owner@kirana-demo.com   (RETAIL + product library / FEFO)
- *      ICE_CREAM vertical owner@frostycups.com    (recipes / production / Icecream-inventory-buyer)
+ *      WHOLESALER         owner@luminalighting.com (dual prices + quotes)
+ *      RETAILER           owner@kirana-demo.com   (product library / FEFO)
+ *      MANUFACTURER       owner@frostycups.com    (recipes / production / buyer app)
  *  - Platform admin: admin@buildflow.com
  *
  * Catalog data (catalog-data.ts) and rate analyses (rate-analysis-data.ts) are
@@ -1326,7 +1326,13 @@ async function main(): Promise<void> {
     });
 
     const resources: { id: string; name: string; unit: string; rate: number; gstRate: number }[] = [];
+    const rolePricing =
+      opts.vertical === InventoryVertical.WHOLESALER ||
+      opts.vertical === InventoryVertical.MANUFACTURER;
     for (const m of opts.catalog) {
+      const mrp = m.mrp ?? Math.round(m.rate * 1.2);
+      const customerRate = m.rate;
+      const distributorRate = Math.round(m.rate * 0.9 * 100) / 100;
       const r = await prisma.resource.create({
         data: {
           companyId: company.id,
@@ -1335,7 +1341,10 @@ async function main(): Promise<void> {
           unit: m.unit,
           rate: m.rate,
           costPrice: m.costPrice ?? Math.round(m.rate * 0.7),
-          mrp: m.mrp ?? Math.round(m.rate * 1.2),
+          mrp,
+          ...(rolePricing
+            ? { distributorRate, customerRate }
+            : {}),
           brandOrSpec: m.brandOrSpec ?? null,
           hsnSacCode: m.hsn ?? null,
           avgCost: m.costPrice ?? Math.round(m.rate * 0.7),
@@ -1410,8 +1419,8 @@ async function main(): Promise<void> {
 
     const seededCustomers: Array<{ id: string; name: string }> = [];
     if (opts.rich) {
-      const lightingDemo = opts.vertical === InventoryVertical.EVENTS;
-      const iceCreamDemo = opts.vertical === InventoryVertical.ICE_CREAM;
+      const lightingDemo = opts.vertical === InventoryVertical.WHOLESALER;
+      const iceCreamDemo = opts.vertical === InventoryVertical.MANUFACTURER;
 
       const customerSpecs = lightingDemo
         ? [
@@ -1512,9 +1521,20 @@ async function main(): Promise<void> {
             },
           ];
 
-      for (const spec of customerSpecs) {
+      for (const [idx, spec] of customerSpecs.entries()) {
+        let buyerRole: 'DISTRIBUTOR' | 'CUSTOMER' | undefined;
+        if (lightingDemo) {
+          buyerRole = idx === 0 ? 'DISTRIBUTOR' : 'CUSTOMER';
+        } else if (iceCreamDemo) {
+          // Keep City Scoop (buyer app) as CUSTOMER; name hint for distributors.
+          buyerRole = /distribut/i.test(spec.name) ? 'DISTRIBUTOR' : 'CUSTOMER';
+        }
         const customer = await prisma.customer.create({
-          data: { companyId: company.id, ...spec },
+          data: {
+            companyId: company.id,
+            ...spec,
+            ...(buyerRole ? { buyerRole } : {}),
+          },
         });
         seededCustomers.push(customer);
       }
@@ -1770,7 +1790,7 @@ async function main(): Promise<void> {
         inventoryProfile: InventoryBusinessProfile.RETAIL,
         // K2 (11.1.5b): the pack is Kirana-VERTICAL-only - opt the demo tenant in
         // explicitly (same state the OWNER Settings picker would set).
-        inventoryVertical: InventoryVertical.GENERAL,
+        inventoryVertical: InventoryVertical.RETAILER,
         trialStartsAt: new Date(Date.now() - 7 * 86_400_000),
         trialEndsAt: new Date(Date.now() + 358 * 86_400_000),
         lastPaymentAt: new Date(),
@@ -2046,7 +2066,7 @@ async function main(): Promise<void> {
   await seedInventoryTenant({
     companyName: 'Lumina Lighting & Event Electricals',
     profile: InventoryBusinessProfile.WHOLESALE,
-    vertical: InventoryVertical.EVENTS,
+    vertical: InventoryVertical.WHOLESALER,
     gstin: '36AABCL9999L1Z8',
     pan: 'AABCL9999L',
     state: 'Telangana',
@@ -2131,7 +2151,7 @@ async function main(): Promise<void> {
   await seedInventoryTenant({
     companyName: 'Frosty Cups Ice Creams',
     profile: InventoryBusinessProfile.WHOLESALE,
-    vertical: InventoryVertical.ICE_CREAM,
+    vertical: InventoryVertical.MANUFACTURER,
     gstin: '36AABCF8888F1Z8',
     pan: 'AABCF8888F',
     state: 'Telangana',
@@ -2574,6 +2594,7 @@ async function main(): Promise<void> {
             email: 'orders@cityscoop.com',
             paymentTerms: 'Net 15',
             creditLimit: 50000,
+            buyerRole: 'CUSTOMER',
             isActive: true,
           },
         }));
@@ -2625,13 +2646,13 @@ async function main(): Promise<void> {
   // eslint-disable-next-line no-console
   console.log('── Inventory vertical demos - password', PASSWORD);
   // eslint-disable-next-line no-console
-  console.log('   owner@luminalighting.com (EVENTS vertical · WHOLESALE) → /inventory');
+  console.log('   owner@luminalighting.com (WHOLESALER · dual prices) → /inventory');
   // eslint-disable-next-line no-console
   console.log('   manager@luminalighting.com (INVENTORY_MANAGER)');
   // eslint-disable-next-line no-console
-  console.log('   owner@kirana-demo.com (GENERAL vertical · RETAIL + product library / FEFO)');
+  console.log('   owner@kirana-demo.com (RETAILER · product library / FEFO)');
   // eslint-disable-next-line no-console
-  console.log('   owner@frostycups.com (ICE_CREAM vertical · WHOLESALE, recipes + B2B) → /inventory');
+  console.log('   owner@frostycups.com (MANUFACTURER · recipes + B2B) → /inventory');
   // eslint-disable-next-line no-console
   console.log('   manager@frostycups.com (INVENTORY_MANAGER)');
   // eslint-disable-next-line no-console

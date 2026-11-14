@@ -64,14 +64,14 @@ describe('owner signup with phone or email', () => {
       ownerName: 'Inv Phone Owner',
       ownerPhone: phone,
       product: 'inventory',
-      inventoryVertical: 'ICE_CREAM',
+      inventoryVertical: 'MANUFACTURER',
     });
     expect(res.status).toBe(201);
     expect(res.body.data.needsOtp).toBe(true);
     expect(res.body.data.accessToken).toBeUndefined();
     expect(res.body.data.user.productMode).toBe('inventory');
     expect(res.body.data.user.defaultProjectId).toBeTruthy();
-    expect(res.body.data.user.inventoryVertical).toBe('ICE_CREAM');
+    expect(res.body.data.user.inventoryVertical).toBe('MANUFACTURER');
     createdCompanyIds.push(res.body.data.user.companyId);
 
     const login = await request(app).post('/api/auth/login').send({

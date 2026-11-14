@@ -1,14 +1,8 @@
 /**
- * BuildFlow - Inventory business profile enum.
+ * BuildFlow - Inventory business profile + shop vertical enums.
  *
- * INVENTORY_HORIZONTAL_PLATFORM (Phase 0): optional per-company profile that
- * describes what kind of physical-goods business an inventory tenant runs.
- * Today it only drives *terminology* (see `inventory-labels.ts` - e.g. a
- * MATERIAL_SUPPLIER keeps construction-style "Materials" wording). Future phases
- * (price lists, barcode, batch/serial, reorder) will branch on it.
- *
- * Mirrors the Prisma enum `InventoryBusinessProfile` in schema.prisma.
- * Construction companies: the field is hidden/ignored (service returns null).
+ * Profile: terminology / store type (RETAIL, WHOLESALE, …).
+ * Vertical: capability lane — Retailer | Wholesaler | Manufacturer.
  */
 
 export const InventoryBusinessProfile = {
@@ -35,36 +29,35 @@ export const INVENTORY_PROFILE_VALUES: readonly InventoryBusinessProfile[] = [
 ];
 
 /**
- * Shop vertical - capability lane shared across store types (grocery, medical,
- * pharmacy, hardware, etc.), NOT a single brand of shop.
+ * Shop vertical - top-level IM mode.
  *
- * GENERAL   → product library + batch/expiry (FEFO) for everyday retail goods
- * EVENTS    → event / lighting quotation wording
- * ICE_CREAM → light manufacturing (recipes/production) + B2B buyer app orders
+ * RETAILER     → product library + batch/expiry (FEFO)
+ * WHOLESALER   → B2B dual prices (distributor / customer); generic IM
+ * MANUFACTURER → recipes / production + buyer app (ice cream first demo)
  */
 export const InventoryVertical = {
-  GENERAL: 'GENERAL',
-  EVENTS: 'EVENTS',
-  ICE_CREAM: 'ICE_CREAM',
+  RETAILER: 'RETAILER',
+  WHOLESALER: 'WHOLESALER',
+  MANUFACTURER: 'MANUFACTURER',
 } as const;
 export type InventoryVertical = (typeof InventoryVertical)[keyof typeof InventoryVertical];
 
 export const INVENTORY_VERTICAL_VALUES: readonly InventoryVertical[] = [
-  InventoryVertical.GENERAL,
-  InventoryVertical.EVENTS,
-  InventoryVertical.ICE_CREAM,
+  InventoryVertical.RETAILER,
+  InventoryVertical.WHOLESALER,
+  InventoryVertical.MANUFACTURER,
 ];
 
 export const INVENTORY_VERTICAL_LABELS: Record<InventoryVertical, string> = {
-  GENERAL: 'General retail (grocery, medical, pharmacy, hardware)',
-  EVENTS: 'Events & lighting',
-  ICE_CREAM: 'Ice cream manufacture',
+  RETAILER: 'Retailer',
+  WHOLESALER: 'Wholesaler',
+  MANUFACTURER: 'Manufacturer (ice cream)',
 };
 
 export const INVENTORY_VERTICAL_HINTS: Record<InventoryVertical, string> = {
-  GENERAL: 'Product library plus batch and expiry tracking',
-  EVENTS: 'Event and lighting quotation wording',
-  ICE_CREAM: 'Recipes, production batches, and Jora Trade buyer orders',
+  RETAILER: 'Product library plus batch and expiry tracking',
+  WHOLESALER: 'Distributor and customer sell prices; quotes, warehouses, stock',
+  MANUFACTURER: 'Recipes, production batches, and Jora Trade buyer orders',
 };
 
 /** Human-readable labels for the Settings profile picker. */

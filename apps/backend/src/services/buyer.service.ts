@@ -96,7 +96,7 @@ async function resolvePlayReviewCompanyId(): Promise<string> {
   if (byOwner?.companyId) return byOwner.companyId;
 
   const ice = await prisma.company.findFirst({
-    where: { inventoryVertical: 'ICE_CREAM' },
+    where: { inventoryVertical: 'MANUFACTURER' },
     orderBy: { createdAt: 'asc' },
     select: { id: true },
   });
@@ -567,7 +567,7 @@ export async function setResourceB2bPublished(
       where: { id: companyId },
       select: { inventoryVertical: true },
     });
-    if (company?.inventoryVertical === 'ICE_CREAM') {
+    if (company?.inventoryVertical === 'MANUFACTURER') {
       if (resource.distributorRate == null) data.distributorRate = resource.rate;
       if (resource.customerRate == null) data.customerRate = resource.rate;
     }

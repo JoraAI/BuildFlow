@@ -1,12 +1,13 @@
 /**
- * ICE_CREAM manufacturer UI gate — prefer live company settings over auth-store
- * (which can be stale until re-login / refreshUser).
+ * Manufacturer / role-pricing UI gates — prefer live company settings over
+ * auth-store (which can be stale until re-login / refreshUser).
  */
 import { useEffect } from 'react';
 import { useAuthStore } from '@/stores/auth.store';
 import { useCompany } from '@/services/settings.queries';
+import { usesManufacturerFeatures, usesRoleBasedPricing } from '@buildflow/shared';
 
-export function useIceCreamVertical(): boolean {
+function useCompanyVertical(): string | null {
   const user = useAuthStore((s) => s.user);
   const refreshUser = useAuthStore((s) => s.refreshUser);
   const { data: company } = useCompany();
@@ -20,5 +21,20 @@ export function useIceCreamVertical(): boolean {
     }
   }, [companyVertical, userVertical, user, refreshUser]);
 
-  return (companyVertical ?? userVertical) === 'ICE_CREAM';
+  return companyVertical ?? userVertical;
+}
+
+/** Recipes, production tab, buyer-app publish/invite. */
+export function useManufacturerVertical(): boolean {
+  return usesManufacturerFeatures(useCompanyVertical());
+}
+
+/** @deprecated use useManufacturerVertical */
+export function useIceCreamVertical(): boolean {
+  return useManufacturerVertical();
+}
+
+/** Distributor + customer sell prices (wholesaler + manufacturer). */
+export function useRoleBasedPricing(): boolean {
+  return usesRoleBasedPricing(useCompanyVertical());
 }

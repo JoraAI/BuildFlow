@@ -1,21 +1,19 @@
 /**
- * BuildFlow - Kirana vertical catalog validators
- * (INVENTORY_KIRANA_RETAIL_WHOLESALE Phase 11.1).
+ * BuildFlow - Retailer catalog validators.
  *
- * K1 - `InventoryVertical` (`GENERAL`) is a catalog capability lane, NOT a business
- * profile. Apply is insert-missing-only (K3) and OWNER-gated.
+ * RETAILER is the catalog / FEFO lane. Apply is insert-missing-only and OWNER-gated.
  */
 import { z } from 'zod';
 import { InventoryVertical } from '../inventory-profile';
 
 export const inventoryVerticalSchema = z.enum([
-  InventoryVertical.GENERAL,
-  InventoryVertical.EVENTS,
-  InventoryVertical.ICE_CREAM,
+  InventoryVertical.RETAILER,
+  InventoryVertical.WHOLESALER,
+  InventoryVertical.MANUFACTURER,
 ] as const);
 
-/** GENERAL is the only vertical with a maintained starter product library. */
-export const catalogTemplateSchema = z.enum([InventoryVertical.GENERAL] as const);
+/** RETAILER is the only vertical with a maintained starter product library. */
+export const catalogTemplateSchema = z.enum([InventoryVertical.RETAILER] as const);
 
 export const catalogApplySchema = z.object({
   template: catalogTemplateSchema,

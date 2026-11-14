@@ -42,7 +42,7 @@ import {
   type BuyerInviteRow,
   type BuyerUserRow,
 } from '@/services/ice-cream.queries';
-import { useIceCreamVertical } from '@/hooks/useIceCreamVertical';
+import { useIceCreamVertical, useRoleBasedPricing } from '@/hooks/useIceCreamVertical';
 
 type Kind = 'customer' | 'vendor';
 
@@ -57,6 +57,7 @@ export default function InventoryPartiesScreen() {
   const { translate } = useInventoryLanguage();
   const { busy, run } = useBusy();
   const isIceCream = useIceCreamVertical();
+  const rolePricing = useRoleBasedPricing();
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop/tablet table rows.
   const { isPhone, isTablet, isDesktop } = useViewport();
   const tableMode = isTablet || isDesktop;
@@ -352,7 +353,7 @@ export default function InventoryPartiesScreen() {
                     <Text className="text-sm font-semibold text-text" numberOfLines={1}>{item.name}</Text>
                     {item.businessName ? <Text className="text-[11px] text-muted">{item.businessName}</Text> : null}
                     {accessLabel ? <Text className="text-[10px] text-primary mt-0.5">{accessLabel}</Text> : null}
-                    {isIceCream && kind === 'customer' ? (
+                    {rolePricing && kind === 'customer' ? (
                       <Text className="text-[10px] text-muted mt-0.5">
                         {item.buyerRole === 'DISTRIBUTOR' ? 'Distributor' : 'Customer'}
                         {item.tradeDiscountPct != null
@@ -385,7 +386,7 @@ export default function InventoryPartiesScreen() {
                     <Text className="text-[11px] text-muted mt-0.5">Credit limit ₹{Number(item.creditLimit)}</Text>
                   ) : null}
                   {accessLabel ? <Text className="text-[11px] text-primary mt-1">{accessLabel}</Text> : null}
-                  {isIceCream && kind === 'customer' ? (
+                  {rolePricing && kind === 'customer' ? (
                     <Text className="text-[11px] text-muted mt-1">
                       Role: {item.buyerRole === 'DISTRIBUTOR' ? 'Distributor' : 'Customer'}
                       {item.tradeDiscountPct != null
@@ -438,7 +439,7 @@ export default function InventoryPartiesScreen() {
           editing={modal.editing}
           onClose={() => setModal(null)}
           onSave={onSave}
-          showBuyerRole={isIceCream && modal.kind === 'customer'}
+          showBuyerRole={rolePricing && modal.kind === 'customer'}
         />
       ) : null}
 

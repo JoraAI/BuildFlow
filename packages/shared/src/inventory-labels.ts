@@ -63,20 +63,32 @@ export function getInventoryLabelMode(profile?: string | null): InventoryLabelMo
   return profile === 'MATERIAL_SUPPLIER' ? 'materials' : 'generic';
 }
 
-/**
- * Event / lighting quotation UX (Quotes tab, WhatsApp share, return scan).
- * Used by EQUIPMENT dealers and the EVENTS shop vertical (e.g. Lumina demo).
- */
+/** EQUIPMENT dealers lean rental/service wording (quotes / HSN-SAC). */
 export function usesEventLightingCopy(
   profile?: string | null,
-  vertical?: string | null,
+  _vertical?: string | null,
 ): boolean {
-  return profile === 'EQUIPMENT' || vertical === 'EVENTS';
+  return profile === 'EQUIPMENT';
 }
 
-/** Ice cream manufacturer vertical: recipes, production, B2B buyer catalog. */
+/** Manufacturer vertical: recipes, production, B2B buyer catalog. */
+export function usesManufacturerFeatures(vertical?: string | null): boolean {
+  return vertical === 'MANUFACTURER';
+}
+
+/** @deprecated use usesManufacturerFeatures */
 export function usesIceCreamManufacturerCopy(vertical?: string | null): boolean {
-  return vertical === 'ICE_CREAM';
+  return usesManufacturerFeatures(vertical);
+}
+
+/** Wholesaler + manufacturer: distributor / customer sell prices. */
+export function usesRoleBasedPricing(vertical?: string | null): boolean {
+  return vertical === 'WHOLESALER' || usesManufacturerFeatures(vertical);
+}
+
+/** Retailer: starter catalog + batch/expiry FEFO. */
+export function usesRetailerCatalog(vertical?: string | null): boolean {
+  return vertical === 'RETAILER';
 }
 
 /**
@@ -96,7 +108,6 @@ export function getGstTaxCodeLabels(
   vertical?: string | null,
   profile?: string | null,
 ): GstTaxCodeLabels {
-  // Event / equipment rental leans service (SAC) but lines may still be goods.
   if (usesEventLightingCopy(profile, vertical)) {
     return {
       short: 'HSN/SAC',
@@ -104,8 +115,16 @@ export function getGstTaxCodeLabels(
       missing: 'Missing HSN/SAC',
     };
   }
-  // Packaged goods verticals (ice cream, general retail/wholesale).
-  if (vertical === 'ICE_CREAM' || profile === 'RETAIL' || profile === 'WHOLESALE' || profile === 'DISTRIBUTION' || profile === 'TRADING' || profile === 'MATERIAL_SUPPLIER') {
+  if (
+    usesManufacturerFeatures(vertical) ||
+    usesRoleBasedPricing(vertical) ||
+    usesRetailerCatalog(vertical) ||
+    profile === 'RETAIL' ||
+    profile === 'WHOLESALE' ||
+    profile === 'DISTRIBUTION' ||
+    profile === 'TRADING' ||
+    profile === 'MATERIAL_SUPPLIER'
+  ) {
     return {
       short: 'HSN',
       field: 'HSN code',

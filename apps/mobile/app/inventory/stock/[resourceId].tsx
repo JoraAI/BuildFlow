@@ -68,7 +68,7 @@ export default function InventoryStockItemScreen() {
   // Kirana-vertical-only (K10) - no fetch/no UI for other inventory types.
   const batchExpiryEnabled =
     hasInventoryFeature((user?.subscriptionPlan ?? 'INVENTORY') as SubscriptionPlanKey, 'batch_expiry') &&
-    user?.inventoryVertical === 'GENERAL';
+    user?.inventoryVertical === 'RETAILER';
 
   const { data: summary, refetch: refetchSummary } = useStockSummary(projectId, locationId);
   const {

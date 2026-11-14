@@ -562,14 +562,13 @@ export default function InventorySettingsScreen() {
             </View>
           ) : null}
         </Card>
-        {/* Shop vertical — OWNER + RETAIL/WHOLESALE. GENERAL = library+FEFO; EVENTS = quote copy. */}
+        {/* Shop vertical — Retailer / Wholesaler / Manufacturer */}
         {user?.role === 'OWNER' && kiranaEnabled ? (
           <Card className="p-5 mb-4">
             <Text className="text-base font-bold text-text mb-1">Shop vertical</Text>
             <Text className="text-xs text-muted mb-3">
-              General retail fits grocery, medical, pharmacy, hardware and similar shops — product
-              library plus batch/expiry tracking. Events & lighting unlocks event-quote wording.
-              Ice cream manufacturer adds recipes, production batches, and Jora Trade (buyer) orders.
+              Retailer: product library plus batch/expiry. Wholesaler: distributor and customer sell
+              prices. Manufacturer (ice cream): recipes, production, and Jora Trade buyer orders.
               Leave as None to manage your own item list.
             </Text>
             <Select
@@ -596,7 +595,7 @@ export default function InventorySettingsScreen() {
           </Card>
         ) : null}
         {/* Phase 11.5: selective SKU library replaces copying the full pack. */}
-        {kiranaEnabled && company?.inventoryVertical === 'GENERAL' ? (
+        {kiranaEnabled && (company?.inventoryVertical === 'RETAILER') ? (
           <Card className="p-5 mb-4">
             <Text className="text-base font-bold text-text mb-1">Product library</Text>
             <Text className="text-xs text-muted mb-3">
@@ -1097,12 +1096,16 @@ export default function InventorySettingsScreen() {
           </View>
         </Card>
 
-        {(company?.inventoryVertical ?? user?.inventoryVertical) === 'ICE_CREAM' ? (
+        {(company?.inventoryVertical ?? user?.inventoryVertical) === 'WHOLESALER' ||
+        (company?.inventoryVertical ?? user?.inventoryVertical) === 'MANUFACTURER' ? (
           <Card className="p-5 mb-4">
             <Text className="text-base font-bold text-text mb-1">B2B trade discounts</Text>
             <Text className="text-xs text-muted mb-3">
-              Default % off MRP for buyer app catalog and role-based pricing. Per-party override wins;
-              explicit price-list rates win over both.
+              Default % off MRP for role-based pricing
+              {(company?.inventoryVertical ?? user?.inventoryVertical) === 'MANUFACTURER'
+                ? ' and buyer app catalog'
+                : ''}
+              . Per-party override wins; explicit price-list rates win over both.
             </Text>
             <Input
               label="Distributor discount %"

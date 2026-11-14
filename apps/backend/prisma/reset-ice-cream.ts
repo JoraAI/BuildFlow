@@ -392,7 +392,7 @@ async function seedFrostyCups(passwordHash: string): Promise<void> {
       subscriptionPlan: 'INVENTORY',
       subscriptionStatus: 'ACTIVE',
       inventoryProfile: InventoryBusinessProfile.WHOLESALE,
-      inventoryVertical: InventoryVertical.ICE_CREAM,
+      inventoryVertical: InventoryVertical.MANUFACTURER,
       trialStartsAt: new Date(Date.now() - 7 * 86_400_000),
       trialEndsAt: new Date(Date.now() + 358 * 86_400_000),
       lastPaymentAt: new Date(),

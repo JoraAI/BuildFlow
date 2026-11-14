@@ -24,7 +24,7 @@ async function registerInventoryCompany(suffix: string) {
     suffix,
     companyName: `Test Kirana Co ${suffix}`,
     ownerName: 'Kirana Owner',
-    vertical: 'GENERAL',
+    vertical: 'RETAILER',
   });
 }
 
@@ -45,9 +45,9 @@ describe('KIRANA_BATCH_EXPIRY (Phase 11.2) - batch / expiry / FEFO', () => {
     // Opt into the KIRANA vertical (RETAIL profile first) and apply the pack.
     const profile = await authPut(invToken, '/api/settings/company', { inventoryProfile: 'RETAIL' });
     expect(profile.status).toBe(200);
-    const vert = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical: 'GENERAL' });
+    const vert = await authPut(invToken, '/api/inventory/catalog/vertical', { vertical: 'RETAILER' });
     expect(vert.status).toBe(200);
-    const apply = await authPost(invToken, '/api/inventory/catalog/apply', { template: 'GENERAL' });
+    const apply = await authPost(invToken, '/api/inventory/catalog/apply', { template: 'RETAILER' });
     expect(apply.status).toBe(200);
     expect(apply.body.data.created).toBeGreaterThanOrEqual(100);
 

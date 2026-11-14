@@ -47,24 +47,34 @@ async function assertTrackingModeAllowed(companyId: string, trackingMode?: strin
     where: { id: companyId },
     select: { subscriptionPlan: true, inventoryVertical: true },
   });
-  if (company?.subscriptionPlan !== 'INVENTORY' || company?.inventoryVertical !== 'GENERAL') {
+  if (company?.subscriptionPlan !== 'INVENTORY' || company?.inventoryVertical !== 'RETAILER') {
     throw ApiError.unprocessable(
       'Batch/expiry tracking (BATCH_EXPIRY) is available only to Kirana-vertical inventory tenants (Settings → Shop vertical).',
     );
   }
 }
 
+async function usesRolePricing(companyId: string): Promise<boolean> {
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { inventoryVertical: true },
+  });
+  const v = company?.inventoryVertical;
+  return v === 'WHOLESALER' || v === 'MANUFACTURER';
+}
+
+/** @deprecated alias — manufacturer-only checks should use inventoryVertical === MANUFACTURER */
 async function isIceCreamCompany(companyId: string): Promise<boolean> {
   const company = await prisma.company.findUnique({
     where: { id: companyId },
     select: { inventoryVertical: true },
   });
-  return company?.inventoryVertical === 'ICE_CREAM';
+  return company?.inventoryVertical === 'MANUFACTURER';
 }
 
 /**
- * ICE_CREAM only: distributor + customer sell prices are mandatory; catalog
- * `rate` is kept in sync with customerRate for legacy dependents.
+ * Wholesaler + manufacturer: distributor + customer sell prices are mandatory;
+ * catalog `rate` is kept in sync with customerRate for legacy dependents.
  */
 function assertIceCreamRoleRates(opts: {
   distributorRate: number | null | undefined;
@@ -219,7 +229,7 @@ export async function createResource(
   input: CreateResourceInput,
   ipAddress?: string,
 ) {
-  const iceCream = await isIceCreamCompany(companyId);
+  const iceCream = await usesRolePricing(companyId);
   let rate = input.rate;
   let distributorRate = input.distributorRate ?? null;
   let customerRate = input.customerRate ?? null;
@@ -317,7 +327,7 @@ export async function updateResource(
   ipAddress?: string,
 ) {
   const existing = await getResource(companyId, id);
-  const iceCream = await isIceCreamCompany(companyId);
+  const iceCream = await usesRolePricing(companyId);
   const effectiveMrp = input.mrp === undefined
     ? (existing.mrp == null ? null : Number(existing.mrp))
     : input.mrp;

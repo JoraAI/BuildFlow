@@ -10,7 +10,7 @@ export async function registerInventoryAndLogin(opts: {
   suffix: string;
   companyName: string;
   ownerName?: string;
-  vertical?: 'GENERAL' | 'EVENTS' | 'ICE_CREAM';
+  vertical?: 'RETAILER' | 'WHOLESALER' | 'MANUFACTURER';
 }): Promise<{
   token: string;
   userId: string;
@@ -19,16 +19,17 @@ export async function registerInventoryAndLogin(opts: {
   phone: string;
 }> {
   const digits = opts.suffix.replace(/\D/g, '').padStart(8, '0').slice(-8);
-  const phone = `98${digits}`.slice(0, 10);
+  const uniq = `${digits}${Date.now().toString().slice(-4)}`.slice(-8);
+  const phone = `98${uniq}`.slice(0, 10);
   const register = await request(app).post('/api/auth/register').send({
     companyName: opts.companyName,
-    gstin: `36AABCR${digits.slice(0, 4)}A1Z5`,
-    pan: `AABCR${digits.slice(0, 4)}A`,
+    gstin: `36AABCR${uniq.slice(0, 4)}A1Z5`,
+    pan: `AABCR${uniq.slice(0, 4)}A`,
     state: 'Telangana',
     ownerName: opts.ownerName ?? 'Inventory Owner',
     ownerPhone: phone,
     product: 'inventory',
-    inventoryVertical: opts.vertical ?? 'GENERAL',
+    inventoryVertical: opts.vertical ?? 'RETAILER',
   });
   if (register.status !== 201) {
     throw new Error(`Inventory register failed: ${register.status} ${JSON.stringify(register.body)}`);

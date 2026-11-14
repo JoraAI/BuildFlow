@@ -50,7 +50,7 @@ async function main() {
       subscriptionPlan: 'INVENTORY',
       OR: [
         { name: { contains: 'Frosty', mode: 'insensitive' } },
-        { inventoryVertical: 'ICE_CREAM' },
+        { inventoryVertical: 'MANUFACTURER' },
       ],
     },
     data: { logoUrl: COMPANY_LOGO },

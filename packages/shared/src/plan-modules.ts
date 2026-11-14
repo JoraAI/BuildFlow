@@ -143,7 +143,7 @@ const INVENTORY_FEATURE_FLAGS: Record<InventoryFeatureFlag, boolean> = {
   // Phase 11.1 shipped: Kirana vertical + insert-missing starter catalog (this pass).
   kirana_catalog: true,
   // Phase 11.2 shipped: batch/expiry + FEFO. SURFACES stay Kirana-vertical-only
-  // (module-gate.service asserts inventoryVertical === 'GENERAL'; mobile gates on
+  // (module-gate.service asserts inventoryVertical === 'RETAILER'; mobile gates on
   // the company vertical too).
   batch_expiry: true,
   // Phase 11.3 shipped: POS-style counter checkout cart. The enhanced split-cart

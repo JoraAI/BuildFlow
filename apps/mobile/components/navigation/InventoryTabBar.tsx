@@ -67,7 +67,7 @@ type InventoryTab = (typeof INVENTORY_PRIMARY_TABS)[number];
 function visiblePrimaryTabs(vertical?: string | null, opts?: { includeMore?: boolean }): InventoryTab[] {
   const includeMore = opts?.includeMore ?? true;
   return INVENTORY_PRIMARY_TABS.filter((tab) => {
-    if (tab.key === 'production') return vertical === 'ICE_CREAM';
+    if (tab.key === 'production') return vertical === 'MANUFACTURER';
     if (tab.key === 'more') return includeMore;
     return true;
   }) as InventoryTab[];

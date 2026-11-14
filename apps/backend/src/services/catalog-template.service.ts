@@ -33,7 +33,7 @@ interface TemplateDef {
 
 /** GENERAL has the starter product library; EVENTS is quote-copy only. */
 const TEMPLATES: Partial<Record<InventoryVertical, TemplateDef>> = {
-  [InventoryVertical.GENERAL]: {
+  [InventoryVertical.RETAILER]: {
     items: KIRANA_TEMPLATE,
     version: KIRANA_TEMPLATE_VERSION,
   },
@@ -89,7 +89,7 @@ export async function listCatalogLibrary(
   input: { search?: string; category?: string; page: number; limit: number },
 ) {
   const company = await loadCompanyMeta(companyId);
-  const reason = eligibilityReason(company, InventoryVertical.GENERAL);
+  const reason = eligibilityReason(company, InventoryVertical.RETAILER);
   if (reason) throw ApiError.forbidden(reason);
 
   const q = input.search?.trim().toLowerCase();
@@ -153,7 +153,7 @@ export async function importCatalogItems(
   input: { items: SelectedCatalogMasterItem[] },
 ) {
   const company = await loadCompanyMeta(companyId);
-  const reason = eligibilityReason(company, InventoryVertical.GENERAL);
+  const reason = eligibilityReason(company, InventoryVertical.RETAILER);
   if (reason) throw ApiError.forbidden(reason);
   const templateByKey = new Map(KIRANA_TEMPLATE.map((item) => [item.templateKey, item]));
 
@@ -265,7 +265,7 @@ export async function importSelectedCatalogStock(
   input: { items: SelectedCatalogStockItem[]; locationId?: string },
 ) {
   const company = await loadCompanyMeta(companyId);
-  const reason = eligibilityReason(company, InventoryVertical.GENERAL);
+  const reason = eligibilityReason(company, InventoryVertical.RETAILER);
   if (reason) throw ApiError.forbidden(reason);
   const projectId = await getDefaultProjectId(companyId);
   if (!projectId) throw ApiError.forbidden('No inventory store is configured.');
