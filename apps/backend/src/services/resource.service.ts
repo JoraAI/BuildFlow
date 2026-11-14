@@ -63,15 +63,6 @@ async function usesRolePricing(companyId: string): Promise<boolean> {
   return v === 'WHOLESALER' || v === 'MANUFACTURER';
 }
 
-/** @deprecated alias — manufacturer-only checks should use inventoryVertical === MANUFACTURER */
-async function isIceCreamCompany(companyId: string): Promise<boolean> {
-  const company = await prisma.company.findUnique({
-    where: { id: companyId },
-    select: { inventoryVertical: true },
-  });
-  return company?.inventoryVertical === 'MANUFACTURER';
-}
-
 /**
  * Wholesaler + manufacturer: distributor + customer sell prices are mandatory;
  * catalog `rate` is kept in sync with customerRate for legacy dependents.
