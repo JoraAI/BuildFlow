@@ -33,6 +33,8 @@ export type OfflinePackNote = {
   date: string;
   partyName: string;
   partyGstin: string | null;
+  /** Place of supply hint (from linked sales invoice state). */
+  partyState?: string | null;
   taxable: number;
   total: number;
   gst: number;
@@ -348,13 +350,14 @@ export function buildGstr1OfflineSectionFiles(opts: {
           ]);
         }
       } else {
+        const pos = placeOfSupplyLabel(n.partyState, n.partyGstin);
         for (const r of rates) {
           cdnurRows.push([
             Math.abs(n.total) > threshold ? 'B2CL' : 'B2CS',
             n.number,
             date,
             noteType,
-            '',
+            pos,
             n.total,
             '',
             r.rate,
@@ -365,8 +368,8 @@ export function buildGstr1OfflineSectionFiles(opts: {
       }
     }
   };
+  // GSTR-1 only: sales credit notes. Purchase debit notes stay on the pack desk/books.
   pushNotes(gst.creditNotes, 'C');
-  pushNotes(gst.debitNotes, 'D');
 
   const { b2b: hsnB2b, b2c: hsnB2c } = buildHsnMaps(gst);
 
@@ -708,8 +711,8 @@ export function buildGstr1OfflineJson(opts: {
       }
     }
   };
+  // GSTR-1 only: sales credit notes (not purchase debit notes).
   pushJsonNotes(gst.creditNotes, 'C');
-  pushJsonNotes(gst.debitNotes, 'D');
 
   const { b2b: hsnB2b, b2c: hsnB2c } = buildHsnMaps(gst);
   const toHsnJson = (map: Map<string, HsnBucket>) =>

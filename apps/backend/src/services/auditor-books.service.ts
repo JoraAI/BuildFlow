@@ -93,12 +93,14 @@ export function buildGroupsAnalysis(
     touch(j.creditAccount, 'credit', Number(j.amount) || 0);
   }
 
+  // Only overlay cash-book rows that do not already have auto journals
+  // (SALE_COLLECTION / VENDOR_PAYMENT post both a journal and a cash-book line).
+  const BANK_ONLY_TYPES = new Set(['EXPENSE', 'DEPOSIT', 'ADJUSTMENT']);
   if (bank) {
     for (const b of bank) {
-      if (b.entryType === 'OPENING') continue;
+      if (!BANK_ONLY_TYPES.has(String(b.entryType))) continue;
       const mode = (b.paymentMode || 'OTHER').toUpperCase();
-      const ledger =
-        mode === 'CASH' ? 'Cash' : mode === 'BANK' || mode === 'UPI' ? 'Bank/Cash' : 'Bank/Cash';
+      const ledger = mode === 'CASH' ? 'Cash' : 'Bank/Cash';
       const amt = Number(b.amount) || 0;
       if (b.direction === 'IN') touch(ledger, 'debit', amt);
       else touch(ledger, 'credit', amt);
@@ -158,6 +160,9 @@ export type PackPeriodPnL = {
   estimatedProfit: number;
 };
 
+/** Sales stock OUT types (excludes transfers / purchase returns / adjustments). */
+const SALES_OUT_TYPES = ['MANUAL_ISSUE', 'DELIVERY_CHALLAN'];
+
 /** Pack-scoped P&L without project-gate (auditor-safe). */
 export async function buildPackPeriodPnL(
   companyId: string,
@@ -167,14 +172,22 @@ export async function buildPackPeriodPnL(
   const start = new Date(`${from}T00:00:00.000Z`);
   const end = new Date(`${to}T23:59:59.999Z`);
 
-  const [invoices, expenseEntries, outMoves] = await Promise.all([
+  const [invoices, creditNotes, expenseEntries, outMoves] = await Promise.all([
     prisma.invoice.findMany({
       where: {
         companyId,
         invoiceDate: { gte: start, lte: end },
         status: { not: 'DRAFT' },
       },
-      select: { total: true, subtotal: true },
+      select: { subtotal: true },
+    }),
+    prisma.creditNote.findMany({
+      where: {
+        companyId,
+        status: 'ISSUED',
+        creditDate: { gte: start, lte: end },
+      },
+      select: { subtotal: true },
     }),
     prisma.inventoryCashBookEntry.findMany({
       where: {
@@ -188,15 +201,22 @@ export async function buildPackPeriodPnL(
       where: {
         location: { companyId },
         type: 'OUT',
+        referenceType: { in: SALES_OUT_TYPES },
         createdAt: { gte: start, lte: end },
       },
-      select: { quantity: true, unitCost: true },
+      select: { quantity: true, unitCost: true, inventoryValue: true },
     }),
   ]);
 
-  const sales = round2(invoices.reduce((s, i) => s + Number(i.total), 0));
+  // Taxable / ex-GST sales, net of issued credit notes in the period.
+  const grossSales = invoices.reduce((s, i) => s + Number(i.subtotal), 0);
+  const cnTaxable = creditNotes.reduce((s, c) => s + Number(c.subtotal), 0);
+  const sales = round2(Math.max(0, grossSales - cnTaxable));
   const cogs = round2(
-    outMoves.reduce((s, m) => s + Number(m.quantity) * Number(m.unitCost ?? 0), 0),
+    outMoves.reduce(
+      (s, m) => s + (Number(m.inventoryValue) || Number(m.quantity) * Number(m.unitCost ?? 0)),
+      0,
+    ),
   );
   const expensesByCategory: Record<string, number> = {};
   for (const e of expenseEntries) {
@@ -225,7 +245,7 @@ export type PackBalanceSheet = {
   equity: number;
 };
 
-/** Practical balance-sheet snapshot (not full CoA). */
+/** Practical balance-sheet snapshot (not full CoA), as-of period end. */
 export async function buildPackBalanceSheet(
   companyId: string,
   asOf: string,
@@ -233,53 +253,126 @@ export async function buildPackBalanceSheet(
 ): Promise<PackBalanceSheet> {
   const end = new Date(`${asOf}T23:59:59.999Z`);
 
-  const [invoices, bills, creditNotes, debitNotes, balances] = await Promise.all([
-    prisma.invoice.findMany({
-      where: { companyId, invoiceDate: { lte: end }, status: { not: 'DRAFT' } },
-      select: { total: true, paidAmount: true },
-    }),
-    prisma.bill.findMany({
-      where: {
-        companyId,
-        billDate: { lte: end },
-        status: { notIn: ['DRAFT', 'REJECTED'] },
-      },
-      select: { total: true, paidAmount: true },
-    }),
-    prisma.creditNote.findMany({
-      where: { companyId, status: 'ISSUED', creditDate: { lte: end } },
-      select: { total: true },
-    }),
-    prisma.debitNote.findMany({
-      where: { companyId, status: 'ISSUED', debitDate: { lte: end } },
-      select: { total: true },
-    }),
-    prisma.stockBalance.findMany({
-      where: { location: { companyId } },
-      select: { quantity: true, resource: { select: { avgCost: true } } },
-    }),
-  ]);
+  const [invoices, bills, creditNotes, debitNotes, collections, vendorPays, balances, laterMoves] =
+    await Promise.all([
+      prisma.invoice.findMany({
+        where: { companyId, invoiceDate: { lte: end }, status: { not: 'DRAFT' } },
+        select: { id: true, total: true, paidAmount: true },
+      }),
+      prisma.bill.findMany({
+        where: {
+          companyId,
+          billDate: { lte: end },
+          status: { notIn: ['DRAFT', 'REJECTED'] },
+        },
+        select: { id: true, total: true, paidAmount: true, paidAt: true },
+      }),
+      prisma.creditNote.findMany({
+        where: { companyId, status: 'ISSUED', creditDate: { lte: end } },
+        select: { total: true },
+      }),
+      prisma.debitNote.findMany({
+        where: { companyId, status: 'ISSUED', debitDate: { lte: end } },
+        select: { total: true },
+      }),
+      prisma.inventoryCashBookEntry.findMany({
+        where: {
+          companyId,
+          entryType: 'SALE_COLLECTION',
+          entryDate: { lte: end },
+        },
+        select: { invoiceId: true, amount: true },
+      }),
+      prisma.inventoryCashBookEntry.findMany({
+        where: {
+          companyId,
+          entryType: 'VENDOR_PAYMENT',
+          entryDate: { lte: end },
+        },
+        select: { billId: true, amount: true },
+      }),
+      prisma.stockBalance.findMany({
+        where: { location: { companyId } },
+        select: {
+          resourceId: true,
+          quantity: true,
+          resource: { select: { avgCost: true } },
+        },
+      }),
+      // Reverse movements after asOf so stock value is period-end, not live.
+      prisma.stockMovement.findMany({
+        where: { location: { companyId }, createdAt: { gt: end } },
+        select: { resourceId: true, quantity: true, type: true },
+      }),
+    ]);
 
+  const collectedByInvoice = new Map<string, number>();
+  let unlinkedCollections = 0;
+  for (const c of collections) {
+    const amt = Number(c.amount) || 0;
+    if (c.invoiceId) {
+      collectedByInvoice.set(c.invoiceId, (collectedByInvoice.get(c.invoiceId) ?? 0) + amt);
+    } else {
+      unlinkedCollections += amt;
+    }
+  }
+  const hasCollectionLinks = collections.some((c) => c.invoiceId);
+  let receivableGross = 0;
+  for (const inv of invoices) {
+    const linkedPaid = collectedByInvoice.get(inv.id);
+    const paid = hasCollectionLinks
+      ? Math.min(Number(inv.total), linkedPaid ?? 0)
+      : Number(inv.paidAmount);
+    receivableGross += Math.max(0, Number(inv.total) - paid);
+  }
   const receivables = round2(
     Math.max(
       0,
-      invoices.reduce((s, i) => s + (Number(i.total) - Number(i.paidAmount)), 0) -
+      receivableGross -
+        unlinkedCollections -
         creditNotes.reduce((s, c) => s + Number(c.total), 0),
     ),
   );
+
+  const paidByBill = new Map<string, number>();
+  for (const p of vendorPays) {
+    if (!p.billId) continue;
+    paidByBill.set(p.billId, (paidByBill.get(p.billId) ?? 0) + (Number(p.amount) || 0));
+  }
+  let payableGross = 0;
+  for (const b of bills) {
+    let paid = 0;
+    if (b.paidAt) {
+      paid = b.paidAt.getTime() <= end.getTime() ? Number(b.paidAmount) : 0;
+    } else if (paidByBill.has(b.id)) {
+      paid = Math.min(Number(b.total), paidByBill.get(b.id) ?? 0);
+    } else {
+      paid = Number(b.paidAmount);
+    }
+    payableGross += Math.max(0, Number(b.total) - paid);
+  }
   const payables = round2(
-    Math.max(
-      0,
-      bills.reduce((s, b) => s + (Number(b.total) - Number(b.paidAmount)), 0) -
-        debitNotes.reduce((s, d) => s + Number(d.total), 0),
-    ),
+    Math.max(0, payableGross - debitNotes.reduce((s, d) => s + Number(d.total), 0)),
   );
+
+  const qtyByResource = new Map<string, { qty: number; unitCost: number }>();
+  for (const b of balances) {
+    qtyByResource.set(b.resourceId, {
+      qty: Number(b.quantity),
+      unitCost: Number(b.resource.avgCost ?? 0),
+    });
+  }
+  for (const m of laterMoves) {
+    const cur = qtyByResource.get(m.resourceId) ?? { qty: 0, unitCost: 0 };
+    const q = Number(m.quantity) || 0;
+    // Undo post-period movement: OUT after asOf means stock was higher at asOf.
+    cur.qty += m.type === 'OUT' ? q : -q;
+    qtyByResource.set(m.resourceId, cur);
+  }
   const stockValue = round2(
-    balances.reduce(
-      (s, b) => s + Number(b.quantity) * Number(b.resource.avgCost ?? 0),
-      0,
-    ),
+    [...qtyByResource.values()].reduce((s, r) => s + Math.max(0, r.qty) * r.unitCost, 0),
   );
+
   const cashBank = round2(cashBankClosing ?? 0);
   const assetsTotal = round2(cashBank + receivables + stockValue);
   const liabilitiesTotal = payables;

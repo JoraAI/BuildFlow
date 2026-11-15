@@ -448,7 +448,11 @@ async function buildPackSlices(
       },
     }),
     prisma.invoice.findMany({
-      where: { companyId, invoiceDate: { gte: start, lt: endExclusive } },
+      where: {
+        companyId,
+        invoiceDate: { gte: start, lt: endExclusive },
+        status: { not: 'DRAFT' },
+      },
       select: {
         id: true,
         invoiceNumber: true,
@@ -477,7 +481,11 @@ async function buildPackSlices(
       },
     }),
     prisma.bill.findMany({
-      where: { companyId, billDate: { gte: start, lt: endExclusive } },
+      where: {
+        companyId,
+        billDate: { gte: start, lt: endExclusive },
+        status: { notIn: ['DRAFT', 'REJECTED'] },
+      },
       select: {
         id: true,
         billNumber: true,
@@ -504,7 +512,9 @@ async function buildPackSlices(
         sgstAmount: true,
         igstAmount: true,
         customer: { select: { gstin: true } },
-        invoice: { select: { clientGstin: true, clientState: true, invoiceNumber: true } },
+        invoice: {
+          select: { clientGstin: true, clientState: true, invoiceNumber: true },
+        },
         lines: {
           select: {
             id: true,
@@ -628,6 +638,7 @@ async function buildPackSlices(
 
   const creditNoteRows = creditNotes.map((cn) => {
     const gstin = cn.customer?.gstin ?? cn.invoice?.clientGstin ?? null;
+    const partyState = cn.invoice?.clientState ?? null;
     const lines = cn.lines.map((li) => {
       const taxable = Number(li.amount);
       const rate = Number(li.gstRate);
@@ -649,6 +660,7 @@ async function buildPackSlices(
       date: cn.creditDate.toISOString().slice(0, 10),
       partyName: cn.customerName,
       partyGstin: gstin,
+      partyState,
       againstInvoice: cn.invoice?.invoiceNumber ?? null,
       taxable: Number(cn.subtotal),
       total: Number(cn.total),
@@ -662,11 +674,11 @@ async function buildPackSlices(
 
   const debitNoteRows = debitNotes.map((dn) => {
     const gstin = dn.vendor?.gstin ?? dn.bill?.vendorGstin ?? null;
+    // Purchase DNs are for books review only — do not fold into sales HSN / GSTR-1.
     const lines = dn.lines.map((li) => {
       const taxable = Number(li.amount);
       const rate = Number(li.gstRate);
       const hsn = li.resourceId ? hsnByResourceId.get(li.resourceId) ?? null : null;
-      addHsn(hsnMap, hsn, taxable, rate, Number(li.quantity));
       return {
         id: li.id,
         description: li.description,
@@ -695,10 +707,8 @@ async function buildPackSlices(
   });
 
   const billRows = bills.map((b) => {
+    // Purchase HSN stays on bill lines for purchase review; sales HSN tab uses invoices/CNs only.
     const lines = parseBillSnapshotLines(b.billSnapshot);
-    for (const li of lines) {
-      addHsn(hsnMap, li.hsn, li.taxable, li.gstRate, li.qty);
-    }
     return {
       id: b.id,
       number: b.billNumber,
@@ -826,14 +836,111 @@ async function suggestOpeningCashBalance(companyId: string, periodStart: Date): 
 
 type PackGstSlice = Awaited<ReturnType<typeof buildPackSlices>>['gst'];
 
+function normalizeInvoiceRow(raw: unknown): PackGstSlice['invoices'][number] {
+  const i = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const clientGstin =
+    typeof i.clientGstin === 'string' ? i.clientGstin : i.clientGstin == null ? null : String(i.clientGstin);
+  const hasGstin = Boolean(clientGstin?.trim());
+  const bucket =
+    i.bucket === 'B2B' || i.bucket === 'B2C' ? i.bucket : hasGstin ? ('B2B' as const) : ('B2C' as const);
+  const lines = Array.isArray(i.lines)
+    ? i.lines.map((liRaw, idx) => {
+        const li = (liRaw && typeof liRaw === 'object' ? liRaw : {}) as Record<string, unknown>;
+        return {
+          id: String(li.id ?? `line-${idx}`),
+          description: String(li.description ?? ''),
+          qty: Number(li.qty ?? 0) || 0,
+          rate: Number(li.rate ?? 0) || 0,
+          taxable: Number(li.taxable ?? 0) || 0,
+          gstRate: Number(li.gstRate ?? 0) || 0,
+          hsn: typeof li.hsn === 'string' ? li.hsn : li.hsn == null ? null : String(li.hsn),
+        };
+      })
+    : [];
+  return {
+    id: String(i.id ?? ''),
+    number: String(i.number ?? ''),
+    date: String(i.date ?? ''),
+    clientName: typeof i.clientName === 'string' ? i.clientName : String(i.clientName ?? ''),
+    clientGstin,
+    clientState: typeof i.clientState === 'string' ? i.clientState : i.clientState == null ? null : String(i.clientState),
+    gstRate: Number(i.gstRate ?? 0) || 0,
+    total: Number(i.total ?? 0) || 0,
+    taxable: Number(i.taxable ?? 0) || 0,
+    cgst: Number(i.cgst ?? 0) || 0,
+    sgst: Number(i.sgst ?? 0) || 0,
+    igst: Number(i.igst ?? 0) || 0,
+    bucket,
+    lines,
+  };
+}
+
+function normalizeNoteRow(raw: unknown): PackGstSlice['creditNotes'][number] {
+  const n = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const lines = Array.isArray(n.lines)
+    ? n.lines.map((liRaw, idx) => {
+        const li = (liRaw && typeof liRaw === 'object' ? liRaw : {}) as Record<string, unknown>;
+        return {
+          id: String(li.id ?? `note-line-${idx}`),
+          description: String(li.description ?? ''),
+          qty: Number(li.qty ?? 0) || 0,
+          rate: Number(li.rate ?? 0) || 0,
+          taxable: Number(li.taxable ?? 0) || 0,
+          gstRate: Number(li.gstRate ?? 0) || 0,
+          hsn: typeof li.hsn === 'string' ? li.hsn : li.hsn == null ? null : String(li.hsn),
+        };
+      })
+    : [];
+  return {
+    id: String(n.id ?? ''),
+    number: String(n.number ?? ''),
+    date: String(n.date ?? ''),
+    partyName: String(n.partyName ?? ''),
+    partyGstin:
+      typeof n.partyGstin === 'string' ? n.partyGstin : n.partyGstin == null ? null : String(n.partyGstin),
+    partyState:
+      typeof n.partyState === 'string' ? n.partyState : n.partyState == null ? null : String(n.partyState),
+    againstInvoice:
+      typeof n.againstInvoice === 'string'
+        ? n.againstInvoice
+        : n.againstInvoice == null
+          ? null
+          : String(n.againstInvoice),
+    taxable: Number(n.taxable ?? 0) || 0,
+    total: Number(n.total ?? 0) || 0,
+    gst: Number(n.gst ?? 0) || 0,
+    cgst: Number(n.cgst ?? 0) || 0,
+    sgst: Number(n.sgst ?? 0) || 0,
+    igst: Number(n.igst ?? 0) || 0,
+    lines,
+  };
+}
+
 /** Fill missing arrays on older snapshots (pre-CN/DN / pre-HSN rollup). */
 function normalizePackGst(raw: unknown): PackGstSlice {
   const g = (raw && typeof raw === 'object' ? raw : {}) as Partial<PackGstSlice>;
+  const invoices = (Array.isArray(g.invoices) ? g.invoices : []).map(normalizeInvoiceRow);
+  const creditNotes = (Array.isArray(g.creditNotes) ? g.creditNotes : []).map(normalizeNoteRow);
+  const debitNotes = (Array.isArray(g.debitNotes) ? g.debitNotes : []).map((rawNote) => {
+    const n = normalizeNoteRow(rawNote);
+    const src = (rawNote && typeof rawNote === 'object' ? rawNote : {}) as Record<string, unknown>;
+    return {
+      ...n,
+      againstBill:
+        typeof src.againstBill === 'string'
+          ? src.againstBill
+          : src.againstBill == null
+            ? null
+            : String(src.againstBill),
+    };
+  });
+  const b2bCount = invoices.filter((i) => i.bucket === 'B2B').length;
+  const b2cCount = invoices.filter((i) => i.bucket === 'B2C').length;
   return {
-    invoiceCount: Number(g.invoiceCount ?? 0),
-    billCount: Number(g.billCount ?? 0),
-    creditNoteCount: Number(g.creditNoteCount ?? (Array.isArray(g.creditNotes) ? g.creditNotes.length : 0)),
-    debitNoteCount: Number(g.debitNoteCount ?? (Array.isArray(g.debitNotes) ? g.debitNotes.length : 0)),
+    invoiceCount: Number(g.invoiceCount ?? invoices.length),
+    billCount: Number(g.billCount ?? (Array.isArray(g.bills) ? g.bills.length : 0)),
+    creditNoteCount: Number(g.creditNoteCount ?? creditNotes.length),
+    debitNoteCount: Number(g.debitNoteCount ?? debitNotes.length),
     invoiceTaxable: Number(g.invoiceTaxable ?? 0),
     invoiceCgst: Number(g.invoiceCgst ?? 0),
     invoiceSgst: Number(g.invoiceSgst ?? 0),
@@ -844,15 +951,15 @@ function normalizePackGst(raw: unknown): PackGstSlice {
     billTotal: Number(g.billTotal ?? 0),
     creditNoteGst: Number(g.creditNoteGst ?? 0),
     debitNoteGst: Number(g.debitNoteGst ?? 0),
-    b2bCount: Number(g.b2bCount ?? 0),
-    b2cCount: Number(g.b2cCount ?? 0),
+    b2bCount: Number(g.b2bCount ?? b2bCount),
+    b2cCount: Number(g.b2cCount ?? b2cCount),
     missingHsnLines: Number(g.missingHsnLines ?? 0),
     rateWise: Array.isArray(g.rateWise) ? g.rateWise : [],
     hsnSummary: Array.isArray(g.hsnSummary) ? g.hsnSummary : [],
-    invoices: Array.isArray(g.invoices) ? g.invoices : [],
+    invoices,
     bills: Array.isArray(g.bills) ? g.bills : [],
-    creditNotes: Array.isArray(g.creditNotes) ? g.creditNotes : [],
-    debitNotes: Array.isArray(g.debitNotes) ? g.debitNotes : [],
+    creditNotes,
+    debitNotes,
   };
 }
 
@@ -1026,7 +1133,26 @@ export async function exportGstHandoffPack(
     where: { id: companyId },
     select: { gstin: true, name: true, state: true },
   });
-  const gst = normalizePackGst(detail.gst);
+  const packGst = normalizePackGst(detail.gst);
+  // GSTR-1 builders: sales invoices + sales credit notes only (no purchase debit notes).
+  const gstr1Gst = {
+    invoices: packGst.invoices,
+    creditNotes: packGst.creditNotes.map((n) => ({
+      number: n.number,
+      date: n.date,
+      partyName: n.partyName,
+      partyGstin: n.partyGstin,
+      partyState: (n as { partyState?: string | null }).partyState ?? null,
+      taxable: n.taxable,
+      total: n.total,
+      gst: n.gst,
+      cgst: n.cgst,
+      sgst: n.sgst,
+      igst: n.igst,
+      lines: n.lines,
+    })),
+    debitNotes: [] as typeof packGst.debitNotes,
+  };
   const label = detail.label.replace(/[^\w.-]+/g, '_');
   const supplierStateCode = resolveStateCode(company.state, company.gstin);
 
@@ -1034,7 +1160,7 @@ export async function exportGstHandoffPack(
     const json = buildGstr1OfflineJson({
       gstin: company.gstin,
       periodEnd: detail.periodEnd,
-      gst,
+      gst: gstr1Gst,
       supplierStateCode,
     });
     return {
@@ -1046,7 +1172,7 @@ export async function exportGstHandoffPack(
 
   if (opts.format === 'xlsx') {
     const body = await buildGstr1OfflineExcel({
-      gst,
+      gst: gstr1Gst,
       periodEnd: detail.periodEnd,
       supplierStateCode,
       label: detail.label,
@@ -1060,7 +1186,7 @@ export async function exportGstHandoffPack(
 
   if (opts.format === 'csv') {
     const files = buildGstr1OfflineSectionFiles({
-      gst,
+      gst: gstr1Gst,
       periodEnd: detail.periodEnd,
       supplierStateCode,
     });

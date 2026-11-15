@@ -473,7 +473,7 @@ export default function AuditorPackScreen() {
                     />
                   </>
                 ) : null
-              ) : (
+              ) : data.status === 'DRAFT' ? (
                 <>
                   <Button
                     label="Delete"
@@ -490,7 +490,7 @@ export default function AuditorPackScreen() {
                     fullWidth={isPhone}
                   />
                 </>
-              )}
+              ) : null}
             </View>
           </View>
         </View>
@@ -700,7 +700,7 @@ export default function AuditorPackScreen() {
               {gstTab === 'CN/DN' ? (
                 <View className="gap-4">
                   <View className="gap-2">
-                    <Text className="text-sm font-bold text-text">Credit notes</Text>
+                    <Text className="text-sm font-bold text-text">Credit notes (sales / GSTR-1)</Text>
                     {creditNotes.length === 0 ? (
                       <Text className="text-sm text-muted py-2">No credit notes in this period.</Text>
                     ) : (
@@ -711,7 +711,7 @@ export default function AuditorPackScreen() {
                             title={`${n.number} · ${inr(n.total)}`}
                             subtitle={`${n.date} · ${n.partyName}${
                               n.partyGstin ? ` · ${n.partyGstin}` : ''
-                            }`}
+                            }${n.againstInvoice ? ` · vs ${n.againstInvoice}` : ''}`}
                             meta={`Taxable ${inr(n.taxable)} · C/S/I ${inr(n.cgst)}/${inr(n.sgst)}/${inr(n.igst)}`}
                           />
                         ),
@@ -719,7 +719,12 @@ export default function AuditorPackScreen() {
                     )}
                   </View>
                   <View className="gap-2">
-                    <Text className="text-sm font-bold text-text">Debit notes</Text>
+                    <Text className="text-sm font-bold text-text">
+                      Debit notes (purchase · books only)
+                    </Text>
+                    <Text className="text-xs text-muted">
+                      Purchase DNs are shown for review and are not included in GSTR-1 downloads.
+                    </Text>
                     {debitNotes.length === 0 ? (
                       <Text className="text-sm text-muted py-2">No debit notes in this period.</Text>
                     ) : (
@@ -730,8 +735,8 @@ export default function AuditorPackScreen() {
                             title={`${n.number} · ${inr(n.total)}`}
                             subtitle={`${n.date} · ${n.partyName}${
                               n.partyGstin ? ` · ${n.partyGstin}` : ''
-                            }`}
-                            meta={`Taxable ${inr(n.taxable)} · GST ${inr(n.gst)}`}
+                            }${n.againstBill ? ` · vs ${n.againstBill}` : ''}`}
+                            meta={`Taxable ${inr(n.taxable)} · C/S/I ${inr(n.cgst ?? 0)}/${inr(n.sgst ?? 0)}/${inr(n.igst ?? 0)}`}
                           />
                         ),
                       )

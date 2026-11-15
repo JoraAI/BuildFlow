@@ -117,6 +117,8 @@ export type GstPackDetail = GstPackSummary & {
       date: string;
       partyName: string;
       partyGstin: string | null;
+      partyState?: string | null;
+      againstInvoice?: string | null;
       taxable: number;
       total: number;
       gst: number;
@@ -130,9 +132,13 @@ export type GstPackDetail = GstPackSummary & {
       date: string;
       partyName: string;
       partyGstin: string | null;
+      againstBill?: string | null;
       taxable: number;
       total: number;
       gst: number;
+      cgst: number;
+      sgst: number;
+      igst: number;
     }>;
   };
   manualEntries: Array<{
