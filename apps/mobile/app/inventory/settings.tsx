@@ -5,7 +5,7 @@
  * pending invites, and logout. Tally export entry point included.
  */
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Modal, Pressable, Linking } from 'react-native';
+import { View, Text, ScrollView, Modal, Pressable, Linking, Alert, Platform } from 'react-native';
 import {
   Card,
   Badge,
@@ -87,6 +87,24 @@ export default function InventorySettingsScreen() {
   const [packLabel, setPackLabel] = useState('');
   const [packCadence, setPackCadence] = useState<'MONTHLY' | 'QUARTERLY'>('MONTHLY');
   const [packDay, setPackDay] = useState('5');
+  const confirmClearPack = (message: string, onConfirm: () => void) => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      if (window.confirm(message)) onConfirm();
+      return;
+    }
+    Alert.alert('Clear GST pack?', message, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Clear', style: 'destructive', onPress: onConfirm },
+    ]);
+  };
+  const clearGstPack = async (packId: string) => {
+    try {
+      await deleteGstPack.mutateAsync(packId);
+      toast.success('Pack cleared');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not clear');
+    }
+  };
   const updateCompany = useUpdateCompany();
   const uploadLogo = useCompanyLogoUpload();
   const updateReportSettings = useUpdateReportSettings();
@@ -629,7 +647,8 @@ export default function InventorySettingsScreen() {
           <Card className="p-5 mb-4">
             <Text className="text-base font-bold text-text mb-1">GST packs for auditor</Text>
             <Text className="text-xs text-muted mb-3">
-              Review draft → set opening cash/bank → send. Auditors only see sent packs.
+              Review draft → set opening cash/bank → send. Auditors only see sent packs. Clear
+              removes a pack from owner and auditor views (useful for re-testing).
             </Text>
             {(() => {
               const now = new Date();
@@ -788,90 +807,116 @@ export default function InventorySettingsScreen() {
             {(gstPacks ?? []).length === 0 ? (
               <Text className="text-xs text-muted">No packs yet. Create one for last month to get started.</Text>
             ) : (
-              (gstPacks ?? []).map((p: { id: string; label: string; periodStart: string; periodEnd: string; status: string }) => (
-                <View
-                  key={p.id}
-                  className="flex-row items-center justify-between py-2 border-b border-border/60"
-                >
-                  <View className="flex-1 min-w-0 mr-2">
-                    <Text className="text-sm font-semibold text-text">{p.label}</Text>
-                    <Text className="text-xs text-muted">
-                      {p.periodStart} → {p.periodEnd} · {p.status}
-                    </Text>
-                  </View>
-                  {p.status === 'DRAFT' ? (
-                    <View className="flex-row gap-2">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        label="Delete"
-                        onPress={() =>
-                          void run(async () => {
-                            try {
-                              await deleteGstPack.mutateAsync(p.id);
-                              toast.success('Draft deleted');
-                            } catch (e) {
-                              toast.error(e instanceof Error ? e.message : 'Could not delete');
-                            }
-                          })
-                        }
-                      />
-                      <Button
-                        size="sm"
-                        label="Review"
-                        onPress={() => router.push(`/inventory/auditor/${p.id}?mode=owner`)}
-                      />
-                    </View>
-                  ) : (
-                    <View className="flex-row flex-wrap items-center gap-2">
-                      <OverflowMenu
-                        label="GSTR-1"
-                        trigger="button"
-                        title="Download GSTR-1"
-                        accessibilityLabel="Download GSTR-1"
-                        items={[
-                          {
-                            key: 'xlsx',
-                            label: 'Download as Excel',
-                            icon: 'document-outline',
-                            onPress: () =>
-                              void downloadGstPackExport(p.id, 'xlsx', { asOwner: true }),
-                          },
-                          {
-                            key: 'json',
-                            label: 'Download as JSON',
-                            icon: 'code-slash-outline',
-                            onPress: () =>
-                              void downloadGstPackExport(p.id, 'gstr1-json', { asOwner: true }),
-                          },
-                        ]}
-                      />
-                      <OverflowMenu
-                        title="Downloads"
-                        accessibilityLabel="More pack downloads"
-                        trigger="outline"
-                        items={[
-                          {
-                            key: 'books',
-                            label: 'Books Excel',
-                            icon: 'folder-outline',
-                            onPress: () =>
-                              void downloadGstPackExport(p.id, 'books-xlsx', { asOwner: true }),
-                          },
-                          {
-                            key: 'csv',
-                            label: 'Offline CSV zip',
-                            icon: 'archive-outline',
-                            onPress: () =>
-                              void downloadGstPackExport(p.id, 'csv', { asOwner: true }),
-                          },
-                        ]}
-                      />
+              <>
+                {(gstPacks ?? []).map((p: { id: string; label: string; periodStart: string; periodEnd: string; status: string }) => (
+                  <View
+                    key={p.id}
+                    className="py-3 border-b border-border/60 gap-2"
+                  >
+                    <View className="flex-row items-start justify-between gap-2">
+                      <View className="flex-1 min-w-0">
+                        <Text className="text-sm font-semibold text-text">{p.label}</Text>
+                        <Text className="text-xs text-muted">
+                          {p.periodStart} → {p.periodEnd} · {p.status}
+                        </Text>
+                      </View>
                       <Badge label={p.status} />
                     </View>
-                  )}
-                </View>
-              ))
+                    <View className="flex-row flex-wrap items-center gap-2">
+                      {p.status === 'DRAFT' ? (
+                        <Button
+                          size="sm"
+                          label="Review"
+                          onPress={() => router.push(`/inventory/auditor/${p.id}?mode=owner`)}
+                        />
+                      ) : (
+                        <>
+                          <OverflowMenu
+                            label="GSTR-1"
+                            trigger="button"
+                            title="Download GSTR-1"
+                            accessibilityLabel="Download GSTR-1"
+                            items={[
+                              {
+                                key: 'xlsx',
+                                label: 'Download as Excel',
+                                icon: 'document-outline',
+                                onPress: () =>
+                                  void downloadGstPackExport(p.id, 'xlsx', { asOwner: true }),
+                              },
+                              {
+                                key: 'json',
+                                label: 'Download as JSON',
+                                icon: 'code-slash-outline',
+                                onPress: () =>
+                                  void downloadGstPackExport(p.id, 'gstr1-json', { asOwner: true }),
+                              },
+                            ]}
+                          />
+                          <OverflowMenu
+                            title="Downloads"
+                            accessibilityLabel="More pack downloads"
+                            trigger="outline"
+                            items={[
+                              {
+                                key: 'books',
+                                label: 'Books Excel',
+                                icon: 'folder-outline',
+                                onPress: () =>
+                                  void downloadGstPackExport(p.id, 'books-xlsx', { asOwner: true }),
+                              },
+                              {
+                                key: 'csv',
+                                label: 'Offline CSV zip',
+                                icon: 'archive-outline',
+                                onPress: () =>
+                                  void downloadGstPackExport(p.id, 'csv', { asOwner: true }),
+                              },
+                            ]}
+                          />
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            label="Open"
+                            onPress={() => router.push(`/inventory/auditor/${p.id}?mode=owner`)}
+                          />
+                        </>
+                      )}
+                    </View>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      label="Clear pack"
+                      fullWidth
+                      onPress={() =>
+                        confirmClearPack(
+                          `Remove “${p.label}” (${p.status}) from owner and auditor views?`,
+                          () => void run(() => clearGstPack(p.id)),
+                        )
+                      }
+                    />
+                  </View>
+                ))}
+                {(gstPacks ?? []).length > 1 ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    label="Clear all packs"
+                    fullWidth
+                    onPress={() =>
+                      confirmClearPack(
+                        `Remove all ${(gstPacks ?? []).length} GST packs from owner and auditor views?`,
+                        () =>
+                          void run(async () => {
+                            for (const p of gstPacks ?? []) {
+                              await clearGstPack(p.id);
+                            }
+                          }),
+                      )
+                    }
+                  />
+                ) : null}
+              </>
             )}
           </Card>
         )}

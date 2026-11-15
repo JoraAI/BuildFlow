@@ -2,7 +2,7 @@
  * GST pack desk — auditor inbox + owner draft review (?mode=owner).
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, Alert, Platform } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import {
   downloadGstPackExport,
@@ -216,14 +216,29 @@ export default function AuditorPackScreen() {
     }
   };
 
-  const onDeleteDraft = async () => {
-    try {
-      await deletePack.mutateAsync(packId!);
-      toast.success('Draft deleted');
-      router.replace('/inventory/settings');
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not delete');
+  const onClearPack = () => {
+    const runClear = async () => {
+      try {
+        await deletePack.mutateAsync(packId!);
+        toast.success('Pack cleared');
+        router.replace('/inventory/settings');
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Could not clear');
+      }
+    };
+    if (data?.status === 'DRAFT') {
+      void runClear();
+      return;
     }
+    const message = `Remove “${data?.label ?? 'this pack'}” from owner and auditor views?`;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      if (window.confirm(message)) void runClear();
+      return;
+    }
+    Alert.alert('Clear GST pack?', message, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Clear', style: 'destructive', onPress: () => void runClear() },
+    ]);
   };
 
   const gst = data.gst;
@@ -386,10 +401,10 @@ export default function AuditorPackScreen() {
       ) : data.status === 'DRAFT' ? (
         <>
           <Button
-            label="Delete"
+            label="Clear"
             variant="secondary"
             size="sm"
-            onPress={() => void onDeleteDraft()}
+            onPress={onClearPack}
             loading={deletePack.isPending}
           />
           <Button
@@ -400,7 +415,15 @@ export default function AuditorPackScreen() {
             fullWidth={isPhone}
           />
         </>
-      ) : null}
+      ) : (
+        <Button
+          label="Clear"
+          variant="secondary"
+          size="sm"
+          onPress={onClearPack}
+          loading={deletePack.isPending}
+        />
+      )}
     </View>
   );
 

@@ -44,7 +44,7 @@ export async function updateDraftPack(req: Request, res: Response, next: NextFun
 
 export async function deletePack(req: Request, res: Response, next: NextFunction) {
   try {
-    ok(res, await svc.deleteDraftPack(req.user!.companyId, req.params.packId, req.user!.id));
+    ok(res, await svc.deleteOwnerPack(req.user!.companyId, req.params.packId, req.user!.id));
   } catch (err) {
     next(err);
   }

@@ -203,12 +203,10 @@ export async function createGstHandoffPack(
   return serializePack(pack);
 }
 
-export async function deleteDraftPack(companyId: string, packId: string, actorId: string) {
+/** Owner/IM may clear any pack (including sent) so auditor inbox can be reset for re-testing. */
+export async function deleteOwnerPack(companyId: string, packId: string, actorId: string) {
   const pack = await prisma.gstHandoffPack.findFirst({ where: { id: packId, companyId } });
   if (!pack) throw ApiError.notFound('Pack not found');
-  if (pack.status !== GstHandoffStatus.DRAFT) {
-    throw ApiError.badRequest('Only draft packs can be deleted');
-  }
   await prisma.gstHandoffPack.delete({ where: { id: packId } });
   await recordAudit({
     companyId,
@@ -216,9 +214,13 @@ export async function deleteDraftPack(companyId: string, packId: string, actorId
     action: 'DELETE',
     entityType: 'gst_handoff_pack',
     entityId: packId,
+    oldValue: { status: pack.status, label: pack.label },
   });
   return { deleted: true as const };
 }
+
+/** @deprecated Use deleteOwnerPack — kept name alias for older call sites/tests. */
+export const deleteDraftPack = deleteOwnerPack;
 
 export async function updateGstHandoffPackDraft(
   companyId: string,

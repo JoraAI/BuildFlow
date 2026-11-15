@@ -357,7 +357,10 @@ export function useDeleteGstPack() {
   return useMutation({
     mutationFn: (packId: string) =>
       apiFetch<{ deleted: true }>(`/inventory/auditor/packs/${packId}`, { method: 'DELETE' }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['auditor', 'owner-packs'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['auditor', 'owner-packs'] });
+      qc.invalidateQueries({ queryKey: ['auditor', 'inbox'] });
+    },
   });
 }
 
