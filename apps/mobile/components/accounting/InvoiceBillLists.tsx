@@ -13,7 +13,6 @@ import { useRouter } from 'expo-router';
 import { Card, Badge, EmptyState, LoadingSkeleton, Button, BusyOverlay, useBusy } from '@/components/ui';
 import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 import { inventoryPageListPadding } from '@/components/inventory/InventoryScreenList';
-import { StickyTableHeader } from '@/components/inventory/StickyTableHeader';
 import { useViewport } from '@/hooks/useViewport';
 import { usePermission } from '@/hooks/usePermission';
 import {
@@ -28,6 +27,59 @@ import {
 import { formatINR, formatDate, daysBetween } from '@/utils/format';
 import { confirmAsync, alertAsync } from '@/utils/confirm';
 import { billDetailHref, invoiceDetailHref, DISMISS } from '@/utils/navigation';
+import { COLORS } from '@/constants';
+
+/** Match Sales / Parties desktop column rhythm. */
+const DOC_COL = {
+  number: 'flex-[1.2]',
+  party: 'flex-[1.4]',
+  status: 'flex-1',
+  total: 'flex-1',
+  actions: 'flex-[1.6]',
+} as const;
+
+function DocTableHeader({
+  numberLabel,
+  partyLabel,
+}: {
+  numberLabel: string;
+  partyLabel: string;
+}) {
+  return (
+    <View className="flex-row items-center px-4 py-2">
+      <Text className={`${DOC_COL.number} text-[11px] font-bold text-muted uppercase`}>
+        {numberLabel}
+      </Text>
+      <Text className={`${DOC_COL.party} text-[11px] font-bold text-muted uppercase`}>
+        {partyLabel}
+      </Text>
+      <Text className={`${DOC_COL.status} text-[11px] font-bold text-muted uppercase`}>Status</Text>
+      <Text className={`${DOC_COL.total} text-[11px] font-bold text-muted uppercase text-right`}>
+        Total
+      </Text>
+      <Text className={`${DOC_COL.actions} text-[11px] font-bold text-muted uppercase text-right`}>
+        Actions
+      </Text>
+    </View>
+  );
+}
+
+function PinnedDocHeader({ children }: { children: React.ReactNode }) {
+  return (
+    <View
+      className="shrink-0"
+      style={{
+        zIndex: 30,
+        elevation: 8,
+        backgroundColor: COLORS.surface,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
+      }}
+    >
+      {children}
+    </View>
+  );
+}
 
 const INVOICE_STATUS_COLOR: Record<string, 'success' | 'warning' | 'danger' | 'primary' | 'neutral'> = {
   DRAFT: 'neutral',
@@ -168,67 +220,66 @@ export function ProjectInvoicesList({
     }
   };
 
-  const listPadding =
-    embedded && tableMode && isDesktop
-      ? undefined
-      : {
-          paddingBottom: listChrome
-            ? inventoryPageListPadding(true)
-            : mobileListBottomPadding(true),
-        };
+  const bottomPad = listChrome
+    ? inventoryPageListPadding(true)
+    : mobileListBottomPadding(true);
 
   return (
     <View className={embedded ? 'flex-1 min-h-0' : undefined}>
       <BusyOverlay visible={busy} title="Updating invoice…" />
-    <FlatList
-      className={embedded ? 'flex-1 min-h-0' : undefined}
-      data={filtered}
-      keyExtractor={(item) => item.id}
-      scrollEnabled={!embedded ? !tableMode : true}
-      refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
-      contentContainerClassName={embedded ? 'pb-4' : tableMode ? undefined : 'px-4 pt-2'}
-      contentContainerStyle={listPadding}
-      ItemSeparatorComponent={() =>
-        tableMode ? <View className="h-px bg-border mx-4" /> : <View className="h-4" />
-      }
-      ListEmptyComponent={
-        <View className={embedded || tableMode ? 'p-8' : undefined}>
-          <EmptyState
-            title="No invoices"
-            description={
-              q || filter !== 'ALL'
-                ? 'No invoices match the current search or filter.'
-                : 'Create a GST-compliant invoice for this project, or issue stock to auto-create a draft.'
+      {tableMode && filtered.length > 0 ? (
+        <PinnedDocHeader>
+          <DocTableHeader numberLabel="Invoice #" partyLabel="Client" />
+        </PinnedDocHeader>
+      ) : null}
+      <FlatList
+        className={embedded ? 'flex-1 min-h-0' : undefined}
+        data={filtered}
+        keyExtractor={(item) => item.id}
+        scrollEnabled={!embedded ? !tableMode : true}
+        refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
+        contentContainerClassName={embedded || tableMode ? undefined : 'px-4 pt-2'}
+        contentContainerStyle={
+          tableMode
+            ? { paddingHorizontal: 16, paddingTop: 8, paddingBottom: bottomPad }
+            : { paddingBottom: bottomPad }
+        }
+        ItemSeparatorComponent={tableMode ? null : () => <View className="h-4" />}
+        ListEmptyComponent={
+          <View className={embedded || tableMode ? 'p-8' : undefined}>
+            <EmptyState
+              title="No invoices"
+              description={
+                q || filter !== 'ALL'
+                  ? 'No invoices match the current search or filter.'
+                  : 'Create a GST-compliant invoice for this project, or issue stock to auto-create a draft.'
+              }
+            />
+          </View>
+        }
+        ListHeaderComponent={
+          <>
+            {listChrome}
+            {!stickyFilters ? (
+              <FilterPills options={INVOICE_FILTERS} value={filter} onChange={setFilter} />
+            ) : null}
+          </>
+        }
+        renderItem={({ item }) => (
+          <View
+            className={
+              focusId === item.id ? 'border border-primary bg-primary/5 rounded-xl mb-2' : undefined
             }
-          />
-        </View>
-      }
-      ListHeaderComponent={
-        <>
-          {listChrome}
-          {!stickyFilters ? (
-            <FilterPills options={INVOICE_FILTERS} value={filter} onChange={setFilter} />
-          ) : null}
-          {tableMode && filtered.length > 0 && (
-            <StickyTableHeader className="flex-row items-center px-4 py-2 gap-2">
-              <Text className="w-[120px] shrink-0 text-xs font-semibold text-muted uppercase">Invoice #</Text>
-              <Text className="flex-1 min-w-0 text-xs font-semibold text-muted uppercase">Client</Text>
-              <Text className="w-[96px] shrink-0 text-xs font-semibold text-muted uppercase">Status</Text>
-            </StickyTableHeader>
-          )}
-        </>
-      }
-      renderItem={({ item }) => (
-        <View className={focusId === item.id ? 'border border-primary bg-primary/5 rounded-xl' : undefined}>
-          <InvoiceRow
-            item={item}
-            canSend={canSend}
-            onPress={() => router.push(buildDetailHref(item.id, detailReturnTo) as never)}
-            onSend={() => onSend(item.id)}
-          />
-        </View>
-      )}
-    />
+          >
+            <InvoiceRow
+              item={item}
+              canSend={canSend}
+              onPress={() => router.push(buildDetailHref(item.id, detailReturnTo) as never)}
+              onSend={() => onSend(item.id)}
+            />
+          </View>
+        )}
+      />
     </View>
   );
 }
@@ -330,68 +381,67 @@ export function ProjectBillsList({
     }
   };
 
-  const listPadding =
-    embedded && tableMode && isDesktop
-      ? undefined
-      : {
-          paddingBottom: listChrome
-            ? inventoryPageListPadding(true)
-            : mobileListBottomPadding(true),
-        };
+  const bottomPad = listChrome
+    ? inventoryPageListPadding(true)
+    : mobileListBottomPadding(true);
 
   return (
     <View className={embedded ? 'flex-1 min-h-0' : undefined}>
       <BusyOverlay visible={busy} title="Updating bill…" />
-    <FlatList
-      className={embedded ? 'flex-1 min-h-0' : undefined}
-      data={filtered}
-      keyExtractor={(item) => item.id}
-      scrollEnabled={!embedded ? !tableMode : true}
-      refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
-      contentContainerClassName={embedded ? 'pb-4' : tableMode ? undefined : 'px-4 pt-2'}
-      contentContainerStyle={listPadding}
-      ItemSeparatorComponent={() =>
-        tableMode ? <View className="h-px bg-border mx-4" /> : <View className="h-4" />
-      }
-      ListEmptyComponent={
-        <View className={embedded || tableMode ? 'p-8' : undefined}>
-          <EmptyState
-            title="No bills"
-            description={
-              q || filter !== 'ALL'
-                ? 'No bills match the current search or filter.'
-                : 'Add a vendor bill to track project costs.'
+      {tableMode && filtered.length > 0 ? (
+        <PinnedDocHeader>
+          <DocTableHeader numberLabel="Bill #" partyLabel="Vendor" />
+        </PinnedDocHeader>
+      ) : null}
+      <FlatList
+        className={embedded ? 'flex-1 min-h-0' : undefined}
+        data={filtered}
+        keyExtractor={(item) => item.id}
+        scrollEnabled={!embedded ? !tableMode : true}
+        refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
+        contentContainerClassName={embedded || tableMode ? undefined : 'px-4 pt-2'}
+        contentContainerStyle={
+          tableMode
+            ? { paddingHorizontal: 16, paddingTop: 8, paddingBottom: bottomPad }
+            : { paddingBottom: bottomPad }
+        }
+        ItemSeparatorComponent={tableMode ? null : () => <View className="h-4" />}
+        ListEmptyComponent={
+          <View className={embedded || tableMode ? 'p-8' : undefined}>
+            <EmptyState
+              title="No bills"
+              description={
+                q || filter !== 'ALL'
+                  ? 'No bills match the current search or filter.'
+                  : 'Add a vendor bill to track project costs.'
+              }
+            />
+          </View>
+        }
+        ListHeaderComponent={
+          <>
+            {listChrome}
+            {!stickyFilters ? (
+              <FilterPills options={BILL_FILTERS} value={filter} onChange={setFilter} />
+            ) : null}
+          </>
+        }
+        renderItem={({ item }) => (
+          <View
+            className={
+              focusId === item.id ? 'border border-primary bg-primary/5 rounded-xl mb-2' : undefined
             }
-          />
-        </View>
-      }
-      ListHeaderComponent={
-        <>
-          {listChrome}
-          {!stickyFilters ? (
-            <FilterPills options={BILL_FILTERS} value={filter} onChange={setFilter} />
-          ) : null}
-          {tableMode && filtered.length > 0 && (
-            <StickyTableHeader className="flex-row items-center px-4 py-2 gap-2">
-              <Text className="w-[120px] shrink-0 text-xs font-semibold text-muted uppercase">Bill #</Text>
-              <Text className="flex-1 min-w-0 text-xs font-semibold text-muted uppercase">Vendor</Text>
-              <Text className="w-[96px] shrink-0 text-xs font-semibold text-muted uppercase">Status</Text>
-            </StickyTableHeader>
-          )}
-        </>
-      }
-      renderItem={({ item }) => (
-        <View className={focusId === item.id ? 'border border-primary bg-primary/5 rounded-xl' : undefined}>
-          <BillRow
-            item={item}
-            canApprove={canApprove}
-            onPress={() => router.push(buildDetailHref(item.id, detailReturnTo) as never)}
-            onApprove={() => onApprove(item.id, item.status)}
-            onReject={() => onReject(item.id)}
-          />
-        </View>
-      )}
-    />
+          >
+            <BillRow
+              item={item}
+              canApprove={canApprove}
+              onPress={() => router.push(buildDetailHref(item.id, detailReturnTo) as never)}
+              onApprove={() => onApprove(item.id, item.status)}
+              onReject={() => onReject(item.id)}
+            />
+          </View>
+        )}
+      />
     </View>
   );
 }
@@ -421,29 +471,38 @@ function InvoiceRow({
 
   if (tableMode) {
     return (
-      <Pressable onPress={onPress} className="px-4 py-3 bg-card active:bg-surface border-b border-border/60">
-        <View className="flex-row items-start gap-3">
-          <View className="flex-1 min-w-0">
-            <Text className="text-sm font-mono font-semibold text-text" numberOfLines={1}>
-              {item.invoiceNumber}
+      <Pressable
+        onPress={onPress}
+        className="mb-2 flex-row items-center rounded-xl border border-border bg-card px-4 py-4 active:bg-primary/5"
+      >
+        <View className={`${DOC_COL.number} min-w-0 pr-2`}>
+          <Text className="text-sm font-mono font-semibold text-text" numberOfLines={1}>
+            {item.invoiceNumber}
+          </Text>
+          <Text className="text-[11px] text-muted mt-0.5" numberOfLines={1}>
+            Due {formatDate(item.dueDate)}
+            {overdueDays > 0 ? ` · ${overdueDays}d overdue` : ''}
+          </Text>
+        </View>
+        <View className={`${DOC_COL.party} min-w-0 pr-2`}>
+          <Text className="text-sm text-text" numberOfLines={1}>
+            {item.clientName}
+          </Text>
+          {item.paidAmount > 0 ? (
+            <Text className="text-[11px] text-muted mt-0.5" numberOfLines={1}>
+              Paid {formatINR(item.paidAmount)}
+              {balance > 0.01 ? ` · Bal ${formatINR(balance)}` : ''}
             </Text>
-            <Text className="text-sm text-text mt-0.5" numberOfLines={1}>
-              {item.clientName}
-            </Text>
-            <Text className="text-base font-bold text-text mt-2">{formatINR(item.total)}</Text>
-            <Text className="text-[11px] text-muted mt-0.5">
-              Due {formatDate(item.dueDate)}
-              {item.paidAmount > 0 ? ` · Paid ${formatINR(item.paidAmount)}` : ''}
-              {balance > 0.01 && item.paidAmount > 0 ? ` · Bal ${formatINR(balance)}` : ''}
-            </Text>
-            {overdueDays > 0 ? (
-              <Text className="text-[11px] text-danger font-semibold mt-0.5">{overdueDays}d overdue</Text>
-            ) : null}
-          </View>
-          <View className="items-end gap-2 shrink-0 min-w-[96px]">
-            <Badge color={INVOICE_STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
-            {actions}
-          </View>
+          ) : null}
+        </View>
+        <View className={DOC_COL.status}>
+          <Badge color={INVOICE_STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
+        </View>
+        <Text className={`${DOC_COL.total} text-sm font-semibold text-text text-right`}>
+          {formatINR(item.total)}
+        </Text>
+        <View className={`${DOC_COL.actions} flex-row flex-wrap justify-end gap-2 pl-2`}>
+          {actions}
         </View>
       </Pressable>
     );
@@ -527,36 +586,46 @@ function BillRow({
 
   if (tableMode) {
     return (
-      <Pressable onPress={onPress} className="px-4 py-3 bg-card active:bg-surface border-b border-border/60">
-        <View className="flex-row items-start gap-3">
-          <View className="flex-1 min-w-0">
-            <Text className="text-sm font-mono font-semibold text-text" numberOfLines={1}>
-              {item.billNumber}
+      <Pressable
+        onPress={onPress}
+        className="mb-2 flex-row items-center rounded-xl border border-border bg-card px-4 py-4 active:bg-primary/5"
+      >
+        <View className={`${DOC_COL.number} min-w-0 pr-2`}>
+          <Text className="text-sm font-mono font-semibold text-text" numberOfLines={1}>
+            {item.billNumber}
+          </Text>
+          <Text className="text-[11px] text-muted mt-0.5" numberOfLines={1}>
+            {formatDate(item.billDate)} · {item.category}
+          </Text>
+        </View>
+        <View className={`${DOC_COL.party} min-w-0 pr-2`}>
+          <Text className="text-sm text-text" numberOfLines={1}>
+            {item.vendorName}
+          </Text>
+          {item.paidAmount > 0 ? (
+            <Text className="text-[11px] text-muted mt-0.5" numberOfLines={1}>
+              Paid {formatINR(item.paidAmount)}
             </Text>
-            <Text className="text-sm text-text mt-0.5" numberOfLines={1}>
-              {item.vendorName}
-            </Text>
-            <Text className="text-base font-bold text-text mt-2">{formatINR(item.total)}</Text>
-            <Text className="text-[11px] text-muted mt-0.5">
-              {item.category}
-              {item.paidAmount > 0 ? ` · Paid ${formatINR(item.paidAmount)}` : ''}
-              {` · ${formatDate(item.billDate)}`}
-            </Text>
-          </View>
-          <View className="items-end gap-2 shrink-0 min-w-[96px]">
-            <Badge color={BILL_STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
-            {showActions ? (
-              <View className="gap-1.5 items-stretch w-full max-w-[120px]">
-                <Button
-                  label={item.status === 'DRAFT' ? 'Confirm' : 'Approve'}
-                  variant="primary"
-                  size="sm"
-                  onPress={onApprove}
-                />
-                <Button label="Reject" variant="danger" size="sm" onPress={onReject} />
-              </View>
-            ) : null}
-          </View>
+          ) : null}
+        </View>
+        <View className={DOC_COL.status}>
+          <Badge color={BILL_STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
+        </View>
+        <Text className={`${DOC_COL.total} text-sm font-semibold text-text text-right`}>
+          {formatINR(item.total)}
+        </Text>
+        <View className={`${DOC_COL.actions} flex-row flex-wrap justify-end gap-2 pl-2`}>
+          {showActions ? (
+            <>
+              <Button
+                label={item.status === 'DRAFT' ? 'Confirm' : 'Approve'}
+                variant="primary"
+                size="sm"
+                onPress={onApprove}
+              />
+              <Button label="Reject" variant="danger" size="sm" onPress={onReject} />
+            </>
+          ) : null}
         </View>
       </Pressable>
     );
