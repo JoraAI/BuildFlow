@@ -10,7 +10,8 @@ import {
   Text,
   RefreshControl,
   Pressable,
-  Platform,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   type ViewStyle,
 } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
@@ -36,7 +37,6 @@ import { InventoryPageHeader } from '@/components/inventory/InventoryPageHeader'
 import { StockHero, formatHeroMoney } from '@/components/inventory/StockHero';
 import { StockRow } from '@/components/inventory/StockRow';
 import { InventoryScreenList } from '@/components/inventory/InventoryScreenList';
-import { StickyTableHeader } from '@/components/inventory/StickyTableHeader';
 import { useInventoryDashboard } from '@/services/inventory-analytics.queries';
 import { useExpirySummary } from '@/services/expansion.queries';
 import {
@@ -57,9 +57,39 @@ const STOCK_COL = {
   actions: { flexGrow: 1.45, flexShrink: 0, flexBasis: 0, minWidth: 168 } satisfies ViewStyle,
 } as const;
 
-type StockListRow =
-  | { kind: 'cols'; key: string }
-  | { kind: 'item'; key: string; item: StockSummaryRow };
+function StockColumnLabels() {
+  return (
+    <View className="flex-row items-center py-3 px-4" style={{ backgroundColor: COLORS.surface }}>
+      <Text style={STOCK_COL.name} className="text-[11px] font-bold text-muted uppercase">
+        Name
+      </Text>
+      <Text
+        style={STOCK_COL.balance}
+        className="text-[11px] font-bold text-muted uppercase text-right"
+      >
+        Balance
+      </Text>
+      <Text style={STOCK_COL.money} className="text-[11px] font-bold text-muted uppercase text-right">
+        Cost
+      </Text>
+      <Text style={STOCK_COL.money} className="text-[11px] font-bold text-muted uppercase text-right">
+        Sell
+      </Text>
+      <Text style={STOCK_COL.money} className="text-[11px] font-bold text-muted uppercase text-right">
+        WAC
+      </Text>
+      <Text style={STOCK_COL.money} className="text-[11px] font-bold text-muted uppercase text-right">
+        Value
+      </Text>
+      <Text
+        style={STOCK_COL.actions}
+        className="text-[11px] font-bold text-muted uppercase text-right"
+      >
+        Actions
+      </Text>
+    </View>
+  );
+}
 
 
 async function bufferUntil(
@@ -117,6 +147,10 @@ export default function InventoryStockScreen() {
   /** When opened from a row CTA, prefill the multi sheet with this one material. */
   const [issueInitialResourceId, setIssueInitialResourceId] = useState<string | null>(null);
   const [buffering, setBuffering] = useState(false);
+  /** Desktop: pin column labels under chrome after the hero scrolls away. */
+  const [preColsHeight, setPreColsHeight] = useState(0);
+  const [colsHeight, setColsHeight] = useState(44);
+  const [colsPinned, setColsPinned] = useState(false);
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.4): searchable stock rows.
   // INVENTORY_UX_POLISH (M4): 150ms debounce + match name/sku/itemCode/barcode/unit.
   const [stockSearch, setStockSearch] = useState('');
@@ -335,113 +369,68 @@ export default function InventoryStockScreen() {
 
   const listHeader = (
     <View className="pb-2">
-      {isPhone ? filtersBlock : null}
+      <View onLayout={(e) => setPreColsHeight(e.nativeEvent.layout.height)}>
+        {isPhone ? filtersBlock : null}
 
-      <StockHero
-        companyName={user?.companyName}
-        warehouseLabel={warehouseName}
-        primaryLabel={heroPrimaryLabel}
-        primaryValue={heroPrimaryValue}
-        supportLeft={{
-          label: localizedItemsLabel,
-          value: String(totals.items),
-        }}
-        supportRight={{
-          label: translate('inventory.stock.onHand', 'On hand'),
-          value: String(totals.onHand),
-        }}
-        attentionLabel={attentionLabel}
-        onAttentionPress={attentionLabel ? () => setOverviewOpen(true) : undefined}
-      />
+        <StockHero
+          companyName={user?.companyName}
+          warehouseLabel={warehouseName}
+          primaryLabel={heroPrimaryLabel}
+          primaryValue={heroPrimaryValue}
+          supportLeft={{
+            label: localizedItemsLabel,
+            value: String(totals.items),
+          }}
+          supportRight={{
+            label: translate('inventory.stock.onHand', 'On hand'),
+            value: String(totals.onHand),
+          }}
+          attentionLabel={attentionLabel}
+          onAttentionPress={attentionLabel ? () => setOverviewOpen(true) : undefined}
+        />
 
-      <AnomalyStrip />
+        <AnomalyStrip />
 
-      <Pressable
-        onPress={() => setOverviewOpen((v) => !v)}
-        className="mb-2 flex-row items-center justify-between py-1"
-      >
-        <Text className="text-xs font-semibold text-muted uppercase tracking-wide">
-          {overviewOpen
-            ? translate('inventory.stock.hideOverview', 'Hide overview')
-            : translate('inventory.stock.showOverview', 'Show overview')}
+        <Pressable
+          onPress={() => setOverviewOpen((v) => !v)}
+          className="mb-2 flex-row items-center justify-between py-1"
+        >
+          <Text className="text-xs font-semibold text-muted uppercase tracking-wide">
+            {overviewOpen
+              ? translate('inventory.stock.hideOverview', 'Hide overview')
+              : translate('inventory.stock.showOverview', 'Show overview')}
+          </Text>
+          <Text className="text-xs font-bold text-primary">{overviewOpen ? '−' : '+'}</Text>
+        </Pressable>
+        {overviewOpen ? (
+          <View className="mb-3">
+            {kiranaVertical ? <KiranaKpiCards /> : <DashboardCards />}
+          </View>
+        ) : null}
+
+        <Text className="text-sm font-bold text-text mt-3 mb-2">
+          {translate('inventory.stock.summary', 'Stock summary')}
         </Text>
-        <Text className="text-xs font-bold text-primary">{overviewOpen ? '−' : '+'}</Text>
-      </Pressable>
-      {overviewOpen ? (
-        <View className="mb-3">
-          {kiranaVertical ? <KiranaKpiCards /> : <DashboardCards />}
-        </View>
-      ) : null}
+      </View>
 
-      <Text className="text-sm font-bold text-text mt-3 mb-2">
-        {translate('inventory.stock.summary', 'Stock summary')}
-      </Text>
-
-      {/*
-        Web: CSS-sticky column labels after the hero so hero/search chrome scroll away
-        and only NAME/BALANCE/… float. Native uses stickyHeaderIndices on data[0] instead.
-      */}
-      {isDesktop && Platform.OS === 'web' && filteredSummary.length > 0 ? (
-        <StickyTableHeader className="flex-row items-center py-3 px-4 -mx-6">
-          <Text style={STOCK_COL.name} className="text-[11px] font-bold text-muted uppercase">
-            Name
-          </Text>
-          <Text
-            style={STOCK_COL.balance}
-            className="text-[11px] font-bold text-muted uppercase text-right"
-          >
-            Balance
-          </Text>
-          <Text
-            style={STOCK_COL.money}
-            className="text-[11px] font-bold text-muted uppercase text-right"
-          >
-            Cost
-          </Text>
-          <Text
-            style={STOCK_COL.money}
-            className="text-[11px] font-bold text-muted uppercase text-right"
-          >
-            Sell
-          </Text>
-          <Text
-            style={STOCK_COL.money}
-            className="text-[11px] font-bold text-muted uppercase text-right"
-          >
-            WAC
-          </Text>
-          <Text
-            style={STOCK_COL.money}
-            className="text-[11px] font-bold text-muted uppercase text-right"
-          >
-            Value
-          </Text>
-          <Text
-            style={STOCK_COL.actions}
-            className="text-[11px] font-bold text-muted uppercase text-right"
-          >
-            Actions
-          </Text>
-        </StickyTableHeader>
+      {isDesktop && filteredSummary.length > 0 ? (
+        colsPinned ? (
+          <View style={{ height: colsHeight }} />
+        ) : (
+          <View onLayout={(e) => setColsHeight(e.nativeEvent.layout.height)}>
+            <StockColumnLabels />
+          </View>
+        )
       ) : null}
     </View>
   );
 
-  /** Native only: pin column row via stickyHeaderIndices (CSS sticky is web-only). */
-  const nativeStickyCols = isDesktop && Platform.OS !== 'web' && filteredSummary.length > 0;
-
-  const stockListData: StockListRow[] = useMemo(() => {
-    if (isLoading) return [];
-    const items = filteredSummary.map((item) => ({
-      kind: 'item' as const,
-      key: item.resourceId,
-      item,
-    }));
-    if (nativeStickyCols) {
-      return [{ kind: 'cols' as const, key: '__stock_cols__' }, ...items];
-    }
-    return items;
-  }, [isLoading, filteredSummary, nativeStickyCols]);
+  const onStockScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (!isDesktop || filteredSummary.length === 0) return;
+    const y = e.nativeEvent.contentOffset.y;
+    const next = y >= Math.max(0, preColsHeight - 1);
+    setColsPinned((prev) => (prev === next ? prev : next));
+  };
 
   const pageChrome = (
     <View
@@ -560,10 +549,17 @@ export default function InventoryStockScreen() {
         className="flex-1"
         style={{ flex: 1, minHeight: 0 }}
         chrome={pageChrome}
-        data={stockListData}
-        keyExtractor={(row) => row.key}
-        stickyHeaderIndices={nativeStickyCols ? [0] : undefined}
-        removeClippedSubviews={false}
+        stickySubheader={
+          isDesktop && colsPinned && filteredSummary.length > 0 ? (
+            <View style={{ paddingHorizontal: 24 }}>
+              <StockColumnLabels />
+            </View>
+          ) : null
+        }
+        data={isLoading ? [] : filteredSummary}
+        keyExtractor={(item) => item.resourceId}
+        onScroll={onStockScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={isFetching && !buffering}
@@ -572,53 +568,7 @@ export default function InventoryStockScreen() {
           />
         }
         listHeader={listHeader}
-          renderItem={({ item: row }) => {
-            if (row.kind === 'cols') {
-              return (
-                <StickyTableHeader className="flex-row items-center py-3 px-4">
-                  <Text style={STOCK_COL.name} className="text-[11px] font-bold text-muted uppercase">
-                    Name
-                  </Text>
-                  <Text
-                    style={STOCK_COL.balance}
-                    className="text-[11px] font-bold text-muted uppercase text-right"
-                  >
-                    Balance
-                  </Text>
-                  <Text
-                    style={STOCK_COL.money}
-                    className="text-[11px] font-bold text-muted uppercase text-right"
-                  >
-                    Cost
-                  </Text>
-                  <Text
-                    style={STOCK_COL.money}
-                    className="text-[11px] font-bold text-muted uppercase text-right"
-                  >
-                    Sell
-                  </Text>
-                  <Text
-                    style={STOCK_COL.money}
-                    className="text-[11px] font-bold text-muted uppercase text-right"
-                  >
-                    WAC
-                  </Text>
-                  <Text
-                    style={STOCK_COL.money}
-                    className="text-[11px] font-bold text-muted uppercase text-right"
-                  >
-                    Value
-                  </Text>
-                  <Text
-                    style={STOCK_COL.actions}
-                    className="text-[11px] font-bold text-muted uppercase text-right"
-                  >
-                    Actions
-                  </Text>
-                </StickyTableHeader>
-              );
-            }
-            const item = row.item;
+          renderItem={({ item }) => {
             const isLowStock =
               item.reorderPoint != null &&
               Number(item.reorderPoint) > 0 &&

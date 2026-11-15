@@ -50,6 +50,17 @@ const MATERIAL_STATUS_TABS = [
 ];
 type MaterialStatus = (typeof MATERIAL_STATUS_TABS)[number]['value'];
 
+/** Keep header + row columns in lockstep (thumbnail sits ahead of the Item flex). */
+const MAT_THUMB = 44;
+const MAT_THUMB_GAP = 12;
+const MAT_COL = {
+  item: { flexGrow: 2.2, flexShrink: 1, flexBasis: 0, minWidth: 120, marginRight: 8 } as const,
+  cat: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 72 } as const,
+  hsn: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 64 } as const,
+  num: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 72 } as const,
+  actions: { flexGrow: 1.6, flexShrink: 0, flexBasis: 0, minWidth: 140 } as const,
+};
+
 /**
  * One saved item-master row with its current aggregate stock summary.
  */
@@ -237,25 +248,67 @@ export default function InventoryMaterialsScreen() {
         }}
         stickySubheader={
           tableMode && rows.length > 0 ? (
-            <View
-              className="flex-row items-center py-2.5"
-              style={{ paddingHorizontal: tableMode ? 24 : 16 }}
-            >
-              <Text className="flex-[2.2] text-[11px] font-bold text-muted uppercase">Item</Text>
-              <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Category</Text>
-              <Text className="flex-1 text-[11px] font-bold text-muted uppercase">{taxCode.short}</Text>
-              <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Stock</Text>
-              <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">MRP</Text>
-              <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Cost</Text>
-              {rolePricing ? (
-                <>
-                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Dist</Text>
-                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Cust</Text>
-                </>
-              ) : (
-                <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Sell</Text>
-              )}
-              <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+            <View style={{ paddingHorizontal: tableMode ? 24 : 16 }}>
+              {/* px-4 matches row card padding so columns line up with cells */}
+              <View className="flex-row items-center px-4 py-2.5">
+                <View style={{ width: MAT_THUMB + MAT_THUMB_GAP }} />
+                <Text style={MAT_COL.item} className="text-[11px] font-bold text-muted uppercase">
+                  Item
+                </Text>
+                <Text style={MAT_COL.cat} className="text-[11px] font-bold text-muted uppercase">
+                  Category
+                </Text>
+                <Text style={MAT_COL.hsn} className="text-[11px] font-bold text-muted uppercase">
+                  {taxCode.short}
+                </Text>
+                <Text
+                  style={MAT_COL.num}
+                  className="text-[11px] font-bold text-muted uppercase text-right"
+                >
+                  Stock
+                </Text>
+                <Text
+                  style={MAT_COL.num}
+                  className="text-[11px] font-bold text-muted uppercase text-right"
+                >
+                  MRP
+                </Text>
+                <Text
+                  style={MAT_COL.num}
+                  className="text-[11px] font-bold text-muted uppercase text-right"
+                >
+                  Cost
+                </Text>
+                {rolePricing ? (
+                  <>
+                    <Text
+                      style={MAT_COL.num}
+                      className="text-[11px] font-bold text-muted uppercase text-right"
+                    >
+                      Dist
+                    </Text>
+                    <Text
+                      style={MAT_COL.num}
+                      className="text-[11px] font-bold text-muted uppercase text-right"
+                    >
+                      Cust
+                    </Text>
+                  </>
+                ) : (
+                  <Text
+                    style={MAT_COL.num}
+                    className="text-[11px] font-bold text-muted uppercase text-right"
+                  >
+                    Sell
+                  </Text>
+                )}
+                <Text
+                  style={MAT_COL.actions}
+                  className="text-[11px] font-bold text-muted uppercase text-right"
+                >
+                  Actions
+                </Text>
+              </View>
             </View>
           ) : null
         }
@@ -284,48 +337,62 @@ export default function InventoryMaterialsScreen() {
             if (tableMode) {
               return (
                 <View className="mb-2 flex-row items-center rounded-xl border border-border bg-card px-4 py-4">
-                  <View className="mr-3">
-                    <MaterialThumbnail material={row.resource} size={44} iceCream={isIceCream} />
+                  <View style={{ width: MAT_THUMB, marginRight: MAT_THUMB_GAP }}>
+                    <MaterialThumbnail
+                      material={row.resource}
+                      size={MAT_THUMB}
+                      iceCream={isIceCream}
+                    />
                   </View>
-                  <View className="flex-[2.2] min-w-0 mr-2 pr-1">
-                    <Text className="text-sm font-semibold text-text" numberOfLines={1}>{row.name}</Text>
+                  <View style={MAT_COL.item} className="min-w-0">
+                    <Text className="text-sm font-semibold text-text" numberOfLines={1}>
+                      {row.name}
+                    </Text>
                     <Text className="text-[11px] text-muted mt-1">
                       {row.unit}
                       {row.resource.brandOrSpec ? ` · ${row.resource.brandOrSpec}` : ''}
                       {row.resource.trackingMode === 'BATCH_EXPIRY' ? ' · batch tracked' : ''}
                     </Text>
                   </View>
-                  <Text className="flex-1 text-xs text-muted" numberOfLines={1}>{row.category ?? '-'}</Text>
-                  <Text className="flex-1 text-xs text-muted" numberOfLines={1}>{row.resource.hsnSacCode ?? '-'}</Text>
-                  <Text className="flex-1 text-xs text-text text-right">
-                    {Number(row.stock?.balance ?? 0) > 0 ? `${row.stock?.balance} ${row.unit}` : 'Out of stock'}
+                  <Text style={MAT_COL.cat} className="text-xs text-muted" numberOfLines={1}>
+                    {row.category ?? '-'}
                   </Text>
-                  <Text className="flex-1 text-xs text-muted text-right">
+                  <Text style={MAT_COL.hsn} className="text-xs text-muted" numberOfLines={1}>
+                    {row.resource.hsnSacCode ?? '-'}
+                  </Text>
+                  <Text style={MAT_COL.num} className="text-xs text-text text-right">
+                    {Number(row.stock?.balance ?? 0) > 0
+                      ? `${row.stock?.balance} ${row.unit}`
+                      : 'Out of stock'}
+                  </Text>
+                  <Text style={MAT_COL.num} className="text-xs text-muted text-right">
                     {row.resource.mrp != null ? `₹${Number(row.resource.mrp).toFixed(2)}` : '-'}
                   </Text>
-                  <Text className="flex-1 text-xs text-muted text-right">
-                    {row.resource.costPrice != null ? `₹${Number(row.resource.costPrice).toFixed(2)}` : '-'}
+                  <Text style={MAT_COL.num} className="text-xs text-muted text-right">
+                    {row.resource.costPrice != null
+                      ? `₹${Number(row.resource.costPrice).toFixed(2)}`
+                      : '-'}
                   </Text>
                   {rolePricing ? (
                     <>
-                      <Text className="flex-1 text-sm font-bold text-primary text-right">
+                      <Text style={MAT_COL.num} className="text-sm font-bold text-primary text-right">
                         {row.resource.distributorRate != null &&
                         Number(row.resource.distributorRate) >= 0
                           ? `₹${Number(row.resource.distributorRate).toFixed(2)}`
                           : '-'}
                       </Text>
-                      <Text className="flex-1 text-sm font-bold text-primary text-right">
+                      <Text style={MAT_COL.num} className="text-sm font-bold text-primary text-right">
                         {row.resource.customerRate != null && Number(row.resource.customerRate) >= 0
                           ? `₹${Number(row.resource.customerRate).toFixed(2)}`
                           : '-'}
                       </Text>
                     </>
                   ) : (
-                    <Text className="flex-1 text-sm font-bold text-primary text-right">
+                    <Text style={MAT_COL.num} className="text-sm font-bold text-primary text-right">
                       {formatINR(Number(row.resource.rate))}
                     </Text>
                   )}
-                  <View className="flex-[1.6] flex-row flex-wrap justify-end gap-2 pl-2">
+                  <View style={MAT_COL.actions} className="flex-row flex-wrap justify-end gap-2 pl-2">
                     {isKirana ? (
                       <Button
                         label="Receive stock"
