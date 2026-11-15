@@ -312,7 +312,8 @@ function GanttChart({ gantt }: { gantt: { tasks: GanttTask[]; criticalPath: stri
         ))}
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <Text className="text-[11px] text-muted mb-2">Swipe sideways to see the full timeline</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator>
         <View style={{ minWidth: 600 }}>
           <View className="flex-row border-b border-border pb-1 mb-1">
             <View style={{ width: 200 }}>

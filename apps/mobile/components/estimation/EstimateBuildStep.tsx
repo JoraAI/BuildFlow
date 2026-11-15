@@ -37,14 +37,24 @@ function resolveTemplateItemLinks(
   item: import('@/constants/estimate-templates').EstimateTemplateItem,
   resources: Resource[],
   rateAnalyses: RateAnalysis[],
-): { resourceId?: string; rateAnalysisId?: string } {
+): { resourceId?: string; rateAnalysisId?: string; unresolved?: string } {
   const resourceId = item.resourceName
     ? resources.find((m) => m.name === item.resourceName)?.id
     : undefined;
   const rateAnalysisId = item.rateAnalysisName
     ? rateAnalyses.find((r) => r.name === item.rateAnalysisName)?.id
     : undefined;
-  return { resourceId, rateAnalysisId };
+  // Templates must declare RA and/or catalog material; flag when the declared
+  // name is missing from this company's library (seed / catalog apply gap).
+  let unresolved: string | undefined;
+  if (!item.resourceName && !item.rateAnalysisName) {
+    unresolved = `${item.description}: no RA or material link on template`;
+  } else if (item.rateAnalysisName && !rateAnalysisId) {
+    unresolved = `RA "${item.rateAnalysisName}"`;
+  } else if (item.resourceName && !resourceId && !rateAnalysisId) {
+    unresolved = `Material "${item.resourceName}"`;
+  }
+  return { resourceId, rateAnalysisId, unresolved };
 }
 
 /** Load catalog resources (all types) needed to resolve template resourceName links. */
@@ -147,10 +157,16 @@ export function EstimateBuildStep({
         ),
       ];
       const resources = await loadResourcesByNames(resourceNames);
+      const unresolved: string[] = [];
       for (const section of template.sections) {
         const created = await mut.addSection.mutateAsync({ name: section.name });
         for (const item of section.items) {
-          const links = resolveTemplateItemLinks(item, resources, rateAnalyses);
+          const { unresolved: miss, ...links } = resolveTemplateItemLinks(
+            item,
+            resources,
+            rateAnalyses,
+          );
+          if (miss) unresolved.push(miss);
           await mut.addItem.mutateAsync({
             sectionId: created.id,
             description: item.description,
@@ -164,7 +180,18 @@ export function EstimateBuildStep({
         }
       }
       setShowTemplates(false);
-      await alertAsync('Template loaded', `${template.name} - adjust quantities and rates as needed.`);
+      if (unresolved.length > 0) {
+        const sample = unresolved.slice(0, 5).join('\n');
+        await alertAsync(
+          'Template loaded with gaps',
+          `${template.name} loaded, but ${unresolved.length} line(s) could not resolve RA/material in this company:\n${sample}${unresolved.length > 5 ? '\n…' : ''}\n\nRe-seed rate analyses / material catalog, then edit those lines.`,
+        );
+      } else {
+        await alertAsync(
+          'Template loaded',
+          `${template.name} - all lines linked to RA or materials. Adjust quantities and rates as needed.`,
+        );
+      }
     } catch (e) {
       await alertAsync('Template failed', e instanceof Error ? e.message : 'Unknown error');
     } finally {

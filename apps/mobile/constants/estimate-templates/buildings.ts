@@ -62,7 +62,7 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
         name: '4. Roof Waterproofing & Terracing',
         items: [
           { itemCode: 'HS-WR-001', description: 'Brick bat coba waterproofing 125mm', unit: 'sqm', quantity: 95, rate: 650, type: 'MATERIAL', rateAnalysisName: 'Terrace Waterproofing (Brick Bat Coba)' },
-          { itemCode: 'HS-WR-002', description: 'Terrace tiles (kota stone 25mm)', unit: 'sqm', quantity: 95, rate: 850, type: 'MATERIAL', resourceName: 'Kota Stone 25mm' },
+          { itemCode: 'HS-WR-002', description: 'Terrace tiles (kota stone 25mm)', unit: 'sqm', quantity: 95, rate: 850, type: 'MATERIAL', rateAnalysisName: 'Kota Stone Flooring 25mm' },
           { itemCode: 'HS-WR-003', description: 'Integral waterproofing compound', unit: 'litre', quantity: 25, rate: 140, type: 'MATERIAL', resourceName: 'Integral Waterproofing Liquid' },
         ],
       },
@@ -140,7 +140,7 @@ export const BUILDING_TEMPLATES: EstimateTemplate[] = [
         name: '10. Kitchen & Bathroom Finishes',
         items: [
           { itemCode: 'HS-KB-001', description: 'Kitchen platform granite 20mm', unit: 'sqft', quantity: 45, rate: 185, type: 'MATERIAL', resourceName: 'Granite Slab 20mm Polished' },
-          { itemCode: 'HS-KB-002', description: 'Ceramic wall tile 300x600 (kitchen)', unit: 'sqft', quantity: 85, rate: 28, type: 'MATERIAL', resourceName: 'Ceramic Wall Tile 300x600' },
+          { itemCode: 'HS-KB-002', description: 'Ceramic wall tile 300x600 (kitchen)', unit: 'sqft', quantity: 85, rate: 28, type: 'MATERIAL', rateAnalysisName: 'Ceramic Wall Tile 300x600' },
           { itemCode: 'HS-KB-003', description: 'Ceramic wall tile 250x375 (bathroom)', unit: 'sqft', quantity: 140, rate: 22, type: 'MATERIAL', resourceName: 'Ceramic Wall Tile 250x375' },
           { itemCode: 'HS-KB-004', description: 'Bathroom waterproofing (SBR)', unit: 'sqm', quantity: 35, rate: 450, type: 'MATERIAL', rateAnalysisName: 'Toilet Waterproofing (SBR + Tiles)' },
           { itemCode: 'HS-KB-005', description: 'P-trap 110mm UPVC', unit: 'nos', quantity: 3, rate: 180, type: 'MATERIAL', resourceName: 'P-Trap 110mm UPVC' },

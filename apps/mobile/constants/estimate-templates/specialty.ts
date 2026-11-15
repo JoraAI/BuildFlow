@@ -40,7 +40,7 @@ export const SPECIALTY_TEMPLATES: EstimateTemplate[] = [
         name: '3. Waterproofing Repair',
         items: [
           { itemCode: 'RN-WR-001', description: 'Terrace waterproofing (APP membrane)', unit: 'sqm', quantity: 320, rate: 650, type: 'MATERIAL', rateAnalysisName: 'APP Membrane Terrace Waterproofing' },
-          { itemCode: 'RN-WR-002', description: 'Crystalline waterproofing (walls)', unit: 'sqm', quantity: 450, rate: 320, type: 'MATERIAL', resourceName: 'Crystalline Waterproofing' },
+          { itemCode: 'RN-WR-002', description: 'Crystalline waterproofing (walls)', unit: 'sqm', quantity: 450, rate: 320, type: 'MATERIAL', rateAnalysisName: 'Crystalline Waterproofing (Negative Side)' },
           { itemCode: 'RN-WR-003', description: 'Bathroom waterproofing (SBR)', unit: 'sqm', quantity: 85, rate: 450, type: 'MATERIAL', rateAnalysisName: 'Toilet Waterproofing (SBR + Tiles)' },
           { itemCode: 'RN-WR-004', description: 'Sump tank waterproofing', unit: 'sqm', quantity: 45, rate: 650, type: 'MATERIAL', rateAnalysisName: 'Sump Tank Waterproofing (Crystalline)' },
         ],

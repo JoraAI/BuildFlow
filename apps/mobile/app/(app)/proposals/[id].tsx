@@ -38,6 +38,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { Buffer as MobileBuffer } from 'buffer';
 import { useAuthStore } from '@/stores/auth.store';
 import { PROPOSAL_STATUS_META, ProposalStatus } from '@buildflow/shared';
+import { ChipWrap } from '@/components/ui/ChipWrap';
 import { formatINR, formatDate } from '@/utils/format';
 import { TenderReviewPanel } from '@/components/proposals/TenderReviewPanel';
 import {
@@ -259,7 +260,7 @@ export default function ProposalDetailScreen() {
           )}
         </Card>
 
-        <View className="flex-row gap-2">
+        <ChipWrap>
           {(['estimate', 'summary'] as Tab[]).map((t) => (
             <Pressable
               key={t}
@@ -273,7 +274,7 @@ export default function ProposalDetailScreen() {
               </Text>
             </Pressable>
           ))}
-        </View>
+        </ChipWrap>
 
         {tab === 'estimate' ? (
           <EstimateSection

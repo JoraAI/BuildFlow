@@ -34,6 +34,7 @@ import {
 import { downloadReportPdf, reportPaths } from '@/services/report-download';
 import { alertAsync } from '@/utils/confirm';
 import { usePermission } from '@/hooks/usePermission';
+import { ChipWrap } from '@/components/ui/ChipWrap';
 
 interface BoqTabProps {
   projectId: string;
@@ -212,7 +213,7 @@ export function BoqTab({ projectId }: BoqTabProps) {
       </View>
 
       {/* View toggle: By Section | By Category */}
-      <View className="flex-row gap-2 px-1">
+      <ChipWrap className="px-1">
         <Pressable
           onPress={() => setViewMode('section')}
           className={`flex-row items-center gap-1.5 px-3 py-2 rounded-lg border ${viewMode === 'section' ? 'bg-primary border-primary' : 'bg-card border-border'}`}
@@ -231,7 +232,7 @@ export function BoqTab({ projectId }: BoqTabProps) {
             By Category
           </Text>
         </Pressable>
-      </View>
+      </ChipWrap>
 
       {/* Items grouped by section or category */}
       {displayGroups.map((grp: BoqSectionGroup) => {

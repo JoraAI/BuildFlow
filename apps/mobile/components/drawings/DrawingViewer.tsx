@@ -12,6 +12,7 @@ import {
   ScrollView,
   Pressable,
   Image,
+  Modal,
   LayoutChangeEvent,
   ImageLoadEventData,
   NativeSyntheticEvent,
@@ -66,6 +67,7 @@ export function DrawingViewer({
   const [selectedVersion, setSelectedVersion] = useState<DrawingVersion | null>(
     drawing.currentVersion ?? null,
   );
+  const [versionPickerOpen, setVersionPickerOpen] = useState(false);
   const [activePin, setActivePin] = useState<DrawingPin | null>(null);
   const [pinMode, setPinMode] = useState(false);
   const [editingPin, setEditingPin] = useState<DrawingPin | null>(null);
@@ -303,29 +305,69 @@ export function DrawingViewer({
       {canvasControls}
 
       {versions.length > 0 ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          className="absolute top-3 left-3 right-3 z-20"
-          contentContainerClassName="flex-row gap-1.5"
-        >
-          {versions.map((v) => {
-            const isCurrent = (selectedVersion?.id ?? drawing.currentVersionId) === v.id;
-            return (
+        <>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Switch drawing version"
+            onPress={() => setVersionPickerOpen(true)}
+            className="absolute top-3 left-3 z-20 flex-row items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-white/20 bg-black/60 active:opacity-90"
+          >
+            <Text className="text-[11px] font-semibold text-white" numberOfLines={1}>
+              {selectedVersion?.versionLabel
+                ?? versions.find((v) => v.id === drawing.currentVersionId)?.versionLabel
+                ?? versions[0]?.versionLabel
+                ?? 'Version'}
+            </Text>
+            <Ionicons name="chevron-down" size={14} color="#E2E8F0" />
+          </Pressable>
+          <Modal
+            visible={versionPickerOpen}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setVersionPickerOpen(false)}
+          >
+            <Pressable
+              className="flex-1 bg-black/50 justify-end md:justify-center md:items-center p-0 md:p-6"
+              onPress={() => setVersionPickerOpen(false)}
+            >
               <Pressable
-                key={v.id}
-                onPress={() => setSelectedVersion(v)}
-                className={`px-2.5 py-1 rounded-full border ${
-                  isCurrent ? 'bg-primary border-primary' : 'bg-black/50 border-white/20'
-                }`}
+                onPress={(e) => e.stopPropagation()}
+                className="bg-card rounded-t-2xl md:rounded-2xl border border-border w-full md:max-w-sm max-h-[70%]"
               >
-                <Text className={`text-[11px] font-semibold ${isCurrent ? 'text-white' : 'text-slate-200'}`}>
-                  {v.versionLabel}
-                </Text>
+                <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
+                  <Text className="text-base font-bold text-text">Drawing versions</Text>
+                  <Pressable onPress={() => setVersionPickerOpen(false)} hitSlop={8}>
+                    <Ionicons name="close" size={22} color="#64748B" />
+                  </Pressable>
+                </View>
+                <ScrollView className="px-4 py-3" showsVerticalScrollIndicator={false}>
+                  <View className="gap-1.5 pb-4">
+                    {versions.map((v) => {
+                      const active = (selectedVersion?.id ?? drawing.currentVersionId) === v.id;
+                      return (
+                        <Pressable
+                          key={v.id}
+                          onPress={() => {
+                            setSelectedVersion(v);
+                            setVersionPickerOpen(false);
+                          }}
+                          className={`flex-row items-center justify-between px-3 py-2.5 rounded-xl border ${
+                            active ? 'bg-primary border-primary' : 'bg-surface border-border'
+                          }`}
+                        >
+                          <Text className={`text-sm font-semibold ${active ? 'text-white' : 'text-text'}`}>
+                            {v.versionLabel}
+                          </Text>
+                          {active ? <Ionicons name="checkmark" size={18} color="#fff" /> : null}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
               </Pressable>
-            );
-          })}
-        </ScrollView>
+            </Pressable>
+          </Modal>
+        </>
       ) : null}
     </View>
   );

@@ -117,15 +117,17 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
           { itemCode: 'HW-RM-006', description: 'Road marking machine hire', unit: 'day', quantity: 4, rate: 8500, type: 'EQUIPMENT', resourceName: 'Thermoplastic Road Marking Machine' },
           { itemCode: 'HW-RM-007', description: 'Solar road studs', unit: 'nos', quantity: 80, rate: 350, type: 'MATERIAL', resourceName: 'Road Stud (Solar)' },
           { itemCode: 'HW-RM-008', description: 'Cat eye reflectors (amber)', unit: 'nos', quantity: 120, rate: 120, type: 'MATERIAL', resourceName: 'Cat Eye Reflector (Amber)' },
-          { itemCode: 'HW-RM-009', description: 'Road signage boards (directional)', unit: 'nos', quantity: 15, rate: 8500, type: 'MATERIAL', resourceName: 'Building Name Board (ACP) 2400x600' },
-          { itemCode: 'HW-RM-010', description: 'Mild steel crash barrier (W-beam)', unit: 'rmt', quantity: 500, rate: 1850, type: 'MATERIAL', resourceName: 'Wire Rope Barrier 4mm (Galvanized)' },
+          { itemCode: 'HW-RM-009', description: 'Road signage boards (directional)', unit: 'nos', quantity: 15, rate: 8500, type: 'MATERIAL', resourceName: 'Road Directional Sign Board (Retroreflective)' },
+          { itemCode: 'HW-RM-010', description: 'Mild steel crash barrier (W-beam)', unit: 'rmt', quantity: 500, rate: 1850, type: 'MATERIAL', rateAnalysisName: 'Crash Barrier Installation (W-Beam)' },
+          { itemCode: 'HW-RM-011', description: 'W-beam crash barrier rail (supply)', unit: 'rmt', quantity: 500, rate: 850, type: 'MATERIAL', resourceName: 'W-Beam Crash Barrier (Galvanized) 3mm' },
+          { itemCode: 'HW-RM-012', description: 'Crash barrier posts (MS)', unit: 'nos', quantity: 170, rate: 650, type: 'MATERIAL', resourceName: 'Crash Barrier Post (MS) 140x70mm' },
         ],
       },
       {
         name: '12. Street Lighting',
         items: [
           { itemCode: 'HW-SL-001', description: 'Octagonal steel lighting pole 9m', unit: 'nos', quantity: 40, rate: 35000, type: 'MATERIAL', resourceName: 'Octagonal Steel Lighting Pole 9m' },
-          { itemCode: 'HW-SL-002', description: 'LED street light 120W', unit: 'nos', quantity: 40, rate: 3200, type: 'MATERIAL', resourceName: 'LED Street Light 60W' },
+          { itemCode: 'HW-SL-002', description: 'LED street light 120W', unit: 'nos', quantity: 40, rate: 3200, type: 'MATERIAL', resourceName: 'LED Street Light 120W' },
           { itemCode: 'HW-SL-003', description: 'Foundation concrete for poles', unit: 'cum', quantity: 16, rate: 6500, type: 'MATERIAL', rateAnalysisName: 'PCC M15 (1:2:4)' },
           { itemCode: 'HW-SL-004', description: 'Underground cable for lighting', unit: 'rmt', quantity: 2000, rate: 280, type: 'MATERIAL', resourceName: 'Aluminium Cable 4 Core 25 sqmm Armoured' },
           { itemCode: 'HW-SL-005', description: 'Distribution panel board', unit: 'nos', quantity: 5, rate: 18500, type: 'MATERIAL', resourceName: 'Distribution Board 12-Way Surface' },
@@ -316,7 +318,7 @@ export const INFRASTRUCTURE_TEMPLATES: EstimateTemplate[] = [
       {
         name: '7. Waterproofing & Protection',
         items: [
-          { itemCode: 'CN-WP-001', description: 'Crystalline waterproofing coating', unit: 'sqm', quantity: 6000, rate: 220, type: 'MATERIAL', resourceName: 'Crystalline Waterproofing' },
+          { itemCode: 'CN-WP-001', description: 'Crystalline waterproofing coating', unit: 'sqm', quantity: 6000, rate: 220, type: 'MATERIAL', rateAnalysisName: 'Crystalline Waterproofing (Negative Side)' },
           { itemCode: 'CN-WP-002', description: 'Integral waterproofing compound', unit: 'litre', quantity: 450, rate: 140, type: 'MATERIAL', resourceName: 'Integral Waterproofing Liquid' },
           { itemCode: 'CN-WP-003', description: 'Geo-textile separation layer', unit: 'sqm', quantity: 8500, rate: 45, type: 'MATERIAL', resourceName: 'Geo-textile (Non-woven) 200 GSM' },
         ],

@@ -25,11 +25,11 @@ export { UTILITY_TEMPLATES } from './utilities';
 export { EARTHWORK_TEMPLATES } from './earthwork-mining';
 export { SPECIALTY_TEMPLATES } from './specialty';
 
-// Legacy templates from original file (kept for backward compatibility)
-import { LEGACY_TEMPLATES } from '../estimate-templates-legacy';
-
 /**
  * All estimate templates combined, grouped by category.
+ * Legacy stubs (residential-g2 / office-renovation / road-work) were removed —
+ * every line here carries resourceName and/or rateAnalysisName so promote → BOQ
+ * and procurement can resolve materials.
  */
 export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [
   ...INFRASTRUCTURE_TEMPLATES,
@@ -37,7 +37,6 @@ export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [
   ...UTILITY_TEMPLATES,
   ...EARTHWORK_TEMPLATES,
   ...SPECIALTY_TEMPLATES,
-  ...LEGACY_TEMPLATES,
 ];
 
 /**

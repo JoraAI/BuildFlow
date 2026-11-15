@@ -333,6 +333,7 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
             <Text className="text-[11px] text-muted mt-0.5">
               Tax invoice format — HSN, qty, rate, CGST / SGST (or IGST)
             </Text>
+            <Text className="text-[11px] text-muted mt-1">Swipe for all columns</Text>
           </View>
           <TaxInvoiceLineTable
             lines={invoice.lineItems}

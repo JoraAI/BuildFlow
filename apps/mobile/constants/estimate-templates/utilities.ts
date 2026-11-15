@@ -42,10 +42,10 @@ export const UTILITY_TEMPLATES: EstimateTemplate[] = [
       {
         name: '4. Waterproofing & Internal Treatment',
         items: [
-          { itemCode: 'WT-WP-001', description: 'Crystalline waterproofing (internal)', unit: 'sqm', quantity: 320, rate: 320, type: 'MATERIAL', resourceName: 'Crystalline Waterproofing' },
-          { itemCode: 'WT-WP-002', description: 'SBR latex coating (2 coats)', unit: 'sqm', quantity: 320, rate: 280, type: 'MATERIAL', resourceName: 'SBR Latex Bonding Agent' },
+          { itemCode: 'WT-WP-001', description: 'Crystalline waterproofing (internal)', unit: 'sqm', quantity: 320, rate: 320, type: 'MATERIAL', rateAnalysisName: 'Sump Tank Waterproofing (Crystalline)' },
+          { itemCode: 'WT-WP-002', description: 'SBR latex coating (2 coats)', unit: 'sqm', quantity: 320, rate: 280, type: 'MATERIAL', rateAnalysisName: 'Toilet Waterproofing (SBR + Tiles)' },
           { itemCode: 'WT-WP-003', description: 'Integral waterproofing compound', unit: 'litre', quantity: 85, rate: 140, type: 'MATERIAL', resourceName: 'Integral Waterproofing Liquid' },
-          { itemCode: 'WT-WP-004', description: 'External painting (epoxy)', unit: 'sqm', quantity: 180, rate: 520, type: 'MATERIAL', resourceName: 'Epoxy Paint (Industrial)' },
+          { itemCode: 'WT-WP-004', description: 'External painting (epoxy)', unit: 'sqm', quantity: 180, rate: 520, type: 'MATERIAL', rateAnalysisName: 'Enamel Painting (Wood/Metal)' },
         ],
       },
       {
@@ -99,7 +99,7 @@ export const UTILITY_TEMPLATES: EstimateTemplate[] = [
       {
         name: '3. Waterproofing',
         items: [
-          { itemCode: 'SP-WP-001', description: 'Crystalline waterproofing (internal)', unit: 'sqm', quantity: 435, rate: 320, type: 'MATERIAL', resourceName: 'Crystalline Waterproofing' },
+          { itemCode: 'SP-WP-001', description: 'Crystalline waterproofing (internal)', unit: 'sqm', quantity: 435, rate: 320, type: 'MATERIAL', rateAnalysisName: 'Swimming Pool Waterproofing' },
           { itemCode: 'SP-WP-002', description: 'Epoxy coating (2 coats)', unit: 'sqm', quantity: 435, rate: 850, type: 'MATERIAL', rateAnalysisName: 'Swimming Pool Waterproofing' },
           { itemCode: 'SP-WP-003', description: 'PVC waterstop at construction joints', unit: 'rmt', quantity: 75, rate: 280, type: 'MATERIAL', resourceName: 'PVC Waterstop 230mm' },
         ],
@@ -162,7 +162,7 @@ export const UTILITY_TEMPLATES: EstimateTemplate[] = [
       {
         name: '2. Waterproofing',
         items: [
-          { itemCode: 'ST-WP-001', description: 'Crystalline waterproofing (tank internal)', unit: 'sqm', quantity: 380, rate: 320, type: 'MATERIAL', resourceName: 'Crystalline Waterproofing' },
+          { itemCode: 'ST-WP-001', description: 'Crystalline waterproofing (tank internal)', unit: 'sqm', quantity: 380, rate: 320, type: 'MATERIAL', rateAnalysisName: 'Sump Tank Waterproofing (Crystalline)' },
           { itemCode: 'ST-WP-002', description: 'Epoxy coating (effluent resistant)', unit: 'sqm', quantity: 380, rate: 850, type: 'MATERIAL', resourceName: 'Epoxy Paint (Industrial)' },
         ],
       },

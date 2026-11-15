@@ -22,6 +22,7 @@ import { useMaterials, type Resource } from '@/services/estimate.queries';
 import { useUpdateProject, useProject } from '@/services/project.queries';
 import { alertAsync } from '@/utils/confirm';
 import { formatINR } from '@/utils/format';
+import { ChipWrap } from '@/components/ui/ChipWrap';
 
 export function ProjectMaterialRatesSection({ projectId }: { projectId: string }) {
   const user = useAuthStore((s) => s.user);
@@ -89,7 +90,7 @@ export function ProjectMaterialRatesSection({ projectId }: { projectId: string }
         {(regions ?? []).length === 0 ? (
           <Text className="text-xs text-muted">No rate regions configured in Settings.</Text>
         ) : (
-          <View className="flex-row flex-wrap gap-2">
+          <ChipWrap>
             <Pressable
               onPress={() => canEdit && onRegionChange('')}
               className={`px-3 py-1.5 rounded-full border ${
@@ -117,7 +118,7 @@ export function ProjectMaterialRatesSection({ projectId }: { projectId: string }
                 </Text>
               </Pressable>
             ))}
-          </View>
+          </ChipWrap>
         )}
       </Card>
 

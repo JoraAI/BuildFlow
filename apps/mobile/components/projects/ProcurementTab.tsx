@@ -45,6 +45,7 @@ import {
 import { alertAsync, confirmAsync } from '@/utils/confirm';
 import type { MaterialRateSource } from '@buildflow/shared';
 import { poAvailableForNewGrn, poRemainingByResource } from '@buildflow/shared';
+import { ChipWrap } from '@/components/ui/ChipWrap';
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
@@ -160,7 +161,7 @@ function SubTabBar({
   ];
 
   return (
-    <View className="flex-row gap-2 flex-wrap">
+    <ChipWrap>
       {tabs.map((t) => (
         <Pressable
           key={t.key}
@@ -181,7 +182,7 @@ function SubTabBar({
           )}
         </Pressable>
       ))}
-    </View>
+    </ChipWrap>
   );
 }
 
