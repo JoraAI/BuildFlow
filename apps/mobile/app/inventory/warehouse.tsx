@@ -119,19 +119,19 @@ export default function InventoryWarehouseScreen() {
     // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop row.
     if (tableMode) {
       return (
-        <View className={`flex-row items-center px-4 py-3 bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
-          <View className="flex-[1.6] min-w-0 mr-2">
+        <View className={`mb-2 flex-row items-center rounded-xl border border-border bg-card px-4 py-4 ${focusedClassName(item.id)}`}>
+          <View className="flex-[1.6] min-w-0 pr-2">
             <View className="flex-row items-center gap-2">
-              <Text className="text-sm font-bold text-text" numberOfLines={1}>{item.name}</Text>
+              <Text className="text-sm font-semibold text-text" numberOfLines={1}>{item.name}</Text>
               {item.isDefault ? <Badge color="accent" label="Default" /> : null}
             </View>
-            <Text className="text-[11px] text-muted">{[item.code, item.address].filter(Boolean).join(' · ') || '-'}</Text>
+            <Text className="text-[11px] text-muted mt-0.5">{[item.code, item.address].filter(Boolean).join(' · ') || '-'}</Text>
           </View>
-          <Text className="flex-1 text-xs text-text text-right">{skus} item(s)</Text>
+          <Text className="flex-1 text-sm text-text text-right">{skus} item(s)</Text>
           <View className="flex-1 items-end">
             <Badge color={item.isActive ? 'success' : 'danger'} label={item.isActive ? 'Active' : 'Inactive'} />
           </View>
-          <View className="flex-[1.4] flex-row flex-wrap justify-end gap-1">
+          <View className="flex-[1.4] flex-row flex-wrap justify-end gap-2 pl-2">
             <Button
               label="Edit"
               size="sm"
@@ -232,16 +232,16 @@ export default function InventoryWarehouseScreen() {
     // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop row.
     if (tableMode) {
       return (
-        <View className={`flex-row items-center px-4 py-3 bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
+        <View className={`mb-2 flex-row items-center rounded-xl border border-border bg-card px-4 py-4 ${focusedClassName(item.id)}`}>
           <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.transferNumber}</Text>
-          <Text className="flex-[1.6] text-sm text-text" numberOfLines={1}>
+          <Text className="flex-[1.6] text-sm text-text pr-2" numberOfLines={1}>
             {item.fromLocation.name} → {item.toLocation.name}
           </Text>
           <View className="flex-1">
             <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
           </View>
-          <Text className="flex-1 text-xs text-muted text-right">{item.lines.length} line(s)</Text>
-          <View className="flex-[1.6] flex-row flex-wrap justify-end gap-1">
+          <Text className="flex-1 text-sm text-muted text-right">{item.lines.length} line(s)</Text>
+          <View className="flex-[1.6] flex-row flex-wrap justify-end gap-2 pl-2">
             {item.status === 'DRAFT' ? (
               <>
                 <Button
@@ -355,17 +355,17 @@ export default function InventoryWarehouseScreen() {
     // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop row.
     if (tableMode) {
       return (
-        <View className={`flex-row items-center px-4 py-3 bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
+        <View className={`mb-2 flex-row items-center rounded-xl border border-border bg-card px-4 py-4 ${focusedClassName(item.id)}`}>
           <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.countNumber}</Text>
-          <Text className="flex-[1.4] text-sm text-text" numberOfLines={1}>{item.location.name}</Text>
-          <Text className="flex-1 text-xs text-muted">{item.countDate}</Text>
+          <Text className="flex-[1.4] text-sm text-text pr-2" numberOfLines={1}>{item.location.name}</Text>
+          <Text className="flex-1 text-sm text-muted">{item.countDate}</Text>
           <View className="flex-1">
             <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
           </View>
-          <Text className="flex-1 text-xs text-text text-right">
+          <Text className="flex-1 text-sm text-text text-right">
             {variance > 0 ? `variance ${variance.toFixed(2)}` : 'no variance'}
           </Text>
-          <View className="flex-[1.4] flex-row flex-wrap justify-end gap-1">
+          <View className="flex-[1.4] flex-row flex-wrap justify-end gap-2 pl-2">
             {item.status === 'DRAFT' ? (
               <>
                 <Button

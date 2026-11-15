@@ -199,15 +199,15 @@ export default function InventorySalesScreen() {
 
     if (tableMode) {
       return (
-        <View className={`bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
-        <View className="flex-row items-center px-4 py-3">
-          <Text className="flex-[1.1] text-sm font-mono font-semibold text-text">{item.soNumber}</Text>
-          <Text className="flex-[1.4] text-sm text-text" numberOfLines={1}>{item.customerName}</Text>
+        <View className={`mb-2 rounded-xl border border-border bg-card overflow-hidden ${focusedClassName(item.id)}`}>
+        <View className="flex-row items-center px-4 py-4">
+          <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.soNumber}</Text>
+          <Text className="flex-[1.4] text-sm text-text pr-2" numberOfLines={1}>{item.customerName}</Text>
           <View className="flex-1">
             <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
           </View>
           <Text className="flex-1 text-sm font-semibold text-text text-right">₹{Number(item.total).toFixed(2)}</Text>
-          <View className="flex-[2] flex-row flex-wrap justify-end gap-1">
+          <View className="flex-[1.6] flex-row flex-wrap justify-end gap-2 pl-2">
             {item.status === 'DRAFT' ? (
               <Button label="Confirm" size="sm" variant="secondary" disabled={busy} onPress={() => void run(async () => {
                 await soAction.mutateAsync({ id: item.id, action: 'confirm' });
@@ -331,15 +331,15 @@ export default function InventorySalesScreen() {
     );
     if (tableMode) {
       return (
-        <View className={`bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
-        <View className="flex-row items-center px-4 py-3">
+        <View className={`mb-2 rounded-xl border border-border bg-card overflow-hidden ${focusedClassName(item.id)}`}>
+        <View className="flex-row items-center px-4 py-4">
           <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.dcNumber}</Text>
-          <Text className="flex-[1.4] text-sm text-text" numberOfLines={1}>{item.customerName}</Text>
+          <Text className="flex-[1.4] text-sm text-text pr-2" numberOfLines={1}>{item.customerName}</Text>
           <View className="flex-1">
             <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
           </View>
           <Text className="flex-1 text-sm text-text text-right">{item.lines.length} line(s)</Text>
-          <View className="flex-[2] flex-row flex-wrap justify-end gap-1">
+          <View className="flex-[1.6] flex-row flex-wrap justify-end gap-2 pl-2">
             {item.status === 'DRAFT' ? (
               <Button label="Dispatch (stock OUT)" size="sm" variant="accent" onPress={() => setDispatchChallan(item)} />
             ) : null}
@@ -440,16 +440,16 @@ export default function InventorySalesScreen() {
 
     if (tableMode) {
       return (
-        <View className={`bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
-        <View className="flex-row items-center px-4 py-3">
+        <View className={`mb-2 rounded-xl border border-border bg-card overflow-hidden ${focusedClassName(item.id)}`}>
+        <View className="flex-row items-center px-4 py-4">
           <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.returnNumber}</Text>
-          <Text className="flex-[1.4] text-sm text-text" numberOfLines={1}>{party}</Text>
-          <Text className="flex-1 text-xs text-muted">{isSales ? 'Sales return' : 'Purchase return'}</Text>
+          <Text className="flex-[1.4] text-sm text-text pr-2" numberOfLines={1}>{party}</Text>
+          <Text className="flex-1 text-sm text-muted">{isSales ? 'Sales return' : 'Purchase return'}</Text>
           <View className="flex-1">
             <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
           </View>
           <Text className="flex-1 text-sm font-semibold text-text text-right">₹{Number(item.total).toFixed(2)}</Text>
-          <View className="flex-[1.5] flex-row justify-end gap-1">
+          <View className="flex-[1.6] flex-row justify-end gap-2 pl-2">
             {isSales && isPending ? (
               <Button
                 label="Approve & Restock"
@@ -519,15 +519,15 @@ export default function InventorySalesScreen() {
   const renderNote = ({ item }: { item: { id: string; number: string; party: string; status: string; total: string; kind: 'credit' | 'debit' } }) => {
     if (tableMode) {
       return (
-        <View className={`flex-row items-center px-4 py-3 bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
+        <View className={`mb-2 flex-row items-center rounded-xl border border-border bg-card px-4 py-4 ${focusedClassName(item.id)}`}>
           <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.number}</Text>
-          <Text className="flex-[1.4] text-sm text-text" numberOfLines={1}>{item.party}</Text>
-          <Text className="flex-1 text-xs text-muted">{item.kind === 'credit' ? 'Credit note' : 'Debit note'}</Text>
+          <Text className="flex-[1.4] text-sm text-text pr-2" numberOfLines={1}>{item.party}</Text>
+          <Text className="flex-1 text-sm text-muted">{item.kind === 'credit' ? 'Credit note' : 'Debit note'}</Text>
           <View className="flex-1">
             <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
           </View>
           <Text className="flex-1 text-sm font-semibold text-text text-right">₹{Number(item.total).toFixed(2)}</Text>
-          <View className="flex-[1.2] flex-row justify-end gap-1">
+          <View className="flex-[1.6] flex-row justify-end gap-2 pl-2">
             {item.status === 'DRAFT' ? (
               <Button
                 label="Issue note"

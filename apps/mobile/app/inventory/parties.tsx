@@ -348,10 +348,10 @@ export default function InventoryPartiesScreen() {
 
             if (tableMode) {
               return (
-                <View className={`flex-row items-center px-4 py-3 bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
-                  <View className="flex-[1.6] min-w-0 mr-2">
+                <View className={`mb-2 flex-row items-center rounded-xl border border-border bg-card px-4 py-4 ${focusedClassName(item.id)}`}>
+                  <View className="flex-[1.6] min-w-0 pr-2">
                     <Text className="text-sm font-semibold text-text" numberOfLines={1}>{item.name}</Text>
-                    {item.businessName ? <Text className="text-[11px] text-muted">{item.businessName}</Text> : null}
+                    {item.businessName ? <Text className="text-[11px] text-muted mt-0.5">{item.businessName}</Text> : null}
                     {accessLabel ? <Text className="text-[10px] text-primary mt-0.5">{accessLabel}</Text> : null}
                     {rolePricing && kind === 'customer' ? (
                       <Text className="text-[10px] text-muted mt-0.5">
@@ -362,14 +362,14 @@ export default function InventoryPartiesScreen() {
                       </Text>
                     ) : null}
                   </View>
-                  <Text className="flex-[1.4] text-xs text-muted" numberOfLines={1}>
+                  <Text className="flex-[1.4] text-sm text-muted pr-2" numberOfLines={1}>
                     {[item.phone, item.email].filter(Boolean).join(' · ') || '-'}
                   </Text>
-                  <Text className="flex-1 text-xs text-muted" numberOfLines={1}>{item.gstin ?? '-'}</Text>
+                  <Text className="flex-1 text-sm text-muted" numberOfLines={1}>{item.gstin ?? '-'}</Text>
                   <View className="w-20 items-end mr-1">
                     <Badge color={item.isActive ? 'success' : 'neutral'} label={item.isActive ? 'Active' : 'Inactive'} />
                   </View>
-                  <View className="w-11 items-end">{partyActions(item)}</View>
+                  <View className="w-11 items-end pl-2">{partyActions(item)}</View>
                 </View>
               );
             }

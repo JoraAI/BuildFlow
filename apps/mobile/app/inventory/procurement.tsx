@@ -9,9 +9,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, Pressable, Modal, ScrollView, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, Badge, Button, Input, EmptyState, LoadingSkeleton, Select, toast, BusyOverlay } from '@/components/ui';
-import { StickyTableHeader } from '@/components/inventory/StickyTableHeader';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
+import { COLORS } from '@/constants';
 import {
   indentAvailableForNewPo,
   poAvailableForNewGrn,
@@ -452,43 +452,51 @@ function IndentsSection({
     }));
   const toggle = (id: string) => setExpandedId((cur) => (cur === id ? null : id));
   return (
+    <View className="flex-1 min-h-0">
+      {tableMode && rows.length > 0 ? (
+        <View
+          className="shrink-0"
+          style={{
+            zIndex: 30,
+            elevation: 8,
+            backgroundColor: COLORS.surface,
+            borderBottomWidth: 1,
+            borderBottomColor: COLORS.border,
+          }}
+        >
+          <View className="flex-row items-center px-4 py-2">
+            <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Requisition</Text>
+            <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Notes</Text>
+            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Lines</Text>
+            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Date</Text>
+            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Status</Text>
+            <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Action</Text>
+          </View>
+        </View>
+      ) : null}
     <FlatList
       className="flex-1"
       data={rows}
       keyExtractor={(r) => r.id}
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled
-      ListHeaderComponent={
-        <View>
-          {listChrome}
-          {tableMode && rows.length > 0 ? (
-            <StickyTableHeader className="flex-row items-center px-4 py-2">
-              <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Requisition</Text>
-              <Text className="flex-[2] text-[11px] font-bold text-muted uppercase">Notes</Text>
-              <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Lines</Text>
-              <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Date</Text>
-              <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Status</Text>
-              <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase text-right">Action</Text>
-            </StickyTableHeader>
-          ) : null}
-        </View>
-      }
+      ListHeaderComponent={listChrome ? <>{listChrome}</> : null}
       renderItem={({ item }) => {
         const canCreatePo = indentAvailableForNewPo(item);
         // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop row.
         const expanded = expandedId === item.id;
         if (tableMode) {
           return (
-            <View className="bg-card border-b border-border/60">
-              <View className="flex-row items-center px-4 py-3">
+            <View className="mb-2 rounded-xl border border-border bg-card overflow-hidden">
+              <View className="flex-row items-center px-4 py-4">
                 <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.reqNumber}</Text>
-                <Text className="flex-[2] text-xs text-muted" numberOfLines={1}>{item.notes || '-'}</Text>
-                <Text className="flex-1 text-xs text-text text-right">{item.lines.length}</Text>
-                <Text className="flex-1 text-xs text-muted text-right">{new Date(item.createdAt).toLocaleDateString('en-IN')}</Text>
+                <Text className="flex-[1.4] text-sm text-muted pr-2" numberOfLines={1}>{item.notes || '-'}</Text>
+                <Text className="flex-1 text-sm text-text text-right">{item.lines.length}</Text>
+                <Text className="flex-1 text-sm text-muted text-right">{new Date(item.createdAt).toLocaleDateString('en-IN')}</Text>
                 <View className="flex-1 items-end">
                   <Badge color={APPROVAL_COLOR[item.status] ?? 'neutral'} label={item.status} />
                 </View>
-                <View className="flex-[1.2] items-end">
+                <View className="flex-[1.6] items-end pl-2">
                   {canCreatePo ? (
                     <Button label="Create PO" size="sm" onPress={() => onCreatePo(item.id)} />
                   ) : item.status === 'APPROVED' ? (
@@ -552,6 +560,7 @@ function IndentsSection({
       }
       contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: inventoryPageListPadding(), flexGrow: 1 }}
     />
+    </View>
   );
 }
 
@@ -892,27 +901,35 @@ function OrdersSection({
       meta: `₹${Number(l.rate).toLocaleString('en-IN')}`,
     }));
   return (
+    <View className="flex-1 min-h-0">
+      {tableMode && pos.length > 0 ? (
+        <View
+          className="shrink-0"
+          style={{
+            zIndex: 30,
+            elevation: 8,
+            backgroundColor: COLORS.surface,
+            borderBottomWidth: 1,
+            borderBottomColor: COLORS.border,
+          }}
+        >
+          <View className="flex-row items-center px-4 py-2">
+            <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">PO</Text>
+            <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Vendor</Text>
+            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Amount</Text>
+            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">GRNs</Text>
+            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Status</Text>
+            <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+          </View>
+        </View>
+      ) : null}
     <FlatList
       className="flex-1"
       data={pos}
       keyExtractor={(po) => po.id}
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled
-      ListHeaderComponent={
-        <View>
-          {listChrome}
-          {tableMode && pos.length > 0 ? (
-            <StickyTableHeader className="flex-row items-center px-4 py-2">
-              <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">PO</Text>
-              <Text className="flex-[1.8] text-[11px] font-bold text-muted uppercase">Vendor</Text>
-              <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Amount</Text>
-              <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">GRNs</Text>
-              <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Status</Text>
-              <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
-            </StickyTableHeader>
-          ) : null}
-        </View>
-      }
+      ListHeaderComponent={listChrome ? <>{listChrome}</> : null}
       renderItem={({ item }) => {
         const draftBills = (item.bills ?? []).filter((b) => b.status === 'DRAFT');
         const canRecordGrn = poAvailableForNewGrn(item);
@@ -920,21 +937,21 @@ function OrdersSection({
         // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop row.
         if (tableMode) {
           return (
-            <View className="bg-card border-b border-border/60">
-              <View className="flex-row items-center px-4 py-3">
+            <View className="mb-2 rounded-xl border border-border bg-card overflow-hidden">
+              <View className="flex-row items-center px-4 py-4">
                 <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.poNumber}</Text>
-                <Text className="flex-[1.8] text-xs text-text" numberOfLines={1}>
+                <Text className="flex-[1.4] text-sm text-text pr-2" numberOfLines={1}>
                   {item.vendorName ?? 'Vendor not set'}
                   {draftBills.length > 0 ? <Text className="text-[11px] text-warning"> · {draftBills.length} draft bill(s)</Text> : null}
                 </Text>
-                <Text className="flex-1 text-xs text-text text-right">₹{Number(item.totalAmount ?? 0).toLocaleString('en-IN')}</Text>
-                <Text className="flex-1 text-xs text-success text-right">
+                <Text className="flex-1 text-sm text-text text-right">₹{Number(item.totalAmount ?? 0).toLocaleString('en-IN')}</Text>
+                <Text className="flex-1 text-sm text-success text-right">
                   {item.goodsReceipts && item.goodsReceipts.length > 0 ? `${item.goodsReceipts.length} GRN(s)` : '-'}
                 </Text>
                 <View className="flex-1 items-end">
                   <Badge label={item.status ?? 'DRAFT'} color={item.status === 'SUBMITTED' ? 'warning' : undefined} />
                 </View>
-                <View className="flex-[1.6] flex-row flex-wrap justify-end gap-1">
+                <View className="flex-[1.6] flex-row flex-wrap justify-end gap-2 pl-2">
                   {draftBills.length > 0 ? (
                     <Button
                       label="Open bills"
@@ -1047,6 +1064,7 @@ function OrdersSection({
       }
       contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: inventoryPageListPadding(), flexGrow: 1 }}
     />
+    </View>
   );
 }
 
@@ -1093,40 +1111,48 @@ function GrnsSection({
       };
     });
   return (
+    <View className="flex-1 min-h-0">
+      {tableMode && grns.length > 0 ? (
+        <View
+          className="shrink-0"
+          style={{
+            zIndex: 30,
+            elevation: 8,
+            backgroundColor: COLORS.surface,
+            borderBottomWidth: 1,
+            borderBottomColor: COLORS.border,
+          }}
+        >
+          <View className="flex-row items-center px-4 py-2">
+            <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">GRN</Text>
+            <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Vendor</Text>
+            <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">PO</Text>
+            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Lines</Text>
+            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Date</Text>
+            <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+          </View>
+        </View>
+      ) : null}
     <FlatList
       className="flex-1"
       data={grns}
       keyExtractor={(g) => g.id}
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled
-      ListHeaderComponent={
-        <View>
-          {listChrome}
-          {tableMode && grns.length > 0 ? (
-            <StickyTableHeader className="flex-row items-center px-4 py-2">
-              <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">GRN</Text>
-              <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Vendor</Text>
-              <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">PO</Text>
-              <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Lines</Text>
-              <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Date</Text>
-              <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
-            </StickyTableHeader>
-          ) : null}
-        </View>
-      }
+      ListHeaderComponent={listChrome ? <>{listChrome}</> : null}
       renderItem={({ item }) => {
         const expanded = expandedId === item.id;
         // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.6): desktop row.
         if (tableMode) {
           return (
-            <View className="bg-card border-b border-border/60">
-              <View className="flex-row items-center px-4 py-3">
+            <View className="mb-2 rounded-xl border border-border bg-card overflow-hidden">
+              <View className="flex-row items-center px-4 py-4">
                 <Text className="flex-[1.2] text-sm font-mono font-semibold text-text">{item.grnNumber}</Text>
-                <Text className="flex-[1.4] text-xs text-text" numberOfLines={1}>{item.vendorName || 'Vendor not set'}</Text>
-                <Text className="flex-[1.2] text-xs text-muted" numberOfLines={1}>{item.poNumber || '-'}</Text>
-                <Text className="flex-1 text-xs text-text text-right">{item.lines.length}</Text>
-                <Text className="flex-1 text-xs text-muted text-right">{new Date(item.receivedDate).toLocaleDateString('en-IN')}</Text>
-                <View className="flex-[1.6] flex-row flex-wrap justify-end gap-1">
+                <Text className="flex-[1.4] text-sm text-text pr-2" numberOfLines={1}>{item.vendorName || 'Vendor not set'}</Text>
+                <Text className="flex-[1.2] text-sm text-muted" numberOfLines={1}>{item.poNumber || '-'}</Text>
+                <Text className="flex-1 text-sm text-text text-right">{item.lines.length}</Text>
+                <Text className="flex-1 text-sm text-muted text-right">{new Date(item.receivedDate).toLocaleDateString('en-IN')}</Text>
+                <View className="flex-[1.6] flex-row flex-wrap justify-end gap-2 pl-2">
                   <Button
                     label="Vendor bills"
                     size="sm"
@@ -1206,6 +1232,7 @@ function GrnsSection({
       }
       contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: inventoryPageListPadding(), flexGrow: 1 }}
     />
+    </View>
   );
 }
 

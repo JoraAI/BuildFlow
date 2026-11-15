@@ -130,16 +130,16 @@ export default function InventoryQuotesScreen() {
 
     if (tableMode) {
       return (
-        <View className={`bg-card border-b border-border/60 ${focusedClassName(item.id)}`}>
-        <View className="flex-row items-center px-4 py-3">
-          <View className="flex-[1.2] min-w-0 mr-2">
+        <View className={`mb-2 rounded-xl border border-border bg-card overflow-hidden ${focusedClassName(item.id)}`}>
+        <View className="flex-row items-center px-4 py-4">
+          <View className="flex-[1.2] min-w-0 pr-2">
             <Text className="text-sm font-mono font-semibold text-text">{item.quoteNumber}</Text>
-            <Text className="text-[11px] text-muted">{item.quoteDate}</Text>
+            <Text className="text-[11px] text-muted mt-0.5">{item.quoteDate}</Text>
           </View>
-          <View className="flex-[1.8] min-w-0 mr-2">
-            <Text className="text-sm font-bold text-text" numberOfLines={1}>{item.customerName}</Text>
+          <View className="flex-[1.4] min-w-0 pr-2">
+            <Text className="text-sm font-semibold text-text" numberOfLines={1}>{item.customerName}</Text>
             {item.notes ? (
-              <Text className="text-[11px] text-muted" numberOfLines={1}>
+              <Text className="text-[11px] text-muted mt-0.5" numberOfLines={1}>
                 {item.notes}
               </Text>
             ) : null}
@@ -147,11 +147,11 @@ export default function InventoryQuotesScreen() {
           <View className="flex-1">
             <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
           </View>
-          <View className="flex-1 items-end mr-3">
-            <Text className="text-sm font-bold text-text">{formatINR(Number(item.total))}</Text>
-            <Text className="text-[11px] text-muted">{item.lines.length} item(s)</Text>
+          <View className="flex-1 items-end pr-2">
+            <Text className="text-sm font-semibold text-text">{formatINR(Number(item.total))}</Text>
+            <Text className="text-[11px] text-muted mt-0.5">{item.lines.length} item(s)</Text>
           </View>
-          <View className="flex-[2] flex-row flex-wrap justify-end gap-1.5">
+          <View className="flex-[1.6] flex-row flex-wrap justify-end gap-2 pl-2">
             <Button
               label="WhatsApp"
               size="sm"
@@ -438,12 +438,12 @@ export default function InventoryQuotesScreen() {
           tableMode && filteredQuotes.length > 0 ? (
             <View className="flex-row items-center px-4 py-2">
               <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Quote #</Text>
-              <Text className="flex-[1.8] text-[11px] font-bold text-muted uppercase">
+              <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">
                 {eventLightingCopy ? 'Client / Event' : 'Customer'}
               </Text>
               <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Status</Text>
               <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Total</Text>
-              <Text className="flex-[2] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+              <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
             </View>
           ) : null
         }
