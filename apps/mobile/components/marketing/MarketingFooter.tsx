@@ -15,7 +15,7 @@ export function MarketingFooter() {
         <Text className="text-white/60 text-sm mb-6 max-w-md">{footerBlurb()}</Text>
         <View className="flex-row flex-wrap gap-4 mb-6">
           <FooterLink label="About" onPress={() => router.push('/about')} />
-          <FooterLink label="Pricing" onPress={() => router.push('/pricing')} />
+          <FooterLink label="Talk to sales" onPress={() => router.push('/pricing')} />
           <FooterLink label="Privacy" onPress={() => router.push('/privacy')} />
           <FooterLink label="Terms" onPress={() => router.push('/terms')} />
           <FooterLink label="SMS opt-in" onPress={() => router.push('/sms-opt-in')} />

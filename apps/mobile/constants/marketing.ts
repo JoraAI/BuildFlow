@@ -63,6 +63,9 @@ export const MARKETING_TESTIMONIALS = [
 
 export const GST_PRICING_NOTE = '+ 18% GST';
 
+/** Public marketing contact for pricing / sales enquiries (same inbox as account requests). */
+export const MARKETING_SALES_EMAIL = 'vssnreddy1@gmail.com';
+
 /**
  * Prices mirror @buildflow/shared PLAN_PRICES_INR / PLAN_ANNUAL_INR
  * (single source of truth is pricing.ts). Enterprise = contact sales.
@@ -189,19 +192,19 @@ export const ABOUT_TIMELINE = [
 export const PRICING_FAQ = [
   {
     q: 'Is there a free trial?',
-    a: 'Yes. Construction ERP plans and the Inventory product each include a 14-day free trial with full access to that product’s features.',
+    a: 'Yes. Construction ERP and Inventory each include a 14-day free trial with full access to that product’s features.',
   },
   {
     q: 'Can I change plans later?',
-    a: 'You can upgrade or downgrade construction plans at any time. Inventory is a separate product. Contact us if you need to switch product families.',
+    a: 'Yes. Talk to our team when you are ready to upgrade, extend, or switch between Construction ERP and Inventory.',
   },
   {
-    q: 'Do you offer annual billing?',
-    a: 'Yes. Inventory is ₹7,990/year, Starter is ₹19,990/year and Professional is ₹49,990/year (2 months free vs monthly). Enterprise pricing is custom - contact sales. All prices are before 18% GST. Inventory includes business profiles and multi-warehouse ops.',
+    q: 'How do I get pricing?',
+    a: 'Connect with our team from Talk to sales. We share a plan that fits your company size and product (Construction ERP or Inventory). Prices are before 18% GST.',
   },
   {
-    q: 'Is GST included in the listed price?',
-    a: 'No. Plan prices shown are before GST. 18% GST is added on checkout invoices in India.',
+    q: 'Is GST included?',
+    a: 'Quoted plan amounts are before GST. 18% GST is added on invoices in India.',
   },
 ];
 
@@ -246,11 +249,11 @@ export const PRICING_COMPARISON: Array<{
 export const MARKETING_FAQ = [
   {
     q: 'How much does BuildFlow cost?',
-    a: 'Visit Pricing: Inventory from ₹799/mo, construction Starter from ₹1,999/mo. All tiers include a 14-day free trial. Prices are ex-GST.',
+    a: 'Connect with our team on Talk to sales for Construction ERP or Inventory pricing. Every product includes a 14-day free trial. Quoted prices are ex-GST.',
   },
   {
     q: 'How do inventory / trading businesses sign up?',
-    a: 'Choose “Inventory trial” on the homepage or Pricing, or Sign up → Inventory. You pick a business profile (retail, wholesale, distribution, trading, material supplier, equipment, or general) so labels and workflows match your store - not the construction ERP.',
+    a: 'Choose “Inventory trial” on the homepage, or Sign up → Inventory. You pick a business profile (retail, wholesale, distribution, trading, material supplier, equipment, or general) so labels and workflows match your store - not the construction ERP.',
   },
   {
     q: 'What’s the difference between Construction ERP and Inventory?',

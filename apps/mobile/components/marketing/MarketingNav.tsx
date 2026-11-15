@@ -40,7 +40,7 @@ export function MarketingNav() {
                 <Text className="text-white/80 text-sm font-medium">About</Text>
               </Pressable>
               <Pressable onPress={() => router.push('/pricing')} className="px-3 py-2">
-                <Text className="text-white/80 text-sm font-medium">Pricing</Text>
+                <Text className="text-white/80 text-sm font-medium">Talk to sales</Text>
               </Pressable>
             </>
           )}

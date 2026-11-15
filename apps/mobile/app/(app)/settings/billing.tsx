@@ -202,7 +202,7 @@ export default function BillingScreen() {
           />
           <View className="h-2" />
           <Button
-            label="View pricing plans"
+            label="Talk to sales"
             variant="ghost"
             onPress={() => router.push('/pricing' as never)}
             fullWidth

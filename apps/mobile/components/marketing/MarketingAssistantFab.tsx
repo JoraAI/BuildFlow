@@ -31,7 +31,7 @@ interface LocalMsg {
 
 const PUBLIC_CHIPS = [
   'What is BuildFlow?',
-  'Pricing plans',
+  'Talk to sales',
   'GST & invoicing',
   'Daily site reports',
   'How do I sign up?',
@@ -92,7 +92,7 @@ export function MarketingAssistantFab() {
         ...m,
         {
           id: `b-${Date.now()}`,
-          text: 'BuildFlow helps Indian contractors manage estimates, BOQ, site reports, and GST accounting. Visit Pricing or Sign up to get started.',
+          text: 'BuildFlow helps Indian contractors manage estimates, BOQ, site reports, and GST accounting. Talk to sales for pricing, or Sign up for a free trial.',
           isBot: true,
         },
       ]);

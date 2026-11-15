@@ -1,6 +1,6 @@
 import React from 'react';
-import { PricingCardsGrid } from '@/components/marketing/PricingCardsGrid';
+import { ContactSalesCards } from '@/components/marketing/ContactSalesCards';
 
 export function PricingPreview() {
-  return <PricingCardsGrid />;
+  return <ContactSalesCards />;
 }

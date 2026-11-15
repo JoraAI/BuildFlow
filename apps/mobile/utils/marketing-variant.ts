@@ -126,12 +126,12 @@ export function landingTrustSection() {
 export function pricingPageSubtitle(): string {
   const v = getAppVariant();
   if (v === 'inventory') {
-    return 'BuildFlow Inventory from ₹799/mo. Every free trial is 14 days, no credit card.';
+    return 'Connect with our team for BuildFlow Inventory pricing. Free trial is 14 days, no credit card.';
   }
   if (v === 'construction') {
-    return 'Construction ERP plans from ₹1,999/mo. Every free trial is 14 days, no credit card.';
+    return 'Connect with our team for Construction ERP pricing. Free trial is 14 days, no credit card.';
   }
-  return 'Construction ERP plans and exclusive Inventory from ₹799/mo. Every free trial is 14 days, no credit card.';
+  return 'Connect with our team for Construction ERP or Inventory pricing. Free trial is 14 days, no credit card.';
 }
 
 export function footerBlurb(): string {
@@ -233,7 +233,7 @@ export function filteredMarketingFaq() {
       if (/How much does BuildFlow cost/i.test(item.q)) {
         return {
           ...item,
-          a: 'Visit Pricing: Inventory from ₹799/mo. Includes a 14-day free trial. Prices are ex-GST.',
+          a: 'Connect with our team on Talk to sales for Inventory pricing. Includes a 14-day free trial. Quoted prices are ex-GST.',
         };
       }
       if (/Who can sign up/i.test(item.q)) {
@@ -257,7 +257,7 @@ export function filteredMarketingFaq() {
       if (/How much does BuildFlow cost/i.test(item.q)) {
         return {
           ...item,
-          a: 'Visit Pricing: construction Starter from ₹1,999/mo. All tiers include a 14-day free trial. Prices are ex-GST.',
+          a: 'Connect with our team on Talk to sales for Construction ERP pricing. Includes a 14-day free trial. Quoted prices are ex-GST.',
         };
       }
       if (/Who can sign up/i.test(item.q)) {
@@ -285,13 +285,13 @@ export function filteredPricingFaq() {
       if (/change plans/i.test(item.q)) {
         return {
           ...item,
-          a: 'Inventory is a single product plan. Contact us if you need help with billing or switching products.',
+          a: 'Talk to our team if you need help with billing or switching products.',
         };
       }
-      if (/annual billing/i.test(item.q)) {
+      if (/get pricing/i.test(item.q)) {
         return {
           ...item,
-          a: 'Yes. Inventory is ₹7,990/year (2 months free vs monthly). Prices are before 18% GST.',
+          a: 'Connect with our team from Talk to sales for Inventory pricing. Prices are before 18% GST.',
         };
       }
       return item;
@@ -302,19 +302,19 @@ export function filteredPricingFaq() {
       if (/free trial/i.test(item.q)) {
         return {
           ...item,
-          a: 'Yes. Construction ERP plans include a 14-day free trial with full access to that plan’s features.',
+          a: 'Yes. Construction ERP includes a 14-day free trial with full access to product features.',
         };
       }
       if (/change plans/i.test(item.q)) {
         return {
           ...item,
-          a: 'You can upgrade or downgrade construction plans at any time. Contact us if you need help.',
+          a: 'Talk to our team when you are ready to upgrade, extend, or adjust your Construction ERP plan.',
         };
       }
-      if (/annual billing/i.test(item.q)) {
+      if (/get pricing/i.test(item.q)) {
         return {
           ...item,
-          a: 'Yes. Starter is ₹19,990/year and Professional is ₹49,990/year (2 months free vs monthly). Enterprise pricing is custom. All prices are before 18% GST.',
+          a: 'Connect with our team from Talk to sales for Construction ERP pricing. Prices are before 18% GST.',
         };
       }
       return item;
