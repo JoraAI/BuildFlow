@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiDownload, apiFetch } from '@/lib/api-client';
+import { apiDownload, apiFetch, type DownloadMimeType } from '@/lib/api-client';
 import { toast } from '@/components/ui';
 import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
@@ -145,7 +145,56 @@ export type GstPackDetail = GstPackSummary & {
     createdAt: string;
   }>;
   bankTotal: number;
+  bankByMode?: Array<{
+    paymentMode: string;
+    in: number;
+    out: number;
+    net: number;
+    rows: Array<{
+      id: string;
+      entryDate: string;
+      paymentMode: string;
+      entryType: string;
+      direction: string;
+      description: string;
+      amount: number;
+    }>;
+  }>;
+  pnl?: {
+    from: string;
+    to: string;
+    sales: number;
+    cogs: number;
+    grossMargin: number;
+    expenses: number;
+    expensesByCategory: Record<string, number>;
+    estimatedProfit: number;
+  };
+  balanceSheet?: {
+    asOf: string;
+    assets: { cashBank: number; receivables: number; stockValue: number; total: number };
+    liabilities: { payables: number; total: number };
+    equity: number;
+  };
+  groups?: {
+    groups: Array<{
+      group: string;
+      debit: number;
+      credit: number;
+      net: number;
+      accounts: Array<{ account: string; debit: number; credit: number; net: number }>;
+    }>;
+    unmapped: string[];
+  };
 };
+
+export type GstPackExportFormat =
+  | 'gstr1-json'
+  | 'csv'
+  | 'xlsx'
+  | 'bank-xlsx'
+  | 'pnl-xlsx'
+  | 'books-xlsx';
 
 export function useAuditorInbox() {
   return useQuery({
@@ -236,23 +285,59 @@ async function shareDownloadedFile(uri: string | null, filename: string, mimeTyp
   toast.success(Platform.OS === 'web' ? `${filename} download started` : `${filename} saved to device`);
 }
 
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
 /**
- * Download GSTR-1 for GST Returns Offline Tool:
- * - gstr1-json → portal/offline JSON
- * - csv → zip of section-wise CSVs (b2b, b2cs, cdnr, hsn…)
+ * Download pack exports:
+ * - gstr1-json / xlsx → GSTR-1 portal JSON or section Excel
+ * - csv → offline tool section-wise CSV zip
+ * - bank-xlsx / pnl-xlsx / books-xlsx → books workbooks
  */
 export async function downloadGstPackExport(
   packId: string,
-  format: 'gstr1-json' | 'csv',
+  format: GstPackExportFormat,
   opts?: { asOwner?: boolean },
 ): Promise<void> {
   const base = opts?.asOwner
     ? `/inventory/auditor/packs/${packId}/export`
     : `/inventory/auditor/inbox/${packId}/export`;
-  const mime = format === 'csv' ? 'application/zip' : 'application/json';
-  const filename =
-    format === 'csv' ? `gstr1-offline-${packId}.zip` : `gstr1-${packId}.json`;
-  toast.info(format === 'csv' ? 'Preparing GST Offline CSV zip…' : 'Preparing GSTR-1 JSON…');
+  const meta: Record<
+    GstPackExportFormat,
+    { mime: DownloadMimeType; filename: string; toast: string }
+  > = {
+    'gstr1-json': {
+      mime: 'application/json',
+      filename: `gstr1-${packId}.json`,
+      toast: 'Preparing GSTR-1 JSON…',
+    },
+    xlsx: {
+      mime: XLSX_MIME,
+      filename: `gstr1-${packId}.xlsx`,
+      toast: 'Preparing GSTR-1 Excel…',
+    },
+    csv: {
+      mime: 'application/zip',
+      filename: `gstr1-offline-${packId}.zip`,
+      toast: 'Preparing GST Offline CSV zip…',
+    },
+    'bank-xlsx': {
+      mime: XLSX_MIME,
+      filename: `bank-${packId}.xlsx`,
+      toast: 'Preparing Bank Excel…',
+    },
+    'pnl-xlsx': {
+      mime: XLSX_MIME,
+      filename: `pnl-${packId}.xlsx`,
+      toast: 'Preparing P&L Excel…',
+    },
+    'books-xlsx': {
+      mime: XLSX_MIME,
+      filename: `books-${packId}.xlsx`,
+      toast: 'Preparing Books Excel…',
+    },
+  };
+  const { mime, filename, toast: toastMsg } = meta[format];
+  toast.info(toastMsg);
   try {
     const uri = await apiDownload(`${base}?format=${format}`, filename, mime);
     await shareDownloadedFile(uri, filename, mime);

@@ -47,12 +47,15 @@ export function OverflowMenu({
   accessibilityLabel = 'More actions',
   align = 'right',
   trigger = 'ghost',
+  label,
 }: {
   items: OverflowMenuItem[];
   title?: string;
   accessibilityLabel?: string;
   align?: 'left' | 'right';
-  trigger?: 'ghost' | 'outline';
+  trigger?: 'ghost' | 'outline' | 'button';
+  /** When set (with trigger=button), shows a labeled dropdown control instead of ⋯. */
+  label?: string;
 }) {
   const { isPhone } = useViewport();
   const { width: winW, height: winH } = useWindowDimensions();
@@ -89,6 +92,8 @@ export function OverflowMenu({
     return { top, left };
   })();
 
+  const isButton = trigger === 'button' && Boolean(label);
+
   return (
     <View ref={triggerRef} collapsable={false}>
       <Pressable
@@ -96,11 +101,30 @@ export function OverflowMenu({
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
-        className={`w-10 h-10 rounded-full items-center justify-center ${
-          trigger === 'outline' ? 'bg-card border border-border' : 'bg-transparent'
-        } ${Platform.OS === 'web' ? 'hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary/40' : 'active:bg-primary/10'}`}
+        className={
+          isButton
+            ? `flex-row items-center gap-1.5 px-3 py-2 rounded-lg border border-border bg-card ${
+                Platform.OS === 'web'
+                  ? 'hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary/40'
+                  : 'active:bg-primary/10'
+              }`
+            : `w-10 h-10 rounded-full items-center justify-center ${
+                trigger === 'outline' ? 'bg-card border border-border' : 'bg-transparent'
+              } ${
+                Platform.OS === 'web'
+                  ? 'hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary/40'
+                  : 'active:bg-primary/10'
+              }`
+        }
       >
-        <Ionicons name="ellipsis-vertical" size={20} color={NAVY} />
+        {isButton ? (
+          <>
+            <Text className="text-xs font-semibold text-text">{label}</Text>
+            <Ionicons name="chevron-down" size={14} color={NAVY} />
+          </>
+        ) : (
+          <Ionicons name="ellipsis-vertical" size={20} color={NAVY} />
+        )}
       </Pressable>
 
       <Modal

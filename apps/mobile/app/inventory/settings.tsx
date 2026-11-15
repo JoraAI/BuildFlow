@@ -16,6 +16,7 @@ import {
   BusyOverlay,
   useBusy,
   CompanyLogo,
+  OverflowMenu,
   toast,
 } from '@/components/ui';
 import { pickImage } from '@/utils/pick-image';
@@ -823,17 +824,48 @@ export default function InventorySettingsScreen() {
                     </View>
                   ) : (
                     <View className="flex-row flex-wrap items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="secondary"
+                      <OverflowMenu
                         label="GSTR-1"
-                        onPress={() => void downloadGstPackExport(p.id, 'gstr1-json', { asOwner: true })}
+                        trigger="button"
+                        title="Download GSTR-1"
+                        accessibilityLabel="Download GSTR-1"
+                        items={[
+                          {
+                            key: 'xlsx',
+                            label: 'Download as Excel',
+                            icon: 'document-outline',
+                            onPress: () =>
+                              void downloadGstPackExport(p.id, 'xlsx', { asOwner: true }),
+                          },
+                          {
+                            key: 'json',
+                            label: 'Download as JSON',
+                            icon: 'code-slash-outline',
+                            onPress: () =>
+                              void downloadGstPackExport(p.id, 'gstr1-json', { asOwner: true }),
+                          },
+                        ]}
                       />
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        label="Offline zip"
-                        onPress={() => void downloadGstPackExport(p.id, 'csv', { asOwner: true })}
+                      <OverflowMenu
+                        title="Downloads"
+                        accessibilityLabel="More pack downloads"
+                        trigger="outline"
+                        items={[
+                          {
+                            key: 'books',
+                            label: 'Books Excel',
+                            icon: 'folder-outline',
+                            onPress: () =>
+                              void downloadGstPackExport(p.id, 'books-xlsx', { asOwner: true }),
+                          },
+                          {
+                            key: 'csv',
+                            label: 'Offline CSV zip',
+                            icon: 'archive-outline',
+                            onPress: () =>
+                              void downloadGstPackExport(p.id, 'csv', { asOwner: true }),
+                          },
+                        ]}
                       />
                       <Badge label={p.status} />
                     </View>

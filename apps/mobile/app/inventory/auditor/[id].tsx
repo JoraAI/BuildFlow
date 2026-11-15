@@ -16,8 +16,8 @@ import {
 } from '@/services/auditor.queries';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
-import { Badge, Button, Input, toast } from '@/components/ui';
-import { SegmentedTabs } from '@/components/inventory/SegmentedTabs';
+import { Badge, Button, Input, OverflowMenu, toast } from '@/components/ui';
+import { SegmentedTabsInline, SegmentedTrack } from '@/components/inventory/SegmentedTabs';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { NavBackButton } from '@/components/layout/NavBackButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -73,6 +73,37 @@ function RowCard({
   );
 }
 
+function DeskTable({
+  headers,
+  rows,
+}: {
+  headers: string[];
+  rows: Array<{ key: string; cells: string[] }>;
+}) {
+  return (
+    <View className="border border-border rounded-xl overflow-hidden bg-card">
+      <View className="flex-row bg-surface border-b border-border px-3 py-2">
+        {headers.map((h) => (
+          <Text key={h} className="flex-1 text-[11px] font-bold uppercase text-muted">
+            {h}
+          </Text>
+        ))}
+      </View>
+      {rows.map((r) => (
+        <View key={r.key} className="flex-row px-3 py-2.5 border-b border-border/60">
+          {r.cells.map((c, i) => (
+            <Text key={`${r.key}-${i}`} className="flex-1 text-xs text-text" numberOfLines={2}>
+              {c}
+            </Text>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+type PrimarySeg = 'GST' | 'Books' | 'Notes';
+
 export default function AuditorPackScreen() {
   const { id, mode } = useLocalSearchParams<{ id: string; mode?: string }>();
   const packId = typeof id === 'string' ? id : id?.[0];
@@ -87,7 +118,9 @@ export default function AuditorPackScreen() {
   const switchCompany = useAuthStore((s) => s.switchCompany);
   const memberships = user?.auditorMemberships ?? [];
   const { isDesktop, isPhone } = useViewport();
-  const [tab, setTab] = useState<string>('Summary');
+  const [primary, setPrimary] = useState<PrimarySeg>('GST');
+  const [gstTab, setGstTab] = useState('Summary');
+  const [booksTab, setBooksTab] = useState('Bank');
   const [narration, setNarration] = useState('');
   const [amount, setAmount] = useState('');
   const [entryType, setEntryType] = useState<'JOURNAL' | 'BANK_NOTE' | 'GST_NOTE'>('GST_NOTE');
@@ -97,6 +130,7 @@ export default function AuditorPackScreen() {
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const pad = isDesktop ? 28 : 16;
   const backHref = isOwnerMode ? '/inventory/settings' : '/inventory/auditor';
+  const exportAsOwner = isOwnerMode;
 
   useEffect(() => {
     if (!data || !isOwnerMode) return;
@@ -233,16 +267,55 @@ export default function AuditorPackScreen() {
       : openingShown == null
         ? data.bankNet ?? data.bankTotal ?? 0
         : openingShown + bankIn - bankOut;
-  const tabItems = [
+
+  const canExport = data.status !== 'DRAFT';
+  const primaryTabs: Array<{ value: PrimarySeg; label: string }> = isOwnerMode
+    ? [
+        { value: 'GST', label: 'GST' },
+        { value: 'Books', label: 'Books' },
+      ]
+    : [
+        { value: 'GST', label: 'GST' },
+        { value: 'Books', label: 'Books' },
+        { value: 'Notes', label: 'Notes' },
+      ];
+
+  const gstSecondary = [
     { value: 'Summary', label: 'Summary' },
     { value: 'Sales', label: 'Sales' },
     { value: 'Purchases', label: 'Purchases' },
     { value: 'CN/DN', label: 'CN/DN' },
     { value: taxCode.short, label: taxCode.short },
+  ];
+  const booksSecondary = [
     { value: 'Bank', label: 'Bank' },
     { value: 'Journals', label: 'Journals' },
-    ...(isOwnerMode ? [] : [{ value: 'Notes', label: 'Notes' }]),
-  ] as const;
+    { value: 'Groups', label: 'Groups' },
+    { value: 'P&L', label: 'P&L' },
+    { value: 'BS', label: 'BS' },
+  ];
+
+  const bankGroups =
+    data.bankByMode ??
+    (() => {
+      const map = new Map<string, typeof data.bank>();
+      for (const row of data.bank) {
+        const mode = (row.paymentMode || 'OTHER').toUpperCase();
+        const list = map.get(mode) ?? [];
+        list.push(row);
+        map.set(mode, list);
+      }
+      return [...map.entries()].map(([paymentMode, rows]) => {
+        let inn = 0;
+        let out = 0;
+        for (const r of rows) {
+          if (r.entryType === 'OPENING') continue;
+          if (r.direction === 'IN') inn += r.amount;
+          else out += r.amount;
+        }
+        return { paymentMode, in: inn, out, net: inn - out, rows };
+      });
+    })();
 
   return (
     <SafeAreaView className="flex-1 bg-bg" edges={['top', 'bottom']}>
@@ -254,8 +327,8 @@ export default function AuditorPackScreen() {
       />
       <ScrollView
         className="flex-1"
+        stickyHeaderIndices={isPhone ? undefined : [1]}
         contentContainerStyle={{
-          padding: pad,
           paddingBottom: 72,
           maxWidth: 1100,
           width: '100%',
@@ -266,7 +339,7 @@ export default function AuditorPackScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={{ flexGrow: 0, marginBottom: 16 }}
+            style={{ flexGrow: 0, marginBottom: 12, paddingHorizontal: pad }}
             contentContainerStyle={{ gap: 8, flexDirection: 'row' }}
           >
             {memberships.map((m) => {
@@ -287,41 +360,103 @@ export default function AuditorPackScreen() {
               );
             })}
           </ScrollView>
-        ) : null}
+        ) : (
+          <View />
+        )}
 
-        {/* Header */}
-        <View className={isDesktop ? 'flex-row items-start justify-between gap-4 mb-5' : 'mb-4'}>
-          <View className="flex-1 min-w-0">
-            <Text className="text-xs text-muted mb-1" numberOfLines={1}>
-              {user?.companyName}
-            </Text>
-            <View className="flex-row flex-wrap items-center gap-2 mb-1">
-              <Text className="text-2xl font-bold text-text">{data.label}</Text>
-              <Badge label={data.status.replace('_', ' ')} color={statusBadge(data.status)} />
+        {/* Sticky header strip */}
+        <View
+          className="bg-bg border-b border-border"
+          style={{ paddingHorizontal: pad, paddingTop: 8, paddingBottom: 12 }}
+        >
+          <View className={isDesktop ? 'flex-row items-start justify-between gap-4' : ''}>
+            <View className="flex-1 min-w-0">
+              <Text className="text-xs text-muted mb-1" numberOfLines={1}>
+                {user?.companyName}
+              </Text>
+              <View className="flex-row flex-wrap items-center gap-2 mb-1">
+                <Text className="text-2xl font-bold text-text">{data.label}</Text>
+                <Badge label={data.status.replace('_', ' ')} color={statusBadge(data.status)} />
+              </View>
+              <Text className="text-sm text-muted">
+                {data.periodStart} → {data.periodEnd}
+              </Text>
+              {!isOwnerMode && data.notes ? (
+                <Text className="text-sm text-text mt-2">{data.notes}</Text>
+              ) : null}
             </View>
-            <Text className="text-sm text-muted">
-              {data.periodStart} → {data.periodEnd}
-            </Text>
-            {!isOwnerMode && data.notes ? (
-              <Text className="text-sm text-text mt-2">{data.notes}</Text>
-            ) : null}
-          </View>
-          <View className={`flex-row flex-wrap gap-2 ${isPhone ? 'mt-3' : ''}`}>
-            {!isOwnerMode ? (
-              <>
-                <Button
-                  label="GSTR-1 JSON"
-                  variant="secondary"
-                  size="sm"
-                  onPress={() => void downloadGstPackExport(packId!, 'gstr1-json')}
-                />
-                <Button
-                  label="Offline CSV zip"
-                  variant="secondary"
-                  size="sm"
-                  onPress={() => void downloadGstPackExport(packId!, 'csv')}
-                />
-                {data.status !== 'FILED' ? (
+            <View className={`flex-row flex-wrap items-center gap-2 ${isPhone ? 'mt-3' : ''}`}>
+              {canExport ? (
+                <>
+                  <OverflowMenu
+                    label="GSTR-1"
+                    trigger="button"
+                    title="Download GSTR-1"
+                    accessibilityLabel="Download GSTR-1"
+                    items={[
+                      {
+                        key: 'xlsx',
+                        label: 'Download as Excel',
+                        icon: 'document-outline',
+                        onPress: () =>
+                          void downloadGstPackExport(packId!, 'xlsx', { asOwner: exportAsOwner }),
+                      },
+                      {
+                        key: 'json',
+                        label: 'Download as JSON',
+                        icon: 'code-slash-outline',
+                        onPress: () =>
+                          void downloadGstPackExport(packId!, 'gstr1-json', {
+                            asOwner: exportAsOwner,
+                          }),
+                      },
+                    ]}
+                  />
+                  <OverflowMenu
+                    title="Downloads"
+                    accessibilityLabel="More downloads"
+                    trigger="outline"
+                    items={[
+                      {
+                        key: 'bank',
+                        label: 'Bank Excel',
+                        icon: 'cash-outline',
+                        onPress: () =>
+                          void downloadGstPackExport(packId!, 'bank-xlsx', {
+                            asOwner: exportAsOwner,
+                          }),
+                      },
+                      {
+                        key: 'pnl',
+                        label: 'P&L Excel',
+                        icon: 'stats-chart-outline',
+                        onPress: () =>
+                          void downloadGstPackExport(packId!, 'pnl-xlsx', {
+                            asOwner: exportAsOwner,
+                          }),
+                      },
+                      {
+                        key: 'books',
+                        label: 'Books Excel (Bank/P&L/BS/Groups)',
+                        icon: 'folder-outline',
+                        onPress: () =>
+                          void downloadGstPackExport(packId!, 'books-xlsx', {
+                            asOwner: exportAsOwner,
+                          }),
+                      },
+                      {
+                        key: 'csv',
+                        label: 'Offline CSV zip',
+                        icon: 'archive-outline',
+                        onPress: () =>
+                          void downloadGstPackExport(packId!, 'csv', { asOwner: exportAsOwner }),
+                      },
+                    ]}
+                  />
+                </>
+              ) : null}
+              {!isOwnerMode ? (
+                data.status !== 'FILED' ? (
                   <>
                     <Button
                       label="In progress"
@@ -337,319 +472,533 @@ export default function AuditorPackScreen() {
                       loading={updateStatus.isPending}
                     />
                   </>
-                ) : null}
-              </>
-            ) : (
-              <>
-                <Button
-                  label="Delete"
-                  variant="secondary"
-                  size="sm"
-                  onPress={() => void onDeleteDraft()}
-                  loading={deletePack.isPending}
-                />
-                <Button
-                  label="Send to auditor"
-                  size="sm"
-                  onPress={() => void onSendDraft()}
-                  loading={sendPack.isPending || updateDraft.isPending}
-                  fullWidth={isPhone}
-                />
-              </>
-            )}
-          </View>
-        </View>
-
-        {isOwnerMode && data.status === 'DRAFT' ? (
-          <View className="mb-4 rounded-2xl border border-border bg-card px-4 py-4 gap-3">
-            <Text className="text-sm text-muted">
-              Set opening cash/bank for period start, check figures, then send.
-            </Text>
-            <Input
-              label="Opening cash/bank (₹)"
-              value={openingInput}
-              onChangeText={setOpeningInput}
-              onBlur={() => void saveDraftMeta()}
-              keyboardType="decimal-pad"
-              placeholder={
-                data.suggestedOpeningCashBalance != null
-                  ? `Suggested ${data.suggestedOpeningCashBalance}`
-                  : '0'
-              }
-              compact
-              fullWidth
-            />
-            <Input
-              label="Notes for auditor (optional)"
-              value={notesInput}
-              onChangeText={setNotesInput}
-              onBlur={() => void saveDraftMeta()}
-              placeholder="Anything the CA should know…"
-              compact
-              fullWidth
-            />
-          </View>
-        ) : null}
-
-        {/* KPI strip */}
-        <View className={`gap-3 mb-4 ${isDesktop ? 'flex-row flex-wrap' : 'flex-row flex-wrap'}`}>
-          <Kpi label="Outward GST" value={inr(gst.invoiceGst)} hint={`${gst.invoiceCount} invoices`} />
-          <Kpi label="Inward GST" value={inr(gst.billGst)} hint={`${gst.billCount} bills`} />
-          <Kpi
-            label="Opening"
-            value={openingShown == null ? '—' : inr(openingShown)}
-            hint="Period start"
-            warn={isOwnerMode && openingShown == null}
-          />
-          <Kpi label="Cash in" value={inr(bankIn)} />
-          <Kpi label="Cash out" value={inr(bankOut)} />
-          <Kpi label="Closing" value={inr(bankClosing)} hint="Opening + in − out" />
-        </View>
-
-        {(gst.missingHsnLines ?? 0) > 0 ? (
-          <View className="mb-4 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3">
-            <Text className="text-sm font-semibold text-text">
-              {gst.missingHsnLines} line{(gst.missingHsnLines ?? 0) === 1 ? '' : 's'}{' '}
-              {taxCode.missing.toLowerCase()}
-            </Text>
-            <Text className="text-xs text-muted mt-0.5">
-              {isOwnerMode
-                ? `Fill ${taxCode.short} on catalog items or invoice lines, then refresh this review.`
-                : `Ask the shop owner to fill ${taxCode.short} on catalog items or invoice lines, then note it under Notes.`}
-            </Text>
-          </View>
-        ) : null}
-
-        <View className="mb-4 border-b border-border pb-1">
-          <SegmentedTabs
-            tabs={tabItems}
-            value={tab}
-            onChange={setTab}
-            contentContainerClassName="gap-2 pb-2 items-center flex-row px-0"
-          />
-        </View>
-
-        {tab === 'Summary' ? (
-          <View className="gap-3">
-            <View className="bg-card border border-border rounded-2xl px-4 py-4">
-              <Text className="text-base font-bold text-text mb-3">GST overview</Text>
-              <View className={isDesktop ? 'flex-row flex-wrap gap-x-8 gap-y-3' : 'gap-3'}>
-                <View>
-                  <Text className="text-[11px] text-muted uppercase font-semibold">Taxable (sales)</Text>
-                  <Text className="text-lg font-bold text-text">{inr(gst.invoiceTaxable)}</Text>
-                </View>
-                <View>
-                  <Text className="text-[11px] text-muted uppercase font-semibold">CGST</Text>
-                  <Text className="text-lg font-bold text-text">{inr(gst.invoiceCgst)}</Text>
-                </View>
-                <View>
-                  <Text className="text-[11px] text-muted uppercase font-semibold">SGST</Text>
-                  <Text className="text-lg font-bold text-text">{inr(gst.invoiceSgst)}</Text>
-                </View>
-                <View>
-                  <Text className="text-[11px] text-muted uppercase font-semibold">IGST</Text>
-                  <Text className="text-lg font-bold text-text">{inr(gst.invoiceIgst)}</Text>
-                </View>
-              </View>
-            </View>
-            {(gst.rateWise ?? []).length > 0 ? (
-              <View className={isDesktop ? 'flex-row flex-wrap gap-3' : 'gap-3'}>
-                {(gst.rateWise ?? []).map((r: NonNullable<GstPackDetail['gst']['rateWise']>[number]) => (
-                  <View
-                    key={r.rate}
-                    className={`bg-card border border-border rounded-2xl px-4 py-3 ${
-                      isDesktop ? 'min-w-[200px] flex-1' : ''
-                    }`}
-                  >
-                    <Text className="text-base font-bold text-text">{r.rate}% GST</Text>
-                    <Text className="text-xs text-muted mt-0.5">{r.count} lines</Text>
-                    <Text className="text-sm text-text mt-2">
-                      Taxable {inr(r.taxable)} · Tax {inr(r.tax)}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            ) : null}
-          </View>
-        ) : null}
-
-        {tab === 'Sales' ? (
-          <View className="gap-2">
-            {gst.invoices.length === 0 ? (
-              <Text className="text-sm text-muted py-6 text-center">No sales invoices in this period.</Text>
-            ) : (
-              gst.invoices.map((i: GstPackDetail['gst']['invoices'][number]) => (
-                <RowCard
-                  key={i.id}
-                  title={`${i.number} · ${inr(i.total)}${i.bucket ? ` · ${i.bucket}` : ''}`}
-                  subtitle={`${i.date}${i.clientName ? ` · ${i.clientName}` : ''}${i.clientGstin ? ` · ${i.clientGstin}` : ''}`}
-                  meta={`Taxable ${inr(i.taxable)} · C/S/I ${inr(i.cgst)}/${inr(i.sgst)}/${inr(i.igst)}`}
-                />
-              ))
-            )}
-          </View>
-        ) : null}
-
-        {tab === 'Purchases' ? (
-          <View className="gap-2">
-            {gst.bills.length === 0 ? (
-              <Text className="text-sm text-muted py-6 text-center">No purchase bills in this period.</Text>
-            ) : (
-              gst.bills.map((b: GstPackDetail['gst']['bills'][number]) => {
-                const missingPurchaseHsn = (b.lines ?? []).filter((l) => !l.hsn?.trim()).length;
-                return (
-                  <RowCard
-                    key={b.id}
-                    title={`${b.number} · ${inr(b.total)}`}
-                    subtitle={`${b.date}${b.vendorName ? ` · ${b.vendorName}` : ''}${b.vendorGstin ? ` · ${b.vendorGstin}` : ''}`}
-                    meta={`Taxable ${inr(b.taxable ?? 0)} · GST ${inr(b.gst)}${
-                      missingPurchaseHsn > 0 ? ` · ${missingPurchaseHsn} lines missing ${taxCode.short}` : ''
-                    }`}
-                  />
-                );
-              })
-            )}
-          </View>
-        ) : null}
-
-        {tab === 'CN/DN' ? (
-          <View className="gap-4">
-            <View className="gap-2">
-              <Text className="text-sm font-bold text-text">Credit notes</Text>
-              {creditNotes.length === 0 ? (
-                <Text className="text-sm text-muted py-2">No credit notes in this period.</Text>
+                ) : null
               ) : (
-                creditNotes.map((n: NonNullable<GstPackDetail['gst']['creditNotes']>[number]) => (
-                  <RowCard
-                    key={n.id}
-                    title={`${n.number} · ${inr(n.total)}`}
-                    subtitle={`${n.date} · ${n.partyName}${n.partyGstin ? ` · ${n.partyGstin}` : ''}`}
-                    meta={`Taxable ${inr(n.taxable)} · C/S/I ${inr(n.cgst)}/${inr(n.sgst)}/${inr(n.igst)}`}
+                <>
+                  <Button
+                    label="Delete"
+                    variant="secondary"
+                    size="sm"
+                    onPress={() => void onDeleteDraft()}
+                    loading={deletePack.isPending}
                   />
-                ))
-              )}
-            </View>
-            <View className="gap-2">
-              <Text className="text-sm font-bold text-text">Debit notes</Text>
-              {debitNotes.length === 0 ? (
-                <Text className="text-sm text-muted py-2">No debit notes in this period.</Text>
-              ) : (
-                debitNotes.map((n: NonNullable<GstPackDetail['gst']['debitNotes']>[number]) => (
-                  <RowCard
-                    key={n.id}
-                    title={`${n.number} · ${inr(n.total)}`}
-                    subtitle={`${n.date} · ${n.partyName}${n.partyGstin ? ` · ${n.partyGstin}` : ''}`}
-                    meta={`Taxable ${inr(n.taxable)} · GST ${inr(n.gst)}`}
+                  <Button
+                    label="Send to auditor"
+                    size="sm"
+                    onPress={() => void onSendDraft()}
+                    loading={sendPack.isPending || updateDraft.isPending}
+                    fullWidth={isPhone}
                   />
-                ))
+                </>
               )}
             </View>
           </View>
-        ) : null}
+        </View>
 
-        {tab === taxCode.short ? (
-          <View className="gap-2">
-            {(gst.hsnSummary ?? []).length === 0 ? (
-              <Text className="text-sm text-muted py-6 text-center">
-                No {taxCode.short} lines in this period.
+        <View style={{ paddingHorizontal: pad, paddingTop: 16 }}>
+          {isOwnerMode && data.status === 'DRAFT' ? (
+            <View className="mb-4 rounded-2xl border border-border bg-card px-4 py-4 gap-3">
+              <Text className="text-sm text-muted">
+                Set opening cash/bank for period start, check figures, then send.
               </Text>
-            ) : (
-              (gst.hsnSummary ?? []).map((h: NonNullable<GstPackDetail['gst']['hsnSummary']>[number]) => (
-                <RowCard
-                  key={h.hsn}
-                  title={`${h.hsn === '(missing)' ? taxCode.missing : h.hsn} · ${h.lineCount} lines`}
-                  meta={`Qty ${h.qty} · Taxable ${inr(h.taxable)} · Tax ${inr(h.tax)}`}
-                />
-              ))
-            )}
-          </View>
-        ) : null}
-
-        {tab === 'Bank' ? (
-          <View className="gap-2">
-            {data.bank.length === 0 ? (
-              <Text className="text-sm text-muted py-6 text-center">No cash-book rows in this period.</Text>
-            ) : (
-              data.bank.map((row: GstPackDetail['bank'][number]) => (
-                <RowCard
-                  key={row.id}
-                  title={`${row.paymentMode} · ${inr(row.amount)}`}
-                  subtitle={`${row.entryDate} · ${row.direction} · ${row.entryType}`}
-                  meta={row.description}
-                />
-              ))
-            )}
-          </View>
-        ) : null}
-
-        {tab === 'Journals' ? (
-          <View className="gap-2">
-            {data.journals.length === 0 ? (
-              <Text className="text-sm text-muted py-6 text-center">No journal entries in this period.</Text>
-            ) : (
-              data.journals.map((j: GstPackDetail['journals'][number]) => (
-                <RowCard
-                  key={j.id}
-                  title={inr(j.amount)}
-                  subtitle={`${j.entryDate} · ${j.debitAccount} → ${j.creditAccount}`}
-                  meta={j.description ?? undefined}
-                />
-              ))
-            )}
-          </View>
-        ) : null}
-
-        {!isOwnerMode && tab === 'Notes' ? (
-          <View className="gap-4">
-            <View className="bg-card border border-border rounded-2xl p-4">
-              <Text className="text-base font-bold text-text mb-3">Add note for the owner</Text>
-              <View className="flex-row flex-wrap gap-2 mb-3">
-                {(['GST_NOTE', 'BANK_NOTE', 'JOURNAL'] as const).map((t) => (
-                  <Pressable
-                    key={t}
-                    onPress={() => setEntryType(t)}
-                    className={`px-3 py-1.5 rounded-lg border ${
-                      entryType === t ? 'bg-primary border-primary' : 'bg-bg border-border'
-                    }`}
-                  >
-                    <Text className={`text-xs font-semibold ${entryType === t ? 'text-white' : 'text-text'}`}>
-                      {t.replace('_', ' ')}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-              <TextInput
-                value={narration}
-                onChangeText={setNarration}
-                placeholder={`e.g. ${taxCode.missing} on invoice…`}
-                className="border border-border rounded-xl px-3 py-3 text-text mb-2 bg-bg"
-                multiline
-              />
-              <TextInput
-                value={amount}
-                onChangeText={setAmount}
-                placeholder="Amount (optional)"
+              <Input
+                label="Opening cash/bank (₹)"
+                value={openingInput}
+                onChangeText={setOpeningInput}
+                onBlur={() => void saveDraftMeta()}
                 keyboardType="decimal-pad"
-                className="border border-border rounded-xl px-3 py-3 text-text mb-3 bg-bg"
+                placeholder={
+                  data.suggestedOpeningCashBalance != null
+                    ? `Suggested ${data.suggestedOpeningCashBalance}`
+                    : '0'
+                }
+                compact
+                fullWidth
               />
-              <Button label="Save note" onPress={onAddManual} loading={addEntry.isPending} fullWidth />
+              <Input
+                label="Notes for auditor (optional)"
+                value={notesInput}
+                onChangeText={setNotesInput}
+                onBlur={() => void saveDraftMeta()}
+                placeholder="Anything the CA should know…"
+                compact
+                fullWidth
+              />
             </View>
-            {data.manualEntries.length === 0 ? (
-              <Text className="text-sm text-muted text-center py-4">
-                No notes yet. Use notes for filing comments or missing {taxCode.short} follow-ups.
-              </Text>
-            ) : (
-              data.manualEntries.map((m: GstPackDetail['manualEntries'][number]) => (
-                <RowCard
-                  key={m.id}
-                  title={`${m.entryType.replace('_', ' ')}${m.amount != null ? ` · ${inr(m.amount)}` : ''}`}
-                  subtitle={`${m.entryDate} · ${m.createdByName}`}
-                  meta={m.narration}
-                />
-              ))
-            )}
+          ) : null}
+
+          <View className="gap-3 mb-4 flex-row flex-wrap">
+            <Kpi label="Outward GST" value={inr(gst.invoiceGst)} hint={`${gst.invoiceCount} invoices`} />
+            <Kpi label="Inward GST" value={inr(gst.billGst)} hint={`${gst.billCount} bills`} />
+            <Kpi
+              label="Opening"
+              value={openingShown == null ? '—' : inr(openingShown)}
+              hint="Period start"
+              warn={isOwnerMode && openingShown == null}
+            />
+            <Kpi label="Cash in" value={inr(bankIn)} />
+            <Kpi label="Cash out" value={inr(bankOut)} />
+            <Kpi label="Closing" value={inr(bankClosing)} hint="Opening + in − out" />
           </View>
-        ) : null}
+
+          {(gst.missingHsnLines ?? 0) > 0 ? (
+            <View className="mb-4 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3">
+              <Text className="text-sm font-semibold text-text">
+                {gst.missingHsnLines} line{(gst.missingHsnLines ?? 0) === 1 ? '' : 's'}{' '}
+                {taxCode.missing.toLowerCase()}
+              </Text>
+              <Text className="text-xs text-muted mt-0.5">
+                {isOwnerMode
+                  ? `Fill ${taxCode.short} on catalog items or invoice lines, then refresh this review.`
+                  : `Ask the shop owner to fill ${taxCode.short} on catalog items or invoice lines, then note it under Notes.`}
+              </Text>
+            </View>
+          ) : null}
+
+          <View className="mb-3">
+            <SegmentedTrack
+              tabs={primaryTabs}
+              value={primary}
+              onChange={(v) => setPrimary(v)}
+            />
+          </View>
+
+          {primary === 'GST' ? (
+            <View className="mb-4">
+              <SegmentedTabsInline
+                tabs={gstSecondary}
+                value={gstTab}
+                onChange={setGstTab}
+                className="gap-2 mb-3"
+              />
+
+              {gstTab === 'Summary' ? (
+                <View className="gap-3">
+                  <View className="bg-card border border-border rounded-2xl px-4 py-4">
+                    <Text className="text-base font-bold text-text mb-3">GST overview</Text>
+                    <View className={isDesktop ? 'flex-row flex-wrap gap-x-8 gap-y-3' : 'gap-3'}>
+                      <View>
+                        <Text className="text-[11px] text-muted uppercase font-semibold">
+                          Taxable (sales)
+                        </Text>
+                        <Text className="text-lg font-bold text-text">{inr(gst.invoiceTaxable)}</Text>
+                      </View>
+                      <View>
+                        <Text className="text-[11px] text-muted uppercase font-semibold">CGST</Text>
+                        <Text className="text-lg font-bold text-text">{inr(gst.invoiceCgst)}</Text>
+                      </View>
+                      <View>
+                        <Text className="text-[11px] text-muted uppercase font-semibold">SGST</Text>
+                        <Text className="text-lg font-bold text-text">{inr(gst.invoiceSgst)}</Text>
+                      </View>
+                      <View>
+                        <Text className="text-[11px] text-muted uppercase font-semibold">IGST</Text>
+                        <Text className="text-lg font-bold text-text">{inr(gst.invoiceIgst)}</Text>
+                      </View>
+                    </View>
+                  </View>
+                  {(gst.rateWise ?? []).length > 0 ? (
+                    <View className={isDesktop ? 'flex-row flex-wrap gap-3' : 'gap-3'}>
+                      {(gst.rateWise ?? []).map(
+                        (r: NonNullable<GstPackDetail['gst']['rateWise']>[number]) => (
+                          <View
+                            key={r.rate}
+                            className={`bg-card border border-border rounded-2xl px-4 py-3 ${
+                              isDesktop ? 'min-w-[200px] flex-1' : ''
+                            }`}
+                          >
+                            <Text className="text-base font-bold text-text">{r.rate}% GST</Text>
+                            <Text className="text-xs text-muted mt-0.5">{r.count} lines</Text>
+                            <Text className="text-sm text-text mt-2">
+                              Taxable {inr(r.taxable)} · Tax {inr(r.tax)}
+                            </Text>
+                          </View>
+                        ),
+                      )}
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {gstTab === 'Sales' ? (
+                <View className="gap-2">
+                  {gst.invoices.length === 0 ? (
+                    <Text className="text-sm text-muted py-6 text-center">
+                      No sales invoices in this period.
+                    </Text>
+                  ) : isDesktop ? (
+                    <DeskTable
+                      headers={['Invoice', 'Date', 'Party', 'Total', 'Tax']}
+                      rows={gst.invoices.map((i: GstPackDetail['gst']['invoices'][number]) => ({
+                        key: i.id,
+                        cells: [
+                          `${i.number}${i.bucket ? ` (${i.bucket})` : ''}`,
+                          i.date,
+                          i.clientName ?? '—',
+                          inr(i.total),
+                          `C/S/I ${inr(i.cgst)}/${inr(i.sgst)}/${inr(i.igst)}`,
+                        ],
+                      }))}
+                    />
+                  ) : (
+                    gst.invoices.map((i: GstPackDetail['gst']['invoices'][number]) => (
+                      <RowCard
+                        key={i.id}
+                        title={`${i.number} · ${inr(i.total)}${i.bucket ? ` · ${i.bucket}` : ''}`}
+                        subtitle={`${i.date}${i.clientName ? ` · ${i.clientName}` : ''}${
+                          i.clientGstin ? ` · ${i.clientGstin}` : ''
+                        }`}
+                        meta={`Taxable ${inr(i.taxable)} · C/S/I ${inr(i.cgst)}/${inr(i.sgst)}/${inr(i.igst)}`}
+                      />
+                    ))
+                  )}
+                </View>
+              ) : null}
+
+              {gstTab === 'Purchases' ? (
+                <View className="gap-2">
+                  {gst.bills.length === 0 ? (
+                    <Text className="text-sm text-muted py-6 text-center">
+                      No purchase bills in this period.
+                    </Text>
+                  ) : isDesktop ? (
+                    <DeskTable
+                      headers={['Bill', 'Date', 'Vendor', 'Total', 'GST']}
+                      rows={gst.bills.map((b: GstPackDetail['gst']['bills'][number]) => ({
+                        key: b.id,
+                        cells: [
+                          b.number,
+                          b.date,
+                          b.vendorName ?? '—',
+                          inr(b.total),
+                          inr(b.gst),
+                        ],
+                      }))}
+                    />
+                  ) : (
+                    gst.bills.map((b: GstPackDetail['gst']['bills'][number]) => {
+                      const missingPurchaseHsn = (b.lines ?? []).filter((l) => !l.hsn?.trim()).length;
+                      return (
+                        <RowCard
+                          key={b.id}
+                          title={`${b.number} · ${inr(b.total)}`}
+                          subtitle={`${b.date}${b.vendorName ? ` · ${b.vendorName}` : ''}${
+                            b.vendorGstin ? ` · ${b.vendorGstin}` : ''
+                          }`}
+                          meta={`Taxable ${inr(b.taxable ?? 0)} · GST ${inr(b.gst)}${
+                            missingPurchaseHsn > 0
+                              ? ` · ${missingPurchaseHsn} lines missing ${taxCode.short}`
+                              : ''
+                          }`}
+                        />
+                      );
+                    })
+                  )}
+                </View>
+              ) : null}
+
+              {gstTab === 'CN/DN' ? (
+                <View className="gap-4">
+                  <View className="gap-2">
+                    <Text className="text-sm font-bold text-text">Credit notes</Text>
+                    {creditNotes.length === 0 ? (
+                      <Text className="text-sm text-muted py-2">No credit notes in this period.</Text>
+                    ) : (
+                      creditNotes.map(
+                        (n: NonNullable<GstPackDetail['gst']['creditNotes']>[number]) => (
+                          <RowCard
+                            key={n.id}
+                            title={`${n.number} · ${inr(n.total)}`}
+                            subtitle={`${n.date} · ${n.partyName}${
+                              n.partyGstin ? ` · ${n.partyGstin}` : ''
+                            }`}
+                            meta={`Taxable ${inr(n.taxable)} · C/S/I ${inr(n.cgst)}/${inr(n.sgst)}/${inr(n.igst)}`}
+                          />
+                        ),
+                      )
+                    )}
+                  </View>
+                  <View className="gap-2">
+                    <Text className="text-sm font-bold text-text">Debit notes</Text>
+                    {debitNotes.length === 0 ? (
+                      <Text className="text-sm text-muted py-2">No debit notes in this period.</Text>
+                    ) : (
+                      debitNotes.map(
+                        (n: NonNullable<GstPackDetail['gst']['debitNotes']>[number]) => (
+                          <RowCard
+                            key={n.id}
+                            title={`${n.number} · ${inr(n.total)}`}
+                            subtitle={`${n.date} · ${n.partyName}${
+                              n.partyGstin ? ` · ${n.partyGstin}` : ''
+                            }`}
+                            meta={`Taxable ${inr(n.taxable)} · GST ${inr(n.gst)}`}
+                          />
+                        ),
+                      )
+                    )}
+                  </View>
+                </View>
+              ) : null}
+
+              {gstTab === taxCode.short ? (
+                <View className="gap-2">
+                  {(gst.hsnSummary ?? []).length === 0 ? (
+                    <Text className="text-sm text-muted py-6 text-center">
+                      No {taxCode.short} lines in this period.
+                    </Text>
+                  ) : (
+                    (gst.hsnSummary ?? []).map(
+                      (h: NonNullable<GstPackDetail['gst']['hsnSummary']>[number]) => (
+                        <RowCard
+                          key={h.hsn}
+                          title={`${h.hsn === '(missing)' ? taxCode.missing : h.hsn} · ${h.lineCount} lines`}
+                          meta={`Qty ${h.qty} · Taxable ${inr(h.taxable)} · Tax ${inr(h.tax)}`}
+                        />
+                      ),
+                    )
+                  )}
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
+          {primary === 'Books' ? (
+            <View className="mb-4">
+              <SegmentedTabsInline
+                tabs={booksSecondary}
+                value={booksTab}
+                onChange={setBooksTab}
+                className="gap-2 mb-3"
+              />
+
+              {booksTab === 'Bank' ? (
+                <View className="gap-4">
+                  {bankGroups.length === 0 ? (
+                    <Text className="text-sm text-muted py-6 text-center">
+                      No cash-book rows in this period.
+                    </Text>
+                  ) : (
+                    bankGroups.map(
+                      (g: {
+                        paymentMode: string;
+                        in: number;
+                        out: number;
+                        net: number;
+                        rows: GstPackDetail['bank'];
+                      }) => (
+                        <View key={g.paymentMode} className="gap-2">
+                          <View className="flex-row items-center justify-between">
+                            <Text className="text-sm font-bold text-text">{g.paymentMode}</Text>
+                            <Text className="text-xs text-muted">
+                              In {inr(g.in)} · Out {inr(g.out)} · Net {inr(g.net)}
+                            </Text>
+                          </View>
+                          {g.rows.map((row: GstPackDetail['bank'][number]) => (
+                            <RowCard
+                              key={row.id}
+                              title={`${row.direction} · ${inr(row.amount)}`}
+                              subtitle={`${row.entryDate} · ${row.entryType}`}
+                              meta={row.description}
+                            />
+                          ))}
+                        </View>
+                      ),
+                    )
+                  )}
+                </View>
+              ) : null}
+
+              {booksTab === 'Journals' ? (
+                <View className="gap-2">
+                  {data.journals.length === 0 ? (
+                    <Text className="text-sm text-muted py-6 text-center">
+                      No journal entries in this period.
+                    </Text>
+                  ) : (
+                    data.journals.map((j: GstPackDetail['journals'][number]) => (
+                      <RowCard
+                        key={j.id}
+                        title={inr(j.amount)}
+                        subtitle={`${j.entryDate} · ${j.debitAccount} → ${j.creditAccount}`}
+                        meta={j.description ?? undefined}
+                      />
+                    ))
+                  )}
+                </View>
+              ) : null}
+
+              {booksTab === 'Groups' ? (
+                <View className="gap-3">
+                  {(data.groups?.groups ?? []).length === 0 ? (
+                    <Text className="text-sm text-muted py-6 text-center">
+                      No mapped account groups yet.
+                    </Text>
+                  ) : (
+                    (data.groups?.groups ?? []).map(
+                      (g: NonNullable<GstPackDetail['groups']>['groups'][number]) => (
+                        <View
+                          key={g.group}
+                          className="bg-card border border-border rounded-2xl px-4 py-3"
+                        >
+                          <Text className="text-sm font-bold text-text">{g.group}</Text>
+                          <Text className="text-xs text-muted mt-0.5">
+                            Debit {inr(g.debit)} · Credit {inr(g.credit)} · Net {inr(g.net)}
+                          </Text>
+                          {g.accounts.map(
+                            (a: NonNullable<GstPackDetail['groups']>['groups'][number]['accounts'][number]) => (
+                              <Text key={a.account} className="text-xs text-text mt-1.5">
+                                {a.account}: Dr {inr(a.debit)} / Cr {inr(a.credit)}
+                              </Text>
+                            ),
+                          )}
+                        </View>
+                      ),
+                    )
+                  )}
+                  {(data.groups?.unmapped ?? []).length > 0 ? (
+                    <View className="bg-warning/10 border border-warning/40 rounded-xl px-4 py-3">
+                      <Text className="text-sm font-semibold text-text mb-1">Unmapped accounts</Text>
+                      {(data.groups?.unmapped ?? []).map((a: string) => (
+                        <Text key={a} className="text-xs text-muted">
+                          {a}
+                        </Text>
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {booksTab === 'P&L' ? (
+                <View className="gap-3">
+                  {data.pnl ? (
+                    <View className="bg-card border border-border rounded-2xl px-4 py-4 gap-2">
+                      <Text className="text-base font-bold text-text">
+                        P&L · {data.pnl.from} → {data.pnl.to}
+                      </Text>
+                      <Text className="text-sm text-text">Sales {inr(data.pnl.sales)}</Text>
+                      <Text className="text-sm text-text">COGS {inr(data.pnl.cogs)}</Text>
+                      <Text className="text-sm text-text">
+                        Gross margin {inr(data.pnl.grossMargin)}
+                      </Text>
+                      <Text className="text-sm text-text">Expenses {inr(data.pnl.expenses)}</Text>
+                      <Text className="text-sm font-bold text-text mt-1">
+                        Estimated profit {inr(data.pnl.estimatedProfit)}
+                      </Text>
+                      {Object.keys(data.pnl.expensesByCategory).length > 0 ? (
+                        <View className="mt-2 gap-1">
+                          <Text className="text-[11px] font-bold uppercase text-muted">
+                            Expenses by category
+                          </Text>
+                          {Object.entries(data.pnl.expensesByCategory).map(([cat, amt]) => (
+                            <Text key={cat} className="text-xs text-text">
+                              {cat}: {inr(Number(amt))}
+                            </Text>
+                          ))}
+                        </View>
+                      ) : null}
+                    </View>
+                  ) : (
+                    <Text className="text-sm text-muted py-6 text-center">P&L not available.</Text>
+                  )}
+                </View>
+              ) : null}
+
+              {booksTab === 'BS' ? (
+                <View className="gap-3">
+                  {data.balanceSheet ? (
+                    <View className="bg-card border border-border rounded-2xl px-4 py-4 gap-2">
+                      <Text className="text-base font-bold text-text">
+                        Balance sheet · as of {data.balanceSheet.asOf}
+                      </Text>
+                      <Text className="text-sm font-semibold text-text mt-1">Assets</Text>
+                      <Text className="text-sm text-text">
+                        Cash / Bank {inr(data.balanceSheet.assets.cashBank)}
+                      </Text>
+                      <Text className="text-sm text-text">
+                        Receivables {inr(data.balanceSheet.assets.receivables)}
+                      </Text>
+                      <Text className="text-sm text-text">
+                        Stock value {inr(data.balanceSheet.assets.stockValue)}
+                      </Text>
+                      <Text className="text-sm font-bold text-text">
+                        Total assets {inr(data.balanceSheet.assets.total)}
+                      </Text>
+                      <Text className="text-sm font-semibold text-text mt-2">Liabilities</Text>
+                      <Text className="text-sm text-text">
+                        Payables {inr(data.balanceSheet.liabilities.payables)}
+                      </Text>
+                      <Text className="text-sm font-bold text-text mt-2">
+                        Equity (balancing) {inr(data.balanceSheet.equity)}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text className="text-sm text-muted py-6 text-center">
+                      Balance sheet not available.
+                    </Text>
+                  )}
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
+          {!isOwnerMode && primary === 'Notes' ? (
+            <View className="gap-4 mb-4">
+              <View className="bg-card border border-border rounded-2xl p-4">
+                <Text className="text-base font-bold text-text mb-3">Add note for the owner</Text>
+                <View className="flex-row flex-wrap gap-2 mb-3">
+                  {(['GST_NOTE', 'BANK_NOTE', 'JOURNAL'] as const).map((t) => (
+                    <Pressable
+                      key={t}
+                      onPress={() => setEntryType(t)}
+                      className={`px-3 py-1.5 rounded-lg border ${
+                        entryType === t ? 'bg-primary border-primary' : 'bg-bg border-border'
+                      }`}
+                    >
+                      <Text
+                        className={`text-xs font-semibold ${
+                          entryType === t ? 'text-white' : 'text-text'
+                        }`}
+                      >
+                        {t.replace('_', ' ')}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <TextInput
+                  value={narration}
+                  onChangeText={setNarration}
+                  placeholder={`e.g. ${taxCode.missing} on invoice…`}
+                  className="border border-border rounded-xl px-3 py-3 text-text mb-2 bg-bg"
+                  multiline
+                />
+                <TextInput
+                  value={amount}
+                  onChangeText={setAmount}
+                  placeholder="Amount (optional)"
+                  keyboardType="decimal-pad"
+                  className="border border-border rounded-xl px-3 py-3 text-text mb-3 bg-bg"
+                />
+                <Button label="Save note" onPress={onAddManual} loading={addEntry.isPending} fullWidth />
+              </View>
+              {data.manualEntries.length === 0 ? (
+                <Text className="text-sm text-muted text-center py-4">
+                  No notes yet. Use notes for filing comments or missing {taxCode.short} follow-ups.
+                </Text>
+              ) : (
+                data.manualEntries.map((m: GstPackDetail['manualEntries'][number]) => (
+                  <RowCard
+                    key={m.id}
+                    title={`${m.entryType.replace('_', ' ')}${
+                      m.amount != null ? ` · ${inr(m.amount)}` : ''
+                    }`}
+                    subtitle={`${m.entryDate} · ${m.createdByName}`}
+                    meta={m.narration}
+                  />
+                ))
+              )}
+            </View>
+          ) : null}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

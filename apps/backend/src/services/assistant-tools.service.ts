@@ -196,7 +196,10 @@ export const ASSISTANT_TOOL_SCHEMAS: Record<
     type: 'object',
     properties: {
       packId: { type: 'string' },
-      format: { type: 'string', enum: ['gstr1-json', 'csv'] },
+      format: {
+        type: 'string',
+        enum: ['gstr1-json', 'xlsx', 'csv', 'bank-xlsx', 'pnl-xlsx', 'books-xlsx'],
+      },
     },
     required: ['packId'],
   },
@@ -715,16 +718,31 @@ export async function executeAssistantTool(
       guard(identity, 'auditor.view_packs');
       const { packId, format } = args as { packId?: string; format?: string };
       if (!packId) throw new Error('packId is required');
-      const fmt = format === 'csv' ? 'csv' : 'gstr1-json';
+      const allowed = new Set([
+        'gstr1-json',
+        'xlsx',
+        'csv',
+        'bank-xlsx',
+        'pnl-xlsx',
+        'books-xlsx',
+      ]);
+      const fmt = allowed.has(String(format)) ? String(format) : 'gstr1-json';
+      const hints: Record<string, string> = {
+        'gstr1-json':
+          'Use the GSTR-1 dropdown → Download as JSON on the Auditor pack screen, then open/generate in the GST Returns Offline Tool or upload on the GST portal.',
+        xlsx: 'Use the GSTR-1 dropdown → Download as Excel on the Auditor pack screen for section-wise review sheets.',
+        csv: 'Use Downloads → Offline CSV zip on the Auditor pack screen, then Import CSV in the official GST Returns Offline Tool.',
+        'bank-xlsx': 'Use Downloads → Bank Excel on the Auditor pack screen.',
+        'pnl-xlsx': 'Use Downloads → P&L Excel on the Auditor pack screen.',
+        'books-xlsx':
+          'Use Downloads → Books Excel on the Auditor pack screen (Bank, P&L, Balance sheet, Groups).',
+      };
       return serialize({
-        message:
-          fmt === 'csv'
-            ? 'Download the GST Offline Tool section-wise CSV zip from the Auditor pack screen (Offline CSV zip), then Import CSV in the official GST Returns Offline Tool.'
-            : 'Download GSTR-1 JSON from the Auditor pack screen, then open/generate in the GST Returns Offline Tool or upload on the GST portal.',
+        message: hints[fmt] ?? hints['gstr1-json'],
         format: fmt,
         path: `/api/inventory/auditor/inbox/${packId}/export?format=${fmt}`,
         offlineToolHint:
-          'Zip contains b2b,sez,de.csv, b2cl.csv, b2cs.csv, cdnr.csv, cdnur.csv, hsn(b2b).csv, hsn(b2c).csv, docs.csv — same headers as gst_offline_tool.zip.',
+          'CSV zip contains b2b,sez,de.csv, b2cl.csv, b2cs.csv, cdnr.csv, cdnur.csv, hsn(b2b).csv, hsn(b2c).csv, docs.csv — same headers as gst_offline_tool.zip.',
       });
     }
     default:

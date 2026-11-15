@@ -111,9 +111,23 @@ export async function revokeAuditor(req: Request, res: Response, next: NextFunct
   }
 }
 
+const PACK_EXPORT_FORMATS = new Set([
+  'gstr1-json',
+  'csv',
+  'xlsx',
+  'bank-xlsx',
+  'pnl-xlsx',
+  'books-xlsx',
+]);
+
+function parsePackExportFormat(raw: unknown): svc.GstPackExportFormat {
+  const f = typeof raw === 'string' ? raw : 'gstr1-json';
+  return (PACK_EXPORT_FORMATS.has(f) ? f : 'gstr1-json') as svc.GstPackExportFormat;
+}
+
 export async function exportOwnerPack(req: Request, res: Response, next: NextFunction) {
   try {
-    const format = req.query.format === 'csv' ? 'csv' : 'gstr1-json';
+    const format = parsePackExportFormat(req.query.format);
     const file = await svc.exportGstHandoffPack(req.user!.companyId, req.params.packId, { format });
     res.setHeader('Content-Type', file.contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
@@ -125,7 +139,7 @@ export async function exportOwnerPack(req: Request, res: Response, next: NextFun
 
 export async function exportAuditorPack(req: Request, res: Response, next: NextFunction) {
   try {
-    const format = req.query.format === 'csv' ? 'csv' : 'gstr1-json';
+    const format = parsePackExportFormat(req.query.format);
     const file = await svc.exportGstHandoffPack(req.user!.companyId, req.params.packId, {
       format,
       auditorUserId: req.user!.id,

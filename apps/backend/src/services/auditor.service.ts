@@ -14,11 +14,21 @@ import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/errors';
 import { recordAudit } from '../utils/audit';
 import {
+  buildGstr1OfflineExcel,
   buildGstr1OfflineJson,
   buildGstr1OfflineSectionFiles,
   resolveStateCode,
   zipSectionFiles,
 } from './gstr1-offline.service';
+import {
+  buildBankOnlyExcel,
+  buildGroupsAnalysis,
+  buildPackBalanceSheet,
+  buildPackBooksExcel,
+  buildPackPeriodPnL,
+  buildPnLOnlyExcel,
+  groupBankByPaymentMode,
+} from './auditor-books.service';
 
 export async function countAuditorsForCompany(companyId: string): Promise<number> {
   const [users, pending] = await Promise.all([
@@ -260,6 +270,13 @@ export async function sendGstHandoffPack(companyId: string, packId: string, acto
   const detail = await buildPackSlices(companyId, packId, pack.periodStart, pack.periodEnd);
   const opening = Number(pack.openingCashBalance);
   const bankClosing = opening + detail.bankIn - detail.bankOut;
+  const periodStart = pack.periodStart.toISOString().slice(0, 10);
+  const periodEnd = pack.periodEnd.toISOString().slice(0, 10);
+  const [pnl, balanceSheet] = await Promise.all([
+    buildPackPeriodPnL(companyId, periodStart, periodEnd),
+    buildPackBalanceSheet(companyId, periodEnd, bankClosing),
+  ]);
+  const groups = buildGroupsAnalysis(detail.journals, detail.bank);
   const companyMeta = await prisma.company.findUnique({
     where: { id: companyId },
     select: { inventoryVertical: true, inventoryProfile: true },
@@ -277,6 +294,9 @@ export async function sendGstHandoffPack(companyId: string, packId: string, acto
     // legacy key kept for older clients
     bankTotal: bankClosing,
     taxCode,
+    pnl,
+    balanceSheet,
+    groups,
   };
 
   const updated = await prisma.gstHandoffPack.update({
@@ -866,6 +886,9 @@ export async function getGstHandoffPackDetail(
       taxCode?: { short: string; field: string; missing: string };
       openingCashBalance?: number;
       bankClosing?: number;
+      pnl?: Awaited<ReturnType<typeof buildPackPeriodPnL>>;
+      balanceSheet?: Awaited<ReturnType<typeof buildPackBalanceSheet>>;
+      groups?: ReturnType<typeof buildGroupsAnalysis>;
     };
     const manualEntries = await prisma.auditorManualEntry.findMany({
       where: { packId },
@@ -896,10 +919,23 @@ export async function getGstHandoffPackDetail(
         : opening == null
           ? bankNet
           : Number((opening + bankIn - bankOut).toFixed(2));
+    const bank = snap.bank ?? [];
+    const journals = snap.journals ?? [];
+    const periodStart = pack.periodStart.toISOString().slice(0, 10);
+    const periodEnd = pack.periodEnd.toISOString().slice(0, 10);
+    const [pnl, balanceSheet] = await Promise.all([
+      snap.pnl
+        ? Promise.resolve(snap.pnl)
+        : buildPackPeriodPnL(companyId, periodStart, periodEnd),
+      snap.balanceSheet
+        ? Promise.resolve(snap.balanceSheet)
+        : buildPackBalanceSheet(companyId, periodEnd, bankClosing),
+    ]);
+    const groups = snap.groups ?? buildGroupsAnalysis(journals, bank);
     return {
       ...serializePack(pack),
-      bank: snap.bank ?? [],
-      journals: snap.journals ?? [],
+      bank,
+      journals,
       gst: normalizePackGst(snap.gst),
       openingCashBalance: opening,
       bankIn,
@@ -909,6 +945,10 @@ export async function getGstHandoffPackDetail(
       bankTotal: bankClosing,
       suggestedOpeningCashBalance: null,
       taxCode: snapTax,
+      bankByMode: groupBankByPaymentMode(bank),
+      pnl,
+      balanceSheet,
+      groups,
       manualEntries: manualEntries.map((m) => ({
         id: m.id,
         entryType: m.entryType,
@@ -932,6 +972,13 @@ export async function getGstHandoffPackDetail(
     opening == null
       ? slices.bankNet
       : Number((opening + slices.bankIn - slices.bankOut).toFixed(2));
+  const periodStart = pack.periodStart.toISOString().slice(0, 10);
+  const periodEnd = pack.periodEnd.toISOString().slice(0, 10);
+  const [pnl, balanceSheet] = await Promise.all([
+    buildPackPeriodPnL(companyId, periodStart, periodEnd),
+    buildPackBalanceSheet(companyId, periodEnd, bankClosing),
+  ]);
+  const groups = buildGroupsAnalysis(slices.journals, slices.bank);
   return {
     ...serializePack(pack),
     bank: slices.bank,
@@ -946,14 +993,28 @@ export async function getGstHandoffPackDetail(
     bankTotal: bankClosing,
     suggestedOpeningCashBalance: suggested,
     taxCode,
+    bankByMode: groupBankByPaymentMode(slices.bank),
+    pnl,
+    balanceSheet,
+    groups,
   };
 }
 
-/** Export pack as GST Offline Tool JSON or section-wise CSV zip. */
+export type GstPackExportFormat =
+  | 'gstr1-json'
+  | 'csv'
+  | 'xlsx'
+  | 'bank-xlsx'
+  | 'pnl-xlsx'
+  | 'books-xlsx';
+
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+/** Export pack as GSTR-1 JSON/Excel/CSV zip or books workbooks. */
 export async function exportGstHandoffPack(
   companyId: string,
   packId: string,
-  opts: { auditorUserId?: string; format: 'gstr1-json' | 'csv' },
+  opts: { auditorUserId?: string; format: GstPackExportFormat },
 ): Promise<{ filename: string; contentType: string; body: string | Buffer }> {
   const detail = await getGstHandoffPackDetail(companyId, packId, {
     auditorUserId: opts.auditorUserId,
@@ -983,17 +1044,76 @@ export async function exportGstHandoffPack(
     };
   }
 
-  const files = buildGstr1OfflineSectionFiles({
-    gst,
+  if (opts.format === 'xlsx') {
+    const body = await buildGstr1OfflineExcel({
+      gst,
+      periodEnd: detail.periodEnd,
+      supplierStateCode,
+      label: detail.label,
+    });
+    return {
+      filename: `gstr1-${label}.xlsx`,
+      contentType: XLSX_MIME,
+      body,
+    };
+  }
+
+  if (opts.format === 'csv') {
+    const files = buildGstr1OfflineSectionFiles({
+      gst,
+      periodEnd: detail.periodEnd,
+      supplierStateCode,
+    });
+    const zip = await zipSectionFiles(files);
+    return {
+      filename: `gstr1-offline-${label}.zip`,
+      contentType: 'application/zip',
+      body: zip,
+    };
+  }
+
+  const pnl =
+    detail.pnl ??
+    (await buildPackPeriodPnL(companyId, detail.periodStart, detail.periodEnd));
+  const balanceSheet =
+    detail.balanceSheet ??
+    (await buildPackBalanceSheet(companyId, detail.periodEnd, detail.bankClosing ?? null));
+  const groups =
+    detail.groups ?? buildGroupsAnalysis(detail.journals, detail.bank);
+
+  if (opts.format === 'bank-xlsx') {
+    const body = await buildBankOnlyExcel({
+      label: detail.label,
+      periodStart: detail.periodStart,
+      periodEnd: detail.periodEnd,
+      openingCashBalance: detail.openingCashBalance ?? null,
+      bankClosing: detail.bankClosing ?? null,
+      bankIn: detail.bankIn ?? 0,
+      bankOut: detail.bankOut ?? 0,
+      bank: detail.bank,
+    });
+    return { filename: `bank-${label}.xlsx`, contentType: XLSX_MIME, body };
+  }
+
+  if (opts.format === 'pnl-xlsx') {
+    const body = await buildPnLOnlyExcel(pnl, detail.label);
+    return { filename: `pnl-${label}.xlsx`, contentType: XLSX_MIME, body };
+  }
+
+  const body = await buildPackBooksExcel({
+    label: detail.label,
+    periodStart: detail.periodStart,
     periodEnd: detail.periodEnd,
-    supplierStateCode,
+    openingCashBalance: detail.openingCashBalance ?? null,
+    bankClosing: detail.bankClosing ?? null,
+    bankIn: detail.bankIn ?? 0,
+    bankOut: detail.bankOut ?? 0,
+    bank: detail.bank,
+    pnl,
+    balanceSheet,
+    groups,
   });
-  const zip = await zipSectionFiles(files);
-  return {
-    filename: `gstr1-offline-${label}.zip`,
-    contentType: 'application/zip',
-    body: zip,
-  };
+  return { filename: `books-${label}.xlsx`, contentType: XLSX_MIME, body };
 }
 
 export async function updatePackStatus(

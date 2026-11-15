@@ -510,6 +510,79 @@ export async function zipSectionFiles(
   });
 }
 
+function parseCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]!;
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') {
+          cur += '"';
+          i += 1;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cur += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ',') {
+      out.push(cur);
+      cur = '';
+    } else {
+      cur += ch;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
+function csvToRows(content: string): string[][] {
+  return content
+    .split(/\r?\n/)
+    .filter((l) => l.length > 0)
+    .map(parseCsvLine);
+}
+
+/** GSTR-1 section-wise workbook (Excel) for offline review / portal prep. */
+export async function buildGstr1OfflineExcel(opts: {
+  gst: OfflinePackGst;
+  periodEnd: string;
+  supplierStateCode: string;
+  label?: string;
+}): Promise<Buffer> {
+  const files = buildGstr1OfflineSectionFiles(opts);
+  const ExcelJS = (await import('exceljs')).default;
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'BuildFlow';
+  wb.created = new Date();
+
+  const summary = wb.addWorksheet('Summary');
+  summary.addRow(['GSTR-1 offline sections', opts.label ?? '']);
+  summary.addRow(['Period end (fp source)', opts.periodEnd]);
+  summary.addRow(['Supplier state code', opts.supplierStateCode]);
+  summary.addRow([]);
+  summary.addRow(['Section', 'Rows (excl. header)']);
+  for (const f of files) {
+    const rows = csvToRows(f.content);
+    summary.addRow([f.name.replace(/\.csv$/i, ''), Math.max(0, rows.length - 1)]);
+  }
+
+  for (const f of files) {
+    const sheetName = f.name.replace(/\.csv$/i, '').slice(0, 31);
+    const sheet = wb.addWorksheet(sheetName);
+    for (const row of csvToRows(f.content)) {
+      sheet.addRow(row);
+    }
+    sheet.getRow(1).font = { bold: true };
+  }
+
+  return Buffer.from(await wb.xlsx.writeBuffer());
+}
+
 /** Portal / Offline Tool JSON (importable after Generate File flow). */
 export function buildGstr1OfflineJson(opts: {
   gstin: string;
