@@ -86,7 +86,8 @@ function InventoryLayoutBody() {
                 zIndex: 100,
                 elevation: 8,
                 paddingTop: Platform.OS !== 'web' ? insets.top : 0,
-                minHeight: 56 + (Platform.OS !== 'web' ? insets.top : 0),
+                minHeight: 48 + (Platform.OS !== 'web' ? insets.top : 0),
+                paddingVertical: 6,
               }}
             >
               <View className="flex-row items-center gap-2 shrink-0 min-w-0">

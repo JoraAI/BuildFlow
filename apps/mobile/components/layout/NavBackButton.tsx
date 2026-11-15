@@ -118,7 +118,7 @@ export function NavHeaderBar({
   className?: string;
 }) {
   return (
-    <View className={`w-full flex-row items-center justify-between gap-3 ${className ?? 'mb-3'}`}>
+    <View className={`w-full flex-row items-center justify-between gap-3 ${className ?? 'mb-2'}`}>
       <View className="shrink-0 items-start">
         <NavBackButton
           onPress={onBack}

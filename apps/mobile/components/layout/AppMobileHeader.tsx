@@ -22,7 +22,7 @@ export function AppMobileHeader() {
       className="bg-primary border-b border-white/10 shrink-0"
       style={{ paddingTop: Math.max(insets.top, 8) }}
     >
-      <View className="flex-row items-center justify-between px-4 pb-3 gap-2">
+      <View className="flex-row items-center justify-between px-4 pb-2 gap-2">
         <Pressable
           onPress={() => router.push('/dashboard')}
           className="flex-row items-center gap-2 active:opacity-80 shrink min-w-0 flex-1"

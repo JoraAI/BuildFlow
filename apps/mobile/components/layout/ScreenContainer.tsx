@@ -45,7 +45,7 @@ export function ScreenContainer({
           : ''
     : '';
 
-  const paddingClass = isDesktop ? 'px-8 py-6' : isTablet ? 'px-6 py-4' : '';
+  const paddingClass = isDesktop ? 'px-6 py-4' : isTablet ? 'px-5 py-3' : '';
 
   const inner = (
     <View

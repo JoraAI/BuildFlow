@@ -3,7 +3,7 @@ import { View, Text, Pressable } from 'react-native';
 import { usePathname } from 'expo-router';
 import { useViewport } from '@/hooks/useViewport';
 import { isNestedAppRoute } from '@/constants/navigation';
-import { NavHeaderBar } from '@/components/layout/NavBackButton';
+import { NavBackButton } from '@/components/layout/NavBackButton';
 
 /** Standard list screen title block (matches Projects mobile header). */
 export function MobileScreenHeader({
@@ -16,10 +16,10 @@ export function MobileScreenHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <View className="px-4 pt-4 pb-2">
+    <View className="px-4 pt-3 pb-2">
       <View className="flex-row items-start justify-between gap-3">
         <View className="flex-1 min-w-0">
-          <Text className="text-2xl font-bold text-text">{title}</Text>
+          <Text className="text-xl font-bold text-text">{title}</Text>
           {subtitle ? <Text className="text-sm text-muted mt-0.5">{subtitle}</Text> : null}
         </View>
         {actions ? <View className="shrink-0">{actions}</View> : null}
@@ -28,7 +28,10 @@ export function MobileScreenHeader({
   );
 }
 
-/** Form / wizard header - use navigateAppBack/dismissTo for onCancel, never raw router.back(). */
+/**
+ * Form / wizard header — single compact row (back + title + actions)
+ * so detail screens keep maximum workable height across roles.
+ */
 export function FormScreenHeader({
   title,
   subtitle,
@@ -54,22 +57,35 @@ export function FormScreenHeader({
 
   return (
     <View
-      className={`w-full self-stretch border-b border-border bg-surface ${isDesktop ? 'px-8 py-5' : 'px-4 py-3'}`}
+      className={`w-full self-stretch border-b border-border bg-surface shrink-0 ${
+        isDesktop ? 'px-6 py-2.5' : 'px-3 py-2'
+      }`}
+      style={{ zIndex: 20, elevation: 3 }}
     >
-      {showBackButton ? (
-        <NavHeaderBar
-          onBack={onCancel}
-          backLabel={cancelLabel}
-          backIcon={cancelIcon}
-          right={right}
-        />
-      ) : right ? (
-        <View className="w-full flex-row justify-end mb-3">{right}</View>
-      ) : null}
-      <Text className={`font-bold text-text ${isDesktop ? 'text-2xl' : 'text-xl'}`}>
-        {title}
-      </Text>
-      {subtitle ? <Text className="text-sm text-muted mt-1">{subtitle}</Text> : null}
+      <View className="w-full flex-row items-center gap-2">
+        {showBackButton ? (
+          <NavBackButton
+            onPress={onCancel}
+            label={cancelLabel}
+            icon={cancelIcon}
+            size="sm"
+          />
+        ) : null}
+        <View className="flex-1 min-w-0">
+          <Text
+            className={`font-bold text-text ${isDesktop ? 'text-lg' : 'text-base'}`}
+            numberOfLines={1}
+          >
+            {title}
+          </Text>
+          {subtitle ? (
+            <Text className="text-xs text-muted" numberOfLines={1}>
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
+        {right ? <View className="flex-row items-center gap-2 shrink-0">{right}</View> : null}
+      </View>
     </View>
   );
 }
@@ -87,7 +103,7 @@ export function FilterChip({
   return (
     <Pressable
       onPress={onPress}
-      className={`px-4 py-2 rounded-lg border ${
+      className={`px-3 py-1.5 rounded-lg border ${
         active ? 'bg-primary border-primary' : 'bg-card border-border'
       }`}
     >
@@ -101,7 +117,7 @@ export function FilterChip({
 export function FilterChipRow({ children }: { children: React.ReactNode }) {
   const { isDesktop } = useViewport();
   return (
-    <View className={`flex-row pb-2 gap-2 flex-wrap ${isDesktop ? 'px-0 mb-4' : 'px-4'}`}>
+    <View className={`flex-row pb-2 gap-2 flex-wrap ${isDesktop ? 'px-0 mb-3' : 'px-4'}`}>
       {children}
     </View>
   );

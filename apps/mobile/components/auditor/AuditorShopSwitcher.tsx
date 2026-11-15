@@ -102,11 +102,6 @@ export function AuditorShopSwitcher({
         value={user.companyId}
         compact={compact}
         disabled={switching}
-        helper={
-          compact
-            ? undefined
-            : 'Packs below are for the selected shop. Switch to review another business.'
-        }
         options={memberships.map((m) => ({
           value: m.companyId,
           title: m.companyName,

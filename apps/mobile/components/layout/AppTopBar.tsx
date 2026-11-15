@@ -44,7 +44,8 @@ export function AppTopBar() {
         elevation: 8,
         overflow: 'visible',
         paddingTop: Platform.OS !== 'web' ? insets.top : 0,
-        minHeight: 64 + (Platform.OS !== 'web' ? insets.top : 0),
+        minHeight: 52 + (Platform.OS !== 'web' ? insets.top : 0),
+        paddingVertical: 6,
       }}
     >
       <View className="flex-row items-center gap-4 flex-1 mr-4 min-w-0">

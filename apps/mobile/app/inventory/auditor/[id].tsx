@@ -16,7 +16,7 @@ import {
 } from '@/services/auditor.queries';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
-import { Badge, Button, Input, OverflowMenu, toast } from '@/components/ui';
+import { Button, Input, OverflowMenu, toast } from '@/components/ui';
 import { SegmentedTabsInline, SegmentedTrack } from '@/components/inventory/SegmentedTabs';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { NavBackButton } from '@/components/layout/NavBackButton';
@@ -25,13 +25,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 function inr(n: number) {
   return `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
-}
-
-function statusBadge(status: string): 'primary' | 'warning' | 'success' | 'neutral' {
-  if (status === 'SENT') return 'primary';
-  if (status === 'IN_PROGRESS') return 'warning';
-  if (status === 'FILED') return 'success';
-  return 'neutral';
 }
 
 function Kpi({
@@ -414,69 +407,63 @@ export default function AuditorPackScreen() {
   return (
     <SafeAreaView className="flex-1 bg-surface" edges={['top', 'bottom']}>
       <FormScreenHeader
-        title={isOwnerMode ? 'GST pack' : 'Auditor pack'}
-        cancelLabel={isOwnerMode ? 'Back to settings' : 'Back to inbox'}
+        title={data.label}
+        subtitle={`${data.periodStart} → ${data.periodEnd} · ${data.status.replace('_', ' ')}${
+          user?.companyName ? ` · ${user.companyName}` : ''
+        }`}
+        cancelLabel={isOwnerMode ? 'Settings' : 'Inbox'}
         onCancel={() => router.replace(backHref)}
         showBack
+        right={!isPhone ? actionButtons : undefined}
       />
 
-      {/* Fixed pack chrome — opaque so list content never scrolls underneath */}
-      <View
-        className="border-b border-border bg-surface shrink-0"
-        style={{ zIndex: 20, elevation: 4, paddingHorizontal: pad, paddingTop: 10, paddingBottom: 12 }}
-      >
+      {/* Thin shop + mobile actions strip (keeps FormScreenHeader to one row) */}
+      {(!isOwnerMode || isPhone) ? (
         <View
-          className={
-            isDesktop
-              ? 'flex-row items-start justify-between gap-4 max-w-[1100px] w-full self-center'
-              : 'gap-3 max-w-[1100px] w-full self-center'
-          }
+          className="border-b border-border bg-surface shrink-0"
+          style={{ paddingHorizontal: pad, paddingVertical: 6 }}
         >
-          <View className="flex-1 min-w-0">
+          <View
+            className={
+              isDesktop
+                ? 'flex-row items-center gap-3 max-w-[1100px] w-full self-center'
+                : 'gap-2 max-w-[1100px] w-full self-center'
+            }
+          >
             {!isOwnerMode ? (
-              <View className="mb-3 max-w-md">
+              <View className="flex-1 min-w-0 max-w-md">
                 <AuditorShopSwitcher
                   compact
                   onSwitched={() => router.replace('/inventory/auditor')}
                 />
               </View>
-            ) : (
-              <Text className="text-xs text-muted mb-1" numberOfLines={1}>
-                {user?.companyName}
-              </Text>
-            )}
-            <View className="flex-row flex-wrap items-center gap-2 mb-1">
-              <Text className={`font-bold text-text ${isPhone ? 'text-xl' : 'text-2xl'}`}>
-                {data.label}
-              </Text>
-              <Badge label={data.status.replace('_', ' ')} color={statusBadge(data.status)} />
-            </View>
-            <Text className="text-sm text-muted">
-              {data.periodStart} → {data.periodEnd}
-            </Text>
-            {!isOwnerMode && data.notes ? (
-              <Text className="text-sm text-text mt-2" numberOfLines={3}>
-                {data.notes}
-              </Text>
             ) : null}
+            {isPhone ? actionButtons : null}
           </View>
-          {!isPhone ? actionButtons : null}
         </View>
-        {isPhone ? <View className="mt-3">{actionButtons}</View> : null}
-      </View>
+      ) : null}
 
       <ScrollView
         className="flex-1 bg-surface"
         contentContainerStyle={{
-          paddingBottom: 72,
+          paddingBottom: 48,
           paddingHorizontal: pad,
-          paddingTop: 16,
+          paddingTop: 12,
           maxWidth: 1100,
           width: '100%',
           alignSelf: 'center',
         }}
       >
         <View>
+          {!isOwnerMode && data.notes ? (
+            <View className="mb-3 rounded-xl border border-border bg-card px-3 py-2.5">
+              <Text className="text-[11px] font-semibold uppercase text-muted mb-0.5">
+                Owner notes
+              </Text>
+              <Text className="text-sm text-text">{data.notes}</Text>
+            </View>
+          ) : null}
+
           {isOwnerMode && data.status === 'DRAFT' ? (
             <View className="mb-4 rounded-2xl border border-border bg-card px-4 py-4 gap-3">
               <Text className="text-sm text-muted">
