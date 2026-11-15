@@ -55,6 +55,17 @@ export interface Invoice {
   lineItems?: InvoiceLineItem[];
 }
 
+export interface BillLineItem {
+  resourceId?: string;
+  description: string;
+  hsnSacCode?: string | null;
+  gstRate?: number;
+  quantity: number;
+  unit: string;
+  rate: number;
+  amount: number;
+}
+
 export interface Bill {
   id: string;
   projectId: string;
@@ -79,6 +90,8 @@ export interface Bill {
   category: 'MATERIAL' | 'LABOUR' | 'EQUIPMENT' | 'SUBCONTRACTOR' | 'OTHER';
   attachmentUrl?: string | null;
   approvedBy?: string | null;
+  /** Snapshot lines from GRN/AI capture (when present). */
+  lines?: BillLineItem[];
 }
 
 export interface InvoiceInput {

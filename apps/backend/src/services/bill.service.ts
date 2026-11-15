@@ -43,8 +43,10 @@ function serializeBill(b: {
   purchaseOrderId: string | null;
   goodsReceiptId?: string | null;
   isRetentionRelease: boolean;
+  billSnapshot?: Prisma.JsonValue | null;
   project?: { id: string; name: string };
 }) {
+  const snapshotLines = extractBillSnapshotLines(b.billSnapshot);
   return {
     id: b.id,
     projectId: b.projectId,
@@ -70,8 +72,50 @@ function serializeBill(b: {
     purchaseOrderId: b.purchaseOrderId,
     goodsReceiptId: b.goodsReceiptId ?? null,
     isRetentionRelease: b.isRetentionRelease,
+    ...(snapshotLines.length > 0 ? { lines: snapshotLines } : {}),
     ...(b.project ? { project: b.project } : {}),
   };
+}
+
+export type BillSnapshotLine = {
+  resourceId?: string;
+  description: string;
+  hsnSacCode: string | null;
+  gstRate: number;
+  quantity: number;
+  unit: string;
+  rate: number;
+  amount: number;
+};
+
+function extractBillSnapshotLines(snapshot: Prisma.JsonValue | null | undefined): BillSnapshotLine[] {
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return [];
+  const raw = (snapshot as Prisma.JsonObject).lines;
+  if (!Array.isArray(raw)) return [];
+  const out: BillSnapshotLine[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) continue;
+    const r = row as Record<string, unknown>;
+    const description =
+      (typeof r.description === 'string' && r.description) ||
+      (typeof r.name === 'string' && r.name) ||
+      'Item';
+    const hsn =
+      (typeof r.hsnSacCode === 'string' && r.hsnSacCode) ||
+      (typeof r.hsn === 'string' && r.hsn) ||
+      null;
+    out.push({
+      ...(typeof r.resourceId === 'string' ? { resourceId: r.resourceId } : {}),
+      description,
+      hsnSacCode: hsn,
+      gstRate: Number(r.gstRate) || 0,
+      quantity: Number(r.quantity) || 0,
+      unit: typeof r.unit === 'string' ? r.unit : '',
+      rate: Number(r.rate) || 0,
+      amount: Number(r.amount) || 0,
+    });
+  }
+  return out;
 }
 
 export type BillListItem = ReturnType<typeof serializeBill>;
@@ -101,6 +145,9 @@ export async function getBill(companyId: string, id: string) {
   if (!bill) throw ApiError.notFound('Bill');
   return serializeBill(bill);
 }
+
+/** Exported for PDF rendering of GRN/AI bill line snapshots. */
+export { extractBillSnapshotLines };
 
 /**
  * Build a JSON snapshot of the linked entities (PO / WO / measurement) at bill
@@ -287,8 +334,18 @@ export async function createDraftBillFromGrn(opts: {
   if (!po) throw ApiError.notFound('Purchase order not found in this project');
 
   const poLineByResource = new Map(po.lines.map((l) => [l.resourceId, l]));
+  const resourceIds = opts.lines.map((l) => l.resourceId);
+  const catalog = await prisma.resource.findMany({
+    where: { id: { in: resourceIds }, companyId: opts.companyId },
+    select: { id: true, name: true, hsnSacCode: true, gstRate: true, unit: true },
+  });
+  const catalogById = new Map(catalog.map((r) => [r.id, r]));
+
   const lineBreakdown: Array<{
     resourceId: string;
+    description: string;
+    hsnSacCode: string | null;
+    gstRate: number;
     quantity: number;
     unit: string;
     rate: number;
@@ -298,13 +355,17 @@ export async function createDraftBillFromGrn(opts: {
   for (const line of opts.lines) {
     const poLine = poLineByResource.get(line.resourceId);
     if (!poLine) continue;
+    const resource = catalogById.get(line.resourceId);
     const rate = Number(poLine.rate);
     const amount = round2(line.quantity * rate);
     subtotal = round2(subtotal + amount);
     lineBreakdown.push({
       resourceId: line.resourceId,
+      description: resource?.name ?? 'Item',
+      hsnSacCode: resource?.hsnSacCode ?? null,
+      gstRate: Number(resource?.gstRate) || 0,
       quantity: line.quantity,
-      unit: line.unit,
+      unit: line.unit || resource?.unit || poLine.unit,
       rate,
       amount,
     });

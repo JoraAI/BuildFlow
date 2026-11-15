@@ -18,6 +18,42 @@ import type {
 
 const QTY_EPS = 0.001;
 
+type InvoiceLineLike = CreateInvoiceInput['lineItems'][number];
+
+/**
+ * Copy catalog HSN/unit onto invoice lines that linked a resource but omitted
+ * those fields (checkout and SO→invoice historically dropped HSN).
+ */
+async function enrichInvoiceLinesFromCatalog<T extends InvoiceLineLike>(
+  companyId: string,
+  lines: T[],
+): Promise<T[]> {
+  const ids = [
+    ...new Set(lines.map((li) => li.resourceId).filter((id): id is string => !!id)),
+  ];
+  if (ids.length === 0) return lines;
+
+  const resources = await prisma.resource.findMany({
+    where: { id: { in: ids }, companyId },
+    select: { id: true, hsnSacCode: true, unit: true, gstRate: true },
+  });
+  const byId = new Map(resources.map((r) => [r.id, r]));
+
+  return lines.map((li) => {
+    if (!li.resourceId) return li;
+    const resource = byId.get(li.resourceId);
+    if (!resource) return li;
+    const hsn =
+      (li.hsnSacCode && String(li.hsnSacCode).trim()) || resource.hsnSacCode || undefined;
+    const unit = (li.unit && String(li.unit).trim()) || resource.unit;
+    const gstRate =
+      li.gstRate != null && Number.isFinite(Number(li.gstRate))
+        ? Number(li.gstRate)
+        : Number(resource.gstRate) || 0;
+    return { ...li, hsnSacCode: hsn, unit, gstRate };
+  });
+}
+
 /** Sheet discount: prefer amount when both set inconsistently; else pct × lineSum. */
 export function resolveSheetDiscount(
   lineSum: number,
@@ -342,6 +378,14 @@ export async function createInvoice(companyId: string, _userId: string, input: C
     }
   }
 
+  // Backfill HSN (and blank unit) from catalog when the caller linked a resource
+  // but omitted tax codes — checkout / SO→invoice historically dropped HSN.
+  const enrichedInput: CreateInvoiceInput = {
+    ...input,
+    lineItems: await enrichInvoiceLinesFromCatalog(companyId, input.lineItems),
+  };
+  input = enrichedInput;
+
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): customer credit-limit policy.
   // WARN (default) surfaces a non-blocking warning; BLOCK rejects the invoice.
   let creditLimitWarning: string | null = null;
@@ -591,6 +635,10 @@ export async function updateInvoice(
         throw ApiError.badRequest('One or more line items reference an item outside this company\'s catalog.');
       }
     }
+    input = {
+      ...input,
+      lineItems: await enrichInvoiceLinesFromCatalog(companyId, input.lineItems),
+    };
   }
 
   const companyState = await getCompanyState(companyId);
@@ -825,7 +873,7 @@ export async function createDraftInvoiceFromStockIssue(opts: {
 
   const resources = await prisma.resource.findMany({
     where: { id: { in: opts.lines.map((l) => l.resourceId) }, companyId: opts.companyId },
-    select: { id: true, name: true, unit: true, rate: true, gstRate: true },
+    select: { id: true, name: true, unit: true, rate: true, gstRate: true, hsnSacCode: true },
   });
   const resourceById = new Map(resources.map((r) => [r.id, r]));
 
@@ -845,6 +893,7 @@ export async function createDraftInvoiceFromStockIssue(opts: {
     rate: number;
     amount: number;
     gstRate: number;
+    hsnSacCode: string | null;
     // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.4): catalog link on draft-issue invoices.
     resourceId: string;
   }> = [];
@@ -886,6 +935,7 @@ export async function createDraftInvoiceFromStockIssue(opts: {
       rate,
       amount,
       gstRate: lineGstRate,
+      hsnSacCode: resource.hsnSacCode ?? null,
       resourceId: line.resourceId,
     });
   }

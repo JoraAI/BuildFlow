@@ -33,6 +33,7 @@ import {
   money as invMoney,
 } from './inventory-pdf-layout';
 import { Decimal } from '@prisma/client/runtime/library';
+import { extractBillSnapshotLines } from './bill.service';
 // RPT-C3a: Import shared layout helpers from pdf-layout.ts
 export {
   formatINR,
@@ -1394,6 +1395,30 @@ export async function reportBill(companyId: string, billId: string): Promise<Pdf
       },
       null,
     );
+    const snapshotLines = extractBillSnapshotLines(bill.billSnapshot);
+    if (snapshotLines.length > 0) {
+      const cols = [
+        { title: 'SR No', width: 28, align: 'center' as const },
+        { title: 'Item & Description', width: 195 },
+        { title: 'HSN/SAC', width: 52, align: 'center' as const },
+        { title: 'Qty', width: 44, align: 'right' as const },
+        { title: 'Units', width: 40, align: 'center' as const },
+        { title: 'Rate', width: 56, align: 'right' as const },
+        { title: 'GST %', width: 40, align: 'right' as const },
+        { title: 'Amount', width: 60, align: 'right' as const },
+      ];
+      const rows = snapshotLines.map((li, i) => [
+        `${i + 1}`,
+        li.description,
+        li.hsnSacCode ?? '',
+        invMoney(li.quantity),
+        li.unit,
+        invMoney(li.rate),
+        li.gstRate ? String(li.gstRate) : '',
+        invMoney(li.amount),
+      ]);
+      y = drawGridTable(doc, y, cols, rows, { startX: MARGIN, wrapColIndex: 1, minRowH: 26 });
+    }
     const totalLines: Array<{ label: string; value: string; bold?: boolean }> = [
       { label: 'Sub Total', value: `₹ ${invMoney(num(bill.subtotal))}` },
     ];

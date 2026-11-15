@@ -174,6 +174,37 @@ export function BillDetailScreen({
       }
     />
   );
+  const linesCard =
+    bill.lines && bill.lines.length > 0 ? (
+      <Card>
+        <Text className="text-sm font-bold text-text mb-2">Line items</Text>
+        <View className="gap-2">
+          {bill.lines.map((li, idx) => (
+            <View
+              key={`${li.resourceId ?? li.description}-${idx}`}
+              className="border-b border-border/60 pb-2 last:border-b-0 last:pb-0"
+            >
+              <View className="flex-row justify-between gap-2">
+                <Text className="text-sm font-semibold text-text flex-1" numberOfLines={2}>
+                  {li.description}
+                </Text>
+                <Text className="text-sm font-bold text-text">{formatINR(li.amount)}</Text>
+              </View>
+              <Text className="text-[11px] text-muted mt-0.5">
+                {[
+                  li.hsnSacCode?.trim() ? `HSN ${li.hsnSacCode.trim()}` : null,
+                  `${li.quantity} ${li.unit}`,
+                  `@ ${formatINR(li.rate)}`,
+                  li.gstRate ? `GST ${li.gstRate}%` : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </Card>
+    ) : null;
   const breakdownCard = <BillBreakdownCard bill={bill} balanceDue={balanceDue} />;
   const actionsBlock = (
     <BillActions
@@ -211,6 +242,7 @@ export function BillDetailScreen({
       <BillContextBanner bill={bill} />
       {heroCard}
       {metaCard}
+      {linesCard}
       {breakdownCard}
     </View>
   );
