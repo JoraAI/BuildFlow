@@ -235,9 +235,12 @@ export default function InventoryMaterialsScreen() {
             : mobileListBottomPadding(true) + (tableMode ? 48 : 72),
           paddingTop: tableMode ? 8 : 0,
         }}
-        listHeader={
+        stickySubheader={
           tableMode && rows.length > 0 ? (
-            <View className="flex-row items-center px-4 py-3 mb-2 rounded-xl bg-surface border border-border">
+            <View
+              className="flex-row items-center px-4 py-2.5 bg-surface"
+              style={{ paddingHorizontal: tableMode ? 24 : 16 }}
+            >
               <Text className="flex-[2.2] text-[11px] font-bold text-muted uppercase">Item</Text>
               <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Category</Text>
               <Text className="flex-1 text-[11px] font-bold text-muted uppercase">{taxCode.short}</Text>

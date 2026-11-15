@@ -45,6 +45,7 @@ import {
   expansionKeys,
   type StockSummaryRow,
 } from '@/services/expansion.queries';
+import { COLORS } from '@/constants';
 
 /** Shared desktop stock-table column widths (header + rows must match). */
 const STOCK_COL = {
@@ -53,6 +54,10 @@ const STOCK_COL = {
   money: { flexGrow: 1, flexShrink: 0, flexBasis: 0, minWidth: 84 } satisfies ViewStyle,
   actions: { flexGrow: 1.45, flexShrink: 0, flexBasis: 0, minWidth: 168 } satisfies ViewStyle,
 } as const;
+
+type StockListRow =
+  | { kind: 'cols'; key: string }
+  | { kind: 'item'; key: string; item: StockSummaryRow };
 
 async function bufferUntil(
   run: () => Promise<unknown>,
@@ -368,20 +373,27 @@ export default function InventoryStockScreen() {
       <Text className="text-sm font-bold text-text mt-3 mb-2">
         {translate('inventory.stock.summary', 'Stock summary')}
       </Text>
-
-      {isDesktop && filteredSummary.length > 0 ? (
-        <View className="flex-row items-center py-3 px-4 mb-2 rounded-xl bg-surface border border-border">
-          <Text style={STOCK_COL.name} className="text-[11px] font-bold text-muted uppercase">Name</Text>
-          <Text style={STOCK_COL.balance} className="text-[11px] font-bold text-muted uppercase text-right">Balance</Text>
-          <Text style={STOCK_COL.money} className="text-[11px] font-bold text-muted uppercase text-right">Cost</Text>
-          <Text style={STOCK_COL.money} className="text-[11px] font-bold text-muted uppercase text-right">Sell</Text>
-          <Text style={STOCK_COL.money} className="text-[11px] font-bold text-muted uppercase text-right">WAC</Text>
-          <Text style={STOCK_COL.money} className="text-[11px] font-bold text-muted uppercase text-right">Value</Text>
-          <Text style={STOCK_COL.actions} className="text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
-        </View>
-      ) : null}
     </View>
   );
+
+  const stockListData: StockListRow[] = useMemo(() => {
+    if (isLoading) return [];
+    if (isDesktop && filteredSummary.length > 0) {
+      return [
+        { kind: 'cols', key: '__stock_cols__' },
+        ...filteredSummary.map((item) => ({
+          kind: 'item' as const,
+          key: item.resourceId,
+          item,
+        })),
+      ];
+    }
+    return filteredSummary.map((item) => ({
+      kind: 'item' as const,
+      key: item.resourceId,
+      item,
+    }));
+  }, [isDesktop, isLoading, filteredSummary]);
 
   const pageChrome = (
     <>
@@ -494,8 +506,9 @@ export default function InventoryStockScreen() {
         className="flex-1"
         style={{ flex: 1, minHeight: 0 }}
         chrome={pageChrome}
-        data={isLoading ? [] : filteredSummary}
-        keyExtractor={(item) => item.resourceId}
+        data={stockListData}
+        keyExtractor={(row) => row.key}
+        stickyHeaderIndices={isDesktop && filteredSummary.length > 0 ? [0] : undefined}
         refreshControl={
           <RefreshControl
             refreshing={isFetching && !buffering}
@@ -504,9 +517,60 @@ export default function InventoryStockScreen() {
           />
         }
         listHeader={listHeader}
-          renderItem={({ item }) => {
+          renderItem={({ item: row }) => {
+            if (row.kind === 'cols') {
+              return (
+                <View
+                  className="flex-row items-center py-3 px-4 bg-surface border-b border-border"
+                  style={{ backgroundColor: COLORS.surface }}
+                >
+                  <Text style={STOCK_COL.name} className="text-[11px] font-bold text-muted uppercase">
+                    Name
+                  </Text>
+                  <Text
+                    style={STOCK_COL.balance}
+                    className="text-[11px] font-bold text-muted uppercase text-right"
+                  >
+                    Balance
+                  </Text>
+                  <Text
+                    style={STOCK_COL.money}
+                    className="text-[11px] font-bold text-muted uppercase text-right"
+                  >
+                    Cost
+                  </Text>
+                  <Text
+                    style={STOCK_COL.money}
+                    className="text-[11px] font-bold text-muted uppercase text-right"
+                  >
+                    Sell
+                  </Text>
+                  <Text
+                    style={STOCK_COL.money}
+                    className="text-[11px] font-bold text-muted uppercase text-right"
+                  >
+                    WAC
+                  </Text>
+                  <Text
+                    style={STOCK_COL.money}
+                    className="text-[11px] font-bold text-muted uppercase text-right"
+                  >
+                    Value
+                  </Text>
+                  <Text
+                    style={STOCK_COL.actions}
+                    className="text-[11px] font-bold text-muted uppercase text-right"
+                  >
+                    Actions
+                  </Text>
+                </View>
+              );
+            }
+            const item = row.item;
             const isLowStock =
-              item.reorderPoint != null && Number(item.reorderPoint) > 0 && Number(item.balance) < Number(item.reorderPoint);
+              item.reorderPoint != null &&
+              Number(item.reorderPoint) > 0 &&
+              Number(item.balance) < Number(item.reorderPoint);
             if (isDesktop) {
               const rowIssueLabel = posCheckoutEnabled
                 ? translate('inventory.stock.checkoutRow', 'Checkout')
@@ -515,11 +579,15 @@ export default function InventoryStockScreen() {
               return (
                 <Pressable
                   disabled={buffering}
-                  onPress={() => router.push(inventoryStockItemHref(item.resourceId, selectedLocationId) as never)}
+                  onPress={() =>
+                    router.push(inventoryStockItemHref(item.resourceId, selectedLocationId) as never)
+                  }
                   className="mb-2 flex-row items-center rounded-xl border border-border bg-card px-4 py-4 active:bg-primary/5"
                 >
                   <View style={STOCK_COL.name} className="min-w-0 pr-2">
-                    <Text className="text-sm font-semibold text-text" numberOfLines={1}>{item.name}</Text>
+                    <Text className="text-sm font-semibold text-text" numberOfLines={1}>
+                      {item.name}
+                    </Text>
                     <View className="flex-row items-center gap-1.5 mt-1 flex-wrap">
                       <Text className="text-[11px] text-muted">{item.unit}</Text>
                       {item.sku ? (
@@ -530,18 +598,29 @@ export default function InventoryStockScreen() {
                       ) : null}
                     </View>
                   </View>
-                  <Text style={STOCK_COL.balance} className="text-sm font-bold text-primary text-right">{item.balance}</Text>
-                  <Text style={STOCK_COL.money} className="text-xs text-muted text-right">
-                    {item.costPrice != null && Number(item.costPrice) > 0 ? `₹${Number(item.costPrice).toFixed(2)}` : '-'}
+                  <Text
+                    style={STOCK_COL.balance}
+                    className="text-sm font-bold text-primary text-right"
+                  >
+                    {item.balance}
                   </Text>
                   <Text style={STOCK_COL.money} className="text-xs text-muted text-right">
-                    {Number(item.catalogRate) > 0 ? `₹${Number(item.catalogRate).toFixed(2)}` : '-'}
+                    {item.costPrice != null && Number(item.costPrice) > 0
+                      ? `₹${Number(item.costPrice).toFixed(2)}`
+                      : '-'}
+                  </Text>
+                  <Text style={STOCK_COL.money} className="text-xs text-muted text-right">
+                    {Number(item.catalogRate) > 0
+                      ? `₹${Number(item.catalogRate).toFixed(2)}`
+                      : '-'}
                   </Text>
                   <Text style={STOCK_COL.money} className="text-xs text-muted text-right">
                     {Number(item.unitCost) > 0 ? `₹${Number(item.unitCost).toFixed(2)}` : '-'}
                   </Text>
                   <Text style={STOCK_COL.money} className="text-sm text-text text-right">
-                    {Number(item.inventoryValue) > 0 ? `₹${Number(item.inventoryValue).toFixed(2)}` : '-'}
+                    {Number(item.inventoryValue) > 0
+                      ? `₹${Number(item.inventoryValue).toFixed(2)}`
+                      : '-'}
                   </Text>
                   <View style={STOCK_COL.actions} className="flex-row flex-wrap justify-end gap-2 pl-2">
                     <Button
@@ -589,11 +668,7 @@ export default function InventoryStockScreen() {
                   setIssueInitialResourceId(item.resourceId);
                   setIssueOpen(true);
                 }}
-                onAdjust={
-                  stockAdjustEnabled
-                    ? () => setAdjustRow(item)
-                    : undefined
-                }
+                onAdjust={stockAdjustEnabled ? () => setAdjustRow(item) : undefined}
               />
             );
           }}

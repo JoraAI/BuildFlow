@@ -3,6 +3,9 @@
  * with the rows so the screen is one vertical scroll. The bottom nav lives in
  * the inventory layout, outside this list. On tablet/desktop chrome stays
  * sticky above the list.
+ *
+ * `stickySubheader` (e.g. desktop table column labels) stays pinned under the
+ * chrome while rows scroll — only used when chrome is sticky (`!isPhone`).
  */
 import React from 'react';
 import { FlatList, type FlatListProps, View, type StyleProp, type ViewStyle } from 'react-native';
@@ -35,6 +38,8 @@ export function InventoryScrollChrome({
 type Props<T> = Omit<FlatListProps<T>, 'ListHeaderComponent'> & {
   chrome: React.ReactNode;
   listHeader?: React.ReactNode;
+  /** Pinned under chrome on tablet/desktop (table column headers). Ignored on phone. */
+  stickySubheader?: React.ReactNode;
   hasScreenFab?: boolean;
   listRef?: React.Ref<FlatList<T>>;
   contentContainerStyle?: StyleProp<ViewStyle>;
@@ -43,6 +48,7 @@ type Props<T> = Omit<FlatListProps<T>, 'ListHeaderComponent'> & {
 export function InventoryScreenList<T>({
   chrome,
   listHeader,
+  stickySubheader,
   hasScreenFab = false,
   listRef,
   contentContainerStyle,
@@ -56,6 +62,14 @@ export function InventoryScreenList<T>({
   return (
     <View className="flex-1 min-h-0">
       {!unify ? chrome : null}
+      {!unify && stickySubheader ? (
+        <View
+          className="bg-surface border-b border-border/60 shrink-0 z-10"
+          style={{ elevation: 2 }}
+        >
+          {stickySubheader}
+        </View>
+      ) : null}
       <FlatList
         ref={listRef}
         {...rest}
