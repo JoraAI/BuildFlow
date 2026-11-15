@@ -82,11 +82,23 @@ describe('Subcontract (integration)', () => {
     const bill = approveRes.body.data.bill as {
       subtotal: string | number;
       retentionAmount: string | number;
+      advanceRecoveryAmount: string | number;
+      gstAmount: string | number;
+      tdsAmount: string | number;
       total: string | number;
     };
     expect(Number(bill.subtotal)).toBe(gross);
     expect(Number(bill.retentionAmount)).toBeGreaterThan(0);
-    expect(Number(bill.total)).toBeLessThan(gross);
+    // C5: works GST when company has GSTIN — net =
+    // gross - retention - advance + GST - TDS (may exceed gross).
+    expect(Number(bill.gstAmount)).toBeGreaterThan(0);
+    const expectedNet =
+      gross -
+      Number(bill.retentionAmount) -
+      Number(bill.advanceRecoveryAmount ?? 0) +
+      Number(bill.gstAmount) -
+      Number(bill.tdsAmount ?? 0);
+    expect(Number(bill.total)).toBeCloseTo(expectedNet, 2);
   });
 
   it('rejects submitted measurement then allows resubmit after edit', async () => {

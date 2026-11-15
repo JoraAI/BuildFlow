@@ -1687,9 +1687,10 @@ describe('INVENTORY_PRODUCT (integration)', () => {
       lines: [{ resourceId: itemId, quantity: 1, unit: 'bag', rate: 100, gstRate: 18 }],
     });
     expect(retRes.status).toBe(201);
+    // B6: issued sales return auto-issues the credit note — no separate issue step.
     const cnId = retRes.body.data.creditNoteId as string;
-    const issueRes = await authPost(invToken, `/api/inventory/transactions/notes/credit/${cnId}/issue`);
-    expect(issueRes.status).toBe(200);
+    const cn = await prisma.creditNote.findUniqueOrThrow({ where: { id: cnId } });
+    expect(cn.status).toBe('ISSUED');
 
     const ledgerRes = await authGet(invToken, `/api/inventory/parties/customers/${customerId}/ledger`);
     expect(ledgerRes.status).toBe(200);
@@ -1726,9 +1727,11 @@ describe('INVENTORY_PRODUCT (integration)', () => {
       gstRate: 18,
     });
     const itemId = itemRes.body.data.id as string;
+    // Keep return as DRAFT so the linked CN stays DRAFT until explicitly issued.
     const retRes = await authPost(invToken, '/api/inventory/transactions/returns/sales', {
       invoiceId,
       returnDate: '2026-08-13',
+      status: 'DRAFT',
       lines: [{ resourceId: itemId, quantity: 1, unit: 'bag', rate: 100, gstRate: 18 }],
     });
     expect(retRes.status).toBe(201);
@@ -2426,7 +2429,8 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     expect(issueRes.status).toBe(201);
     const movementIds = (issueRes.body.data.movementIds ?? []) as string[];
 
-    // Draft invoice from issue already carries the resource link (8.4).
+    // Stock-issue creates a DRAFT invoice with the resource link (8.4).
+    // Billed margin revenue excludes DRAFT — mark SENT so the line counts.
     const draftInvoice = await prisma.invoice.findFirst({
       where: { stockMovementId: { in: movementIds } },
       include: { lineItems: true },
@@ -2434,6 +2438,10 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     const line = draftInvoice?.lineItems.find((li) => li.resourceId === itemId);
     expect(line).toBeTruthy();
     expect(Number(line?.amount)).toBeCloseTo(1000, 2);
+    expect(draftInvoice?.id).toBeTruthy();
+
+    const sendRes = await authPost(invToken, `/api/invoices/${draftInvoice!.id}/send`);
+    expect(sendRes.status).toBe(200);
 
     const margin = await authGet(invToken, '/api/inventory/analytics/reports/margin');
     expect(margin.status).toBe(200);
