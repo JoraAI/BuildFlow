@@ -78,7 +78,8 @@ export async function getAccessibleProjectIds(
   userId: string,
   role: Role,
 ): Promise<string[] | null> {
-  if (role === 'OWNER') return null;
+  // Match assertCanViewProject: OWNER + ACCOUNTANT see every company project.
+  if (role === 'OWNER' || role === 'ACCOUNTANT') return null;
   const rows = await prisma.projectMember.findMany({
     where: { userId, project: { companyId, isDeleted: false } },
     select: { projectId: true },

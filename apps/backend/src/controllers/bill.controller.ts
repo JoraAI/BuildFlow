@@ -2,6 +2,7 @@
  * BuildFlow - Bill controller (thin handlers).
  */
 import type { Request, Response } from 'express';
+import type { Role } from '@buildflow/shared';
 import * as billService from '../services/bill.service';
 import { extractBillFromFile, extractBillsFromFiles } from '../services/bill-extract.service';
 import { ok, created } from '../utils/response';
@@ -13,9 +14,14 @@ function resolveProjectId(req: Request): string | undefined {
   return (req.params.id as string | undefined) ?? (req.query.projectId as string | undefined);
 }
 
+function accessOf(req: Request): billService.ProjectAccessCtx {
+  return { userId: req.user!.id, role: req.user!.role as Role };
+}
+
 export async function list(req: Request, res: Response) {
   const data = await billService.listBills(
     req.user!.companyId,
+    accessOf(req),
     resolveProjectId(req),
     req.query.status as string | undefined,
   );
@@ -23,14 +29,14 @@ export async function list(req: Request, res: Response) {
 }
 
 export async function get(req: Request, res: Response) {
-  const data = await billService.getBill(req.user!.companyId, req.params.id);
+  const data = await billService.getBill(req.user!.companyId, req.params.id, accessOf(req));
   return ok(res, data);
 }
 
 export async function create(req: Request, res: Response) {
-  const { companyId, id: userId } = req.user!;
+  const { companyId, id: userId, role } = req.user!;
   const projectId = (req.body.projectId as string | undefined) ?? (req.params.id as string | undefined);
-  const data = await billService.createBill(companyId, userId, { ...req.body, projectId });
+  const data = await billService.createBill(companyId, userId, role, { ...req.body, projectId });
   await recordAudit({
     companyId,
     userId,
@@ -45,7 +51,7 @@ export async function create(req: Request, res: Response) {
 
 export async function update(req: Request, res: Response) {
   const { companyId, id: userId } = req.user!;
-  const data = await billService.updateBill(companyId, req.params.id, req.body);
+  const data = await billService.updateBill(companyId, req.params.id, accessOf(req), req.body);
   await recordAudit({
     companyId,
     userId,
@@ -60,7 +66,7 @@ export async function update(req: Request, res: Response) {
 
 export async function approve(req: Request, res: Response) {
   const { companyId, id: userId } = req.user!;
-  const data = await billService.approveBill(companyId, userId, req.params.id);
+  const data = await billService.approveBill(companyId, userId, req.params.id, accessOf(req));
   await recordAudit({
     companyId,
     userId,
@@ -75,7 +81,7 @@ export async function approve(req: Request, res: Response) {
 
 export async function reject(req: Request, res: Response) {
   const { companyId, id: userId } = req.user!;
-  const data = await billService.rejectBill(companyId, userId, req.params.id);
+  const data = await billService.rejectBill(companyId, userId, req.params.id, accessOf(req));
   await recordAudit({
     companyId,
     userId,
@@ -90,7 +96,7 @@ export async function reject(req: Request, res: Response) {
 
 export async function pay(req: Request, res: Response) {
   const { companyId, id: userId } = req.user!;
-  const data = await billService.payBill(companyId, userId, req.params.id);
+  const data = await billService.payBill(companyId, userId, req.params.id, accessOf(req));
   await recordAudit({
     companyId,
     userId,
@@ -109,7 +115,13 @@ export async function pay(req: Request, res: Response) {
 
 export async function recordPayment(req: Request, res: Response) {
   const { companyId, id: userId } = req.user!;
-  const data = await billService.recordBillPayment(companyId, userId, req.params.id, req.body);
+  const data = await billService.recordBillPayment(
+    companyId,
+    userId,
+    req.params.id,
+    req.body,
+    accessOf(req),
+  );
   await recordAudit({
     companyId,
     userId,
@@ -131,7 +143,7 @@ export async function remove(req: Request, res: Response) {
   if (req.user!.role === 'SUPERVISOR') {
     throw ApiError.forbidden('Supervisors cannot delete bills');
   }
-  const data = await billService.deleteBill(companyId, req.params.id);
+  const data = await billService.deleteBill(companyId, req.params.id, accessOf(req));
   await recordAudit({
     companyId,
     userId,
@@ -144,7 +156,11 @@ export async function remove(req: Request, res: Response) {
 }
 
 export async function summary(req: Request, res: Response) {
-  const data = await billService.getBillSummary(req.user!.companyId, resolveProjectId(req));
+  const data = await billService.getBillSummary(
+    req.user!.companyId,
+    accessOf(req),
+    resolveProjectId(req),
+  );
   return ok(res, data);
 }
 // PROC-B9: Bill extraction (LLM) - returns draft for review, does NOT persist
@@ -166,13 +182,18 @@ export async function extractBatch(req: Request, res: Response) {
 }
 
 export async function bulkCreate(req: Request, res: Response) {
-  const { companyId, id: userId } = req.user!;
+  const { companyId, id: userId, role } = req.user!;
   const projectId = (req.body.projectId as string | undefined) ?? (req.params.id as string | undefined);
   const { bills } = req.body;
   if (!Array.isArray(bills) || bills.length === 0) throw ApiError.badRequest('bills array is required');
   const createdBills = [];
   for (const billInput of bills) {
-    const data = await billService.createBill(companyId, userId, { ...billInput, billDate: new Date(billInput.billDate), tdsAmount: billInput.tdsAmount ?? 0, projectId });
+    const data = await billService.createBill(companyId, userId, role, {
+      ...billInput,
+      billDate: new Date(billInput.billDate),
+      tdsAmount: billInput.tdsAmount ?? 0,
+      projectId,
+    });
     await recordAudit({
       companyId,
       userId,

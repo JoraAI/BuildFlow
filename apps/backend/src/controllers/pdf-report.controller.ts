@@ -3,7 +3,9 @@
  */
 import { Request, Response } from 'express';
 import * as svc from '../services/pdf-report.service';
+import { prisma } from '../lib/prisma';
 import { assertCanViewProject } from '../middleware/project-access.middleware';
+import { ApiError } from '../utils/errors';
 
 function sendPdf(res: Response, result: svc.PdfResult) {
   res.setHeader('Content-Type', 'application/pdf');
@@ -30,6 +32,12 @@ export async function getDailyReportPdf(req: Request, res: Response) {
 // 3. Invoice
 export async function getInvoicePdf(req: Request, res: Response) {
   const { id } = req.params;
+  const inv = await prisma.invoice.findFirst({
+    where: { id, companyId: req.user!.companyId },
+    select: { projectId: true },
+  });
+  if (!inv) throw ApiError.notFound('Invoice');
+  await assertCanViewProject(req.user!.companyId, req.user!.id, req.user!.role, inv.projectId);
   const result = await svc.reportInvoice(req.user!.companyId, id);
   return sendPdf(res, result);
 }
@@ -37,6 +45,12 @@ export async function getInvoicePdf(req: Request, res: Response) {
 // 3b. Vendor bill
 export async function getBillPdf(req: Request, res: Response) {
   const { id } = req.params;
+  const bill = await prisma.bill.findFirst({
+    where: { id, companyId: req.user!.companyId },
+    select: { projectId: true },
+  });
+  if (!bill) throw ApiError.notFound('Bill');
+  await assertCanViewProject(req.user!.companyId, req.user!.id, req.user!.role, bill.projectId);
   const result = await svc.reportBill(req.user!.companyId, id);
   return sendPdf(res, result);
 }

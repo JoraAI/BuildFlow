@@ -519,7 +519,12 @@ export async function getDailySalesSummary(companyId: string, dateStr: string) {
   const discount = round2(invoices.reduce((s, i) => s + Number(i.discountAmount), 0));
   const gst = round2(invoices.reduce((s, i) => s + Number(i.gstAmount), 0));
   const net = round2(invoices.reduce((s, i) => s + Number(i.total), 0));
-  const collected = round2(invoices.reduce((s, i) => s + Number(i.paidAmount), 0));
+  // Day's collections from cash book (not lifetime paidAmount on today's invoices).
+  const collected = round2(
+    cash.entries
+      .filter((e) => e.entryType === 'SALE_COLLECTION' && e.direction === 'IN')
+      .reduce((s, e) => s + e.amount, 0),
+  );
 
   const byMode: Record<string, number> = { CASH: 0, UPI: 0, BANK: 0, OTHER: 0 };
   for (const e of cash.entries) {
@@ -527,10 +532,9 @@ export async function getDailySalesSummary(companyId: string, dateStr: string) {
     byMode[e.paymentMode] = round2((byMode[e.paymentMode] ?? 0) + e.amount);
   }
 
+  // Opex only — vendor payments are AP settlements, not expenses.
   const expenses = round2(
-    cash.entries
-      .filter((e) => e.entryType === 'EXPENSE' || (e.direction === 'OUT' && e.entryType !== 'DEPOSIT'))
-      .reduce((s, e) => s + e.amount, 0),
+    cash.entries.filter((e) => e.entryType === 'EXPENSE').reduce((s, e) => s + e.amount, 0),
   );
   const deposits = round2(
     cash.entries.filter((e) => e.entryType === 'DEPOSIT').reduce((s, e) => s + e.amount, 0),

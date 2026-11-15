@@ -56,7 +56,8 @@ export async function exportSalesRegisterCSV(companyId: string, opts: { projectI
 }
 
 export async function exportPurchaseRegisterCSV(companyId: string, opts: { projectId?: string; fromDate?: string; toDate?: string }): Promise<string> {
-  const where: Record<string, unknown> = { companyId, status: { not: 'REJECTED' } };
+  // Match Tally purchase export: only approved/paid obligations (no DRAFT/PENDING/REJECTED).
+  const where: Record<string, unknown> = { companyId, status: { in: ['APPROVED', 'PAID'] } };
   if (opts.projectId) where.projectId = opts.projectId;
   if (opts.fromDate || opts.toDate) {
     where.billDate = {};

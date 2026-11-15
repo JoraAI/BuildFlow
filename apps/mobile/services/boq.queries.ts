@@ -17,6 +17,10 @@ export interface BoqItem {
   section?: string | null;
   /** Catalog material from linked estimate item, when set. */
   resourceId?: string | null;
+  /** Catalog HSN/SAC when resourceId is linked (for RA invoice lines). */
+  hsnSacCode?: string | null;
+  /** Catalog GST % when resourceId is linked. */
+  gstRate?: number;
   /** Rate analysis from linked estimate item (for composite BOQ items). */
   rateAnalysisId?: string | null;
   sanctionedQty?: number;

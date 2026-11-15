@@ -306,10 +306,14 @@ export async function getCompanyDashboard(companyId: string): Promise<CompanyDas
   let totalPaid = 0;
 
   const projectSummaries = projects.map((p) => {
-    const billed = p.invoices.reduce((s, i) => s + num(i.total), 0);
-    const collected = p.invoices.reduce((s, i) => s + num(i.paidAmount), 0);
-    const billTotal = p.bills.reduce((s, b) => s + num(b.total), 0);
-    const billPaid = p.bills.reduce((s, b) => s + num(b.paidAmount), 0);
+    // Exclude DRAFT invoices and DRAFT/REJECTED bills so unsent/auto-drafts
+    // do not inflate company financials (align with Tally / project summary).
+    const liveInvoices = p.invoices.filter((i) => i.status !== 'DRAFT');
+    const liveBills = p.bills.filter((b) => b.status !== 'DRAFT' && b.status !== 'REJECTED');
+    const billed = liveInvoices.reduce((s, i) => s + num(i.total), 0);
+    const collected = liveInvoices.reduce((s, i) => s + num(i.paidAmount), 0);
+    const billTotal = liveBills.reduce((s, b) => s + num(b.total), 0);
+    const billPaid = liveBills.reduce((s, b) => s + num(b.paidAmount), 0);
     totalInvoiced += billed;
     totalCollected += collected;
     totalBilled += billTotal;

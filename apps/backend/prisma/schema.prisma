@@ -1968,6 +1968,7 @@ model CreditNoteLine {
   rate         Decimal @default(0) @db.Decimal(12, 2)
   amount       Decimal @default(0) @db.Decimal(14, 2)
   gstRate      Decimal @default(0) @map("gst_rate") @db.Decimal(5, 2)
+  hsnSacCode   String? @map("hsn_sac_code")
 
   creditNote CreditNote @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
   @@index([creditNoteId])
@@ -2017,6 +2018,7 @@ model DebitNoteLine {
   rate        Decimal @default(0) @db.Decimal(12, 2)
   amount      Decimal @default(0) @db.Decimal(14, 2)
   gstRate     Decimal @default(0) @map("gst_rate") @db.Decimal(5, 2)
+  hsnSacCode  String? @map("hsn_sac_code")
 
   debitNote DebitNote @relation(fields: [debitNoteId], references: [id], onDelete: Cascade)
   @@index([debitNoteId])

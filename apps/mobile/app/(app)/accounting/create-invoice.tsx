@@ -28,11 +28,14 @@ import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { useCreateInvoice, type InvoiceType } from '@/services/accounting.queries';
 import { useProjects, type ProjectListItem } from '@/services/project.queries';
 import { useBoq, type BoqItem } from '@/services/boq.queries';
+import { useCompany } from '@/services/settings.queries';
 import { formatINR } from '@/utils/format';
 
 interface DraftLineItem {
   id: string;
   boqItemId?: string;
+  resourceId?: string;
+  hsnSacCode?: string;
   description: string;
   quantity: string;
   unit: string;
@@ -62,14 +65,21 @@ function boqToLine(item: BoqItem): DraftLineItem {
   const billed = item.billedCumulativeQty ?? 0;
   const previousQty = String(billed);
   const currentQty = billable > 0 ? String(billable) : '0';
+  // C1: wire catalog resource / HSN; use catalog GST when linked, else works 18%.
+  const gstFromCatalog =
+    item.resourceId && item.gstRate != null && Number.isFinite(item.gstRate)
+      ? String(item.gstRate)
+      : '18';
   return {
     id: Math.random().toString(36).slice(2),
     boqItemId: item.id,
+    resourceId: item.resourceId ?? undefined,
+    hsnSacCode: item.hsnSacCode?.trim() || undefined,
     description: item.description,
     quantity: item.quantity,
     unit: item.unit,
     rate: item.rate,
-    gstRate: '18',
+    gstRate: gstFromCatalog,
     previousQty,
     currentQty,
     cumulativeQty: String(billed + (billable > 0 ? billable : 0)),
@@ -85,6 +95,7 @@ export default function CreateInvoiceScreen() {
   }>();
   const backTarget = returnToParam ? decodeURIComponent(returnToParam) : DISMISS.accounting;
   const { data: projects } = useProjects();
+  const { data: company } = useCompany();
   const createInvoice = useCreateInvoice();
 
   const [projectId, setProjectId] = useState(preselected ?? '');
@@ -113,6 +124,7 @@ export default function CreateInvoiceScreen() {
   // Auto-fill client from project
   const selectedProject = projects?.find((p: ProjectListItem) => p.id === projectId);
   const effectiveClientName = clientName || selectedProject?.clientName || '';
+  const companyState = company?.state?.trim() ?? '';
 
   // Live preview computation
   const preview = useMemo(() => {
@@ -125,9 +137,24 @@ export default function CreateInvoiceScreen() {
       return sum + qty * rate;
     }, 0);
 
-    const gst = parseFloat(gstRate) || 0;
-    const intraState = clientState.toUpperCase() === 'TELANGANA';
-    const gstAmount = (subtotal * gst) / 100;
+    // C2/C7: preview GST from line rates + company state (not hard-coded Telangana).
+    const headerGst = parseFloat(gstRate) || 0;
+    let gstAmount = 0;
+    for (const l of lines) {
+      const qty =
+        invoiceType === 'RUNNING_ACCOUNT'
+          ? parseFloat(l.currentQty) || 0
+          : parseFloat(l.quantity) || 0;
+      const lineTaxable = qty * (parseFloat(l.rate) || 0);
+      const lineRate = parseFloat(l.gstRate);
+      const rate = Number.isFinite(lineRate) ? lineRate : headerGst;
+      gstAmount += (lineTaxable * rate) / 100;
+    }
+    const intraState = !!(
+      clientState.trim() &&
+      companyState &&
+      clientState.trim().toUpperCase() === companyState.toUpperCase()
+    );
     const cgst = intraState ? gstAmount / 2 : 0;
     const sgst = intraState ? gstAmount / 2 : 0;
     const igst = intraState ? 0 : gstAmount;
@@ -136,8 +163,19 @@ export default function CreateInvoiceScreen() {
     const retention = invoiceType === 'RUNNING_ACCOUNT' ? (parseFloat(retentionPct) || 0) : 0;
     const retentionAmount = (subtotal * retention) / 100;
     const total = subtotal + cgst + sgst + igst - tdsAmount - retentionAmount;
-    return { subtotal, gst, gstAmount, cgst, sgst, igst, tdsRate, tdsAmount, retentionAmount, total };
-  }, [lines, gstRate, clientState, tdsEnabled, invoiceType, retentionPct]);
+    return {
+      subtotal,
+      gst: headerGst,
+      gstAmount,
+      cgst,
+      sgst,
+      igst,
+      tdsRate,
+      tdsAmount,
+      retentionAmount,
+      total,
+    };
+  }, [lines, gstRate, clientState, companyState, tdsEnabled, invoiceType, retentionPct]);
 
   const loadBoqLines = async () => {
     if (!boq?.items.length) {
@@ -203,6 +241,8 @@ export default function CreateInvoiceScreen() {
         lineItems: validLines.map((l) => {
           const base = {
             boqItemId: l.boqItemId,
+            resourceId: l.resourceId,
+            hsnSacCode: l.hsnSacCode,
             description: l.description.trim(),
             unit: l.unit.trim() || 'Nos',
             rate: parseFloat(l.rate) || 0,

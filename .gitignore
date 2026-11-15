@@ -85,3 +85,6 @@ apps/backend/.filestore/
 .filestore/
 apps/backend/.filestore-test/
 .filestore-test/
+
+# Local doc-build Python venv (never commit)
+.venv-pptx/

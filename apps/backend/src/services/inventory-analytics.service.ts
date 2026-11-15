@@ -134,10 +134,21 @@ export async function getDashboard(
   }
 
   const salesToday = invoices
-    .filter((i) => i.invoiceDate >= today.gte && i.invoiceDate < today.lt)
+    .filter(
+      (i) =>
+        i.status !== 'DRAFT' &&
+        i.invoiceDate >= today.gte &&
+        i.invoiceDate < today.lt,
+    )
     .reduce((s, i) => s + Number(i.total), 0);
   const purchasesToday = bills
-    .filter((b) => b.billDate >= today.gte && b.billDate < today.lt)
+    .filter(
+      (b) =>
+        b.status !== 'DRAFT' &&
+        b.status !== 'REJECTED' &&
+        b.billDate >= today.gte &&
+        b.billDate < today.lt,
+    )
     .reduce((s, b) => s + Number(b.total), 0);
 
   const receivables =
@@ -302,14 +313,31 @@ export async function getMarginReport(
       where: { companyId, isDeleted: false },
       select: { id: true, name: true, unit: true, rate: true },
     }),
+    // Sales OUT + SALES_RETURN IN (reverses qty/COGS for returned goods).
     prisma.stockMovement.findMany({
-      where: { location: { companyId, projectId }, type: 'OUT', referenceType: { in: SALES_OUT_TYPES } },
-      select: { resourceId: true, quantity: true, unitCost: true, inventoryValue: true },
+      where: {
+        location: { companyId, projectId },
+        OR: [
+          { type: 'OUT', referenceType: { in: SALES_OUT_TYPES } },
+          { type: 'IN', referenceType: 'SALES_RETURN' },
+        ],
+      },
+      select: {
+        resourceId: true,
+        type: true,
+        referenceType: true,
+        quantity: true,
+        unitCost: true,
+        inventoryValue: true,
+      },
     }),
     // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.4): billed net per item from
     // resource-linked invoice lines (ex-GST line amounts).
     prisma.invoiceLineItem.findMany({
-      where: { invoice: { companyId, projectId }, resourceId: { not: null } },
+      where: {
+        invoice: { companyId, projectId, status: { not: 'DRAFT' } },
+        resourceId: { not: null },
+      },
       select: { resourceId: true, amount: true },
     }),
   ]);
@@ -319,8 +347,15 @@ export async function getMarginReport(
 
   for (const m of movements) {
     const a = acc.get(m.resourceId) ?? { qtySold: 0, cogs: 0 };
-    a.qtySold += Number(m.quantity);
-    a.cogs += Number(m.inventoryValue) || Number(m.unitCost) * Number(m.quantity);
+    const qty = Number(m.quantity);
+    const value = Number(m.inventoryValue) || Number(m.unitCost) * qty;
+    if (m.type === 'IN' && m.referenceType === 'SALES_RETURN') {
+      a.qtySold -= qty;
+      a.cogs -= value;
+    } else {
+      a.qtySold += qty;
+      a.cogs += value;
+    }
     acc.set(m.resourceId, a);
   }
 
@@ -434,54 +469,14 @@ export async function getProfitLossReport(
   role: string,
   opts?: { from?: string; to?: string },
 ): Promise<ProfitLossReport> {
+  // Permission gate (default inventory project); numbers come from the shared
+  // pack-period builder so IM reports match auditor books (taxable sales, CN
+  // net, period sales-OUT COGS).
   await resolveDefaultProject(companyId, userId, role);
   const to = opts?.to ?? istToday();
   const from = opts?.from ?? to.slice(0, 8) + '01'; // month start default
-  const start = new Date(`${from}T00:00:00.000Z`);
-  const end = new Date(`${to}T23:59:59.999Z`);
-
-  const [invoices, margins, expenseEntries] = await Promise.all([
-    prisma.invoice.findMany({
-      where: {
-        companyId,
-        invoiceDate: { gte: start, lte: end },
-        status: { not: 'DRAFT' },
-      },
-      select: { total: true, subtotal: true },
-    }),
-    getMarginReport(companyId, userId, role),
-    prisma.inventoryCashBookEntry.findMany({
-      where: {
-        companyId,
-        entryType: 'EXPENSE',
-        entryDate: { gte: start, lte: end },
-      },
-      select: { amount: true, category: true },
-    }),
-  ]);
-
-  const sales = round2(invoices.reduce((s, i) => s + Number(i.total), 0));
-  // Prefer billed COGS from margin rows when available; else estimate from margins sum.
-  const cogs = round2(margins.reduce((s, r) => s + r.cogs, 0));
-  const expensesByCategory: Record<string, number> = {};
-  for (const e of expenseEntries) {
-    const cat = e.category ?? 'OTHER';
-    expensesByCategory[cat] = round2((expensesByCategory[cat] ?? 0) + Number(e.amount));
-  }
-  const expenses = round2(Object.values(expensesByCategory).reduce((s, n) => s + n, 0));
-  const grossMargin = round2(sales - cogs);
-  const estimatedProfit = round2(grossMargin - expenses);
-
-  return {
-    from,
-    to,
-    sales,
-    cogs,
-    grossMargin,
-    expenses,
-    expensesByCategory,
-    estimatedProfit,
-  };
+  const { buildPackPeriodPnL } = await import('./auditor-books.service');
+  return buildPackPeriodPnL(companyId, from, to);
 }
 
 /** Build an Excel workbook buffer for a named analytics report. */

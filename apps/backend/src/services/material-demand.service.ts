@@ -96,7 +96,8 @@ async function getOpenRequisitionQty(
       requisition: {
         companyId,
         projectId,
-        status: { in: ['DRAFT', 'SUBMITTED', 'APPROVED'] },
+        // C6: DRAFT indents are not covering — only submitted/approved count.
+        status: { in: ['SUBMITTED', 'APPROVED'] },
       },
     },
     include: {
@@ -169,7 +170,27 @@ export async function materialDemandsForEstimateItem(
   // FIX (EST-L6): reject NaN/non-finite quantities.
   if (!Number.isFinite(scopeQty) || scopeQty <= 0) return [];
 
-  // 1. Direct catalog resource link
+  // C6: Prefer rate-analysis BOM explosion when linked (even if resourceId is also set).
+  // Composite RA lines need component materials; a direct resourceId alone under-indents.
+  if (item.rateAnalysisId) {
+    const components = await prisma.rateAnalysisComponent.findMany({
+      where: {
+        rateAnalysisId: item.rateAnalysisId,
+        type: CostType.MATERIAL,
+        resourceId: { not: null },
+      },
+    });
+    if (components.length > 0) {
+      return components.map((c) => ({
+        resourceId: c.resourceId!,
+        quantity: round3(scopeQty * Number(c.quantityPerUnit)),
+        unit: c.unit,
+        boqItemId,
+      }));
+    }
+  }
+
+  // Direct catalog resource link (no RA, or empty RA components).
   if (item.resourceId) {
     return [
       {
@@ -179,23 +200,6 @@ export async function materialDemandsForEstimateItem(
         boqItemId,
       },
     ];
-  }
-
-  // 2. Rate analysis BOM explosion
-  if (item.rateAnalysisId) {
-    const components = await prisma.rateAnalysisComponent.findMany({
-      where: {
-        rateAnalysisId: item.rateAnalysisId,
-        type: CostType.MATERIAL,
-        resourceId: { not: null },
-      },
-    });
-    return components.map((c) => ({
-      resourceId: c.resourceId!,
-      quantity: round3(scopeQty * Number(c.quantityPerUnit)),
-      unit: c.unit,
-      boqItemId,
-    }));
   }
 
   // 3. Safety-net: MATERIAL item with no procurement link.

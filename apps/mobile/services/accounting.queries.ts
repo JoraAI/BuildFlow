@@ -21,6 +21,11 @@ export interface InvoiceLineItem {
   amount: number;
   gstRate: number;
   hsnSacCode?: string | null;
+  resourceId?: string | null;
+  previousQty?: number;
+  currentQty?: number;
+  cumulativeQty?: number;
+  certifiedAmount?: number;
 }
 
 export type InvoiceType = 'STANDARD' | 'RUNNING_ACCOUNT' | 'MILESTONE';
@@ -39,6 +44,12 @@ export interface Invoice {
   status: 'DRAFT' | 'SENT' | 'PAID' | 'OVERDUE';
   invoiceType?: InvoiceType;
   raSequence?: number | null;
+  milestoneLabel?: string | null;
+  retentionPct?: number;
+  retentionAmount?: number;
+  previousCertifiedTotal?: number;
+  currentCertifiedTotal?: number;
+  cumulativeCertifiedTotal?: number;
   subtotal: number;
   discountPct?: number;
   discountAmount?: number;
@@ -113,6 +124,7 @@ export interface InvoiceInput {
   retentionPct?: number;
   lineItems: Array<{
     boqItemId?: string;
+    resourceId?: string;
     description: string;
     quantity: number;
     unit: string;

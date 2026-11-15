@@ -85,13 +85,15 @@ export async function getWorkOrderSummary(
     .filter((m) => m.status === 'SUBMITTED')
     .reduce((s, m) => s + num(m.totalAmount), 0);
 
-  const billedTotal = wo.bills.reduce((s, b) => s + num(b.subtotal), 0);
-  const paidTotal = wo.bills.reduce((s, b) => s + num(b.paidAmount), 0);
-  const raBills = wo.bills.filter((b) => !b.isRetentionRelease && b.status !== 'REJECTED');
-  const releaseBills = wo.bills.filter((b) => b.isRetentionRelease && b.status !== 'REJECTED');
+  // C5: exclude DRAFT (and REJECTED) from billed / retention / paid WO totals.
+  const countableBills = wo.bills.filter((b) => b.status !== 'DRAFT' && b.status !== 'REJECTED');
+  const billedTotal = countableBills.reduce((s, b) => s + num(b.subtotal), 0);
+  const paidTotal = countableBills.reduce((s, b) => s + num(b.paidAmount), 0);
+  const raBills = countableBills.filter((b) => !b.isRetentionRelease);
+  const releaseBills = countableBills.filter((b) => b.isRetentionRelease);
   const retentionHeld = raBills.reduce((s, b) => s + num(b.retentionAmount), 0);
   const retentionReleased = releaseBills.reduce((s, b) => s + num(b.subtotal), 0);
-  const advanceRecovered = wo.bills.reduce((s, b) => s + num(b.advanceRecoveryAmount), 0);
+  const advanceRecovered = countableBills.reduce((s, b) => s + num(b.advanceRecoveryAmount), 0);
 
   const contractValue = num(wo.contractValue);
   const balanceRemaining = round2(contractValue - certifiedTotal);
@@ -163,14 +165,17 @@ function computeBillBreakdown(
   advanceAmount: number,
   advanceRecoveredSoFar: number,
   tdsRate: number,
+  gstRate = 0,
 ) {
   const retention = round2(gross * (retentionPct / 100));
   const unrecoveredAdvance = round2(Math.max(0, advanceAmount - advanceRecoveredSoFar));
   const advanceRecovery = round2(Math.min(unrecoveredAdvance, gross * 0.1));
+  // Works-contract GST on certified gross (when company is GST-registered).
+  const gstAmount = round2(gross * (gstRate / 100));
   const beforeTds = round2(gross - retention - advanceRecovery);
   const tdsAmount = round2(beforeTds * (tdsRate / 100));
-  const netPayable = round2(beforeTds - tdsAmount);
-  return { gross, retention, advanceRecovery, tdsAmount, netPayable, tdsRate };
+  const netPayable = round2(beforeTds + gstAmount - tdsAmount);
+  return { gross, retention, advanceRecovery, tdsAmount, netPayable, tdsRate, gstAmount, gstRate };
 }
 
 async function postApprovedMeasurementToBoq(
@@ -827,12 +832,19 @@ export async function approveMeasurement(
       const wo = approved.workOrder;
       const gross = num(approved.totalAmount);
       const advanceRecoveredSoFar = wo.bills.reduce((s, b) => s + num(b.advanceRecoveryAmount), 0);
+      const company = await tx.company.findUnique({
+        where: { id: companyId },
+        select: { gstin: true },
+      });
+      // C5: apply works GST when the company is GST-registered (standard 18% SAC 9954).
+      const gstRate = company?.gstin?.trim() ? 18 : 0;
       const breakdown = computeBillBreakdown(
         gross,
         num(wo.retentionPct),
         num(wo.advanceAmount),
         advanceRecoveredSoFar,
         num(wo.subcontractor.defaultTdsRate),
+        gstRate,
       );
 
       const billNumber = `SC-${wo.woNumber}-${approved.id.slice(0, 8)}`.slice(0, 50);
@@ -846,6 +858,7 @@ export async function approveMeasurement(
           billDate: new Date(),
           status: 'PENDING',
           subtotal: breakdown.gross,
+          gstAmount: breakdown.gstAmount,
           retentionAmount: breakdown.retention,
           advanceRecoveryAmount: breakdown.advanceRecovery,
           tdsRate: breakdown.tdsRate,

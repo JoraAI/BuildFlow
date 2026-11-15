@@ -214,6 +214,32 @@ function buildHsnMaps(gst: OfflinePackGst) {
       );
     }
   }
+  // Credit notes reduce HSN taxable/tax (same B2B/B2C bucket as the party GSTIN).
+  for (const note of gst.creditNotes) {
+    const target = note.partyGstin?.trim() ? b2b : b2c;
+    const lines =
+      note.lines && note.lines.length > 0
+        ? note.lines
+        : [
+            {
+              hsn: null as string | null,
+              qty: 0,
+              taxable: note.taxable,
+              gstRate:
+                note.taxable > 0
+                  ? Number((((note.cgst + note.sgst + note.igst) / note.taxable) * 100).toFixed(2))
+                  : 0,
+            },
+          ];
+    for (const li of lines) {
+      const taxes = lineTaxSplit(li.taxable, li.gstRate, note);
+      accumulateHsn(target, li.hsn, -li.qty, -li.taxable, li.gstRate, {
+        igst: -taxes.igst,
+        cgst: -taxes.cgst,
+        sgst: -taxes.sgst,
+      });
+    }
+  }
   return { b2b, b2c };
 }
 

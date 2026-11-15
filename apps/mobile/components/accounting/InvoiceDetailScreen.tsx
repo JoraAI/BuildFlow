@@ -145,10 +145,41 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
     })();
   };
 
+  const isRa = invoice.invoiceType === 'RUNNING_ACCOUNT';
+
   const totalsCard = (
     <Card>
       <View className="gap-2">
-        <Row label="Subtotal" value={formatINR(invoice.subtotal)} />
+        {isRa ? (
+          <>
+            {invoice.raSequence != null ? (
+              <Row label="RA sequence" value={`RA-${invoice.raSequence}`} muted />
+            ) : null}
+            <Row
+              label="Previous certified"
+              value={formatINR(invoice.previousCertifiedTotal ?? 0)}
+              muted
+            />
+            <Row
+              label="Current certified"
+              value={formatINR(invoice.currentCertifiedTotal ?? invoice.subtotal)}
+            />
+            <Row
+              label="Cumulative certified"
+              value={formatINR(invoice.cumulativeCertifiedTotal ?? invoice.subtotal)}
+            />
+            {(invoice.retentionPct ?? 0) > 0 ? (
+              <Row
+                label={`Retention (${invoice.retentionPct}%)`}
+                value={`- ${formatINR(invoice.retentionAmount ?? 0)}`}
+                danger
+              />
+            ) : null}
+            <View className="h-px bg-border my-1" />
+          </>
+        ) : (
+          <Row label="Subtotal" value={formatINR(invoice.subtotal)} />
+        )}
         {(invoice.discountAmount ?? 0) > 0 ? (
           <Row
             label={
@@ -331,14 +362,20 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
           <View className="px-4 pt-3 pb-2">
             <Text className="text-sm font-bold text-text">Billing items</Text>
             <Text className="text-[11px] text-muted mt-0.5">
-              Tax invoice format — HSN, qty, rate, CGST / SGST (or IGST)
+              {isRa
+                ? 'Running account — prev / current / cum qty (matches PDF)'
+                : 'Tax invoice format — HSN, qty, rate, CGST / SGST (or IGST)'}
             </Text>
             <Text className="text-[11px] text-muted mt-1">Swipe for all columns</Text>
           </View>
-          <TaxInvoiceLineTable
-            lines={invoice.lineItems}
-            useIgst={Number(invoice.igstAmount) > 0 && Number(invoice.cgstAmount) <= 0}
-          />
+          {isRa ? (
+            <RaLineTable lines={invoice.lineItems} />
+          ) : (
+            <TaxInvoiceLineTable
+              lines={invoice.lineItems}
+              useIgst={Number(invoice.igstAmount) > 0 && Number(invoice.cgstAmount) <= 0}
+            />
+          )}
         </Card>
       )}
 
@@ -431,6 +468,80 @@ function Row({
         {value}
       </Text>
   </View>
+  );
+}
+
+/** C8: RA line table — prev / curr / cum qty (parity with RA PDF). */
+function RaLineTable({ lines }: { lines: InvoiceLineItem[] }) {
+  const fmt = (n: number) =>
+    n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const W = {
+    sr: 36,
+    item: 200,
+    prev: 64,
+    curr: 64,
+    cum: 64,
+    rate: 72,
+    amt: 88,
+  } as const;
+  const minWidth = W.sr + W.item + W.prev + W.curr + W.cum + W.rate + W.amt;
+  const col = (width: number, label: string, align: 'left' | 'right' = 'left') => (
+    <Text
+      className={`text-[10px] font-bold text-white uppercase ${align === 'right' ? 'text-right' : ''}`}
+      style={{ width }}
+    >
+      {label}
+    </Text>
+  );
+  const cell = (
+    width: number,
+    text: string,
+    opts?: { right?: boolean; bold?: boolean; muted?: boolean },
+  ) => (
+    <Text
+      className={`text-[11px] ${opts?.bold ? 'font-semibold text-text' : opts?.muted ? 'text-muted' : 'text-text'} ${
+        opts?.right ? 'text-right' : ''
+      }`}
+      style={{ width }}
+      numberOfLines={2}
+    >
+      {text}
+    </Text>
+  );
+
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ minWidth }}>
+      <View>
+        <View className="flex-row items-center bg-primary px-2 py-2 gap-1">
+          {col(W.sr, 'Sr')}
+          {col(W.item, 'Description')}
+          {col(W.prev, 'Prev Qty', 'right')}
+          {col(W.curr, 'Curr Qty', 'right')}
+          {col(W.cum, 'Cum Qty', 'right')}
+          {col(W.rate, 'Rate', 'right')}
+          {col(W.amt, 'Amount', 'right')}
+        </View>
+        {lines.map((li, idx) => {
+          const amt = Number(li.certifiedAmount ?? li.amount) || Number(li.currentQty ?? li.quantity) * Number(li.rate);
+          return (
+            <View
+              key={li.id}
+              className={`flex-row items-start px-2 py-2.5 gap-1 border-b border-border ${
+                idx % 2 === 1 ? 'bg-surface' : 'bg-card'
+              }`}
+            >
+              {cell(W.sr, String(idx + 1), { muted: true })}
+              {cell(W.item, li.description)}
+              {cell(W.prev, fmt(Number(li.previousQty ?? 0)), { right: true })}
+              {cell(W.curr, fmt(Number(li.currentQty ?? li.quantity)), { right: true })}
+              {cell(W.cum, fmt(Number(li.cumulativeQty ?? li.quantity)), { right: true })}
+              {cell(W.rate, fmt(Number(li.rate)), { right: true })}
+              {cell(W.amt, fmt(amt), { right: true, bold: true })}
+            </View>
+          );
+        })}
+      </View>
+    </ScrollView>
   );
 }
 

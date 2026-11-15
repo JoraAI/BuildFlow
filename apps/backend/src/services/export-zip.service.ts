@@ -61,9 +61,13 @@ export async function gatherCompanyData(companyId: string) {
     prisma.estimateSection.findMany({ where: { estimate: { companyId } } }),
     prisma.estimateItem.findMany({ where: { estimate: { companyId } } }),
     prisma.bOQItem.findMany({ where: { project: { companyId } } }),
-    prisma.invoice.findMany({ where: { companyId } }),
-    prisma.invoiceLineItem.findMany({ where: { invoice: { companyId } } }),
-    prisma.bill.findMany({ where: { companyId } }),
+    prisma.invoice.findMany({ where: { companyId, status: { not: 'DRAFT' } } }),
+    prisma.invoiceLineItem.findMany({
+      where: { invoice: { companyId, status: { not: 'DRAFT' } } },
+    }),
+    prisma.bill.findMany({
+      where: { companyId, status: { notIn: ['DRAFT', 'REJECTED'] } },
+    }),
     prisma.journalEntry.findMany({ where: { companyId } }),
     prisma.dailyReport.findMany({ where: { project: { companyId } } }),
     prisma.materialUsage.findMany({

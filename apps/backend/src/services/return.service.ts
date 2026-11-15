@@ -197,13 +197,13 @@ export async function createSalesReturn(
 
   const resources = await prisma.resource.findMany({
     where: { id: { in: lines.map((l) => l.resourceId) }, companyId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, hsnSacCode: true },
   });
-  const nameById = new Map(resources.map((r) => [r.id, r.name]));
+  const resourceById = new Map(resources.map((r) => [r.id, r]));
   for (const l of lines) {
-    const name = nameById.get(l.resourceId);
-    if (!name) throw ApiError.notFound('Resource not found');
-    l.itemName = name;
+    const res = resourceById.get(l.resourceId);
+    if (!res) throw ApiError.notFound('Resource not found');
+    l.itemName = res.name;
   }
 
   const initialStatus = input.status === 'DRAFT' || input.status === 'PENDING_APPROVAL' ? 'DRAFT' : 'ISSUED';
@@ -237,6 +237,8 @@ export async function createSalesReturn(
       await restockSalesReturnLines(tx, location.id, ret, invoice);
     }
 
+    // When the return is stocked/issued, issue the CN in the same step so
+    // GSTR-1 / AR stay in sync with inventory (no orphan DRAFT note).
     const creditNote = await tx.creditNote.create({
       data: {
         companyId,
@@ -247,7 +249,7 @@ export async function createSalesReturn(
         customerId: invoice.customerId,
         customerName: invoice.clientName,
         creditDate: input.returnDate,
-        status: 'DRAFT',
+        status: initialStatus === 'ISSUED' ? 'ISSUED' : 'DRAFT',
         subtotal,
         gstAmount,
         cgstAmount: gstSplit.cgst,
@@ -265,6 +267,7 @@ export async function createSalesReturn(
             rate: Number(l.rate),
             amount: Number(l.amount),
             gstRate: Number(l.gstRate),
+            hsnSacCode: resourceById.get(l.resourceId)?.hsnSacCode?.trim() || null,
           })),
         },
       },
@@ -443,13 +446,13 @@ export async function createPurchaseReturn(
 
   const resources = await prisma.resource.findMany({
     where: { id: { in: lines.map((l) => l.resourceId) }, companyId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, hsnSacCode: true },
   });
-  const nameById = new Map(resources.map((r) => [r.id, r.name]));
+  const resourceById = new Map(resources.map((r) => [r.id, r]));
   for (const l of lines) {
-    const name = nameById.get(l.resourceId);
-    if (!name) throw ApiError.notFound('Resource not found');
-    l.itemName = name;
+    const res = resourceById.get(l.resourceId);
+    if (!res) throw ApiError.notFound('Resource not found');
+    l.itemName = res.name;
   }
 
   const vendorName = bill?.vendorName ?? 'Vendor';
@@ -515,6 +518,7 @@ export async function createPurchaseReturn(
       });
     }
 
+    // Purchase return stocks out immediately — issue DN in the same step.
     const debitNote = await tx.debitNote.create({
       data: {
         companyId,
@@ -525,7 +529,7 @@ export async function createPurchaseReturn(
         vendorId: bill?.vendorId ?? null,
         vendorName,
         debitDate: input.returnDate,
-        status: 'DRAFT',
+        status: 'ISSUED',
         subtotal,
         gstAmount,
         // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.5): GST state split.
@@ -544,6 +548,7 @@ export async function createPurchaseReturn(
             rate: Number(l.rate),
             amount: Number(l.amount),
             gstRate: Number(l.gstRate),
+            hsnSacCode: resourceById.get(l.resourceId)?.hsnSacCode?.trim() || null,
           })),
         },
       },

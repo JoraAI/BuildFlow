@@ -688,7 +688,7 @@ export async function createInvoiceFromSalesOrder(
     : null;
 
   const today = new Date();
-  const invoice = await createInvoice(companyId, userId, {
+  const invoice = await createInvoice(companyId, userId, role, {
     projectId,
     invoiceNumber: input.invoiceNumber ?? '', // '' → service auto-assigns
     customerId: so.customerId ?? undefined,

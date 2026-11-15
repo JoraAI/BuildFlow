@@ -524,6 +524,7 @@ async function buildPackSlices(
             amount: true,
             gstRate: true,
             resourceId: true,
+            hsnSacCode: true,
           },
         },
       },
@@ -552,6 +553,7 @@ async function buildPackSlices(
             amount: true,
             gstRate: true,
             resourceId: true,
+            hsnSacCode: true,
           },
         },
       },
@@ -642,7 +644,11 @@ async function buildPackSlices(
     const lines = cn.lines.map((li) => {
       const taxable = Number(li.amount);
       const rate = Number(li.gstRate);
-      const hsn = li.resourceId ? hsnByResourceId.get(li.resourceId) ?? null : null;
+      // Prefer persisted line HSN (frozen at note create); fall back to catalog.
+      const hsn =
+        (typeof li.hsnSacCode === 'string' && li.hsnSacCode.trim()) ||
+        (li.resourceId ? hsnByResourceId.get(li.resourceId) ?? null : null) ||
+        null;
       if (addHsn(hsnMap, hsn, taxable, rate, Number(li.quantity))) missingHsnLines += 1;
       return {
         id: li.id,
@@ -678,7 +684,10 @@ async function buildPackSlices(
     const lines = dn.lines.map((li) => {
       const taxable = Number(li.amount);
       const rate = Number(li.gstRate);
-      const hsn = li.resourceId ? hsnByResourceId.get(li.resourceId) ?? null : null;
+      const hsn =
+        (typeof li.hsnSacCode === 'string' && li.hsnSacCode.trim()) ||
+        (li.resourceId ? hsnByResourceId.get(li.resourceId) ?? null : null) ||
+        null;
       return {
         id: li.id,
         description: li.description,

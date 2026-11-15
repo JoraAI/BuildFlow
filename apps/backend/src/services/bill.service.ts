@@ -8,10 +8,34 @@ import { ApiError } from '../utils/errors';
 import { invalidateCache, cacheKeys } from '../utils/cache';
 import { round2, netTotal } from './gst.service';
 import { nextSequentialNumber } from '../lib/id-generator';
-import type { CreateBillInput, UpdateBillInput, RecordPaymentInput } from '@buildflow/shared';
+import type { CreateBillInput, UpdateBillInput, RecordPaymentInput, Role } from '@buildflow/shared';
+import {
+  assertCanViewProject,
+  getAccessibleProjectIds,
+} from '../middleware/project-access.middleware';
+
+export type ProjectAccessCtx = { userId: string; role: Role };
 
 function toNum(d: Decimal | null | undefined): number {
   return d ? Number(d) : 0;
+}
+
+async function applyProjectListScope(
+  companyId: string,
+  access: ProjectAccessCtx,
+  where: Record<string, unknown>,
+  projectId?: string,
+): Promise<'ok' | 'empty'> {
+  if (projectId) {
+    await assertCanViewProject(companyId, access.userId, access.role, projectId);
+    where.projectId = projectId;
+    return 'ok';
+  }
+  const ids = await getAccessibleProjectIds(companyId, access.userId, access.role);
+  if (ids === null) return 'ok';
+  if (ids.length === 0) return 'empty';
+  where.projectId = { in: ids };
+  return 'ok';
 }
 
 async function invalidateBillSummaryCache(companyId: string, projectId: string) {
@@ -122,11 +146,14 @@ export type BillListItem = ReturnType<typeof serializeBill>;
 
 export async function listBills(
   companyId: string,
+  access: ProjectAccessCtx,
   projectId?: string,
   status?: string,
 ): Promise<BillListItem[]> {
   const where: Record<string, unknown> = { companyId };
-  if (projectId) where.projectId = projectId;
+  if ((await applyProjectListScope(companyId, access, where, projectId)) === 'empty') {
+    return [];
+  }
   if (status) where.status = status;
 
   const bills = await prisma.bill.findMany({
@@ -137,12 +164,13 @@ export async function listBills(
   return bills.map(serializeBill);
 }
 
-export async function getBill(companyId: string, id: string) {
+export async function getBill(companyId: string, id: string, access: ProjectAccessCtx) {
   const bill = await prisma.bill.findFirst({
     where: { id, companyId },
     include: { project: { select: { id: true, name: true } } },
   });
   if (!bill) throw ApiError.notFound('Bill');
+  await assertCanViewProject(companyId, access.userId, access.role, bill.projectId);
   return serializeBill(bill);
 }
 
@@ -221,7 +249,13 @@ async function buildBillSnapshot(opts: {
   return Object.keys(snapshot).length > 1 ? snapshot : null;
 }
 
-export async function createBill(companyId: string, _userId: string, input: CreateBillInput) {
+export async function createBill(
+  companyId: string,
+  userId: string,
+  role: Role | string,
+  input: CreateBillInput,
+) {
+  await assertCanViewProject(companyId, userId, role as Role, input.projectId);
   const project = await prisma.project.findFirst({
     where: { id: input.projectId, companyId },
   });
@@ -371,7 +405,10 @@ export async function createDraftBillFromGrn(opts: {
     });
   }
 
-  const gstAmount = company.gstin ? round2(subtotal * 0.18) : 0;
+  // C4: GST from catalog/line rates (0/5/12/18/28), not a flat 18%.
+  const gstAmount = company.gstin
+    ? round2(lineBreakdown.reduce((s, l) => s + l.amount * (l.gstRate / 100), 0))
+    : 0;
   const tdsAmount = 0;
   const total = netTotal(subtotal, gstAmount, tdsAmount);
   const billNumber = await nextSequentialNumber(opts.companyId, 'bill');
@@ -417,10 +454,12 @@ export async function createDraftBillFromGrn(opts: {
 export async function updateBill(
   companyId: string,
   id: string,
+  access: ProjectAccessCtx,
   input: UpdateBillInput,
 ) {
   const bill = await prisma.bill.findFirst({ where: { id, companyId } });
   if (!bill) throw ApiError.notFound('Bill');
+  await assertCanViewProject(companyId, access.userId, access.role, bill.projectId);
   if (bill.status === 'PAID') throw ApiError.conflict('Cannot edit a paid bill');
 
   const subtotal = input.subtotal ?? Number(bill.subtotal);
@@ -446,9 +485,15 @@ export async function updateBill(
   return serializeBill(updated);
 }
 
-export async function approveBill(companyId: string, userId: string, id: string) {
+export async function approveBill(
+  companyId: string,
+  userId: string,
+  id: string,
+  access: ProjectAccessCtx,
+) {
   const bill = await prisma.bill.findFirst({ where: { id, companyId } });
   if (!bill) throw ApiError.notFound('Bill');
+  await assertCanViewProject(companyId, access.userId, access.role, bill.projectId);
   if (bill.status === 'PAID') throw ApiError.conflict('Bill already paid');
   if (bill.status === 'REJECTED') throw ApiError.badRequest('Rejected bills cannot be approved');
   if (bill.status !== 'DRAFT' && bill.status !== 'PENDING') {
@@ -464,9 +509,15 @@ export async function approveBill(companyId: string, userId: string, id: string)
   return serializeBill(updated);
 }
 
-export async function rejectBill(companyId: string, _userId: string, id: string) {
+export async function rejectBill(
+  companyId: string,
+  _userId: string,
+  id: string,
+  access: ProjectAccessCtx,
+) {
   const bill = await prisma.bill.findFirst({ where: { id, companyId } });
   if (!bill) throw ApiError.notFound('Bill');
+  await assertCanViewProject(companyId, access.userId, access.role, bill.projectId);
   if (bill.status === 'PAID') throw ApiError.conflict('Cannot reject a paid bill');
 
   const updated = await prisma.bill.update({
@@ -483,9 +534,13 @@ export async function recordBillPayment(
   userId: string,
   id: string,
   input: RecordPaymentInput,
+  access?: ProjectAccessCtx,
 ) {
   const bill = await prisma.bill.findFirst({ where: { id, companyId } });
   if (!bill) throw ApiError.notFound('Bill');
+  if (access) {
+    await assertCanViewProject(companyId, access.userId, access.role, bill.projectId);
+  }
   if (bill.status === 'REJECTED') throw ApiError.badRequest('Cannot pay a rejected bill');
   if (bill.status === 'DRAFT' || bill.status === 'PENDING') {
     throw ApiError.badRequest('Bill must be approved before recording payment');
@@ -556,9 +611,15 @@ export async function recordBillPayment(
   return serializeBill(updated.result);
 }
 
-export async function payBill(companyId: string, userId: string, id: string) {
+export async function payBill(
+  companyId: string,
+  userId: string,
+  id: string,
+  access: ProjectAccessCtx,
+) {
   const bill = await prisma.bill.findFirst({ where: { id, companyId } });
   if (!bill) throw ApiError.notFound('Bill');
+  await assertCanViewProject(companyId, access.userId, access.role, bill.projectId);
   if (bill.status !== 'APPROVED' && bill.status !== 'PAID') {
     throw ApiError.conflict('Bill must be approved before marking as paid');
   }
@@ -568,25 +629,45 @@ export async function payBill(companyId: string, userId: string, id: string) {
     throw ApiError.conflict('Bill already fully paid');
   }
 
-  return recordBillPayment(companyId, userId, id, {
-    amount: remaining,
-    paymentDate: new Date(),
-    method: 'BANK',
-  });
+  return recordBillPayment(
+    companyId,
+    userId,
+    id,
+    {
+      amount: remaining,
+      paymentDate: new Date(),
+      method: 'BANK',
+    },
+    access,
+  );
 }
 
-export async function deleteBill(companyId: string, id: string) {
+export async function deleteBill(companyId: string, id: string, access: ProjectAccessCtx) {
   const bill = await prisma.bill.findFirst({ where: { id, companyId } });
   if (!bill) throw ApiError.notFound('Bill');
+  await assertCanViewProject(companyId, access.userId, access.role, bill.projectId);
   if (!['DRAFT', 'PENDING', 'REJECTED'].includes(bill.status)) {
     throw ApiError.conflict('Only DRAFT, PENDING or REJECTED bills can be deleted');
   }
   return prisma.bill.delete({ where: { id } });
 }
 
-export async function getBillSummary(companyId: string, projectId?: string) {
+export async function getBillSummary(
+  companyId: string,
+  access: ProjectAccessCtx,
+  projectId?: string,
+) {
   const where: Record<string, unknown> = { companyId };
-  if (projectId) where.projectId = projectId;
+  if ((await applyProjectListScope(companyId, access, where, projectId)) === 'empty') {
+    return {
+      byCategory: [] as Array<{ category: string; total: number; count: number }>,
+      pendingCount: 0,
+      pendingAmount: 0,
+      totalSpend: 0,
+      totalPaid: 0,
+      billCount: 0,
+    };
+  }
 
   const bills = await prisma.bill.findMany({
     where,

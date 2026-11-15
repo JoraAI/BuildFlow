@@ -73,18 +73,31 @@ export async function listBoq(companyId: string, projectId: string) {
     .filter((id): id is string => Boolean(id));
 
   const stockByResource = new Map<string, number>();
+  const catalogByResource = new Map<string, { hsnSacCode: string | null; gstRate: number }>();
   if (resourceIds.length > 0) {
-    const balances = await prisma.stockBalance.findMany({
-      where: {
-        resourceId: { in: resourceIds },
-        location: { projectId, companyId },
-      },
-    });
+    const [balances, catalog] = await Promise.all([
+      prisma.stockBalance.findMany({
+        where: {
+          resourceId: { in: resourceIds },
+          location: { projectId, companyId },
+        },
+      }),
+      prisma.resource.findMany({
+        where: { id: { in: resourceIds }, companyId },
+        select: { id: true, hsnSacCode: true, gstRate: true },
+      }),
+    ]);
     for (const balance of balances) {
       stockByResource.set(
         balance.resourceId,
         (stockByResource.get(balance.resourceId) ?? 0) + Number(balance.quantity),
       );
+    }
+    for (const r of catalog) {
+      catalogByResource.set(r.id, {
+        hsnSacCode: r.hsnSacCode?.trim() || null,
+        gstRate: Number(r.gstRate) || 0,
+      });
     }
   }
 
@@ -125,8 +138,12 @@ export async function listBoq(companyId: string, projectId: string) {
     const linked = subIssuedByBoqItem.get(item.id) ?? 0;
     const unlinked = item.resourceId ? (subIssuedUnlinkedByResource.get(item.resourceId) ?? 0) : 0;
     const subIssuedQty = linked + unlinked;
+    const catalog = item.resourceId ? catalogByResource.get(item.resourceId) : undefined;
     return {
       ...item,
+      // C1: surface catalog HSN/GST for RA create-invoice wiring.
+      hsnSacCode: catalog?.hsnSacCode ?? null,
+      gstRate: catalog?.gstRate,
       stockQty: item.resourceId ? (stockByResource.get(item.resourceId) ?? 0) : undefined,
       subIssuedQty: item.resourceId || linked > 0 ? subIssuedQty : undefined,
     };

@@ -163,6 +163,10 @@ export type PackPeriodPnL = {
 /** Sales stock OUT types (excludes transfers / purchase returns / adjustments). */
 const SALES_OUT_TYPES = ['MANUAL_ISSUE', 'DELIVERY_CHALLAN'];
 
+function movementValue(m: { quantity: unknown; unitCost: unknown; inventoryValue: unknown }): number {
+  return Number(m.inventoryValue) || Number(m.quantity) * Number(m.unitCost ?? 0);
+}
+
 /** Pack-scoped P&L without project-gate (auditor-safe). */
 export async function buildPackPeriodPnL(
   companyId: string,
@@ -172,7 +176,7 @@ export async function buildPackPeriodPnL(
   const start = new Date(`${from}T00:00:00.000Z`);
   const end = new Date(`${to}T23:59:59.999Z`);
 
-  const [invoices, creditNotes, expenseEntries, outMoves] = await Promise.all([
+  const [invoices, creditNotes, expenseEntries, salesMoves] = await Promise.all([
     prisma.invoice.findMany({
       where: {
         companyId,
@@ -197,14 +201,17 @@ export async function buildPackPeriodPnL(
       },
       select: { amount: true, category: true },
     }),
+    // Sales OUT increases COGS; SALES_RETURN stock IN reverses COGS for returned goods.
     prisma.stockMovement.findMany({
       where: {
         location: { companyId },
-        type: 'OUT',
-        referenceType: { in: SALES_OUT_TYPES },
         createdAt: { gte: start, lte: end },
+        OR: [
+          { type: 'OUT', referenceType: { in: SALES_OUT_TYPES } },
+          { type: 'IN', referenceType: 'SALES_RETURN' },
+        ],
       },
-      select: { quantity: true, unitCost: true, inventoryValue: true },
+      select: { type: true, referenceType: true, quantity: true, unitCost: true, inventoryValue: true },
     }),
   ]);
 
@@ -213,9 +220,12 @@ export async function buildPackPeriodPnL(
   const cnTaxable = creditNotes.reduce((s, c) => s + Number(c.subtotal), 0);
   const sales = round2(Math.max(0, grossSales - cnTaxable));
   const cogs = round2(
-    outMoves.reduce(
-      (s, m) => s + (Number(m.inventoryValue) || Number(m.quantity) * Number(m.unitCost ?? 0)),
+    Math.max(
       0,
+      salesMoves.reduce((s, m) => {
+        const v = movementValue(m);
+        return m.type === 'IN' && m.referenceType === 'SALES_RETURN' ? s - v : s + v;
+      }, 0),
     ),
   );
   const expensesByCategory: Record<string, number> = {};

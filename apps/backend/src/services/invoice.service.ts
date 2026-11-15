@@ -14,9 +14,112 @@ import type {
   CreateInvoiceInput,
   UpdateInvoiceInput,
   RecordPaymentInput,
+  Role,
 } from '@buildflow/shared';
+import {
+  assertCanViewProject,
+  getAccessibleProjectIds,
+} from '../middleware/project-access.middleware';
 
 const QTY_EPS = 0.001;
+
+export type ProjectAccessCtx = { userId: string; role: Role };
+
+/**
+ * Roll header GST from per-line rates (supports mixed SAC rates on RA/works bills).
+ * Sheet discount scales each line's taxable share before tax.
+ */
+function calculateGstAcrossLines(opts: {
+  lines: Array<{ amount: number; gstRate?: number | null }>;
+  taxable: number;
+  headerGstRate: number;
+  tdsEnabled: boolean;
+  tdsRate: number;
+  companyState: string;
+  clientState?: string | null;
+}): ReturnType<typeof calculateGST> & { effectiveGstRate: number } {
+  const lineSum = opts.lines.reduce((s, l) => s + l.amount, 0);
+  if (opts.lines.length === 0 || lineSum <= 0) {
+    const g = calculateGST({
+      subtotal: opts.taxable,
+      gstRate: opts.headerGstRate,
+      tdsEnabled: opts.tdsEnabled,
+      tdsRate: opts.tdsRate,
+      companyState: opts.companyState,
+      clientState: opts.clientState ?? undefined,
+    });
+    return { ...g, effectiveGstRate: opts.headerGstRate };
+  }
+
+  const scale = opts.taxable / lineSum;
+  let cgstAmount = 0;
+  let sgstAmount = 0;
+  let igstAmount = 0;
+  const rates = new Set<number>();
+
+  for (const li of opts.lines) {
+    const rate =
+      li.gstRate != null && Number.isFinite(Number(li.gstRate))
+        ? Number(li.gstRate)
+        : opts.headerGstRate;
+    rates.add(rate);
+    const lineTaxable = round2(li.amount * scale);
+    const g = calculateGST({
+      subtotal: lineTaxable,
+      gstRate: rate,
+      tdsEnabled: false,
+      tdsRate: 0,
+      companyState: opts.companyState,
+      clientState: opts.clientState ?? undefined,
+    });
+    cgstAmount = round2(cgstAmount + g.cgstAmount);
+    sgstAmount = round2(sgstAmount + g.sgstAmount);
+    igstAmount = round2(igstAmount + g.igstAmount);
+  }
+
+  const gstAmount = round2(cgstAmount + sgstAmount + igstAmount);
+  const tdsAmount = opts.tdsEnabled ? round2((opts.taxable * opts.tdsRate) / 100) : 0;
+  const netPayable = round2(opts.taxable + gstAmount - tdsAmount);
+  const effectiveGstRate = rates.size === 1 ? [...rates][0]! : opts.headerGstRate;
+  const sample = calculateGST({
+    subtotal: opts.taxable,
+    gstRate: effectiveGstRate,
+    tdsEnabled: false,
+    tdsRate: 0,
+    companyState: opts.companyState,
+    clientState: opts.clientState ?? undefined,
+  });
+
+  return {
+    subtotal: round2(opts.taxable),
+    cgstAmount,
+    sgstAmount,
+    igstAmount,
+    gstAmount,
+    tdsAmount,
+    netPayable,
+    isIntraState: sample.isIntraState,
+    effectiveGstRate,
+  };
+}
+
+async function applyProjectListScope(
+  companyId: string,
+  access: ProjectAccessCtx,
+  where: Record<string, unknown>,
+  projectId?: string,
+): Promise<'ok' | 'empty'> {
+  if (projectId) {
+    await assertCanViewProject(companyId, access.userId, access.role, projectId);
+    where.projectId = projectId;
+    return 'ok';
+  }
+  const ids = await getAccessibleProjectIds(companyId, access.userId, access.role);
+  if (ids === null) return 'ok';
+  if (ids.length === 0) return 'empty';
+  where.projectId = { in: ids };
+  return 'ok';
+}
 
 type InvoiceLineLike = CreateInvoiceInput['lineItems'][number];
 
@@ -239,6 +342,10 @@ function serialize(inv: {
     hsnSacCode: string | null;
     // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.4): optional catalog link.
     resourceId: string | null;
+    previousQty?: Decimal;
+    currentQty?: Decimal;
+    cumulativeQty?: Decimal;
+    certifiedAmount?: Decimal;
   }>;
 }) {
   return {
@@ -287,6 +394,10 @@ function serialize(inv: {
       gstRate: toNum(li.gstRate),
       hsnSacCode: li.hsnSacCode,
       resourceId: li.resourceId,
+      previousQty: toNum(li.previousQty),
+      currentQty: toNum(li.currentQty),
+      cumulativeQty: toNum(li.cumulativeQty),
+      certifiedAmount: toNum(li.certifiedAmount),
     })),
   };
 }
@@ -299,11 +410,14 @@ async function getCompanyState(companyId: string): Promise<string> {
 
 export async function listInvoices(
   companyId: string,
+  access: ProjectAccessCtx,
   projectId?: string,
   status?: string,
 ): Promise<InvoiceListItem[]> {
   const where: Record<string, unknown> = { companyId };
-  if (projectId) where.projectId = projectId;
+  if ((await applyProjectListScope(companyId, access, where, projectId)) === 'empty') {
+    return [];
+  }
   if (status) where.status = status;
 
   const invoices = await prisma.invoice.findMany({
@@ -332,7 +446,7 @@ export async function listInvoices(
   }));
 }
 
-export async function getInvoice(companyId: string, id: string) {
+export async function getInvoice(companyId: string, id: string, access: ProjectAccessCtx) {
   const inv = await prisma.invoice.findFirst({
     where: { id, companyId },
     include: {
@@ -341,6 +455,7 @@ export async function getInvoice(companyId: string, id: string) {
     },
   });
   if (!inv) throw ApiError.notFound('Invoice');
+  await assertCanViewProject(companyId, access.userId, access.role, inv.projectId);
   return serialize(inv);
 }
 
@@ -351,7 +466,13 @@ export async function getInvoice(companyId: string, id: string) {
  * on the current certified delta (currentCertifiedTotal), not the cumulative -
  * retention is held back from THIS payment, not re-deducted from prior totals.
  */
-export async function createInvoice(companyId: string, _userId: string, input: CreateInvoiceInput) {
+export async function createInvoice(
+  companyId: string,
+  userId: string,
+  role: Role | string,
+  input: CreateInvoiceInput,
+) {
+  await assertCanViewProject(companyId, userId, role as Role, input.projectId);
   const project = await prisma.project.findFirst({
     where: { id: input.projectId, companyId },
   });
@@ -511,9 +632,11 @@ export async function createInvoice(companyId: string, _userId: string, input: C
     // portion), not the cumulative total. Prior bills already had their retention deducted.
     const retentionAmount = round2((currentCertifiedTotal * retentionPct) / 100);
 
-    const gst = calculateGST({
-      subtotal: currentCertifiedTotal,
-      gstRate: input.gstRate,
+    // C2: header GST = sum of per-line GST (mixed rates), not a single header rate.
+    const gst = calculateGstAcrossLines({
+      lines: lineAmounts.map((li) => ({ amount: li.amount, gstRate: li.gstRate })),
+      taxable: currentCertifiedTotal,
+      headerGstRate: input.gstRate,
       tdsEnabled: input.tdsEnabled,
       tdsRate: input.tdsRate,
       companyState,
@@ -556,7 +679,7 @@ export async function createInvoice(companyId: string, _userId: string, input: C
         subtotal,
         discountPct: sheetDiscount.discountPct,
         discountAmount: sheetDiscount.discountAmount,
-        gstRate: input.gstRate,
+        gstRate: gst.effectiveGstRate,
         gstAmount: gst.gstAmount,
         cgstAmount: gst.cgstAmount,
         sgstAmount: gst.sgstAmount,
@@ -618,11 +741,38 @@ export async function createInvoice(companyId: string, _userId: string, input: C
 export async function updateInvoice(
   companyId: string,
   id: string,
+  access: ProjectAccessCtx,
   input: UpdateInvoiceInput,
 ) {
   const inv = await prisma.invoice.findFirst({ where: { id, companyId } });
   if (!inv) throw ApiError.notFound('Invoice');
+  await assertCanViewProject(companyId, access.userId, access.role, inv.projectId);
   if (inv.status === 'PAID') throw ApiError.conflict('Cannot edit a paid invoice');
+
+  // C3: SENT/OVERDUE RA invoices are frozen — certified/retention/lines must not drift.
+  const invoiceTypeExisting = inv.invoiceType ?? 'STANDARD';
+  if (
+    invoiceTypeExisting === 'RUNNING_ACCOUNT' &&
+    (inv.status === 'SENT' || inv.status === 'OVERDUE')
+  ) {
+    const touchesFrozen =
+      input.lineItems !== undefined ||
+      input.gstRate !== undefined ||
+      input.discountPct !== undefined ||
+      input.discountAmount !== undefined ||
+      input.tdsEnabled !== undefined ||
+      input.tdsRate !== undefined ||
+      input.clientName !== undefined ||
+      input.clientGstin !== undefined ||
+      input.clientState !== undefined ||
+      input.invoiceDate !== undefined ||
+      input.dueDate !== undefined;
+    if (touchesFrozen) {
+      throw ApiError.conflict(
+        'Sent RA invoices are frozen. Create a new RA bill for corrections.',
+      );
+    }
+  }
 
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.4): validate optional resource links.
   if (input.lineItems) {
@@ -734,9 +884,31 @@ export async function updateInvoice(
   );
   const currentCertifiedTotal = sheetDiscount.taxable;
 
-  const gst = calculateGST({
-    subtotal: currentCertifiedTotal,
-    gstRate,
+  // Prefer live line rates when lines are being rewritten; else stored lines.
+  let gstLines: Array<{ amount: number; gstRate?: number | null }>;
+  if (input.lineItems) {
+    gstLines = input.lineItems.map((li) => ({
+      amount: lineAmount(
+        invoiceType === 'RUNNING_ACCOUNT' ? (li.currentQty ?? li.quantity) : li.quantity,
+        li.rate,
+      ),
+      gstRate: li.gstRate,
+    }));
+  } else {
+    const existingLines = await prisma.invoiceLineItem.findMany({
+      where: { invoiceId: id },
+      select: { amount: true, gstRate: true },
+    });
+    gstLines = existingLines.map((li) => ({
+      amount: Number(li.amount),
+      gstRate: Number(li.gstRate),
+    }));
+  }
+
+  const gst = calculateGstAcrossLines({
+    lines: gstLines,
+    taxable: currentCertifiedTotal,
+    headerGstRate: gstRate,
     tdsEnabled,
     tdsRate,
     companyState,
@@ -766,7 +938,7 @@ export async function updateInvoice(
       clientPhone: input.clientPhone ?? null,
       invoiceDate: input.invoiceDate,
       dueDate: input.dueDate,
-      gstRate,
+      gstRate: gst.effectiveGstRate,
       tdsRate: tdsEnabled ? tdsRate : 0,
       subtotal,
       discountPct: sheetDiscount.discountPct,
@@ -791,12 +963,13 @@ export async function updateInvoice(
   });
 }
 
-export async function sendInvoice(companyId: string, id: string) {
+export async function sendInvoice(companyId: string, id: string, access: ProjectAccessCtx) {
   const inv = await prisma.invoice.findFirst({
     where: { id, companyId },
     include: { lineItems: true },
   });
   if (!inv) throw ApiError.notFound('Invoice');
+  await assertCanViewProject(companyId, access.userId, access.role, inv.projectId);
   if (inv.status === 'PAID') throw ApiError.conflict('Invoice already paid');
 
   if (inv.invoiceType === 'RUNNING_ACCOUNT') {
@@ -1164,7 +1337,15 @@ export async function recordPayment(
   userId: string,
   id: string,
   input: RecordPaymentInput,
+  access: ProjectAccessCtx,
 ) {
+  const existing = await prisma.invoice.findFirst({
+    where: { id, companyId },
+    select: { projectId: true },
+  });
+  if (!existing) throw ApiError.notFound('Invoice');
+  await assertCanViewProject(companyId, access.userId, access.role, existing.projectId);
+
   const paid = await prisma.$transaction(async (tx) => {
     // NR-11: Read inside the transaction so the overpay guard is race-safe.
     const inv = await tx.invoice.findFirst({ where: { id, companyId } });
@@ -1248,9 +1429,10 @@ export async function recordPayment(
   return paid.invoice;
 }
 
-export async function deleteInvoice(companyId: string, id: string) {
+export async function deleteInvoice(companyId: string, id: string, access: ProjectAccessCtx) {
   const inv = await prisma.invoice.findFirst({ where: { id, companyId } });
   if (!inv) throw ApiError.notFound('Invoice');
+  await assertCanViewProject(companyId, access.userId, access.role, inv.projectId);
   if (inv.status !== 'DRAFT') {
     throw ApiError.conflict('Only DRAFT invoices can be deleted');
   }

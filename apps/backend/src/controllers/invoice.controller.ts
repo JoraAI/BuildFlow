@@ -2,6 +2,7 @@
  * BuildFlow - Invoice controller (thin handlers).
  */
 import type { NextFunction, Request, Response } from 'express';
+import type { Role } from '@buildflow/shared';
 import * as invoiceService from '../services/invoice.service';
 import { ok, created } from '../utils/response';
 import { recordAudit } from '../utils/audit';
@@ -12,24 +13,31 @@ function resolveProjectId(req: Request): string | undefined {
   return (req.params.id as string | undefined) ?? (req.query.projectId as string | undefined);
 }
 
+function accessOf(req: Request): invoiceService.ProjectAccessCtx {
+  return { userId: req.user!.id, role: req.user!.role as Role };
+}
+
 export async function list(req: Request, res: Response) {
   const companyId = req.user!.companyId;
   const projectId = resolveProjectId(req);
   const status = req.query.status as string | undefined;
-  const data = await invoiceService.listInvoices(companyId, projectId, status);
+  const data = await invoiceService.listInvoices(companyId, accessOf(req), projectId, status);
   return ok(res, data);
 }
 
 export async function get(req: Request, res: Response) {
-  const data = await invoiceService.getInvoice(req.user!.companyId, req.params.id);
+  const data = await invoiceService.getInvoice(req.user!.companyId, req.params.id, accessOf(req));
   return ok(res, data);
 }
 
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
-    const { companyId, id: userId } = req.user!;
+    const { companyId, id: userId, role } = req.user!;
     const projectId = (req.body.projectId as string | undefined) ?? (req.params.id as string | undefined);
-    const data = await invoiceService.createInvoice(companyId, userId, { ...req.body, projectId });
+    const data = await invoiceService.createInvoice(companyId, userId, role, {
+      ...req.body,
+      projectId,
+    });
     await recordAudit({
       companyId,
       userId,
@@ -49,7 +57,7 @@ export async function create(req: Request, res: Response, next: NextFunction) {
 
 export async function update(req: Request, res: Response) {
   const { companyId, id: userId } = req.user!;
-  const data = await invoiceService.updateInvoice(companyId, req.params.id, req.body);
+  const data = await invoiceService.updateInvoice(companyId, req.params.id, accessOf(req), req.body);
   await recordAudit({
     companyId,
     userId,
@@ -64,7 +72,7 @@ export async function update(req: Request, res: Response) {
 
 export async function send(req: Request, res: Response) {
   const { companyId, id: userId } = req.user!;
-  const data = await invoiceService.sendInvoice(companyId, req.params.id);
+  const data = await invoiceService.sendInvoice(companyId, req.params.id, accessOf(req));
   await recordAudit({
     companyId,
     userId,
@@ -79,7 +87,13 @@ export async function send(req: Request, res: Response) {
 
 export async function recordPayment(req: Request, res: Response) {
   const { companyId, id: userId } = req.user!;
-  const data = await invoiceService.recordPayment(companyId, userId, req.params.id, req.body);
+  const data = await invoiceService.recordPayment(
+    companyId,
+    userId,
+    req.params.id,
+    req.body,
+    accessOf(req),
+  );
   await recordAudit({
     companyId,
     userId,
@@ -102,7 +116,7 @@ export async function remove(req: Request, res: Response) {
   if (req.user!.role === 'SUPERVISOR') {
     throw ApiError.forbidden('Supervisors cannot delete invoices');
   }
-  const data = await invoiceService.deleteInvoice(companyId, req.params.id);
+  const data = await invoiceService.deleteInvoice(companyId, req.params.id, accessOf(req));
   await recordAudit({
     companyId,
     userId,
