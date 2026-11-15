@@ -649,7 +649,8 @@ async function buildPackSlices(
         (typeof li.hsnSacCode === 'string' && li.hsnSacCode.trim()) ||
         (li.resourceId ? hsnByResourceId.get(li.resourceId) ?? null : null) ||
         null;
-      if (addHsn(hsnMap, hsn, taxable, rate, Number(li.quantity))) missingHsnLines += 1;
+      // Match GSTR-1 HSN: credit notes reduce taxable/qty (do not add as sales).
+      if (addHsn(hsnMap, hsn, -taxable, rate, -Number(li.quantity))) missingHsnLines += 1;
       return {
         id: li.id,
         description: li.description,
@@ -739,6 +740,16 @@ async function buildPackSlices(
       cur.taxable += line.taxable;
       cur.tax += (line.taxable * line.gstRate) / 100;
       cur.count += 1;
+      rateMap.set(key, cur);
+    }
+  }
+  // Net issued credit notes from rate-wise sales (align with GSTR-1 taxable).
+  for (const cn of creditNoteRows) {
+    for (const line of cn.lines) {
+      const key = String(line.gstRate);
+      const cur = rateMap.get(key) ?? { rate: line.gstRate, taxable: 0, tax: 0, count: 0 };
+      cur.taxable -= line.taxable;
+      cur.tax -= (line.taxable * line.gstRate) / 100;
       rateMap.set(key, cur);
     }
   }

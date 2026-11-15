@@ -400,6 +400,7 @@ export function buildGstr1OfflineSectionFiles(opts: {
   const { b2b: hsnB2b, b2c: hsnB2c } = buildHsnMaps(gst);
 
   const invNumbers = gst.invoices.map((i) => i.number).filter(Boolean).sort();
+  const cnNumbers = gst.creditNotes.map((n) => n.number).filter(Boolean).sort();
   const docsRows: unknown[][] = [
     [
       'Invoices for outward supply',
@@ -409,6 +410,15 @@ export function buildGstr1OfflineSectionFiles(opts: {
       0,
     ],
   ];
+  if (cnNumbers.length > 0) {
+    docsRows.push([
+      'Credit Note',
+      cnNumbers[0] ?? '',
+      cnNumbers[cnNumbers.length - 1] ?? '',
+      cnNumbers.length,
+      0,
+    ]);
+  }
 
   return [
     {
@@ -757,6 +767,37 @@ export function buildGstr1OfflineJson(opts: {
     }));
 
   const invNumbers = gst.invoices.map((i) => i.number).filter(Boolean).sort();
+  const cnNumbers = gst.creditNotes.map((n) => n.number).filter(Boolean).sort();
+  const docDet: Array<Record<string, unknown>> = [
+    {
+      doc_num: 1,
+      docs: [
+        {
+          num: 1,
+          from: invNumbers[0] ?? '',
+          to: invNumbers[invNumbers.length - 1] ?? '',
+          totnum: invNumbers.length,
+          cancel: 0,
+          net_issue: invNumbers.length,
+        },
+      ],
+    },
+  ];
+  if (cnNumbers.length > 0) {
+    docDet.push({
+      doc_num: 5,
+      docs: [
+        {
+          num: 1,
+          from: cnNumbers[0] ?? '',
+          to: cnNumbers[cnNumbers.length - 1] ?? '',
+          totnum: cnNumbers.length,
+          cancel: 0,
+          net_issue: cnNumbers.length,
+        },
+      ],
+    });
+  }
 
   return {
     gstin: gstin.toUpperCase(),
@@ -773,21 +814,7 @@ export function buildGstr1OfflineJson(opts: {
       hsn_b2c: toHsnJson(hsnB2c),
     },
     doc_issue: {
-      doc_det: [
-        {
-          doc_num: 1,
-          docs: [
-            {
-              num: 1,
-              from: invNumbers[0] ?? '',
-              to: invNumbers[invNumbers.length - 1] ?? '',
-              totnum: invNumbers.length,
-              cancel: 0,
-              net_issue: invNumbers.length,
-            },
-          ],
-        },
-      ],
+      doc_det: docDet,
     },
   };
 }
