@@ -1,11 +1,11 @@
 import React from 'react';
 import { View, Text } from 'react-native';
-import { NavBackButton } from '@/components/layout/NavBackButton';
+import { NavHeaderBar } from '@/components/layout/NavBackButton';
 
 interface PageHeaderProps {
   title: string;
   subtitle?: string;
-  /** Optional back navigation handler - renders at top-left before title */
+  /** Optional back navigation handler - renders left-aligned above the title */
   onBack?: () => void;
   backLabel?: string;
   /** Right-side actions (buttons, filters, etc.) */
@@ -27,30 +27,26 @@ export function PageHeader({
 }: PageHeaderProps) {
   const isInverse = variant === 'inverse';
   return (
-    <View className="mb-6">
-      <View className="flex-row items-center justify-between gap-4">
-        <View className="flex-row items-center gap-3 flex-1 min-w-0">
-          {onBack ? (
-            <NavBackButton
-              onPress={onBack}
-              label={backLabel}
-              size="sm"
-              variant={isInverse ? 'inverse' : 'default'}
-            />
-          ) : null}
-          <View className="flex-1 min-w-0">
-            <Text className={`text-3xl font-bold tracking-tight ${isInverse ? 'text-white' : 'text-text'}`}>
-              {title}
-            </Text>
-            {subtitle ? (
-              <Text className={`text-base mt-1 ${isInverse ? 'text-white/75' : 'text-muted'}`}>
-                {subtitle}
-              </Text>
-            ) : null}
-          </View>
-        </View>
-        {actions ? <View className="flex-row items-center gap-2 shrink-0">{actions}</View> : null}
-      </View>
+    <View className="mb-6 w-full">
+      {onBack ? (
+        <NavHeaderBar
+          onBack={onBack}
+          backLabel={backLabel}
+          size="sm"
+          variant={isInverse ? 'inverse' : 'default'}
+          right={actions}
+        />
+      ) : actions ? (
+        <View className="w-full flex-row justify-end mb-3">{actions}</View>
+      ) : null}
+      <Text className={`text-3xl font-bold tracking-tight ${isInverse ? 'text-white' : 'text-text'}`}>
+        {title}
+      </Text>
+      {subtitle ? (
+        <Text className={`text-base mt-1 ${isInverse ? 'text-white/75' : 'text-muted'}`}>
+          {subtitle}
+        </Text>
+      ) : null}
       {stats ? <View className="flex-row flex-wrap gap-3 mt-4">{stats}</View> : null}
     </View>
   );

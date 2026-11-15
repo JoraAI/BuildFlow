@@ -157,7 +157,7 @@ function drawHeader(
   const titleY = Math.max(nextY + 2, 64);
   doc.fillColor(NAVY).fontSize(13).font('Helvetica-Bold').text(title, MARGIN, titleY);
   const lineY = titleY + 18;
-  doc.moveTo(MARGIN, lineY).lineTo(PAGE_W - MARGIN, lineY).strokeColor(BORDER).lineWidth(1).stroke();
+  doc.strokeColor(BORDER).lineWidth(1).moveTo(MARGIN, lineY).lineTo(PAGE_W - MARGIN, lineY).stroke();
   doc.y = lineY + 10;
 }
 
@@ -187,12 +187,7 @@ function drawFooter(
     const footerY = doc.page.height - 24;
 
     // Divider rule above footer
-    doc
-      .moveTo(MARGIN, footerY - 5)
-      .lineTo(PAGE_W - MARGIN, footerY - 5)
-      .strokeColor(BORDER)
-      .lineWidth(0.5)
-      .stroke();
+    doc.strokeColor(BORDER).lineWidth(0.5).moveTo(MARGIN, footerY - 5).lineTo(PAGE_W - MARGIN, footerY - 5).stroke();
 
     // Left side: Company / Custom Footer
     doc
@@ -256,7 +251,7 @@ function tableRow(
     doc.text(v, x + 4, y + 2, { width: widths[i] - 6, align: 'left' });
     x += widths[i];
   });
-  doc.moveTo(MARGIN, y + rowH - 1).lineTo(PAGE_W - MARGIN, y + rowH - 1).strokeColor(BORDER).lineWidth(0.5).stroke();
+  doc.strokeColor(BORDER).lineWidth(0.5).moveTo(MARGIN, y + rowH - 1).lineTo(PAGE_W - MARGIN, y + rowH - 1).stroke();
   return y + rowH;
 }
 
@@ -773,7 +768,7 @@ export async function reportInvoice(companyId: string, invoiceId: string): Promi
   if (num(invoice.sgstAmount) > 0) summaryLine(doc, 'SGST', inr(num(invoice.sgstAmount)));
   if (num(invoice.igstAmount) > 0) summaryLine(doc, 'IGST', inr(num(invoice.igstAmount)));
   if (num(invoice.tdsAmount) > 0) summaryLine(doc, 'TDS (-)', `- ${inr(num(invoice.tdsAmount))}`);
-  doc.moveTo(MARGIN, doc.y).lineTo(PAGE_W - MARGIN, doc.y).strokeColor(NAVY).lineWidth(1.5).stroke();
+  doc.strokeColor(NAVY).lineWidth(1.5).moveTo(MARGIN, doc.y).lineTo(PAGE_W - MARGIN, doc.y).stroke();
   summaryLine(doc, 'NET PAYABLE', inr(num(invoice.total)), true);
   doc.moveDown(1);
   doc.font('Helvetica').fontSize(8).fillColor(MUTED).text('This is a computer-generated invoice.', MARGIN, doc.y, { align: 'center', width: CONTENT_W });
@@ -831,32 +826,31 @@ async function reportInventoryTaxInvoice(
   y = drawBillShipTo(doc, y, billTo, shipTo);
 
   const useIgst = num(invoice.igstAmount) > 0 && num(invoice.cgstAmount) <= 0;
-  // Shift table slightly right; widen Item & Description for longer product names.
-  const tableStartX = MARGIN + 12;
+  // Column widths must sum to CONTENT_W so vertical rules align with outer boxes.
   const cols = useIgst
     ? [
-        { title: 'SR No', width: 26, align: 'center' as const },
-        { title: 'Item & Description', width: 175 },
-        { title: 'HSN/SAC', width: 44, align: 'center' as const },
-        { title: 'Qty', width: 32, align: 'right' as const },
-        { title: 'Units', width: 30, align: 'center' as const },
-        { title: 'Rate', width: 44, align: 'right' as const },
-        { title: 'IGST %', width: 32, align: 'right' as const },
-        { title: 'IGST Amt', width: 48, align: 'right' as const },
-        { title: 'Amount', width: 54, align: 'right' as const },
+        { title: 'SR No', width: 28, align: 'center' as const },
+        { title: 'Item & Description', width: 178 },
+        { title: 'HSN/SAC', width: 48, align: 'center' as const },
+        { title: 'Qty', width: 36, align: 'right' as const },
+        { title: 'Units', width: 32, align: 'center' as const },
+        { title: 'Rate', width: 48, align: 'right' as const },
+        { title: 'IGST %', width: 36, align: 'right' as const },
+        { title: 'IGST Amt', width: 52, align: 'right' as const },
+        { title: 'Amount', width: 57, align: 'right' as const },
       ]
     : [
-        { title: 'SR No', width: 22, align: 'center' as const },
-        { title: 'Item & Description', width: 155 },
-        { title: 'HSN/SAC', width: 40, align: 'center' as const },
-        { title: 'Qty', width: 30, align: 'right' as const },
-        { title: 'Units', width: 28, align: 'center' as const },
-        { title: 'Rate', width: 40, align: 'right' as const },
-        { title: 'CGST %', width: 30, align: 'right' as const },
-        { title: 'CGST Amt', width: 40, align: 'right' as const },
-        { title: 'SGST %', width: 30, align: 'right' as const },
-        { title: 'SGST Amt', width: 40, align: 'right' as const },
-        { title: 'Amount', width: 48, align: 'right' as const },
+        { title: 'SR No', width: 24, align: 'center' as const },
+        { title: 'Item & Description', width: 140 },
+        { title: 'HSN/SAC', width: 42, align: 'center' as const },
+        { title: 'Qty', width: 32, align: 'right' as const },
+        { title: 'Units', width: 30, align: 'center' as const },
+        { title: 'Rate', width: 42, align: 'right' as const },
+        { title: 'CGST %', width: 34, align: 'right' as const },
+        { title: 'CGST Amt', width: 44, align: 'right' as const },
+        { title: 'SGST %', width: 34, align: 'right' as const },
+        { title: 'SGST Amt', width: 44, align: 'right' as const },
+        { title: 'Amount', width: 49, align: 'right' as const },
       ];
 
   const rows = invoice.lineItems.map((li: any, i: number) => {
@@ -894,7 +888,7 @@ async function reportInventoryTaxInvoice(
     ];
   });
   y = drawGridTable(doc, y, cols, rows, {
-    startX: tableStartX,
+    startX: MARGIN,
     wrapColIndex: 1,
     minRowH: 26,
   });
@@ -986,7 +980,7 @@ export async function reportSalesOrder(companyId: string, salesOrderId: string):
     );
     const cols = [
       { title: 'SR No', width: 36, align: 'center' as const },
-      { title: 'Item & Description', width: 220 },
+      { title: 'Item & Description', width: 243 },
       { title: 'Qty', width: 50, align: 'right' as const },
       { title: 'Units', width: 44, align: 'center' as const },
       { title: 'Rate', width: 70, align: 'right' as const },
@@ -1046,7 +1040,7 @@ export async function reportSalesOrder(companyId: string, salesOrderId: string):
   doc.moveDown(1);
   summaryLine(doc, 'Subtotal', inr(num(so.subtotal)));
   summaryLine(doc, 'GST', inr(num(so.gstAmount)));
-  doc.moveTo(MARGIN, doc.y).lineTo(PAGE_W - MARGIN, doc.y).strokeColor(NAVY).lineWidth(1.5).stroke();
+  doc.strokeColor(NAVY).lineWidth(1.5).moveTo(MARGIN, doc.y).lineTo(PAGE_W - MARGIN, doc.y).stroke();
   summaryLine(doc, 'TOTAL', inr(num(so.total)), true);
   drawBrandedFooter(doc, company);
   return { buffer: await endBuffer(doc), filename: `sales-order-${so.soNumber}.pdf` };
@@ -1112,7 +1106,7 @@ export async function reportQuote(companyId: string, quoteId: string): Promise<P
     );
     const cols = [
       { title: 'SR No', width: 36, align: 'center' as const },
-      { title: 'Item & Description', width: 220 },
+      { title: 'Item & Description', width: 243 },
       { title: 'Qty', width: 50, align: 'right' as const },
       { title: 'Units', width: 44, align: 'center' as const },
       { title: 'Rate', width: 70, align: 'right' as const },
@@ -1176,7 +1170,7 @@ export async function reportQuote(companyId: string, quoteId: string): Promise<P
   doc.moveDown(1);
   summaryLine(doc, 'Subtotal', inr(num(quote.subtotal)));
   summaryLine(doc, 'GST', inr(num(quote.gstAmount)));
-  doc.moveTo(MARGIN, doc.y).lineTo(PAGE_W - MARGIN, doc.y).strokeColor(NAVY).lineWidth(1.5).stroke();
+  doc.strokeColor(NAVY).lineWidth(1.5).moveTo(MARGIN, doc.y).lineTo(PAGE_W - MARGIN, doc.y).stroke();
   summaryLine(doc, 'ESTIMATED TOTAL', inr(num(quote.total)), true);
   drawBrandedFooter(doc, company);
   return { buffer: await endBuffer(doc), filename: `quote-${quote.quoteNumber}.pdf` };
@@ -1236,7 +1230,7 @@ export async function reportDeliveryChallan(companyId: string, dcId: string): Pr
     );
     const cols = [
       { title: 'SR No', width: 40, align: 'center' as const },
-      { title: 'Item & Description', width: 250 },
+      { title: 'Item & Description', width: 273 },
       { title: 'Qty', width: 60, align: 'right' as const },
       { title: 'Units', width: 50, align: 'center' as const },
       { title: 'Rate', width: 92, align: 'right' as const },
@@ -1304,7 +1298,7 @@ export async function reportGoodsReceipt(companyId: string, grnId: string): Prom
     y = drawBillShipTo(doc, y, { name: grn.purchaseOrder.vendorName }, null);
     const cols = [
       { title: 'SR No', width: 36, align: 'center' as const },
-      { title: 'Item & Description', width: 200 },
+      { title: 'Item & Description', width: 223 },
       { title: 'HSN/SAC', width: 70, align: 'center' as const },
       { title: 'Qty', width: 70, align: 'right' as const },
       { title: 'Unit Cost', width: 116, align: 'right' as const },
@@ -1455,7 +1449,7 @@ export async function reportBill(companyId: string, billId: string): Promise<Pdf
     summaryLine(doc, 'Advance recovery (-)', `- ${inr(num(bill.advanceRecoveryAmount))}`);
   }
   if (num(bill.tdsAmount) > 0) summaryLine(doc, 'TDS (-)', `- ${inr(num(bill.tdsAmount))}`);
-  doc.moveTo(MARGIN, doc.y).lineTo(PAGE_W - MARGIN, doc.y).strokeColor(NAVY).lineWidth(1.5).stroke();
+  doc.strokeColor(NAVY).lineWidth(1.5).moveTo(MARGIN, doc.y).lineTo(PAGE_W - MARGIN, doc.y).stroke();
   summaryLine(doc, 'NET PAYABLE', inr(num(bill.total)), true);
   if (num(bill.paidAmount) > 0) {
     summaryLine(doc, 'Paid', inr(num(bill.paidAmount)));
@@ -1557,7 +1551,7 @@ export async function reportEstimate(companyId: string, estimateId: string): Pro
   summaryLine(doc, `Contingency (${summary.contingencyPct}%)`, inr(summary.contingencyAmount));
   summaryLine(doc, `Profit (${summary.profitMarginPct}%)`, inr(summary.profitMarginAmount));
   summaryLine(doc, 'GST', inr(summary.gstAmount));
-  doc.moveTo(MARGIN, doc.y).lineTo(PAGE_W - MARGIN, doc.y).strokeColor(NAVY).lineWidth(1.5).stroke();
+  doc.strokeColor(NAVY).lineWidth(1.5).moveTo(MARGIN, doc.y).lineTo(PAGE_W - MARGIN, doc.y).stroke();
   summaryLine(doc, 'GRAND TOTAL', inr(summary.grandTotal), true);
 
   drawBrandedFooter(doc, company);
@@ -1691,7 +1685,7 @@ export async function reportProfitLoss(companyId: string, projectId: string): Pr
   summaryLine(doc, 'Total Cost', inr(data.totalCost), true);
   doc.moveDown(1);
 
-  doc.moveTo(MARGIN, doc.y).lineTo(PAGE_W - MARGIN, doc.y).strokeColor(NAVY).lineWidth(1.5).stroke();
+  doc.strokeColor(NAVY).lineWidth(1.5).moveTo(MARGIN, doc.y).lineTo(PAGE_W - MARGIN, doc.y).stroke();
   summaryLine(doc, 'NET PROFIT', inr(data.netProfit), true);
   if (data.estimateTotal > 0) {
     summaryLine(doc, 'Approved Estimate', inr(data.estimateTotal));
@@ -2149,7 +2143,7 @@ export async function reportAbstractSheet(companyId: string, projectId: string):
     doc.moveDown(0.5);
   }
 
-  doc.moveTo(MARGIN, doc.y).lineTo(PAGE_W - MARGIN, doc.y).strokeColor(NAVY).lineWidth(1.5).stroke();
+  doc.strokeColor(NAVY).lineWidth(1.5).moveTo(MARGIN, doc.y).lineTo(PAGE_W - MARGIN, doc.y).stroke();
   summaryLine(doc, 'GRAND TOTAL', inr(grandTotal), true);
   drawBrandedFooter(doc, company);
   return { buffer: await endBuffer(doc), filename: `abstract-sheet-${project.code}.pdf` };

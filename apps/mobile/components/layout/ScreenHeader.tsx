@@ -54,7 +54,7 @@ export function FormScreenHeader({
 
   return (
     <View
-      className={`border-b border-border bg-surface ${isDesktop ? 'px-8 py-5' : 'px-4 py-3'}`}
+      className={`w-full self-stretch border-b border-border bg-surface ${isDesktop ? 'px-8 py-5' : 'px-4 py-3'}`}
     >
       {showBackButton ? (
         <NavHeaderBar
@@ -64,7 +64,7 @@ export function FormScreenHeader({
           right={right}
         />
       ) : right ? (
-        <View className="flex-row justify-end mb-3">{right}</View>
+        <View className="w-full flex-row justify-end mb-3">{right}</View>
       ) : null}
       <Text className={`font-bold text-text ${isDesktop ? 'text-2xl' : 'text-xl'}`}>
         {title}

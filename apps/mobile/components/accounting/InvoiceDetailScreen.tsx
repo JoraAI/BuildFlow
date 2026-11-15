@@ -364,21 +364,21 @@ export function InvoiceDetailScreen({ fallbackBackHref }: { fallbackBackHref: st
       >
         {isDesktop ? (
           <ScrollView className="flex-1 min-h-0" contentContainerClassName="items-center px-8 py-6 pb-32" showsVerticalScrollIndicator>
-            <FormScreenHeader
-              title={invoice.invoiceNumber}
-              subtitle={invoice.clientName}
-              cancelLabel="Back"
-              onCancel={goBack}
-            />
             <View className="w-full max-w-6xl">
+              <FormScreenHeader
+                title={invoice.invoiceNumber}
+                subtitle={invoice.clientName}
+                cancelLabel="Back"
+                onCancel={goBack}
+              />
               <View className="flex-row gap-6 items-start">
-              <View className="flex-[2] min-w-0 gap-4">{mainContent}</View>
-              {/* FIX (UI-H3): Remove min-w so panes don't collapse at 768px */}
-              <View className="flex-1 max-w-sm gap-4">
-                {totalsCard}
-                {actionsBlock}
+                <View className="flex-[2] min-w-0 gap-4">{mainContent}</View>
+                {/* FIX (UI-H3): Remove min-w so panes don't collapse at 768px */}
+                <View className="flex-1 max-w-sm gap-4">
+                  {totalsCard}
+                  {actionsBlock}
+                </View>
               </View>
-            </View>
             </View>
           </ScrollView>
         ) : (

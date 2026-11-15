@@ -99,24 +99,36 @@ export function NavIconButton({
   );
 }
 
-/** Row wrapper: back/close on the left, optional actions on the right. */
+/** Row wrapper: back/close always left-aligned; optional actions on the right. */
 export function NavHeaderBar({
   onBack,
   backLabel = 'Back',
   backIcon = 'back',
   variant = 'default',
+  size = 'md',
   right,
+  className,
 }: {
   onBack: () => void;
   backLabel?: string;
   backIcon?: NavButtonIcon;
   variant?: NavButtonVariant;
+  size?: 'md' | 'sm';
   right?: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <View className="flex-row items-center justify-between gap-3 mb-3">
-      <NavBackButton onPress={onBack} label={backLabel} icon={backIcon} variant={variant} />
-      {right ? <View className="flex-row items-center gap-2 shrink-0">{right}</View> : null}
+    <View className={`w-full flex-row items-center justify-between gap-3 ${className ?? 'mb-3'}`}>
+      <View className="shrink-0 items-start">
+        <NavBackButton
+          onPress={onBack}
+          label={backLabel}
+          icon={backIcon}
+          variant={variant}
+          size={size}
+        />
+      </View>
+      {right ? <View className="flex-row items-center gap-2 shrink-0">{right}</View> : <View />}
     </View>
   );
 }

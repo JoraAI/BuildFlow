@@ -47,15 +47,23 @@ function strokeRect(
   w: number,
   h: number,
 ) {
-  doc.rect(x, y, w, h).strokeColor(BLACK).lineWidth(0.8).stroke();
+  // PDFKit clears the current path when strokeColor/fillColor is set — set
+  // color + width BEFORE building the path, or borders render slanted/missing.
+  doc.save();
+  doc.strokeColor(BLACK).lineWidth(0.8).rect(x, y, w, h).stroke();
+  doc.restore();
 }
 
 function drawHLine(doc: PDFDoc, x1: number, x2: number, y: number) {
-  doc.moveTo(x1, y).lineTo(x2, y).strokeColor(BLACK).lineWidth(0.6).stroke();
+  doc.save();
+  doc.strokeColor(BLACK).lineWidth(0.6).moveTo(x1, y).lineTo(x2, y).stroke();
+  doc.restore();
 }
 
 function drawVLine(doc: PDFDoc, x: number, y1: number, y2: number) {
-  doc.moveTo(x, y1).lineTo(x, y2).strokeColor(BLACK).lineWidth(0.6).stroke();
+  doc.save();
+  doc.strokeColor(BLACK).lineWidth(0.6).moveTo(x, y1).lineTo(x, y2).stroke();
+  doc.restore();
 }
 
 function money(n: number): string {
@@ -209,11 +217,14 @@ export function drawBillShipTo(
 ): number {
   const boxH = 88;
   const midX = MARGIN + CONTENT_W / 2;
+  // Fill header bands first, then stroke — fill after stroke paints over borders.
+  doc.save();
+  doc.rect(MARGIN, startY, CONTENT_W / 2, 16).fill(HEADER_GRAY);
+  doc.rect(midX, startY, CONTENT_W / 2, 16).fill(HEADER_GRAY);
+  doc.restore();
   strokeRect(doc, MARGIN, startY, CONTENT_W, boxH);
   drawVLine(doc, midX, startY, startY + boxH);
   drawHLine(doc, MARGIN, PAGE_W - MARGIN, startY + 16);
-  doc.rect(MARGIN, startY, CONTENT_W / 2, 16).fill(HEADER_GRAY);
-  doc.rect(midX, startY, CONTENT_W / 2, 16).fill(HEADER_GRAY);
   doc.font('Helvetica-Bold').fontSize(9).fillColor(BLACK)
     .text('Bill To', MARGIN + 6, startY + 3, { width: CONTENT_W / 2 - 12 })
     .text('Ship To', midX + 6, startY + 3, { width: CONTENT_W / 2 - 12 });
@@ -270,11 +281,14 @@ export function drawGridTable(
   const totalW = cols.reduce((s, c) => s + c.width, 0);
 
   // Header (two-line capable for CGST/SGST)
+  doc.save();
   doc.rect(tableX, y, totalW, headerH).fill(HEADER_GRAY);
+  doc.restore();
   strokeRect(doc, tableX, y, totalW, headerH);
+  // Internal column rules only (outer edge comes from strokeRect).
   let x = tableX;
-  cols.forEach((c) => {
-    drawVLine(doc, x, y, y + headerH);
+  cols.forEach((c, i) => {
+    if (i > 0) drawVLine(doc, x, y, y + headerH);
     doc.font('Helvetica-Bold').fontSize(7).fillColor(BLACK).text(c.title, x + 2, y + 8, {
       width: c.width - 4,
       align: c.align ?? 'center',
@@ -306,16 +320,20 @@ export function drawGridTable(
     let cx = tableX;
     cells.forEach((cell, i) => {
       const col = cols[i];
-      drawVLine(doc, cx, y, y + rowH);
+      if (i > 0) drawVLine(doc, cx, y, y + rowH);
       const align = col.align ?? 'left';
       const textOpts = {
         width: col.width - 4,
         align,
+        lineBreak: true,
       };
       // Vertically center single-line cells; top-pad multi-line descriptions.
       const textH = doc.heightOfString(cell ?? '', textOpts);
       const textY = textH + 4 < rowH ? y + (rowH - textH) / 2 : y + 4;
+      // Keep absolute cursor so later borders stay level after wrapped text.
+      const savedY = doc.y;
       doc.font('Helvetica').fontSize(7).fillColor(BLACK).text(cell ?? '', cx + 2, textY, textOpts);
+      doc.y = savedY;
       cx += col.width;
     });
     y += rowH;
@@ -420,12 +438,14 @@ export function drawDeclarationFooter(
     { width: CONTENT_W },
   );
   y = doc.y + 10;
-  strokeRect(doc, MARGIN + 80, y, CONTENT_W - 160, 18);
-  doc.font('Helvetica-Bold').fontSize(8).fillColor(BLACK).text('This is Computer Generated Invoice', MARGIN + 80, y + 4, {
-    width: CONTENT_W - 160,
+  const stampW = Math.min(280, CONTENT_W);
+  const stampX = MARGIN + (CONTENT_W - stampW) / 2;
+  strokeRect(doc, stampX, y, stampW, 22);
+  doc.font('Helvetica-Bold').fontSize(8).fillColor(BLACK).text('This is Computer Generated Invoice', stampX, y + 6, {
+    width: stampW,
     align: 'center',
   });
-  return y + 24;
+  return y + 28;
 }
 
 export { money, MARGIN, PAGE_W, CONTENT_W, BLACK, HEADER_GRAY };

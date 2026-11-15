@@ -420,31 +420,29 @@ function InvoiceRow({
 
   if (tableMode) {
     return (
-      <Pressable onPress={onPress} className="px-4 py-3 bg-card active:bg-surface">
-        <View className="flex-row items-center gap-2">
-          <Text className="w-[120px] shrink-0 text-sm font-mono font-semibold text-text" numberOfLines={1}>
-            {item.invoiceNumber}
-          </Text>
-          <Text className="flex-1 min-w-0 text-sm text-text" numberOfLines={1}>
-            {item.clientName}
-          </Text>
-          <View className="w-[96px] shrink-0 items-start">
-            <Badge color={INVOICE_STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
-          </View>
-        </View>
-        <View className="flex-row flex-wrap items-center justify-between gap-3 mt-2">
-          <View className="min-w-[140px] flex-1">
-            <Text className="text-base font-bold text-text">{formatINR(item.total)}</Text>
+      <Pressable onPress={onPress} className="px-4 py-3 bg-card active:bg-surface border-b border-border/60">
+        <View className="flex-row items-start gap-3">
+          <View className="flex-1 min-w-0">
+            <Text className="text-sm font-mono font-semibold text-text" numberOfLines={1}>
+              {item.invoiceNumber}
+            </Text>
+            <Text className="text-sm text-text mt-0.5" numberOfLines={1}>
+              {item.clientName}
+            </Text>
+            <Text className="text-base font-bold text-text mt-2">{formatINR(item.total)}</Text>
             <Text className="text-[11px] text-muted mt-0.5">
               Due {formatDate(item.dueDate)}
               {item.paidAmount > 0 ? ` · Paid ${formatINR(item.paidAmount)}` : ''}
               {balance > 0.01 && item.paidAmount > 0 ? ` · Bal ${formatINR(balance)}` : ''}
             </Text>
             {overdueDays > 0 ? (
-              <Text className="text-[11px] text-danger font-semibold">{overdueDays}d overdue</Text>
+              <Text className="text-[11px] text-danger font-semibold mt-0.5">{overdueDays}d overdue</Text>
             ) : null}
           </View>
-          {actions ? <View className="flex-row flex-wrap justify-end">{actions}</View> : null}
+          <View className="items-end gap-2 shrink-0 min-w-[96px]">
+            <Badge color={INVOICE_STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
+            {actions}
+          </View>
         </View>
       </Pressable>
     );
@@ -528,38 +526,36 @@ function BillRow({
 
   if (tableMode) {
     return (
-      <Pressable onPress={onPress} className="px-4 py-3 bg-card active:bg-surface">
-        <View className="flex-row items-center gap-2">
-          <Text className="w-[120px] shrink-0 text-sm font-mono font-semibold text-text" numberOfLines={1}>
-            {item.billNumber}
-          </Text>
-          <Text className="flex-1 min-w-0 text-sm text-text" numberOfLines={1}>
-            {item.vendorName}
-          </Text>
-          <View className="w-[96px] shrink-0 items-start">
-            <Badge color={BILL_STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
-          </View>
-        </View>
-        <View className="flex-row flex-wrap items-center justify-between gap-3 mt-2">
-          <View className="min-w-[140px] flex-1">
-            <Text className="text-base font-bold text-text">{formatINR(item.total)}</Text>
+      <Pressable onPress={onPress} className="px-4 py-3 bg-card active:bg-surface border-b border-border/60">
+        <View className="flex-row items-start gap-3">
+          <View className="flex-1 min-w-0">
+            <Text className="text-sm font-mono font-semibold text-text" numberOfLines={1}>
+              {item.billNumber}
+            </Text>
+            <Text className="text-sm text-text mt-0.5" numberOfLines={1}>
+              {item.vendorName}
+            </Text>
+            <Text className="text-base font-bold text-text mt-2">{formatINR(item.total)}</Text>
             <Text className="text-[11px] text-muted mt-0.5">
               {item.category}
               {item.paidAmount > 0 ? ` · Paid ${formatINR(item.paidAmount)}` : ''}
               {` · ${formatDate(item.billDate)}`}
             </Text>
           </View>
-          {showActions ? (
-            <View className="flex-row flex-wrap justify-end gap-1">
-              <Button
-                label={item.status === 'DRAFT' ? 'Confirm' : 'Approve'}
-                variant="primary"
-                size="sm"
-                onPress={onApprove}
-              />
-              <Button label="Reject" variant="danger" size="sm" onPress={onReject} />
-            </View>
-          ) : null}
+          <View className="items-end gap-2 shrink-0 min-w-[96px]">
+            <Badge color={BILL_STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
+            {showActions ? (
+              <View className="gap-1.5 items-stretch w-full max-w-[120px]">
+                <Button
+                  label={item.status === 'DRAFT' ? 'Confirm' : 'Approve'}
+                  variant="primary"
+                  size="sm"
+                  onPress={onApprove}
+                />
+                <Button label="Reject" variant="danger" size="sm" onPress={onReject} />
+              </View>
+            ) : null}
+          </View>
         </View>
       </Pressable>
     );

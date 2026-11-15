@@ -101,11 +101,12 @@ export function drawTableRow(
     doc.text(v, x + 4, y + 2, { width: widths[i] - 6, align: 'left' });
     x += widths[i];
   });
+  // Set stroke style before the path — PDFKit clears paths on strokeColor().
   doc
-    .moveTo(PDF_MARGIN, y + rowH - 1)
-    .lineTo(PDF_PAGE_W - PDF_MARGIN, y + rowH - 1)
     .strokeColor(PDF_BORDER)
     .lineWidth(0.5)
+    .moveTo(PDF_MARGIN, y + rowH - 1)
+    .lineTo(PDF_PAGE_W - PDF_MARGIN, y + rowH - 1)
     .stroke();
   return y + rowH;
 }

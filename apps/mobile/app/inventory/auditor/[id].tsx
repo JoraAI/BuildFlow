@@ -18,6 +18,8 @@ import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
 import { Badge, Button, Input, toast } from '@/components/ui';
 import { SegmentedTabs } from '@/components/inventory/SegmentedTabs';
+import { FormScreenHeader } from '@/components/layout/ScreenHeader';
+import { NavBackButton } from '@/components/layout/NavBackButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 function inr(n: number) {
@@ -125,12 +127,11 @@ export default function AuditorPackScreen() {
   if (isLoading || !data) {
     return (
       <SafeAreaView className="flex-1 bg-bg items-center justify-center p-6">
-        <Text className="text-muted">{isLoading ? 'Loading pack…' : 'Pack not found'}</Text>
-        <Pressable onPress={() => router.replace(backHref)} className="mt-4">
-          <Text className="text-primary font-semibold">
-            {isOwnerMode ? 'Back to settings' : 'Back to inbox'}
-          </Text>
-        </Pressable>
+        <Text className="text-muted mb-4">{isLoading ? 'Loading pack…' : 'Pack not found'}</Text>
+        <NavBackButton
+          label={isOwnerMode ? 'Back to settings' : 'Back to inbox'}
+          onPress={() => router.replace(backHref)}
+        />
       </SafeAreaView>
     );
   }
@@ -245,6 +246,12 @@ export default function AuditorPackScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-bg" edges={['top', 'bottom']}>
+      <FormScreenHeader
+        title={isOwnerMode ? 'GST pack' : 'Auditor pack'}
+        cancelLabel={isOwnerMode ? 'Back to settings' : 'Back to inbox'}
+        onCancel={() => router.replace(backHref)}
+        showBack
+      />
       <ScrollView
         className="flex-1"
         contentContainerStyle={{
@@ -255,12 +262,6 @@ export default function AuditorPackScreen() {
           alignSelf: 'center',
         }}
       >
-        <Pressable onPress={() => router.replace(backHref)} className="self-start mb-4">
-          <Text className="text-primary text-sm font-semibold">
-            {isOwnerMode ? '← Settings' : '← Inbox'}
-          </Text>
-        </Pressable>
-
         {!isOwnerMode && memberships.length > 1 ? (
           <ScrollView
             horizontal

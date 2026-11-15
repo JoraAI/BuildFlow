@@ -5,6 +5,7 @@ import React from 'react';
 import { View, Text, ScrollView, SafeAreaView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, Badge, Button, LoadingSkeleton, EmptyState } from '@/components/ui';
+import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { usePlatformTickets, usePlatformUpdateTicket } from '@/services/platform.queries';
 import { alertAsync } from '@/utils/confirm';
 
@@ -31,10 +32,12 @@ export default function PlatformTicketsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-surface">
-      <View className="px-6 py-4 border-b border-border flex-row items-center gap-3">
-        <Button label="← Back" variant="ghost" size="sm" onPress={() => router.back()} />
-        <Text className="text-xl font-bold text-text flex-1">Platform tickets</Text>
-      </View>
+      <FormScreenHeader
+        title="Platform tickets"
+        cancelLabel="Back"
+        onCancel={() => router.back()}
+        showBack
+      />
       <ScrollView contentContainerClassName="p-6 gap-3 max-w-3xl w-full self-center">
         {isLoading ? (
           <LoadingSkeleton className="h-24" />

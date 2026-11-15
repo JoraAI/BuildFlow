@@ -16,6 +16,7 @@ import { View, Text, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card, Badge, Button, Select, EmptyState, LoadingSkeleton, toast } from '@/components/ui';
+import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { useViewport } from '@/hooks/useViewport';
 import { useWarehouses, type Warehouse } from '@/services/warehouse.queries';
 import {
@@ -120,18 +121,14 @@ export default function InventoryReportsScreen() {
 
   return (
     <View className="flex-1 bg-surface" style={{ paddingTop: insets.top }}>
-      {/* Back header */}
-      <View className="px-6 py-4 border-b border-border flex-row items-center gap-3 shrink-0">
-        <Button
-          label="← Back"
-          variant="ghost"
-          size="sm"
-          onPress={() => (selectedView ? router.replace('/inventory/reports' as never) : router.back())}
-        />
-        <Text className="text-xl font-bold text-text flex-1" numberOfLines={1}>
-          {translate('inventory.page.reports', 'Reports & analytics')}
-        </Text>
-      </View>
+      <FormScreenHeader
+        title={translate('inventory.page.reports', 'Reports & analytics')}
+        cancelLabel="Back"
+        showBack
+        onCancel={() =>
+          selectedView ? router.replace('/inventory/reports' as never) : router.back()
+        }
+      />
 
       {!selectedView ? (
         <ScrollView

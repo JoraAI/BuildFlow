@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, SafeAreaView, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, Input, Button, LoadingSkeleton } from '@/components/ui';
+import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { usePlatformCompanies } from '@/services/platform.queries';
 
 export default function PlatformCompaniesScreen() {
@@ -15,10 +16,7 @@ export default function PlatformCompaniesScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-surface">
-      <View className="px-6 py-4 border-b border-border flex-row items-center gap-3">
-        <Button label="← Back" variant="ghost" size="sm" onPress={() => router.back()} />
-        <Text className="text-xl font-bold text-text flex-1">Companies</Text>
-      </View>
+      <FormScreenHeader title="Companies" cancelLabel="Back" onCancel={() => router.back()} showBack />
       <ScrollView contentContainerClassName="p-6 gap-3 max-w-3xl w-full self-center">
         <View className="flex-row gap-2 mb-2">
           <View className="flex-1">
