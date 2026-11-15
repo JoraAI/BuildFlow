@@ -138,8 +138,8 @@ const envSchema = z.object({
   SMTP_USER: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
   SMTP_PASS: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
 
-  // Dev / seed OTP bypass until real SMS/email credentials are wired.
-  // Defaults: enabled outside production with code 111111.
+  // Master OTP (default 111111) — demo phones only outside NODE_ENV=test.
+  // Real shops always need a delivered SMS/email OTP.
   OTP_MASTER_CODE: z
     .preprocess((v) => (v === '' ? undefined : v), z.string().regex(/^\d{6}$/).optional())
     .default('111111'),
@@ -152,8 +152,8 @@ const envSchema = z.object({
       return undefined;
     }),
   /**
-   * Comma-separated mobiles that skip MSG91/Twilio (no charge).
-   * Sign in with OTP_MASTER_CODE (default 111111). Example: +919948648599,9876543210
+   * Comma-separated demo mobiles that may use OTP_MASTER_CODE and skip MSG91/Twilio.
+   * Outside NODE_ENV=test, master OTP is rejected for any number not on this list.
    */
   OTP_TEST_PHONES: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
 

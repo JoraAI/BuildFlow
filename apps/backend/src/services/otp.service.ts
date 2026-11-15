@@ -41,6 +41,33 @@ export function isMasterOtpCode(code: string): boolean {
   return isMasterOtpEnabled() && Boolean(env.OTP_MASTER_CODE) && code === env.OTP_MASTER_CODE;
 }
 
+/**
+ * Pure gate for master OTP. Integration tests (`nodeEnv=test`) keep a global bypass;
+ * everywhere else only OTP_TEST_PHONES (demo accounts) may use the master code.
+ */
+export function shouldAllowMasterOtp(params: {
+  destination: string;
+  nodeEnv: string;
+  masterEnabled: boolean;
+  masterCode?: string | null;
+  testPhones?: string | null;
+}): boolean {
+  if (!params.masterEnabled || !params.masterCode) return false;
+  if (params.nodeEnv === 'test') return true;
+  return isOtpTestPhone(params.destination, params.testPhones);
+}
+
+/** Master OTP (default 111111) — demo phones only outside automated tests. */
+export function allowsMasterOtpForDestination(destination: string): boolean {
+  return shouldAllowMasterOtp({
+    destination,
+    nodeEnv: env.NODE_ENV,
+    masterEnabled: isMasterOtpEnabled(),
+    masterCode: env.OTP_MASTER_CODE,
+    testPhones: env.OTP_TEST_PHONES,
+  });
+}
+
 export type OtpPurpose = 'invite' | 'login' | 'profile_contact';
 
 export async function issueOtp(opts: {
@@ -131,20 +158,9 @@ export async function consumeOtp(opts: {
   /** @deprecated use expectedDestination */
   expectedPhone?: string;
 }): Promise<void> {
-  // Seed / staging bypass until real SMS/email credentials are wired.
-  if (isMasterOtpCode(opts.code)) {
-    const redisKey = `otp:${opts.purpose}:${opts.key}`;
-    await redis.del(redisKey);
-    return;
-  }
-
-  // Test phones skip MSG91; they still sign in with the master code.
-  const testDest = opts.expectedDestination ?? opts.expectedPhone ?? opts.key;
-  if (
-    env.OTP_MASTER_CODE &&
-    opts.code === env.OTP_MASTER_CODE &&
-    isOtpTestPhone(testDest, env.OTP_TEST_PHONES)
-  ) {
+  const destination = opts.expectedDestination ?? opts.expectedPhone ?? opts.key;
+  // Demo / test-phone bypass only — never accept master OTP for arbitrary shops.
+  if (isMasterOtpCode(opts.code) && allowsMasterOtpForDestination(destination)) {
     const redisKey = `otp:${opts.purpose}:${opts.key}`;
     await redis.del(redisKey);
     return;

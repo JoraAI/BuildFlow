@@ -4,7 +4,7 @@
 import request from 'supertest';
 import { app } from '../../app';
 
-/** Seed / test login uses master OTP 111111 when OTP_MASTER_ENABLED (default in test). */
+/** Integration login uses master OTP 111111 (NODE_ENV=test keeps global master bypass). */
 /** Register an inventory owner on mobile + OTP, then return the session token. */
 export async function registerInventoryAndLogin(opts: {
   suffix: string;
