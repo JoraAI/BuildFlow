@@ -8,7 +8,7 @@
  * VAR-C2: Remove line (min 1).
  * VAR-C3: All five cost types (MATERIAL, LABOUR, EQUIPMENT, SUBCONTRACTOR, MISC)
  * VAR-C3a: MaterialPicker for new-scope MATERIAL lines
- * VAR-C3b: RateAnalysisPicker for new-scope non-MISC lines
+ * VAR-C3b: ProcurementLinkPicker for new-scope non-MISC lines
  * VAR-C4: Adjust vs new scope copy + FlowHint
  * VAR-C9b: BOQ dedupe - each BOQ chip usable on at most one draft line
  */
