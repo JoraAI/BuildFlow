@@ -20,6 +20,7 @@ import { Badge, Button, Input, OverflowMenu, toast } from '@/components/ui';
 import { SegmentedTabsInline, SegmentedTrack } from '@/components/inventory/SegmentedTabs';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
 import { NavBackButton } from '@/components/layout/NavBackButton';
+import { AuditorShopSwitcher } from '@/components/auditor/AuditorShopSwitcher';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 function inr(n: number) {
@@ -115,8 +116,6 @@ export default function AuditorPackScreen() {
   const sendPack = useSendGstPack();
   const deletePack = useDeleteGstPack();
   const user = useAuthStore((s) => s.user);
-  const switchCompany = useAuthStore((s) => s.switchCompany);
-  const memberships = user?.auditorMemberships ?? [];
   const { isDesktop, isPhone } = useViewport();
   const [primary, setPrimary] = useState<PrimarySeg>('GST');
   const [gstTab, setGstTab] = useState('Summary');
@@ -124,7 +123,6 @@ export default function AuditorPackScreen() {
   const [narration, setNarration] = useState('');
   const [amount, setAmount] = useState('');
   const [entryType, setEntryType] = useState<'JOURNAL' | 'BANK_NOTE' | 'GST_NOTE'>('GST_NOTE');
-  const [switching, setSwitching] = useState(false);
   const [openingInput, setOpeningInput] = useState('');
   const [notesInput, setNotesInput] = useState('');
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -144,23 +142,9 @@ export default function AuditorPackScreen() {
     setNotesInput(data.notes ?? '');
   }, [data?.id, data?.openingCashBalance, data?.suggestedOpeningCashBalance, data?.notes, isOwnerMode]);
 
-  const onSwitchShop = async (companyId: string) => {
-    if (companyId === user?.companyId) return;
-    setSwitching(true);
-    try {
-      await switchCompany(companyId);
-      toast.success('Switched shop');
-      router.replace('/inventory/auditor');
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not switch shop');
-    } finally {
-      setSwitching(false);
-    }
-  };
-
   if (isLoading || !data) {
     return (
-      <SafeAreaView className="flex-1 bg-bg items-center justify-center p-6">
+      <SafeAreaView className="flex-1 bg-surface items-center justify-center p-6">
         <Text className="text-muted mb-4">{isLoading ? 'Loading pack…' : 'Pack not found'}</Text>
         <NavBackButton
           label={isOwnerMode ? 'Back to settings' : 'Back to inbox'}
@@ -317,185 +301,182 @@ export default function AuditorPackScreen() {
       });
     })();
 
+  const actionButtons = (
+    <View className={`flex-row flex-wrap items-center gap-2 ${isPhone ? 'w-full' : ''}`}>
+      {canExport ? (
+        <>
+          <OverflowMenu
+            label="GSTR-1"
+            trigger="button"
+            title="Download GSTR-1"
+            accessibilityLabel="Download GSTR-1"
+            items={[
+              {
+                key: 'xlsx',
+                label: 'Download as Excel',
+                icon: 'document-outline',
+                onPress: () =>
+                  void downloadGstPackExport(packId!, 'xlsx', { asOwner: exportAsOwner }),
+              },
+              {
+                key: 'json',
+                label: 'Download as JSON',
+                icon: 'code-slash-outline',
+                onPress: () =>
+                  void downloadGstPackExport(packId!, 'gstr1-json', {
+                    asOwner: exportAsOwner,
+                  }),
+              },
+            ]}
+          />
+          <OverflowMenu
+            title="Downloads"
+            accessibilityLabel="More downloads"
+            trigger="outline"
+            items={[
+              {
+                key: 'bank',
+                label: 'Bank Excel',
+                icon: 'cash-outline',
+                onPress: () =>
+                  void downloadGstPackExport(packId!, 'bank-xlsx', {
+                    asOwner: exportAsOwner,
+                  }),
+              },
+              {
+                key: 'pnl',
+                label: 'P&L Excel',
+                icon: 'stats-chart-outline',
+                onPress: () =>
+                  void downloadGstPackExport(packId!, 'pnl-xlsx', {
+                    asOwner: exportAsOwner,
+                  }),
+              },
+              {
+                key: 'books',
+                label: 'Books Excel (Bank/P&L/BS/Groups)',
+                icon: 'folder-outline',
+                onPress: () =>
+                  void downloadGstPackExport(packId!, 'books-xlsx', {
+                    asOwner: exportAsOwner,
+                  }),
+              },
+              {
+                key: 'csv',
+                label: 'Offline CSV zip',
+                icon: 'archive-outline',
+                onPress: () =>
+                  void downloadGstPackExport(packId!, 'csv', { asOwner: exportAsOwner }),
+              },
+            ]}
+          />
+        </>
+      ) : null}
+      {!isOwnerMode ? (
+        data.status !== 'FILED' ? (
+          <>
+            <Button
+              label="In progress"
+              variant="secondary"
+              size="sm"
+              onPress={() => onMark('IN_PROGRESS')}
+              loading={updateStatus.isPending}
+            />
+            <Button
+              label="Mark filed"
+              size="sm"
+              onPress={() => onMark('FILED')}
+              loading={updateStatus.isPending}
+            />
+          </>
+        ) : null
+      ) : data.status === 'DRAFT' ? (
+        <>
+          <Button
+            label="Delete"
+            variant="secondary"
+            size="sm"
+            onPress={() => void onDeleteDraft()}
+            loading={deletePack.isPending}
+          />
+          <Button
+            label="Send to auditor"
+            size="sm"
+            onPress={() => void onSendDraft()}
+            loading={sendPack.isPending || updateDraft.isPending}
+            fullWidth={isPhone}
+          />
+        </>
+      ) : null}
+    </View>
+  );
+
   return (
-    <SafeAreaView className="flex-1 bg-bg" edges={['top', 'bottom']}>
+    <SafeAreaView className="flex-1 bg-surface" edges={['top', 'bottom']}>
       <FormScreenHeader
         title={isOwnerMode ? 'GST pack' : 'Auditor pack'}
         cancelLabel={isOwnerMode ? 'Back to settings' : 'Back to inbox'}
         onCancel={() => router.replace(backHref)}
         showBack
       />
+
+      {/* Fixed pack chrome — opaque so list content never scrolls underneath */}
+      <View
+        className="border-b border-border bg-surface shrink-0"
+        style={{ zIndex: 20, elevation: 4, paddingHorizontal: pad, paddingTop: 10, paddingBottom: 12 }}
+      >
+        <View
+          className={
+            isDesktop
+              ? 'flex-row items-start justify-between gap-4 max-w-[1100px] w-full self-center'
+              : 'gap-3 max-w-[1100px] w-full self-center'
+          }
+        >
+          <View className="flex-1 min-w-0">
+            {!isOwnerMode ? (
+              <View className="mb-3 max-w-md">
+                <AuditorShopSwitcher
+                  compact
+                  onSwitched={() => router.replace('/inventory/auditor')}
+                />
+              </View>
+            ) : (
+              <Text className="text-xs text-muted mb-1" numberOfLines={1}>
+                {user?.companyName}
+              </Text>
+            )}
+            <View className="flex-row flex-wrap items-center gap-2 mb-1">
+              <Text className={`font-bold text-text ${isPhone ? 'text-xl' : 'text-2xl'}`}>
+                {data.label}
+              </Text>
+              <Badge label={data.status.replace('_', ' ')} color={statusBadge(data.status)} />
+            </View>
+            <Text className="text-sm text-muted">
+              {data.periodStart} → {data.periodEnd}
+            </Text>
+            {!isOwnerMode && data.notes ? (
+              <Text className="text-sm text-text mt-2" numberOfLines={3}>
+                {data.notes}
+              </Text>
+            ) : null}
+          </View>
+          {!isPhone ? actionButtons : null}
+        </View>
+        {isPhone ? <View className="mt-3">{actionButtons}</View> : null}
+      </View>
+
       <ScrollView
-        className="flex-1"
-        stickyHeaderIndices={isPhone ? undefined : [1]}
+        className="flex-1 bg-surface"
         contentContainerStyle={{
           paddingBottom: 72,
+          paddingHorizontal: pad,
+          paddingTop: 16,
           maxWidth: 1100,
           width: '100%',
           alignSelf: 'center',
         }}
       >
-        {!isOwnerMode && memberships.length > 1 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={{ flexGrow: 0, marginBottom: 12, paddingHorizontal: pad }}
-            contentContainerStyle={{ gap: 8, flexDirection: 'row' }}
-          >
-            {memberships.map((m) => {
-              const active = m.companyId === user?.companyId;
-              return (
-                <Pressable
-                  key={m.companyId}
-                  disabled={switching || active}
-                  onPress={() => onSwitchShop(m.companyId)}
-                  className={`px-3 py-2 rounded-lg border ${
-                    active ? 'bg-primary border-primary' : 'bg-card border-border'
-                  }`}
-                >
-                  <Text className={`text-xs font-semibold ${active ? 'text-white' : 'text-text'}`}>
-                    {m.companyName}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        ) : (
-          <View />
-        )}
-
-        {/* Sticky header strip */}
-        <View
-          className="bg-bg border-b border-border"
-          style={{ paddingHorizontal: pad, paddingTop: 8, paddingBottom: 12 }}
-        >
-          <View className={isDesktop ? 'flex-row items-start justify-between gap-4' : ''}>
-            <View className="flex-1 min-w-0">
-              <Text className="text-xs text-muted mb-1" numberOfLines={1}>
-                {user?.companyName}
-              </Text>
-              <View className="flex-row flex-wrap items-center gap-2 mb-1">
-                <Text className="text-2xl font-bold text-text">{data.label}</Text>
-                <Badge label={data.status.replace('_', ' ')} color={statusBadge(data.status)} />
-              </View>
-              <Text className="text-sm text-muted">
-                {data.periodStart} → {data.periodEnd}
-              </Text>
-              {!isOwnerMode && data.notes ? (
-                <Text className="text-sm text-text mt-2">{data.notes}</Text>
-              ) : null}
-            </View>
-            <View className={`flex-row flex-wrap items-center gap-2 ${isPhone ? 'mt-3' : ''}`}>
-              {canExport ? (
-                <>
-                  <OverflowMenu
-                    label="GSTR-1"
-                    trigger="button"
-                    title="Download GSTR-1"
-                    accessibilityLabel="Download GSTR-1"
-                    items={[
-                      {
-                        key: 'xlsx',
-                        label: 'Download as Excel',
-                        icon: 'document-outline',
-                        onPress: () =>
-                          void downloadGstPackExport(packId!, 'xlsx', { asOwner: exportAsOwner }),
-                      },
-                      {
-                        key: 'json',
-                        label: 'Download as JSON',
-                        icon: 'code-slash-outline',
-                        onPress: () =>
-                          void downloadGstPackExport(packId!, 'gstr1-json', {
-                            asOwner: exportAsOwner,
-                          }),
-                      },
-                    ]}
-                  />
-                  <OverflowMenu
-                    title="Downloads"
-                    accessibilityLabel="More downloads"
-                    trigger="outline"
-                    items={[
-                      {
-                        key: 'bank',
-                        label: 'Bank Excel',
-                        icon: 'cash-outline',
-                        onPress: () =>
-                          void downloadGstPackExport(packId!, 'bank-xlsx', {
-                            asOwner: exportAsOwner,
-                          }),
-                      },
-                      {
-                        key: 'pnl',
-                        label: 'P&L Excel',
-                        icon: 'stats-chart-outline',
-                        onPress: () =>
-                          void downloadGstPackExport(packId!, 'pnl-xlsx', {
-                            asOwner: exportAsOwner,
-                          }),
-                      },
-                      {
-                        key: 'books',
-                        label: 'Books Excel (Bank/P&L/BS/Groups)',
-                        icon: 'folder-outline',
-                        onPress: () =>
-                          void downloadGstPackExport(packId!, 'books-xlsx', {
-                            asOwner: exportAsOwner,
-                          }),
-                      },
-                      {
-                        key: 'csv',
-                        label: 'Offline CSV zip',
-                        icon: 'archive-outline',
-                        onPress: () =>
-                          void downloadGstPackExport(packId!, 'csv', { asOwner: exportAsOwner }),
-                      },
-                    ]}
-                  />
-                </>
-              ) : null}
-              {!isOwnerMode ? (
-                data.status !== 'FILED' ? (
-                  <>
-                    <Button
-                      label="In progress"
-                      variant="secondary"
-                      size="sm"
-                      onPress={() => onMark('IN_PROGRESS')}
-                      loading={updateStatus.isPending}
-                    />
-                    <Button
-                      label="Mark filed"
-                      size="sm"
-                      onPress={() => onMark('FILED')}
-                      loading={updateStatus.isPending}
-                    />
-                  </>
-                ) : null
-              ) : data.status === 'DRAFT' ? (
-                <>
-                  <Button
-                    label="Delete"
-                    variant="secondary"
-                    size="sm"
-                    onPress={() => void onDeleteDraft()}
-                    loading={deletePack.isPending}
-                  />
-                  <Button
-                    label="Send to auditor"
-                    size="sm"
-                    onPress={() => void onSendDraft()}
-                    loading={sendPack.isPending || updateDraft.isPending}
-                    fullWidth={isPhone}
-                  />
-                </>
-              ) : null}
-            </View>
-          </View>
-        </View>
-
-        <View style={{ paddingHorizontal: pad, paddingTop: 16 }}>
+        <View>
           {isOwnerMode && data.status === 'DRAFT' ? (
             <View className="mb-4 rounded-2xl border border-border bg-card px-4 py-4 gap-3">
               <Text className="text-sm text-muted">
@@ -956,7 +937,7 @@ export default function AuditorPackScreen() {
                       key={t}
                       onPress={() => setEntryType(t)}
                       className={`px-3 py-1.5 rounded-lg border ${
-                        entryType === t ? 'bg-primary border-primary' : 'bg-bg border-border'
+                        entryType === t ? 'bg-primary border-primary' : 'bg-surface border-border'
                       }`}
                     >
                       <Text
@@ -973,7 +954,7 @@ export default function AuditorPackScreen() {
                   value={narration}
                   onChangeText={setNarration}
                   placeholder={`e.g. ${taxCode.missing} on invoice…`}
-                  className="border border-border rounded-xl px-3 py-3 text-text mb-2 bg-bg"
+                  className="border border-border rounded-xl px-3 py-3 text-text mb-2 bg-surface"
                   multiline
                 />
                 <TextInput
@@ -981,7 +962,7 @@ export default function AuditorPackScreen() {
                   onChangeText={setAmount}
                   placeholder="Amount (optional)"
                   keyboardType="decimal-pad"
-                  className="border border-border rounded-xl px-3 py-3 text-text mb-3 bg-bg"
+                  className="border border-border rounded-xl px-3 py-3 text-text mb-3 bg-surface"
                 />
                 <Button label="Save note" onPress={onAddManual} loading={addEntry.isPending} fullWidth />
               </View>
