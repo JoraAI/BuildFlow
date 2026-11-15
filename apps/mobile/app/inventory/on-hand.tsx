@@ -10,6 +10,7 @@ import {
   Text,
   RefreshControl,
   Pressable,
+  Platform,
   type ViewStyle,
 } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
@@ -58,6 +59,7 @@ const STOCK_COL = {
 type StockListRow =
   | { kind: 'cols'; key: string }
   | { kind: 'item'; key: string; item: StockSummaryRow };
+
 
 async function bufferUntil(
   run: () => Promise<unknown>,
@@ -396,7 +398,13 @@ export default function InventoryStockScreen() {
   }, [isDesktop, isLoading, filteredSummary]);
 
   const pageChrome = (
-    <>
+    <View
+      style={{
+        backgroundColor: COLORS.surface,
+        zIndex: 40,
+        elevation: 8,
+      }}
+    >
       <InventoryPageHeader
         title={translate('inventory.stock.title', 'Stock')}
         subtitle={
@@ -491,7 +499,7 @@ export default function InventoryStockScreen() {
           </View>
         ) : null}
       </View>
-    </>
+    </View>
   );
 
   return (
@@ -509,6 +517,31 @@ export default function InventoryStockScreen() {
         data={stockListData}
         keyExtractor={(row) => row.key}
         stickyHeaderIndices={isDesktop && filteredSummary.length > 0 ? [0] : undefined}
+        removeClippedSubviews={false}
+        CellRendererComponent={
+          isDesktop
+            ? ({ children, index, style, ...cellProps }) => (
+                <View
+                  {...cellProps}
+                  style={[
+                    style,
+                    index === 0
+                      ? ({
+                          zIndex: 100,
+                          elevation: 12,
+                          backgroundColor: COLORS.surface,
+                          ...(Platform.OS === 'web'
+                            ? ({ position: 'sticky', top: 0 } as unknown as ViewStyle)
+                            : null),
+                        } as ViewStyle)
+                      : { zIndex: 0, elevation: 0 },
+                  ]}
+                >
+                  {children}
+                </View>
+              )
+            : undefined
+        }
         refreshControl={
           <RefreshControl
             refreshing={isFetching && !buffering}
@@ -521,8 +554,15 @@ export default function InventoryStockScreen() {
             if (row.kind === 'cols') {
               return (
                 <View
-                  className="flex-row items-center py-3 px-4 bg-surface border-b border-border"
-                  style={{ backgroundColor: COLORS.surface }}
+                  className="flex-row items-center py-3 px-4 border-b border-border"
+                  style={{
+                    backgroundColor: COLORS.surface,
+                    // Full-bleed under rows so cells cannot show through edges.
+                    marginHorizontal: -24,
+                    paddingHorizontal: 40,
+                    zIndex: 100,
+                    elevation: 12,
+                  }}
                 >
                   <Text style={STOCK_COL.name} className="text-[11px] font-bold text-muted uppercase">
                     Name
