@@ -532,17 +532,17 @@ export default function InventoryWarehouseScreen() {
         keyExtractor={(item) => item.id}
         renderItem={renderRow}
         onScrollToIndexFailed={() => undefined}
-        listHeader={
+        stickySubheader={
             tableMode && dataForTab.length > 0 ? (
               tab === 'locations' ? (
-                <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+                <View className="flex-row items-center px-4 py-2">
                   <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase">Warehouse</Text>
                   <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Items</Text>
                   <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Status</Text>
                   <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
                 </View>
               ) : tab === 'transfers' ? (
-                <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+                <View className="flex-row items-center px-4 py-2">
                   <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Transfer</Text>
                   <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase">Route</Text>
                   <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Status</Text>
@@ -550,7 +550,7 @@ export default function InventoryWarehouseScreen() {
                   <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
                 </View>
               ) : (
-                <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+                <View className="flex-row items-center px-4 py-2">
                   <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Count</Text>
                   <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Location</Text>
                   <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Date</Text>

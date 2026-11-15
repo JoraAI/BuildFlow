@@ -11,6 +11,7 @@ import React from 'react';
 import { FlatList, type FlatListProps, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useViewport } from '@/hooks/useViewport';
 import { ASSISTANT_FAB_HEIGHT, FAB_GAP } from '@/components/layout/fab-layout';
+import { COLORS } from '@/constants';
 
 /** Extra list padding. Inventory tab bar is in the shell flex flow, not overlaid. */
 export function inventoryPageListPadding(hasScreenFab = false): number {
@@ -64,8 +65,14 @@ export function InventoryScreenList<T>({
       {!unify ? chrome : null}
       {!unify && stickySubheader ? (
         <View
-          className="bg-surface border-b border-border/60 shrink-0 z-10"
-          style={{ elevation: 2 }}
+          className="shrink-0"
+          style={{
+            zIndex: 30,
+            elevation: 8,
+            backgroundColor: COLORS.surface,
+            borderBottomWidth: 1,
+            borderBottomColor: COLORS.border,
+          }}
         >
           {stickySubheader}
         </View>

@@ -434,9 +434,9 @@ export default function InventoryQuotesScreen() {
             />
           )
         }
-        listHeader={
+        stickySubheader={
           tableMode && filteredQuotes.length > 0 ? (
-            <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+            <View className="flex-row items-center px-4 py-2">
               <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Quote #</Text>
               <Text className="flex-[1.8] text-[11px] font-bold text-muted uppercase">
                 {eventLightingCopy ? 'Client / Event' : 'Customer'}

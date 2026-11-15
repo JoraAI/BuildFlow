@@ -36,6 +36,7 @@ import { InventoryPageHeader } from '@/components/inventory/InventoryPageHeader'
 import { StockHero, formatHeroMoney } from '@/components/inventory/StockHero';
 import { StockRow } from '@/components/inventory/StockRow';
 import { InventoryScreenList } from '@/components/inventory/InventoryScreenList';
+import { StickyTableHeader } from '@/components/inventory/StickyTableHeader';
 import { useInventoryDashboard } from '@/services/inventory-analytics.queries';
 import { useExpirySummary } from '@/services/expansion.queries';
 import {
@@ -375,27 +376,72 @@ export default function InventoryStockScreen() {
       <Text className="text-sm font-bold text-text mt-3 mb-2">
         {translate('inventory.stock.summary', 'Stock summary')}
       </Text>
+
+      {/*
+        Web: CSS-sticky column labels after the hero so hero/search chrome scroll away
+        and only NAME/BALANCE/… float. Native uses stickyHeaderIndices on data[0] instead.
+      */}
+      {isDesktop && Platform.OS === 'web' && filteredSummary.length > 0 ? (
+        <StickyTableHeader className="flex-row items-center py-3 px-4 -mx-6">
+          <Text style={STOCK_COL.name} className="text-[11px] font-bold text-muted uppercase">
+            Name
+          </Text>
+          <Text
+            style={STOCK_COL.balance}
+            className="text-[11px] font-bold text-muted uppercase text-right"
+          >
+            Balance
+          </Text>
+          <Text
+            style={STOCK_COL.money}
+            className="text-[11px] font-bold text-muted uppercase text-right"
+          >
+            Cost
+          </Text>
+          <Text
+            style={STOCK_COL.money}
+            className="text-[11px] font-bold text-muted uppercase text-right"
+          >
+            Sell
+          </Text>
+          <Text
+            style={STOCK_COL.money}
+            className="text-[11px] font-bold text-muted uppercase text-right"
+          >
+            WAC
+          </Text>
+          <Text
+            style={STOCK_COL.money}
+            className="text-[11px] font-bold text-muted uppercase text-right"
+          >
+            Value
+          </Text>
+          <Text
+            style={STOCK_COL.actions}
+            className="text-[11px] font-bold text-muted uppercase text-right"
+          >
+            Actions
+          </Text>
+        </StickyTableHeader>
+      ) : null}
     </View>
   );
 
+  /** Native only: pin column row via stickyHeaderIndices (CSS sticky is web-only). */
+  const nativeStickyCols = isDesktop && Platform.OS !== 'web' && filteredSummary.length > 0;
+
   const stockListData: StockListRow[] = useMemo(() => {
     if (isLoading) return [];
-    if (isDesktop && filteredSummary.length > 0) {
-      return [
-        { kind: 'cols', key: '__stock_cols__' },
-        ...filteredSummary.map((item) => ({
-          kind: 'item' as const,
-          key: item.resourceId,
-          item,
-        })),
-      ];
-    }
-    return filteredSummary.map((item) => ({
+    const items = filteredSummary.map((item) => ({
       kind: 'item' as const,
       key: item.resourceId,
       item,
     }));
-  }, [isDesktop, isLoading, filteredSummary]);
+    if (nativeStickyCols) {
+      return [{ kind: 'cols' as const, key: '__stock_cols__' }, ...items];
+    }
+    return items;
+  }, [isLoading, filteredSummary, nativeStickyCols]);
 
   const pageChrome = (
     <View
@@ -516,32 +562,8 @@ export default function InventoryStockScreen() {
         chrome={pageChrome}
         data={stockListData}
         keyExtractor={(row) => row.key}
-        stickyHeaderIndices={isDesktop && filteredSummary.length > 0 ? [0] : undefined}
+        stickyHeaderIndices={nativeStickyCols ? [0] : undefined}
         removeClippedSubviews={false}
-        CellRendererComponent={
-          isDesktop
-            ? ({ children, index, style, ...cellProps }) => (
-                <View
-                  {...cellProps}
-                  style={[
-                    style,
-                    index === 0
-                      ? ({
-                          zIndex: 100,
-                          elevation: 12,
-                          backgroundColor: COLORS.surface,
-                          ...(Platform.OS === 'web'
-                            ? ({ position: 'sticky', top: 0 } as unknown as ViewStyle)
-                            : null),
-                        } as ViewStyle)
-                      : { zIndex: 0, elevation: 0 },
-                  ]}
-                >
-                  {children}
-                </View>
-              )
-            : undefined
-        }
         refreshControl={
           <RefreshControl
             refreshing={isFetching && !buffering}
@@ -553,17 +575,7 @@ export default function InventoryStockScreen() {
           renderItem={({ item: row }) => {
             if (row.kind === 'cols') {
               return (
-                <View
-                  className="flex-row items-center py-3 px-4 border-b border-border"
-                  style={{
-                    backgroundColor: COLORS.surface,
-                    // Full-bleed under rows so cells cannot show through edges.
-                    marginHorizontal: -24,
-                    paddingHorizontal: 40,
-                    zIndex: 100,
-                    elevation: 12,
-                  }}
-                >
+                <StickyTableHeader className="flex-row items-center py-3 px-4">
                   <Text style={STOCK_COL.name} className="text-[11px] font-bold text-muted uppercase">
                     Name
                   </Text>
@@ -603,7 +615,7 @@ export default function InventoryStockScreen() {
                   >
                     Actions
                   </Text>
-                </View>
+                </StickyTableHeader>
               );
             }
             const item = row.item;

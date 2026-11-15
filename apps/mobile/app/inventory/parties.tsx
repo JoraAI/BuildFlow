@@ -403,9 +403,9 @@ export default function InventoryPartiesScreen() {
             </Card>
           );
           }}
-          listHeader={
+          stickySubheader={
             tableMode && rows.length > 0 ? (
-              <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+              <View className="flex-row items-center px-4 py-2">
                 <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase">Party</Text>
                 <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Contact</Text>
                 <Text className="flex-1 text-[11px] font-bold text-muted uppercase">GSTIN</Text>

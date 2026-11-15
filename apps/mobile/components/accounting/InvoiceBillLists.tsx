@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { Card, Badge, EmptyState, LoadingSkeleton, Button, BusyOverlay, useBusy } from '@/components/ui';
 import { mobileListBottomPadding } from '@/components/layout/fab-layout';
 import { inventoryPageListPadding } from '@/components/inventory/InventoryScreenList';
+import { StickyTableHeader } from '@/components/inventory/StickyTableHeader';
 import { useViewport } from '@/hooks/useViewport';
 import { usePermission } from '@/hooks/usePermission';
 import {
@@ -209,11 +210,11 @@ export function ProjectInvoicesList({
             <FilterPills options={INVOICE_FILTERS} value={filter} onChange={setFilter} />
           ) : null}
           {tableMode && filtered.length > 0 && (
-            <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border gap-2">
+            <StickyTableHeader className="flex-row items-center px-4 py-2 gap-2">
               <Text className="w-[120px] shrink-0 text-xs font-semibold text-muted uppercase">Invoice #</Text>
               <Text className="flex-1 min-w-0 text-xs font-semibold text-muted uppercase">Client</Text>
               <Text className="w-[96px] shrink-0 text-xs font-semibold text-muted uppercase">Status</Text>
-            </View>
+            </StickyTableHeader>
           )}
         </>
       }
@@ -371,11 +372,11 @@ export function ProjectBillsList({
             <FilterPills options={BILL_FILTERS} value={filter} onChange={setFilter} />
           ) : null}
           {tableMode && filtered.length > 0 && (
-            <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border gap-2">
+            <StickyTableHeader className="flex-row items-center px-4 py-2 gap-2">
               <Text className="w-[120px] shrink-0 text-xs font-semibold text-muted uppercase">Bill #</Text>
               <Text className="flex-1 min-w-0 text-xs font-semibold text-muted uppercase">Vendor</Text>
               <Text className="w-[96px] shrink-0 text-xs font-semibold text-muted uppercase">Status</Text>
-            </View>
+            </StickyTableHeader>
           )}
         </>
       }

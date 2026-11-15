@@ -9,6 +9,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, Pressable, Modal, ScrollView, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, Badge, Button, Input, EmptyState, LoadingSkeleton, Select, toast, BusyOverlay } from '@/components/ui';
+import { StickyTableHeader } from '@/components/inventory/StickyTableHeader';
 import { useAuthStore } from '@/stores/auth.store';
 import { useViewport } from '@/hooks/useViewport';
 import {
@@ -461,14 +462,14 @@ function IndentsSection({
         <View>
           {listChrome}
           {tableMode && rows.length > 0 ? (
-            <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+            <StickyTableHeader className="flex-row items-center px-4 py-2">
               <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Requisition</Text>
               <Text className="flex-[2] text-[11px] font-bold text-muted uppercase">Notes</Text>
               <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Lines</Text>
               <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Date</Text>
               <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Status</Text>
               <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase text-right">Action</Text>
-            </View>
+            </StickyTableHeader>
           ) : null}
         </View>
       }
@@ -901,14 +902,14 @@ function OrdersSection({
         <View>
           {listChrome}
           {tableMode && pos.length > 0 ? (
-            <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+            <StickyTableHeader className="flex-row items-center px-4 py-2">
               <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">PO</Text>
               <Text className="flex-[1.8] text-[11px] font-bold text-muted uppercase">Vendor</Text>
               <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Amount</Text>
               <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">GRNs</Text>
               <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Status</Text>
               <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
-            </View>
+            </StickyTableHeader>
           ) : null}
         </View>
       }
@@ -1102,14 +1103,14 @@ function GrnsSection({
         <View>
           {listChrome}
           {tableMode && grns.length > 0 ? (
-            <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
+            <StickyTableHeader className="flex-row items-center px-4 py-2">
               <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">GRN</Text>
-            <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Vendor</Text>
-            <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">PO</Text>
-            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Lines</Text>
-            <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Date</Text>
+              <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Vendor</Text>
+              <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">PO</Text>
+              <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Lines</Text>
+              <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Date</Text>
               <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
-            </View>
+            </StickyTableHeader>
           ) : null}
         </View>
       }

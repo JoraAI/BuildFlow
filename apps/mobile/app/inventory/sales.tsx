@@ -699,34 +699,34 @@ export default function InventorySalesScreen() {
           keyExtractor={(item) => item.id}
           renderItem={renderRow}
           onScrollToIndexFailed={() => undefined}
+          stickySubheader={
+            tableMode && dataForTab.length > 0 ? (
+              <View className="flex-row items-center px-4 py-2">
+                <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Number</Text>
+                <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Party</Text>
+                <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Status</Text>
+                <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Total</Text>
+                <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
+              </View>
+            ) : null
+          }
           listHeader={
-            <View>
-              {tableMode && dataForTab.length > 0 ? (
-                <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
-                  <Text className="flex-[1.2] text-[11px] font-bold text-muted uppercase">Number</Text>
-                  <Text className="flex-[1.4] text-[11px] font-bold text-muted uppercase">Party</Text>
-                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Status</Text>
-                  <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">Total</Text>
-                  <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase text-right">Actions</Text>
-                </View>
-              ) : null}
-              {tab === 'returns' ? (
-                <View className="flex-row flex-wrap gap-2 pb-2">
-                  <Button
-                    label="+ New sales return"
-                    size="sm"
-                    variant="accent"
-                    onPress={() => setSalesReturnOpen(true)}
-                  />
-                  <Button
-                    label="+ New purchase return"
-                    size="sm"
-                    variant="secondary"
-                    onPress={() => setPurchaseReturnOpen(true)}
-                  />
-                </View>
-              ) : null}
-            </View>
+            tab === 'returns' ? (
+              <View className="flex-row flex-wrap gap-2 pb-2">
+                <Button
+                  label="+ New sales return"
+                  size="sm"
+                  variant="accent"
+                  onPress={() => setSalesReturnOpen(true)}
+                />
+                <Button
+                  label="+ New purchase return"
+                  size="sm"
+                  variant="secondary"
+                  onPress={() => setPurchaseReturnOpen(true)}
+                />
+              </View>
+            ) : null
           }
           ListEmptyComponent={
             loading ? (

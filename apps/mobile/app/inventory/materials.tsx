@@ -238,7 +238,7 @@ export default function InventoryMaterialsScreen() {
         stickySubheader={
           tableMode && rows.length > 0 ? (
             <View
-              className="flex-row items-center px-4 py-2.5 bg-surface"
+              className="flex-row items-center py-2.5"
               style={{ paddingHorizontal: tableMode ? 24 : 16 }}
             >
               <Text className="flex-[2.2] text-[11px] font-bold text-muted uppercase">Item</Text>
