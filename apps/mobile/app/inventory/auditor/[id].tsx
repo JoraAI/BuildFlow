@@ -19,7 +19,6 @@ import { useViewport } from '@/hooks/useViewport';
 import { Button, Input, OverflowMenu, toast } from '@/components/ui';
 import { SegmentedTabsInline, SegmentedTrack } from '@/components/inventory/SegmentedTabs';
 import { FormScreenHeader } from '@/components/layout/ScreenHeader';
-import { NavBackButton } from '@/components/layout/NavBackButton';
 import { AuditorShopSwitcher } from '@/components/auditor/AuditorShopSwitcher';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -32,19 +31,29 @@ function Kpi({
   value,
   hint,
   warn,
+  wide,
 }: {
   label: string;
   value: string;
   hint?: string;
   warn?: boolean;
+  /** Desktop: ~1/3 row; phone: ~half row */
+  wide?: boolean;
 }) {
   return (
-    <View className="bg-card border border-border rounded-2xl px-4 py-3 flex-1 min-w-[140px]">
+    <View
+      className={`bg-card border border-border rounded-xl px-3.5 py-3 ${
+        wide ? 'min-w-[160px] flex-1' : 'min-w-[46%] flex-1'
+      }`}
+    >
       <Text className="text-[11px] font-semibold uppercase tracking-wide text-muted">{label}</Text>
-      <Text className={`text-xl font-bold mt-1 ${warn ? 'text-warning' : 'text-text'}`} numberOfLines={1}>
+      <Text
+        className={`text-lg font-bold mt-1 ${warn ? 'text-warning' : 'text-text'}`}
+        numberOfLines={1}
+      >
         {value}
       </Text>
-      {hint ? <Text className="text-[11px] text-muted mt-1">{hint}</Text> : null}
+      {hint ? <Text className="text-[11px] text-muted mt-0.5">{hint}</Text> : null}
     </View>
   );
 }
@@ -101,14 +110,22 @@ type PrimarySeg = 'GST' | 'Books' | 'Notes';
 export default function AuditorPackScreen() {
   const { id, mode } = useLocalSearchParams<{ id: string; mode?: string }>();
   const packId = typeof id === 'string' ? id : id?.[0];
-  const isOwnerMode = mode === 'owner';
-  const { data, isLoading, refetch } = useAuditorPack(packId, { asOwner: isOwnerMode });
+  const user = useAuthStore((s) => s.user);
+  /** Owners/IM often open `/auditor/:id` without `?mode=owner` — still use owner APIs. */
+  const isOwnerMode =
+    mode === 'owner' || user?.role === 'OWNER' || user?.role === 'INVENTORY_MANAGER';
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useAuditorPack(packId, { asOwner: isOwnerMode });
   const updateStatus = useUpdateAuditorPackStatus(packId ?? '');
   const addEntry = useAddAuditorManualEntry(packId ?? '');
   const updateDraft = useUpdateGstPackDraft(packId ?? '');
   const sendPack = useSendGstPack();
   const deletePack = useDeleteGstPack();
-  const user = useAuthStore((s) => s.user);
   const { isDesktop, isPhone } = useViewport();
   const [primary, setPrimary] = useState<PrimarySeg>('GST');
   const [gstTab, setGstTab] = useState('Summary');
@@ -136,13 +153,46 @@ export default function AuditorPackScreen() {
   }, [data?.id, data?.openingCashBalance, data?.suggestedOpeningCashBalance, data?.notes, isOwnerMode]);
 
   if (isLoading || !data) {
+    const errMsg =
+      error instanceof Error
+        ? error.message
+        : isError
+          ? 'Could not load this pack'
+          : null;
     return (
-      <SafeAreaView className="flex-1 bg-surface items-center justify-center p-6">
-        <Text className="text-muted mb-4">{isLoading ? 'Loading pack…' : 'Pack not found'}</Text>
-        <NavBackButton
-          label={isOwnerMode ? 'Back to settings' : 'Back to inbox'}
-          onPress={() => router.replace(backHref)}
+      <SafeAreaView className="flex-1 bg-surface" edges={['top', 'bottom']}>
+        <FormScreenHeader
+          title="GST pack"
+          subtitle={user?.companyName ?? undefined}
+          cancelLabel={isOwnerMode ? 'Settings' : 'Inbox'}
+          onCancel={() => router.replace(backHref)}
+          showBack
         />
+        <View className="flex-1 items-center justify-center px-6" style={{ paddingHorizontal: pad }}>
+          <View className="w-full max-w-md rounded-2xl border border-border bg-card px-5 py-6">
+            <Text className="text-lg font-bold text-text text-center">
+              {isLoading ? 'Loading pack…' : 'Pack not found'}
+            </Text>
+            {!isLoading ? (
+              <Text className="text-sm text-muted text-center mt-2 leading-5">
+                {errMsg && !/not found/i.test(errMsg)
+                  ? errMsg
+                  : isOwnerMode
+                    ? 'This pack may have been cleared, or the link is for a different shop. Open it again from Settings → GST packs.'
+                    : 'This pack may have been cleared by the owner, or belongs to another shop. Switch shop above or go back to your inbox.'}
+              </Text>
+            ) : null}
+            {!isLoading ? (
+              <View className="mt-5">
+                <Button
+                  label={isOwnerMode ? 'Back to settings' : 'Back to inbox'}
+                  onPress={() => router.replace(backHref)}
+                  fullWidth
+                />
+              </View>
+            ) : null}
+          </View>
+        </View>
       </SafeAreaView>
     );
   }
@@ -309,76 +359,47 @@ export default function AuditorPackScreen() {
       });
     })();
 
+  const downloadItems = canExport
+    ? [
+        {
+          key: 'xlsx',
+          label: 'GSTR-1 Excel',
+          icon: 'document-outline' as const,
+          onPress: () => void downloadGstPackExport(packId!, 'xlsx', { asOwner: exportAsOwner }),
+        },
+        {
+          key: 'json',
+          label: 'GSTR-1 JSON',
+          icon: 'code-slash-outline' as const,
+          onPress: () =>
+            void downloadGstPackExport(packId!, 'gstr1-json', { asOwner: exportAsOwner }),
+        },
+        {
+          key: 'books',
+          label: 'Books Excel',
+          icon: 'folder-outline' as const,
+          onPress: () =>
+            void downloadGstPackExport(packId!, 'books-xlsx', { asOwner: exportAsOwner }),
+        },
+        {
+          key: 'csv',
+          label: 'Offline CSV zip',
+          icon: 'archive-outline' as const,
+          onPress: () => void downloadGstPackExport(packId!, 'csv', { asOwner: exportAsOwner }),
+        },
+      ]
+    : [];
+
   const actionButtons = (
     <View className={`flex-row flex-wrap items-center gap-2 ${isPhone ? 'w-full' : ''}`}>
-      {canExport ? (
-        <>
-          <OverflowMenu
-            label="GSTR-1"
-            trigger="button"
-            title="Download GSTR-1"
-            accessibilityLabel="Download GSTR-1"
-            items={[
-              {
-                key: 'xlsx',
-                label: 'Download as Excel',
-                icon: 'document-outline',
-                onPress: () =>
-                  void downloadGstPackExport(packId!, 'xlsx', { asOwner: exportAsOwner }),
-              },
-              {
-                key: 'json',
-                label: 'Download as JSON',
-                icon: 'code-slash-outline',
-                onPress: () =>
-                  void downloadGstPackExport(packId!, 'gstr1-json', {
-                    asOwner: exportAsOwner,
-                  }),
-              },
-            ]}
-          />
-          <OverflowMenu
-            title="Downloads"
-            accessibilityLabel="More downloads"
-            trigger="outline"
-            items={[
-              {
-                key: 'bank',
-                label: 'Bank Excel',
-                icon: 'cash-outline',
-                onPress: () =>
-                  void downloadGstPackExport(packId!, 'bank-xlsx', {
-                    asOwner: exportAsOwner,
-                  }),
-              },
-              {
-                key: 'pnl',
-                label: 'P&L Excel',
-                icon: 'stats-chart-outline',
-                onPress: () =>
-                  void downloadGstPackExport(packId!, 'pnl-xlsx', {
-                    asOwner: exportAsOwner,
-                  }),
-              },
-              {
-                key: 'books',
-                label: 'Books Excel (Bank/P&L/BS/Groups)',
-                icon: 'folder-outline',
-                onPress: () =>
-                  void downloadGstPackExport(packId!, 'books-xlsx', {
-                    asOwner: exportAsOwner,
-                  }),
-              },
-              {
-                key: 'csv',
-                label: 'Offline CSV zip',
-                icon: 'archive-outline',
-                onPress: () =>
-                  void downloadGstPackExport(packId!, 'csv', { asOwner: exportAsOwner }),
-              },
-            ]}
-          />
-        </>
+      {downloadItems.length > 0 ? (
+        <OverflowMenu
+          label="Export"
+          trigger="button"
+          title="Export pack"
+          accessibilityLabel="Export pack"
+          items={downloadItems}
+        />
       ) : null}
       {!isOwnerMode ? (
         data.status !== 'FILED' ? (
@@ -412,12 +433,11 @@ export default function AuditorPackScreen() {
             size="sm"
             onPress={() => void onSendDraft()}
             loading={sendPack.isPending || updateDraft.isPending}
-            fullWidth={isPhone}
           />
         </>
       ) : (
         <Button
-          label="Clear"
+          label="Clear pack"
           variant="secondary"
           size="sm"
           onPress={onClearPack}
@@ -440,11 +460,11 @@ export default function AuditorPackScreen() {
         right={!isPhone ? actionButtons : undefined}
       />
 
-      {/* Thin shop + mobile actions strip (keeps FormScreenHeader to one row) */}
-      {(!isOwnerMode || isPhone) ? (
+      {/* Shop switcher (auditor) + mobile actions — kept off the title row */}
+      {!isOwnerMode || isPhone ? (
         <View
           className="border-b border-border bg-surface shrink-0"
-          style={{ paddingHorizontal: pad, paddingVertical: 6 }}
+          style={{ paddingHorizontal: pad, paddingVertical: 8 }}
         >
           <View
             className={
@@ -518,18 +538,34 @@ export default function AuditorPackScreen() {
             </View>
           ) : null}
 
-          <View className="gap-3 mb-4 flex-row flex-wrap">
-            <Kpi label="Outward GST" value={inr(gst.invoiceGst)} hint={`${gst.invoiceCount} invoices`} />
-            <Kpi label="Inward GST" value={inr(gst.billGst)} hint={`${gst.billCount} bills`} />
+          <View className="mb-4 gap-2 flex-row flex-wrap">
             <Kpi
+              wide={isDesktop}
+              label="Outward GST"
+              value={inr(gst.invoiceGst)}
+              hint={`${gst.invoiceCount} invoices`}
+            />
+            <Kpi
+              wide={isDesktop}
+              label="Inward GST"
+              value={inr(gst.billGst)}
+              hint={`${gst.billCount} bills`}
+            />
+            <Kpi
+              wide={isDesktop}
               label="Opening"
               value={openingShown == null ? '—' : inr(openingShown)}
               hint="Period start"
               warn={isOwnerMode && openingShown == null}
             />
-            <Kpi label="Cash in" value={inr(bankIn)} />
-            <Kpi label="Cash out" value={inr(bankOut)} />
-            <Kpi label="Closing" value={inr(bankClosing)} hint="Opening + in − out" />
+            <Kpi wide={isDesktop} label="Cash in" value={inr(bankIn)} />
+            <Kpi wide={isDesktop} label="Cash out" value={inr(bankOut)} />
+            <Kpi
+              wide={isDesktop}
+              label="Closing"
+              value={inr(bankClosing)}
+              hint="Opening + in − out"
+            />
           </View>
 
           {(gst.missingHsnLines ?? 0) > 0 ? (
