@@ -209,6 +209,8 @@ export function LineEditor({
   const { data } = useResources();
   const resources: CatalogResource[] = Array.isArray(data) ? data : (data?.data ?? []);
   const balances = useProjectStockBalances(locationId);
+  // Returns pass qtyCapByResourceId — show document qty only, not warehouse on-hand.
+  const returnMode = qtyCapByResourceId != null;
   // undefined = full catalog; [] = intentionally empty (e.g. invoice has no linked SKUs).
   const filteredResources =
     allowedResourceIds === undefined
@@ -218,10 +220,9 @@ export function LineEditor({
     const bal = balances.get(r.id) ?? 0;
     const shown = resolveLineRate(r.id, resources, rateOverrides, buyerRole);
     const cap = qtyCapByResourceId?.[r.id];
-    const subtitle =
-      cap != null
-        ? `On doc ${cap} ${r.unit || ''} · On hand ${bal}`.trim()
-        : `On hand ${bal} ${r.unit || ''}`.trim();
+    const subtitle = returnMode
+      ? `On doc ${cap ?? 0} ${r.unit || ''}`.trim()
+      : `On hand ${bal} ${r.unit || ''}`.trim();
     return {
       title: r.name,
       value: r.id,
@@ -310,7 +311,9 @@ export function LineEditor({
         <View className="rounded-xl border border-border overflow-hidden bg-card">
           <View className="flex-row items-center px-3 py-2 bg-surface border-b border-border gap-2">
             <Text className="flex-[2.2] text-[11px] font-bold text-muted uppercase">Item</Text>
-            <Text className="w-[72px] text-[11px] font-bold text-muted uppercase text-right">Stock</Text>
+            <Text className="w-[72px] text-[11px] font-bold text-muted uppercase text-right">
+              {returnMode ? 'On doc' : 'Stock'}
+            </Text>
             <Text className="w-[84px] text-[11px] font-bold text-muted uppercase">Qty</Text>
             <Text className="w-[100px] text-[11px] font-bold text-muted uppercase">Selling ₹</Text>
             <Text className="w-[72px] text-[11px] font-bold text-muted uppercase">GST %</Text>
@@ -318,7 +321,12 @@ export function LineEditor({
           </View>
           {lines.map((l, idx) => {
             const onHand = l.resourceId ? (balances.get(l.resourceId) ?? 0) : 0;
-            const isShortage = Boolean(l.resourceId && (Number(l.quantity) || 0) > onHand);
+            const docCap = l.resourceId && returnMode ? (qtyCapByResourceId?.[l.resourceId] ?? 0) : null;
+            const shownStock = returnMode ? docCap : onHand;
+            const isOver =
+              Boolean(l.resourceId) &&
+              shownStock != null &&
+              (Number(l.quantity) || 0) > shownStock + 1e-9;
             return (
               <View key={l.key} className="border-b border-border/60 last:border-b-0">
                 <View className="flex-row items-start px-3 py-2 gap-2">
@@ -332,8 +340,8 @@ export function LineEditor({
                       searchPlaceholder="Search items"
                     />
                   </View>
-                  <Text className={`w-[72px] text-xs text-right pt-3 ${isShortage ? 'text-warning font-semibold' : 'text-muted'}`}>
-                    {l.resourceId ? `${onHand} ${l.unit}` : '—'}
+                  <Text className={`w-[72px] text-xs text-right pt-3 ${isOver ? 'text-warning font-semibold' : 'text-muted'}`}>
+                    {l.resourceId ? `${shownStock} ${l.unit}` : '—'}
                   </Text>
                   <View className="w-[84px]">
                     <Input
@@ -378,9 +386,11 @@ export function LineEditor({
                     <Text className="text-sm font-semibold text-danger">✕</Text>
                   </Pressable>
                 </View>
-                {isShortage ? (
+                {isOver ? (
                   <Text className="text-[11px] font-semibold text-warning px-3 pb-2">
-                    Qty exceeds {warehouseName ? `${warehouseName} ` : ''}stock ({onHand} {l.unit})
+                    {returnMode
+                      ? `Qty exceeds on-doc quantity (${docCap} ${l.unit})`
+                      : `Qty exceeds ${warehouseName ? `${warehouseName} ` : ''}stock (${onHand} ${l.unit})`}
                   </Text>
                 ) : null}
                 {showKind ? <View className="px-3 pb-2">{kindRow(l)}</View> : null}
@@ -392,7 +402,12 @@ export function LineEditor({
         <View className="gap-2">
           {lines.map((l, idx) => {
             const onHand = l.resourceId ? (balances.get(l.resourceId) ?? 0) : 0;
-            const isShortage = Boolean(l.resourceId && (Number(l.quantity) || 0) > onHand);
+            const docCap = l.resourceId && returnMode ? (qtyCapByResourceId?.[l.resourceId] ?? 0) : null;
+            const shownStock = returnMode ? docCap : onHand;
+            const isOver =
+              Boolean(l.resourceId) &&
+              shownStock != null &&
+              (Number(l.quantity) || 0) > shownStock + 1e-9;
             return (
               <View key={l.key} className="bg-surface rounded-xl border border-border p-3">
                 <Select
@@ -423,11 +438,15 @@ export function LineEditor({
                 {l.resourceId ? (
                   <View className="flex-row items-center justify-between mt-1 px-0.5">
                     <Text className="text-[11px] text-muted">
-                      {warehouseName ? `${warehouseName} on-hand:` : 'Store on-hand:'}{' '}
-                      <Text className="font-semibold text-text">{onHand} {l.unit}</Text>
+                      {returnMode ? 'On doc:' : warehouseName ? `${warehouseName} on-hand:` : 'Store on-hand:'}{' '}
+                      <Text className="font-semibold text-text">
+                        {shownStock} {l.unit}
+                      </Text>
                     </Text>
-                    {isShortage ? (
-                      <Text className="text-[11px] font-semibold text-warning">Qty exceeds stock</Text>
+                    {isOver ? (
+                      <Text className="text-[11px] font-semibold text-warning">
+                        {returnMode ? 'Qty exceeds on-doc qty' : 'Qty exceeds stock'}
+                      </Text>
                     ) : null}
                   </View>
                 ) : null}
