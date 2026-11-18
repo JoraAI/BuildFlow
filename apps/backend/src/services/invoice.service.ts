@@ -184,6 +184,76 @@ export function resolveSheetDiscount(
 }
 
 /**
+ * Recompute DRAFT invoice money fields from current line items using per-line GST
+ * (same math as create/update). Used when challan / pre-send returns shrink billed qty
+ * before the invoice is filed (Send).
+ */
+export async function recalculateDraftInvoiceTotals(
+  tx: Prisma.TransactionClient,
+  companyId: string,
+  invoiceId: string,
+) {
+  const inv = await tx.invoice.findFirst({
+    where: { id: invoiceId, companyId, status: 'DRAFT' },
+    include: { lineItems: true },
+  });
+  if (!inv) return null;
+
+  const company = await tx.company.findUniqueOrThrow({
+    where: { id: companyId },
+    select: { state: true },
+  });
+
+  const lineSum = sumAmounts(inv.lineItems.map((li) => Number(li.amount)));
+  // Prefer stored pct so shrinking lines re-derives discountAmount from pct.
+  const sheetDiscount = resolveSheetDiscount(lineSum, Number(inv.discountPct) || 0, null);
+  const taxable = sheetDiscount.taxable;
+  const retentionPct = Number(inv.retentionPct ?? 0);
+  const retentionAmount = round2((taxable * retentionPct) / 100);
+  const tdsEnabled = Number(inv.tdsRate ?? 0) > 0;
+  const tdsRate = Number(inv.tdsRate ?? 0);
+
+  const gst = calculateGstAcrossLines({
+    lines: inv.lineItems.map((li) => ({
+      amount: Number(li.amount),
+      gstRate: Number(li.gstRate),
+    })),
+    taxable,
+    headerGstRate: Number(inv.gstRate) || 18,
+    tdsEnabled,
+    tdsRate,
+    companyState: company.state,
+    clientState: inv.clientState,
+  });
+
+  const total = round2(gst.netPayable - retentionAmount);
+  const currentCertifiedTotal = taxable;
+  let cumulativeCertifiedTotal = Number(inv.cumulativeCertifiedTotal);
+  if (inv.invoiceType === 'RUNNING_ACCOUNT') {
+    cumulativeCertifiedTotal = round2(Number(inv.previousCertifiedTotal) + currentCertifiedTotal);
+  }
+
+  return tx.invoice.update({
+    where: { id: invoiceId },
+    data: {
+      subtotal: lineSum,
+      discountPct: sheetDiscount.discountPct,
+      discountAmount: sheetDiscount.discountAmount,
+      gstRate: gst.effectiveGstRate,
+      gstAmount: gst.gstAmount,
+      cgstAmount: gst.cgstAmount,
+      sgstAmount: gst.sgstAmount,
+      igstAmount: gst.igstAmount,
+      tdsAmount: gst.tdsAmount,
+      retentionAmount,
+      currentCertifiedTotal,
+      cumulativeCertifiedTotal,
+      total,
+    },
+  });
+}
+
+/**
  * Prevent RA invoices from certifying more than (executed − already billed).
  * Lines without boqItemId are skipped (free-text RA lines).
  */

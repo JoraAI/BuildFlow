@@ -384,6 +384,7 @@ describe('KIRANA_BATCH_EXPIRY (Phase 11.2) - batch / expiry / FEFO', () => {
       where: { id: invoiceId },
       include: { lineItems: { take: 1 } },
     });
+    // Pre-filing DRAFT return: restock lot + shrink draft invoice (no credit note).
     const ret = await authPost(invToken, '/api/inventory/transactions/returns/sales', {
       invoiceId,
       returnDate: new Date().toISOString().slice(0, 10),
@@ -399,6 +400,8 @@ describe('KIRANA_BATCH_EXPIRY (Phase 11.2) - batch / expiry / FEFO', () => {
       ],
     });
     expect(ret.status).toBe(201);
+    expect(ret.body.data.creditNoteId).toBeNull();
+    expect(ret.body.data.invoiceAdjusted).toBe(true);
 
     // Restored to MILK-FAR (the lot the sale came from): 3 + 2 = 5.
     const lot = await prisma.stockBatchBalance.findFirstOrThrow({

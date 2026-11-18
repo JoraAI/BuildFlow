@@ -14,7 +14,11 @@ import { nextSequentialNumber } from '../lib/id-generator';
 import { assertProjectAccess } from '../middleware/project-access.middleware';
 import { getDefaultProjectId } from './module-gate.service';
 import { getOrCreateProjectStockLocation } from './procurement.service';
-import { createInvoice, backfillStockIssueSalesOrders } from './invoice.service';
+import {
+  createInvoice,
+  backfillStockIssueSalesOrders,
+  recalculateDraftInvoiceTotals,
+} from './invoice.service';
 import { notifyLowStock } from './inventory-alerts.service';
 import { resolveEffectiveRates } from './price-list.service';
 import { allocateBatchOut, isBatchTracked } from './stock-batch.service';
@@ -618,17 +622,8 @@ export async function recordChallanReturn(
             }
           }
         }
-        // Recalculate draft invoice total
-        const remainingLines = await tx.invoiceLineItem.findMany({
-          where: { invoiceId: draftInv.id },
-        });
-        const subtotal = remainingLines.reduce((acc, l) => acc + Number(l.amount), 0);
-        const gstAmount = Math.round(subtotal * (Number(draftInv.gstRate || 18) / 100) * 100) / 100;
-        const total = subtotal + gstAmount;
-        await tx.invoice.update({
-          where: { id: draftInv.id },
-          data: { subtotal, gstAmount, total },
-        });
+        // GOOD and DAMAGED both reduce billed qty above; recompute GST from remaining lines.
+        await recalculateDraftInvoiceTotals(tx, companyId, draftInv.id);
       }
     }
 

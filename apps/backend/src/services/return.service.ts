@@ -15,6 +15,7 @@ import { getOrCreateProjectStockLocation } from './procurement.service';
 import { updateWacOnIn } from './finance.service';
 import { splitGstByState } from './finance.service';
 import { applyBatchIn, isBatchTracked } from './stock-batch.service';
+import { recalculateDraftInvoiceTotals } from './invoice.service';
 import type {
   CreateSalesReturnInput,
   CreatePurchaseReturnInput,
@@ -68,11 +69,11 @@ export async function validateReturnScan(
     throw ApiError.notFound(`No item found matching barcode/code "${input.barcode}"`);
   }
 
-  // Look up invoices containing this resource
+  // DRAFT = pre-filing adjust (shrink bill); SENT+ = credit note after filing.
   const invoiceWhere: Record<string, unknown> = {
     companyId,
     projectId,
-    status: { in: ['SENT', 'PAID', 'OVERDUE'] },
+    status: { in: ['DRAFT', 'SENT', 'PAID', 'OVERDUE'] },
   };
   if (input.invoiceId) {
     invoiceWhere.id = input.invoiceId;
@@ -95,6 +96,7 @@ export async function validateReturnScan(
   const matchingLines = matchingInvoices.flatMap((inv) =>
     inv.lineItems.map((l) => ({
       invoiceId: inv.id,
+      invoiceStatus: inv.status,
       invoiceNumber: inv.invoiceNumber,
       clientName: inv.clientName,
       invoiceDate: inv.invoiceDate ? inv.invoiceDate.toISOString() : new Date().toISOString(),
@@ -106,26 +108,36 @@ export async function validateReturnScan(
     })),
   );
 
-  // Check previous returns for this resource across these invoices
-  const prevReturns = await prisma.salesReturnLine.findMany({
-    where: {
-      resourceId: resource.id,
-      salesReturn: {
-        companyId,
-        invoiceId: input.invoiceId ? input.invoiceId : { in: matchingInvoices.map((i) => i.id) },
-        status: { in: ['DRAFT', 'ISSUED'] },
-      },
-    },
-    select: {
-      quantity: true,
-      salesReturnId: true,
-      invoiceLineItemId: true,
-    },
-  });
+  // Filed invoices: subtract prior returns. DRAFT lines are already net of pre-filing adjusts.
+  const filedInvoiceIds = matchingInvoices.filter((i) => i.status !== 'DRAFT').map((i) => i.id);
+  const prevReturns =
+    filedInvoiceIds.length === 0
+      ? []
+      : await prisma.salesReturnLine.findMany({
+          where: {
+            resourceId: resource.id,
+            salesReturn: {
+              companyId,
+              invoiceId: input.invoiceId ? input.invoiceId : { in: filedInvoiceIds },
+              status: { in: ['DRAFT', 'ISSUED'] },
+            },
+          },
+          select: {
+            quantity: true,
+            salesReturnId: true,
+            invoiceLineItemId: true,
+          },
+        });
 
+  const draftDispatched = matchingLines
+    .filter((l) => l.invoiceStatus === 'DRAFT')
+    .reduce((sum, l) => sum + l.dispatchedQty, 0);
+  const filedDispatched = matchingLines
+    .filter((l) => l.invoiceStatus !== 'DRAFT')
+    .reduce((sum, l) => sum + l.dispatchedQty, 0);
   const totalPreviouslyReturned = prevReturns.reduce((sum, r) => sum + Number(r.quantity), 0);
-  const totalDispatched = matchingLines.reduce((sum, l) => sum + l.dispatchedQty, 0);
-  const maxReturnable = Math.max(0, totalDispatched - totalPreviouslyReturned);
+  const totalDispatched = draftDispatched + filedDispatched;
+  const maxReturnable = Math.max(0, draftDispatched + Math.max(0, filedDispatched - totalPreviouslyReturned));
 
   return {
     resource: {
@@ -156,6 +168,7 @@ export async function createSalesReturn(
     where: { id: input.invoiceId, companyId },
     select: {
       id: true,
+      status: true,
       clientName: true,
       customerId: true,
       clientState: true,
@@ -163,9 +176,26 @@ export async function createSalesReturn(
       // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): sale-movement link for
       // restoring GOOD returns to the exact lot sold.
       stockMovementId: true,
+      lineItems: {
+        select: {
+          id: true,
+          resourceId: true,
+          quantity: true,
+          rate: true,
+          amount: true,
+        },
+      },
     },
   });
   if (!invoice) throw ApiError.notFound('Invoice not found');
+  if (!['DRAFT', 'SENT', 'PAID', 'OVERDUE'].includes(invoice.status)) {
+    throw ApiError.badRequest(`Cannot return against invoice in status ${invoice.status}`);
+  }
+
+  // Pre-filing DRAFT: shrink bill + restock GOOD (no credit note).
+  // Filed SENT+: credit note + restock GOOD (invoice stays intact).
+  const isPreFilingDraft = invoice.status === 'DRAFT';
+
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.5): same-state → CGST/SGST, else IGST.
   const company = await prisma.company.findUniqueOrThrow({
     where: { id: companyId },
@@ -206,12 +236,35 @@ export async function createSalesReturn(
     l.itemName = res.name;
   }
 
-  const initialStatus = input.status === 'DRAFT' || input.status === 'PENDING_APPROVAL' ? 'DRAFT' : 'ISSUED';
+  // Pre-filing draft adjust is applied immediately (ISSUED return voucher).
+  const initialStatus = isPreFilingDraft
+    ? 'ISSUED'
+    : input.status === 'DRAFT' || input.status === 'PENDING_APPROVAL'
+      ? 'DRAFT'
+      : 'ISSUED';
 
   return prisma.$transaction(async (tx) => {
     const location = input.targetLocationId
       ? await tx.stockLocation.findFirst({ where: { id: input.targetLocationId, companyId } }) ?? await getOrCreateProjectStockLocation(companyId, projectId, tx)
       : await getOrCreateProjectStockLocation(companyId, projectId, tx);
+
+    if (isPreFilingDraft) {
+      for (const l of lines) {
+        const invLine =
+          (l.invoiceLineItemId
+            ? invoice.lineItems.find((il) => il.id === l.invoiceLineItemId)
+            : undefined) ??
+          invoice.lineItems.find((il) => il.resourceId === l.resourceId);
+        if (!invLine) {
+          throw ApiError.badRequest(`Item ${l.itemName} is not on this draft invoice`);
+        }
+        if (l.quantity > Number(invLine.quantity) + 1e-9) {
+          throw ApiError.badRequest(
+            `Cannot return ${l.quantity} of ${l.itemName}; draft invoice only has ${invLine.quantity}`,
+          );
+        }
+      }
+    }
 
     const ret = await tx.salesReturn.create({
       data: {
@@ -223,7 +276,9 @@ export async function createSalesReturn(
         customerName: invoice.clientName,
         returnDate: input.returnDate,
         status: initialStatus,
-        reason: input.reason?.trim() || null,
+        reason:
+          input.reason?.trim() ||
+          (isPreFilingDraft ? 'Pre-filing draft invoice adjustment' : null),
         subtotal,
         gstAmount,
         total,
@@ -235,6 +290,32 @@ export async function createSalesReturn(
 
     if (initialStatus === 'ISSUED') {
       await restockSalesReturnLines(tx, location.id, ret, invoice);
+    }
+
+    if (isPreFilingDraft) {
+      // Shrink draft invoice lines (GOOD restocked above; DAMAGED scrap only).
+      for (const l of ret.lines) {
+        const invLine =
+          (l.invoiceLineItemId
+            ? invoice.lineItems.find((il) => il.id === l.invoiceLineItemId)
+            : undefined) ??
+          invoice.lineItems.find((il) => il.resourceId === l.resourceId);
+        if (!invLine) continue;
+        const newQty = round2(Number(invLine.quantity) - Number(l.quantity));
+        if (newQty <= 0.0001) {
+          await tx.invoiceLineItem.delete({ where: { id: invLine.id } });
+        } else {
+          await tx.invoiceLineItem.update({
+            where: { id: invLine.id },
+            data: {
+              quantity: newQty,
+              amount: round2(newQty * Number(invLine.rate)),
+            },
+          });
+        }
+      }
+      await recalculateDraftInvoiceTotals(tx, companyId, invoice.id);
+      return { salesReturn: ret, creditNoteId: null as string | null, invoiceAdjusted: true };
     }
 
     // When the return is stocked/issued, issue the CN in the same step so
@@ -273,7 +354,7 @@ export async function createSalesReturn(
       },
     });
 
-    return { salesReturn: ret, creditNoteId: creditNote.id };
+    return { salesReturn: ret, creditNoteId: creditNote.id, invoiceAdjusted: false };
   });
 }
 

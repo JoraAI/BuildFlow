@@ -4,7 +4,7 @@
  * Lists client/sales invoices for the default STORE project, creates new
  * invoices, records payments, and exports the ledger to Tally.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Modal, Pressable } from 'react-native';
 import { Button, Input, Select } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
@@ -13,12 +13,18 @@ import { ProjectInvoicesList } from '@/components/accounting/InvoiceBillLists';
 import { downloadTallyXml } from '@/services/report-download';
 import { useCreateInvoice } from '@/services/accounting.queries';
 import { useCustomers, type PartyRow } from '@/services/party.queries';
+import { useResources } from '@/services/estimate.queries';
 import { toast, BusyOverlay, useBusy } from '@/components/ui';
 import { inventoryInvoiceDetailHref } from '@/utils/navigation';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 import { InventoryFilterBar } from '@/components/inventory/InventoryFilterBar';
 import { useInventoryListFilters } from '@/hooks/useInventoryListFilters';
 import { InventoryScrollChrome } from '@/components/inventory/InventoryScreenList';
+import {
+  LineEditor,
+  emptyDraftLine,
+  type InvoiceDraftLine,
+} from '@/components/inventory/TransactionModals';
 
 const INVOICE_STATUS_TABS = [
   { value: 'ALL' as const, label: 'All' },
@@ -127,6 +133,7 @@ function NewInvoiceModal({
     dueDate: string;
     discountPct?: number;
     lineItems: Array<{
+      resourceId?: string;
       description: string;
       quantity: number;
       unit: string;
@@ -138,60 +145,74 @@ function NewInvoiceModal({
 }) {
   const { isPhone } = useViewport();
   const { data: customers } = useCustomers();
+  const { data: resourceData } = useResources();
+  const resources: Array<{
+    id: string;
+    name: string;
+    unit: string;
+    hsnSacCode?: string | null;
+  }> = Array.isArray(resourceData) ? resourceData : (resourceData?.data ?? []);
+
   const [customerId, setCustomerId] = useState('');
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [clientAddress, setClientAddress] = useState('');
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
-  const [description, setDescription] = useState('');
-  const [hsnSacCode, setHsnSacCode] = useState('');
-  const [quantity, setQuantity] = useState('1');
-  const [unit, setUnit] = useState('no');
-  const [rate, setRate] = useState('');
-  const [gstRate, setGstRate] = useState('18');
   const [discountPct, setDiscountPct] = useState('');
+  const [lines, setLines] = useState<InvoiceDraftLine[]>([emptyDraftLine()]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    if (open) {
+      setCustomerId('');
+      setClientName('');
+      setClientPhone('');
+      setClientAddress('');
+      setInvoiceDate(new Date().toISOString().slice(0, 10));
+      setDueDate(new Date().toISOString().slice(0, 10));
+      setDiscountPct('');
+      setLines([emptyDraftLine()]);
+      setError('');
+    }
+  }, [open]);
+
   const submit = async () => {
     setError('');
-    if (!clientName || !description || !Number(quantity) || !Number(rate)) {
-      setError('Fill client, item description, quantity and rate.');
+    const goodLines = lines.filter((l) => l.resourceId && Number(l.quantity) > 0 && Number(l.rate) >= 0);
+    if (!clientName.trim()) {
+      setError('Enter client name.');
+      return;
+    }
+    if (goodLines.length === 0) {
+      setError('Add at least one catalog item with quantity.');
       return;
     }
     setSaving(true);
     try {
       const disc = discountPct.trim() === '' ? undefined : Number(discountPct);
       await onSubmit({
-        // INVENTORY_HORIZONTAL_PLATFORM (Phase 1.1): optional party-master link.
         ...(customerId ? { customerId } : {}),
-        clientName,
+        clientName: clientName.trim(),
         clientPhone: clientPhone.trim() || undefined,
         clientAddress: clientAddress.trim() || undefined,
         invoiceDate,
         dueDate,
         ...(disc != null && Number.isFinite(disc) && disc > 0 ? { discountPct: disc } : {}),
-        lineItems: [
-          {
-            description,
-            quantity: Number(quantity),
-            unit,
-            rate: Number(rate),
-            gstRate: Number(gstRate) || 0,
-            ...(hsnSacCode.trim() ? { hsnSacCode: hsnSacCode.trim() } : {}),
-          },
-        ],
+        lineItems: goodLines.map((l) => {
+          const r = resources.find((x) => x.id === l.resourceId);
+          return {
+            resourceId: l.resourceId,
+            description: r?.name ?? 'Item',
+            quantity: Number(l.quantity),
+            unit: l.unit || r?.unit || 'no',
+            rate: Number(l.rate) || 0,
+            gstRate: Number(l.gstRate) || 0,
+            ...(r?.hsnSacCode?.trim() ? { hsnSacCode: r.hsnSacCode.trim() } : {}),
+          };
+        }),
       });
-      setCustomerId('');
-      setClientName('');
-      setClientPhone('');
-      setClientAddress('');
-      setDescription('');
-      setHsnSacCode('');
-      setQuantity('1');
-      setRate('');
-      setDiscountPct('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create invoice');
     } finally {
@@ -213,7 +234,7 @@ function NewInvoiceModal({
         <Pressable
           onPress={(e) => e.stopPropagation()}
           className={`bg-card w-full overflow-hidden ${
-            isPhone ? 'rounded-t-2xl h-[96%]' : 'rounded-2xl max-w-lg max-h-[85%]'
+            isPhone ? 'rounded-t-2xl h-[96%]' : 'rounded-2xl max-w-2xl max-h-[85%]'
           }`}
         >
           <View className="px-5 pt-4 pb-3 border-b border-border flex-row items-center justify-between shrink-0">
@@ -237,7 +258,11 @@ function NewInvoiceModal({
               }}
               options={(customers ?? [])
                 .filter((c: PartyRow) => c.isActive)
-                .map((c: PartyRow) => ({ title: c.name, subtitle: [c.phone, c.gstin].filter(Boolean).join(' · '), value: c.id }))}
+                .map((c: PartyRow) => ({
+                  title: c.name,
+                  subtitle: [c.phone, c.gstin].filter(Boolean).join(' · '),
+                  value: c.id,
+                }))}
               placeholder="Pick a saved customer"
             />
             <Input label="Client name" value={clientName} onChangeText={setClientName} />
@@ -257,33 +282,13 @@ function NewInvoiceModal({
             />
             <Input label="Invoice date" value={invoiceDate} onChangeText={setInvoiceDate} />
             <Input label="Due date" value={dueDate} onChangeText={setDueDate} />
-            <Text className="text-sm font-bold text-text mb-1.5 mt-2">Billing item</Text>
-            <Text className="text-[11px] text-muted mb-2">
-              Tax invoice fields — item, HSN/SAC, qty, units, rate, GST (split as CGST/SGST on invoice)
-            </Text>
-            <Input label="Item & description" value={description} onChangeText={setDescription} />
-            <Input
-              label="HSN/SAC"
-              value={hsnSacCode}
-              onChangeText={setHsnSacCode}
-              placeholder="e.g. 2105 or 38249900"
+
+            <LineEditor
+              lines={lines}
+              setLines={setLines}
+              priceHint="Add catalog items — HSN/SAC and GST come from the item master."
             />
-            <View className="flex-row gap-3">
-              <View className="flex-1">
-                <Input label="Qty" value={quantity} onChangeText={setQuantity} keyboardType="numeric" />
-              </View>
-              <View className="flex-1">
-                <Input label="Units" value={unit} onChangeText={setUnit} placeholder="KGS / nos" />
-              </View>
-            </View>
-            <View className="flex-row gap-3">
-              <View className="flex-1">
-                <Input label="Rate ₹/unit" value={rate} onChangeText={setRate} keyboardType="numeric" />
-              </View>
-              <View className="flex-1">
-                <Input label="GST %" value={gstRate} onChangeText={setGstRate} keyboardType="numeric" />
-              </View>
-            </View>
+
             <Input
               label="Sheet discount % (optional)"
               value={discountPct}

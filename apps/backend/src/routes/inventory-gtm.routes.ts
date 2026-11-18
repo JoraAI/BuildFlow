@@ -58,3 +58,5 @@ inventoryGtmRouter.get('/pdf/delivery-challans/:id', validate({ params: idParams
 inventoryGtmRouter.get('/pdf/grn/:id', validate({ params: idParams }), gtm.goodsReceiptPdf);
 inventoryGtmRouter.get('/pdf/quotes/:id', validate({ params: idParams }), gtm.quotePdf);
 inventoryGtmRouter.get('/pdf/quote/:id', validate({ params: idParams }), gtm.quotePdf);
+inventoryGtmRouter.get('/pdf/credit-notes/:id', validate({ params: idParams }), gtm.creditNotePdf);
+inventoryGtmRouter.get('/pdf/debit-notes/:id', validate({ params: idParams }), gtm.debitNotePdf);

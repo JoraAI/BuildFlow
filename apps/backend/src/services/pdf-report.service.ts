@@ -643,6 +643,18 @@ export async function reportInvoice(companyId: string, invoiceId: string): Promi
         },
       },
       salesOrder: { select: { soNumber: true, orderDate: true } },
+      // Linked sales returns (after Send) — credit notes reverse amount; invoice PDF lists them.
+      creditNotes: {
+        where: { status: { in: ['DRAFT', 'ISSUED'] } },
+        orderBy: { creditDate: 'asc' },
+        select: {
+          creditNoteNumber: true,
+          creditDate: true,
+          status: true,
+          total: true,
+          gstAmount: true,
+        },
+      },
     },
   });
   const company = await loadCompanyForPdf(companyId);
@@ -771,6 +783,29 @@ export async function reportInvoice(companyId: string, invoiceId: string): Promi
   if (num(invoice.tdsAmount) > 0) summaryLine(doc, 'TDS (-)', `- ${inr(num(invoice.tdsAmount))}`);
   doc.strokeColor(NAVY).lineWidth(1.5).moveTo(MARGIN, doc.y).lineTo(PAGE_W - MARGIN, doc.y).stroke();
   summaryLine(doc, 'NET PAYABLE', inr(num(invoice.total)), true);
+  const linkedCredits = (invoice.creditNotes ?? []) as Array<{
+    creditNoteNumber: string;
+    creditDate: Date;
+    status: string;
+    total: unknown;
+    gstAmount: unknown;
+  }>;
+  if (linkedCredits.length > 0) {
+    doc.moveDown(0.8);
+    doc.font('Helvetica-Bold').fontSize(10).fillColor(NAVY).text('Credit notes (returns after filing)', MARGIN);
+    doc.font('Helvetica').fontSize(9).fillColor('#0F172A');
+    let creditsTotal = 0;
+    for (const cn of linkedCredits) {
+      const cnTotal = num(cn.total);
+      creditsTotal += cnTotal;
+      doc.text(
+        `${cn.creditNoteNumber} · ${cn.creditDate.toISOString().slice(0, 10)} · ${cn.status} · ${inr(cnTotal)}`,
+        MARGIN,
+      );
+    }
+    summaryLine(doc, 'Less credit notes', `- ${inr(creditsTotal)}`);
+    summaryLine(doc, 'Net after returns', inr(num(invoice.total) - creditsTotal), true);
+  }
   doc.moveDown(1);
   doc.font('Helvetica').fontSize(8).fillColor(MUTED).text('This is a computer-generated invoice.', MARGIN, doc.y, { align: 'center', width: CONTENT_W });
 
@@ -910,14 +945,336 @@ async function reportInventoryTaxInvoice(
   if (num(invoice.tdsAmount) > 0) totalLines.push({ label: 'TDS (-)', value: `- ₹ ${invMoney(num(invoice.tdsAmount))}` });
   totalLines.push({ label: 'Total', value: `₹ ${invMoney(num(invoice.total))}`, bold: true });
 
+  const linkedCredits = (invoice.creditNotes ?? []) as Array<{
+    creditNoteNumber: string;
+    creditDate: Date;
+    status: string;
+    total: unknown;
+  }>;
+  let netAfterReturns = num(invoice.total);
+  if (linkedCredits.length > 0) {
+    let creditsTotal = 0;
+    for (const cn of linkedCredits) {
+      const cnTotal = num(cn.total);
+      creditsTotal += cnTotal;
+      totalLines.push({
+        label: `Credit note ${cn.creditNoteNumber} (${cn.creditDate.toISOString().slice(0, 10)})`,
+        value: `- ₹ ${invMoney(cnTotal)}`,
+      });
+    }
+    netAfterReturns = round2Pdf(num(invoice.total) - creditsTotal);
+    totalLines.push({ label: 'Net after returns', value: `₹ ${invMoney(netAfterReturns)}`, bold: true });
+  }
+
   y = drawTotalsAndWords(doc, y, {
-    amountWords: amountInWordsINR(num(invoice.total)),
+    amountWords: amountInWordsINR(netAfterReturns),
     lines: totalLines,
   });
   y = drawPayToAndSignature(doc, y, invCompany);
   drawDeclarationFooter(doc, y, invCompany);
 
   return { buffer: await endBuffer(doc), filename: `invoice-${invoice.invoiceNumber}.pdf` };
+}
+
+function round2Pdf(n: number) {
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * Credit note PDF — issued after a filed invoice return (GOOD restock / DAMAGED scrap).
+ */
+export async function reportCreditNote(companyId: string, creditNoteId: string): Promise<PdfResult> {
+  const cn = await prisma.creditNote.findFirstOrThrow({
+    where: { id: creditNoteId, companyId },
+    include: {
+      lines: true,
+      invoice: { select: { invoiceNumber: true, invoiceDate: true } },
+      customer: {
+        select: {
+          name: true,
+          businessName: true,
+          gstin: true,
+          pan: true,
+          billingAddress: true,
+          phone: true,
+        },
+      },
+      salesReturn: { select: { returnNumber: true, reason: true } },
+    },
+  });
+  const company = await loadCompanyForPdf(companyId);
+  const useIgst = num(cn.igstAmount) > 0 && num(cn.cgstAmount) <= 0;
+
+  if (company.subscriptionPlan === 'INVENTORY') {
+    const invCompany = inventoryCompanyFromPdf(company);
+    const doc = newDoc();
+    let y = drawInventoryDocHeader(doc, 'CREDIT NOTE', invCompany);
+    y = drawMetaGrid(
+      doc,
+      y,
+      [
+        { label: 'Credit Note No', value: cn.creditNoteNumber },
+        { label: 'Credit Date', value: cn.creditDate.toISOString().slice(0, 10) },
+        { label: 'Status', value: cn.status },
+      ],
+      [
+        { label: 'Against Invoice', value: cn.invoice?.invoiceNumber },
+        { label: 'Invoice Date', value: cn.invoice?.invoiceDate?.toISOString().slice(0, 10) },
+        { label: 'Sales Return', value: cn.salesReturn?.returnNumber },
+      ],
+    );
+    const partyName = cn.customer?.businessName || cn.customer?.name || cn.customerName;
+    y = drawBillShipTo(
+      doc,
+      y,
+      {
+        name: partyName,
+        address: cn.customer?.billingAddress,
+        gstin: cn.customer?.gstin,
+        pan: cn.customer?.pan,
+        phone: cn.customer?.phone,
+      },
+      null,
+    );
+    const cols = useIgst
+      ? [
+          { title: 'SR No', width: 28, align: 'center' as const },
+          { title: 'Item & Description', width: 178 },
+          { title: 'HSN/SAC', width: 48, align: 'center' as const },
+          { title: 'Qty', width: 36, align: 'right' as const },
+          { title: 'Units', width: 32, align: 'center' as const },
+          { title: 'Rate', width: 48, align: 'right' as const },
+          { title: 'IGST %', width: 36, align: 'right' as const },
+          { title: 'IGST Amt', width: 52, align: 'right' as const },
+          { title: 'Amount', width: 57, align: 'right' as const },
+        ]
+      : [
+          { title: 'SR No', width: 24, align: 'center' as const },
+          { title: 'Item & Description', width: 140 },
+          { title: 'HSN/SAC', width: 42, align: 'center' as const },
+          { title: 'Qty', width: 32, align: 'right' as const },
+          { title: 'Units', width: 30, align: 'center' as const },
+          { title: 'Rate', width: 42, align: 'right' as const },
+          { title: 'CGST %', width: 34, align: 'right' as const },
+          { title: 'CGST Amt', width: 44, align: 'right' as const },
+          { title: 'SGST %', width: 34, align: 'right' as const },
+          { title: 'SGST Amt', width: 44, align: 'right' as const },
+          { title: 'Amount', width: 49, align: 'right' as const },
+        ];
+    const rows = cn.lines.map((li, i) => {
+      const taxable = num(li.amount);
+      const gstRate = num(li.gstRate);
+      const half = gstRate / 2;
+      const cgstAmt = useIgst ? 0 : (taxable * half) / 100;
+      const sgstAmt = useIgst ? 0 : (taxable * half) / 100;
+      const igstAmt = useIgst ? (taxable * gstRate) / 100 : 0;
+      if (useIgst) {
+        return [
+          `${i + 1}`,
+          li.description,
+          li.hsnSacCode ?? '',
+          invMoney(num(li.quantity)),
+          li.unit,
+          invMoney(num(li.rate)),
+          gstRate ? String(gstRate) : '',
+          invMoney(igstAmt),
+          invMoney(taxable),
+        ];
+      }
+      return [
+        `${i + 1}`,
+        li.description,
+        li.hsnSacCode ?? '',
+        invMoney(num(li.quantity)),
+        li.unit,
+        invMoney(num(li.rate)),
+        gstRate ? String(half) : '',
+        invMoney(cgstAmt),
+        gstRate ? String(half) : '',
+        invMoney(sgstAmt),
+        invMoney(taxable),
+      ];
+    });
+    y = drawGridTable(doc, y, cols, rows, { startX: MARGIN, wrapColIndex: 1, minRowH: 26 });
+    const totalLines: Array<{ label: string; value: string; bold?: boolean }> = [
+      { label: 'Sub Total', value: `₹ ${invMoney(num(cn.subtotal))}` },
+    ];
+    if (num(cn.cgstAmount) > 0) totalLines.push({ label: 'CGST', value: `₹ ${invMoney(num(cn.cgstAmount))}` });
+    if (num(cn.sgstAmount) > 0) totalLines.push({ label: 'SGST', value: `₹ ${invMoney(num(cn.sgstAmount))}` });
+    if (num(cn.igstAmount) > 0) totalLines.push({ label: 'IGST', value: `₹ ${invMoney(num(cn.igstAmount))}` });
+    if (num(cn.gstAmount) > 0 && num(cn.cgstAmount) <= 0 && num(cn.igstAmount) <= 0) {
+      totalLines.push({ label: 'GST', value: `₹ ${invMoney(num(cn.gstAmount))}` });
+    }
+    totalLines.push({ label: 'Credit Total', value: `₹ ${invMoney(num(cn.total))}`, bold: true });
+    if (cn.salesReturn?.reason) {
+      totalLines.push({ label: 'Return reason', value: cn.salesReturn.reason });
+    }
+    y = drawTotalsAndWords(doc, y, {
+      amountWords: amountInWordsINR(num(cn.total)),
+      lines: totalLines,
+    });
+    y = drawPayToAndSignature(doc, y, invCompany);
+    drawDeclarationFooter(doc, y, invCompany);
+    return { buffer: await endBuffer(doc), filename: `credit-note-${cn.creditNoteNumber}.pdf` };
+  }
+
+  const doc = newDoc();
+  drawBrandedHeader(doc, 'CREDIT NOTE', company);
+  doc.fontSize(11).font('Helvetica-Bold').fillColor(NAVY).text(`Credit Note #: ${cn.creditNoteNumber}`, MARGIN);
+  doc
+    .font('Helvetica')
+    .fontSize(9)
+    .fillColor(MUTED)
+    .text(
+      `Date: ${cn.creditDate.toISOString().slice(0, 10)} | Against: ${cn.invoice?.invoiceNumber ?? '—'} | Status: ${cn.status}`,
+    );
+  doc.moveDown(0.5);
+  doc.font('Helvetica-Bold').fillColor('#0F172A').text('Customer:', MARGIN);
+  doc.font('Helvetica').text(cn.customerName, MARGIN);
+  doc.moveDown(1);
+  const widths = [30, 200, 50, 50, 70, 70];
+  let y = tableHeaders(doc, ['Sr', 'Description', 'Qty', 'Unit', 'Rate', 'Amount'], widths, doc.y);
+  cn.lines.forEach((li, i) => {
+    y = tableRow(
+      doc,
+      [
+        `${i + 1}`,
+        li.description,
+        `${num(li.quantity)}`,
+        li.unit,
+        num(li.rate).toLocaleString('en-IN'),
+        num(li.amount).toLocaleString('en-IN'),
+      ],
+      widths,
+      y,
+      i % 2 === 1,
+    );
+  });
+  doc.moveDown(1);
+  summaryLine(doc, 'Subtotal', inr(num(cn.subtotal)));
+  if (num(cn.cgstAmount) > 0) summaryLine(doc, 'CGST', inr(num(cn.cgstAmount)));
+  if (num(cn.sgstAmount) > 0) summaryLine(doc, 'SGST', inr(num(cn.sgstAmount)));
+  if (num(cn.igstAmount) > 0) summaryLine(doc, 'IGST', inr(num(cn.igstAmount)));
+  summaryLine(doc, 'CREDIT TOTAL', inr(num(cn.total)), true);
+  drawBrandedFooter(doc, company);
+  return { buffer: await endBuffer(doc), filename: `credit-note-${cn.creditNoteNumber}.pdf` };
+}
+
+export async function reportDebitNote(companyId: string, debitNoteId: string): Promise<PdfResult> {
+  const dn = await prisma.debitNote.findFirstOrThrow({
+    where: { id: debitNoteId, companyId },
+    include: {
+      lines: true,
+      bill: { select: { billNumber: true, billDate: true } },
+      vendor: {
+        select: { name: true, gstin: true, pan: true, billingAddress: true, phone: true },
+      },
+      purchaseReturn: { select: { returnNumber: true, reason: true } },
+    },
+  });
+  const company = await loadCompanyForPdf(companyId);
+  const useIgst = num(dn.igstAmount) > 0 && num(dn.cgstAmount) <= 0;
+
+  if (company.subscriptionPlan === 'INVENTORY') {
+    const invCompany = inventoryCompanyFromPdf(company);
+    const doc = newDoc();
+    let y = drawInventoryDocHeader(doc, 'DEBIT NOTE', invCompany);
+    y = drawMetaGrid(
+      doc,
+      y,
+      [
+        { label: 'Debit Note No', value: dn.debitNoteNumber },
+        { label: 'Debit Date', value: dn.debitDate.toISOString().slice(0, 10) },
+        { label: 'Status', value: dn.status },
+      ],
+      [
+        { label: 'Against Bill', value: dn.bill?.billNumber },
+        { label: 'Bill Date', value: dn.bill?.billDate?.toISOString().slice(0, 10) },
+        { label: 'Purchase Return', value: dn.purchaseReturn?.returnNumber },
+      ],
+    );
+    y = drawBillShipTo(
+      doc,
+      y,
+      {
+        name: dn.vendor?.name || dn.vendorName,
+        address: dn.vendor?.billingAddress,
+        gstin: dn.vendor?.gstin,
+        pan: dn.vendor?.pan,
+        phone: dn.vendor?.phone,
+      },
+      null,
+    );
+    const cols = [
+      { title: 'SR No', width: 40, align: 'center' as const },
+      { title: 'Item & Description', width: 220 },
+      { title: 'HSN/SAC', width: 55, align: 'center' as const },
+      { title: 'Qty', width: 50, align: 'right' as const },
+      { title: 'Units', width: 45, align: 'center' as const },
+      { title: 'Rate', width: 55, align: 'right' as const },
+      { title: 'Amount', width: 50, align: 'right' as const },
+    ];
+    const rows = dn.lines.map((li, i) => [
+      `${i + 1}`,
+      li.description,
+      li.hsnSacCode ?? '',
+      invMoney(num(li.quantity)),
+      li.unit,
+      invMoney(num(li.rate)),
+      invMoney(num(li.amount)),
+    ]);
+    y = drawGridTable(doc, y, cols, rows, { startX: MARGIN, wrapColIndex: 1, minRowH: 26 });
+    const totalLines: Array<{ label: string; value: string; bold?: boolean }> = [
+      { label: 'Sub Total', value: `₹ ${invMoney(num(dn.subtotal))}` },
+    ];
+    if (num(dn.cgstAmount) > 0) totalLines.push({ label: 'CGST', value: `₹ ${invMoney(num(dn.cgstAmount))}` });
+    if (num(dn.sgstAmount) > 0) totalLines.push({ label: 'SGST', value: `₹ ${invMoney(num(dn.sgstAmount))}` });
+    if (num(dn.igstAmount) > 0) totalLines.push({ label: 'IGST', value: `₹ ${invMoney(num(dn.igstAmount))}` });
+    if (!useIgst && num(dn.gstAmount) > 0 && num(dn.cgstAmount) <= 0) {
+      totalLines.push({ label: 'GST', value: `₹ ${invMoney(num(dn.gstAmount))}` });
+    }
+    totalLines.push({ label: 'Debit Total', value: `₹ ${invMoney(num(dn.total))}`, bold: true });
+    y = drawTotalsAndWords(doc, y, {
+      amountWords: amountInWordsINR(num(dn.total)),
+      lines: totalLines,
+    });
+    y = drawPayToAndSignature(doc, y, invCompany);
+    drawDeclarationFooter(doc, y, invCompany);
+    return { buffer: await endBuffer(doc), filename: `debit-note-${dn.debitNoteNumber}.pdf` };
+  }
+
+  const doc = newDoc();
+  drawBrandedHeader(doc, 'DEBIT NOTE', company);
+  doc.fontSize(11).font('Helvetica-Bold').fillColor(NAVY).text(`Debit Note #: ${dn.debitNoteNumber}`, MARGIN);
+  doc
+    .font('Helvetica')
+    .fontSize(9)
+    .fillColor(MUTED)
+    .text(`Date: ${dn.debitDate.toISOString().slice(0, 10)} | Against bill: ${dn.bill?.billNumber ?? '—'} | Vendor: ${dn.vendorName}`);
+  doc.moveDown(1);
+  const widths = [30, 200, 50, 50, 70, 70];
+  let y = tableHeaders(doc, ['Sr', 'Description', 'Qty', 'Unit', 'Rate', 'Amount'], widths, doc.y);
+  dn.lines.forEach((li, i) => {
+    y = tableRow(
+      doc,
+      [
+        `${i + 1}`,
+        li.description,
+        `${num(li.quantity)}`,
+        li.unit,
+        num(li.rate).toLocaleString('en-IN'),
+        num(li.amount).toLocaleString('en-IN'),
+      ],
+      widths,
+      y,
+      i % 2 === 1,
+    );
+  });
+  doc.moveDown(1);
+  summaryLine(doc, 'Subtotal', inr(num(dn.subtotal)));
+  summaryLine(doc, 'DEBIT TOTAL', inr(num(dn.total)), true);
+  drawBrandedFooter(doc, company);
+  return { buffer: await endBuffer(doc), filename: `debit-note-${dn.debitNoteNumber}.pdf` };
 }
 
 // ===========================================================================

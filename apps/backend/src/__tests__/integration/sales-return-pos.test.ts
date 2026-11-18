@@ -329,4 +329,80 @@ describe('POS Barcode Scan-and-Return & Approval Workflow', () => {
     });
     expect(Number(postBalance!.quantity)).toBe(Number(preBalance!.quantity) + 6);
   });
+
+  it('6. Challan return DAMAGED reduces draft invoice totals without restocking', async () => {
+    const soRes = await authPost(token, '/api/inventory/transactions/sales-orders', {
+      customerName: 'Damaged Buffer Co',
+      orderDate: new Date().toISOString(),
+      lines: [
+        {
+          resourceId: fixtureId,
+          quantity: 20,
+          unit: 'NOS',
+          rate: 1200,
+          gstRate: 18,
+        },
+      ],
+    });
+    const soId = soRes.body.data.id;
+    await authPost(token, `/api/inventory/transactions/sales-orders/${soId}/action`, { action: 'confirm' });
+    const dcRes = await authPost(token, '/api/inventory/transactions/delivery-challans', {
+      salesOrderId: soId,
+    });
+    const dcId = dcRes.body.data.id;
+    const dispatchRes = await authPost(token, `/api/inventory/transactions/delivery-challans/${dcId}/dispatch`, {
+      locationId: defaultLocationId,
+    });
+    expect(dispatchRes.status).toBe(200);
+    let draftInvoiceId = dispatchRes.body.data.draftInvoiceId as string | null;
+    if (!draftInvoiceId) {
+      const invRes = await authPost(token, `/api/inventory/transactions/sales-orders/${soId}/invoice`, {});
+      draftInvoiceId = invRes.body.data.id;
+    }
+    expect(draftInvoiceId).toBeTruthy();
+
+    const before = await prisma.invoice.findUniqueOrThrow({
+      where: { id: draftInvoiceId! },
+      include: { lineItems: true },
+    });
+    expect(before.status).toBe('DRAFT');
+    const beforeQty = Number(before.lineItems[0]?.quantity ?? 0);
+    const beforeTotal = Number(before.total);
+    expect(beforeQty).toBe(20);
+
+    const preBalance = await prisma.stockBalance.findUnique({
+      where: { locationId_resourceId: { locationId: defaultLocationId, resourceId: fixtureId } },
+    });
+
+    const retRes = await authPost(token, `/api/inventory/transactions/delivery-challans/${dcId}/return`, {
+      locationId: defaultLocationId,
+      lines: [
+        {
+          resourceId: fixtureId,
+          quantity: 5,
+          reason: '5 cracked on site',
+          returnKind: 'DAMAGED',
+        },
+      ],
+    });
+    expect(retRes.status).toBe(200);
+
+    const after = await prisma.invoice.findUniqueOrThrow({
+      where: { id: draftInvoiceId! },
+      include: { lineItems: true },
+    });
+    expect(Number(after.lineItems[0]?.quantity ?? 0)).toBe(15);
+    expect(Number(after.total)).toBeLessThan(beforeTotal);
+    // 15 × 1200 + 18% = 21240
+    expect(Number(after.total)).toBeCloseTo(21240, 2);
+    expect(Number(after.cgstAmount) + Number(after.sgstAmount) + Number(after.igstAmount)).toBeCloseTo(
+      Number(after.gstAmount),
+      2,
+    );
+
+    const postBalance = await prisma.stockBalance.findUnique({
+      where: { locationId_resourceId: { locationId: defaultLocationId, resourceId: fixtureId } },
+    });
+    expect(Number(postBalance!.quantity)).toBe(Number(preBalance!.quantity)); // no restock
+  });
 });

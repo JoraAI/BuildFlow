@@ -166,7 +166,13 @@ function useProjectStockBalances(locationId?: string) {
   return useMemo(() => new Map(rows.map((r) => [r.resourceId, r.balance])), [rows]);
 }
 
-function LineEditor({
+export type InvoiceDraftLine = DraftLine;
+
+export function emptyDraftLine(): DraftLine {
+  return { key: newKey(), resourceId: '', quantity: '', rate: '', gstRate: '18', unit: '', returnKind: 'GOOD' };
+}
+
+export function LineEditor({
   lines,
   setLines,
   showKind,
@@ -1406,8 +1412,11 @@ export function SalesReturnModal({
   const invoiceOptions = useMemo(
     () =>
       (invoices ?? []).filter((i: { id: string; status: string; invoiceNumber: string; clientName: string }) =>
-        ['SENT', 'PAID', 'OVERDUE'].includes(i.status),
-      ).map((i: { id: string; invoiceNumber: string; clientName: string }) => ({ title: `${i.invoiceNumber} · ${i.clientName}`, value: i.id })),
+        ['DRAFT', 'SENT', 'PAID', 'OVERDUE'].includes(i.status),
+      ).map((i: { id: string; invoiceNumber: string; clientName: string; status: string }) => ({
+        title: `${i.invoiceNumber} · ${i.clientName}${i.status === 'DRAFT' ? ' (draft)' : ''}`,
+        value: i.id,
+      })),
     [invoices],
   );
   const selectedInvoice = (invoices ?? []).find((i: { id: string; status: string; invoiceNumber: string; clientName: string; lineItems?: Array<{ description: string; quantity: number; resourceId?: string }> }) => i.id === invoiceId);
@@ -1561,7 +1570,7 @@ export function SalesReturnModal({
     <Sheet
       visible={open}
       title="New sales return"
-      subtitle="Restock good items or scrap damaged goods. Creates an automated draft credit note."
+      subtitle="Draft invoice: shrink billed qty before Send (no credit note). Sent invoice: credit note + restock good / scrap damaged."
       fullScreen
       saving={saving}
       onClose={onClose}
@@ -1614,11 +1623,14 @@ export function SalesReturnModal({
         value={invoiceId || undefined}
         options={invoiceOptions}
         onChange={(v) => setInvoiceId(v ?? '')}
-        placeholder="Select sent / paid invoice"
+        placeholder="Select draft / sent / paid invoice"
       />
       {selectedInvoice && selectedInvoice.lineItems && selectedInvoice.lineItems.length > 0 ? (
         <Text className="text-xs text-muted mt-1 mb-2">
           Invoice lines: {selectedInvoice.lineItems.map((l: { description: string; quantity: number }) => `${l.description} × ${l.quantity}`).join(', ')}
+          {selectedInvoice.status === 'DRAFT'
+            ? ' · Pre-filing return will reduce this draft bill.'
+            : ' · Filed return creates a credit note.'}
         </Text>
       ) : null}
 

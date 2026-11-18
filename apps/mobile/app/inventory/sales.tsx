@@ -464,6 +464,26 @@ export default function InventorySalesScreen() {
                 }
               />
             ) : null}
+            {note && 'creditNoteNumber' in note ? (
+              <Button
+                label="CN PDF"
+                size="sm"
+                variant="ghost"
+                onPress={() =>
+                  void downloadReportPdf(`/inventory/pdf/credit-notes/${note.id}`, `credit-note-${note.creditNoteNumber}.pdf`)
+                }
+              />
+            ) : null}
+            {note && 'debitNoteNumber' in note ? (
+              <Button
+                label="DN PDF"
+                size="sm"
+                variant="ghost"
+                onPress={() =>
+                  void downloadReportPdf(`/inventory/pdf/debit-notes/${note.id}`, `debit-note-${note.debitNoteNumber}.pdf`)
+                }
+              />
+            ) : null}
             <Button
               label={isSales ? 'Invoices' : 'Vendor bills'}
               size="sm"
@@ -505,6 +525,26 @@ export default function InventorySalesScreen() {
               }
             />
           ) : null}
+          {note && 'creditNoteNumber' in note ? (
+            <Button
+              label="Credit note PDF"
+              size="sm"
+              variant="ghost"
+              onPress={() =>
+                void downloadReportPdf(`/inventory/pdf/credit-notes/${note.id}`, `credit-note-${note.creditNoteNumber}.pdf`)
+              }
+            />
+          ) : null}
+          {note && 'debitNoteNumber' in note ? (
+            <Button
+              label="Debit note PDF"
+              size="sm"
+              variant="ghost"
+              onPress={() =>
+                void downloadReportPdf(`/inventory/pdf/debit-notes/${note.id}`, `debit-note-${note.debitNoteNumber}.pdf`)
+              }
+            />
+          ) : null}
           <Button
             label={isSales ? 'Go to invoices' : 'Go to vendor bills'}
             size="sm"
@@ -528,6 +568,19 @@ export default function InventorySalesScreen() {
           </View>
           <Text className="flex-1 text-sm font-semibold text-text text-right">₹{Number(item.total).toFixed(2)}</Text>
           <View className="flex-[1.6] flex-row justify-end gap-2 pl-2">
+            <Button
+              label="PDF"
+              size="sm"
+              variant="ghost"
+              onPress={() =>
+                void downloadReportPdf(
+                  item.kind === 'credit'
+                    ? `/inventory/pdf/credit-notes/${item.id}`
+                    : `/inventory/pdf/debit-notes/${item.id}`,
+                  `${item.kind === 'credit' ? 'credit' : 'debit'}-note-${item.number}.pdf`,
+                )
+              }
+            />
             {item.status === 'DRAFT' ? (
               <Button
                 label="Issue note"
@@ -554,8 +607,21 @@ export default function InventorySalesScreen() {
           </View>
           <Badge color={STATUS_COLOR[item.status] ?? 'neutral'} label={item.status} />
         </View>
-        {item.status === 'DRAFT' ? (
-          <View className="flex-row flex-wrap gap-2 mt-3">
+        <View className="flex-row flex-wrap gap-2 mt-3">
+          <Button
+            label="PDF"
+            size="sm"
+            variant="ghost"
+            onPress={() =>
+              void downloadReportPdf(
+                item.kind === 'credit'
+                  ? `/inventory/pdf/credit-notes/${item.id}`
+                  : `/inventory/pdf/debit-notes/${item.id}`,
+                `${item.kind === 'credit' ? 'credit' : 'debit'}-note-${item.number}.pdf`,
+              )
+            }
+          />
+          {item.status === 'DRAFT' ? (
             <Button
               label="Issue note"
               size="sm"
@@ -566,11 +632,13 @@ export default function InventorySalesScreen() {
                 toast.success('Note issued - included in Tally export');
               })}
             />
+          ) : null}
+          {item.status === 'DRAFT' ? (
             <Text className="text-[11px] text-muted w-full">
               Draft notes are not exported to Tally. Issue to finalise.
             </Text>
-          </View>
-        ) : null}
+          ) : null}
+        </View>
       </Card>
     );
   };

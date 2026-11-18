@@ -769,6 +769,8 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     });
     expect(invRes.status).toBe(201);
     const invoiceId = invRes.body.data.id as string;
+    // Returns only after filing — Send first, then credit note + restock.
+    expect((await authPost(invToken, `/api/invoices/${invoiceId}/send`)).status).toBe(200);
 
     const ret = await authPost(invToken, '/api/inventory/transactions/returns/sales', {
       invoiceId,
@@ -778,6 +780,14 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     });
     expect(ret.status).toBe(201);
     expect(ret.body.data.creditNoteId).toBeTruthy();
+
+    // Credit note + updated invoice PDFs (net after returns).
+    const cnPdf = await authGet(invToken, `/api/inventory/pdf/credit-notes/${ret.body.data.creditNoteId}`);
+    expect(cnPdf.status).toBe(200);
+    expect(String(cnPdf.headers['content-type'])).toContain('application/pdf');
+    const invPdf = await authGet(invToken, `/api/reports/pdf/invoices/${invoiceId}`);
+    expect(invPdf.status).toBe(200);
+    expect(String(invPdf.headers['content-type'])).toContain('application/pdf');
 
     // Stock restored: 20 → 23.
     const summary = await authGet(invToken, `/api/projects/${defaultProjectId}/procurement/stock/summary`);
@@ -794,6 +804,165 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     );
     expect(cn).toBeTruthy();
     expect(Number(cn!.total)).toBeCloseTo(354, 2);
+  });
+
+  it('pre-filing DRAFT return GOOD shrinks invoice + restocks without credit note', async () => {
+    const res = await authPost(invToken, '/api/resources', {
+      name: `DraftRet Good ${Date.now()}`,
+      type: 'MATERIAL',
+      unit: 'bag',
+      rate: 100,
+      gstRate: 18,
+      hsnSacCode: '2505',
+    });
+    const resourceId = res.body.data.id as string;
+    expect((await authPost(invToken, '/api/inventory/stock/opening-stock', {
+      lines: [{ resourceId, quantity: 50 }],
+    })).status).toBe(201);
+
+    const invRes = await authPost(invToken, `/api/projects/${defaultProjectId}/invoices`, {
+      invoiceNumber: `DRFINV-${Date.now()}`,
+      projectId: defaultProjectId,
+      clientName: 'Draft Return Cust',
+      invoiceDate: '2026-08-12',
+      dueDate: '2026-08-27',
+      lineItems: [{ resourceId, description: 'Item', quantity: 10, unit: 'bag', rate: 100, gstRate: 18 }],
+    });
+    expect(invRes.status).toBe(201);
+    const invoiceId = invRes.body.data.id as string;
+    expect(invRes.body.data.status).toBe('DRAFT');
+    const beforeTotal = Number(invRes.body.data.total);
+
+    const ret = await authPost(invToken, '/api/inventory/transactions/returns/sales', {
+      invoiceId,
+      returnDate: '2026-08-13',
+      reason: 'pre-filing excess',
+      lines: [{ resourceId, quantity: 4, unit: 'bag', rate: 100, gstRate: 18, returnKind: 'GOOD' }],
+    });
+    expect(ret.status).toBe(201);
+    expect(ret.body.data.creditNoteId).toBeNull();
+    expect(ret.body.data.invoiceAdjusted).toBe(true);
+
+    const updated = await authGet(invToken, `/api/invoices/${invoiceId}`);
+    expect(updated.status).toBe(200);
+    expect(updated.body.data.status).toBe('DRAFT');
+    expect(Number(updated.body.data.lineItems[0].quantity)).toBeCloseTo(6, 3);
+    expect(Number(updated.body.data.total)).toBeLessThan(beforeTotal);
+    // 6 × 100 + 18% = 708
+    expect(Number(updated.body.data.total)).toBeCloseTo(708, 2);
+    expect(Number(updated.body.data.cgstAmount) + Number(updated.body.data.sgstAmount) + Number(updated.body.data.igstAmount))
+      .toBeCloseTo(Number(updated.body.data.gstAmount), 2);
+
+    const summary = await authGet(invToken, `/api/projects/${defaultProjectId}/procurement/stock/summary`);
+    const row = (summary.body.data as Array<{ resourceId: string; balance: number }>).find(
+      (r) => r.resourceId === resourceId,
+    );
+    expect(Number(row!.balance)).toBeCloseTo(54, 3); // 50 + 4 restocked
+
+    const notes = await authGet(invToken, '/api/inventory/transactions/notes/credit');
+    const cn = (notes.body.data as Array<{ salesReturnId: string | null }>).find(
+      (n) => n.salesReturnId === ret.body.data.salesReturn.id,
+    );
+    expect(cn).toBeUndefined();
+  });
+
+  it('pre-filing DRAFT return DAMAGED shrinks invoice without restocking', async () => {
+    const res = await authPost(invToken, '/api/resources', {
+      name: `DraftRet Dmg ${Date.now()}`,
+      type: 'MATERIAL',
+      unit: 'bag',
+      rate: 200,
+      gstRate: 18,
+    });
+    const resourceId = res.body.data.id as string;
+    expect((await authPost(invToken, '/api/inventory/stock/opening-stock', {
+      lines: [{ resourceId, quantity: 20 }],
+    })).status).toBe(201);
+
+    const invRes = await authPost(invToken, `/api/projects/${defaultProjectId}/invoices`, {
+      invoiceNumber: `DRFDINV-${Date.now()}`,
+      projectId: defaultProjectId,
+      clientName: 'Damaged Draft Cust',
+      invoiceDate: '2026-08-12',
+      dueDate: '2026-08-27',
+      lineItems: [{ resourceId, description: 'Item', quantity: 8, unit: 'bag', rate: 200, gstRate: 18 }],
+    });
+    expect(invRes.status).toBe(201);
+    const invoiceId = invRes.body.data.id as string;
+
+    const ret = await authPost(invToken, '/api/inventory/transactions/returns/sales', {
+      invoiceId,
+      returnDate: '2026-08-13',
+      lines: [{ resourceId, quantity: 3, unit: 'bag', rate: 200, gstRate: 18, returnKind: 'DAMAGED' }],
+    });
+    expect(ret.status).toBe(201);
+    expect(ret.body.data.creditNoteId).toBeNull();
+    expect(ret.body.data.invoiceAdjusted).toBe(true);
+
+    const updated = await authGet(invToken, `/api/invoices/${invoiceId}`);
+    expect(Number(updated.body.data.lineItems[0].quantity)).toBeCloseTo(5, 3);
+    // 5 × 200 + 18% = 1180
+    expect(Number(updated.body.data.total)).toBeCloseTo(1180, 2);
+
+    const summary = await authGet(invToken, `/api/projects/${defaultProjectId}/procurement/stock/summary`);
+    const row = (summary.body.data as Array<{ resourceId: string; balance: number }>).find(
+      (r) => r.resourceId === resourceId,
+    );
+    expect(Number(row!.balance)).toBeCloseTo(20, 3); // no restock for DAMAGED
+  });
+
+  it('multi-line sales invoice create accepts catalog-linked lineItems', async () => {
+    const a = await authPost(invToken, '/api/resources', {
+      name: `ML A ${Date.now()}`,
+      type: 'MATERIAL',
+      unit: 'kg',
+      rate: 50,
+      gstRate: 18,
+      hsnSacCode: '7213',
+    });
+    const b = await authPost(invToken, '/api/resources', {
+      name: `ML B ${Date.now()}`,
+      type: 'MATERIAL',
+      unit: 'kg',
+      rate: 80,
+      gstRate: 18,
+      hsnSacCode: '7214',
+    });
+    expect(a.status).toBe(201);
+    expect(b.status).toBe(201);
+
+    const inv = await authPost(invToken, `/api/projects/${defaultProjectId}/invoices`, {
+      invoiceNumber: `MLINV-${Date.now()}`,
+      projectId: defaultProjectId,
+      clientName: 'Multi Line Cust',
+      invoiceDate: '2026-08-12',
+      dueDate: '2026-08-27',
+      lineItems: [
+        {
+          resourceId: a.body.data.id,
+          description: a.body.data.name,
+          quantity: 2,
+          unit: 'kg',
+          rate: 50,
+          gstRate: 18,
+          hsnSacCode: '7213',
+        },
+        {
+          resourceId: b.body.data.id,
+          description: b.body.data.name,
+          quantity: 3,
+          unit: 'kg',
+          rate: 80,
+          gstRate: 18,
+          hsnSacCode: '7214',
+        },
+      ],
+    });
+    expect(inv.status).toBe(201);
+    expect(inv.body.data.lineItems).toHaveLength(2);
+    // (2*50 + 3*80) = 340 + 18% = 401.2
+    expect(Number(inv.body.data.subtotal)).toBeCloseTo(340, 2);
+    expect(Number(inv.body.data.total)).toBeCloseTo(401.2, 2);
   });
 
   /* ── Phase 2.3/2.4: purchase return reduces stock + draft debit note ─ */
@@ -1718,6 +1887,7 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     });
     expect(invRes.status).toBe(201);
     const invoiceId = invRes.body.data.id as string;
+    expect((await authPost(invToken, `/api/invoices/${invoiceId}/send`)).status).toBe(200);
 
     const itemRes = await authPost(invToken, '/api/resources', {
       name: `Tally CN Item ${suffix}`,
@@ -1772,6 +1942,7 @@ describe('INVENTORY_PRODUCT (integration)', () => {
     const itemId = itemRes.body.data.id as string;
 
     const mkReturn = async (invoiceId: string) => {
+      expect((await authPost(invToken, `/api/invoices/${invoiceId}/send`)).status).toBe(200);
       const ret = await authPost(invToken, '/api/inventory/transactions/returns/sales', {
         invoiceId,
         returnDate: '2026-08-13',

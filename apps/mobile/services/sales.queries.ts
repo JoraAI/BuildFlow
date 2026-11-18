@@ -332,10 +332,13 @@ export function useCreateSalesReturn() {
         returnKind: 'GOOD' | 'DAMAGED';
       }>;
     }) =>
-      apiFetch<{ salesReturn: SalesReturn; creditNoteId: string }>('/inventory/transactions/returns/sales', {
-        method: 'POST',
-        body: JSON.stringify(input),
-      }),
+      apiFetch<{ salesReturn: SalesReturn; creditNoteId: string | null; invoiceAdjusted?: boolean }>(
+        '/inventory/transactions/returns/sales',
+        {
+          method: 'POST',
+          body: JSON.stringify(input),
+        },
+      ),
     onSuccess: () => invalidateTransactions(qc),
   });
 }
