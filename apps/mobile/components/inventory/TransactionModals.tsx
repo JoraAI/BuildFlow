@@ -5,7 +5,14 @@ import { useViewport } from '@/hooks/useViewport';
 import { useAuthStore } from '@/stores/auth.store';
 import { useCustomers, type PartyRow } from '@/services/party.queries';
 import { useResources } from '@/services/estimate.queries';
-import { useInvoices, useBills } from '@/services/accounting.queries';
+import {
+  useInvoices,
+  useInvoice,
+  useBills,
+  useBill,
+  type InvoiceLineItem,
+  type BillLineItem,
+} from '@/services/accounting.queries';
 import { useStockSummary } from '@/services/expansion.queries';
 import { useSalesOrders, useValidateReturnScan, type DeliveryChallan } from '@/services/sales.queries';
 import { useWarehouses, type Warehouse } from '@/services/warehouse.queries';
@@ -179,6 +186,8 @@ export function LineEditor({
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 9.1): customer price-list overrides.
   rateOverrides,
   allowedResourceIds,
+  /** When set, item picker is limited to these ids and subtitles show max returnable qty. */
+  qtyCapByResourceId,
   locationId,
   warehouseName,
   buyerRole,
@@ -189,6 +198,7 @@ export function LineEditor({
   showKind?: boolean;
   rateOverrides?: Record<string, number>;
   allowedResourceIds?: string[];
+  qtyCapByResourceId?: Record<string, number>;
   locationId?: string;
   warehouseName?: string;
   buyerRole?: BuyerRole;
@@ -199,16 +209,23 @@ export function LineEditor({
   const { data } = useResources();
   const resources: CatalogResource[] = Array.isArray(data) ? data : (data?.data ?? []);
   const balances = useProjectStockBalances(locationId);
-  const filteredResources = allowedResourceIds && allowedResourceIds.length > 0
-    ? resources.filter((r) => allowedResourceIds.includes(r.id))
-    : resources;
+  // undefined = full catalog; [] = intentionally empty (e.g. invoice has no linked SKUs).
+  const filteredResources =
+    allowedResourceIds === undefined
+      ? resources
+      : resources.filter((r) => allowedResourceIds.includes(r.id));
   const options = filteredResources.map((r) => {
     const bal = balances.get(r.id) ?? 0;
     const shown = resolveLineRate(r.id, resources, rateOverrides, buyerRole);
+    const cap = qtyCapByResourceId?.[r.id];
+    const subtitle =
+      cap != null
+        ? `On doc ${cap} ${r.unit || ''} · On hand ${bal}`.trim()
+        : `On hand ${bal} ${r.unit || ''}`.trim();
     return {
       title: r.name,
       value: r.id,
-      subtitle: `On hand ${bal} ${r.unit || ''}`.trim(),
+      subtitle,
       meta: shown ? `₹${Number(shown).toLocaleString('en-IN')}` : undefined,
     };
   });
@@ -1379,7 +1396,6 @@ export function SalesReturnModal({
     }>;
   }) => Promise<void>;
 }) {
-  const { isPhone } = useViewport();
   const { data: invoices } = useInvoices(projectId);
   const { data: resourceData } = useResources();
   const resources: Array<{ id: string; name: string; unit: string; barcode?: string | null; sku?: string | null }> =
@@ -1396,13 +1412,15 @@ export function SalesReturnModal({
   const [scanToast, setScanToast] = useState('');
 
   const validateScan = useValidateReturnScan();
+  // List endpoint omits lineItems — load detail after pick so we only show invoiced SKUs.
+  const { data: invoiceDetail, isLoading: invoiceDetailLoading } = useInvoice(invoiceId);
 
   useEffect(() => {
     if (open) {
       setInvoiceId('');
       setReturnDate(new Date().toISOString().slice(0, 10));
       setReason('');
-      setLines([{ key: newKey(), resourceId: '', quantity: '', rate: '', gstRate: '18', unit: '', returnKind: 'GOOD' }]);
+      setLines([emptyDraftLine()]);
       setError('');
       setScanBuffer('');
       setScanToast('');
@@ -1411,22 +1429,57 @@ export function SalesReturnModal({
 
   const invoiceOptions = useMemo(
     () =>
-      (invoices ?? []).filter((i: { id: string; status: string; invoiceNumber: string; clientName: string }) =>
-        ['DRAFT', 'SENT', 'PAID', 'OVERDUE'].includes(i.status),
-      ).map((i: { id: string; invoiceNumber: string; clientName: string; status: string }) => ({
-        title: `${i.invoiceNumber} · ${i.clientName}${i.status === 'DRAFT' ? ' (draft)' : ''}`,
-        value: i.id,
-      })),
+      (invoices ?? [])
+        .filter((i: { status: string }) => ['SENT', 'PAID', 'OVERDUE'].includes(i.status))
+        .map((i: { id: string; invoiceNumber: string; clientName: string; status: string }) => ({
+          title: `${i.invoiceNumber} · ${i.clientName} · ${i.status}`,
+          value: i.id,
+        })),
     [invoices],
   );
-  const selectedInvoice = (invoices ?? []).find((i: { id: string; status: string; invoiceNumber: string; clientName: string; lineItems?: Array<{ description: string; quantity: number; resourceId?: string }> }) => i.id === invoiceId);
 
-  const invoiceResourceIds = useMemo(() => {
-    if (!selectedInvoice?.lineItems) return undefined;
-    return selectedInvoice.lineItems
-      .map((l: { resourceId?: string }) => l.resourceId)
-      .filter((id: string | undefined): id is string => !!id);
-  }, [selectedInvoice]);
+  const invoiceLines = useMemo(() => {
+    const items: InvoiceLineItem[] = invoiceDetail?.lineItems ?? [];
+    return items.filter(
+      (l: InvoiceLineItem): l is InvoiceLineItem & { resourceId: string } => Boolean(l.resourceId),
+    );
+  }, [invoiceDetail]);
+
+  const invoiceResourceIds = useMemo(
+    () => invoiceLines.map((l: InvoiceLineItem & { resourceId: string }) => l.resourceId),
+    [invoiceLines],
+  );
+
+  const qtyCapByResourceId = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const l of invoiceLines) {
+      map[l.resourceId] = (map[l.resourceId] ?? 0) + Number(l.quantity);
+    }
+    return map;
+  }, [invoiceLines]);
+
+  // Seed return lines from the filed invoice (rates/units/GST; qty blank until user fills).
+  useEffect(() => {
+    if (!invoiceId || !invoiceDetail || invoiceDetail.id !== invoiceId) return;
+    const linked = (invoiceDetail.lineItems ?? []).filter(
+      (l: InvoiceLineItem): l is InvoiceLineItem & { resourceId: string } => Boolean(l.resourceId),
+    );
+    if (linked.length === 0) {
+      setLines([emptyDraftLine()]);
+      return;
+    }
+    setLines(
+      linked.map((l: InvoiceLineItem & { resourceId: string }) => ({
+        key: newKey(),
+        resourceId: l.resourceId,
+        quantity: '',
+        rate: String(l.rate ?? 0),
+        gstRate: String(l.gstRate ?? 18),
+        unit: l.unit || 'no',
+        returnKind: 'GOOD' as const,
+      })),
+    );
+  }, [invoiceId, invoiceDetail?.id]);
 
   // Handle barcode / fast scan
   const handleBarcodeScan = async (code: string) => {
@@ -1446,36 +1499,36 @@ export function SalesReturnModal({
         return;
       }
 
-      // If an invoice was already chosen, strictly ensure item was on that invoice
-      if (invoiceId && selectedInvoice?.lineItems) {
-        const isLineInInvoice = selectedInvoice.lineItems.some(
-          (l: { resourceId?: string; description: string }) =>
-            (l.resourceId && l.resourceId === result.resource.id) ||
-            (l.description && l.description.toLowerCase() === result.resource.name.toLowerCase()),
-        );
-        if (!isLineInInvoice) {
+      // If an invoice was already chosen, only allow items on that invoice.
+      if (invoiceId) {
+        const onInvoice = invoiceResourceIds.includes(result.resource.id);
+        if (!onInvoice) {
           setError(
-            `Item "${result.resource.name}" was not found in Invoice ${selectedInvoice.invoiceNumber}. Only items on this bill can be returned.`,
+            `Item "${result.resource.name}" was not found on invoice ${invoiceDetail?.invoiceNumber ?? ''}. Only invoiced items can be returned.`,
           );
           return;
         }
       }
 
-      // Auto-lock invoice if not chosen yet
+      // Auto-lock invoice if not chosen yet (scan API only matches filed invoices).
       if (!invoiceId && result.matchingLines.length > 0) {
         setInvoiceId(result.matchingLines[0].invoiceId);
       }
 
       const match = result.matchingLines[0];
+      const cap =
+        qtyCapByResourceId[result.resource.id] != null
+          ? Math.min(qtyCapByResourceId[result.resource.id], result.maxReturnable)
+          : result.maxReturnable;
       setLines((prev) => {
         const clean = prev.filter((l) => l.resourceId);
         const existingIdx = clean.findIndex((l) => l.resourceId === result.resource.id);
         if (existingIdx >= 0) {
           const current = clean[existingIdx];
           const currQty = Number(current.quantity) || 0;
-          const nextQty = Math.min(currQty + 1, result.maxReturnable);
-          if (nextQty === currQty && currQty >= result.maxReturnable) {
-            setError(`Max returnable limit (${result.maxReturnable} ${result.resource.unit}) reached for "${result.resource.name}".`);
+          const nextQty = Math.min(currQty + 1, cap);
+          if (nextQty === currQty && currQty >= cap) {
+            setError(`Max returnable (${cap} ${result.resource.unit}) reached for "${result.resource.name}".`);
             return clean;
           }
           const updated = [...clean];
@@ -1483,7 +1536,7 @@ export function SalesReturnModal({
           return updated;
         }
 
-        const initQty = Math.min(1, result.maxReturnable);
+        const initQty = Math.min(1, cap);
         return [
           ...clean,
           {
@@ -1534,13 +1587,29 @@ export function SalesReturnModal({
   const submit = async () => {
     setError('');
     if (!invoiceId) {
-      setError('Pick an invoice or scan an item to link the return.');
+      setError('Pick a sent / paid invoice or scan an item to link the return.');
+      return;
+    }
+    if (invoiceResourceIds.length === 0 && !invoiceDetailLoading) {
+      setError('This invoice has no catalog-linked lines to return.');
       return;
     }
     const goodLines = lines.filter((l) => l.resourceId && Number(l.quantity) > 0);
     if (goodLines.length === 0) {
       setError('Add at least one returned item with quantity.');
       return;
+    }
+    for (const l of goodLines) {
+      if (!invoiceResourceIds.includes(l.resourceId)) {
+        setError('Only items from the selected invoice can be returned.');
+        return;
+      }
+      const cap = qtyCapByResourceId[l.resourceId];
+      if (cap != null && Number(l.quantity) > cap + 1e-9) {
+        const name = resources.find((r) => r.id === l.resourceId)?.name ?? 'Item';
+        setError(`Return qty for "${name}" cannot exceed invoiced ${cap} ${l.unit || ''}.`.trim());
+        return;
+      }
     }
     setSaving(true);
     try {
@@ -1570,7 +1639,7 @@ export function SalesReturnModal({
     <Sheet
       visible={open}
       title="New sales return"
-      subtitle="Draft invoice: shrink billed qty before Send (no credit note). Sent invoice: credit note + restock good / scrap damaged."
+      subtitle="Only sent / paid invoices. Items and rates come from that invoice. Good restocks; damaged scraps. Creates a credit note."
       fullScreen
       saving={saving}
       onClose={onClose}
@@ -1622,15 +1691,24 @@ export function SalesReturnModal({
         label="Target Tax Invoice"
         value={invoiceId || undefined}
         options={invoiceOptions}
-        onChange={(v) => setInvoiceId(v ?? '')}
-        placeholder="Select draft / sent / paid invoice"
+        onChange={(v) => {
+          setInvoiceId(v ?? '');
+          setLines([emptyDraftLine()]);
+          setError('');
+        }}
+        placeholder="Select sent / paid / overdue invoice"
       />
-      {selectedInvoice && selectedInvoice.lineItems && selectedInvoice.lineItems.length > 0 ? (
+      {invoiceId && invoiceDetailLoading ? (
+        <Text className="text-xs text-muted mt-1 mb-2">Loading invoice lines…</Text>
+      ) : null}
+      {invoiceId && !invoiceDetailLoading && invoiceLines.length > 0 ? (
         <Text className="text-xs text-muted mt-1 mb-2">
-          Invoice lines: {selectedInvoice.lineItems.map((l: { description: string; quantity: number }) => `${l.description} × ${l.quantity}`).join(', ')}
-          {selectedInvoice.status === 'DRAFT'
-            ? ' · Pre-filing return will reduce this draft bill.'
-            : ' · Filed return creates a credit note.'}
+          Invoiced: {invoiceLines.map((l) => `${l.description} × ${l.quantity} ${l.unit}`).join(', ')}
+        </Text>
+      ) : null}
+      {invoiceId && !invoiceDetailLoading && invoiceLines.length === 0 ? (
+        <Text className="text-xs text-warning mt-1 mb-2">
+          This invoice has no catalog-linked lines. Only items linked to the catalog can be returned here.
         </Text>
       ) : null}
 
@@ -1643,7 +1721,18 @@ export function SalesReturnModal({
         </View>
       </View>
 
-      <LineEditor lines={lines} setLines={setLines} showKind allowedResourceIds={invoiceResourceIds} />
+      <LineEditor
+        lines={lines}
+        setLines={setLines}
+        showKind
+        allowedResourceIds={invoiceId ? invoiceResourceIds : undefined}
+        qtyCapByResourceId={invoiceId ? qtyCapByResourceId : undefined}
+        priceHint={
+          invoiceId
+            ? 'Only items from this invoice. Qty cannot exceed invoiced quantity.'
+            : 'Pick a filed invoice first, then set return quantities.'
+        }
+      />
 
       {error ? (
         <View className="flex-row items-center gap-1.5 mt-3 p-2 bg-danger/10 border border-danger/20 rounded-lg">
@@ -1689,7 +1778,6 @@ export function PurchaseReturnModal({
     lines: Array<{ resourceId: string; quantity: number; unit: string; rate: number; gstRate?: number }>;
   }) => Promise<void>;
 }) {
-  const { isPhone } = useViewport();
   const { data: bills } = useBills(projectId);
   const { data: resourceData } = useResources();
   const resources: Array<{ id: string; name: string; unit: string; barcode?: string | null; sku?: string | null; rate?: number | string | null; gstRate?: number | string | null }> =
@@ -1705,12 +1793,14 @@ export function PurchaseReturnModal({
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanToast, setScanToast] = useState('');
 
+  const { data: billDetail, isLoading: billDetailLoading } = useBill(billId);
+
   useEffect(() => {
     if (open) {
       setBillId('');
       setReturnDate(new Date().toISOString().slice(0, 10));
       setReason('');
-      setLines([{ key: newKey(), resourceId: '', quantity: '', rate: '', gstRate: '18', unit: '', returnKind: 'GOOD' }]);
+      setLines([emptyDraftLine()]);
       setError('');
       setScanBuffer('');
       setScanToast('');
@@ -1719,17 +1809,67 @@ export function PurchaseReturnModal({
 
   const billOptions = useMemo(
     () =>
-      (bills ?? []).filter((b: { id: string; status: string; billNumber: string; vendorName: string }) =>
-        ['APPROVED', 'PAID'].includes(b.status),
-      ).map((b: { id: string; billNumber: string; vendorName: string }) => ({ title: `${b.billNumber} · ${b.vendorName}`, value: b.id })),
+      (bills ?? [])
+        .filter((b: { status: string }) => ['APPROVED', 'PAID'].includes(b.status))
+        .map((b: { id: string; billNumber: string; vendorName: string; status: string }) => ({
+          title: `${b.billNumber} · ${b.vendorName} · ${b.status}`,
+          value: b.id,
+        })),
     [bills],
   );
+
+  const billLines = useMemo(() => {
+    const items: BillLineItem[] = billDetail?.lines ?? [];
+    return items.filter(
+      (l: BillLineItem): l is BillLineItem & { resourceId: string } => Boolean(l.resourceId),
+    );
+  }, [billDetail]);
+
+  const billResourceIds = useMemo(
+    () => billLines.map((l: BillLineItem & { resourceId: string }) => l.resourceId),
+    [billLines],
+  );
+
+  const qtyCapByResourceId = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const l of billLines) {
+      map[l.resourceId] = (map[l.resourceId] ?? 0) + Number(l.quantity);
+    }
+    return map;
+  }, [billLines]);
+
+  useEffect(() => {
+    if (!billId || !billDetail || billDetail.id !== billId) return;
+    const linked = (billDetail.lines ?? []).filter(
+      (l: BillLineItem): l is BillLineItem & { resourceId: string } => Boolean(l.resourceId),
+    );
+    if (linked.length === 0) {
+      setLines([emptyDraftLine()]);
+      return;
+    }
+    setLines(
+      linked.map((l: BillLineItem & { resourceId: string }) => ({
+        key: newKey(),
+        resourceId: l.resourceId,
+        quantity: '',
+        rate: String(l.rate ?? 0),
+        gstRate: String(l.gstRate ?? 18),
+        unit: l.unit || 'no',
+        returnKind: 'GOOD' as const,
+      })),
+    );
+  }, [billId, billDetail?.id]);
 
   const handleBarcodeScan = (code: string) => {
     const trimmed = code.trim().toLowerCase();
     if (!trimmed) return;
     setError('');
     setScanToast('');
+
+    if (!billId) {
+      setError('Pick an approved / paid vendor bill first.');
+      return;
+    }
 
     const match = resources.find(
       (r) =>
@@ -1743,26 +1883,39 @@ export function PurchaseReturnModal({
       return;
     }
 
+    if (!billResourceIds.includes(match.id)) {
+      setError(`Item "${match.name}" is not on this vendor bill. Only billed items can be returned.`);
+      return;
+    }
+
+    const cap = qtyCapByResourceId[match.id] ?? Number.POSITIVE_INFINITY;
+
     setLines((prev) => {
       const clean = prev.filter((l) => l.resourceId);
       const existingIdx = clean.findIndex((l) => l.resourceId === match.id);
       if (existingIdx >= 0) {
         const current = clean[existingIdx];
-        const nextQty = (Number(current.quantity) || 0) + 1;
+        const currQty = Number(current.quantity) || 0;
+        const nextQty = Math.min(currQty + 1, cap);
+        if (nextQty === currQty) {
+          setError(`Max returnable (${cap} ${match.unit}) reached for "${match.name}".`);
+          return clean;
+        }
         const updated = [...clean];
         updated[existingIdx] = { ...current, quantity: String(nextQty) };
         return updated;
       }
 
+      const billLine = billLines.find((l) => l.resourceId === match.id);
       return [
         ...clean,
         {
           key: newKey(),
           resourceId: match.id,
           quantity: '1',
-          unit: match.unit || 'no',
-          rate: match.rate != null ? String(match.rate) : '',
-          gstRate: match.gstRate != null ? String(match.gstRate) : '18',
+          unit: billLine?.unit || match.unit || 'no',
+          rate: billLine != null ? String(billLine.rate) : match.rate != null ? String(match.rate) : '',
+          gstRate: billLine?.gstRate != null ? String(billLine.gstRate) : match.gstRate != null ? String(match.gstRate) : '18',
           returnKind: 'GOOD',
         },
       ];
@@ -1778,10 +1931,26 @@ export function PurchaseReturnModal({
       setError('Pick a vendor bill to return goods against.');
       return;
     }
+    if (billResourceIds.length === 0 && !billDetailLoading) {
+      setError('This bill has no catalog-linked lines to return.');
+      return;
+    }
     const goodLines = lines.filter((l) => l.resourceId && Number(l.quantity) > 0);
     if (goodLines.length === 0) {
       setError('Add at least one returned item with quantity.');
       return;
+    }
+    for (const l of goodLines) {
+      if (!billResourceIds.includes(l.resourceId)) {
+        setError('Only items from the selected vendor bill can be returned.');
+        return;
+      }
+      const cap = qtyCapByResourceId[l.resourceId];
+      if (cap != null && Number(l.quantity) > cap + 1e-9) {
+        const name = resources.find((r) => r.id === l.resourceId)?.name ?? 'Item';
+        setError(`Return qty for "${name}" cannot exceed billed ${cap} ${l.unit || ''}.`.trim());
+        return;
+      }
     }
     setSaving(true);
     try {
@@ -1810,7 +1979,7 @@ export function PurchaseReturnModal({
     <Sheet
       visible={open}
       title="New purchase return"
-      subtitle="Return stock to the vendor (Stock OUT). An automated draft debit note is created."
+      subtitle="Only approved / paid bills. Items come from that bill. Stock OUT + draft debit note."
       fullScreen
       saving={saving}
       onClose={onClose}
@@ -1862,9 +2031,26 @@ export function PurchaseReturnModal({
         label="Vendor Bill"
         value={billId || undefined}
         options={billOptions}
-        onChange={(v) => setBillId(v ?? '')}
+        onChange={(v) => {
+          setBillId(v ?? '');
+          setLines([emptyDraftLine()]);
+          setError('');
+        }}
         placeholder="Select approved / paid vendor bill"
       />
+      {billId && billDetailLoading ? (
+        <Text className="text-xs text-muted mt-1 mb-2">Loading bill lines…</Text>
+      ) : null}
+      {billId && !billDetailLoading && billLines.length > 0 ? (
+        <Text className="text-xs text-muted mt-1 mb-2">
+          Billed: {billLines.map((l) => `${l.description} × ${l.quantity} ${l.unit}`).join(', ')}
+        </Text>
+      ) : null}
+      {billId && !billDetailLoading && billLines.length === 0 ? (
+        <Text className="text-xs text-warning mt-1 mb-2">
+          This bill has no catalog-linked lines. Only items linked to the catalog can be returned here.
+        </Text>
+      ) : null}
       <View className="flex-row gap-2 mt-1">
         <View className="flex-1">
           <Input label="Return date" value={returnDate} onChangeText={setReturnDate} />
@@ -1874,7 +2060,17 @@ export function PurchaseReturnModal({
         </View>
       </View>
 
-      <LineEditor lines={lines} setLines={setLines} />
+      <LineEditor
+        lines={lines}
+        setLines={setLines}
+        allowedResourceIds={billId ? billResourceIds : undefined}
+        qtyCapByResourceId={billId ? qtyCapByResourceId : undefined}
+        priceHint={
+          billId
+            ? 'Only items from this bill. Qty cannot exceed billed quantity.'
+            : 'Pick an approved / paid bill first, then set return quantities.'
+        }
+      />
 
       {error ? (
         <View className="flex-row items-center gap-1.5 mt-3 p-2 bg-danger/10 border border-danger/20 rounded-lg">
