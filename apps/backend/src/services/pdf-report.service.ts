@@ -787,8 +787,8 @@ export async function reportInvoice(companyId: string, invoiceId: string): Promi
     creditNoteNumber: string;
     creditDate: Date;
     status: string;
-    total: unknown;
-    gstAmount: unknown;
+    total: Decimal | number;
+    gstAmount: Decimal | number;
   }>;
   if (linkedCredits.length > 0) {
     doc.moveDown(0.8);
@@ -949,7 +949,7 @@ async function reportInventoryTaxInvoice(
     creditNoteNumber: string;
     creditDate: Date;
     status: string;
-    total: unknown;
+    total: Decimal | number;
   }>;
   let netAfterReturns = num(invoice.total);
   if (linkedCredits.length > 0) {

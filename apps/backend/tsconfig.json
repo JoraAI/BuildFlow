@@ -23,5 +23,5 @@
     "types": ["node", "jest"]
   },
   "include": ["src"],
-  "exclude": ["node_modules", "dist", "coverage", "prisma"]
+  "exclude": ["node_modules", "dist", "coverage", "prisma", "src/__tests__"]
 }
