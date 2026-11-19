@@ -3,14 +3,24 @@
  */
 import { z } from 'zod';
 
+/** Reject pure numbers like "500" (usually meant as pack size / ml, not a UOM name). */
+const unitNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(20)
+  .refine((v) => !/^\d+(\.\d+)?$/.test(v), {
+    message: 'Unit name cannot be only a number (e.g. use "ml" or "pack", not "500")',
+  });
+
 export const companyUnitCreateSchema = z.object({
-  name: z.string().trim().min(1).max(20),
+  name: unitNameSchema,
   symbol: z.string().trim().max(10).optional().nullable(),
 });
 export type CompanyUnitCreateInput = z.infer<typeof companyUnitCreateSchema>;
 
 export const companyUnitUpdateSchema = z.object({
-  name: z.string().trim().min(1).max(20).optional(),
+  name: unitNameSchema.optional(),
   symbol: z.string().trim().max(10).optional().nullable(),
   isActive: z.boolean().optional(),
 });
@@ -22,7 +32,7 @@ export const companyUnitIdParamsSchema = z.object({
 
 export const resourceUnitInputSchema = z.object({
   companyUnitId: z.string().uuid().optional(),
-  unitName: z.string().trim().min(1).max(20).optional(),
+  unitName: unitNameSchema.optional(),
   isBase: z.boolean(),
   conversionToBase: z.number().positive().default(1),
   rate: z.number().min(0).nullable().optional(),
