@@ -1394,17 +1394,40 @@ function QuickVendorReceiptModal({
   const { isPhone } = useViewport();
   const { data: vendors } = useVendors();
   const receipt = useQuickVendorReceipt();
+  const { data: company } = useCompany();
+  const multiUnitOn = Boolean(company?.multiUnitEnabled);
   const [vendorId, setVendorId] = useState('');
   const [vendorName, setVendorName] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [receivedDate, setReceivedDate] = useState(new Date().toISOString().slice(0, 10));
   const [quantity, setQuantity] = useState('');
+  const [unit, setUnit] = useState('');
   const [unitCost, setUnitCost] = useState('');
   const [batchCode, setBatchCode] = useState('');
   const [manufacturedAt, setManufacturedAt] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  const unitOptions = (() => {
+    if (!item) return [] as Array<{ title: string; value: string }>;
+    const units = item.units ?? [];
+    if (multiUnitOn && units.length > 0) {
+      return units.map((u) => ({
+        title:
+          u.isBase || Number(u.conversionToBase) === 1
+            ? `${u.unitName} (base)`
+            : `${u.unitName} (= ${u.conversionToBase} ${item.unit})`,
+        value: u.unitName,
+      }));
+    }
+    return [{ title: item.unit, value: item.unit }];
+  })();
+  const showUnitPicker = multiUnitOn && unitOptions.length > 1;
+  const selectedFactor = (() => {
+    const u = (item?.units ?? []).find((x) => x.unitName === (unit || item?.unit));
+    return u ? Number(u.conversionToBase) || 1 : 1;
+  })();
 
   useEffect(() => {
     if (!item) return;
@@ -1413,8 +1436,10 @@ function QuickVendorReceiptModal({
     setInvoiceNumber('');
     setReceivedDate(new Date().toISOString().slice(0, 10));
     setQuantity('');
+    setUnit(item.unit);
     // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): prefill from the vendor
-    // cost (costPrice, else WAC), never the selling rate.
+    // cost (costPrice, else WAC), never the selling rate. Cost is per base unit;
+    // when receiving in an alternate unit the form shows cost per selected unit.
     const cost = Number(item.costPrice ?? item.avgCost ?? 0);
     setUnitCost(cost > 0 ? String(cost) : '');
     setBatchCode('');
@@ -1436,6 +1461,7 @@ function QuickVendorReceiptModal({
       return setError('Expiry date must be after manufacture date.');
     }
     setError(null);
+    const txnUnit = unit || item.unit;
     try {
       await receipt.mutateAsync({
         vendorId: vendorId || undefined,
@@ -1446,13 +1472,14 @@ function QuickVendorReceiptModal({
         lines: [{
           resourceId: item.id,
           quantity: qty,
+          unit: txnUnit,
           unitCost: cost,
           batchCode: batchCode.trim() || undefined,
           manufacturedAt: manufacturedAt || undefined,
           expiresAt: expiresAt || undefined,
         }],
       });
-      toast.success(`Received ${qty} ${item.unit} of ${item.name}`);
+      toast.success(`Received ${qty} ${txnUnit} of ${item.name}`);
       onReceived();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not receive stock.');
@@ -1497,14 +1524,50 @@ function QuickVendorReceiptModal({
                 <Input label="Received date" value={receivedDate} onChangeText={setReceivedDate} placeholder="YYYY-MM-DD" />
               </View>
             </View>
+            {showUnitPicker ? (
+              <Select
+                label="Unit"
+                value={unit || undefined}
+                options={unitOptions}
+                onChange={(v) => {
+                  if (!v || !item) return;
+                  const prevFactor = selectedFactor;
+                  const next = (item.units ?? []).find((x) => x.unitName === v);
+                  const nextFactor = next ? Number(next.conversionToBase) || 1 : 1;
+                  setUnit(v);
+                  // Keep entered cost as "per selected unit": rescale when unit changes.
+                  const current = Number(unitCost);
+                  if (Number.isFinite(current) && current > 0 && prevFactor > 0 && nextFactor > 0) {
+                    const perBase = current / prevFactor;
+                    setUnitCost(String(Math.round(perBase * nextFactor * 1000) / 1000));
+                  }
+                }}
+                placeholder="Unit"
+              />
+            ) : null}
             <View className="flex-row gap-2">
               <View className="flex-1">
-                <Input label={`Quantity (${item?.unit ?? ''})`} value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad" />
+                <Input
+                  label={`Quantity (${unit || item?.unit || ''})`}
+                  value={quantity}
+                  onChangeText={setQuantity}
+                  keyboardType="decimal-pad"
+                />
               </View>
               <View className="flex-1">
-                <Input label="Cost ₹ / unit (what you pay)" value={unitCost} onChangeText={setUnitCost} keyboardType="decimal-pad" />
+                <Input
+                  label={`Cost ₹ / ${unit || item?.unit || 'unit'} (what you pay)`}
+                  value={unitCost}
+                  onChangeText={setUnitCost}
+                  keyboardType="decimal-pad"
+                />
               </View>
             </View>
+            {showUnitPicker && selectedFactor !== 1 && Number(quantity) > 0 ? (
+              <Text className="text-[11px] text-muted mb-2">
+                Stock will add {Math.round(Number(quantity) * selectedFactor * 1000) / 1000} {item?.unit}
+              </Text>
+            ) : null}
             {item?.trackingMode === 'BATCH_EXPIRY' ? (
               <>
                 <Input label="Batch code (optional)" value={batchCode} onChangeText={setBatchCode} />

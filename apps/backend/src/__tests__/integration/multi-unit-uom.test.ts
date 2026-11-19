@@ -123,6 +123,8 @@ describe('Multi-unit UOM (integration)', () => {
       customerName: 'Dist Buyer',
     });
     expect(issue.status).toBe(201);
+    const draftInvoiceId = issue.body.data.draftInvoiceId as string | null;
+    expect(draftInvoiceId).toBeTruthy();
 
     const summary = await authGet(
       token,
@@ -133,6 +135,19 @@ describe('Multi-unit UOM (integration)', () => {
     ).find((r) => r.resourceId === resourceId);
     expect(row).toBeTruthy();
     expect(Number(row!.balance)).toBeCloseTo(100, 3);
+
+    // Draft invoice must keep transaction unit + sell rate (not catalog base).
+    const inv = await authGet(token, `/api/invoices/${draftInvoiceId}`);
+    expect(inv.status).toBe(200);
+    const invLines = inv.body.data.lineItems as Array<{
+      quantity: number;
+      unit: string;
+      rate: number;
+    }>;
+    expect(invLines).toHaveLength(1);
+    expect(invLines[0].unit).toBe('bag');
+    expect(Number(invLines[0].quantity)).toBe(2);
+    expect(Number(invLines[0].rate)).toBe(380);
 
     await authPut(token, '/api/settings/company', { multiUnitEnabled: false });
     const blocked = await authPost(token, '/api/resources', {

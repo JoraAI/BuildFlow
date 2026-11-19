@@ -246,7 +246,13 @@ export default function InventoryStockScreen() {
   // (expiry + dashboard handled by useIssueStock.onSuccess), then open the
   // draft invoice when one was auto-created.
   const handleCounterSale = async (input: {
-    lines: Array<{ resourceId: string; quantity: number; unitPrice?: number; batchCode?: string }>;
+    lines: Array<{
+      resourceId: string;
+      quantity: number;
+      unit?: string;
+      unitPrice?: number;
+      batchCode?: string;
+    }>;
     customerId?: string;
     customerName?: string;
     customerPhone?: string;
@@ -265,6 +271,10 @@ export default function InventoryStockScreen() {
         ...input,
         ...(selectedLocationId ? { locationId: selectedLocationId } : {}),
       });
+      // Prefer server-reported on-hand after issue (already in base units).
+      const expectedOnHand = new Map(
+        result.lines.map((l) => [l.resourceId, Number(l.quantityOnHand)]),
+      );
       await bufferUntil(
         async () => {
           await refetch();
@@ -277,9 +287,13 @@ export default function InventoryStockScreen() {
               | StockSummaryRow[]
               | undefined) ?? [];
           return input.lines.every((l) => {
-            const prev = prevBalances.get(l.resourceId) ?? 0;
             const row = rows.find((r) => r.resourceId === l.resourceId);
             if (!row) return false;
+            const expected = expectedOnHand.get(l.resourceId);
+            if (expected != null) {
+              return Number(row.balance) <= expected + 0.001;
+            }
+            const prev = prevBalances.get(l.resourceId) ?? 0;
             return Number(row.balance) <= prev - l.quantity + 0.001;
           });
         },

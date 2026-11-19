@@ -3,7 +3,7 @@
  * (INVENTORY_HORIZONTAL_PLATFORM Phase 1.3/1.4).
  * Responsive: phone bottom sheet, desktop centered.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Modal, ScrollView, Pressable, TextInput } from 'react-native';
 import { Button, Input, Select, Badge } from '@/components/ui';
 import { useViewport } from '@/hooks/useViewport';
@@ -11,6 +11,9 @@ import type { StockSummaryRow } from '@/services/expansion.queries';
 import type { AdjustStockInput, OpeningStockLine } from '@/services/expansion.queries';
 import { useCustomers, type PartyRow } from '@/services/party.queries';
 import { useEffectiveRates } from '@/services/inventory-gtm.queries';
+import { useCompany } from '@/services/settings.queries';
+import { useResources, type Resource } from '@/services/estimate.queries';
+import { resolveSellRate, toBaseQty } from '@buildflow/shared';
 
 // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7.6): compact numeric/text cell
 // for table rows - no labeled Input (tall rows) inside a table.
@@ -308,7 +311,13 @@ export function MultiIssueStockModal({
   itemLabel: string;
   onClose: () => void;
   onSubmit: (input: {
-    lines: Array<{ resourceId: string; quantity: number; unitPrice?: number; batchCode?: string }>;
+    lines: Array<{
+      resourceId: string;
+      quantity: number;
+      unit?: string;
+      unitPrice?: number;
+      batchCode?: string;
+    }>;
     customerName?: string;
     customerPhone?: string;
     customerAddress?: string;
@@ -320,7 +329,23 @@ export function MultiIssueStockModal({
   const { isPhone, isTablet, isDesktop } = useViewport();
   const tableMode = isTablet || isDesktop;
   const { data: customers } = useCustomers();
-  type DraftIssueLine = { key: string; resourceId: string; quantity: string; unitPrice: string; batchCode: string };
+  const { data: company } = useCompany();
+  const { data: resourceData } = useResources();
+  const multiUnitOn = Boolean(company?.multiUnitEnabled);
+  const resourcesById = useMemo(() => {
+    const map = new Map<string, Resource>();
+    for (const r of resourceData?.data ?? []) map.set(r.id, r);
+    return map;
+  }, [resourceData?.data]);
+
+  type DraftIssueLine = {
+    key: string;
+    resourceId: string;
+    quantity: string;
+    unit: string;
+    unitPrice: string;
+    batchCode: string;
+  };
   const newKey = () => `line-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
   const [lines, setLines] = useState<DraftIssueLine[]>([]);
@@ -338,24 +363,83 @@ export function MultiIssueStockModal({
   // behind "Add customer" until needed.
   const [customerOpen, setCustomerOpen] = useState(false);
 
+  const selectedParty = (customers ?? []).find((c: PartyRow) => c.id === customerId);
+  const buyerRole =
+    selectedParty?.buyerRole === 'DISTRIBUTOR'
+      ? ('DISTRIBUTOR' as const)
+      : customerId
+        ? ('CUSTOMER' as const)
+        : null;
+
+  const catalogFor = (resourceId: string) => resourcesById.get(resourceId);
+  const unitOptionsFor = (resourceId: string) => {
+    const r = catalogFor(resourceId);
+    const row = rows.find((x) => x.resourceId === resourceId);
+    if (!r) {
+      return row?.unit ? [{ title: row.unit, value: row.unit }] : [];
+    }
+    const units = r.units ?? [];
+    if (multiUnitOn && units.length > 0) {
+      return units.map((u) => ({
+        title:
+          u.isBase || Number(u.conversionToBase) === 1
+            ? `${u.unitName} (base)`
+            : `${u.unitName} (= ${u.conversionToBase} ${r.unit})`,
+        value: u.unitName,
+      }));
+    }
+    return [{ title: r.unit, value: r.unit }];
+  };
+  const factorFor = (resourceId: string, unitName: string) => {
+    const r = catalogFor(resourceId);
+    if (!r) return 1;
+    const row = (r.units ?? []).find((u) => u.unitName === unitName);
+    if (row) return Number(row.conversionToBase) || 1;
+    return unitName === r.unit ? 1 : 1;
+  };
+  const resolvePrice = (resourceId: string, unitName: string) => {
+    const override = effectiveRates?.[resourceId];
+    const r = catalogFor(resourceId);
+    const row = rows.find((x) => x.resourceId === resourceId);
+    if (!r) {
+      return override != null && override > 0
+        ? String(override)
+        : row?.catalogRate != null && Number(row.catalogRate) > 0
+          ? String(row.catalogRate)
+          : '';
+    }
+    const n = resolveSellRate({
+      resource: {
+        unit: r.unit,
+        rate: Number(r.rate) || 0,
+        distributorRate: r.distributorRate == null ? null : Number(r.distributorRate),
+        customerRate: r.customerRate == null ? null : Number(r.customerRate),
+        units: r.units ?? undefined,
+      },
+      unitName: unitName || r.unit,
+      buyerRole,
+      priceListOverride: override != null && override > 0 ? override : null,
+    });
+    return n > 0 ? String(n) : '';
+  };
+
   useEffect(() => {
     if (!open) return;
     if (initialResourceId) {
       const row = rows.find((r) => r.resourceId === initialResourceId);
+      const unit = row?.unit || catalogFor(initialResourceId)?.unit || '';
       setLines([
         {
           key: newKey(),
           resourceId: initialResourceId,
           quantity: '',
-          unitPrice:
-            row && row.catalogRate != null && Number(row.catalogRate) > 0
-              ? String(row.catalogRate)
-              : '',
+          unit,
+          unitPrice: resolvePrice(initialResourceId, unit),
           batchCode: '',
         },
       ]);
     } else {
-      setLines([{ key: newKey(), resourceId: '', quantity: '', unitPrice: '', batchCode: '' }]);
+      setLines([{ key: newKey(), resourceId: '', quantity: '', unit: '', unitPrice: '', batchCode: '' }]);
     }
     setCustomerName('');
     setCustomerPhone('');
@@ -374,21 +458,23 @@ export function MultiIssueStockModal({
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
 
   useEffect(() => {
-    if (!customerId || !effectiveRates) return;
+    if (!open) return;
     setLines((prev) =>
       prev.map((l) => {
         if (!l.resourceId) return l;
-        const override = effectiveRates[l.resourceId];
-        if (override == null || override <= 0) return l;
-        return { ...l, unitPrice: String(override) };
+        const unit = l.unit || catalogFor(l.resourceId)?.unit || '';
+        return { ...l, unit, unitPrice: resolvePrice(l.resourceId, unit) };
       }),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customerId, effectiveRates]);
+  }, [customerId, effectiveRates, buyerRole]);
 
   const addLine = () => {
     setError(null);
-    setLines((prev) => [...prev, { key: newKey(), resourceId: '', quantity: '', unitPrice: '', batchCode: '' }]);
+    setLines((prev) => [
+      ...prev,
+      { key: newKey(), resourceId: '', quantity: '', unit: '', unitPrice: '', batchCode: '' },
+    ]);
   };
   const removeLine = (key: string) =>
     setLines((prev) => (prev.length > 1 ? prev.filter((l) => l.key !== key) : prev));
@@ -400,9 +486,41 @@ export function MultiIssueStockModal({
       .map((r) => ({ title: `${r.name} (${r.balance} ${r.unit})`, value: r.resourceId }));
   };
 
+  const applyItem = (lineKey: string, resourceId: string) => {
+    if (lines.some((l) => l.key !== lineKey && l.resourceId === resourceId)) {
+      setError(`Each ${itemLower} can be issued only once.`);
+      return;
+    }
+    const unit = catalogFor(resourceId)?.unit || rowFor(resourceId)?.unit || '';
+    setError(null);
+    updateLine(lineKey, {
+      resourceId,
+      unit,
+      unitPrice: resolvePrice(resourceId, unit),
+    });
+  };
+
+  const applyUnit = (lineKey: string, unitName: string) => {
+    const line = lines.find((l) => l.key === lineKey);
+    if (!line?.resourceId) {
+      updateLine(lineKey, { unit: unitName });
+      return;
+    }
+    updateLine(lineKey, {
+      unit: unitName,
+      unitPrice: resolvePrice(line.resourceId, unitName),
+    });
+  };
+
   const submit = () => {
     setError(null);
-    const payload: Array<{ resourceId: string; quantity: number; unitPrice?: number; batchCode?: string }> = [];
+    const payload: Array<{
+      resourceId: string;
+      quantity: number;
+      unit?: string;
+      unitPrice?: number;
+      batchCode?: string;
+    }> = [];
     for (const l of lines) {
       if (!l.resourceId) {
         setError(`Choose a ${itemLower} for every line.`);
@@ -414,8 +532,14 @@ export function MultiIssueStockModal({
         setError(`Enter a positive quantity for ${row?.name ?? itemLower}.`);
         return;
       }
-      if (row && qty > Number(row.balance)) {
-        setError(`Only ${row.balance} ${row.unit} of ${row.name} available.`);
+      const unit = l.unit || row?.unit || '';
+      const stockNeed = toBaseQty(qty, factorFor(l.resourceId, unit));
+      if (row && stockNeed > Number(row.balance) + 1e-9) {
+        setError(
+          `Only ${row.balance} ${row.unit} of ${row.name} available` +
+            (stockNeed !== qty ? ` (need ${stockNeed} ${row.unit})` : '') +
+            '.',
+        );
         return;
       }
       const price = l.unitPrice === '' ? undefined : Number(l.unitPrice);
@@ -426,6 +550,7 @@ export function MultiIssueStockModal({
       payload.push({
         resourceId: l.resourceId,
         quantity: qty,
+        ...(unit ? { unit } : {}),
         ...(price !== undefined ? { unitPrice: price } : {}),
         ...(l.batchCode.trim() ? { batchCode: l.batchCode.trim() } : {}),
       });
@@ -479,6 +604,9 @@ export function MultiIssueStockModal({
               <View className="p-4">
                 <View className="flex-row items-center px-3 py-2 bg-surface border border-border rounded-t-lg">
                   <Text className="flex-[1.8] text-[11px] font-bold text-muted uppercase">Item</Text>
+                  {multiUnitOn ? (
+                    <Text className="w-[88px] text-[11px] font-bold text-muted uppercase">Unit</Text>
+                  ) : null}
                   <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Qty</Text>
                   <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Selling ₹</Text>
                   <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Batch</Text>
@@ -487,33 +615,44 @@ export function MultiIssueStockModal({
                 <View className="border border-t-0 border-border rounded-b-lg mb-3">
                   {lines.map((line) => {
                     const row = rowFor(line.resourceId);
+                    const unitOpts = unitOptionsFor(line.resourceId);
+                    const showUnitPicker = multiUnitOn && unitOpts.length > 1;
+                    const stockNeed = toBaseQty(
+                      Number(line.quantity) || 0,
+                      factorFor(line.resourceId, line.unit || row?.unit || ''),
+                    );
+                    const overStock =
+                      Boolean(row) &&
+                      Number(line.quantity) > 0 &&
+                      stockNeed > Number(row!.balance) + 1e-9;
                     return (
                       <View key={line.key} className="flex-row items-center px-3 py-2 border-b border-border/60 last:border-b-0">
                         <View className="flex-[1.8] pr-2">
                           <Select
                             compact
                             value={line.resourceId || undefined}
-                            onChange={(v) => {
-                              if (!v) return;
-                              if (lines.some((l) => l.key !== line.key && l.resourceId === v)) {
-                                setError(`Each ${itemLower} can be issued only once.`);
-                                return;
-                              }
-                              const selected = rowFor(v);
-                              setError(null);
-                              updateLine(line.key, {
-                                resourceId: v,
-                                unitPrice:
-                                  selected && selected.catalogRate != null && Number(selected.catalogRate) > 0
-                                    ? String(selected.catalogRate)
-                                    : line.unitPrice,
-                              });
-                            }}
+                            onChange={(v) => v && applyItem(line.key, v)}
                             options={optionsFor(line)}
                             placeholder={`Choose ${itemLower}`}
                             disabled={submitting || !!initialResourceId}
                           />
                         </View>
+                        {multiUnitOn ? (
+                          <View className="w-[88px] pr-2">
+                            {showUnitPicker ? (
+                              <Select
+                                compact
+                                value={line.unit || undefined}
+                                onChange={(v) => v && applyUnit(line.key, v)}
+                                options={unitOpts}
+                                placeholder="Unit"
+                                disabled={submitting || !line.resourceId}
+                              />
+                            ) : (
+                              <Text className="text-xs text-muted">{line.unit || row?.unit || '—'}</Text>
+                            )}
+                          </View>
+                        ) : null}
                         <View className="flex-1 pr-2">
                           <CellInput
                             keyboardType="decimal-pad"
@@ -522,8 +661,14 @@ export function MultiIssueStockModal({
                             onChangeText={(t) => updateLine(line.key, { quantity: t })}
                             placeholder="0"
                           />
-                          {row && Number(line.quantity) > Number(row.balance) ? (
-                            <Text className="text-[11px] text-danger">Only {row.balance} {row.unit} in stock.</Text>
+                          {overStock ? (
+                            <Text className="text-[11px] text-danger">
+                              Only {row!.balance} {row!.unit} in stock
+                              {stockNeed !== Number(line.quantity)
+                                ? ` (need ${stockNeed} ${row!.unit})`
+                                : ''}
+                              .
+                            </Text>
                           ) : null}
                         </View>
                         <View className="flex-1 pr-2">
@@ -589,26 +734,23 @@ export function MultiIssueStockModal({
                       <Select
                         label={itemLabel}
                         value={line.resourceId || undefined}
-                        onChange={(v) => {
-                          if (!v) return;
-                          if (lines.some((l) => l.key !== line.key && l.resourceId === v)) {
-                            setError(`Each ${itemLower} can be issued only once.`);
-                            return;
-                          }
-                          const selected = rowFor(v);
-                          setError(null);
-                          updateLine(line.key, {
-                            resourceId: v,
-                            unitPrice:
-                              selected && selected.catalogRate != null && Number(selected.catalogRate) > 0
-                                ? String(selected.catalogRate)
-                                : line.unitPrice,
-                          });
-                        }}
+                        onChange={(v) => v && applyItem(line.key, v)}
                         options={optionsFor(line)}
                         placeholder={`Choose ${itemLower}`}
                         disabled={submitting || !!initialResourceId}
                       />
+                      {multiUnitOn && unitOptionsFor(line.resourceId).length > 1 ? (
+                        <View className="mt-2">
+                          <Select
+                            label="Unit"
+                            value={line.unit || undefined}
+                            onChange={(v) => v && applyUnit(line.key, v)}
+                            options={unitOptionsFor(line.resourceId)}
+                            placeholder="Unit"
+                            disabled={submitting || !line.resourceId}
+                          />
+                        </View>
+                      ) : null}
                       <View className="flex-row gap-2 mt-2 items-center">
                         <View className="flex-1">
                           {/* UX polish M7 / 11.8: compact cell, no tall labeled Input. */}
@@ -619,7 +761,13 @@ export function MultiIssueStockModal({
                             onChangeText={(t) => updateLine(line.key, { quantity: t })}
                             placeholder="0"
                           />
-                          {row && Number(line.quantity) > Number(row.balance) ? (
+                          {row &&
+                          Number(line.quantity) > 0 &&
+                          toBaseQty(
+                            Number(line.quantity) || 0,
+                            factorFor(line.resourceId, line.unit || row.unit),
+                          ) >
+                            Number(row.balance) + 1e-9 ? (
                             <Text className="text-[11px] text-danger">
                               Only {row.balance} {row.unit} in stock.
                             </Text>

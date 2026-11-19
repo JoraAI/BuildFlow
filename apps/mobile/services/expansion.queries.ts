@@ -692,7 +692,13 @@ export interface StockIssueResult extends StockIssueLineResult {
 }
 
 export interface IssueStockInput {
-  lines: Array<{ resourceId: string; quantity: number; unitPrice?: number }>;
+  lines: Array<{
+    resourceId: string;
+    quantity: number;
+    /** Transaction unit; omit = item base. Converted to base on the server. */
+    unit?: string;
+    unitPrice?: number;
+  }>;
   customerName?: string;
   customerPhone?: string;
   customerAddress?: string;
@@ -850,6 +856,8 @@ export interface QuickVendorReceiptInput {
   lines: Array<{
     resourceId: string;
     quantity: number;
+    /** Transaction unit; omit = item base. Converted to base for stock IN. */
+    unit?: string;
     unitCost: number;
     batchCode?: string;
     manufacturedAt?: string;

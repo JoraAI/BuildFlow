@@ -22,13 +22,16 @@ import { useViewport } from '@/hooks/useViewport';
 import { useKeyboardOpen } from '@/hooks/useKeyboardOpen';
 import { BarcodeScannerOverlay } from '@/components/inventory/BarcodeScannerOverlay';
 import { SegmentedTrack } from '@/components/inventory/SegmentedTabs';
-import { useCustomers } from '@/services/party.queries';
+import { useCustomers, type PartyRow } from '@/services/party.queries';
 import { useEffectiveRates } from '@/services/inventory-gtm.queries';
+import { useCompany } from '@/services/settings.queries';
+import { useResources, type Resource } from '@/services/estimate.queries';
+import { resolveSellRate, toBaseQty } from '@buildflow/shared';
 import { apiFetch } from '@/lib/api-client';
 import type { BarcodeItem } from '@/services/warehouse.queries';
 import type { StockSummaryRow } from '@/services/expansion.queries';
 
-type CartLine = { key: string; resourceId: string; quantity: string; unitPrice: string };
+type CartLine = { key: string; resourceId: string; quantity: string; unit: string; unitPrice: string };
 
 // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7.6): compact numeric cell for
 // table rows - no labeled Input (tall rows) inside a table.
@@ -59,7 +62,7 @@ function CellInput({
 }
 
 export interface CheckoutSubmitInput {
-  lines: Array<{ resourceId: string; quantity: number; unitPrice?: number }>;
+  lines: Array<{ resourceId: string; quantity: number; unit?: string; unitPrice?: number }>;
   customerId?: string;
   customerName?: string;
   customerPhone?: string;
@@ -94,7 +97,16 @@ export function CheckoutCart({
   const insets = useSafeAreaInsets();
   const keyboardOpen = useKeyboardOpen();
   const { data: customers } = useCustomers();
+  const { data: company } = useCompany();
+  const { data: resourceData } = useResources();
+  const multiUnitOn = Boolean(company?.multiUnitEnabled);
+  const resourcesById = useMemo(() => {
+    const map = new Map<string, Resource>();
+    for (const r of resourceData?.data ?? []) map.set(r.id, r);
+    return map;
+  }, [resourceData?.data]);
   const rowFor = (resourceId: string) => rows.find((r) => r.resourceId === resourceId);
+  const catalogFor = (resourceId: string) => resourcesById.get(resourceId);
 
   const [lines, setLines] = useState<CartLine[]>([]);
   const [search, setSearch] = useState('');
@@ -115,17 +127,65 @@ export function CheckoutCart({
   const [scannerOpen, setScannerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const priceForResource = (resourceId: string): string => {
-    const override = effectiveRates?.[resourceId];
-    if (override != null && override > 0) return String(override);
+  const selectedParty = (customers ?? []).find((c: PartyRow) => c.id === customerId);
+  const buyerRole =
+    selectedParty?.buyerRole === 'DISTRIBUTOR'
+      ? ('DISTRIBUTOR' as const)
+      : customerId
+        ? ('CUSTOMER' as const)
+        : null;
+
+  const unitOptionsFor = (resourceId: string) => {
+    const r = catalogFor(resourceId);
     const row = rowFor(resourceId);
-    if (row?.catalogRate != null && Number(row.catalogRate) > 0) return String(row.catalogRate);
-    return '';
+    if (!r) return row?.unit ? [{ title: row.unit, value: row.unit }] : [];
+    const units = r.units ?? [];
+    if (multiUnitOn && units.length > 0) {
+      return units.map((u) => ({
+        title:
+          u.isBase || Number(u.conversionToBase) === 1
+            ? `${u.unitName} (base)`
+            : `${u.unitName} (= ${u.conversionToBase} ${r.unit})`,
+        value: u.unitName,
+      }));
+    }
+    return [{ title: r.unit, value: r.unit }];
+  };
+  const factorFor = (resourceId: string, unitName: string) => {
+    const r = catalogFor(resourceId);
+    if (!r) return 1;
+    const u = (r.units ?? []).find((x) => x.unitName === unitName);
+    return u ? Number(u.conversionToBase) || 1 : 1;
+  };
+  const priceForResource = (resourceId: string, unitName?: string): string => {
+    const override = effectiveRates?.[resourceId];
+    const r = catalogFor(resourceId);
+    const row = rowFor(resourceId);
+    const unit = unitName || r?.unit || row?.unit || '';
+    if (!r) {
+      if (override != null && override > 0) return String(override);
+      if (row?.catalogRate != null && Number(row.catalogRate) > 0) return String(row.catalogRate);
+      return '';
+    }
+    const n = resolveSellRate({
+      resource: {
+        unit: r.unit,
+        rate: Number(r.rate) || 0,
+        distributorRate: r.distributorRate == null ? null : Number(r.distributorRate),
+        customerRate: r.customerRate == null ? null : Number(r.customerRate),
+        units: r.units ?? undefined,
+      },
+      unitName: unit,
+      buyerRole,
+      priceListOverride: override != null && override > 0 ? override : null,
+    });
+    return n > 0 ? String(n) : '';
   };
 
   useEffect(() => {
     if (!open) return;
     const seed = initialResourceId ? rows.find((r) => r.resourceId === initialResourceId) : undefined;
+    const unit = seed?.unit || catalogFor(seed?.resourceId ?? '')?.unit || '';
     setLines(
       seed && Number(seed.balance) > 0
         ? [
@@ -133,7 +193,8 @@ export function CheckoutCart({
               key: `cart-${Date.now()}-seed`,
               resourceId: seed.resourceId,
               quantity: '1',
-              unitPrice: priceForResource(seed.resourceId),
+              unit,
+              unitPrice: priceForResource(seed.resourceId, unit),
             },
           ]
         : [],
@@ -152,19 +213,18 @@ export function CheckoutCart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialResourceId]);
 
-  // Re-tag cart line prices when the party (or their role rates) changes.
+  // Re-tag cart line prices when the party / role / unit rates change.
   useEffect(() => {
-    if (!customerId || !effectiveRates) return;
+    if (!open) return;
     setLines((prev) =>
       prev.map((l) => {
         if (!l.resourceId) return l;
-        const override = effectiveRates[l.resourceId];
-        if (override == null || override <= 0) return l;
-        return { ...l, unitPrice: String(override) };
+        const unit = l.unit || catalogFor(l.resourceId)?.unit || rowFor(l.resourceId)?.unit || '';
+        return { ...l, unit, unitPrice: priceForResource(l.resourceId, unit) };
       }),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customerId, effectiveRates]);
+  }, [customerId, effectiveRates, buyerRole]);
 
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.6.1): explicit Esc close on web
   // (backdrop dismiss stays disabled while submitting).
@@ -200,7 +260,9 @@ export function CheckoutCart({
     const existing = lines.find((l) => l.resourceId === resourceId);
     if (existing) {
       const next = (Number(existing.quantity) || 0) + 1;
-      if (row && next > balance) {
+      const unit = existing.unit || row?.unit || '';
+      const stockNeed = toBaseQty(next, factorFor(resourceId, unit));
+      if (row && stockNeed > balance + 1e-9) {
         toast.error(`Only ${balance} ${row.unit} of ${row.name} in stock`);
         return;
       }
@@ -211,18 +273,31 @@ export function CheckoutCart({
       toast.error(`${row.name} is out of stock`);
       return;
     }
+    const unit = catalogFor(resourceId)?.unit || row?.unit || '';
     setLines((prev) => [
       ...prev,
       {
         key: `cart-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         resourceId,
         quantity: '1',
-        unitPrice: priceForResource(resourceId),
+        unit,
+        unitPrice: priceForResource(resourceId, unit),
       },
     ]);
   };
   const updateLine = (key: string, patch: Partial<CartLine>) =>
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  const applyUnit = (lineKey: string, unitName: string) => {
+    const line = lines.find((l) => l.key === lineKey);
+    if (!line?.resourceId) {
+      updateLine(lineKey, { unit: unitName });
+      return;
+    }
+    updateLine(lineKey, {
+      unit: unitName,
+      unitPrice: priceForResource(line.resourceId, unitName),
+    });
+  };
   const removeLine = (key: string) => setLines((prev) => prev.filter((l) => l.key !== key));
   // 11.8/M7.1: phone qty stepper - decrement, removing the line at 0.
   const decrementLine = (key: string, row: StockSummaryRow) => {
@@ -263,8 +338,14 @@ export function CheckoutCart({
     if (l.quantity.trim() === '' || !Number.isFinite(qty) || qty <= 0) {
       return 'Enter a quantity greater than 0.';
     }
+    const unit = l.unit || row.unit;
     const balance = Number(row.balance);
-    if (qty > balance) return `Only ${balance} ${row.unit} in stock.`;
+    const stockNeed = toBaseQty(qty, factorFor(l.resourceId, unit));
+    if (stockNeed > balance + 1e-9) {
+      return stockNeed !== qty
+        ? `Only ${balance} ${row.unit} in stock (need ${stockNeed} ${row.unit}).`
+        : `Only ${balance} ${row.unit} in stock.`;
+    }
     if (l.unitPrice !== '') {
       const price = Number(l.unitPrice);
       if (!Number.isFinite(price) || price < 0) return 'Enter a valid selling price.';
@@ -300,7 +381,7 @@ export function CheckoutCart({
       setError('Add at least one item to the cart.');
       return;
     }
-    const payload: Array<{ resourceId: string; quantity: number; unitPrice?: number }> = [];
+    const payload: Array<{ resourceId: string; quantity: number; unit?: string; unitPrice?: number }> = [];
     for (const l of lines) {
       const row = rowFor(l.resourceId);
       const problem = lineIssue(l);
@@ -309,9 +390,11 @@ export function CheckoutCart({
         return;
       }
       const price = l.unitPrice === '' ? undefined : Number(l.unitPrice);
+      const unit = l.unit || row.unit;
       payload.push({
         resourceId: row.resourceId,
         quantity: Number(l.quantity),
+        ...(unit ? { unit } : {}),
         ...(price !== undefined ? { unitPrice: price } : {}),
       });
     }
@@ -357,6 +440,21 @@ export function CheckoutCart({
                   <Text className="text-xs font-semibold text-danger">Remove</Text>
                 </Pressable>
               </View>
+              {multiUnitOn && unitOptionsFor(l.resourceId).length > 1 ? (
+                <View className="mt-2">
+                  <Select
+                    compact
+                    label="Unit"
+                    value={l.unit || undefined}
+                    options={unitOptionsFor(l.resourceId)}
+                    onChange={(v) => v && applyUnit(l.key, v)}
+                    placeholder="Unit"
+                    disabled={submitting}
+                  />
+                </View>
+              ) : (
+                <Text className="text-[11px] text-muted mt-1">{l.unit || row.unit}</Text>
+              )}
               <View className="flex-row items-center gap-2 mt-2">
                 {/* Compact qty stepper (decrement at 0 removes the line). */}
                 <View className="flex-row items-center rounded-lg border border-border overflow-hidden">
@@ -401,6 +499,9 @@ export function CheckoutCart({
               </View>
               <Text className="text-[11px] text-muted mt-1.5">
                 Line ₹{round2(lineNet)} · {row.gstRate ?? 0}% GST · max {row.balance} {row.unit}
+                {Number(factorFor(l.resourceId, l.unit || row.unit)) !== 1
+                  ? ` · stock ${toBaseQty(qty, factorFor(l.resourceId, l.unit || row.unit))} ${row.unit}`
+                  : ''}
                 {row.costPrice != null && Number(row.costPrice) > 0 ? ` · Cost ₹${Number(row.costPrice).toFixed(2)}` : ''}
               </Text>
               {row.trackingMode === 'BATCH_EXPIRY' ? (
@@ -674,6 +775,9 @@ export function CheckoutCart({
               <View className="flex-1">
                 <View className="flex-row items-center px-4 py-2 bg-surface border-b border-border">
                   <Text className="flex-[1.6] text-[11px] font-bold text-muted uppercase">Item</Text>
+                  {multiUnitOn ? (
+                    <Text className="w-[96px] text-[11px] font-bold text-muted uppercase">Unit</Text>
+                  ) : null}
                   <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Qty</Text>
                   <Text className="flex-1 text-[11px] font-bold text-muted uppercase">Selling ₹</Text>
                   <Text className="flex-1 text-[11px] font-bold text-muted uppercase text-right">GST%</Text>
@@ -691,6 +795,8 @@ export function CheckoutCart({
                       const price = l.unitPrice === '' ? undefined : Number(l.unitPrice);
                       const lineNet = (price ?? 0) * qty;
                       const gstRate = Number(row.gstRate ?? 0);
+                      const unitOpts = unitOptionsFor(l.resourceId);
+                      const showUnitPicker = multiUnitOn && unitOpts.length > 1;
                       return (
                         <View key={l.key} className="flex-row items-center px-4 py-2 bg-card border-b border-border/60">
                           <View className="flex-[1.6] min-w-0 mr-2">
@@ -700,6 +806,22 @@ export function CheckoutCart({
                               <Text className="text-[10px] text-muted">Cost ₹{Number(row.costPrice).toFixed(2)}</Text>
                             ) : null}
                           </View>
+                          {multiUnitOn ? (
+                            <View className="w-[96px] pr-2">
+                              {showUnitPicker ? (
+                                <Select
+                                  compact
+                                  value={l.unit || undefined}
+                                  options={unitOpts}
+                                  onChange={(v) => v && applyUnit(l.key, v)}
+                                  placeholder="Unit"
+                                  disabled={submitting}
+                                />
+                              ) : (
+                                <Text className="text-xs text-muted">{l.unit || row.unit}</Text>
+                              )}
+                            </View>
+                          ) : null}
                           <View className="flex-1 pr-2">
                             <CellInput accessibilityLabel={`Quantity of ${row.name}`} value={l.quantity} onChangeText={(t) => updateLine(l.key, { quantity: t })} />
                           </View>

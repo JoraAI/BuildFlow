@@ -36,7 +36,9 @@ export type ResourceRateSource = {
 
 /**
  * Resolve sell rate for a transaction unit + buyer role.
- * Order: priceListOverride → unit role/rate → base role/rate → base rate.
+ * Order: priceListOverride → unit role rate → unit sell rate →
+ * (base unit only) base role rate → base rate.
+ * Never apply base ₹/unit prices to an alternate UOM line.
  * Conversion does NOT auto-scale price.
  */
 export function resolveSellRate(opts: {
@@ -49,6 +51,7 @@ export function resolveSellRate(opts: {
     return Number(opts.priceListOverride);
   }
 
+  const baseUnitKey = normalizeUnitName(opts.resource.unit || '');
   const unitKey = normalizeUnitName(opts.unitName || opts.resource.unit || '');
   const units = opts.resource.units ?? [];
   const unitRow =
@@ -56,27 +59,36 @@ export function resolveSellRate(opts: {
     units.find((u) => u.isBase) ??
     null;
 
+  const isBaseUnit =
+    !unitRow ||
+    Boolean(unitRow.isBase) ||
+    normalizeUnitName(unitRow.unitName) === baseUnitKey ||
+    Number(unitRow.conversionToBase) === 1;
+
   const baseRate = Number(opts.resource.rate) || 0;
   const baseDist =
     opts.resource.distributorRate != null ? Number(opts.resource.distributorRate) : null;
   const baseCust =
     opts.resource.customerRate != null ? Number(opts.resource.customerRate) : null;
+  const unitSell = unitRow?.rate != null ? Number(unitRow.rate) : null;
 
   if (opts.buyerRole === 'DISTRIBUTOR') {
     if (unitRow?.distributorRate != null) return Number(unitRow.distributorRate);
+    if (!isBaseUnit && unitSell != null) return unitSell;
     if (baseDist != null) return baseDist;
-    if (unitRow?.rate != null) return Number(unitRow.rate);
+    if (unitSell != null) return unitSell;
     return baseRate;
   }
 
   if (opts.buyerRole === 'CUSTOMER') {
     if (unitRow?.customerRate != null) return Number(unitRow.customerRate);
+    if (!isBaseUnit && unitSell != null) return unitSell;
     if (baseCust != null) return baseCust;
-    if (unitRow?.rate != null) return Number(unitRow.rate);
+    if (unitSell != null) return unitSell;
     return baseRate;
   }
 
-  if (unitRow?.rate != null) return Number(unitRow.rate);
+  if (unitSell != null) return unitSell;
   return baseRate;
 }
 

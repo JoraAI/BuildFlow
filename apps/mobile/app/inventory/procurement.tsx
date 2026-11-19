@@ -30,6 +30,7 @@ import {
   type Requisition,
 } from '@/services/expansion.queries';
 import { useResources } from '@/services/estimate.queries';
+import { useCompany } from '@/services/settings.queries';
 import { useWarehouses, type Warehouse } from '@/services/warehouse.queries';
 import { downloadReportPdf } from '@/services/report-download';
 import { useReorderSuggestions, useOrderReorderItems, type ReorderSuggestion } from '@/services/reorder.queries';
@@ -574,17 +575,24 @@ function CreateIndentModal({
 }: {
   open: boolean;
   onClose: () => void;
-  resources: Array<{ id: string; name: string; unit: string }>;
+  resources: Array<{
+    id: string;
+    name: string;
+    unit: string;
+    units?: Array<{ unitName: string; isBase?: boolean; conversionToBase?: number }> | null;
+  }>;
   /** INVENTORY_HORIZONTAL_PLATFORM (Phase 0): 'Indent' | 'Purchase request'. */
   indentLabel: string;
   /** INVENTORY_HORIZONTAL_PLATFORM (Phase 0): 'Material' | 'Item'. */
   itemLabel: string;
   onSubmit: (lines: Array<{ resourceId: string; quantity: number; unit: string }>, notes?: string) => Promise<void>;
 }) {
-  type DraftIndentLine = { key: string; resourceId: string; quantity: string };
+  type DraftIndentLine = { key: string; resourceId: string; quantity: string; unit: string };
   const newKey = () => `line-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const { isPhone } = useViewport();
   const tableMode = !isPhone;
+  const { data: company } = useCompany();
+  const multiUnitOn = Boolean(company?.multiUnitEnabled);
 
   const [lines, setLines] = useState<DraftIndentLine[]>([]);
   const [notes, setNotes] = useState('');
@@ -594,7 +602,7 @@ function CreateIndentModal({
   // INVENTORY_UX_POLISH (D9): multi-material draft editor. Reset each open.
   useEffect(() => {
     if (!open) return;
-    setLines([{ key: newKey(), resourceId: '', quantity: '1' }]);
+    setLines([{ key: newKey(), resourceId: '', quantity: '1', unit: '' }]);
     setNotes('');
     setError('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -605,11 +613,28 @@ function CreateIndentModal({
 
   const addLine = () => {
     setError('');
-    setLines((prev) => [...prev, { key: newKey(), resourceId: '', quantity: '1' }]);
+    setLines((prev) => [...prev, { key: newKey(), resourceId: '', quantity: '1', unit: '' }]);
   };
 
   const removeLine = (key: string) =>
     setLines((prev) => (prev.length > 1 ? prev.filter((l) => l.key !== key) : prev));
+
+  const resourceFor = (resourceId: string) => resources.find((r) => r.id === resourceId);
+  const unitOptionsFor = (resourceId: string) => {
+    const r = resourceFor(resourceId);
+    if (!r) return [] as Array<{ title: string; value: string }>;
+    const units = r.units ?? [];
+    if (multiUnitOn && units.length > 0) {
+      return units.map((u) => ({
+        title:
+          u.isBase || Number(u.conversionToBase) === 1
+            ? `${u.unitName} (base)`
+            : `${u.unitName} (= ${u.conversionToBase} ${r.unit})`,
+        value: u.unitName,
+      }));
+    }
+    return [{ title: r.unit, value: r.unit }];
+  };
 
   /** Options for one line exclude materials already picked on other lines. */
   const optionsFor = (line: DraftIndentLine) => {
@@ -646,11 +671,11 @@ function CreateIndentModal({
         lines.map((l) => ({
           resourceId: l.resourceId,
           quantity: Number(l.quantity),
-          unit: resources.find((r) => r.id === l.resourceId)?.unit ?? 'no',
+          unit: l.unit || resourceFor(l.resourceId)?.unit || 'no',
         })),
         notes || undefined,
       );
-      setLines([{ key: newKey(), resourceId: '', quantity: '1' }]);
+      setLines([{ key: newKey(), resourceId: '', quantity: '1', unit: '' }]);
       setNotes('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create indent');
@@ -686,11 +711,15 @@ function CreateIndentModal({
           <View className="flex-row items-center px-3 py-2 bg-surface border-b border-border gap-2">
             <Text className="flex-[2.4] text-[11px] font-bold text-muted uppercase">{itemLabel}</Text>
             <Text className="w-[100px] text-[11px] font-bold text-muted uppercase">Qty</Text>
-            <Text className="w-[64px] text-[11px] font-bold text-muted uppercase">Unit</Text>
+            <Text className={`${multiUnitOn ? 'w-[110px]' : 'w-[64px]'} text-[11px] font-bold text-muted uppercase`}>
+              Unit
+            </Text>
             <View className="w-8" />
           </View>
           {lines.map((line, idx) => {
-            const unit = resources.find((r) => r.id === line.resourceId)?.unit ?? '';
+            const r = resourceFor(line.resourceId);
+            const unitOpts = unitOptionsFor(line.resourceId);
+            const showUnitPicker = multiUnitOn && unitOpts.length > 1;
             return (
               <View key={line.key} className="flex-row items-start px-3 py-2 gap-2 border-b border-border/60 last:border-b-0">
                 <View className="flex-[2.4] min-w-0">
@@ -704,7 +733,10 @@ function CreateIndentModal({
                         return;
                       }
                       setError('');
-                      updateLine(line.key, { resourceId: v });
+                      updateLine(line.key, {
+                        resourceId: v,
+                        unit: resourceFor(v)?.unit ?? '',
+                      });
                     }}
                     options={optionsFor(line)}
                     placeholder={`${itemLabel} ${idx + 1}`}
@@ -723,7 +755,22 @@ function CreateIndentModal({
                     placeholder="0"
                   />
                 </View>
-                <Text className="w-[64px] text-xs text-muted pt-3">{unit || '—'}</Text>
+                {showUnitPicker ? (
+                  <View className="w-[110px]">
+                    <Select
+                      compact
+                      value={line.unit || undefined}
+                      options={unitOpts}
+                      onChange={(v) => v && updateLine(line.key, { unit: v })}
+                      placeholder="Unit"
+                      disabled={saving}
+                    />
+                  </View>
+                ) : (
+                  <Text className={`${multiUnitOn ? 'w-[110px]' : 'w-[64px]'} text-xs text-muted pt-3`}>
+                    {line.unit || r?.unit || '—'}
+                  </Text>
+                )}
                 <Pressable
                   disabled={saving}
                   onPress={() => removeLine(line.key)}
@@ -739,7 +786,9 @@ function CreateIndentModal({
       ) : (
         <View className="gap-2 mb-3">
           {lines.map((line, idx) => {
-            const unit = resources.find((r) => r.id === line.resourceId)?.unit;
+            const r = resourceFor(line.resourceId);
+            const unitOpts = unitOptionsFor(line.resourceId);
+            const showUnitPicker = multiUnitOn && unitOpts.length > 1;
             return (
               <View key={line.key} className="rounded-xl border border-border p-3">
                 <View className="flex-row items-center justify-between mb-1">
@@ -760,15 +809,34 @@ function CreateIndentModal({
                       return;
                     }
                     setError('');
-                    updateLine(line.key, { resourceId: v });
+                    updateLine(line.key, {
+                      resourceId: v,
+                      unit: resourceFor(v)?.unit ?? '',
+                    });
                   }}
                   options={optionsFor(line)}
                   placeholder={`Choose ${itemLabel.toLowerCase()}`}
                   disabled={saving}
                 />
+                {showUnitPicker ? (
+                  <View className="mt-2">
+                    <Select
+                      label="Unit"
+                      value={line.unit || undefined}
+                      options={unitOpts}
+                      onChange={(v) => v && updateLine(line.key, { unit: v })}
+                      placeholder="Unit"
+                      disabled={saving}
+                    />
+                  </View>
+                ) : null}
                 <View className="mt-2">
                   <Input
-                    label={unit ? `Quantity (${unit})` : 'Quantity'}
+                    label={
+                      line.unit || r?.unit
+                        ? `Quantity (${line.unit || r?.unit})`
+                        : 'Quantity'
+                    }
                     value={line.quantity}
                     onChangeText={(t) => updateLine(line.key, { quantity: t })}
                     keyboardType="numeric"

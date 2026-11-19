@@ -764,14 +764,12 @@ export async function createGRN(
         baseUnitCost,
       );
 
-      // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): the received unit cost
-      // is the vendor-cost source of truth. Update costPrice (WAC already
-      // updated above); skip a zero/blank PO rate so it cannot wipe a known
-      // cost. Construction ignores costPrice entirely.
-      if (unitCost > 0) {
+      // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): vendor cost is per base
+      // unit (same as WAC). Skip zero so a blank PO rate cannot wipe a known cost.
+      if (baseUnitCost > 0) {
         await tx.resource.update({
           where: { id: line.resourceId },
-          data: { costPrice: unitCost },
+          data: { costPrice: baseUnitCost },
         });
       }
     }
@@ -1189,6 +1187,7 @@ export async function issueStockManual(
         stockMovementId: r.movementId,
         resourceId: r.resourceId,
         quantity: r.quantityIssued,
+        unit: r.unit,
         unitPrice: r.unitPrice,
       })),
     });

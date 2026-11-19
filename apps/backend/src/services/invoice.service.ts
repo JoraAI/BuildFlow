@@ -1082,6 +1082,8 @@ export async function createDraftInvoiceFromStockIssue(opts: {
     stockMovementId: string;
     resourceId: string;
     quantity: number;
+    /** Transaction unit (may differ from catalog base when multi-unit is on). */
+    unit?: string | null;
     unitPrice?: number | null;
   }>;
   customerName?: string | null;
@@ -1174,7 +1176,8 @@ export async function createDraftInvoiceFromStockIssue(opts: {
     lineItemsData.push({
       description: resource.name,
       quantity: line.quantity,
-      unit: resource.unit,
+      // Keep the sell/issue unit on the invoice (not always catalog base).
+      unit: (line.unit?.trim() || resource.unit),
       rate,
       amount,
       gstRate: lineGstRate,

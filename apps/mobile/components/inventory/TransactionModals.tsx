@@ -361,6 +361,9 @@ export function LineEditor({
         <View className="rounded-xl border border-border overflow-hidden bg-card">
           <View className="flex-row items-center px-3 py-2 bg-surface border-b border-border gap-2">
             <Text className="flex-[2.2] text-[11px] font-bold text-muted uppercase">Item</Text>
+            {multiUnitOn && !returnMode ? (
+              <Text className="w-[88px] text-[11px] font-bold text-muted uppercase">Unit</Text>
+            ) : null}
             <Text className="w-[72px] text-[11px] font-bold text-muted uppercase text-right">
               {returnMode ? 'On doc' : 'Stock'}
             </Text>
@@ -401,8 +404,10 @@ export function LineEditor({
                       placeholder={`Item ${idx + 1}`}
                       searchPlaceholder="Search items"
                     />
-                    {showUnitPicker ? (
-                      <View className="mt-1">
+                  </View>
+                  {multiUnitOn && !returnMode ? (
+                    <View className="w-[88px]">
+                      {showUnitPicker ? (
                         <Select
                           compact
                           value={l.unit || undefined}
@@ -410,9 +415,11 @@ export function LineEditor({
                           onChange={(v) => v && applyUnit(l.key, v)}
                           placeholder="Unit"
                         />
-                      </View>
-                    ) : null}
-                  </View>
+                      ) : (
+                        <Text className="text-xs text-muted pt-3">{l.unit || r?.unit || '—'}</Text>
+                      )}
+                    </View>
+                  ) : null}
                   <Text className={`w-[72px] text-xs text-right pt-3 ${isOver ? 'text-warning font-semibold' : 'text-muted'}`}>
                     {l.resourceId
                       ? `${shownStock} ${returnMode ? l.unit : r?.unit || l.unit}`

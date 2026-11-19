@@ -14,6 +14,7 @@ import { downloadTallyXml } from '@/services/report-download';
 import { useCreateInvoice } from '@/services/accounting.queries';
 import { useCustomers, type PartyRow } from '@/services/party.queries';
 import { useResources } from '@/services/estimate.queries';
+import { useEffectiveRates } from '@/services/inventory-gtm.queries';
 import { toast, BusyOverlay, useBusy } from '@/components/ui';
 import { inventoryInvoiceDetailHref } from '@/utils/navigation';
 import { useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
@@ -163,6 +164,14 @@ function NewInvoiceModal({
   const [lines, setLines] = useState<InvoiceDraftLine[]>([emptyDraftLine()]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const { data: effectiveRates } = useEffectiveRates(customerId || undefined);
+  const selectedParty = (customers ?? []).find((c: PartyRow) => c.id === customerId);
+  const buyerRole =
+    selectedParty?.buyerRole === 'DISTRIBUTOR'
+      ? ('DISTRIBUTOR' as const)
+      : customerId
+        ? ('CUSTOMER' as const)
+        : null;
 
   useEffect(() => {
     if (open) {
@@ -286,7 +295,13 @@ function NewInvoiceModal({
             <LineEditor
               lines={lines}
               setLines={setLines}
-              priceHint="Add catalog items — HSN/SAC and GST come from the item master."
+              rateOverrides={effectiveRates}
+              buyerRole={buyerRole}
+              priceHint={
+                buyerRole === 'DISTRIBUTOR'
+                  ? `Selling ₹ is the distributor price for ${selectedParty?.name ?? 'this party'}.`
+                  : 'Add catalog items — HSN/SAC and GST come from the item master. Multi-unit items show a unit picker when enabled.'
+              }
             />
 
             <Input
