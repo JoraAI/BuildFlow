@@ -271,6 +271,7 @@ export async function getCompanyProfile(companyId: string) {
       poOwnerApproveAbove: true,
       auditorPackCadence: true,
       auditorPackDay: true,
+      multiUnitEnabled: true,
     },
   });
   const logoDisplayUrl = await resolveLogoDisplayUrl(companyId, company.logoUrl);
@@ -290,6 +291,7 @@ export async function getCompanyProfile(companyId: string) {
     poOwnerApproveAbove: isInventory ? Number(company.poOwnerApproveAbove) : null,
     auditorPackCadence: isInventory ? company.auditorPackCadence : null,
     auditorPackDay: isInventory ? company.auditorPackDay : null,
+    multiUnitEnabled: isInventory ? Boolean(company.multiUnitEnabled) : false,
   };
 }
 
@@ -309,6 +311,7 @@ export interface CompanyUpdateInput {
   poOwnerApproveAbove?: number;
   auditorPackCadence?: 'MONTHLY' | 'QUARTERLY';
   auditorPackDay?: number;
+  multiUnitEnabled?: boolean;
 }
 
 // RPT-C2a: Report settings API
@@ -353,7 +356,8 @@ export async function updateCompanyProfile(companyId: string, data: CompanyUpdat
     data.poAutoApproveBelow !== undefined ||
     data.poOwnerApproveAbove !== undefined ||
     data.auditorPackCadence !== undefined ||
-    data.auditorPackDay !== undefined
+    data.auditorPackDay !== undefined ||
+    data.multiUnitEnabled !== undefined
   ) {
     const current = await prisma.company.findUnique({
       where: { id: companyId },
@@ -365,6 +369,7 @@ export async function updateCompanyProfile(companyId: string, data: CompanyUpdat
       delete write.poOwnerApproveAbove;
       delete write.auditorPackCadence;
       delete write.auditorPackDay;
+      delete write.multiUnitEnabled;
     }
   }
   const company = await prisma.company.update({
@@ -385,8 +390,13 @@ export async function updateCompanyProfile(companyId: string, data: CompanyUpdat
       poOwnerApproveAbove: true,
       auditorPackCadence: true,
       auditorPackDay: true,
+      multiUnitEnabled: true,
     },
   });
+  if (company.subscriptionPlan === 'INVENTORY' && company.multiUnitEnabled) {
+    const { ensureDefaultCompanyUnits } = await import('./company-unit.service');
+    await ensureDefaultCompanyUnits(companyId);
+  }
   const logoDisplayUrl = await resolveLogoDisplayUrl(companyId, company.logoUrl);
   const isInventory = company.subscriptionPlan === 'INVENTORY';
   return {
@@ -398,6 +408,7 @@ export async function updateCompanyProfile(companyId: string, data: CompanyUpdat
     poOwnerApproveAbove: isInventory ? Number(company.poOwnerApproveAbove) : null,
     auditorPackCadence: isInventory ? company.auditorPackCadence : null,
     auditorPackDay: isInventory ? company.auditorPackDay : null,
+    multiUnitEnabled: isInventory ? Boolean(company.multiUnitEnabled) : false,
   };
 }
 

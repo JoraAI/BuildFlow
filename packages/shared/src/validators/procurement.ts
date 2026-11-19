@@ -85,6 +85,8 @@ export type CreateGrnInput = z.infer<typeof createGrnSchema>;
 export const issueStockLineSchema = z.object({
   resourceId: z.string().uuid(),
   quantity: z.coerce.number().positive(),
+  /** Transaction unit; omit = item base unit. Converted to base for stock OUT. */
+  unit: z.string().min(1).max(20).optional(),
   /** Selling unit price for the draft sales invoice (ex-GST). Falls back to catalog rate. */
   unitPrice: z.coerce.number().nonnegative().optional(),
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3): optional batch / lot code (lite).

@@ -32,6 +32,8 @@ export interface CompanyProfile {
   /** Auditor GST pack cadence (inventory-only). */
   auditorPackCadence?: 'MONTHLY' | 'QUARTERLY' | null;
   auditorPackDay?: number | null;
+  /** Multi-unit (alternate UOM); default false. */
+  multiUnitEnabled?: boolean;
 }
 export interface MyProfile {
   id: string;

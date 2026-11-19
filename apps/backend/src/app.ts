@@ -43,6 +43,7 @@ import { inventoryAnalyticsRouter } from './routes/inventory-analytics.routes';
 import { inventoryAiRouter } from './routes/inventory-ai.routes'; // Phase 7 AI (INVENTORY only)
 import { inventoryGtmRouter } from './routes/inventory-gtm.routes'; // Phase 9 price lists/quotes/PDFs/reminders (INVENTORY only)
 import { inventoryCatalogRouter } from './routes/inventory-catalog.routes'; // Phase 11.1 vertical starter catalog (INVENTORY only)
+import { companyUnitRouter } from './routes/company-unit.routes';
 import { subcontractProjectRouter, subcontractorRouter } from './routes/subcontract.routes';
 import { subPortalPublicRouter } from './routes/subcontract-portal.routes';
 import { portalPublicRouter, portalProjectRouter } from './routes/portal.routes';
@@ -165,6 +166,7 @@ app.use('/api/projects', taskRouter); // project-scoped: /:id/tasks, /:id/gantt
 app.use('/api/tasks', taskDetailRouter);
 app.use('/api/resources', resourceRouter);
 app.use('/api/inventory/parties', partyRouter); // Phase 1.1 party master (INVENTORY only)
+app.use('/api/inventory/units', companyUnitRouter); // Shop UOM catalog + multi-unit
 app.use('/api/inventory/stock', inventoryStockRouter); // Phase 1.3/1.4 adjustments + opening stock
 app.use('/api/inventory/transactions', transactionRouter); // Phase 2 SO/DC/returns/notes (INVENTORY only)
 app.use('/api/inventory', warehouseRouter); // Phase 3 warehouses/transfers/stock-counts/barcode (INVENTORY only)

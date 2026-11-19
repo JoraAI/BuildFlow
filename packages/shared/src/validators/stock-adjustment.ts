@@ -94,6 +94,8 @@ export type OpeningStockImportInput = z.infer<typeof openingStockImportSchema>;
 const quickReceiptLineSchema = z.object({
   resourceId: z.string().uuid(),
   quantity: z.coerce.number().positive(),
+  /** Transaction unit; omit = item base. Converted to base for stock IN. */
+  unit: z.string().trim().min(1).max(20).optional(),
   unitCost: z.coerce.number().nonnegative(),
   batchCode: z.string().trim().max(50).optional(),
   manufacturedAt: z.coerce.date().optional(),

@@ -54,6 +54,8 @@ export const companyUpdateSchema = z.object({
   // Auditor GST pack cadence (inventory-only; send stays manual).
   auditorPackCadence: z.enum(['MONTHLY', 'QUARTERLY']).optional(),
   auditorPackDay: z.number().int().min(1).max(28).optional(),
+  /** Optional multi-unit (alternate UOM). Default false = single base unit only. */
+  multiUnitEnabled: z.boolean().optional(),
 });
 
 const SYNTHETIC_PHONE_EMAIL_SUFFIX = '@phone.buildflow.local';

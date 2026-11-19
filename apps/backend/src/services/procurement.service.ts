@@ -26,6 +26,7 @@ import { createDraftInvoiceFromStockIssue } from './invoice.service';
 import { updateWacOnIn } from './finance.service';
 import { notifyLowStock, notifyPoRateAnomaly } from './inventory-alerts.service';
 import { applyBatchIn, allocateBatchOut, isBatchTracked } from './stock-batch.service';
+import { loadUnitFactors, unitFactorKey, toBaseQty } from './company-unit.service';
 import { logger } from '../config/logger';
 import {
   createDraftIndentsFromDemand,
@@ -650,6 +651,11 @@ export async function createGRN(
     }
   }
 
+  const unitFactors = await loadUnitFactors(
+    companyId,
+    input.lines.map((l) => ({ resourceId: l.resourceId, unit: l.unit })),
+  );
+
   let grn;
   try {
     grn = await prisma.$transaction(async (tx) => {
@@ -695,6 +701,8 @@ export async function createGRN(
         },
       });
       const unitCost = unitCostByResource.get(line.resourceId) ?? 0;
+      const factor = unitFactors.get(unitFactorKey(line.resourceId, line.unit)) ?? 1;
+      const stockQty = toBaseQty(line.quantity, factor);
 
       // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): batch-tracked receipts
       // must name a lot and also write the StockBatchBalance row (K6 dual-write).
@@ -709,7 +717,7 @@ export async function createGRN(
           locationId: location.id,
           resourceId: line.resourceId,
           batchCode: line.batchCode,
-          quantity: line.quantity,
+          quantity: stockQty,
           manufacturedAt: line.manufacturedAt ?? null,
           expiresAt: line.expiresAt ?? null,
         });
@@ -718,29 +726,31 @@ export async function createGRN(
       if (balance) {
         await tx.stockBalance.update({
           where: { id: balance.id },
-          data: { quantity: { increment: line.quantity } },
+          data: { quantity: { increment: stockQty } },
         });
       } else {
         await tx.stockBalance.create({
           data: {
             locationId: location.id,
             resourceId: line.resourceId,
-            quantity: line.quantity,
+            quantity: stockQty,
           },
         });
       }
 
+      // Line unitCost is per transaction unit; WAC/stock cost is per base unit.
+      const baseUnitCost = factor > 0 ? round2(unitCost / factor) : unitCost;
       await tx.stockMovement.create({
         data: {
           locationId: location.id,
           resourceId: line.resourceId,
-          quantity: line.quantity,
+          quantity: stockQty,
           type: 'IN',
           referenceType: 'GRN',
           referenceId: created.id,
           // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.1/5.2): cost metadata + WAC.
-          unitCost,
-          inventoryValue: round2(unitCost * line.quantity),
+          unitCost: baseUnitCost,
+          inventoryValue: round2(baseUnitCost * stockQty),
           // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3): optional batch / lot code.
           batchCode: line.batchCode,
         },
@@ -750,8 +760,8 @@ export async function createGRN(
         tx,
         line.resourceId,
         balance ? Number(balance.quantity) : 0,
-        line.quantity,
-        unitCost,
+        stockQty,
+        baseUnitCost,
       );
 
       // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): the received unit cost
@@ -991,7 +1001,13 @@ export async function issueStockManual(
   await assertProjectAccess(companyId, userId, role as never, projectId);
 
   // Normalize legacy single-resource body to the multi-line shape.
-  const rawLines: Array<{ resourceId: string; quantity: number; unitPrice?: number; batchCode?: string }> =
+  const rawLines: Array<{
+    resourceId: string;
+    quantity: number;
+    unit?: string;
+    unitPrice?: number;
+    batchCode?: string;
+  }> =
     input.lines && input.lines.length > 0
       ? input.lines
       : [
@@ -1021,6 +1037,14 @@ export async function issueStockManual(
     if (!resourceById.has(l.resourceId)) throw ApiError.notFound('Resource not found');
   }
 
+  const unitFactors = await loadUnitFactors(
+    companyId,
+    rawLines.map((l) => ({
+      resourceId: l.resourceId,
+      unit: l.unit ?? resourceById.get(l.resourceId)?.unit,
+    })),
+  );
+
   const lineResults = await prisma.$transaction(async (tx) => {
     const location = await getOrCreateProjectStockLocation(companyId, projectId, tx, {
       locationId: input.locationId,
@@ -1028,20 +1052,23 @@ export async function issueStockManual(
     const results: IssueStockLineResult[] = [];
     for (const l of rawLines) {
       const resource = resourceById.get(l.resourceId)!;
+      const txnUnit = l.unit ?? resource.unit;
+      const factor = unitFactors.get(unitFactorKey(l.resourceId, txnUnit)) ?? 1;
+      const stockQty = toBaseQty(l.quantity, factor);
       const balance = await tx.stockBalance.findUnique({
         where: {
           locationId_resourceId: { locationId: location.id, resourceId: l.resourceId },
         },
       });
       const onHand = balance ? Number(balance.quantity) : 0;
-      if (!balance || onHand < l.quantity) {
+      if (!balance || onHand < stockQty) {
         if (!balance || onHand === 0) {
           throw ApiError.unprocessable(
             `${resource.name}: no stock on hand - receive via GRN first`,
           );
         }
         throw ApiError.unprocessable(
-          `${resource.name}: only ${onHand} ${resource.unit} on hand, requested ${l.quantity} ${resource.unit}`,
+          `${resource.name}: only ${onHand} ${resource.unit} on hand, requested ${stockQty} ${resource.unit}`,
         );
       }
 
@@ -1057,12 +1084,12 @@ export async function issueStockManual(
           resourceId: l.resourceId,
           resourceName: resource.name,
           unit: resource.unit,
-          quantity: l.quantity,
+          quantity: stockQty,
           allowExpired: input.allowExpired,
         });
         await tx.stockBalance.update({
           where: { id: balance.id },
-          data: { quantity: { decrement: l.quantity } },
+          data: { quantity: { decrement: stockQty } },
         });
         const firstMovement = await tx.stockMovement.create({
           data: {
@@ -1096,9 +1123,9 @@ export async function issueStockManual(
           movementId: firstMovement.id,
           resourceId: resource.id,
           resourceName: resource.name,
-          unit: resource.unit,
+          unit: txnUnit,
           quantityIssued: l.quantity,
-          quantityOnHand: round3(onHand - l.quantity),
+          quantityOnHand: round3(onHand - stockQty),
           unitPrice: l.unitPrice ?? null,
           // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.3): server-side FEFO lots.
           allocations: allocations.map((a) => ({
@@ -1112,19 +1139,19 @@ export async function issueStockManual(
 
       await tx.stockBalance.update({
         where: { id: balance.id },
-        data: { quantity: { decrement: l.quantity } },
+        data: { quantity: { decrement: stockQty } },
       });
       const movement = await tx.stockMovement.create({
         data: {
           locationId: location.id,
           resourceId: l.resourceId,
-          quantity: l.quantity,
+          quantity: stockQty,
           type: 'OUT',
           referenceType: 'MANUAL_ISSUE',
           referenceId: null,
           // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.2): cost at WAC.
           unitCost: Number(resource.avgCost ?? 0),
-          inventoryValue: round2(Number(resource.avgCost ?? 0) * l.quantity),
+          inventoryValue: round2(Number(resource.avgCost ?? 0) * stockQty),
           // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3): optional batch / lot code.
           batchCode: l.batchCode,
         },
@@ -1134,9 +1161,9 @@ export async function issueStockManual(
         movementId: movement.id,
         resourceId: resource.id,
         resourceName: resource.name,
-        unit: resource.unit,
+        unit: txnUnit,
         quantityIssued: l.quantity,
-        quantityOnHand: round3(onHand - l.quantity),
+        quantityOnHand: round3(onHand - stockQty),
         unitPrice: l.unitPrice ?? null,
         allocations: null,
       });
@@ -1350,6 +1377,14 @@ export async function quickVendorReceipt(
     throw ApiError.notFound('One or more items were not found in your item master.');
   }
 
+  const unitFactors = await loadUnitFactors(
+    companyId,
+    input.lines.map((line) => ({
+      resourceId: line.resourceId,
+      unit: line.unit ?? resourceById.get(line.resourceId)?.unit,
+    })),
+  );
+
   return prisma.$transaction(async (tx) => {
     const location = await getOrCreateProjectStockLocation(companyId, projectId, tx, {
       locationId: input.locationId,
@@ -1366,22 +1401,27 @@ export async function quickVendorReceipt(
     }> = [];
     for (const [index, line] of input.lines.entries()) {
       const resource = resourceById.get(line.resourceId)!;
+      const txnUnit = line.unit ?? resource.unit;
+      const factor = unitFactors.get(unitFactorKey(resource.id, txnUnit)) ?? 1;
+      const stockQty = toBaseQty(line.quantity, factor);
+      // unitCost is per entered qty unit (base today for QVR); normalize to base.
+      const baseUnitCost = factor > 0 ? round2(line.unitCost / factor) : line.unitCost;
       const balance = await tx.stockBalance.findUnique({
         where: {
           locationId_resourceId: { locationId: location.id, resourceId: resource.id },
         },
       });
       const onHand = Number(balance?.quantity ?? 0);
-      const quantityOnHand = round4(onHand + line.quantity);
-      const newWac = await updateWacOnIn(tx, resource.id, onHand, line.quantity, line.unitCost);
+      const quantityOnHand = round4(onHand + stockQty);
+      const newWac = await updateWacOnIn(tx, resource.id, onHand, stockQty, baseUnitCost);
       // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): the received unit cost
       // is the vendor-cost source of truth. Update costPrice (WAC already
       // updated above); skip a zero/blank rate so it cannot wipe a known cost.
       // Construction ignores costPrice entirely.
-      if (line.unitCost > 0) {
+      if (baseUnitCost > 0) {
         await tx.resource.update({
           where: { id: resource.id },
-          data: { costPrice: line.unitCost },
+          data: { costPrice: baseUnitCost },
         });
       }
       const batchCode = isBatchTracked(resource.trackingMode)
@@ -1392,7 +1432,7 @@ export async function quickVendorReceipt(
           locationId: location.id,
           resourceId: resource.id,
           batchCode,
-          quantity: line.quantity,
+          quantity: stockQty,
           manufacturedAt: line.manufacturedAt ?? null,
           expiresAt: line.expiresAt ?? null,
         });
@@ -1401,14 +1441,14 @@ export async function quickVendorReceipt(
         where: {
           locationId_resourceId: { locationId: location.id, resourceId: resource.id },
         },
-        create: { locationId: location.id, resourceId: resource.id, quantity: line.quantity },
-        update: { quantity: { increment: line.quantity } },
+        create: { locationId: location.id, resourceId: resource.id, quantity: stockQty },
+        update: { quantity: { increment: stockQty } },
       });
       const movement = await tx.stockMovement.create({
         data: {
           locationId: location.id,
           resourceId: resource.id,
-          quantity: line.quantity,
+          quantity: stockQty,
           type: 'IN',
           referenceType: 'QUICK_VENDOR_RECEIPT',
           referenceId: input.vendorId ?? null,
@@ -1419,8 +1459,8 @@ export async function quickVendorReceipt(
             `Received: ${input.receivedDate.toISOString().slice(0, 10)}`,
             input.notes || null,
           ].filter(Boolean).join(' · '),
-          unitCost: line.unitCost,
-          inventoryValue: round2(line.quantity * line.unitCost),
+          unitCost: baseUnitCost,
+          inventoryValue: round2(stockQty * baseUnitCost),
           batchCode,
         },
       });
@@ -1429,7 +1469,7 @@ export async function quickVendorReceipt(
         resourceId: resource.id,
         resourceName: resource.name,
         quantity: line.quantity,
-        unit: resource.unit,
+        unit: txnUnit,
         unitCost: line.unitCost,
         quantityOnHand,
         batchCode,

@@ -29,6 +29,8 @@ import { useViewport } from '@/hooks/useViewport';
 import { useAuthStore } from '@/stores/auth.store';
 import { getGstTaxCodeLabels, getInventoryLabel, getInventoryLabelMode } from '@buildflow/shared';
 import { useVendors, type PartyRow } from '@/services/party.queries';
+import { useCompany } from '@/services/settings.queries';
+import { useCompanyUnits } from '@/services/unit.queries';
 import { ImportMappingModal } from '@/components/inventory/ImportMappingModal';
 import { KiranaSkuPicker } from '@/components/inventory/KiranaSkuPicker';
 import { useRouter } from 'expo-router';
@@ -684,6 +686,14 @@ function MaterialFormModal({
     barcode?: string;
     secondaryUnit?: string;
     conversionFactor?: number;
+    units?: Array<{
+      unitName: string;
+      isBase: boolean;
+      conversionToBase: number;
+      rate?: number | null;
+      distributorRate?: number | null;
+      customerRate?: number | null;
+    }>;
     reorderPoint?: number;
     trackingMode?: 'NONE' | 'BATCH_EXPIRY';
     // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): procurement automation fields.
@@ -717,6 +727,16 @@ function MaterialFormModal({
   const [barcode, setBarcode] = useState('');
   const [secondaryUnit, setSecondaryUnit] = useState('');
   const [conversionFactor, setConversionFactor] = useState('1');
+  const [altUnits, setAltUnits] = useState<
+    Array<{
+      key: string;
+      unitName: string;
+      conversionToBase: string;
+      rate: string;
+      distributorRate: string;
+      customerRate: string;
+    }>
+  >([]);
   const [reorderPoint, setReorderPoint] = useState('');
   const [trackingMode, setTrackingMode] = useState<'NONE' | 'BATCH_EXPIRY'>('NONE');
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): procurement automation fields.
@@ -724,6 +744,26 @@ function MaterialFormModal({
   const [reorderQty, setReorderQty] = useState('');
   const [leadTimeDays, setLeadTimeDays] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const { data: company } = useCompany();
+  const { data: shopUnits } = useCompanyUnits();
+  const multiUnitOn = Boolean(company?.multiUnitEnabled);
+  const unitOptions = (shopUnits ?? []).map((u: { name: string }) => ({
+    title: u.name,
+    value: u.name,
+  }));
+  const unitSelectOptions =
+    unitOptions.length > 0
+      ? unitOptions
+      : [
+          { title: 'Nos', value: 'nos' },
+          { title: 'Bag', value: 'bag' },
+          { title: 'Kg', value: 'kg' },
+          { title: 'MT', value: 'mt' },
+          { title: 'Cum', value: 'cum' },
+          { title: 'Sqm', value: 'sqm' },
+          { title: 'Litre', value: 'ltr' },
+          { title: 'Box', value: 'box' },
+        ];
 
   // Prefill when opening in edit mode; reset when opening in create mode.
   useEffect(() => {
@@ -749,6 +789,46 @@ function MaterialFormModal({
       setBarcode(initial.barcode ?? '');
       setSecondaryUnit(initial.secondaryUnit ?? '');
       setConversionFactor(initial.conversionFactor != null ? String(Number(initial.conversionFactor)) : '1');
+      const alts = (initial.units ?? []).filter(
+        (u: { isBase: boolean }) => !u.isBase,
+      );
+      setAltUnits(
+        alts.length > 0
+          ? alts.map(
+              (
+                u: {
+                  unitName: string;
+                  conversionToBase: number;
+                  rate?: number | null;
+                  distributorRate?: number | null;
+                  customerRate?: number | null;
+                },
+                i: number,
+              ) => ({
+              key: `u-${i}-${u.unitName}`,
+              unitName: u.unitName,
+              conversionToBase: String(u.conversionToBase || 1),
+              rate: u.rate != null ? String(u.rate) : '',
+              distributorRate: u.distributorRate != null ? String(u.distributorRate) : '',
+              customerRate: u.customerRate != null ? String(u.customerRate) : '',
+            }),
+            )
+          : initial.secondaryUnit
+            ? [
+                {
+                  key: 'legacy-sec',
+                  unitName: initial.secondaryUnit,
+                  conversionToBase:
+                    initial.conversionFactor != null
+                      ? String(Number(initial.conversionFactor))
+                      : '1',
+                  rate: '',
+                  distributorRate: '',
+                  customerRate: '',
+                },
+              ]
+            : [],
+      );
       setReorderPoint(initial.reorderPoint != null ? String(Number(initial.reorderPoint)) : '');
       setTrackingMode(initial.trackingMode ?? 'NONE');
       setPreferredVendorId(initial.preferredVendorId ?? '');
@@ -782,6 +862,7 @@ function MaterialFormModal({
     setBarcode('');
     setSecondaryUnit('');
     setConversionFactor('1');
+    setAltUnits([]);
     setReorderPoint('');
     setTrackingMode('NONE');
     setPreferredVendorId('');
@@ -869,19 +950,10 @@ function MaterialFormModal({
             </View>
             <Input label="Name" value={name} onChangeText={setName} placeholder="e.g. OPC 53 Cement" />
             <Select
-              label="Unit"
+              label={multiUnitOn ? 'Base unit' : 'Unit'}
               value={unit}
               onChange={(v) => v && setUnit(v)}
-              options={[
-                { title: 'Nos', value: 'nos' },
-                { title: 'Bag', value: 'bag' },
-                { title: 'Kg', value: 'kg' },
-                { title: 'MT', value: 'mt' },
-                { title: 'Cum', value: 'cum' },
-                { title: 'Sqm', value: 'sqm' },
-                { title: 'Litre', value: 'ltr' },
-                { title: 'Box', value: 'box' },
-              ]}
+              options={unitSelectOptions}
             />
             {/* INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): cost (vendor) vs
                 sell (customer) captured separately on the SKU. */}
@@ -960,23 +1032,131 @@ function MaterialFormModal({
             />
             <Input label="SKU (optional)" value={sku} onChangeText={setSku} autoCapitalize="characters" placeholder="e.g. CEM-53-SKU" />
             <Input label="Barcode (optional)" value={barcode} onChangeText={setBarcode} autoCapitalize="characters" placeholder="Scan or type" />
-            <View className="flex-row gap-3">
-              <View className="flex-1">
-                <Input label="Secondary unit (optional)" value={secondaryUnit} onChangeText={setSecondaryUnit} placeholder="e.g. bag" />
+            {multiUnitOn ? (
+              <View className="gap-2 mb-2">
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-sm font-bold text-text">Additional units</Text>
+                  <Button
+                    label="Add unit"
+                    size="sm"
+                    variant="secondary"
+                    onPress={() =>
+                      setAltUnits((prev) => [
+                        ...prev,
+                        {
+                          key: `new-${Date.now()}`,
+                          unitName: '',
+                          conversionToBase: '1',
+                          rate: '',
+                          distributorRate: '',
+                          customerRate: '',
+                        },
+                      ])
+                    }
+                  />
+                </View>
+                <Text className="text-[11px] text-muted">
+                  1 alternate = N base ({unit || 'base'}). Optional rates; blank uses base-unit rates.
+                </Text>
+                {altUnits.map((row) => (
+                  <View key={row.key} className="border border-border rounded-xl p-3 gap-2 bg-surface">
+                    <Select
+                      label="Unit"
+                      value={row.unitName || undefined}
+                      onChange={(v) =>
+                        setAltUnits((prev) =>
+                          prev.map((x) => (x.key === row.key ? { ...x, unitName: v ?? '' } : x)),
+                        )
+                      }
+                      options={unitSelectOptions.filter(
+                        (o: { title: string; value: string }) => o.value !== unit,
+                      )}
+                      placeholder="Select unit"
+                    />
+                    <Input
+                      label={`1 ${row.unitName || 'unit'} = ? ${unit || 'base'}`}
+                      value={row.conversionToBase}
+                      onChangeText={(v) =>
+                        setAltUnits((prev) =>
+                          prev.map((x) => (x.key === row.key ? { ...x, conversionToBase: v } : x)),
+                        )
+                      }
+                      keyboardType="decimal-pad"
+                      placeholder="e.g. 50"
+                    />
+                    {!showRoleRates ? (
+                      <Input
+                        label="Sell ₹ (optional)"
+                        value={row.rate}
+                        onChangeText={(v) =>
+                          setAltUnits((prev) =>
+                            prev.map((x) => (x.key === row.key ? { ...x, rate: v } : x)),
+                          )
+                        }
+                        keyboardType="decimal-pad"
+                        placeholder="Uses base sell ₹ if blank"
+                      />
+                    ) : (
+                      <>
+                        <Input
+                          label="Distributor ₹ (optional)"
+                          value={row.distributorRate}
+                          onChangeText={(v) =>
+                            setAltUnits((prev) =>
+                              prev.map((x) =>
+                                x.key === row.key ? { ...x, distributorRate: v } : x,
+                              ),
+                            )
+                          }
+                          keyboardType="decimal-pad"
+                        />
+                        <Input
+                          label="Customer ₹ (optional)"
+                          value={row.customerRate}
+                          onChangeText={(v) =>
+                            setAltUnits((prev) =>
+                              prev.map((x) => (x.key === row.key ? { ...x, customerRate: v } : x)),
+                            )
+                          }
+                          keyboardType="decimal-pad"
+                        />
+                      </>
+                    )}
+                    <Pressable
+                      onPress={() => setAltUnits((prev) => prev.filter((x) => x.key !== row.key))}
+                    >
+                      <Text className="text-xs font-semibold text-danger">Remove unit</Text>
+                    </Pressable>
+                  </View>
+                ))}
               </View>
-              <View className="flex-1">
-                <Input
-                  label="Conversion factor"
-                  value={conversionFactor}
-                  onChangeText={setConversionFactor}
-                  keyboardType="decimal-pad"
-                  placeholder="1"
-                />
-              </View>
-            </View>
-            <Text className="text-[11px] text-muted -mt-3 mb-2">
-              1 secondary unit = {conversionFactor || '1'} base units (e.g. 1 bag = 50 kg).
-            </Text>
+            ) : (
+              <>
+                <View className="flex-row gap-3">
+                  <View className="flex-1">
+                    <Input
+                      label="Secondary unit (optional)"
+                      value={secondaryUnit}
+                      onChangeText={setSecondaryUnit}
+                      placeholder="e.g. bag"
+                    />
+                  </View>
+                  <View className="flex-1">
+                    <Input
+                      label="Conversion factor"
+                      value={conversionFactor}
+                      onChangeText={setConversionFactor}
+                      keyboardType="decimal-pad"
+                      placeholder="1"
+                    />
+                  </View>
+                </View>
+                <Text className="text-[11px] text-muted -mt-3 mb-2">
+                  Enable Multi-unit in Settings to sell/buy in alternate units. Legacy secondary
+                  fields are stored only.
+                </Text>
+              </>
+            )}
             <Input
               label="Reorder point (optional)"
               value={reorderPoint}
@@ -1147,8 +1327,41 @@ function MaterialFormModal({
                       itemCode: itemCode.trim() || undefined,
                       sku: sku.trim() || undefined,
                       barcode: barcode.trim() || undefined,
-                      secondaryUnit: secondaryUnit.trim() || undefined,
-                      conversionFactor: Number(conversionFactor) > 0 ? Number(conversionFactor) : undefined,
+                      secondaryUnit: multiUnitOn
+                        ? undefined
+                        : secondaryUnit.trim() || undefined,
+                      conversionFactor: multiUnitOn
+                        ? undefined
+                        : Number(conversionFactor) > 0
+                          ? Number(conversionFactor)
+                          : undefined,
+                      ...(multiUnitOn
+                        ? {
+                            units: [
+                              {
+                                unitName: unit,
+                                isBase: true,
+                                conversionToBase: 1,
+                              },
+                              ...altUnits
+                                .filter((a) => a.unitName.trim())
+                                .map((a) => ({
+                                  unitName: a.unitName.trim(),
+                                  isBase: false,
+                                  conversionToBase: Number(a.conversionToBase) || 1,
+                                  rate: a.rate.trim() === '' ? null : Number(a.rate),
+                                  distributorRate:
+                                    a.distributorRate.trim() === ''
+                                      ? null
+                                      : Number(a.distributorRate),
+                                  customerRate:
+                                    a.customerRate.trim() === ''
+                                      ? null
+                                      : Number(a.customerRate),
+                                })),
+                            ],
+                          }
+                        : {}),
                       reorderPoint: reorderPoint === '' ? undefined : Number(reorderPoint),
                       trackingMode,
                       preferredVendorId: preferredVendorId || undefined,

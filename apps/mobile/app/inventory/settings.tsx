@@ -37,6 +37,11 @@ import {
   useReportSettings,
   useUpdateReportSettings,
 } from '@/services/settings.queries';
+import {
+  useCompanyUnits,
+  useCreateCompanyUnit,
+  useDeactivateCompanyUnit,
+} from '@/services/unit.queries';
 import { downloadTallyXml } from '@/services/report-download';
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/constants/i18n';
 import {
@@ -106,6 +111,9 @@ export default function InventorySettingsScreen() {
     }
   };
   const updateCompany = useUpdateCompany();
+  const { data: companyUnits } = useCompanyUnits(true);
+  const createUnit = useCreateCompanyUnit();
+  const deactivateUnit = useDeactivateCompanyUnit();
   const uploadLogo = useCompanyLogoUpload();
   const updateReportSettings = useUpdateReportSettings();
   const canEditLogo = user?.role === 'OWNER' || user?.role === 'INVENTORY_MANAGER';
@@ -118,6 +126,8 @@ export default function InventorySettingsScreen() {
   const [inventoryLanguage, setInventoryLanguage] = useState<SupportedLanguage>('en');
   /** INVENTORY_HORIZONTAL_PLATFORM (Phase 2.5): credit-limit policy (OWNER). */
   const [creditPolicy, setCreditPolicy] = useState<'ALLOW' | 'WARN' | 'BLOCK'>('WARN');
+  const [multiUnitEnabled, setMultiUnitEnabled] = useState(false);
+  const [newUnitName, setNewUnitName] = useState('');
   /** INVENTORY_HORIZONTAL_PLATFORM (Phase 4.4): PO approval thresholds (OWNER). */
   const [poAutoApproveBelow, setPoAutoApproveBelow] = useState('');
   const [poOwnerApproveAbove, setPoOwnerApproveAbove] = useState('');
@@ -142,6 +152,10 @@ export default function InventorySettingsScreen() {
   useEffect(() => {
     if (company?.creditLimitPolicy) setCreditPolicy(company.creditLimitPolicy);
   }, [company?.creditLimitPolicy]);
+
+  useEffect(() => {
+    setMultiUnitEnabled(Boolean(company?.multiUnitEnabled));
+  }, [company?.multiUnitEnabled]);
 
   useEffect(() => {
     const code = reportSettings?.inventoryLanguage;
@@ -527,6 +541,107 @@ export default function InventorySettingsScreen() {
             <Button label="Open items" variant="accent" size="sm" onPress={() => router.push('/inventory/materials' as never)} />
           </Card>
         ) : null}
+        <Card className="p-5 mb-4">
+          <Text className="text-base font-bold text-text mb-1">Multi-unit</Text>
+          <Text className="text-xs text-muted mb-3">
+            Off by default. When on, items can have alternate units (e.g. bag = 50 kg). Stock
+            always moves in the base unit; sell/buy qty converts using the factor you set.
+          </Text>
+          <Select
+            label="Multi-unit mode"
+            value={multiUnitEnabled ? 'on' : 'off'}
+            onChange={(v) => v && setMultiUnitEnabled(v === 'on')}
+            options={[
+              { title: 'Off (single unit)', value: 'off' },
+              { title: 'On (alternate units)', value: 'on' },
+            ]}
+            disabled={user?.role !== 'OWNER'}
+          />
+          {user?.role === 'OWNER' ? (
+            <View className="mt-3">
+              <Button
+                label="Save multi-unit setting"
+                variant="secondary"
+                size="sm"
+                loading={updateCompany.isPending}
+                onPress={() =>
+                  void run(async () => {
+                    try {
+                      await updateCompany.mutateAsync({ multiUnitEnabled });
+                      toast.success(multiUnitEnabled ? 'Multi-unit enabled' : 'Multi-unit disabled');
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : 'Could not save');
+                    }
+                  })
+                }
+              />
+            </View>
+          ) : null}
+
+          <Text className="text-sm font-semibold text-text mt-4 mb-1">Shop units</Text>
+          <Text className="text-xs text-muted mb-2">
+            Custom unit names for this shop. Used as the base unit on items
+            {multiUnitEnabled ? ' and for alternate units' : ''}.
+          </Text>
+          <View className="flex-row gap-2 mb-2">
+            <View className="flex-1">
+              <Input
+                label="New unit"
+                value={newUnitName}
+                onChangeText={setNewUnitName}
+                placeholder="e.g. carton"
+                autoCapitalize="none"
+              />
+            </View>
+            <View className="justify-end pb-1">
+              <Button
+                label="Add"
+                size="sm"
+                variant="secondary"
+                disabled={!newUnitName.trim() || user?.role === 'AUDITOR'}
+                loading={createUnit.isPending}
+                onPress={() =>
+                  void run(async () => {
+                    try {
+                      await createUnit.mutateAsync({ name: newUnitName.trim() });
+                      setNewUnitName('');
+                      toast.success('Unit added');
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : 'Could not add unit');
+                    }
+                  })
+                }
+              />
+            </View>
+          </View>
+          {(companyUnits ?? [])
+            .filter((u: { isActive: boolean }) => u.isActive)
+            .map((u: { id: string; name: string }) => (
+              <View
+                key={u.id}
+                className="flex-row items-center justify-between py-2 border-b border-border/60"
+              >
+                <Text className="text-sm text-text">{u.name}</Text>
+                {user?.role === 'OWNER' || user?.role === 'INVENTORY_MANAGER' ? (
+                  <Pressable
+                    onPress={() =>
+                      void run(async () => {
+                        try {
+                          await deactivateUnit.mutateAsync(u.id);
+                          toast.success(`Removed ${u.name}`);
+                        } catch (e) {
+                          toast.error(e instanceof Error ? e.message : 'Could not remove');
+                        }
+                      })
+                    }
+                  >
+                    <Text className="text-xs font-semibold text-danger">Remove</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ))}
+        </Card>
+
         {/* Credit limit policy (INVENTORY_HORIZONTAL_PLATFORM Phase 2.5) */}
         <Card className="p-5 mb-4">
           <Text className="text-base font-bold text-text mb-1">Credit limit policy</Text>

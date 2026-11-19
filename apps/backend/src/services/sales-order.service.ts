@@ -22,6 +22,7 @@ import {
 import { notifyLowStock } from './inventory-alerts.service';
 import { resolveEffectiveRates } from './price-list.service';
 import { allocateBatchOut, isBatchTracked } from './stock-batch.service';
+import { loadUnitFactors, unitFactorKey, toBaseQty } from './company-unit.service';
 import type {
   CreateSalesOrderInput,
   CreateDeliveryChallanInput,
@@ -343,6 +344,12 @@ export async function dispatchDeliveryChallan(
   if (!dc) throw ApiError.notFound('Delivery challan not found');
   if (dc.status !== 'DRAFT') throw ApiError.badRequest('Only draft challans can be dispatched');
 
+  // Convert transaction-unit qty → base for stock; deliveredQty stays in line unit.
+  const unitFactors = await loadUnitFactors(
+    companyId,
+    dc.lines.map((l) => ({ resourceId: l.resourceId, unit: l.unit })),
+  );
+
   const updated = await prisma.$transaction(async (tx) => {
     // INVENTORY_HORIZONTAL_PLATFORM (Phase 3.1): dispatch from a specific
     // warehouse (inventory only; omitted = company default location).
@@ -360,10 +367,12 @@ export async function dispatchDeliveryChallan(
         where: { locationId_resourceId: { locationId: location.id, resourceId: line.resourceId } },
       });
       const onHand = balance ? Number(balance.quantity) : 0;
-      const qty = Number(line.quantity);
-      if (!balance || onHand < qty) {
+      const lineQty = Number(line.quantity);
+      const factor = unitFactors.get(unitFactorKey(line.resourceId, line.unit)) ?? 1;
+      const stockQty = toBaseQty(lineQty, factor);
+      if (!balance || onHand < stockQty) {
         throw ApiError.unprocessable(
-          `${line.itemName}: only ${onHand} on hand in ${location.name}, challan requires ${qty} - dispatch aborted.`,
+          `${line.itemName}: only ${onHand} on hand in ${location.name}, challan requires ${stockQty} base - dispatch aborted.`,
         );
       }
       const res = await tx.resource.findUnique({
@@ -380,11 +389,11 @@ export async function dispatchDeliveryChallan(
           resourceId: line.resourceId,
           resourceName: res?.name ?? line.itemName,
           unit: res?.unit ?? line.unit,
-          quantity: qty,
+          quantity: stockQty,
         });
         await tx.stockBalance.update({
           where: { id: balance.id },
-          data: { quantity: { decrement: qty } },
+          data: { quantity: { decrement: stockQty } },
         });
         for (const alloc of allocations) {
           await tx.stockMovement.create({
@@ -405,20 +414,20 @@ export async function dispatchDeliveryChallan(
       } else {
         await tx.stockBalance.update({
           where: { id: balance.id },
-          data: { quantity: { decrement: qty } },
+          data: { quantity: { decrement: stockQty } },
         });
         await tx.stockMovement.create({
           data: {
             locationId: location.id,
             resourceId: line.resourceId,
-            quantity: qty,
+            quantity: stockQty,
             type: 'OUT',
             referenceType: 'DELIVERY_CHALLAN',
             referenceId: dc.id,
             notes: `Dispatch ${dc.dcNumber}`,
             // INVENTORY_HORIZONTAL_PLATFORM (Phase 5.2): cost at WAC.
             unitCost: Number(res?.avgCost ?? 0),
-            inventoryValue: Math.round(Number(res?.avgCost ?? 0) * qty * 100) / 100,
+            inventoryValue: Math.round(Number(res?.avgCost ?? 0) * stockQty * 100) / 100,
             // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.3): optional batch / lot code.
             batchCode: line.batchCode,
           },
@@ -427,7 +436,7 @@ export async function dispatchDeliveryChallan(
       if (line.salesOrderLineId) {
         await tx.salesOrderLine.update({
           where: { id: line.salesOrderLineId },
-          data: { deliveredQty: { increment: qty } },
+          data: { deliveredQty: { increment: lineQty } },
         });
       }
     }

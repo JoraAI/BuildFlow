@@ -17,6 +17,7 @@ export * from './subscription-limits';
 export * from './plan-modules';
 export * from './inventory-profile';
 export * from './inventory-labels';
+export * from './uom';
 export * from './permissions';
 export * from './utils/date';
 export * from './utils/procurement-eligibility';

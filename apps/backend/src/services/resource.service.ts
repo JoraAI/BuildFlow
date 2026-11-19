@@ -31,7 +31,9 @@ import {
   dateOnlyFromDate,
   parseDateOnlyToDate,
   todayDateOnly,
+  normalizeUnitName,
 } from '@buildflow/shared';
+import { loadResourceUnits, syncResourceUnits } from './company-unit.service';
 
 // Resources change infrequently; cache list for 1 hour per offline-first spec.
 const RESOURCE_LIST_TTL = 60 * 60;
@@ -112,7 +114,8 @@ export async function resolveResourceImageUrl(
 
 async function serializeResource(companyId: string, resource: Resource) {
   const imageUrl = await resolveResourceImageUrl(companyId, resource.imageUrl);
-  return { ...resource, imageUrl };
+  const units = await loadResourceUnits(resource.id);
+  return { ...resource, imageUrl, units };
 }
 
 export async function createResourceImageUploadUrl(
@@ -248,12 +251,13 @@ export async function createResource(
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.2): BATCH_EXPIRY is Kirana-only.
   await assertTrackingModeAllowed(companyId, input.trackingMode);
 
+  const baseUnit = normalizeUnitName(input.unit) || 'nos';
   const resource = await prisma.resource.create({
     data: {
       companyId,
       name: input.name,
       type: input.type,
-      unit: input.unit,
+      unit: baseUnit,
       rate,
       mrp: input.mrp ?? null,
       mrpUpdatedAt: input.mrp != null ? new Date() : null,
@@ -282,6 +286,8 @@ export async function createResource(
       lastRateUpdatedAt: new Date(),
     },
   });
+
+  await syncResourceUnits(companyId, resource.id, input.units, baseUnit);
 
   // Record initial price history
   await prisma.materialPriceHistory.create({
@@ -373,12 +379,15 @@ export async function updateResource(
     input.mrp !== undefined &&
     (input.mrp === null ? existing.mrp != null : input.mrp !== Number(existing.mrp));
 
+  const nextUnit =
+    input.unit !== undefined ? normalizeUnitName(input.unit) || existing.unit : undefined;
+
   const updated = await prisma.resource.update({
     where: { id },
     data: {
       ...(input.name !== undefined && { name: input.name }),
       ...(input.type !== undefined && { type: input.type }),
-      ...(input.unit !== undefined && { unit: input.unit }),
+      ...(nextUnit !== undefined && { unit: nextUnit }),
       ...(nextRate !== undefined && { rate: nextRate }),
       ...(input.mrp !== undefined && {
         mrp: input.mrp,
@@ -408,6 +417,15 @@ export async function updateResource(
       ...(rateChanged && { lastRateUpdatedAt: new Date() }),
     },
   });
+
+  if (input.units !== undefined || nextUnit !== undefined) {
+    await syncResourceUnits(
+      companyId,
+      id,
+      input.units,
+      nextUnit ?? updated.unit,
+    );
+  }
 
   // FIX (EST-H7): Record the new rate in price history.
   if (rateChanged) {

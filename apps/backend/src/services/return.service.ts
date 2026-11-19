@@ -16,6 +16,7 @@ import { updateWacOnIn } from './finance.service';
 import { splitGstByState } from './finance.service';
 import { applyBatchIn, isBatchTracked } from './stock-batch.service';
 import { recalculateDraftInvoiceTotals } from './invoice.service';
+import { loadUnitFactors, unitFactorKey, toBaseQty } from './company-unit.service';
 import type {
   CreateSalesReturnInput,
   CreatePurchaseReturnInput,
@@ -411,15 +412,25 @@ export async function approveSalesReturn(
 async function restockSalesReturnLines(
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
   locationId: string,
-  ret: { id: string; returnNumber: string; lines: Array<{ resourceId: string; quantity: unknown; returnKind: string }> },
+  ret: {
+    id: string;
+    companyId: string;
+    returnNumber: string;
+    lines: Array<{ resourceId: string; quantity: unknown; unit?: string | null; returnKind: string }>;
+  },
   invoice: { id: string; stockMovementId?: string | null },
 ) {
+  const factors = await loadUnitFactors(
+    ret.companyId,
+    ret.lines.map((l) => ({ resourceId: l.resourceId, unit: l.unit })),
+  );
   for (const l of ret.lines) {
     if (l.returnKind !== 'GOOD') continue;
     const balance = await tx.stockBalance.findUnique({
       where: { locationId_resourceId: { locationId, resourceId: l.resourceId } },
     });
-    const qty = Number(l.quantity);
+    const factor = factors.get(unitFactorKey(l.resourceId, l.unit)) ?? 1;
+    const qty = toBaseQty(Number(l.quantity), factor);
     const res = await tx.resource.findUnique({
       where: { id: l.resourceId },
       select: { avgCost: true, trackingMode: true },
@@ -544,6 +555,11 @@ export async function createPurchaseReturn(
   });
   const gstSplit = splitGstByState(company.state, company.gstin, null, bill?.vendorGstin ?? null, gstAmount);
 
+  const unitFactors = await loadUnitFactors(
+    companyId,
+    lines.map((l) => ({ resourceId: l.resourceId, unit: l.unit })),
+  );
+
   return prisma.$transaction(async (tx) => {
     const location = await getOrCreateProjectStockLocation(companyId, projectId, tx);
     const ret = await tx.purchaseReturn.create({
@@ -572,10 +588,11 @@ export async function createPurchaseReturn(
         where: { locationId_resourceId: { locationId: location.id, resourceId: l.resourceId } },
       });
       const onHand = balance ? Number(balance.quantity) : 0;
-      const qty = Number(l.quantity);
+      const factor = unitFactors.get(unitFactorKey(l.resourceId, l.unit)) ?? 1;
+      const qty = toBaseQty(Number(l.quantity), factor);
       if (!balance || onHand < qty) {
         throw ApiError.unprocessable(
-          `${l.itemName}: only ${onHand} on hand, return requires ${qty} - purchase return aborted.`,
+          `${l.itemName}: only ${onHand} on hand, return requires ${qty} base - purchase return aborted.`,
         );
       }
       await tx.stockBalance.update({ where: { id: balance.id }, data: { quantity: { decrement: qty } } });

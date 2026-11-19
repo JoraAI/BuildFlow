@@ -418,6 +418,9 @@ model Company {
   auditorPackCadence AuditorPackCadence @default(MONTHLY) @map("auditor_pack_cadence")
   auditorPackDay     Int                @default(5) @map("auditor_pack_day")
 
+  /// Shop multi-unit (alternate UOM) — default off; stock ledger stays in base unit.
+  multiUnitEnabled Boolean @default(false) @map("multi_unit_enabled")
+
   users               User[]
   userInvites         UserInvite[]
   projects            Project[]
@@ -471,8 +474,51 @@ model Company {
   auditorMemberships  AuditorMembership[]
   gstHandoffPacks     GstHandoffPack[]
   auditorManualEntries AuditorManualEntry[]
+  companyUnits        CompanyUnit[]
 
   @@map("companies")
+}
+
+/// Shop unit-of-measure catalog (custom names per company).
+model CompanyUnit {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  name      String
+  symbol    String?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  resourceUnits ResourceUnit[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("company_units")
+}
+
+/// Per-item units: one base (conversionToBase=1) + optional alternates when multi-unit is on.
+model ResourceUnit {
+  id                String   @id @default(uuid()) @db.Uuid
+  resourceId        String   @map("resource_id") @db.Uuid
+  companyUnitId     String   @map("company_unit_id") @db.Uuid
+  /// Snapshot of CompanyUnit.name for PDFs / historical lines.
+  unitName          String   @map("unit_name")
+  isBase            Boolean  @default(false) @map("is_base")
+  /// 1 of this unit = conversionToBase of the item's base unit.
+  conversionToBase  Decimal  @default(1) @map("conversion_to_base") @db.Decimal(14, 6)
+  rate              Decimal? @db.Decimal(12, 2)
+  distributorRate   Decimal? @map("distributor_rate") @db.Decimal(12, 2)
+  customerRate      Decimal? @map("customer_rate") @db.Decimal(12, 2)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  resource    Resource    @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  companyUnit CompanyUnit @relation(fields: [companyUnitId], references: [id], onDelete: Restrict)
+
+  @@unique([resourceId, companyUnitId])
+  @@index([resourceId])
+  @@map("resource_units")
 }
 
 // ------------------------------------------------------------------
@@ -1058,6 +1104,7 @@ model Resource {
   projectMaterialRates ProjectMaterialRate[]
   recipesAsOutput    Recipe[]             @relation("RecipeOutput")
   recipeLinesAsInput RecipeLine[]         @relation("RecipeLineInput")
+  resourceUnits      ResourceUnit[]
 
   @@unique([companyId, name, type])
   @@index([companyId])

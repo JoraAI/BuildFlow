@@ -19,7 +19,8 @@ import { useWarehouses, type Warehouse } from '@/services/warehouse.queries';
 import { useEffectiveRates } from '@/services/inventory-gtm.queries';
 import { BarcodeScannerOverlay } from '@/components/inventory/BarcodeScannerOverlay';
 import { Ionicons } from '@expo/vector-icons';
-import { usesEventLightingCopy } from '@buildflow/shared';
+import { resolveSellRate, toBaseQty, usesEventLightingCopy } from '@buildflow/shared';
+import { useCompany } from '@/services/settings.queries';
 
 function Sheet({
   title,
@@ -121,6 +122,14 @@ type CatalogResource = {
   gstRate?: number | string | null;
   customerRate?: number | string | null;
   distributorRate?: number | string | null;
+  units?: Array<{
+    unitName: string;
+    isBase?: boolean;
+    conversionToBase?: number;
+    rate?: number | null;
+    distributorRate?: number | null;
+    customerRate?: number | null;
+  }> | null;
 };
 type BuyerRole = 'DISTRIBUTOR' | 'CUSTOMER' | null;
 const newKey = () => `l-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -130,28 +139,45 @@ function defaultWarehouseId(warehouses: Warehouse[] | undefined): string {
   return (warehouses.find((w) => w.isDefault) ?? warehouses[0]).id;
 }
 
-function customerCatalogRate(r: CatalogResource): number {
-  const n = Number(r.customerRate ?? r.rate ?? 0);
-  return Number.isFinite(n) && n > 0 ? n : 0;
-}
-
 /** Walk-in / no party → customer ₹. Selected distributor → distributor ₹. Price list wins via overrides. */
 function resolveLineRate(
   resourceId: string,
   resources: CatalogResource[],
   rateOverrides?: Record<string, number>,
   buyerRole?: BuyerRole,
+  unitName?: string | null,
 ): string {
   const override = rateOverrides?.[resourceId];
-  if (override != null && override > 0) return String(override);
   const r = resources.find((x) => x.id === resourceId);
   if (!r) return '';
-  if (buyerRole === 'DISTRIBUTOR') {
-    const d = Number(r.distributorRate ?? 0);
-    if (Number.isFinite(d) && d > 0) return String(d);
+  const n = resolveSellRate({
+    resource: {
+      unit: r.unit,
+      rate: Number(r.rate) || 0,
+      distributorRate: r.distributorRate == null ? null : Number(r.distributorRate),
+      customerRate: r.customerRate == null ? null : Number(r.customerRate),
+      units: r.units ?? undefined,
+    },
+    unitName: unitName || r.unit,
+    buyerRole,
+    priceListOverride: override != null && override > 0 ? override : null,
+  });
+  return n > 0 ? String(n) : '';
+}
+
+function resourceUnitOptions(r: CatalogResource | undefined, multiUnitOn: boolean) {
+  if (!r) return [] as Array<{ title: string; value: string }>;
+  const units = r.units ?? [];
+  if (multiUnitOn && units.length > 0) {
+    return units.map((u) => ({
+      title:
+        u.isBase || Number(u.conversionToBase) === 1
+          ? `${u.unitName} (base)`
+          : `${u.unitName} (= ${u.conversionToBase} ${r.unit})`,
+      value: u.unitName,
+    }));
   }
-  const c = customerCatalogRate(r);
-  return c > 0 ? String(c) : '';
+  return [{ title: r.unit, value: r.unit }];
 }
 
 function asParties(rows: unknown): PartyRow[] {
@@ -207,6 +233,8 @@ export function LineEditor({
   const { isPhone } = useViewport();
   const tableMode = !isPhone;
   const { data } = useResources();
+  const { data: company } = useCompany();
+  const multiUnitOn = Boolean(company?.multiUnitEnabled);
   const resources: CatalogResource[] = Array.isArray(data) ? data : (data?.data ?? []);
   const balances = useProjectStockBalances(locationId);
   // Returns pass qtyCapByResourceId — show document qty only, not warehouse on-hand.
@@ -233,20 +261,36 @@ export function LineEditor({
   const patch = (key: string, field: keyof DraftLine, value: string) =>
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, [field]: value } : l)));
 
-  const applyItem = (lineKey: string, resourceId: string) => {
+  const applyItem = (lineKey: string, resourceId: string, unitName?: string) => {
     const r = resources.find((x) => x.id === resourceId);
+    const unit = unitName || r?.unit || 'nos';
     setLines((prev) =>
       prev.map((l) =>
         l.key === lineKey
           ? {
               ...l,
               resourceId,
-              unit: r?.unit ?? 'no',
+              unit,
               gstRate: r?.gstRate != null ? String(r.gstRate) : l.gstRate,
-              rate: resolveLineRate(resourceId, resources, rateOverrides, buyerRole) || l.rate,
+              rate:
+                resolveLineRate(resourceId, resources, rateOverrides, buyerRole, unit) || l.rate,
             }
           : l,
       ),
+    );
+  };
+
+  const applyUnit = (lineKey: string, unitName: string) => {
+    setLines((prev) =>
+      prev.map((l) => {
+        if (l.key !== lineKey || !l.resourceId) return l;
+        return {
+          ...l,
+          unit: unitName,
+          rate:
+            resolveLineRate(l.resourceId, resources, rateOverrides, buyerRole, unitName) || l.rate,
+        };
+      }),
     );
   };
 
@@ -255,7 +299,13 @@ export function LineEditor({
     setLines((prev) =>
       prev.map((l) => {
         if (!l.resourceId) return l;
-        const next = resolveLineRate(l.resourceId, resources, rateOverrides, buyerRole);
+        const next = resolveLineRate(
+          l.resourceId,
+          resources,
+          rateOverrides,
+          buyerRole,
+          l.unit,
+        );
         if (!next || next === l.rate) return l;
         return { ...l, rate: next };
       }),
@@ -320,13 +370,25 @@ export function LineEditor({
             <View className="w-8" />
           </View>
           {lines.map((l, idx) => {
+            const r = resources.find((x) => x.id === l.resourceId);
+            const unitOpts = resourceUnitOptions(r, multiUnitOn);
+            const showUnitPicker = multiUnitOn && !returnMode && unitOpts.length > 1;
+            const factor =
+              r?.units?.find((u) => u.unitName === l.unit)?.conversionToBase ??
+              (l.unit === r?.unit ? 1 : 1);
             const onHand = l.resourceId ? (balances.get(l.resourceId) ?? 0) : 0;
             const docCap = l.resourceId && returnMode ? (qtyCapByResourceId?.[l.resourceId] ?? 0) : null;
             const shownStock = returnMode ? docCap : onHand;
+            const qtyNum = Number(l.quantity) || 0;
+            const stockNeed = returnMode ? qtyNum : toBaseQty(qtyNum, Number(factor) || 1);
             const isOver =
               Boolean(l.resourceId) &&
               shownStock != null &&
-              (Number(l.quantity) || 0) > shownStock + 1e-9;
+              stockNeed > shownStock + 1e-9;
+            const baseHint =
+              !returnMode && multiUnitOn && l.resourceId && qtyNum > 0 && Number(factor) !== 1
+                ? `Stock will move ${toBaseQty(qtyNum, Number(factor) || 1)} ${r?.unit || 'base'}`
+                : null;
             return (
               <View key={l.key} className="border-b border-border/60 last:border-b-0">
                 <View className="flex-row items-start px-3 py-2 gap-2">
@@ -339,9 +401,22 @@ export function LineEditor({
                       placeholder={`Item ${idx + 1}`}
                       searchPlaceholder="Search items"
                     />
+                    {showUnitPicker ? (
+                      <View className="mt-1">
+                        <Select
+                          compact
+                          value={l.unit || undefined}
+                          options={unitOpts}
+                          onChange={(v) => v && applyUnit(l.key, v)}
+                          placeholder="Unit"
+                        />
+                      </View>
+                    ) : null}
                   </View>
                   <Text className={`w-[72px] text-xs text-right pt-3 ${isOver ? 'text-warning font-semibold' : 'text-muted'}`}>
-                    {l.resourceId ? `${shownStock} ${l.unit}` : '—'}
+                    {l.resourceId
+                      ? `${shownStock} ${returnMode ? l.unit : r?.unit || l.unit}`
+                      : '—'}
                   </Text>
                   <View className="w-[84px]">
                     <Input
@@ -386,11 +461,14 @@ export function LineEditor({
                     <Text className="text-sm font-semibold text-danger">✕</Text>
                   </Pressable>
                 </View>
+                {baseHint ? (
+                  <Text className="text-[11px] text-muted px-3 pb-1">{baseHint}</Text>
+                ) : null}
                 {isOver ? (
                   <Text className="text-[11px] font-semibold text-warning px-3 pb-2">
                     {returnMode
                       ? `Qty exceeds on-doc quantity (${docCap} ${l.unit})`
-                      : `Qty exceeds ${warehouseName ? `${warehouseName} ` : ''}stock (${onHand} ${l.unit})`}
+                      : `Qty exceeds ${warehouseName ? `${warehouseName} ` : ''}stock (${onHand} ${r?.unit || ''})`}
                   </Text>
                 ) : null}
                 {showKind ? <View className="px-3 pb-2">{kindRow(l)}</View> : null}
@@ -401,13 +479,20 @@ export function LineEditor({
       ) : (
         <View className="gap-2">
           {lines.map((l, idx) => {
+            const r = resources.find((x) => x.id === l.resourceId);
+            const unitOpts = resourceUnitOptions(r, multiUnitOn);
+            const showUnitPicker = multiUnitOn && !returnMode && unitOpts.length > 1;
+            const factor =
+              r?.units?.find((u) => u.unitName === l.unit)?.conversionToBase ?? 1;
             const onHand = l.resourceId ? (balances.get(l.resourceId) ?? 0) : 0;
             const docCap = l.resourceId && returnMode ? (qtyCapByResourceId?.[l.resourceId] ?? 0) : null;
             const shownStock = returnMode ? docCap : onHand;
+            const qtyNum = Number(l.quantity) || 0;
+            const stockNeed = returnMode ? qtyNum : toBaseQty(qtyNum, Number(factor) || 1);
             const isOver =
               Boolean(l.resourceId) &&
               shownStock != null &&
-              (Number(l.quantity) || 0) > shownStock + 1e-9;
+              stockNeed > shownStock + 1e-9;
             return (
               <View key={l.key} className="bg-surface rounded-xl border border-border p-3">
                 <Select
@@ -418,6 +503,17 @@ export function LineEditor({
                   placeholder="Select item"
                   searchPlaceholder="Search items"
                 />
+                {showUnitPicker ? (
+                  <View className="mt-2">
+                    <Select
+                      label="Unit"
+                      value={l.unit || undefined}
+                      options={unitOpts}
+                      onChange={(v) => v && applyUnit(l.key, v)}
+                      placeholder="Select unit"
+                    />
+                  </View>
+                ) : null}
                 <View className="flex-row gap-2 mt-2">
                   <View className="flex-1">
                     <Input label="Qty" value={l.quantity} onChangeText={(v) => patch(l.key, 'quantity', v)} keyboardType="numeric" />
@@ -436,16 +532,27 @@ export function LineEditor({
                   </Pressable>
                 </View>
                 {l.resourceId ? (
-                  <View className="flex-row items-center justify-between mt-1 px-0.5">
-                    <Text className="text-[11px] text-muted">
-                      {returnMode ? 'On doc:' : warehouseName ? `${warehouseName} on-hand:` : 'Store on-hand:'}{' '}
-                      <Text className="font-semibold text-text">
-                        {shownStock} {l.unit}
+                  <View className="mt-1 px-0.5 gap-0.5">
+                    <View className="flex-row items-center justify-between">
+                      <Text className="text-[11px] text-muted">
+                        {returnMode
+                          ? 'On doc:'
+                          : warehouseName
+                            ? `${warehouseName} on-hand:`
+                            : 'Store on-hand:'}{' '}
+                        <Text className="font-semibold text-text">
+                          {shownStock} {returnMode ? l.unit : r?.unit || l.unit}
+                        </Text>
                       </Text>
-                    </Text>
-                    {isOver ? (
-                      <Text className="text-[11px] font-semibold text-warning">
-                        {returnMode ? 'Qty exceeds on-doc qty' : 'Qty exceeds stock'}
+                      {isOver ? (
+                        <Text className="text-[11px] font-semibold text-warning">
+                          {returnMode ? 'Qty exceeds on-doc qty' : 'Qty exceeds stock'}
+                        </Text>
+                      ) : null}
+                    </View>
+                    {!returnMode && multiUnitOn && qtyNum > 0 && Number(factor) !== 1 ? (
+                      <Text className="text-[11px] text-muted">
+                        Stock will move {toBaseQty(qtyNum, Number(factor) || 1)} {r?.unit || 'base'}
                       </Text>
                     ) : null}
                   </View>

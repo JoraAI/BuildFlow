@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { ResourceType } from '../enums';
 import { dateSchema } from './common';
 import { isDateOnOrAfter, todayDateOnly } from '../utils/date';
+import { resourceUnitInputSchema } from './uom';
 
 export const resourceTypeSchema = z.nativeEnum(ResourceType);
 
@@ -44,6 +45,8 @@ export const createResourceSchema = z.object({
   barcode: z.string().max(100).optional(),
   secondaryUnit: z.string().max(20).optional(),
   conversionFactor: z.number().positive().optional(),
+  /** Multi-unit rows (requires company.multiUnitEnabled for non-base alts). */
+  units: z.array(resourceUnitInputSchema).max(20).optional(),
   reorderPoint: z.number().nonnegative().optional(),
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): procurement automation fields -
   // all optional so construction resource/estimate flows are unaffected.

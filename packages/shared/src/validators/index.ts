@@ -34,3 +34,4 @@ export * from './inventory-catalog';
 export * from './ice-cream';
 export * from './cash-book';
 export * from './auditor';
+export * from './uom';

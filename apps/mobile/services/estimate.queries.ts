@@ -38,6 +38,17 @@ export interface Resource {
   barcode?: string | null;
   secondaryUnit?: string | null;
   conversionFactor?: string | number | null;
+  /** Multi-unit rows when company.multiUnitEnabled. */
+  units?: Array<{
+    id?: string;
+    companyUnitId?: string;
+    unitName: string;
+    isBase: boolean;
+    conversionToBase: number;
+    rate?: number | null;
+    distributorRate?: number | null;
+    customerRate?: number | null;
+  }> | null;
   reorderPoint?: string | number | null;
   trackingMode?: 'NONE' | 'BATCH_EXPIRY';
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): procurement automation fields.
