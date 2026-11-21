@@ -26,7 +26,7 @@ import { useCustomers, type PartyRow } from '@/services/party.queries';
 import { useEffectiveRates } from '@/services/inventory-gtm.queries';
 import { useCompany } from '@/services/settings.queries';
 import { useResources, type Resource } from '@/services/estimate.queries';
-import { resolveSellRate, toBaseQty } from '@buildflow/shared';
+import { resolveSellRate, scaleFromBase, toBaseQty } from '@buildflow/shared';
 import { apiFetch } from '@/lib/api-client';
 import type { BarcodeItem } from '@/services/warehouse.queries';
 import type { StockSummaryRow } from '@/services/expansion.queries';
@@ -348,13 +348,29 @@ export function CheckoutCart({
     if (l.unitPrice !== '') {
       const price = Number(l.unitPrice);
       if (!Number.isFinite(price) || price < 0) return 'Enter a valid selling price.';
-      if (row.mrp != null && Number(row.mrp) > 0 && price > Number(row.mrp)) {
-        return `Selling price cannot be above MRP ₹${Number(row.mrp).toFixed(2)}.`;
+      // MRP is stored per base unit; scale to the line unit before comparing.
+      const mrpBase = row.mrp != null ? Number(row.mrp) : 0;
+      if (mrpBase > 0) {
+        const factor = factorFor(l.resourceId, unit);
+        const mrpForUnit = scaleFromBase(mrpBase, factor);
+        if (price > mrpForUnit + 1e-9) {
+          return `Selling price cannot be above MRP ₹${mrpForUnit.toFixed(2)}${
+            factor !== 1 ? ` / ${unit}` : ''
+          }.`;
+        }
       }
     }
     return null;
   };
-  const blockingIssues = lines.filter((l) => lineIssue(l) !== null).length;
+  const blockingLines = lines
+    .map((l) => {
+      const problem = lineIssue(l);
+      if (!problem) return null;
+      const row = rowFor(l.resourceId);
+      return { name: row?.name ?? 'Item', problem };
+    })
+    .filter((x): x is { name: string; problem: string } => x != null);
+  const blockingIssues = blockingLines.length;
 
   // GST math for the cart display (informational; the draft invoice is the
   // authoritative GST computation server-side).
@@ -581,7 +597,9 @@ export function CheckoutCart({
     <>
       {blockingIssues > 0 ? (
         <Text className="text-[11px] text-danger mb-2">
-          {blockingIssues === 1 ? '1 item needs fixing' : `${blockingIssues} items need fixing`} before you can charge.
+          {blockingIssues === 1
+            ? `${blockingLines[0].name}: ${blockingLines[0].problem}`
+            : `${blockingIssues} items need fixing before you can charge. ${blockingLines[0].name}: ${blockingLines[0].problem}`}
         </Text>
       ) : null}
       <Button
@@ -796,44 +814,53 @@ export function CheckoutCart({
                       const gstRate = Number(row.gstRate ?? 0);
                       const unitOpts = unitOptionsFor(l.resourceId);
                       const showUnitPicker = multiUnitOn && unitOpts.length > 1;
+                      const issue = lineIssue(l);
                       return (
-                        <View key={l.key} className="flex-row items-center px-4 py-2 bg-card border-b border-border/60">
-                          <View className="flex-[1.6] min-w-0 mr-2">
-                            <Text className="text-sm text-text" numberOfLines={1}>{row.name}</Text>
-                            {/* 11.7.3: muted read-only cost hint (never edited here). */}
-                            {row.costPrice != null && Number(row.costPrice) > 0 ? (
-                              <Text className="text-[10px] text-muted">Cost ₹{Number(row.costPrice).toFixed(2)}</Text>
-                            ) : null}
-                          </View>
-                          {multiUnitOn ? (
-                            <View className="w-[96px] pr-2">
-                              {showUnitPicker ? (
-                                <Select
-                                  compact
-                                  value={l.unit || undefined}
-                                  options={unitOpts}
-                                  onChange={(v) => v && applyUnit(l.key, v)}
-                                  placeholder="Unit"
-                                  disabled={submitting}
-                                />
-                              ) : (
-                                <Text className="text-xs text-muted">{l.unit || row.unit}</Text>
-                              )}
+                        <View
+                          key={l.key}
+                          className={`px-4 py-2 bg-card border-b ${issue ? 'border-danger/60' : 'border-border/60'}`}
+                        >
+                          <View className="flex-row items-center">
+                            <View className="flex-[1.6] min-w-0 mr-2">
+                              <Text className="text-sm text-text" numberOfLines={1}>{row.name}</Text>
+                              {/* 11.7.3: muted read-only cost hint (never edited here). */}
+                              {row.costPrice != null && Number(row.costPrice) > 0 ? (
+                                <Text className="text-[10px] text-muted">Cost ₹{Number(row.costPrice).toFixed(2)}</Text>
+                              ) : null}
                             </View>
+                            {multiUnitOn ? (
+                              <View className="w-[96px] pr-2">
+                                {showUnitPicker ? (
+                                  <Select
+                                    compact
+                                    value={l.unit || undefined}
+                                    options={unitOpts}
+                                    onChange={(v) => v && applyUnit(l.key, v)}
+                                    placeholder="Unit"
+                                    disabled={submitting}
+                                  />
+                                ) : (
+                                  <Text className="text-xs text-muted">{l.unit || row.unit}</Text>
+                                )}
+                              </View>
+                            ) : null}
+                            <View className="flex-1 pr-2">
+                              <CellInput accessibilityLabel={`Quantity of ${row.name}`} value={l.quantity} onChangeText={(t) => updateLine(l.key, { quantity: t })} />
+                            </View>
+                            <View className="flex-1 pr-2">
+                              <CellInput accessibilityLabel={`Selling price of ${row.name}`} value={l.unitPrice} onChangeText={(t) => updateLine(l.key, { unitPrice: t })} />
+                            </View>
+                            <Text className="flex-1 text-xs text-muted text-right">{gstRate}%</Text>
+                            <Text className="flex-1 text-sm font-semibold text-text text-right">₹{round2(lineNet).toFixed(2)}</Text>
+                            <View className="w-16 items-end">
+                              <Pressable disabled={submitting} onPress={() => removeLine(l.key)} accessibilityRole="button" accessibilityLabel={`Remove ${row.name} from cart`} className="px-2 py-1">
+                                <Text className="text-xs font-semibold text-danger">Remove</Text>
+                              </Pressable>
+                            </View>
+                          </View>
+                          {issue ? (
+                            <Text className="text-[11px] text-danger mt-1">{issue}</Text>
                           ) : null}
-                          <View className="flex-1 pr-2">
-                            <CellInput accessibilityLabel={`Quantity of ${row.name}`} value={l.quantity} onChangeText={(t) => updateLine(l.key, { quantity: t })} />
-                          </View>
-                          <View className="flex-1 pr-2">
-                            <CellInput accessibilityLabel={`Selling price of ${row.name}`} value={l.unitPrice} onChangeText={(t) => updateLine(l.key, { unitPrice: t })} />
-                          </View>
-                          <Text className="flex-1 text-xs text-muted text-right">{gstRate}%</Text>
-                          <Text className="flex-1 text-sm font-semibold text-text text-right">₹{round2(lineNet).toFixed(2)}</Text>
-                          <View className="w-16 items-end">
-                            <Pressable disabled={submitting} onPress={() => removeLine(l.key)} accessibilityRole="button" accessibilityLabel={`Remove ${row.name} from cart`} className="px-2 py-1">
-                              <Text className="text-xs font-semibold text-danger">Remove</Text>
-                            </Pressable>
-                          </View>
                         </View>
                       );
                     })
