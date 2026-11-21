@@ -47,14 +47,21 @@ describe('resolveSellRate', () => {
     ).toBe(600);
   });
 
-  it('honours price list override without scaling', () => {
+  it('scales base-unit price list override for alternate units', () => {
     expect(
       resolveSellRate({
         resource: cement,
         unitName: 'bag',
-        priceListOverride: 333,
+        priceListOverride: 9,
       }),
-    ).toBe(333);
+    ).toBe(450);
+    expect(
+      resolveSellRate({
+        resource: cement,
+        unitName: 'kg',
+        priceListOverride: 9,
+      }),
+    ).toBe(9);
   });
 });
 

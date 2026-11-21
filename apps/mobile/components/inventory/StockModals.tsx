@@ -501,15 +501,17 @@ export function MultiIssueStockModal({
   };
 
   const applyUnit = (lineKey: string, unitName: string) => {
-    const line = lines.find((l) => l.key === lineKey);
-    if (!line?.resourceId) {
-      updateLine(lineKey, { unit: unitName });
-      return;
-    }
-    updateLine(lineKey, {
-      unit: unitName,
-      unitPrice: resolvePrice(line.resourceId, unitName),
-    });
+    setLines((prev) =>
+      prev.map((l) => {
+        if (l.key !== lineKey) return l;
+        if (!l.resourceId) return { ...l, unit: unitName };
+        return {
+          ...l,
+          unit: unitName,
+          unitPrice: resolvePrice(l.resourceId, unitName),
+        };
+      }),
+    );
   };
 
   const submit = () => {

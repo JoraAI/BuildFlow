@@ -68,9 +68,10 @@ function unitRowFor(
 
 /**
  * Resolve sell rate for a transaction unit + buyer role.
- * Order: priceListOverride → unit role → unit sell →
+ * Order: priceListOverride (base-unit; scaled for alts) → unit role → unit sell →
  * scaled base role/sell (alt units) → base role → base rate.
  * Explicit unit prices always win; blank alts use base × conversionToBase.
+ * Price-list / role-MRP overrides are stored per base unit and scale with conversion.
  */
 export function resolveSellRate(opts: {
   resource: ResourceRateSource;
@@ -78,11 +79,14 @@ export function resolveSellRate(opts: {
   buyerRole?: BuyerRoleForRate;
   priceListOverride?: number | null;
 }): number {
+  const { unitRow, factor, isBaseUnit } = unitRowFor(opts.resource, opts.unitName);
+
   if (opts.priceListOverride != null && Number.isFinite(Number(opts.priceListOverride))) {
-    return Number(opts.priceListOverride);
+    const override = Number(opts.priceListOverride);
+    if (!isBaseUnit) return scaleFromBase(override, factor);
+    return override;
   }
 
-  const { unitRow, factor, isBaseUnit } = unitRowFor(opts.resource, opts.unitName);
   const baseRate = Number(opts.resource.rate) || 0;
   const baseDist =
     opts.resource.distributorRate != null ? Number(opts.resource.distributorRate) : null;

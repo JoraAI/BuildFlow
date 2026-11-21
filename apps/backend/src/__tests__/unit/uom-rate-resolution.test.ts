@@ -60,4 +60,21 @@ describe('uom rate resolution (blank alts scale)', () => {
     };
     expect(resolveBuyCost({ resource: withCost, unitName: 'bag' })).toBe(220);
   });
+
+  it('resolveSellRate scales base-unit price-list overrides for alt units', () => {
+    expect(
+      resolveSellRate({
+        resource: cement,
+        unitName: 'bag',
+        priceListOverride: 9,
+      }),
+    ).toBe(450);
+    expect(
+      resolveSellRate({
+        resource: cement,
+        unitName: 'kg',
+        priceListOverride: 9,
+      }),
+    ).toBe(9);
+  });
 });

@@ -71,9 +71,12 @@ export function useDeletePrice() {
 }
 
 /**
- * Effective-rate map for a customer:
- * price list → SKU role sell ₹ → role % off MRP → catalog rate.
+ * True price-list / role-MRP overrides for a customer (base-unit ₹).
+ * ROLE_SKU and CATALOG are omitted so resolveSellRate can apply unit scaling
+ * and distributor/customer role rates on the client.
  */
+const PRICE_LIST_OVERRIDE_SOURCES = new Set(['CUSTOMER_PRICE', 'DEFAULT_PRICE', 'ROLE_MRP']);
+
 export function useEffectiveRates(customerId?: string) {
   return useQuery<Record<string, number>>({
     queryKey: ['inventory', 'effective-rates', customerId ?? 'default'],
@@ -83,7 +86,11 @@ export function useEffectiveRates(customerId?: string) {
         `/inventory/effective-rates${q}`,
       );
       const map: Record<string, number> = {};
-      for (const r of rows) map[r.resourceId] = r.rate;
+      for (const r of rows) {
+        if (PRICE_LIST_OVERRIDE_SOURCES.has(r.source) && r.rate > 0) {
+          map[r.resourceId] = r.rate;
+        }
+      }
       return map;
     },
   });

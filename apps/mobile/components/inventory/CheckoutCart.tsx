@@ -288,15 +288,17 @@ export function CheckoutCart({
   const updateLine = (key: string, patch: Partial<CartLine>) =>
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   const applyUnit = (lineKey: string, unitName: string) => {
-    const line = lines.find((l) => l.key === lineKey);
-    if (!line?.resourceId) {
-      updateLine(lineKey, { unit: unitName });
-      return;
-    }
-    updateLine(lineKey, {
-      unit: unitName,
-      unitPrice: priceForResource(line.resourceId, unitName),
-    });
+    setLines((prev) =>
+      prev.map((l) => {
+        if (l.key !== lineKey) return l;
+        if (!l.resourceId) return { ...l, unit: unitName };
+        return {
+          ...l,
+          unit: unitName,
+          unitPrice: priceForResource(l.resourceId, unitName),
+        };
+      }),
+    );
   };
   const removeLine = (key: string) => setLines((prev) => prev.filter((l) => l.key !== key));
   // 11.8/M7.1: phone qty stepper - decrement, removing the line at 0.
