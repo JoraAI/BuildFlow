@@ -24,6 +24,7 @@ import { InventoryScrollChrome } from '@/components/inventory/InventoryScreenLis
 import {
   LineEditor,
   emptyDraftLine,
+  lineMrpIssue,
   type InvoiceDraftLine,
 } from '@/components/inventory/TransactionModals';
 
@@ -151,7 +152,9 @@ function NewInvoiceModal({
     id: string;
     name: string;
     unit: string;
+    mrp?: number | string | null;
     hsnSacCode?: string | null;
+    units?: Array<{ unitName: string; isBase?: boolean; conversionToBase?: number }> | null;
   }> = Array.isArray(resourceData) ? resourceData : (resourceData?.data ?? []);
 
   const [customerId, setCustomerId] = useState('');
@@ -194,6 +197,14 @@ function NewInvoiceModal({
     if (goodLines.length === 0) {
       setError('Add at least one catalog item with quantity.');
       return;
+    }
+    for (const l of goodLines) {
+      const r = resources.find((x) => x.id === l.resourceId);
+      const mrpProblem = lineMrpIssue(r, l.unit || r?.unit || '', Number(l.rate) || 0);
+      if (mrpProblem) {
+        setError(mrpProblem);
+        return;
+      }
     }
     setSaving(true);
     try {

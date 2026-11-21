@@ -13,7 +13,7 @@ import { useCustomers, type PartyRow } from '@/services/party.queries';
 import { useEffectiveRates } from '@/services/inventory-gtm.queries';
 import { useCompany } from '@/services/settings.queries';
 import { useResources, type Resource } from '@/services/estimate.queries';
-import { resolveSellRate, toBaseQty } from '@buildflow/shared';
+import { mrpCapForUnit, resolveSellRate, toBaseQty } from '@buildflow/shared';
 
 // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7.6): compact numeric/text cell
 // for table rows - no labeled Input (tall rows) inside a table.
@@ -545,6 +545,17 @@ export function MultiIssueStockModal({
       if (price !== undefined && (!Number.isFinite(price) || price < 0)) {
         setError(`Enter a selling price (0 or more) for ${row?.name ?? itemLower}.`);
         return;
+      }
+      if (price !== undefined) {
+        const mrpForUnit = mrpCapForUnit(row?.mrp, factorFor(l.resourceId, unit));
+        if (mrpForUnit != null && price > mrpForUnit + 1e-9) {
+          setError(
+            `${row?.name ?? itemLower}: selling price cannot be above MRP ₹${mrpForUnit.toFixed(2)}${
+              unit && unit !== row?.unit ? ` / ${unit}` : ''
+            }.`,
+          );
+          return;
+        }
       }
       payload.push({
         resourceId: l.resourceId,

@@ -19,7 +19,12 @@ import { useWarehouses, type Warehouse } from '@/services/warehouse.queries';
 import { useEffectiveRates } from '@/services/inventory-gtm.queries';
 import { BarcodeScannerOverlay } from '@/components/inventory/BarcodeScannerOverlay';
 import { Ionicons } from '@expo/vector-icons';
-import { resolveSellRate, toBaseQty, usesEventLightingCopy } from '@buildflow/shared';
+import {
+  mrpCapForUnit,
+  resolveSellRate,
+  toBaseQty,
+  usesEventLightingCopy,
+} from '@buildflow/shared';
 import { useCompany } from '@/services/settings.queries';
 
 function Sheet({
@@ -119,6 +124,7 @@ type CatalogResource = {
   name: string;
   unit: string;
   rate?: number | string | null;
+  mrp?: number | string | null;
   gstRate?: number | string | null;
   customerRate?: number | string | null;
   distributorRate?: number | string | null;
@@ -133,6 +139,32 @@ type CatalogResource = {
 };
 type BuyerRole = 'DISTRIBUTOR' | 'CUSTOMER' | null;
 const newKey = () => `l-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+function unitFactor(resource: CatalogResource | undefined, unitName: string): number {
+  if (!resource) return 1;
+  const row = (resource.units ?? []).find((u) => u.unitName === unitName);
+  if (row) return Number(row.conversionToBase) || 1;
+  return 1;
+}
+
+/** Null when ok; otherwise a human-readable MRP violation for the line unit. */
+export function lineMrpIssue(
+  resource: CatalogResource | undefined,
+  unitName: string,
+  rate: number,
+): string | null {
+  if (!resource || !Number.isFinite(rate) || rate < 0) return null;
+  const unit = unitName || resource.unit;
+  const factor = unitFactor(resource, unit);
+  const cap = mrpCapForUnit(
+    resource.mrp == null ? null : Number(resource.mrp),
+    factor,
+  );
+  if (cap == null || rate <= cap + 1e-9) return null;
+  return `${resource.name}: selling price cannot be above MRP ₹${cap.toFixed(2)}${
+    factor !== 1 ? ` / ${unit}` : ''
+  }.`;
+}
 
 function defaultWarehouseId(warehouses: Warehouse[] | undefined): string {
   if (!warehouses?.length) return '';
@@ -595,6 +627,10 @@ export function NewSalesOrderModal({
   const { data: customersRaw } = useCustomers();
   const customers = asParties(customersRaw);
   const { data: warehouses } = useWarehouses();
+  const { data: resourceData } = useResources();
+  const resources: CatalogResource[] = Array.isArray(resourceData)
+    ? resourceData
+    : (resourceData?.data ?? []);
   const [customerId, setCustomerId] = useState('');
   const [locationId, setLocationId] = useState('');
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 9.1): effective-rate prefill.
@@ -636,6 +672,14 @@ export function NewSalesOrderModal({
     if (!name || goodLines.length === 0) {
       setError('Choose or type a customer and add at least one item with quantity.');
       return;
+    }
+    for (const l of goodLines) {
+      const r = resources.find((x) => x.id === l.resourceId);
+      const mrpProblem = lineMrpIssue(r, l.unit || r?.unit || '', Number(l.rate) || 0);
+      if (mrpProblem) {
+        setError(mrpProblem);
+        return;
+      }
     }
     setSaving(true);
     try {
@@ -967,6 +1011,10 @@ export function NewQuoteModal({
   const { data: customersRaw } = useCustomers();
   const customers = asParties(customersRaw);
   const { data: warehouses } = useWarehouses();
+  const { data: resourceData } = useResources();
+  const resources: CatalogResource[] = Array.isArray(resourceData)
+    ? resourceData
+    : (resourceData?.data ?? []);
   const user = useAuthStore((s) => s.user);
   const eventLightingCopy = usesEventLightingCopy(user?.inventoryProfile, user?.inventoryVertical);
   const [customerId, setCustomerId] = useState('');
@@ -1012,6 +1060,14 @@ export function NewQuoteModal({
     if (!name || goodLines.length === 0) {
       setError('Pick a customer and add at least one item with quantity.');
       return;
+    }
+    for (const l of goodLines) {
+      const r = resources.find((x) => x.id === l.resourceId);
+      const mrpProblem = lineMrpIssue(r, l.unit || r?.unit || '', Number(l.rate) || 0);
+      if (mrpProblem) {
+        setError(mrpProblem);
+        return;
+      }
     }
     setSaving(true);
     try {

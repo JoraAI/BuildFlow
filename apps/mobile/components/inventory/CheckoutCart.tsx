@@ -26,7 +26,7 @@ import { useCustomers, type PartyRow } from '@/services/party.queries';
 import { useEffectiveRates } from '@/services/inventory-gtm.queries';
 import { useCompany } from '@/services/settings.queries';
 import { useResources, type Resource } from '@/services/estimate.queries';
-import { resolveSellRate, scaleFromBase, toBaseQty } from '@buildflow/shared';
+import { mrpCapForUnit, resolveSellRate, toBaseQty } from '@buildflow/shared';
 import { apiFetch } from '@/lib/api-client';
 import type { BarcodeItem } from '@/services/warehouse.queries';
 import type { StockSummaryRow } from '@/services/expansion.queries';
@@ -349,15 +349,12 @@ export function CheckoutCart({
       const price = Number(l.unitPrice);
       if (!Number.isFinite(price) || price < 0) return 'Enter a valid selling price.';
       // MRP is stored per base unit; scale to the line unit before comparing.
-      const mrpBase = row.mrp != null ? Number(row.mrp) : 0;
-      if (mrpBase > 0) {
-        const factor = factorFor(l.resourceId, unit);
-        const mrpForUnit = scaleFromBase(mrpBase, factor);
-        if (price > mrpForUnit + 1e-9) {
-          return `Selling price cannot be above MRP ₹${mrpForUnit.toFixed(2)}${
-            factor !== 1 ? ` / ${unit}` : ''
-          }.`;
-        }
+      const factor = factorFor(l.resourceId, unit);
+      const mrpForUnit = mrpCapForUnit(row.mrp, factor);
+      if (mrpForUnit != null && price > mrpForUnit + 1e-9) {
+        return `Selling price cannot be above MRP ₹${mrpForUnit.toFixed(2)}${
+          factor !== 1 ? ` / ${unit}` : ''
+        }.`;
       }
     }
     return null;

@@ -2,7 +2,13 @@
  * Unit coverage for shared multi-unit sell/buy blank scaling.
  * Mirrors packages/shared/src/__tests__/uom.test.ts for the backend Jest runner.
  */
-import { resolveBuyCost, resolveSellRate, scaleFromBase, toBaseQty } from '@buildflow/shared';
+import {
+  mrpCapForUnit,
+  resolveBuyCost,
+  resolveSellRate,
+  scaleFromBase,
+  toBaseQty,
+} from '@buildflow/shared';
 
 const cement = {
   unit: 'kg',
@@ -97,5 +103,12 @@ describe('uom rate resolution (blank alts scale)', () => {
         priceListOverride: 9,
       }),
     ).toBe(9);
+  });
+
+  it('mrpCapForUnit scales base MRP to txn unit', () => {
+    expect(mrpCapForUnit(3.2, 50)).toBe(160);
+    expect(mrpCapForUnit(3.2, 1)).toBe(3.2);
+    expect(mrpCapForUnit(null, 50)).toBeNull();
+    expect(mrpCapForUnit(0, 50)).toBeNull();
   });
 });

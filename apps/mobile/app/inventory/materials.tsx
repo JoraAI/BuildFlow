@@ -31,6 +31,7 @@ import {
   getGstTaxCodeLabels,
   getInventoryLabel,
   getInventoryLabelMode,
+  mrpCapForUnit,
   resolveBuyCost,
 } from '@buildflow/shared';
 import { useVendors, type PartyRow } from '@/services/party.queries';
@@ -1292,6 +1293,42 @@ function MaterialFormModal({
                   if (!showRoleRates && mrpNum !== null && mrpNum > 0 && rateNum > mrpNum) {
                     setError('Selling price cannot exceed MRP');
                     return;
+                  }
+                  // Alternate-unit sell ₹ are per txn unit; compare against scaled base MRP.
+                  if (multiUnitOn && mrpNum != null && mrpNum > 0) {
+                    for (const a of altUnits.filter((x) => x.unitName.trim())) {
+                      const factor = Number(a.conversionToBase) || 1;
+                      const cap = mrpCapForUnit(mrpNum, factor);
+                      if (cap == null) continue;
+                      const unitLabel = a.unitName.trim();
+                      const over = (label: string, raw: string) => {
+                        if (raw.trim() === '') return null;
+                        const n = Number(raw);
+                        if (!Number.isFinite(n) || n < 0) return `${unitLabel}: enter a valid ${label}`;
+                        if (n > cap + 1e-9) {
+                          return `${unitLabel} ${label} cannot exceed MRP ₹${cap.toFixed(2)} / ${unitLabel}`;
+                        }
+                        return null;
+                      };
+                      if (showRoleRates) {
+                        const dErr = over('distributor ₹', a.distributorRate);
+                        if (dErr) {
+                          setError(dErr);
+                          return;
+                        }
+                        const cErr = over('customer ₹', a.customerRate);
+                        if (cErr) {
+                          setError(cErr);
+                          return;
+                        }
+                      } else {
+                        const sErr = over('sell ₹', a.rate);
+                        if (sErr) {
+                          setError(sErr);
+                          return;
+                        }
+                      }
+                    }
                   }
                   setError(null);
                   void (async () => {

@@ -23,6 +23,19 @@ export function scaleFromBase(baseAmount: number, conversionToBase: number): num
   return Math.round(base * f * 1000) / 1000;
 }
 
+/**
+ * MRP is stored per resource base unit. Returns the max sell ₹ allowed for a
+ * txn unit (null when MRP is unset / not positive).
+ */
+export function mrpCapForUnit(
+  mrpBase: number | null | undefined,
+  conversionToBase: number,
+): number | null {
+  const mrp = mrpBase != null ? Number(mrpBase) : 0;
+  if (!(mrp > 0) || !Number.isFinite(mrp)) return null;
+  return scaleFromBase(mrp, conversionToBase);
+}
+
 export type BuyerRoleForRate = 'DISTRIBUTOR' | 'CUSTOMER' | null | undefined;
 
 export type ResourceUnitRateRow = {
