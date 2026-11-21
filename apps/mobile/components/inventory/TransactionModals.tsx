@@ -295,7 +295,7 @@ export function LineEditor({
   };
 
   useEffect(() => {
-    if (!rateOverrides && buyerRole == null) return;
+    if (!rateOverrides && buyerRole !== 'DISTRIBUTOR' && buyerRole !== 'CUSTOMER') return;
     setLines((prev) =>
       prev.map((l) => {
         if (!l.resourceId) return l;
@@ -623,7 +623,9 @@ export function NewSalesOrderModal({
   }, [open, warehouses, locationId]);
 
   const selectedParty = (customers ?? []).find((c) => c.id === customerId);
-  const buyerRole: BuyerRole = selectedParty?.buyerRole === 'DISTRIBUTOR' ? 'DISTRIBUTOR' : customerId ? 'CUSTOMER' : null;
+  // Walk-in / no party → retailer (CUSTOMER) prices; distributors opt in via party role.
+  const buyerRole: BuyerRole =
+    selectedParty?.buyerRole === 'DISTRIBUTOR' ? 'DISTRIBUTOR' : 'CUSTOMER';
   const customerOptions = partyOptions(customers);
   const selectedWarehouse = (warehouses ?? []).find((w: Warehouse) => w.id === locationId);
 
@@ -997,7 +999,9 @@ export function NewQuoteModal({
   }, [open, warehouses, locationId]);
 
   const selectedParty = (customers ?? []).find((c) => c.id === customerId);
-  const buyerRole: BuyerRole = selectedParty?.buyerRole === 'DISTRIBUTOR' ? 'DISTRIBUTOR' : customerId ? 'CUSTOMER' : null;
+  // Walk-in / no party → retailer (CUSTOMER) prices; distributors opt in via party role.
+  const buyerRole: BuyerRole =
+    selectedParty?.buyerRole === 'DISTRIBUTOR' ? 'DISTRIBUTOR' : 'CUSTOMER';
   const customerOptions = partyOptions(customers);
   const selectedWarehouse = (warehouses ?? []).find((w: Warehouse) => w.id === locationId);
 

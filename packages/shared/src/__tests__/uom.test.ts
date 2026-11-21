@@ -20,19 +20,50 @@ describe('scaleFromBase / toBaseQty', () => {
 });
 
 describe('resolveSellRate', () => {
-  it('uses explicit unit sell over scaled blank', () => {
-    const withBagRate = {
+  it('defaults walk-in to retailer (customer) scaling', () => {
+    expect(resolveSellRate({ resource: cement, unitName: 'bag' })).toBe(600);
+  });
+
+  it('prefers explicit unit customerRate over generic unit.rate', () => {
+    const withBoth = {
+      ...cement,
+      units: [
+        cement.units[0],
+        {
+          unitName: 'bag',
+          isBase: false,
+          conversionToBase: 50,
+          rate: 160,
+          customerRate: 155,
+          distributorRate: 145,
+        },
+      ],
+    };
+    expect(resolveSellRate({ resource: withBoth, unitName: 'bag' })).toBe(155);
+    expect(
+      resolveSellRate({ resource: withBoth, unitName: 'bag', buyerRole: 'CUSTOMER' }),
+    ).toBe(155);
+    expect(
+      resolveSellRate({ resource: withBoth, unitName: 'bag', buyerRole: 'DISTRIBUTOR' }),
+    ).toBe(145);
+  });
+
+  it('blank unit role price scales from base (ignores generic unit.rate)', () => {
+    const withBagOnly = {
       ...cement,
       units: [
         cement.units[0],
         { unitName: 'bag', isBase: false, conversionToBase: 50, rate: 400 },
       ],
     };
-    expect(resolveSellRate({ resource: withBagRate, unitName: 'bag' })).toBe(400);
-  });
-
-  it('scales blank alternate from base sell', () => {
-    expect(resolveSellRate({ resource: cement, unitName: 'bag' })).toBe(500);
+    expect(resolveSellRate({ resource: withBagOnly, unitName: 'bag' })).toBe(600);
+    expect(
+      resolveSellRate({
+        resource: withBagOnly,
+        unitName: 'bag',
+        buyerRole: 'DISTRIBUTOR',
+      }),
+    ).toBe(400);
   });
 
   it('scales blank alternate from base distributor rate', () => {

@@ -364,12 +364,9 @@ export function MultiIssueStockModal({
   const [customerOpen, setCustomerOpen] = useState(false);
 
   const selectedParty = (customers ?? []).find((c: PartyRow) => c.id === customerId);
+  // Walk-in / no party → retailer (CUSTOMER) prices; distributors opt in via party role.
   const buyerRole =
-    selectedParty?.buyerRole === 'DISTRIBUTOR'
-      ? ('DISTRIBUTOR' as const)
-      : customerId
-        ? ('CUSTOMER' as const)
-        : null;
+    selectedParty?.buyerRole === 'DISTRIBUTOR' ? ('DISTRIBUTOR' as const) : ('CUSTOMER' as const);
 
   const catalogFor = (resourceId: string) => resourcesById.get(resourceId);
   const unitOptionsFor = (resourceId: string) => {

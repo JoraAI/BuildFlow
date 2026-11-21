@@ -68,9 +68,11 @@ function unitRowFor(
 
 /**
  * Resolve sell rate for a transaction unit + buyer role.
- * Order: priceListOverride (base-unit; scaled for alts) → unit role → unit sell →
- * scaled base role/sell (alt units) → base role → base rate.
- * Explicit unit prices always win; blank alts use base × conversionToBase.
+ * Walk-in / unset role defaults to retailer (CUSTOMER).
+ * Order: priceListOverride (base-unit; scaled for alts) →
+ * unit role ₹ → (blank) base role/catalog × conversion.
+ * Generic unit.rate is not used when a role is active; blank role unit ₹
+ * falls through to factor × base only.
  * Price-list / role-MRP overrides are stored per base unit and scale with conversion.
  */
 export function resolveSellRate(opts: {
@@ -92,33 +94,22 @@ export function resolveSellRate(opts: {
     opts.resource.distributorRate != null ? Number(opts.resource.distributorRate) : null;
   const baseCust =
     opts.resource.customerRate != null ? Number(opts.resource.customerRate) : null;
-  const unitSell = unitRow?.rate != null ? Number(unitRow.rate) : null;
+  // Counter default = retailer prices (explicit DISTRIBUTOR still wins).
+  const role: 'DISTRIBUTOR' | 'CUSTOMER' =
+    opts.buyerRole === 'DISTRIBUTOR' ? 'DISTRIBUTOR' : 'CUSTOMER';
 
-  if (opts.buyerRole === 'DISTRIBUTOR') {
+  if (role === 'DISTRIBUTOR') {
     if (unitRow?.distributorRate != null) return Number(unitRow.distributorRate);
-    if (unitSell != null) return unitSell;
-    if (!isBaseUnit) {
-      if (baseDist != null) return scaleFromBase(baseDist, factor);
-      return scaleFromBase(baseRate, factor);
-    }
-    if (baseDist != null) return baseDist;
-    return baseRate;
+    const base = baseDist != null ? baseDist : baseRate;
+    if (!isBaseUnit) return scaleFromBase(base, factor);
+    return base;
   }
 
-  if (opts.buyerRole === 'CUSTOMER') {
-    if (unitRow?.customerRate != null) return Number(unitRow.customerRate);
-    if (unitSell != null) return unitSell;
-    if (!isBaseUnit) {
-      if (baseCust != null) return scaleFromBase(baseCust, factor);
-      return scaleFromBase(baseRate, factor);
-    }
-    if (baseCust != null) return baseCust;
-    return baseRate;
-  }
-
-  if (unitSell != null) return unitSell;
-  if (!isBaseUnit) return scaleFromBase(baseRate, factor);
-  return baseRate;
+  // CUSTOMER / walk-in retailer
+  if (unitRow?.customerRate != null) return Number(unitRow.customerRate);
+  const base = baseCust != null ? baseCust : baseRate;
+  if (!isBaseUnit) return scaleFromBase(base, factor);
+  return base;
 }
 
 /**
