@@ -331,6 +331,7 @@ export async function createDraftIndentsFromDemand(
     const { expectedRate, rateSource } = await resolveRequisitionLineRate(companyId, projectId, {
       resourceId: demand.resourceId,
       boqItemId: demand.boqItemId,
+      unit: demand.unit,
     });
     // FIX (EST-M15/NR-6): Convert quantity + unit to the resource's canonical
     // stock unit. If units are incompatible, skip rather than write wrong qty.

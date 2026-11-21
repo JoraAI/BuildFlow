@@ -27,7 +27,12 @@ import { formatINR } from '@/utils/format';
 import { confirmAsync } from '@/utils/confirm';
 import { useViewport } from '@/hooks/useViewport';
 import { useAuthStore } from '@/stores/auth.store';
-import { getGstTaxCodeLabels, getInventoryLabel, getInventoryLabelMode } from '@buildflow/shared';
+import {
+  getGstTaxCodeLabels,
+  getInventoryLabel,
+  getInventoryLabelMode,
+  resolveBuyCost,
+} from '@buildflow/shared';
 import { useVendors, type PartyRow } from '@/services/party.queries';
 import { useCompany } from '@/services/settings.queries';
 import { useCompanyUnits } from '@/services/unit.queries';
@@ -693,6 +698,7 @@ function MaterialFormModal({
       rate?: number | null;
       distributorRate?: number | null;
       customerRate?: number | null;
+      costPrice?: number | null;
     }>;
     reorderPoint?: number;
     trackingMode?: 'NONE' | 'BATCH_EXPIRY';
@@ -735,6 +741,7 @@ function MaterialFormModal({
       rate: string;
       distributorRate: string;
       customerRate: string;
+      costPrice: string;
     }>
   >([]);
   const [reorderPoint, setReorderPoint] = useState('');
@@ -802,6 +809,7 @@ function MaterialFormModal({
                   rate?: number | null;
                   distributorRate?: number | null;
                   customerRate?: number | null;
+                  costPrice?: number | null;
                 },
                 i: number,
               ) => ({
@@ -811,6 +819,7 @@ function MaterialFormModal({
               rate: u.rate != null ? String(u.rate) : '',
               distributorRate: u.distributorRate != null ? String(u.distributorRate) : '',
               customerRate: u.customerRate != null ? String(u.customerRate) : '',
+              costPrice: u.costPrice != null ? String(u.costPrice) : '',
             }),
             )
           : initial.secondaryUnit
@@ -825,6 +834,7 @@ function MaterialFormModal({
                   rate: '',
                   distributorRate: '',
                   customerRate: '',
+                  costPrice: '',
                 },
               ]
             : [],
@@ -1050,13 +1060,14 @@ function MaterialFormModal({
                           rate: '',
                           distributorRate: '',
                           customerRate: '',
+                          costPrice: '',
                         },
                       ])
                     }
                   />
                 </View>
                 <Text className="text-[11px] text-muted">
-                  1 alternate = N base ({unit || 'base'}). Optional rates; blank uses base-unit rates.
+                  1 alternate = N base ({unit || 'base'}). Blank sell/buy ₹ = base × conversion.
                 </Text>
                 {altUnits.map((row) => (
                   <View key={row.key} className="border border-border rounded-xl p-3 gap-2 bg-surface">
@@ -1094,7 +1105,7 @@ function MaterialFormModal({
                           )
                         }
                         keyboardType="decimal-pad"
-                        placeholder="Uses base sell ₹ if blank"
+                        placeholder="Blank = base sell × conversion"
                       />
                     ) : (
                       <>
@@ -1109,6 +1120,7 @@ function MaterialFormModal({
                             )
                           }
                           keyboardType="decimal-pad"
+                          placeholder="Blank = base × conversion"
                         />
                         <Input
                           label="Customer ₹ (optional)"
@@ -1119,9 +1131,21 @@ function MaterialFormModal({
                             )
                           }
                           keyboardType="decimal-pad"
+                          placeholder="Blank = base × conversion"
                         />
                       </>
                     )}
+                    <Input
+                      label="Cost ₹ (optional)"
+                      value={row.costPrice}
+                      onChangeText={(v) =>
+                        setAltUnits((prev) =>
+                          prev.map((x) => (x.key === row.key ? { ...x, costPrice: v } : x)),
+                        )
+                      }
+                      keyboardType="decimal-pad"
+                      placeholder="Blank = base cost × conversion"
+                    />
                     <Pressable
                       onPress={() => setAltUnits((prev) => prev.filter((x) => x.key !== row.key))}
                     >
@@ -1358,6 +1382,8 @@ function MaterialFormModal({
                                     a.customerRate.trim() === ''
                                       ? null
                                       : Number(a.customerRate),
+                                  costPrice:
+                                    a.costPrice.trim() === '' ? null : Number(a.costPrice),
                                 })),
                             ],
                           }
@@ -1424,10 +1450,6 @@ function QuickVendorReceiptModal({
     return [{ title: item.unit, value: item.unit }];
   })();
   const showUnitPicker = multiUnitOn && unitOptions.length > 1;
-  const selectedFactor = (() => {
-    const u = (item?.units ?? []).find((x) => x.unitName === (unit || item?.unit));
-    return u ? Number(u.conversionToBase) || 1 : 1;
-  })();
 
   useEffect(() => {
     if (!item) return;
@@ -1437,11 +1459,18 @@ function QuickVendorReceiptModal({
     setReceivedDate(new Date().toISOString().slice(0, 10));
     setQuantity('');
     setUnit(item.unit);
-    // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): prefill from the vendor
-    // cost (costPrice, else WAC), never the selling rate. Cost is per base unit;
-    // when receiving in an alternate unit the form shows cost per selected unit.
-    const cost = Number(item.costPrice ?? item.avgCost ?? 0);
-    setUnitCost(cost > 0 ? String(cost) : '');
+    // Prefill buy cost in the selected unit (blank unit cost → base × conversion).
+    const baseCost = Number(item.costPrice ?? 0);
+    const wac = Number(item.avgCost ?? 0);
+    const buy = resolveBuyCost({
+      resource: {
+        unit: item.unit,
+        costPrice: baseCost > 0 ? baseCost : wac > 0 ? wac : null,
+        units: item.units ?? undefined,
+      },
+      unitName: item.unit,
+    });
+    setUnitCost(buy > 0 ? String(buy) : '');
     setBatchCode('');
     setManufacturedAt('');
     setExpiresAt('');
@@ -1531,16 +1560,18 @@ function QuickVendorReceiptModal({
                 options={unitOptions}
                 onChange={(v) => {
                   if (!v || !item) return;
-                  const prevFactor = selectedFactor;
-                  const next = (item.units ?? []).find((x) => x.unitName === v);
-                  const nextFactor = next ? Number(next.conversionToBase) || 1 : 1;
                   setUnit(v);
-                  // Keep entered cost as "per selected unit": rescale when unit changes.
-                  const current = Number(unitCost);
-                  if (Number.isFinite(current) && current > 0 && prevFactor > 0 && nextFactor > 0) {
-                    const perBase = current / prevFactor;
-                    setUnitCost(String(Math.round(perBase * nextFactor * 1000) / 1000));
-                  }
+                  const baseCost = Number(item.costPrice ?? 0);
+                  const wac = Number(item.avgCost ?? 0);
+                  const buy = resolveBuyCost({
+                    resource: {
+                      unit: item.unit,
+                      costPrice: baseCost > 0 ? baseCost : wac > 0 ? wac : null,
+                      units: item.units ?? undefined,
+                    },
+                    unitName: v,
+                  });
+                  setUnitCost(buy > 0 ? String(buy) : '');
                 }}
                 placeholder="Unit"
               />

@@ -19,6 +19,7 @@ import {
   getInventoryLabel,
   getInventoryLabelMode,
   getIndentPlural,
+  resolveBuyCost,
 } from '@buildflow/shared';
 import {
   useRequisitions,
@@ -29,7 +30,7 @@ import {
   useNextProcurementNumbers,
   type Requisition,
 } from '@/services/expansion.queries';
-import { useResources } from '@/services/estimate.queries';
+import { useResources, type Resource } from '@/services/estimate.queries';
 import { useCompany } from '@/services/settings.queries';
 import { useWarehouses, type Warehouse } from '@/services/warehouse.queries';
 import { downloadReportPdf } from '@/services/report-download';
@@ -1450,6 +1451,12 @@ function CreatePOModal({
   const approved = requisitions.filter(indentAvailableForNewPo);
   const vendorsQ = useVendors();
   const vendors = ((vendorsQ.data ?? []) as PartyRow[]).filter((v) => v.isActive);
+  const { data: resourceData } = useResources();
+  const resourcesById = useMemo(() => {
+    const map = new Map<string, Resource>();
+    for (const r of resourceData?.data ?? []) map.set(r.id, r);
+    return map;
+  }, [resourceData?.data]);
   const [requisitionId, setRequisitionId] = useState('');
   const [poNumber, setPoNumber] = useState('');
   const [vendorId, setVendorId] = useState('');
@@ -1461,6 +1468,31 @@ function CreatePOModal({
 
   const req = approved.find((r) => r.id === requisitionId);
 
+  const prefillRatesForIndent = (target: Requisition | undefined) => {
+    const next: Record<string, string> = {};
+    target?.lines.forEach((l) => {
+      if (!l.resourceId) return;
+      const catalog = resourcesById.get(l.resourceId);
+      const lineUnit = l.unit || catalog?.unit || 'nos';
+      const baseCost = Number(l.resource?.costPrice ?? catalog?.costPrice ?? 0);
+      const wac = Number(l.resource?.avgCost ?? catalog?.avgCost ?? 0);
+      const buy = resolveBuyCost({
+        resource: {
+          unit: catalog?.unit || lineUnit,
+          costPrice: baseCost > 0 ? baseCost : wac > 0 ? wac : null,
+          units: catalog?.units ?? undefined,
+        },
+        unitName: lineUnit,
+      });
+      if (buy > 0) {
+        next[l.resourceId] = String(buy);
+      } else if (l.expectedRate != null && Number(l.expectedRate) > 0) {
+        next[l.resourceId] = String(l.expectedRate);
+      }
+    });
+    setRates(next);
+  };
+
   // Prefill suggested PO number when the modal opens (user may still edit).
   useEffect(() => {
     if (open && nextNumbers.data?.po) {
@@ -1468,25 +1500,15 @@ function CreatePOModal({
     }
   }, [open, nextNumbers.data?.po]);
 
-  // D3: when opened from an indent row CTA, preselect that indent (and prefill
-  // cost rates: costPrice → indent expected rate). Clear everything on close.
+  // D3: when opened from an indent row CTA, preselect that indent and prefill
+  // buy cost in the indent line unit (base cost × conversion when blank).
   useEffect(() => {
     if (open && initialRequisitionId) {
       setRequisitionId(initialRequisitionId);
-      const target = approved.find((r) => r.id === initialRequisitionId);
-      const next: Record<string, string> = {};
-      target?.lines.forEach((l) => {
-        if (!l.resourceId) return;
-        // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): PO lines are cost -
-        // prefill from the vendor cost (costPrice, else WAC), falling back to
-        // the indent expected rate. Never the selling rate.
-        const cost = Number(l.resource?.costPrice ?? 0);
-        const wac = Number(l.resource?.avgCost ?? 0);
-        next[l.resourceId] = cost > 0 ? String(cost) : wac > 0 ? String(wac) : (l.expectedRate ?? '');
-      });
-      setRates(next);
+      prefillRatesForIndent(approved.find((r) => r.id === initialRequisitionId));
     }
-  }, [open, initialRequisitionId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialRequisitionId, resourcesById]);
   useEffect(() => {
     if (!open) {
       setRequisitionId('');
@@ -1552,7 +1574,7 @@ function CreatePOModal({
             value={requisitionId}
             onChange={(v) => {
               setRequisitionId(v ?? '');
-              setRates({});
+              prefillRatesForIndent(approved.find((r) => r.id === v));
             }}
             options={approved.map((r) => ({ title: `${r.reqNumber} (${r.lines.length} lines)`, value: r.id }))}
           />

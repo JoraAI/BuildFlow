@@ -2,14 +2,16 @@
  * BuildFlow - Project-aware material rate resolution.
  *
  * Priority: project override → BOQ → estimate → regional → last PO → catalog.
+ * Inventory catalog buy rates scale by unit via resolveBuyCost when multi-unit.
  */
-import { EstimateStatus } from '@buildflow/shared';
+import { EstimateStatus, normalizeUnitName, resolveBuyCost } from '@buildflow/shared';
 import type { MaterialRateSource, ResolvedMaterialRate } from '@buildflow/shared';
 import { prisma } from '../lib/prisma';
 import { getProject } from './project.service';
 import { getResource } from './resource.service';
 import { resolveProjectOverride } from './project-material-rate.service';
 import { resolveRegionalRate } from './rate-region.service';
+import { loadResourceUnits } from './company-unit.service';
 
 async function syncEffectiveResourceRate(companyId: string, resourceId: string): Promise<number> {
   const resource = await getResource(companyId, resourceId);
@@ -83,7 +85,9 @@ async function resolveFromLastPo(
   companyId: string,
   projectId: string,
   resourceId: string,
+  unitName?: string | null,
 ): Promise<ResolvedMaterialRate | null> {
+  const wantUnit = unitName ? normalizeUnitName(unitName) : null;
   // Prefer POs with a GRN (goods actually received) - avoids draft/test POs skewing variance.
   const grns = await prisma.goodsReceiptNote.findMany({
     where: { projectId, companyId },
@@ -101,6 +105,7 @@ async function resolveFromLastPo(
       include: { purchaseOrder: { select: { poNumber: true } } },
     });
     if (line) {
+      if (wantUnit && normalizeUnitName(line.unit) !== wantUnit) continue;
       return {
         rate: Number(line.rate),
         source: 'LAST_PO',
@@ -113,11 +118,13 @@ async function resolveFromLastPo(
     where: {
       resourceId,
       purchaseOrder: { projectId, companyId },
+      ...(wantUnit ? { unit: { equals: wantUnit, mode: 'insensitive' as const } } : {}),
     },
     orderBy: { purchaseOrder: { createdAt: 'desc' } },
     include: { purchaseOrder: { select: { poNumber: true } } },
   });
   if (!line) return null;
+  if (wantUnit && normalizeUnitName(line.unit) !== wantUnit) return null;
   return {
     rate: Number(line.rate),
     source: 'LAST_PO',
@@ -129,10 +136,10 @@ export async function resolveMaterialRate(
   companyId: string,
   projectId: string,
   resourceId: string,
-  opts?: { boqItemId?: string },
+  opts?: { boqItemId?: string; unit?: string | null },
 ): Promise<ResolvedMaterialRate> {
   await getProject(companyId, projectId);
-  await getResource(companyId, resourceId);
+  const resource = await getResource(companyId, resourceId);
 
   const projectOverride = await resolveProjectOverride(projectId, resourceId);
   if (projectOverride) {
@@ -160,24 +167,29 @@ export async function resolveMaterialRate(
     }
   }
 
-  const fromPo = await resolveFromLastPo(companyId, projectId, resourceId);
+  const fromPo = await resolveFromLastPo(companyId, projectId, resourceId, opts?.unit);
   if (fromPo) return fromPo;
 
   // INVENTORY_KIRANA_RETAIL_WHOLESALE (Phase 11.7): the inventory catalog rate
   // for purchase planning is the VENDOR COST (costPrice, else WAC), never the
-  // selling `rate`. Construction keeps `rate` (estimate catalog rate).
+  // selling `rate`. Scale to the requisition/PO line unit when multi-unit.
   const company = await prisma.company.findUnique({
     where: { id: companyId },
     select: { subscriptionPlan: true },
   });
   if (company?.subscriptionPlan === 'INVENTORY') {
-    const res = await prisma.resource.findUnique({
-      where: { id: resourceId },
-      select: { costPrice: true, avgCost: true },
+    const units = await loadResourceUnits(resourceId);
+    const baseCost = Number(resource.costPrice ?? 0);
+    const wac = Number(resource.avgCost ?? 0);
+    const costForUnit = resolveBuyCost({
+      resource: {
+        unit: resource.unit,
+        costPrice: baseCost > 0 ? baseCost : wac > 0 ? wac : null,
+        units,
+      },
+      unitName: opts?.unit || resource.unit,
     });
-    const cost = Number(res?.costPrice ?? 0);
-    const wac = Number(res?.avgCost ?? 0);
-    return { rate: cost > 0 ? cost : wac, source: 'CATALOG' satisfies MaterialRateSource };
+    return { rate: costForUnit, source: 'CATALOG' satisfies MaterialRateSource };
   }
 
   const catalogRate = await syncEffectiveResourceRate(companyId, resourceId);
@@ -232,6 +244,7 @@ export interface RequisitionLineRateInput {
   // FIX (NR-13): resourceId can be undefined for BOQ-only lines.
   resourceId?: string;
   boqItemId?: string | null;
+  unit?: string | null;
   expectedRate?: number;
   rateSource?: MaterialRateSource;
 }
@@ -261,6 +274,7 @@ export async function resolveRequisitionLineRate(
   }
   const resolved = await resolveMaterialRate(companyId, projectId, line.resourceId, {
     boqItemId: line.boqItemId ?? undefined,
+    unit: line.unit,
   });
   return { expectedRate: resolved.rate, rateSource: resolved.source };
 }

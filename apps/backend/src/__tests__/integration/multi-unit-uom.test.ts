@@ -177,4 +177,67 @@ describe('Multi-unit UOM (integration)', () => {
       .set('Authorization', `Bearer ${token}`);
     expect(del.status).toBeGreaterThanOrEqual(400);
   });
+
+  it('persists blank alt sell/buy and returns scaled catalog defaults via units.costPrice', async () => {
+    await authPut(token, '/api/settings/company', { multiUnitEnabled: true });
+    const create = await authPost(token, '/api/resources', {
+      name: `Blank Scale ${Date.now()}`,
+      type: 'MATERIAL',
+      unit: 'kg',
+      rate: 10,
+      distributorRate: 8,
+      customerRate: 12,
+      costPrice: 5,
+      units: [
+        { unitName: 'kg', isBase: true, conversionToBase: 1 },
+        {
+          unitName: 'bag',
+          isBase: false,
+          conversionToBase: 50,
+          // blank sell + buy on alt → clients scale base × 50
+          rate: null,
+          distributorRate: null,
+          customerRate: null,
+          costPrice: null,
+        },
+      ],
+    });
+    expect(create.status).toBe(201);
+    const bag = (
+      create.body.data.units as Array<{
+        unitName: string;
+        rate: number | null;
+        costPrice: number | null;
+        conversionToBase: number;
+      }>
+    ).find((u) => u.unitName === 'bag');
+    expect(bag).toBeTruthy();
+    expect(bag!.rate).toBeNull();
+    expect(bag!.costPrice).toBeNull();
+    expect(bag!.conversionToBase).toBe(50);
+
+    const withOverride = await authPost(token, '/api/resources', {
+      name: `Unit Cost ${Date.now()}`,
+      type: 'MATERIAL',
+      unit: 'kg',
+      rate: 10,
+      distributorRate: 8,
+      customerRate: 12,
+      costPrice: 5,
+      units: [
+        { unitName: 'kg', isBase: true, conversionToBase: 1 },
+        {
+          unitName: 'bag',
+          isBase: false,
+          conversionToBase: 50,
+          costPrice: 220,
+        },
+      ],
+    });
+    expect(withOverride.status).toBe(201);
+    const bagCost = (
+      withOverride.body.data.units as Array<{ unitName: string; costPrice: number | null }>
+    ).find((u) => u.unitName === 'bag');
+    expect(bagCost?.costPrice).toBe(220);
+  });
 });

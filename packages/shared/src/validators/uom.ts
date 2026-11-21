@@ -38,6 +38,8 @@ export const resourceUnitInputSchema = z.object({
   rate: z.number().min(0).nullable().optional(),
   distributorRate: z.number().min(0).nullable().optional(),
   customerRate: z.number().min(0).nullable().optional(),
+  /** Optional buy/vendor cost for this unit; blank → base costPrice × conversion. */
+  costPrice: z.number().min(0).nullable().optional(),
 }).refine((v) => Boolean(v.companyUnitId || v.unitName), {
   message: 'companyUnitId or unitName is required',
 });

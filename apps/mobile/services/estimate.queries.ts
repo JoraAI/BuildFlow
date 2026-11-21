@@ -48,6 +48,7 @@ export interface Resource {
     rate?: number | null;
     distributorRate?: number | null;
     customerRate?: number | null;
+    costPrice?: number | null;
   }> | null;
   reorderPoint?: string | number | null;
   trackingMode?: 'NONE' | 'BATCH_EXPIRY';

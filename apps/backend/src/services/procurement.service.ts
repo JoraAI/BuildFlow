@@ -218,6 +218,7 @@ export async function createRequisition(
       const { expectedRate, rateSource } = await resolveRequisitionLineRate(companyId, projectId, {
         resourceId: line.resourceId,
         boqItemId: line.boqItemId,
+        unit: line.unit,
         expectedRate: line.expectedRate,
         rateSource: line.rateSource,
       });

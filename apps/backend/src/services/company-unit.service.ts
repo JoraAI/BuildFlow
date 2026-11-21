@@ -153,6 +153,7 @@ function serializeUnitRows(
     rate: { toNumber?: () => number } | number | string | null;
     distributorRate: { toNumber?: () => number } | number | string | null;
     customerRate: { toNumber?: () => number } | number | string | null;
+    costPrice?: { toNumber?: () => number } | number | string | null;
   }>,
 ) {
   const num = (v: { toNumber?: () => number } | number | string | null | undefined) => {
@@ -170,6 +171,7 @@ function serializeUnitRows(
     rate: num(r.rate),
     distributorRate: num(r.distributorRate),
     customerRate: num(r.customerRate),
+    costPrice: num(r.costPrice),
   }));
 }
 
@@ -280,6 +282,7 @@ export async function syncResourceUnits(
     rate: number | null;
     distributorRate: number | null;
     customerRate: number | null;
+    costPrice: number | null;
   }> = [];
 
   for (const u of units) {
@@ -309,6 +312,7 @@ export async function syncResourceUnits(
       rate: u.rate === undefined ? null : u.rate,
       distributorRate: u.distributorRate === undefined ? null : u.distributorRate,
       customerRate: u.customerRate === undefined ? null : u.customerRate,
+      costPrice: u.costPrice === undefined ? null : u.costPrice,
     });
   }
 
@@ -332,6 +336,7 @@ export async function syncResourceUnits(
           rate: r.rate,
           distributorRate: r.distributorRate,
           customerRate: r.customerRate,
+          costPrice: r.costPrice,
         },
       });
     }
@@ -355,6 +360,7 @@ export type ResourceWithUnits = {
   rate: number;
   distributorRate?: number | null;
   customerRate?: number | null;
+  costPrice?: number | null;
   units: Array<{
     unitName: string;
     isBase: boolean;
@@ -362,6 +368,7 @@ export type ResourceWithUnits = {
     rate: number | null;
     distributorRate: number | null;
     customerRate: number | null;
+    costPrice: number | null;
   }>;
 };
 

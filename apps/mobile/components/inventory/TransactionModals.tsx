@@ -264,6 +264,7 @@ export function LineEditor({
   const applyItem = (lineKey: string, resourceId: string, unitName?: string) => {
     const r = resources.find((x) => x.id === resourceId);
     const unit = unitName || r?.unit || 'nos';
+    const nextRate = resolveLineRate(resourceId, resources, rateOverrides, buyerRole, unit);
     setLines((prev) =>
       prev.map((l) =>
         l.key === lineKey
@@ -272,8 +273,8 @@ export function LineEditor({
               resourceId,
               unit,
               gstRate: r?.gstRate != null ? String(r.gstRate) : l.gstRate,
-              rate:
-                resolveLineRate(resourceId, resources, rateOverrides, buyerRole, unit) || l.rate,
+              // Always take the resolved rate for this unit (even "0"); do not keep prior unit rate.
+              rate: nextRate,
             }
           : l,
       ),
@@ -287,8 +288,7 @@ export function LineEditor({
         return {
           ...l,
           unit: unitName,
-          rate:
-            resolveLineRate(l.resourceId, resources, rateOverrides, buyerRole, unitName) || l.rate,
+          rate: resolveLineRate(l.resourceId, resources, rateOverrides, buyerRole, unitName),
         };
       }),
     );
