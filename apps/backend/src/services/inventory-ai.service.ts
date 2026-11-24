@@ -363,11 +363,17 @@ const IMPORT_FIELDS = [
   'name',
   'unit',
   'rate',
+  'mrp',
+  'costPrice',
+  'distributorRate',
+  'customerRate',
   'gstRate',
   'hsn',
   'sku',
   'itemCode',
   'barcode',
+  'category',
+  'brandOrSpec',
   'reorderPoint',
   'qty',
 ] as const;
@@ -377,11 +383,18 @@ const HEADER_SYNONYMS: Record<(typeof IMPORT_FIELDS)[number], string[]> = {
   hsn: ['hsn', 'hsncode', 'hsnsac', 'sac', 'hsnno'],
   qty: ['qty', 'quantity', 'openingqty', 'openingstock', 'stock', 'balance', 'onhand', 'closing', 'openingbalance', 'qtyonhand', 'opening'],
   unit: ['unit', 'uom', 'unitofmeasure'],
-  rate: ['rate', 'price', 'cost', 'unitcost', 'unitprice', 'purchaseprice', 'rateperunit', 'catalograte'],
+  // Sell/catalog rate only — keep cost/MRP/role columns distinct.
+  rate: ['rate', 'price', 'sell', 'sellprice', 'sellingprice', 'unitprice', 'rateperunit', 'catalograte', 'selling'],
+  mrp: ['mrp', 'maximumretailprice', 'maxretailprice', 'retailprice'],
+  costPrice: ['cost', 'costprice', 'unitcost', 'purchaseprice', 'buyprice', 'vendorcost', 'landedcost'],
+  distributorRate: ['distributorrate', 'distributorprice', 'distributor', 'wholesalerate', 'wholesaleprice'],
+  customerRate: ['customerrate', 'customerprice', 'retailerrate', 'retailerprice', 'retailrate'],
   gstRate: ['gst', 'gstrate', 'gstpercent', 'tax', 'taxrate'],
   sku: ['sku', 'skucode', 'itemsku', 'stockkeepingunit'],
   itemCode: ['itemcode', 'code', 'partno', 'partnumber', 'productcode', 'itemno'],
   barcode: ['barcode', 'ean', 'upc'],
+  category: ['category', 'group', 'itemcategory', 'productcategory'],
+  brandOrSpec: ['brand', 'brandorspec', 'spec', 'specification', 'variant', 'flavour', 'flavor'],
   reorderPoint: ['reorderpoint', 'reorder', 'minstock', 'minqty', 'threshold', 'minimumstock', 'reorderlevel'],
 };
 
@@ -582,7 +595,25 @@ export async function confirmImport(
         skipped += 1;
         continue;
       }
-      const rate = num(row[input.mapping.rate ?? '']);
+      const rateRaw = num(row[input.mapping.rate ?? '']);
+      const customerRate = (() => {
+        const n = num(row[input.mapping.customerRate ?? '']);
+        return n > 0 ? n : null;
+      })();
+      const distributorRate = (() => {
+        const n = num(row[input.mapping.distributorRate ?? '']);
+        return n > 0 ? n : null;
+      })();
+      const mrp = (() => {
+        const n = num(row[input.mapping.mrp ?? '']);
+        return n > 0 ? n : null;
+      })();
+      const costPrice = (() => {
+        const n = num(row[input.mapping.costPrice ?? '']);
+        return n > 0 ? n : null;
+      })();
+      // Catalog sell rate: explicit Rate, else customer/retailer rate.
+      const rate = rateRaw > 0 ? rateRaw : customerRate ?? 0;
       await prisma.resource.create({
         data: {
           companyId,
@@ -590,8 +621,15 @@ export async function confirmImport(
           type: 'MATERIAL',
           unit: str(row[input.mapping.unit ?? '']) ?? 'nos',
           rate,
+          mrp,
+          mrpUpdatedAt: mrp != null ? new Date() : null,
+          costPrice,
+          distributorRate,
+          customerRate,
           gstRate: num(row[input.mapping.gstRate ?? '']),
           hsnSacCode: str(row[input.mapping.hsn ?? '']),
+          category: str(row[input.mapping.category ?? '']),
+          brandOrSpec: str(row[input.mapping.brandOrSpec ?? '']),
           sku,
           itemCode,
           barcode,

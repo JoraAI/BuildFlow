@@ -17,10 +17,16 @@ import { useImportPreview, useImportConfirm, type ImportMappingPreview } from '@
 const FIELDS: Array<{ key: keyof ImportMappingPreview['mapping']; label: string; hint: string; required?: boolean }> = [
   { key: 'name', label: 'Item name', hint: 'Required - matched or created', required: true },
   { key: 'qty', label: 'Qty / opening qty', hint: 'Opening stock only' },
-  { key: 'unit', label: 'Unit', hint: 'e.g. bag, kg' },
-  { key: 'rate', label: 'Rate / price', hint: 'Catalog rate (₹)' },
+  { key: 'unit', label: 'Unit', hint: 'e.g. nos, kg, bag' },
+  { key: 'rate', label: 'Sell ₹', hint: 'Catalog sell price (₹)' },
+  { key: 'mrp', label: 'MRP ₹', hint: 'Per base unit (optional)' },
+  { key: 'costPrice', label: 'Cost ₹', hint: 'Vendor cost / buy price' },
+  { key: 'distributorRate', label: 'Distributor ₹', hint: 'Role sell price (optional)' },
+  { key: 'customerRate', label: 'Customer ₹', hint: 'Retailer sell price (optional)' },
   { key: 'gstRate', label: 'GST %', hint: 'e.g. 18' },
-  { key: 'hsn', label: 'HSN code', hint: 'e.g. 2523' },
+  { key: 'hsn', label: 'HSN code', hint: 'e.g. 2105' },
+  { key: 'category', label: 'Category', hint: 'e.g. Kulfi, Cups' },
+  { key: 'brandOrSpec', label: 'Brand / flavour', hint: 'Optional' },
   { key: 'sku', label: 'SKU', hint: 'Optional identifier' },
   { key: 'itemCode', label: 'Item code', hint: 'Optional' },
   { key: 'barcode', label: 'Barcode', hint: 'Optional' },
@@ -28,7 +34,8 @@ const FIELDS: Array<{ key: keyof ImportMappingPreview['mapping']; label: string;
 ];
 
 /** Headers match the server synonym map so mapping is automatic. */
-const ITEMS_TEMPLATE_CSV = 'Item name,SKU,Item code,Barcode,Unit,Rate,GST %,HSN,Reorder point,Opening qty';
+const ITEMS_TEMPLATE_CSV =
+  'Item name,SKU,Item code,Barcode,Unit,Sell,MRP,Cost,Distributor rate,Customer rate,GST %,HSN,Category,Brand / flavour,Reorder point,Opening qty';
 
 function readFileAsBase64(asset: { uri: string; name?: string; mimeType?: string }) {
   return new Promise<{ fileContent: string; filename: string; contentType: string }>(async (resolve, reject) => {
