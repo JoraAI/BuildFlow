@@ -13,6 +13,8 @@ describe('ApiError', () => {
     expect(ApiError.unauthorized().statusCode).toBe(401);
     expect(ApiError.validation([]).statusCode).toBe(422);
     expect(ApiError.rateLimited().statusCode).toBe(429);
+    expect(ApiError.paymentRequired().statusCode).toBe(402);
+    expect(ApiError.paymentRequired().code).toBe('PAYMENT_REQUIRED');
     expect(ApiError.internal().statusCode).toBe(500);
   });
 

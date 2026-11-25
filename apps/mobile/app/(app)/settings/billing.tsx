@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { Card, Badge, Button } from '@/components/ui';
 import { SettingsPageLayout } from '@/components/layout/SettingsPageLayout';
 import { useViewport } from '@/hooks/useViewport';
+import { useAuthStore } from '@/stores/auth.store';
 import { useSubscription, useCreateSubscriptionCheckout } from '@/services/settings.queries';
 
 const PLAN_LABELS: Record<string, string> = {
@@ -49,6 +50,9 @@ function formatUsage(current: number, max: number | null): string {
 export default function BillingScreen() {
   const router = useRouter();
   const { isDesktop } = useViewport();
+  const canPay = useAuthStore(
+    (s) => s.user?.role === 'OWNER' || !!s.user?.permissions?.includes('settings.billing'),
+  );
   const { data, isLoading, isError, refetch } = useSubscription();
   const checkout = useCreateSubscriptionCheckout();
 
@@ -137,55 +141,69 @@ export default function BillingScreen() {
           data.status === 'ACTIVE') && (
           <Card className="mb-4">
             <Text className="text-sm font-bold text-text mb-2">Upgrade your plan</Text>
-            <Text className="text-xs text-muted mb-4">
-              Pay BuildFlow for your SaaS subscription (separate from client invoice payments in Integrations).
-            </Text>
-            {(['STARTER', 'PROFESSIONAL', 'ENTERPRISE'] as const).map((plan) => {
-              const price = data.billing?.plans?.[plan];
-              return (
-                <View key={plan} className="flex-row items-center justify-between py-3 border-b border-border">
-                  <View>
-                    <Text className="text-sm font-semibold text-text">{PLAN_LABELS[plan]}</Text>
-                    {price ? (
-                      <Text className="text-xs text-muted">₹{price.toLocaleString('en-IN')}/month</Text>
-                    ) : null}
-                  </View>
-                  <View className="flex-row flex-wrap gap-2">
-                    {data.billing?.razorpay ? (
-                      <>
-                        <Button
-                          label="Monthly"
-                          size="sm"
-                          onPress={() => startCheckout(plan, 'razorpay', 'MONTHLY')}
-                          disabled={checkout.isPending}
-                        />
-                        <Button
-                          label="Yearly"
-                          size="sm"
-                          variant="secondary"
-                          onPress={() => startCheckout(plan, 'razorpay', 'YEARLY')}
-                          disabled={checkout.isPending}
-                        />
-                      </>
-                    ) : null}
-                    {data.billing?.stripe ? (
-                      <Button
-                        label="Stripe"
-                        size="sm"
-                        variant="ghost"
-                        onPress={() => startCheckout(plan, 'stripe', 'MONTHLY')}
-                        disabled={checkout.isPending}
-                      />
-                    ) : null}
-                  </View>
-                </View>
-              );
-            })}
-            {!data.billing?.razorpay && !data.billing?.stripe ? (
-              <Text className="text-xs text-muted mt-2">
-                Online checkout is not configured on this server. Use the billing request below.
+            {canPay ? (
+              <>
+                <Text className="text-xs text-muted mb-4">
+                  Pay BuildFlow for your SaaS subscription (separate from client invoice payments in
+                  Integrations).
+                </Text>
+                {(['STARTER', 'PROFESSIONAL', 'ENTERPRISE'] as const).map((plan) => {
+                  const price = data.billing?.plans?.[plan];
+                  return (
+                    <View
+                      key={plan}
+                      className="flex-row items-center justify-between py-3 border-b border-border"
+                    >
+                      <View>
+                        <Text className="text-sm font-semibold text-text">{PLAN_LABELS[plan]}</Text>
+                        {price ? (
+                          <Text className="text-xs text-muted">
+                            ₹{price.toLocaleString('en-IN')}/month
+                          </Text>
+                        ) : null}
+                      </View>
+                      <View className="flex-row flex-wrap gap-2">
+                        {data.billing?.razorpay ? (
+                          <>
+                            <Button
+                              label="Monthly"
+                              size="sm"
+                              onPress={() => startCheckout(plan, 'razorpay', 'MONTHLY')}
+                              disabled={checkout.isPending}
+                            />
+                            <Button
+                              label="Yearly"
+                              size="sm"
+                              variant="secondary"
+                              onPress={() => startCheckout(plan, 'razorpay', 'YEARLY')}
+                              disabled={checkout.isPending}
+                            />
+                          </>
+                        ) : null}
+                        {data.billing?.stripe ? (
+                          <Button
+                            label="Stripe"
+                            size="sm"
+                            variant="ghost"
+                            onPress={() => startCheckout(plan, 'stripe', 'MONTHLY')}
+                            disabled={checkout.isPending}
+                          />
+                        ) : null}
+                      </View>
+                    </View>
+                  );
+                })}
+                {!data.billing?.razorpay && !data.billing?.stripe ? (
+                  <Text className="text-xs text-muted mt-2">
+                    Online checkout is not configured on this server. Use the billing request below.
+                  </Text>
+                ) : null}
+              </>
+            ) : (
+              <Text className="text-sm text-muted leading-relaxed">
+                Ask your account owner to renew or upgrade the BuildFlow subscription.
               </Text>
-            ) : null}
+            )}
           </Card>
         )}
 

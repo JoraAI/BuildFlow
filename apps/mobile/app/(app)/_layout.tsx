@@ -6,6 +6,7 @@ import { Redirect, Tabs, usePathname, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { View, ActivityIndicator } from 'react-native';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
+import { SubscriptionGateBanner } from '@/components/common/SubscriptionGateBanner';
 import { AppSidebar } from '@/components/navigation/AppSidebar';
 import { AppTabBar } from '@/components/navigation/AppTabBar';
 import { AppTopBar } from '@/components/layout/AppTopBar';
@@ -86,6 +87,7 @@ export default function AppLayout() {
   return (
     <View className="flex-1 bg-surface min-h-0">
       <OfflineBanner />
+      <SubscriptionGateBanner />
       <View className="flex-1 flex-row min-h-0">
         {isDesktop && <AppSidebar allowedTabs={allowedTabs} />}
 

@@ -61,6 +61,9 @@ function deepLink(n: AppNotification): string | null {
       return ref
         ? inventorySalesHref({ tab: 'orders', focus: ref })
         : inventorySalesHref({ tab: 'orders' });
+    case 'TRIAL_ENDING':
+    case 'TRIAL_EXPIRED':
+      return '/inventory/settings';
     default:
       return null;
   }

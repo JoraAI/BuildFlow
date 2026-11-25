@@ -580,14 +580,23 @@ export default function InventoryMaterialsScreen() {
         submitting={createResource.isPending}
         onSubmit={async (input) => {
           await run(async () => {
-            const { imageUrl, ...rest } = input;
-            await createResource.mutateAsync({
-              ...rest,
-              ...(typeof imageUrl === 'string' ? { imageUrl } : {}),
-            });
-            toast.success(`${itemLabel} added`);
-            setCreateOpen(false);
-            void refetch();
+            try {
+              const { imageUrl, ...rest } = input;
+              await createResource.mutateAsync({
+                ...rest,
+                ...(typeof imageUrl === 'string' ? { imageUrl } : {}),
+              });
+              toast.success(`${itemLabel} added`);
+              setCreateOpen(false);
+              void refetch();
+            } catch (e) {
+              // Global apiFetch already redirects on PAYMENT_REQUIRED; still show feedback.
+              if (e instanceof ApiError && e.code === 'PAYMENT_REQUIRED') {
+                setCreateOpen(false);
+                return;
+              }
+              toast.error(e instanceof Error ? e.message : `Could not add ${itemLabel.toLowerCase()}`);
+            }
           });
         }}
       />

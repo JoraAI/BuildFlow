@@ -661,10 +661,11 @@ export interface SubscriptionSummary {
   billing?: BillingAvailability;
 }
 
-export function useSubscription() {
+export function useSubscription(opts?: { enabled?: boolean }) {
   return useQuery<SubscriptionSummary>({
     queryKey: settingsKeys.subscription,
     queryFn: () => apiFetch<SubscriptionSummary>('/settings/subscription'),
+    enabled: opts?.enabled ?? true,
   });
 }
 

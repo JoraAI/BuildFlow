@@ -251,7 +251,9 @@ router.put(
 );
 
 // Subscription / billing
-router.get('/subscription', authenticateToken, requirePermission('settings.billing'), getSubscription);
+// GET is open to any authenticated user so IM/construction shells can show
+// the expiry banner; checkout/interval stay Owner (settings.billing).
+router.get('/subscription', authenticateToken, getSubscription);
 router.post(
   '/subscription/checkout',
   authenticateToken,

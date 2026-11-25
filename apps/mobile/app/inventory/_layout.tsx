@@ -17,6 +17,7 @@ import { BuildFlowMark } from '@/components/brand/BuildFlowMark';
 import { AssistantFab } from '@/components/navigation/AssistantFab';
 import { AssistantOverlay } from '@/components/assistant/AssistantOverlay';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
+import { SubscriptionGateBanner } from '@/components/common/SubscriptionGateBanner';
 import { InventoryLanguageProvider, useInventoryLanguage } from '@/components/inventory/InventoryLanguageProvider';
 // INVENTORY_HORIZONTAL_PLATFORM (Phase 8.5): in-app notification bell.
 import { useRouter } from 'expo-router';
@@ -74,6 +75,7 @@ function InventoryLayoutBody() {
   return (
     <View className="flex-1 bg-surface min-h-0">
       <OfflineBanner />
+      <SubscriptionGateBanner />
       <View className="flex-1 flex-row min-h-0">
         {isDesktop && !isAuditor ? <InventorySidebar /> : null}
 

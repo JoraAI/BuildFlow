@@ -4,6 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as FileSystem from 'expo-file-system';
 import { useAuthStore } from '@/stores/auth.store';
 import { isIOSWeb } from '@/utils/web-platform';
+import { handlePaymentRequired, isPaymentRequiredError } from '@/lib/billing-redirect';
 
 export type DownloadMimeType =
   | 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -105,6 +106,22 @@ export function clearScheduledAccessTokenRefresh(): void {
 const NO_REFRESH_PATHS = ['/auth/login', '/auth/refresh', '/auth/logout', '/auth/register', '/auth/forgot', '/auth/reset'];
 const shouldSkipRefresh = (path: string) => NO_REFRESH_PATHS.some((p) => path.includes(p));
 
+function throwApiError(
+  status: number,
+  error?: { code?: string; message?: string; details?: unknown[] },
+): never {
+  const err = new ApiError(
+    error?.code ?? 'ERROR',
+    error?.message ?? 'Request failed',
+    status,
+    error?.details,
+  );
+  if (isPaymentRequiredError(err)) {
+    handlePaymentRequired(err.message);
+  }
+  throw err;
+}
+
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const accessToken = await SecureStore.getItemAsync(SECURE_STORE_KEYS.ACCESS_TOKEN);
   const headers: Record<string, string> = {
@@ -144,7 +161,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
           const retryRes = await fetch(`${API_BASE_URL}${path}`, { ...init, headers, ...webCredentials() });
           const retryBody: ApiResponse<T> = await retryRes.json();
           if (!retryRes.ok || !retryBody.success) {
-            throw new ApiError(retryBody.error?.code ?? 'ERROR', retryBody.error?.message ?? 'Request failed', retryRes.status, retryBody.error?.details);
+            throwApiError(retryRes.status, retryBody.error);
           }
           return retryBody.data;
         }
@@ -177,7 +194,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   }
 
   if (!res.ok || !body.success) {
-    throw new ApiError(body.error?.code ?? 'ERROR', body.error?.message ?? 'Request failed', res.status, body.error?.details);
+    throwApiError(res.status, body.error);
   }
   return body.data;
 }
@@ -260,12 +277,7 @@ export async function apiFetchList<T>(
   }));
 
   if (!res.ok || !body.success) {
-    throw new ApiError(
-      body.error?.code ?? 'ERROR',
-      body.error?.message ?? 'Request failed',
-      res.status,
-      body.error?.details,
-    );
+    throwApiError(res.status, body.error);
   }
 
   if (!body.meta) {
@@ -341,11 +353,15 @@ async function parseDownloadError(res: Response): Promise<never> {
   const contentType = res.headers.get('content-type') ?? '';
   if (contentType.includes('application/json')) {
     const body = await res.json().catch(() => null);
-    const message =
-      body?.error?.message ?? body?.message ?? `Download failed (${res.status})`;
-    throw new ApiError(body?.error?.code ?? 'DOWNLOAD_FAILED', message, res.status);
+    throwApiError(res.status, {
+      code: body?.error?.code ?? 'DOWNLOAD_FAILED',
+      message: body?.error?.message ?? body?.message ?? `Download failed (${res.status})`,
+    });
   }
-  throw new ApiError('DOWNLOAD_FAILED', `Download failed (${res.status})`, res.status);
+  throwApiError(res.status, {
+    code: 'DOWNLOAD_FAILED',
+    message: `Download failed (${res.status})`,
+  });
 }
 
 async function shareBlobOnWeb(blob: Blob, filename: string): Promise<boolean> {

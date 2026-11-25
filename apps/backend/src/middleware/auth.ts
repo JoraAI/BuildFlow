@@ -28,6 +28,8 @@ const BILLING_EXEMPT_PREFIXES = [
   '/api/settings/billing',
   '/api/settings/subscription',
   '/api/settings/company',
+  '/api/settings/tickets',
+  '/api/notifications',
   '/api/platform/',
   '/api/webhooks/',
 ];
@@ -38,7 +40,8 @@ const BILLING_EXEMPT_PREFIXES = [
  * and never matches the absolute prefixes like `/api/settings/billing`.
  * This locked expired tenants out of the renewal screens.
  */
-function isBillingExemptPath(originalUrl: string): boolean {
+/** Exported for unit tests — subscription gate skip list. */
+export function isBillingExemptPath(originalUrl: string): boolean {
   return BILLING_EXEMPT_PREFIXES.some((p) => originalUrl.startsWith(p));
 }
 
@@ -119,7 +122,7 @@ export async function authenticateToken(
       const company = user.company;
       if (company && isSubscriptionBlocked(company.subscriptionStatus, company.trialEndsAt)) {
         throw ApiError.paymentRequired(
-          'Your subscription has expired. Please renew in Settings > Billing.',
+          'Your subscription has expired. Please renew under Billing / Settings.',
         );
       }
     }
