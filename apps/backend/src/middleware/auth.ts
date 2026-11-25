@@ -62,6 +62,14 @@ export async function authenticateToken(
   _res: Response,
   next: NextFunction,
 ): Promise<void> {
+  // Payment provider webhooks never send a Bearer token. Skip auth when this
+  // middleware is applied by a catch-all `/api` router so Razorpay/Stripe can
+  // reach the dedicated webhook handlers (HMAC is verified there).
+  if (req.originalUrl.startsWith('/api/webhooks/')) {
+    next();
+    return;
+  }
+
   try {
     const token = extractBearerToken(req);
     if (!token) throw ApiError.unauthorized('Missing authorization token');

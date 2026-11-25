@@ -161,6 +161,10 @@ app.use('/api/auth', authRouter);
 // authenticateToken globally (e.g. estimateRouter) - otherwise POST
 // /api/platform/auth/login is blocked with "Missing authorization token".
 app.use('/api/platform', platformRouter);
+// SaaS / tenant payment webhooks must mount BEFORE catch-all `/api` routers
+// that apply authenticateToken globally (estimateRouter, financialReportRouter).
+// Otherwise Razorpay POSTs hit "Missing authorization token" and never activate plans.
+app.use('/api', paymentRouter); // /webhooks/saas/razorpay, /webhooks/razorpay/:companyId, ...
 app.use('/api/projects', projectRouter);
 app.use('/api/projects', taskRouter); // project-scoped: /:id/tasks, /:id/gantt
 app.use('/api/tasks', taskDetailRouter);
@@ -196,7 +200,6 @@ app.use('/api/bills', billRouter);
 app.use('/api', financialReportRouter); // project + company financial reports
 app.use('/api/chatbot', chatbotRouter);
 app.use('/api/notifications', notificationRouter);
-app.use('/api', paymentRouter); // /invoices/:id/payment-link + /webhooks/razorpay
 app.use('/api/analytics', analyticsRouter); // OWNER-only dashboard
 app.use('/api/settings', settingsRouter); // company profile, users, audit log
 app.use('/api/projects', changeOrderRouter); // /:id/change-orders
