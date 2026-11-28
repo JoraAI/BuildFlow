@@ -100,7 +100,8 @@ export default function InventoryMaterialsScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const taxCode = getGstTaxCodeLabels(user?.inventoryVertical, user?.inventoryProfile);
-  const { data, isLoading, isFetching, refetch } = useResources();
+  const { data, isLoading, refetch } = useResources();
+  const [pullRefreshing, setPullRefreshing] = useState(false);
   const { isPhone, isTablet, isDesktop } = useViewport();
   const tableMode = isTablet || isDesktop;
   const labelMode = getInventoryLabelMode(user?.inventoryProfile ?? null);
@@ -140,29 +141,43 @@ export default function InventoryMaterialsScreen() {
     return map;
   }, [stock]);
 
-  const applyOpeningIfNeeded = async (
-    resourceId: string,
-    unitLabel: string,
+  /** True when a positive opening qty differs from current on-hand. */
+  const openingNeedsReset = (
     openingQty: number | null | undefined,
     currentOnHand: number,
-    unitCost?: number | null,
-  ) => {
-    if (openingQty == null || !Number.isFinite(openingQty) || openingQty <= 0) return;
-    if (Math.abs(openingQty - currentOnHand) < 1e-9) return;
-    const ok = await confirmAsync(
+  ) =>
+    openingQty != null &&
+    Number.isFinite(openingQty) &&
+    openingQty > 0 &&
+    Math.abs(openingQty - currentOnHand) >= 1e-9;
+
+  /**
+   * Confirm outside BusyOverlay — Alert/window.confirm never resolves under the
+   * busy Modal and left the screen stuck on “Updating…”.
+   */
+  const confirmOpeningReset = async (
+    openingQty: number,
+    unitLabel: string,
+    currentOnHand: number,
+  ) =>
+    confirmAsync(
       'Reset on-hand stock?',
       `This sets on-hand for this item to ${openingQty} ${unitLabel} (current balance is ${currentOnHand}). ` +
         'It is not added on top. Past movements stay in history; a new Opening stock adjustment is logged.',
     );
-    if (!ok) return;
+
+  const applyOpeningStock = async (
+    resourceId: string,
+    openingQty: number,
+    unitCost?: number | null,
+  ) => {
+    const rate = unitCost == null ? null : Number(unitCost);
     await importOpening.mutateAsync({
       lines: [
         {
           resourceId,
           quantity: openingQty,
-          ...(unitCost != null && Number.isFinite(unitCost) && unitCost >= 0
-            ? { rate: unitCost }
-            : {}),
+          ...(rate != null && Number.isFinite(rate) && rate >= 0 ? { rate } : {}),
         },
       ],
     });
@@ -287,7 +302,16 @@ export default function InventoryMaterialsScreen() {
         data={isLoading ? [] : rows}
         keyExtractor={(row: MaterialRow) => row.key}
         refreshControl={
-          <RefreshControl refreshing={isFetching} onRefresh={() => void refetch()} tintColor="#1E3A5F" />
+          <RefreshControl
+            // User pull only — background invalidations after opening stock set
+            // isFetching and made the list look stuck reloading.
+            refreshing={pullRefreshing}
+            onRefresh={() => {
+              setPullRefreshing(true);
+              void refetch().finally(() => setPullRefreshing(false));
+            }}
+            tintColor="#1E3A5F"
+          />
         }
         contentContainerStyle={{
           paddingHorizontal: tableMode ? 24 : 16,
@@ -622,20 +646,21 @@ export default function InventoryMaterialsScreen() {
         showOpeningStock={stockAdjustEnabled}
         submitting={createResource.isPending || importOpening.isPending}
         onSubmit={async (input) => {
+          const { imageUrl, openingQty, ...rest } = input;
+          let doOpening = openingNeedsReset(openingQty, 0);
+          if (doOpening && openingQty != null) {
+            const ok = await confirmOpeningReset(openingQty, rest.unit, 0);
+            if (!ok) doOpening = false;
+          }
           await run(async () => {
             try {
-              const { imageUrl, openingQty, ...rest } = input;
               const created = await createResource.mutateAsync({
                 ...rest,
                 ...(typeof imageUrl === 'string' ? { imageUrl } : {}),
               });
-              await applyOpeningIfNeeded(
-                created.id,
-                created.unit || rest.unit,
-                openingQty,
-                0,
-                rest.costPrice ?? null,
-              );
+              if (doOpening && openingQty != null) {
+                await applyOpeningStock(created.id, openingQty, rest.costPrice ?? null);
+              }
               toast.success(`${itemLabel} added`);
               setCreateOpen(false);
               void refetch();
@@ -668,18 +693,27 @@ export default function InventoryMaterialsScreen() {
         }
         onSubmit={async (input) => {
           if (!editing) return;
+          const { openingQty, ...rest } = input;
+          const currentOnHand = stockByResourceId.get(editing.id) ?? 0;
+          let doOpening = openingNeedsReset(openingQty, currentOnHand);
+          if (doOpening && openingQty != null) {
+            const ok = await confirmOpeningReset(
+              openingQty,
+              rest.unit || editing.unit,
+              currentOnHand,
+            );
+            if (!ok) doOpening = false;
+          }
           await run(async () => {
             try {
-              const { openingQty, ...rest } = input;
-              const currentOnHand = stockByResourceId.get(editing.id) ?? 0;
               await updateResource.mutateAsync(rest);
-              await applyOpeningIfNeeded(
-                editing.id,
-                rest.unit || editing.unit,
-                openingQty,
-                currentOnHand,
-                rest.costPrice ?? editing.costPrice ?? null,
-              );
+              if (doOpening && openingQty != null) {
+                await applyOpeningStock(
+                  editing.id,
+                  openingQty,
+                  rest.costPrice ?? editing.costPrice ?? null,
+                );
+              }
               toast.success(`${itemLabel} updated`);
               setEditing(null);
               void refetch();
