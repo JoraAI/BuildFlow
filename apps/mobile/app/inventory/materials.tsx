@@ -21,6 +21,7 @@ import { useSetB2bPublished } from '@/services/ice-cream.queries';
 import {
   useQuickVendorReceipt,
   useStockSummary,
+  useImportOpeningStock,
   type StockSummaryRow,
 } from '@/services/expansion.queries';
 import { formatINR } from '@/utils/format';
@@ -31,8 +32,10 @@ import {
   getGstTaxCodeLabels,
   getInventoryLabel,
   getInventoryLabelMode,
+  hasInventoryFeature,
   mrpCapForUnit,
   resolveBuyCost,
+  type SubscriptionPlanKey,
 } from '@buildflow/shared';
 import { useVendors, type PartyRow } from '@/services/party.queries';
 import { useCompany } from '@/services/settings.queries';
@@ -115,6 +118,11 @@ export default function InventoryMaterialsScreen() {
   // id is captured per-render so `mutateAsync(input)` targets the material being edited.
   const updateResource = useUpdateResource(editing?.id ?? '');
   const deleteResource = useDeleteResource();
+  const importOpening = useImportOpeningStock();
+  const stockAdjustEnabled = hasInventoryFeature(
+    (user?.subscriptionPlan ?? 'INVENTORY') as SubscriptionPlanKey,
+    'stock_adjustments',
+  );
 
   const isKirana = user?.inventoryVertical === 'RETAILER';
   const isIceCream = useIceCreamVertical();
@@ -125,6 +133,40 @@ export default function InventoryMaterialsScreen() {
   const isB2bPublished = (r: Resource) =>
     b2bLocal[r.id] !== undefined ? b2bLocal[r.id]! : Boolean(r.b2bPublished);
   const { data: stock } = useStockSummary(user?.defaultProjectId ?? '');
+
+  const stockByResourceId = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const s of stock ?? []) map.set(s.resourceId, Number(s.balance) || 0);
+    return map;
+  }, [stock]);
+
+  const applyOpeningIfNeeded = async (
+    resourceId: string,
+    unitLabel: string,
+    openingQty: number | null | undefined,
+    currentOnHand: number,
+    unitCost?: number | null,
+  ) => {
+    if (openingQty == null || !Number.isFinite(openingQty) || openingQty <= 0) return;
+    if (Math.abs(openingQty - currentOnHand) < 1e-9) return;
+    const ok = await confirmAsync(
+      'Reset on-hand stock?',
+      `This sets on-hand for this item to ${openingQty} ${unitLabel} (current balance is ${currentOnHand}). ` +
+        'It is not added on top. Past movements stay in history; a new Opening stock adjustment is logged.',
+    );
+    if (!ok) return;
+    await importOpening.mutateAsync({
+      lines: [
+        {
+          resourceId,
+          quantity: openingQty,
+          ...(unitCost != null && Number.isFinite(unitCost) && unitCost >= 0
+            ? { rate: unitCost }
+            : {}),
+        },
+      ],
+    });
+  };
 
   const materials = (data?.data ?? []).filter((r: Resource) => r.type === 'MATERIAL' || !r.type);
 
@@ -577,15 +619,23 @@ export default function InventoryMaterialsScreen() {
         taxCodeShort={taxCode.short}
         taxCodeMissing={taxCode.missing}
         showRoleRates={rolePricing}
-        submitting={createResource.isPending}
+        showOpeningStock={stockAdjustEnabled}
+        submitting={createResource.isPending || importOpening.isPending}
         onSubmit={async (input) => {
           await run(async () => {
             try {
-              const { imageUrl, ...rest } = input;
-              await createResource.mutateAsync({
+              const { imageUrl, openingQty, ...rest } = input;
+              const created = await createResource.mutateAsync({
                 ...rest,
                 ...(typeof imageUrl === 'string' ? { imageUrl } : {}),
               });
+              await applyOpeningIfNeeded(
+                created.id,
+                created.unit || rest.unit,
+                openingQty,
+                0,
+                rest.costPrice ?? null,
+              );
               toast.success(`${itemLabel} added`);
               setCreateOpen(false);
               void refetch();
@@ -605,22 +655,39 @@ export default function InventoryMaterialsScreen() {
         mode="edit"
         open={editing !== null}
         initial={editing ?? undefined}
+        initialOpeningQty={editing ? stockByResourceId.get(editing.id) ?? 0 : null}
         onClose={() => setEditing(null)}
         itemLabel={itemLabel}
         taxCodeField={taxCode.field}
         taxCodeShort={taxCode.short}
         taxCodeMissing={taxCode.missing}
         showRoleRates={rolePricing}
-        submitting={editing !== null && updateResource.isPending}
+        showOpeningStock={stockAdjustEnabled}
+        submitting={
+          (editing !== null && updateResource.isPending) || importOpening.isPending
+        }
         onSubmit={async (input) => {
           if (!editing) return;
           await run(async () => {
             try {
-              await updateResource.mutateAsync(input);
+              const { openingQty, ...rest } = input;
+              const currentOnHand = stockByResourceId.get(editing.id) ?? 0;
+              await updateResource.mutateAsync(rest);
+              await applyOpeningIfNeeded(
+                editing.id,
+                rest.unit || editing.unit,
+                openingQty,
+                currentOnHand,
+                rest.costPrice ?? editing.costPrice ?? null,
+              );
               toast.success(`${itemLabel} updated`);
               setEditing(null);
               void refetch();
             } catch (e) {
+              if (e instanceof ApiError && e.code === 'PAYMENT_REQUIRED') {
+                setEditing(null);
+                return;
+              }
               toast.error(e instanceof Error ? e.message : 'Could not update material');
             }
           });
@@ -662,11 +729,13 @@ function MaterialFormModal({
   open,
   onClose,
   initial,
+  initialOpeningQty = null,
   itemLabel,
   taxCodeField = 'HSN/SAC code',
   taxCodeShort = 'HSN/SAC',
   taxCodeMissing = 'Missing HSN/SAC',
   showRoleRates = false,
+  showOpeningStock = false,
   onSubmit,
   submitting,
 }: {
@@ -674,12 +743,16 @@ function MaterialFormModal({
   open: boolean;
   onClose: () => void;
   initial?: Resource;
+  /** Current on-hand used to prefill Opening qty in edit mode. */
+  initialOpeningQty?: number | null;
   itemLabel: string;
   taxCodeField?: string;
   taxCodeShort?: string;
   taxCodeMissing?: string;
   /** ICE_CREAM: show distributor / customer B2B sell prices. */
   showRoleRates?: boolean;
+  /** When stock_adjustments is enabled — show Opening qty field. */
+  showOpeningStock?: boolean;
   onSubmit: (input: {
     name: string;
     type: 'MATERIAL';
@@ -716,6 +789,8 @@ function MaterialFormModal({
     preferredVendorId?: string;
     reorderQty?: number;
     leadTimeDays?: number;
+    /** Absolute opening/on-hand qty; omitted/blank skips stock update. */
+    openingQty?: number | null;
   }) => Promise<void>;
   submitting: boolean;
 }) {
@@ -755,6 +830,7 @@ function MaterialFormModal({
     }>
   >([]);
   const [reorderPoint, setReorderPoint] = useState('');
+  const [openingQty, setOpeningQty] = useState('');
   const [trackingMode, setTrackingMode] = useState<'NONE' | 'BATCH_EXPIRY'>('NONE');
   // INVENTORY_HORIZONTAL_PLATFORM (Phase 4.1): procurement automation fields.
   const [preferredVendorId, setPreferredVendorId] = useState('');
@@ -850,6 +926,11 @@ function MaterialFormModal({
             : [],
       );
       setReorderPoint(initial.reorderPoint != null ? String(Number(initial.reorderPoint)) : '');
+      setOpeningQty(
+        initialOpeningQty != null && Number(initialOpeningQty) > 0
+          ? String(Number(initialOpeningQty))
+          : '',
+      );
       setTrackingMode(initial.trackingMode ?? 'NONE');
       setPreferredVendorId(initial.preferredVendorId ?? '');
       setReorderQty(initial.reorderQty != null ? String(Number(initial.reorderQty)) : '');
@@ -861,7 +942,7 @@ function MaterialFormModal({
     }
     setError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, mode, initial?.id]);
+  }, [open, mode, initial?.id, initialOpeningQty]);
 
   const reset = () => {
     setName('');
@@ -884,6 +965,7 @@ function MaterialFormModal({
     setConversionFactor('1');
     setAltUnits([]);
     setReorderPoint('');
+    setOpeningQty('');
     setTrackingMode('NONE');
     setPreferredVendorId('');
     setReorderQty('');
@@ -1198,6 +1280,20 @@ function MaterialFormModal({
               keyboardType="decimal-pad"
               placeholder="0 - low-stock alert threshold"
             />
+            {showOpeningStock ? (
+              <Input
+                label={mode === 'edit' ? 'Opening / on-hand qty (optional)' : 'Opening qty (optional)'}
+                value={openingQty}
+                onChangeText={setOpeningQty}
+                keyboardType="decimal-pad"
+                placeholder="e.g. 100"
+                helper={
+                  mode === 'edit'
+                    ? 'Sets on-hand to this amount (not added on top). Changing it resets this item’s quantity.'
+                    : 'Sets on-hand to this amount after the item is created (not added on top).'
+                }
+              />
+            ) : null}
             <Select
               label="Expiry tracking"
               value={trackingMode}
@@ -1302,6 +1398,14 @@ function MaterialFormModal({
                   if (!showRoleRates && mrpNum !== null && mrpNum > 0 && rateNum > mrpNum) {
                     setError('Selling price cannot exceed MRP');
                     return;
+                  }
+                  let openingNum: number | null = null;
+                  if (showOpeningStock && openingQty.trim() !== '') {
+                    openingNum = Number(openingQty);
+                    if (!Number.isFinite(openingNum) || openingNum <= 0) {
+                      setError('Opening qty must be a positive number (leave blank to skip)');
+                      return;
+                    }
                   }
                   // Alternate-unit sell ₹ are per txn unit; compare against scaled base MRP.
                   if (multiUnitOn && mrpNum != null && mrpNum > 0) {
@@ -1439,6 +1543,7 @@ function MaterialFormModal({
                       preferredVendorId: preferredVendorId || undefined,
                       reorderQty: reorderQty === '' ? undefined : Number(reorderQty),
                       leadTimeDays: leadTimeDays === '' ? undefined : Number(leadTimeDays),
+                      openingQty: openingNum,
                     });
                     reset();
                   })();

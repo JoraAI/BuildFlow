@@ -266,10 +266,14 @@ export function OpeningStockModal({
           onPress={(e) => e.stopPropagation()}
         >
           <Text className="text-lg font-bold text-text mb-1">Import opening stock</Text>
-          <Text className="text-sm text-muted mb-3">
+          <Text className="text-sm text-muted mb-2">
             Paste one line per item: name or SKU, quantity, optional rate, optional batch code,
             optional mfg date, optional expiry date. Items are matched by name/SKU from your
             catalog; unmatched rows are reported.
+          </Text>
+          <Text className="text-sm text-warning mb-3">
+            Warning: each quantity sets that item’s on-hand to the given amount (not added on top).
+            Changing a value resets the item to that amount; past movements stay in history.
           </Text>
           <ScrollView keyboardShouldPersistTaps="handled">
             <Input
