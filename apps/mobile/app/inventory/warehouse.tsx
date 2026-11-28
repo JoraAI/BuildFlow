@@ -10,7 +10,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text } from 'react-native';
 import { Card, Badge, Button, EmptyState, LoadingSkeleton, toast, BusyOverlay, useBusy } from '@/components/ui';
-import { confirmAsync } from '@/utils/confirm';
+import { confirmThenRun } from '@/utils/confirm';
 import { useViewport } from '@/hooks/useViewport';
 import { InventoryScreenList } from '@/components/inventory/InventoryScreenList';
 import {
@@ -147,13 +147,17 @@ export default function InventoryWarehouseScreen() {
                 size="sm"
                 variant="secondary"
                 disabled={busy}
-                onPress={() => void run(async () => {
-                  const ok = await confirmAsync('Deactivate this warehouse?', 'It stays in history but can no longer receive stock.');
-                  if (ok) {
-                    await updateWh.mutateAsync({ id: item.id, isActive: false });
-                    toast.success('Warehouse deactivated');
-                  }
-                })}
+                onPress={() =>
+                  void confirmThenRun(
+                    'Deactivate this warehouse?',
+                    'It stays in history but can no longer receive stock.',
+                    () =>
+                      run(async () => {
+                        await updateWh.mutateAsync({ id: item.id, isActive: false });
+                        toast.success('Warehouse deactivated');
+                      }),
+                  )
+                }
               />
             ) : null}
             {!item.isDefault ? (
@@ -215,13 +219,17 @@ export default function InventoryWarehouseScreen() {
               size="sm"
               variant="secondary"
               disabled={busy}
-              onPress={() => void run(async () => {
-                const ok = await confirmAsync('Deactivate this warehouse?', 'It stays in history but can no longer receive stock.');
-                if (ok) {
-                  await updateWh.mutateAsync({ id: item.id, isActive: false });
-                  toast.info('Warehouse deactivated');
-                }
-              })}
+              onPress={() =>
+                void confirmThenRun(
+                  'Deactivate this warehouse?',
+                  'It stays in history but can no longer receive stock.',
+                  () =>
+                    run(async () => {
+                      await updateWh.mutateAsync({ id: item.id, isActive: false });
+                      toast.info('Warehouse deactivated');
+                    }),
+                )
+              }
             />
           ) : null}
         </View>
@@ -249,13 +257,17 @@ export default function InventoryWarehouseScreen() {
                   size="sm"
                   variant="accent"
                   disabled={busy}
-                  onPress={() => void run(async () => {
-                    const ok = await confirmAsync('Dispatch this transfer?', 'Stock will leave the source warehouse.');
-                    if (ok) {
-                      await transferAction.mutateAsync({ id: item.id, action: 'dispatch' });
-                      toast.success('Dispatched - stock moved OUT');
-                    }
-                  })}
+                  onPress={() =>
+                    void confirmThenRun(
+                      'Dispatch this transfer?',
+                      'Stock will leave the source warehouse.',
+                      () =>
+                        run(async () => {
+                          await transferAction.mutateAsync({ id: item.id, action: 'dispatch' });
+                          toast.success('Dispatched - stock moved OUT');
+                        }),
+                    )
+                  }
                 />
                 <Button
                   label="Cancel"
@@ -275,13 +287,17 @@ export default function InventoryWarehouseScreen() {
                 size="sm"
                 variant="accent"
                 disabled={busy}
-                onPress={() => void run(async () => {
-                  const ok = await confirmAsync('Receive this transfer?', 'Stock will land in the destination warehouse.');
-                  if (ok) {
-                    await transferAction.mutateAsync({ id: item.id, action: 'receive' });
-                    toast.success('Received - stock landed at destination');
-                  }
-                })}
+                onPress={() =>
+                  void confirmThenRun(
+                    'Receive this transfer?',
+                    'Stock will land in the destination warehouse.',
+                    () =>
+                      run(async () => {
+                        await transferAction.mutateAsync({ id: item.id, action: 'receive' });
+                        toast.success('Received - stock landed at destination');
+                      }),
+                  )
+                }
               />
             ) : null}
           </View>
@@ -310,13 +326,17 @@ export default function InventoryWarehouseScreen() {
               size="sm"
               variant="accent"
               disabled={busy}
-              onPress={() => void run(async () => {
-                const ok = await confirmAsync('Dispatch this transfer?', 'Stock will leave the source warehouse.');
-                if (ok) {
-                  await transferAction.mutateAsync({ id: item.id, action: 'dispatch' });
-                  toast.success('Dispatched - stock moved OUT');
-                }
-              })}
+              onPress={() =>
+                void confirmThenRun(
+                  'Dispatch this transfer?',
+                  'Stock will leave the source warehouse.',
+                  () =>
+                    run(async () => {
+                      await transferAction.mutateAsync({ id: item.id, action: 'dispatch' });
+                      toast.success('Dispatched - stock moved OUT');
+                    }),
+                )
+              }
             />
             <Button
               label="Cancel"
@@ -336,13 +356,17 @@ export default function InventoryWarehouseScreen() {
             size="sm"
             variant="accent"
             disabled={busy}
-            onPress={() => void run(async () => {
-              const ok = await confirmAsync('Receive this transfer?', 'Stock will land in the destination warehouse.');
-              if (ok) {
-                await transferAction.mutateAsync({ id: item.id, action: 'receive' });
-                toast.success('Received - stock landed at destination');
-              }
-            })}
+            onPress={() =>
+              void confirmThenRun(
+                'Receive this transfer?',
+                'Stock will land in the destination warehouse.',
+                () =>
+                  run(async () => {
+                    await transferAction.mutateAsync({ id: item.id, action: 'receive' });
+                    toast.success('Received - stock landed at destination');
+                  }),
+              )
+            }
           />
         ) : null}
       </View>
@@ -373,13 +397,17 @@ export default function InventoryWarehouseScreen() {
                   size="sm"
                   variant="accent"
                   disabled={busy}
-                  onPress={() => void run(async () => {
-                    const ok = await confirmAsync('Approve this stock count?', 'The counted quantities will be written as STOCKTAKE adjustments.');
-                    if (ok) {
-                      await countAction.mutateAsync({ id: item.id, action: 'approve' });
-                      toast.success('Stock count approved');
-                    }
-                  })}
+                  onPress={() =>
+                    void confirmThenRun(
+                      'Approve this stock count?',
+                      'The counted quantities will be written as STOCKTAKE adjustments.',
+                      () =>
+                        run(async () => {
+                          await countAction.mutateAsync({ id: item.id, action: 'approve' });
+                          toast.success('Stock count approved');
+                        }),
+                    )
+                  }
                 />
                 <Button
                   label="Cancel"
@@ -416,13 +444,17 @@ export default function InventoryWarehouseScreen() {
               size="sm"
               variant="accent"
               disabled={busy}
-              onPress={() => void run(async () => {
-                const ok = await confirmAsync('Approve this stock count?', 'The counted quantities will be written as STOCKTAKE adjustments.');
-                if (ok) {
-                  await countAction.mutateAsync({ id: item.id, action: 'approve' });
-                  toast.success('Stock count approved');
-                }
-              })}
+              onPress={() =>
+                void confirmThenRun(
+                  'Approve this stock count?',
+                  'The counted quantities will be written as STOCKTAKE adjustments.',
+                  () =>
+                    run(async () => {
+                      await countAction.mutateAsync({ id: item.id, action: 'approve' });
+                      toast.success('Stock count approved');
+                    }),
+                )
+              }
             />
             <Button
               label="Cancel"

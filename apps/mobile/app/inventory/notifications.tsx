@@ -4,7 +4,7 @@
  * In-app notifications from the shared notification infra (low stock, PO-rate
  * anomaly, count variance, etc.). Reuses the shared `/notifications` API.
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -73,9 +73,10 @@ export default function InventoryNotificationsScreen() {
   const { translate } = useInventoryLanguage();
   const { isPhone } = useViewport();
   const router = useRouter();
-  const { data, isLoading, isFetching, refetch } = useNotifications();
+  const { data, isLoading, refetch } = useNotifications();
   const markAll = useMarkAllNotificationsRead();
   const markOne = useMarkNotificationRead();
+  const [pullRefreshing, setPullRefreshing] = useState(false);
 
   const grouped = useMemo(() => {
     // API returns { items, unreadCount } (same as Construction ERP).
@@ -126,7 +127,14 @@ export default function InventoryNotificationsScreen() {
         data={grouped}
         keyExtractor={([key]) => key}
         refreshControl={
-          <RefreshControl refreshing={isFetching} onRefresh={() => void refetch()} tintColor="#1E3A5F" />
+          <RefreshControl
+            refreshing={pullRefreshing}
+            onRefresh={() => {
+              setPullRefreshing(true);
+              void refetch().finally(() => setPullRefreshing(false));
+            }}
+            tintColor="#1E3A5F"
+          />
         }
         renderItem={({ item: [bucket, items] }) => (
           <View className="mb-4">

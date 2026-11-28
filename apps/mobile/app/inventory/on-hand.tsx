@@ -142,11 +142,12 @@ export default function InventoryStockScreen() {
     }
   }, [warehouses, selectedLocationId]);
 
-  const { data: summary, isLoading, isFetching, refetch, isError, error } = useStockSummary(projectId, selectedLocationId);
+  const { data: summary, isLoading, refetch, isError, error } = useStockSummary(projectId, selectedLocationId);
   const [issueOpen, setIssueOpen] = useState(false);
   /** When opened from a row CTA, prefill the multi sheet with this one material. */
   const [issueInitialResourceId, setIssueInitialResourceId] = useState<string | null>(null);
   const [buffering, setBuffering] = useState(false);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
   /** Desktop: pin column labels under chrome after the hero scrolls away. */
   const [preColsHeight, setPreColsHeight] = useState(0);
   const [colsHeight, setColsHeight] = useState(44);
@@ -361,7 +362,8 @@ export default function InventoryStockScreen() {
   const attentionLabel = attentionParts.length ? attentionParts.join(' · ') : null;
 
   const onRefresh = () => {
-    void refetch();
+    setPullRefreshing(true);
+    void refetch().finally(() => setPullRefreshing(false));
   };
 
   const checkoutLabel = posCheckoutEnabled
@@ -576,7 +578,8 @@ export default function InventoryStockScreen() {
         scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
-            refreshing={isFetching && !buffering}
+            // User pull only — live stock poll sets isFetching every ~10s.
+            refreshing={pullRefreshing}
             onRefresh={onRefresh}
             tintColor="#1E3A5F"
           />

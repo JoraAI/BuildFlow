@@ -3,7 +3,7 @@
  * (matches Creamy Kulfi mockup Home screen). Responsive: 2-col KPIs on phone,
  * 4-col on tablet/desktop; action grid wraps; content capped on wide screens.
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl, type DimensionValue } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -36,10 +36,11 @@ export default function InventoryHomeScreen() {
   const isIceCream = useIceCreamVertical();
   const { isPhone, isDesktop } = useViewport();
   const projectId = user?.defaultProjectId ?? '';
-  const { data: dashboard, isLoading, isFetching, refetch } = useInventoryDashboard();
+  const { data: dashboard, isLoading, refetch } = useInventoryDashboard();
   const { data: stock, refetch: refetchStock } = useStockSummary(projectId);
   const date = todayISO();
   const summaryQ = useDailySalesSummary(date, true);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
 
   const lowStock = useMemo(() => {
     return (stock ?? [])
@@ -80,11 +81,12 @@ export default function InventoryHomeScreen() {
       }}
       refreshControl={
         <RefreshControl
-          refreshing={isFetching || summaryQ.isFetching}
+          refreshing={pullRefreshing}
           onRefresh={() => {
-            void refetch();
-            void refetchStock();
-            void summaryQ.refetch();
+            setPullRefreshing(true);
+            void Promise.all([refetch(), refetchStock(), summaryQ.refetch()]).finally(() =>
+              setPullRefreshing(false),
+            );
           }}
         />
       }

@@ -13,6 +13,22 @@ export function confirmAsync(title: string, message: string): Promise<boolean> {
   });
 }
 
+/**
+ * Confirm, then run the action. Never call confirmAsync / Alert inside
+ * BusyOverlay `useBusy().run()` — the overlay Modal blocks the dialog and
+ * leaves the screen stuck on “Updating…”.
+ */
+export async function confirmThenRun(
+  title: string,
+  message: string,
+  action: () => Promise<void>,
+): Promise<boolean> {
+  const ok = await confirmAsync(title, message);
+  if (!ok) return false;
+  await action();
+  return true;
+}
+
 export function alertAsync(title: string, message: string): Promise<void> {
   if (Platform.OS === 'web') {
     window.alert(`${title}\n\n${message}`);

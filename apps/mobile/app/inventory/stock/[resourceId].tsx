@@ -74,7 +74,6 @@ export default function InventoryStockItemScreen() {
   const {
     data: movements,
     isLoading,
-    isFetching,
     refetch: refetchMovements,
   } = useStockMovements(projectId, resourceId, locationId);
   const { data: batches, refetch: refetchBatches } = useResourceBatches(
@@ -89,14 +88,18 @@ export default function InventoryStockItemScreen() {
   const [issueOpen, setIssueOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [buffering, setBuffering] = useState(false);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
   const [editingBatch, setEditingBatch] = useState<ResourceBatchRow | null>(null);
   const [batchMfg, setBatchMfg] = useState('');
   const [batchExp, setBatchExp] = useState('');
 
   const onRefresh = () => {
-    void refetchSummary();
-    void refetchMovements();
-    if (batchExpiryEnabled) void refetchBatches();
+    setPullRefreshing(true);
+    void Promise.all([
+      refetchSummary(),
+      refetchMovements(),
+      batchExpiryEnabled ? refetchBatches() : Promise.resolve(),
+    ]).finally(() => setPullRefreshing(false));
   };
 
   return (
@@ -122,7 +125,7 @@ export default function InventoryStockItemScreen() {
           data={movements ?? []}
           keyExtractor={(m: StockMovementRow) => m.id}
           refreshControl={
-            <RefreshControl refreshing={isFetching && !buffering} onRefresh={onRefresh} tintColor="#1E3A5F" />
+            <RefreshControl refreshing={pullRefreshing} onRefresh={onRefresh} tintColor="#1E3A5F" />
           }
           ListHeaderComponent={
             <View className="px-4 pt-4 pb-2">

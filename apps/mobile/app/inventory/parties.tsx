@@ -133,20 +133,31 @@ export default function InventoryPartiesScreen() {
     });
 
   const onRegenerateInvite = (inviteId: string) =>
-    void run(async () => {
+    void (async () => {
+      let data: { code: string; expiresAt: string } | null = null;
       try {
-        const data = await regenerateInvite.mutateAsync(inviteId);
-        const msg = `New code ${data.code} (expires ${new Date(data.expiresAt).toLocaleString()})`;
+        // Mutate under busy; show Alert/Share after overlay clears — Alert under
+        // BusyOverlay never resolves and leaves the screen stuck.
+        await run(async () => {
+          data = await regenerateInvite.mutateAsync(inviteId);
+        });
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Could not regenerate');
+        return;
+      }
+      if (!data) return;
+      const msg = `New code ${data.code} (expires ${new Date(data.expiresAt).toLocaleString()})`;
+      try {
         if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
           await navigator.clipboard.writeText(msg);
           Alert.alert('Regenerated', msg);
         } else {
           await Share.share({ message: msg });
         }
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : 'Could not regenerate');
+      } catch {
+        toast.success(msg);
       }
-    });
+    })();
 
   const onDelete = async (party: PartyRow) => {
     const ok = await confirmAsync(
