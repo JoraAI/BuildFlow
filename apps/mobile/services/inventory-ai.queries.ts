@@ -113,10 +113,13 @@ export function useImportConfirm() {
       rows: Array<Record<string, string>>;
       locationId?: string;
     }) =>
-      apiFetch<{ created?: number; skipped?: number; applied?: number }>('/inventory/ai/import/confirm', {
-        method: 'POST',
-        body: JSON.stringify(input),
-      }),
+      apiFetch<{ created?: number; skipped?: number; opened?: number; applied?: number }>(
+        '/inventory/ai/import/confirm',
+        {
+          method: 'POST',
+          body: JSON.stringify(input),
+        },
+      ),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['resources'] });
       void qc.invalidateQueries({ queryKey: ['procurement', 'stock', 'summary'] });

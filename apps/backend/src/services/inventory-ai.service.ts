@@ -375,6 +375,11 @@ const IMPORT_FIELDS = [
   'category',
   'brandOrSpec',
   'reorderPoint',
+  'secondaryUnit',
+  'conversionFactor',
+  'trackingMode',
+  'reorderQty',
+  'leadTimeDays',
   'qty',
 ] as const;
 
@@ -382,7 +387,7 @@ const HEADER_SYNONYMS: Record<(typeof IMPORT_FIELDS)[number], string[]> = {
   name: ['productname', 'itemname', 'name', 'item', 'material', 'product', 'description', 'itemdescription', 'goods'],
   hsn: ['hsn', 'hsncode', 'hsnsac', 'sac', 'hsnno'],
   qty: ['qty', 'quantity', 'openingqty', 'openingstock', 'stock', 'balance', 'onhand', 'closing', 'openingbalance', 'qtyonhand', 'opening'],
-  unit: ['unit', 'uom', 'unitofmeasure'],
+  unit: ['unit', 'uom', 'unitofmeasure', 'baseunit'],
   // Sell/catalog rate only — keep cost/MRP/role columns distinct.
   rate: ['rate', 'price', 'sell', 'sellprice', 'sellingprice', 'unitprice', 'rateperunit', 'catalograte', 'selling'],
   mrp: ['mrp', 'maximumretailprice', 'maxretailprice', 'retailprice'],
@@ -396,7 +401,31 @@ const HEADER_SYNONYMS: Record<(typeof IMPORT_FIELDS)[number], string[]> = {
   category: ['category', 'group', 'itemcategory', 'productcategory'],
   brandOrSpec: ['brand', 'brandorspec', 'spec', 'specification', 'variant', 'flavour', 'flavor'],
   reorderPoint: ['reorderpoint', 'reorder', 'minstock', 'minqty', 'threshold', 'minimumstock', 'reorderlevel'],
+  secondaryUnit: ['secondaryunit', 'altunit', 'alternateunit', 'secondunit'],
+  conversionFactor: ['conversionfactor', 'conversion', 'factor', 'convfactor', 'unitsper', 'persecondary'],
+  trackingMode: ['expirytracking', 'trackingmode', 'tracking', 'batchexpiry', 'batchtracking', 'expiry'],
+  reorderQty: ['reorderqty', 'reorderquantity', 'orderqty', 'poqty', 'suggestedqty'],
+  leadTimeDays: ['leadtimedays', 'leadtime', 'leaddays', 'vendordays', 'procurementdays'],
 };
+
+/** Parse expiry-tracking cell → Prisma TrackingMode. */
+function parseTrackingMode(raw: string | null | undefined): 'NONE' | 'BATCH_EXPIRY' {
+  if (!raw) return 'NONE';
+  const n = normalizeHeader(raw);
+  if (
+    n === 'batchexpiry' ||
+    n === 'batch' ||
+    n === 'expiry' ||
+    n === 'yes' ||
+    n === 'true' ||
+    n === '1' ||
+    n.includes('batch') ||
+    n.includes('expiry')
+  ) {
+    return 'BATCH_EXPIRY';
+  }
+  return 'NONE';
+}
 
 function normalizeHeader(h: string): string {
   return h.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -577,6 +606,7 @@ export async function confirmImport(
     const itemCodes = new Set(existing.map((e) => catalogKey(e.itemCode)).filter(Boolean));
     let created = 0;
     let skipped = 0;
+    const openingLines: Array<{ resourceId: string; quantity: number; rate?: number }> = [];
     for (const row of input.rows) {
       const name = str(row[nameKey]);
       const sku = str(row[input.mapping.sku ?? '']);
@@ -614,7 +644,13 @@ export async function confirmImport(
       })();
       // Catalog sell rate: explicit Rate, else customer/retailer rate.
       const rate = rateRaw > 0 ? rateRaw : customerRate ?? 0;
-      await prisma.resource.create({
+      const secondaryUnit = str(row[input.mapping.secondaryUnit ?? '']);
+      const conversionRaw = num(row[input.mapping.conversionFactor ?? '']);
+      const conversionFactor = conversionRaw > 0 ? conversionRaw : null;
+      const trackingMode = parseTrackingMode(str(row[input.mapping.trackingMode ?? '']));
+      const reorderQtyRaw = num(row[input.mapping.reorderQty ?? '']);
+      const leadTimeRaw = num(row[input.mapping.leadTimeDays ?? '']);
+      const createdResource = await prisma.resource.create({
         data: {
           companyId,
           name,
@@ -634,6 +670,11 @@ export async function confirmImport(
           itemCode,
           barcode,
           reorderPoint: num(row[input.mapping.reorderPoint ?? '']) || null,
+          secondaryUnit,
+          conversionFactor,
+          trackingMode,
+          reorderQty: reorderQtyRaw > 0 ? reorderQtyRaw : null,
+          leadTimeDays: leadTimeRaw > 0 ? Math.round(leadTimeRaw) : null,
           lastRateUpdatedAt: rate > 0 ? new Date() : null,
         },
       });
@@ -642,8 +683,26 @@ export async function confirmImport(
       if (barcode) barcodes.add(catalogKey(barcode));
       if (itemCode) itemCodes.add(catalogKey(itemCode));
       created += 1;
+
+      const openingQty = num(row[input.mapping.qty ?? '']);
+      if (openingQty > 0) {
+        openingLines.push({
+          resourceId: createdResource.id,
+          quantity: openingQty,
+          ...(costPrice != null ? { rate: costPrice } : {}),
+        });
+      }
     }
-    return { mode: 'CATALOG', created, skipped };
+
+    let opened = 0;
+    if (openingLines.length > 0) {
+      const openResult = await importOpeningStock(companyId, userId, role, {
+        lines: openingLines,
+        locationId: input.locationId,
+      });
+      opened = openResult.applied ?? openingLines.length;
+    }
+    return { mode: 'CATALOG', created, skipped, opened };
   }
 
   // OPENING - reuse Phase 1 opening-stock import (name/SKU matching + WAC on IN).

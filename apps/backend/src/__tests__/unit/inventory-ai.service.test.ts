@@ -95,6 +95,16 @@ jest.mock('../../services/ocr.service', () => ({
   ocrImageToText: jest.fn(),
 }));
 
+const mockImportOpeningStock = jest.fn().mockResolvedValue({
+  applied: 1,
+  missed: 0,
+  lines: [],
+  unmatched: [],
+});
+jest.mock('../../services/procurement.service', () => ({
+  importOpeningStock: (...args: unknown[]) => mockImportOpeningStock(...args),
+}));
+
 // Stub global fetch to return our canned LLM JSON.
 const mockLlmResponse = JSON.stringify({
   vendorName: 'ABC Suppliers',
@@ -252,6 +262,7 @@ describe('inventory AI service (Phase 7)', () => {
 
   it('7.2 CATALOG confirm skips name / SKU / barcode duplicates and still adds new rows', async () => {
     (prisma.resource.create as jest.Mock).mockClear();
+    mockImportOpeningStock.mockClear();
     (prisma.resource.findMany as jest.Mock).mockResolvedValueOnce([
       { name: 'Cement', sku: 'CEM-1', barcode: null, itemCode: null },
       { name: 'Other', sku: null, barcode: '890123', itemCode: null },
@@ -265,13 +276,99 @@ describe('inventory AI service (Phase 7)', () => {
         { 'Product Name': 'New Oil', SKU: '', Barcode: '890123' },
         { 'Product Name': 'Fresh Cream', SKU: 'CRM-1', Barcode: '' },
       ],
-    })) as { mode: string; created: number; skipped: number };
+    })) as { mode: string; created: number; skipped: number; opened: number };
 
     expect(result.created).toBe(1);
     expect(result.skipped).toBe(3);
+    expect(result.opened).toBe(0);
+    expect(mockImportOpeningStock).not.toHaveBeenCalled();
     expect((prisma.resource.create as jest.Mock).mock.calls).toHaveLength(1);
     expect((prisma.resource.create as jest.Mock).mock.calls[0]![0]).toMatchObject({
       data: { name: 'Fresh Cream', sku: 'CRM-1' },
+    });
+  });
+
+  it('7.2 CATALOG confirm persists extended fields and applies opening qty', async () => {
+    (prisma.resource.create as jest.Mock).mockClear();
+    mockImportOpeningStock.mockClear();
+    mockImportOpeningStock.mockResolvedValueOnce({
+      applied: 1,
+      missed: 0,
+      lines: [],
+      unmatched: [],
+    });
+    (prisma.resource.findMany as jest.Mock).mockResolvedValueOnce([]);
+    const result = (await confirmImport(COMPANY, 'u1', 'OWNER', {
+      mode: 'CATALOG',
+      mapping: {
+        name: 'Item name',
+        unit: 'Unit',
+        costPrice: 'Cost',
+        secondaryUnit: 'Secondary unit',
+        conversionFactor: 'Conversion factor',
+        trackingMode: 'Expiry tracking',
+        reorderQty: 'Reorder qty',
+        leadTimeDays: 'Lead time days',
+        qty: 'Opening qty',
+      },
+      rows: [
+        {
+          'Item name': 'Kulfi Cup',
+          Unit: 'nos',
+          Cost: '12',
+          'Secondary unit': 'box',
+          'Conversion factor': '24',
+          'Expiry tracking': 'BATCH_EXPIRY',
+          'Reorder qty': '48',
+          'Lead time days': '5',
+          'Opening qty': '100',
+        },
+      ],
+    })) as { mode: string; created: number; skipped: number; opened: number };
+
+    expect(result).toMatchObject({ mode: 'CATALOG', created: 1, skipped: 0, opened: 1 });
+    expect((prisma.resource.create as jest.Mock).mock.calls[0]![0]).toMatchObject({
+      data: {
+        name: 'Kulfi Cup',
+        secondaryUnit: 'box',
+        conversionFactor: 24,
+        trackingMode: 'BATCH_EXPIRY',
+        reorderQty: 48,
+        leadTimeDays: 5,
+        costPrice: 12,
+      },
+    });
+    expect(mockImportOpeningStock).toHaveBeenCalledWith(
+      COMPANY,
+      'u1',
+      'OWNER',
+      expect.objectContaining({
+        lines: [{ resourceId: 'new-res', quantity: 100, rate: 12 }],
+      }),
+    );
+  });
+
+  it('7.2 preview maps extended template headers', async () => {
+    const csv = Buffer.from(
+      'Item name,SKU,Secondary unit,Conversion factor,Expiry tracking,Reorder qty,Lead time days,Opening qty\n' +
+        'Cup,SKU-1,box,24,BATCH_EXPIRY,48,5,100\n',
+      'utf8',
+    ).toString('base64');
+    const result = await previewImportMapping(COMPANY, {
+      fileContent: csv,
+      filename: 'items.csv',
+      contentType: 'text/csv',
+      purpose: 'CATALOG',
+    });
+    expect(result.mapping).toMatchObject({
+      name: 'Item name',
+      sku: 'SKU',
+      secondaryUnit: 'Secondary unit',
+      conversionFactor: 'Conversion factor',
+      trackingMode: 'Expiry tracking',
+      reorderQty: 'Reorder qty',
+      leadTimeDays: 'Lead time days',
+      qty: 'Opening qty',
     });
   });
 

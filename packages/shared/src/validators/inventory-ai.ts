@@ -97,6 +97,11 @@ export const importMappingSchema = z.object({
   category: z.string().max(40).nullable().optional(),
   brandOrSpec: z.string().max(40).nullable().optional(),
   reorderPoint: z.string().max(40).nullable().optional(),
+  secondaryUnit: z.string().max(40).nullable().optional(),
+  conversionFactor: z.string().max(40).nullable().optional(),
+  trackingMode: z.string().max(40).nullable().optional(),
+  reorderQty: z.string().max(40).nullable().optional(),
+  leadTimeDays: z.string().max(40).nullable().optional(),
   qty: z.string().max(40).nullable().optional(),
 });
 export type ImportMapping = z.infer<typeof importMappingSchema>;

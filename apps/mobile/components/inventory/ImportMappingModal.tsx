@@ -16,7 +16,7 @@ import { useImportPreview, useImportConfirm, type ImportMappingPreview } from '@
 
 const FIELDS: Array<{ key: keyof ImportMappingPreview['mapping']; label: string; hint: string; required?: boolean }> = [
   { key: 'name', label: 'Item name', hint: 'Required - matched or created', required: true },
-  { key: 'qty', label: 'Qty / opening qty', hint: 'Opening stock only' },
+  { key: 'qty', label: 'Qty / opening qty', hint: 'Sets on-hand after create (catalog) or adjusts stock (opening mode)' },
   { key: 'unit', label: 'Unit', hint: 'e.g. nos, kg, bag' },
   { key: 'rate', label: 'Sell ₹', hint: 'Catalog sell price (₹)' },
   { key: 'mrp', label: 'MRP ₹', hint: 'Per base unit (optional)' },
@@ -31,11 +31,16 @@ const FIELDS: Array<{ key: keyof ImportMappingPreview['mapping']; label: string;
   { key: 'itemCode', label: 'Item code', hint: 'Optional' },
   { key: 'barcode', label: 'Barcode', hint: 'Optional' },
   { key: 'reorderPoint', label: 'Reorder point', hint: 'Low-stock threshold' },
+  { key: 'secondaryUnit', label: 'Secondary unit', hint: 'e.g. box, carton (optional)' },
+  { key: 'conversionFactor', label: 'Conversion factor', hint: 'Base units per secondary unit' },
+  { key: 'trackingMode', label: 'Expiry tracking', hint: 'NONE or BATCH_EXPIRY' },
+  { key: 'reorderQty', label: 'Reorder qty', hint: 'Qty for one-click PO' },
+  { key: 'leadTimeDays', label: 'Lead time days', hint: 'Vendor lead time' },
 ];
 
 /** Headers match the server synonym map so mapping is automatic. */
 const ITEMS_TEMPLATE_CSV =
-  'Item name,SKU,Item code,Barcode,Unit,Sell,MRP,Cost,Distributor rate,Customer rate,GST %,HSN,Category,Brand / flavour,Reorder point,Opening qty';
+  'Item name,SKU,Item code,Barcode,Unit,Sell,MRP,Cost,Distributor rate,Customer rate,GST %,HSN,Category,Brand / flavour,Reorder point,Secondary unit,Conversion factor,Expiry tracking,Reorder qty,Lead time days,Opening qty';
 
 function readFileAsBase64(asset: { uri: string; name?: string; mimeType?: string }) {
   return new Promise<{ fileContent: string; filename: string; contentType: string }>(async (resolve, reject) => {
@@ -149,7 +154,8 @@ export function ImportMappingModal({
       });
       toast.success(
         purpose === 'CATALOG'
-          ? `Added ${res.created ?? 0} new item(s). Skipped ${res.skipped ?? 0} duplicate or empty row(s).`
+          ? `Added ${res.created ?? 0} new item(s). Skipped ${res.skipped ?? 0} duplicate or empty row(s).` +
+              ((res.opened ?? 0) > 0 ? ` Opening stock set for ${res.opened} item(s).` : '')
           : `Opening stock applied for ${res.applied ?? 0} item(s).`,
       );
       onClose();
@@ -187,7 +193,7 @@ export function ImportMappingModal({
             <Text className="text-sm text-muted mb-3">
               Download the template, fill your items, then upload the CSV or Excel file. New items
               are added to your list. Rows that match an existing name, SKU, barcode, or item code
-              are skipped.
+              are skipped. Opening qty sets on-hand to that amount (not added on top).
             </Text>
 
             {!preview ? (
